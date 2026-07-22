@@ -314,3 +314,79 @@ describe('exceedsThreshold', () => {
     expect(Track.exceedsThreshold([['foo', 0]], {})).toEqual([['foo', 0]]);
   });
 });
+
+describe('fromJSON full-box polygon cleanup', () => {
+  const base = {
+    attributes: {},
+    begin: 0,
+    end: 0,
+    confidencePairs: [['seal', 0.9]] as ConfidencePair[],
+    meta: {},
+    id: 7,
+  };
+  const boxPoly: GeoJSON.Feature = {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[[0, 0], [10, 0], [10, 10], [0, 10], [0, 0]]],
+    },
+    properties: { key: '' },
+  };
+  const realPoly: GeoJSON.Feature = {
+    type: 'Feature',
+    geometry: {
+      type: 'Polygon',
+      coordinates: [[[2, 2], [8, 2], [5, 8], [2, 2]]],
+    },
+    properties: { key: '' },
+  };
+
+  it('drops a polygon that is just the full detection box', () => {
+    const track = Track.fromJSON({
+      ...base,
+      features: [{
+        frame: 0,
+        bounds: [0, 0, 10, 10] as RectBounds,
+        keyframe: true,
+        interpolate: false,
+        geometry: { type: 'FeatureCollection', features: [boxPoly] },
+      }],
+    });
+    expect(track.features[0].geometry).toBeUndefined();
+  });
+
+  it('keeps polygons that differ from the box', () => {
+    const track = Track.fromJSON({
+      ...base,
+      features: [{
+        frame: 0,
+        bounds: [0, 0, 10, 10] as RectBounds,
+        keyframe: true,
+        interpolate: false,
+        geometry: { type: 'FeatureCollection', features: [realPoly] },
+      }],
+    });
+    expect(track.features[0].geometry?.features).toHaveLength(1);
+  });
+
+  it('keeps other geometry while dropping the full-box polygon', () => {
+    const head: GeoJSON.Feature = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [1, 1] },
+      properties: { key: 'head' },
+    };
+    const track = Track.fromJSON({
+      ...base,
+      features: [{
+        frame: 0,
+        bounds: [0, 0, 10, 10] as RectBounds,
+        keyframe: true,
+        interpolate: false,
+        geometry: { type: 'FeatureCollection', features: [boxPoly, head] },
+      }],
+    });
+    const kept = track.features[0].geometry?.features || [];
+    expect(kept).toHaveLength(1);
+    expect(kept[0].geometry.type).toBe('Point');
+  });
+});

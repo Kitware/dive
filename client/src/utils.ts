@@ -224,6 +224,52 @@ function polygonWithinBounds(polygon: GeoJSON.Polygon, bounds: RectBounds): bool
   )));
 }
 
+/**
+ * True when the polygon is just the full axis-aligned rectangle of `bounds`:
+ * no holes, its extent matches the bounds, and its area fills the whole box
+ * (a simple polygon whose area equals its bounding box's area must be that
+ * rectangle). Such a polygon carries no information beyond the box itself.
+ */
+function polygonEqualsBounds(
+  polygon: GeoJSON.Polygon,
+  bounds: RectBounds,
+  tolerance = 1e-3,
+): boolean {
+  if (polygon.coordinates.length !== 1) {
+    return false;
+  }
+  const ring = polygon.coordinates[0];
+  if (ring.length < 4) {
+    return false;
+  }
+  let xLow = Infinity;
+  let yLow = Infinity;
+  let xHigh = -Infinity;
+  let yHigh = -Infinity;
+  ring.forEach(([x, y]) => {
+    xLow = Math.min(xLow, x);
+    yLow = Math.min(yLow, y);
+    xHigh = Math.max(xHigh, x);
+    yHigh = Math.max(yHigh, y);
+  });
+  if (Math.abs(xLow - bounds[0]) > tolerance || Math.abs(yLow - bounds[1]) > tolerance
+    || Math.abs(xHigh - bounds[2]) > tolerance || Math.abs(yHigh - bounds[3]) > tolerance) {
+    return false;
+  }
+  // Shoelace area over the open ring (GeoJSON rings repeat the first point)
+  const open = (ring[0][0] === ring[ring.length - 1][0]
+    && ring[0][1] === ring[ring.length - 1][1]) ? ring.slice(0, -1) : ring;
+  let area = 0;
+  for (let i = 0; i < open.length; i += 1) {
+    const [x1, y1] = open[i];
+    const [x2, y2] = open[(i + 1) % open.length];
+    area += (x1 * y2) - (x2 * y1);
+  }
+  area = Math.abs(area) / 2;
+  const boxArea = (bounds[2] - bounds[0]) * (bounds[3] - bounds[1]);
+  return Math.abs(area - boxArea) <= tolerance * Math.max(1, boxArea);
+}
+
 /* Clip one open linear ring against a single half-plane (Sutherland–Hodgman step) */
 function clipRingAgainstEdge(
   points: GeoJSON.Position[],
@@ -581,6 +627,7 @@ export {
   reOrdergeoJSON,
   withinBounds,
   polygonWithinBounds,
+  polygonEqualsBounds,
   clipPolygonToBounds,
   frameToTimestamp,
   isAxisAligned,

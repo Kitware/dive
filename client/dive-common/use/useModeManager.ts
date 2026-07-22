@@ -10,6 +10,7 @@ import {
   getRotationFromAttributes,
   hasSignificantRotation,
   polygonWithinBounds,
+  polygonEqualsBounds,
   clipPolygonToBounds,
   ROTATION_ATTRIBUTE_NAME,
 } from 'vue-media-annotator/utils';
@@ -712,7 +713,9 @@ export default function useModeManager({
             const polygon = polyFeature.geometry as GeoJSON.Polygon;
             if (!polygonWithinBounds(polygon, roundedBounds)) {
               const clipped = clipPolygonToBounds(polygon, roundedBounds);
-              if (clipped) {
+              // A clip that leaves the polygon identical to the box carries
+              // no information beyond the box itself, so drop it too.
+              if (clipped && !polygonEqualsBounds(clipped, roundedBounds)) {
                 clippedGeometry.push({ ...polyFeature, geometry: clipped });
               } else {
                 removedPolygonKeys.push(polyFeature.properties?.key ?? '');

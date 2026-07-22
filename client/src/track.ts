@@ -1,4 +1,4 @@
-import { RectBounds } from './utils';
+import { RectBounds, polygonEqualsBounds } from './utils';
 import {
   binarySearch,
   listInsert,
@@ -662,10 +662,25 @@ export default class Track extends BaseAnnotation {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => {
       if (f === null || f === undefined) return;
-      sparseFeatures[f.frame] = {
+      const feature: Feature = {
         keyframe: true,
         ...f,
       };
+      // A polygon that is just the full detection box carries no information
+      // beyond the box itself and makes editing harder; drop such polygons
+      // when loading.
+      if (feature.bounds && feature.geometry?.features?.length) {
+        const kept = feature.geometry.features.filter((geo) => !(
+          geo.geometry?.type === 'Polygon'
+          && polygonEqualsBounds(geo.geometry, feature.bounds as RectBounds)
+        ));
+        if (kept.length !== feature.geometry.features.length) {
+          feature.geometry = kept.length
+            ? { ...feature.geometry, features: kept }
+            : undefined;
+        }
+      }
+      sparseFeatures[f.frame] = feature;
     });
     // accept either number or string, convert to number
     const intTrackId = parseInt(json.id.toString(), 10);
