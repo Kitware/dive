@@ -249,6 +249,28 @@ describe('VIAME Python Compatibility Check', () => {
   });
 });
 
+describe('Attribute value parsing', () => {
+  it('keeps filename-like attribute values as full strings', async () => {
+    const csv = [
+      '0,1.png,0,10,10,20,20,1,-1,seal,0.9,'
+      + '(atr) source_image 0123ABC456,'
+      + '(atr) other_file 20240624_120000_C0_0042.jpg,'
+      + '(atr) score 12.5,(atr) flag true',
+    ].join('\n');
+    const results = await parse(Readable.from([csv]));
+    const track = Object.values(results[0].tracks)[0];
+    const attrs = track.features[0].attributes || {};
+    expect(attrs.source_image).toBe('0123ABC456');
+    expect(attrs.other_file).toBe('20240624_120000_C0_0042.jpg');
+    expect(attrs.score).toBe(12.5);
+    expect(attrs.flag).toBe(true);
+    const attData = processTrackAttributes(Object.values(results[0].tracks));
+    expect(attData.attributes.detection_source_image.datatype).toBe('text');
+    expect(attData.attributes.detection_other_file.datatype).toBe('text');
+    expect(attData.attributes.detection_score.datatype).toBe('number');
+  });
+});
+
 describe('VIAME serialize testing', () => {
   it('testing exporting with viame CSV and proper order', async () => {
     const path = '/home/test.json';
