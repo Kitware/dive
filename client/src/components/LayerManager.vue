@@ -395,6 +395,9 @@ export default defineComponent({
         // detection can still be right-clicked into edit mode no matter which
         // of its displays are turned on
         rectAnnotationLayer.setClickTargetsOnly(true);
+        // drawingOther still tracks polygon visibility so click targeting
+        // can defer to drawn polygons.
+        rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
         rectAnnotationLayer.changeData(frameData, comparison.value);
       }
       if (visibleModes.includes('Polygon')) {
