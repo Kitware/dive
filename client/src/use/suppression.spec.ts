@@ -1,6 +1,9 @@
 /// <reference types="vitest" />
 import Track, { TrackData } from '../track';
-import { isSuppressedAttributeValue, hasSuppressionAttribute } from './suppression';
+import {
+  isSuppressedAttributeValue, hasSuppressionAttribute,
+  getSuppressedTrackIds, normalizeSuppressionThreshold, DEFAULT_SUPPRESSION_THRESHOLD,
+} from './suppression';
 
 function makeTrack(overrides: Partial<TrackData> = {}): Track {
   return Track.fromJSON({
@@ -99,5 +102,67 @@ describe('hasSuppressionAttribute', () => {
   it('is false for an unflagged detection', () => {
     const track = makeTrack();
     expect(hasSuppressionAttribute(track, 0, 'Suppressed')).toBe(false);
+  });
+});
+
+describe('normalizeSuppressionThreshold', () => {
+  it('converts a valid percent to a fraction', () => {
+    expect(normalizeSuppressionThreshold(95)).toBeCloseTo(0.95, 6);
+    expect(normalizeSuppressionThreshold(50)).toBeCloseTo(0.5, 6);
+    expect(normalizeSuppressionThreshold(100)).toBeCloseTo(1.0, 6);
+    expect(normalizeSuppressionThreshold(1)).toBeCloseTo(0.01, 6);
+  });
+
+  it('falls back to the default for missing or out-of-range values', () => {
+    expect(normalizeSuppressionThreshold(undefined)).toBe(DEFAULT_SUPPRESSION_THRESHOLD);
+    expect(normalizeSuppressionThreshold(0)).toBe(DEFAULT_SUPPRESSION_THRESHOLD);
+    expect(normalizeSuppressionThreshold(-5)).toBe(DEFAULT_SUPPRESSION_THRESHOLD);
+    expect(normalizeSuppressionThreshold(150)).toBe(DEFAULT_SUPPRESSION_THRESHOLD);
+    expect(normalizeSuppressionThreshold(NaN)).toBe(DEFAULT_SUPPRESSION_THRESHOLD);
+  });
+});
+
+describe('getSuppressedTrackIds threshold', () => {
+  function makeStore(tracks: Track[]) {
+    return {
+      intervalTree: {
+        search: () => tracks.map((t) => String(t.id)),
+      },
+      getPossible: (id: number) => tracks.find((t) => t.id === id),
+    } as unknown as Parameters<typeof getSuppressedTrackIds>[0];
+  }
+  // A 100x100 region and a detection half-covered by it (x in [50, 150))
+  const region = makeTrack({
+    id: 1,
+    confidencePairs: [['Suppressed', 1]],
+    features: [{
+      frame: 0, bounds: [0, 0, 100, 100], keyframe: true, interpolate: false,
+    }],
+  });
+  const halfCovered = makeTrack({
+    id: 2,
+    features: [{
+      frame: 0, bounds: [50, 0, 150, 100], keyframe: true, interpolate: false,
+    }],
+  });
+  const fullyCovered = makeTrack({
+    id: 3,
+    features: [{
+      frame: 0, bounds: [10, 10, 90, 90], keyframe: true, interpolate: false,
+    }],
+  });
+  const store = makeStore([region, halfCovered, fullyCovered]);
+
+  it('at the default (95%) only the fully covered detection is suppressed', () => {
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed')).toEqual(new Set([3]));
+  });
+
+  it('a lower threshold also suppresses the half-covered detection', () => {
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed', 50)).toEqual(new Set([2, 3]));
+  });
+
+  it('out-of-range thresholds fall back to the default', () => {
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed', 0)).toEqual(new Set([3]));
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed', 200)).toEqual(new Set([3]));
   });
 });

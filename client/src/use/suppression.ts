@@ -3,9 +3,10 @@
  *
  * A "suppression region" is an annotation whose type matches the configured
  * suppression type (clientSettings.typeSettings.suppressionType). Any detection
- * whose geometry lies at least SUPPRESSION_THRESHOLD (50%) under one or more
- * suppression regions on a given frame is treated as suppressed: it is hidden
- * from the canvas and excluded from type/track/detection counts.
+ * whose geometry lies at least the configured overlap threshold
+ * (clientSettings.typeSettings.suppressionThreshold, default 95%) under one
+ * or more suppression regions on a given frame is treated as suppressed: it
+ * is hidden from the canvas and excluded from type/track/detection counts.
  *
  * Overlap uses whichever geometry each side actually has: the region's polygon
  * if it has one, else its bounding box; likewise for the detection. The overlap
@@ -19,14 +20,28 @@ import type BaseAnnotationStore from 'vue-media-annotator/BaseAnnotationStore';
 import type Track from 'vue-media-annotator/track';
 import type { Feature } from 'vue-media-annotator/track';
 
-export const SUPPRESSION_THRESHOLD = 0.5;
+export const DEFAULT_SUPPRESSION_THRESHOLD = 0.95;
+
+/**
+ * Normalize the stored suppression-overlap setting (a percent, 0-100) to a
+ * fraction, falling back to the default (95%) for missing or out-of-range
+ * values.
+ */
+export function normalizeSuppressionThreshold(percent: number | undefined): number {
+  const p = Number(percent);
+  if (!Number.isFinite(p) || p <= 0 || p > 100) {
+    return DEFAULT_SUPPRESSION_THRESHOLD;
+  }
+  return p / 100;
+}
 
 type Pt = [number, number];
 type Rect = [number, number, number, number];
 interface Shape { poly?: Pt[]; bbox: Rect }
 
-// Sampling resolution used to estimate the covered-area fraction. 16x16 is
-// plenty for a 50% threshold and keeps the per-frame cost low.
+// Sampling resolution used to estimate the covered-area fraction. 16x16
+// keeps the per-frame cost low; at a 95% threshold it resolves the covered
+// fraction to ~0.4% granularity on typical detections.
 const GRID = 16;
 
 function bboxOfPoly(poly: Pt[]): Rect {
@@ -131,14 +146,18 @@ export function hasSuppressionAttribute(
 /**
  * Track ids whose detection on `frame` is suppressed by a region on that frame.
  * Empty when suppressionType is falsy (feature disabled) or no regions exist.
+ * `thresholdPercent` is the minimum covered fraction as a percent (0-100];
+ * missing or out-of-range values fall back to the default (95%).
  */
 export function getSuppressedTrackIds(
   trackStore: BaseAnnotationStore<Track>,
   frame: number,
   suppressionType: string | undefined,
+  thresholdPercent?: number,
 ): Set<AnnotationId> {
   const result = new Set<AnnotationId>();
   if (!suppressionType) return result;
+  const threshold = normalizeSuppressionThreshold(thresholdPercent);
   const ids = trackStore.intervalTree.search([frame, frame])
     .map((s: string) => parseInt(s, 10));
   if (ids.length === 0) return result;
@@ -159,7 +178,7 @@ export function getSuppressedTrackIds(
   if (regions.length === 0) return result;
 
   candidates.forEach(({ id, shape }) => {
-    if (overlapFraction(shape, regions) >= SUPPRESSION_THRESHOLD) {
+    if (overlapFraction(shape, regions) >= threshold) {
       result.add(id);
     }
   });
