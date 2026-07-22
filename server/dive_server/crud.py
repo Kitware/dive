@@ -80,11 +80,30 @@ def get_or_create_source_folder(folder, user):
     return Folder().createFolder(folder, "source", reuseExisting=True, creator=user)
 
 
+def refresh_folder_document(folder: GirderModel) -> GirderModel:
+    """Replace *folder* in place with the latest DB document.
+
+    Async jobs such as convert_video write folder meta via addMetadataToFolder
+    (partial merge). Callers that keep an in-memory folder and later
+    Folder().save() the whole document must refresh first, or they can wipe
+    keys like annotate / originalFps / ffprobe_info.
+    """
+    fresh = Folder().load(folder['_id'], force=True)
+    if fresh is None:
+        raise RestException('Folder not found', code=404)
+    stale_keys = [key for key in folder if key not in fresh]
+    folder.update(fresh)
+    for key in stale_keys:
+        del folder[key]
+    return folder
+
+
 def itemIsWebsafeVideo(item: Item) -> bool:
     return fromMeta(item, "codec") == "h264"
 
 
 def saveImportAttributes(folder, attributes, user):
+    refresh_folder_document(folder)
     attributes_dict = fromMeta(folder, 'attributes', {})
     # we don't overwrite any existing meta attributes
     for attribute in attributes.values():
