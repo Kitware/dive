@@ -290,7 +290,7 @@ export default defineComponent({
       return filteredTypeList.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
-        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTrackTypesDeRef.get(item) || 0} ${item}`,
+        displayText: `${typeCountsDeRef.get(item) || 0} : ${frameTrackTypesDeRef.get(item) || 0} ${item}`,
         color: typeStylingDeRef.color(item),
         checked: checkedTypesDeRef.includes(item),
         isSuppressionType: !!suppressionType && item === suppressionType,
