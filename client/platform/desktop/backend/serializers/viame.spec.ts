@@ -268,6 +268,7 @@ describe('Attribute value parsing', () => {
     expect(attData.attributes.detection_source_image.datatype).toBe('text');
     expect(attData.attributes.detection_other_file.datatype).toBe('text');
     expect(attData.attributes.detection_score.datatype).toBe('number');
+    expect(attData.attributes.detection_flag.datatype).toBe('boolean');
   });
 });
 

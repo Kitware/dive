@@ -566,6 +566,34 @@ def test_fps_parsed_case_insensitively_from_metadata():
     assert float(fps) == 23.976
 
 
+def test_filename_like_attribute_values_stay_strings():
+    """Filename-like (atr) values must not be truncated or coerced to numbers.
+
+    Regression for parsers that used ``float()`` / ``parseFloat`` on attribute
+    values: leading digits of ``0123ABC456`` became ``123``, and underscore
+    digit separators (``20240624_120000``) were accepted by Python's ``float()``.
+    Real numbers and booleans still convert as before; inferred datatypes follow.
+    """
+    rows = [
+        "0,1.png,0,10,10,20,20,1,-1,seal,0.9,"
+        "(atr) source_image 0123ABC456,"
+        "(atr) other_file 20240624_120000_C0_0042.jpg,"
+        "(atr) score 12.5,(atr) flag true",
+    ]
+    annotations, attributes, _warnings, _fps, _info = viame.load_csv_as_tracks_and_attributes(
+        rows
+    )
+    attrs = annotations['tracks']['0']['features'][0]['attributes']
+    assert attrs['source_image'] == '0123ABC456'
+    assert attrs['other_file'] == '20240624_120000_C0_0042.jpg'
+    assert attrs['score'] == 12.5
+    assert attrs['flag'] is True
+    assert attributes['detection_source_image']['datatype'] == 'text'
+    assert attributes['detection_other_file']['datatype'] == 'text'
+    assert attributes['detection_score']['datatype'] == 'number'
+    assert attributes['detection_flag']['datatype'] == 'boolean'
+
+
 def test_notes_round_trip_through_csv_export():
     """Detection notes survive an export -> import cycle.
 
