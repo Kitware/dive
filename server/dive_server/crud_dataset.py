@@ -394,6 +394,8 @@ def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
     """Update mutable metadata"""
     if verify:
         crud.verify_dataset(dsFolder)
+    # Reload before save so concurrent convert_video metadata is not wiped.
+    crud.refresh_folder_document(dsFolder)
     validated: MetadataMutableUpdateArgs = crud.get_validated_model(
         MetadataMutableUpdateArgs, **data
     )

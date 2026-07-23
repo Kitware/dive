@@ -13,6 +13,7 @@ import { IDENTITY3 } from 'vue-media-annotator/alignedView/alignedView';
 import type { Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import type { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import useModeManager from './useModeManager';
 
 function translation(tx: number, ty: number): Matrix3 {
@@ -157,5 +158,95 @@ describe('useModeManager aligned-view track mirroring', () => {
     modeManager.handler.updateRectBounds(0, 0, [10, 20, 30, 40]);
 
     expect(cameraStore.getPossibleTrack(trackId, 'right')).toBeUndefined();
+  });
+});
+
+function makeSingleCamHarness() {
+  const cameraStore = new CameraStore({ markChangesPending: () => undefined });
+  const aggregateController = ref({
+    frame: ref(0),
+    nextFrame: () => undefined,
+    seekCameraFrame: () => undefined,
+    getController: () => ({ frame: ref(0), hasFrame: ref(true) }),
+  } as unknown as AggregateMediaController);
+  const groupFilterControls = new GroupFilterControls({
+    sorted: cameraStore.sortedGroups,
+    remove: () => undefined,
+    markChangesPending: () => undefined,
+    setType: () => undefined,
+    removeTypes: () => [],
+  });
+  const trackFilterControls = new TrackFilterControls({
+    sorted: cameraStore.sortedTracks,
+    remove: () => undefined,
+    markChangesPending: () => undefined,
+    lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
+    getTrack: (id: AnnotationId, camera = 'singleCam') => cameraStore.getTrack(id, camera),
+    groupFilterControls,
+    setType: () => undefined,
+    removeTypes: () => [],
+  });
+  const modeManager = useModeManager({
+    cameraStore,
+    trackFilterControls,
+    groupFilterControls,
+    aggregateController,
+    readonlyState: ref(false),
+    recipes: [],
+  });
+  return { cameraStore, modeManager };
+}
+
+describe('useModeManager polygon clip on box resize', () => {
+  // Triangle that sticks past x=20; clipping to [0,0,20,40] leaves a non-box shape.
+  const stickingOutPolygon = {
+    type: 'Feature' as const,
+    geometry: {
+      type: 'Polygon' as const,
+      coordinates: [[[0, 0], [40, 0], [0, 40], [0, 0]]],
+    },
+    properties: { key: '' },
+  };
+
+  it('clips polygons that stick outside a resized axis-aligned box', () => {
+    const { cameraStore, modeManager } = makeSingleCamHarness();
+    const trackId = modeManager.handler.trackAdd();
+    modeManager.handler.setTrackFeature(0, [0, 0, 40, 40], [stickingOutPolygon]);
+    modeManager.handler.trackSelect(trackId, true);
+    modeManager.handler.updateRectBounds(0, 0, [0, 0, 20, 40]);
+
+    const poly = cameraStore.getTrack(trackId).features[0]?.geometry?.features[0];
+    expect(poly?.geometry).toEqual({
+      type: 'Polygon',
+      coordinates: [[[0, 0], [20, 0], [20, 20], [0, 40], [0, 0]]],
+    });
+  });
+
+  it('does not clip when the detection already has significant stored rotation', () => {
+    const { cameraStore, modeManager } = makeSingleCamHarness();
+    const trackId = modeManager.handler.trackAdd();
+    modeManager.handler.setTrackFeature(0, [0, 0, 40, 40], [stickingOutPolygon]);
+    cameraStore.getTrack(trackId).setFeatureAttribute(0, ROTATION_ATTRIBUTE_NAME, Math.PI / 4);
+    modeManager.handler.trackSelect(trackId, true);
+    // Omit rotation arg — must still consult the stored attribute
+    modeManager.handler.updateRectBounds(0, 0, [0, 0, 20, 40]);
+
+    const poly = cameraStore.getTrack(trackId).features[0]?.geometry?.features[0];
+    expect(poly?.geometry).toEqual(stickingOutPolygon.geometry);
+  });
+
+  it('clips when rotation is explicitly cleared (0) even if stored rotation existed', () => {
+    const { cameraStore, modeManager } = makeSingleCamHarness();
+    const trackId = modeManager.handler.trackAdd();
+    modeManager.handler.setTrackFeature(0, [0, 0, 40, 40], [stickingOutPolygon]);
+    cameraStore.getTrack(trackId).setFeatureAttribute(0, ROTATION_ATTRIBUTE_NAME, Math.PI / 4);
+    modeManager.handler.trackSelect(trackId, true);
+    modeManager.handler.updateRectBounds(0, 0, [0, 0, 20, 40], 0);
+
+    const poly = cameraStore.getTrack(trackId).features[0]?.geometry?.features[0];
+    expect(poly?.geometry).toEqual({
+      type: 'Polygon',
+      coordinates: [[[0, 0], [20, 0], [20, 20], [0, 40], [0, 0]]],
+    });
   });
 });
