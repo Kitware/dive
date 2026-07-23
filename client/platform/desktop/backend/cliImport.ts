@@ -29,6 +29,10 @@ import npath from 'path';
 import mime from 'mime-types';
 
 import { MultiCamImportFolderArgs } from 'dive-common/apispec';
+import {
+  orderSubfolderCameraNames,
+  pickDefaultMulticamCamera,
+} from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { otherVideoTypes, websafeVideoTypes } from 'dive-common/constants';
 import {
   CliTranscodingNotice,
@@ -55,9 +59,16 @@ export interface CliOpenArgs {
   cameraAnnotations?: Record<string, string>;
   /** Media per camera name. Presence of this selects the multi-camera import. */
   cameras?: Record<string, string>;
-  /** Camera names in the order given, which is the display order. */
+  /**
+   * Camera names in display order. Flag order is the baseline; recognized
+   * layouts (STAR/CENTER/PORT, EO/UV/IR, stereo left-first) are canonicalized
+   * to match the folder-import wizard.
+   */
   cameraOrder?: string[];
-  /** Camera shown by default; defaults to `left`, else the first camera. */
+  /**
+   * Camera shown by default; defaults via the same heuristics as the
+   * folder-import wizard (center/EO/left, else middle camera).
+   */
   defaultDisplay?: string;
   /** Stereo calibration file (.npz or .json). */
   calibrationPath?: string;
@@ -155,7 +166,9 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     };
   }
 
-  // Multi-camera. Order of the flags is the display order.
+  // Multi-camera. Flag order is the display-order baseline; recognized layouts
+  // (STAR/CENTER/PORT, EO-first/IR-last, stereo left-first) are canonicalized
+  // below so a CLI import matches the folder-import wizard.
   const cameras: Record<string, string> = {};
   const cameraOrder: string[] = [];
   cameraArgs.forEach((arg) => {
@@ -170,6 +183,10 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     throw new Error('a multi-camera dataset needs at least two --camera arguments');
   }
 
+  const displayOrder = orderSubfolderCameraNames(cameraOrder, {
+    preferLeftFirst: true,
+  });
+
   const cameraAnnotations: Record<string, string> = {};
   annotationArgs.forEach((arg) => {
     const [cameraName, annotationFile] = splitNamed(arg, '--annotations');
@@ -180,8 +197,9 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     cameraAnnotations[cameraName] = npath.resolve(annotationFile);
   });
 
-  const defaultDisplay = readFlag('--default-display') ?? (
-    cameras.left ? 'left' : cameraOrder[0]
+  const defaultDisplay = readFlag('--default-display') ?? pickDefaultMulticamCamera(
+    displayOrder,
+    { preferLeftForStereo: true },
   );
   if (!cameras[defaultDisplay]) {
     throw new Error(`--default-display names an unknown camera '${defaultDisplay}'; `
@@ -190,7 +208,7 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
 
   return {
     cameras,
-    cameraOrder,
+    cameraOrder: displayOrder,
     cameraAnnotations,
     defaultDisplay,
     calibrationPath: calibration ? npath.resolve(calibration) : undefined,

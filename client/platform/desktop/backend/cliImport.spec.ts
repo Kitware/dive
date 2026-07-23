@@ -111,7 +111,7 @@ describe('parseCliArgs multi-camera', () => {
     expect(args?.metadataPath).toEqual('/data/flight_log.csv');
   });
 
-  it('defaults defaultDisplay to left, else the first camera', () => {
+  it('defaults defaultDisplay via wizard heuristics (left / center / EO / first)', () => {
     expect(parseCliArgs([
       'app', '--camera', 'right=/d/r', '--camera', 'left=/d/l',
     ])?.defaultDisplay).toEqual('left');
@@ -131,6 +131,57 @@ describe('parseCliArgs multi-camera', () => {
     expect(parseCliArgs([
       'app', '--camera', 'c=/d/c', '--camera', 'a=/d/a', '--camera', 'b=/d/b',
     ])?.cameraOrder).toEqual(['c', 'a', 'b']);
+  });
+
+  it('reorders a recognized STAR/CENTER/PORT rig to canonical display order', () => {
+    // Flags given PORT/CENTER/STAR should still display STAR/CENTER/PORT,
+    // matching the folder-import wizard, no matter the flag order.
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'PORT=/d/p', '--camera', 'CENTER=/d/c', '--camera', 'STAR=/d/s',
+    ])?.cameraOrder).toEqual(['STAR', 'CENTER', 'PORT']);
+    // Order-independent: a different flag order yields the same canonical order.
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'CENTER=/d/c', '--camera', 'STAR=/d/s', '--camera', 'PORT=/d/p',
+    ])?.cameraOrder).toEqual(['STAR', 'CENTER', 'PORT']);
+  });
+
+  it('defaults defaultDisplay to CENTER for a STAR/CENTER/PORT rig', () => {
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'PORT=/d/p', '--camera', 'CENTER=/d/c', '--camera', 'STAR=/d/s',
+    ])?.defaultDisplay).toEqual('CENTER');
+  });
+
+  it('reorders EO/UV/IR cameras to EO-first / IR-last display order', () => {
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'IR=/d/ir', '--camera', 'UV=/d/uv', '--camera', 'EO=/d/eo',
+    ])?.cameraOrder).toEqual(['EO', 'UV', 'IR']);
+    expect(parseCliArgs([
+      'app',
+      '--camera', '2021_IR_SHORT=/d/ir', '--camera', '2021_EO_SHORT=/d/eo',
+    ])?.cameraOrder).toEqual(['2021_EO_SHORT', '2021_IR_SHORT']);
+  });
+
+  it('defaults defaultDisplay to EO when an EO-named camera is present', () => {
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'IR=/d/ir', '--camera', 'UV=/d/uv', '--camera', 'EO=/d/eo',
+    ])?.defaultDisplay).toEqual('EO');
+  });
+
+  it('reorders stereo cameras so left is first regardless of flag order', () => {
+    expect(parseCliArgs([
+      'app', '--camera', 'right=/d/r', '--camera', 'left=/d/l',
+    ])?.cameraOrder).toEqual(['left', 'right']);
+  });
+
+  it('leaves a non-rig camera set in flag order', () => {
+    expect(parseCliArgs([
+      'app', '--camera', 'PORT=/d/p', '--camera', 'STAR=/d/s',
+    ])?.cameraOrder).toEqual(['PORT', 'STAR']);
   });
 
   it('splits on the first = so windows paths survive', () => {
