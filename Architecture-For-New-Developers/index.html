@@ -1,0 +1,3295 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Documentation for DIVE">
+      
+      
+        <meta name="author" content="Kitware">
+      
+      
+        <link rel="canonical" href="https://kitware.github.io/dive/Architecture-For-New-Developers/">
+      
+      
+        <link rel="prev" href="../DataFormats/">
+      
+      
+        <link rel="next" href="../Deployment-Overview/">
+      
+      
+      <link rel="icon" href="../assets/images/favicon.png">
+      <meta name="generator" content="mkdocs-1.5.3, mkdocs-material-9.5.17">
+    
+    
+      
+        <title>Codebase architecture - DIVE</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.bcfcd587.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.06af60db.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce((e,_)=>(e<<5)-e+_.charCodeAt(0),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function n(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],n("js",new Date),n("config","UA-6042509-43"),document.addEventListener("DOMContentLoaded",function(){document.forms.search&&document.forms.search.query.addEventListener("blur",function(){this.value&&n("event","search",{search_term:this.value})}),document$.subscribe(function(){var a=document.forms.feedback;if(void 0!==a)for(var e of a.querySelectorAll("[type=submit]"))e.addEventListener("click",function(e){e.preventDefault();var t=document.location.pathname,e=this.getAttribute("data-md-value");n("event","feedback",{page:t,data:e}),a.firstElementChild.disabled=!0;e=a.querySelector(".md-feedback__note [data-md-value='"+e+"']");e&&(e.hidden=!1)}),a.hidden=!1}),location$.subscribe(function(e){n("config","UA-6042509-43",{page_path:e.pathname})})});var e=document.createElement("script");e.async=!0,e.src="https://www.googletagmanager.com/gtag/js?id=UA-6042509-43",document.getElementById("__analytics").insertAdjacentElement("afterEnd",e)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+    
+  </head>
+  
+  
+    
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="default" data-md-color-primary="black" data-md-color-accent="indigo">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#dive-architecture-overview" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow md-header--lifted" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="DIVE" class="md-header__button md-logo" aria-label="DIVE" data-md-component="logo">
+      
+  <img src="../images/General/Kitware-Mark.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3V6m0 5h18v2H3v-2m0 5h18v2H3v-2Z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            DIVE
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Codebase architecture
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+    
+    
+    
+    
+      <label class="md-header__button md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+      </label>
+      <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.516 6.516 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5Z"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11h12Z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12 19 6.41Z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/Kitware/dive" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+    
+      
+<nav class="md-tabs" aria-label="Tabs" data-md-component="tabs">
+  <div class="md-grid">
+    <ul class="md-tabs__list">
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href=".." class="md-tabs__link">
+          
+  
+  User Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../Pipeline-Documentation/" class="md-tabs__link">
+        
+  
+    
+  
+  Pipelines & Training
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../DataFormats/" class="md-tabs__link">
+        
+  
+    
+  
+  Data Formats
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+    
+  
+  
+    
+    
+      <li class="md-tabs__item md-tabs__item--active">
+        <a href="./" class="md-tabs__link">
+          
+  
+  Developer Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../Deployment-Overview/" class="md-tabs__link">
+          
+  
+  Administrator Guide
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    
+    
+      <li class="md-tabs__item">
+        <a href="../scripting/Scripting/" class="md-tabs__link">
+          
+  
+  Scripting
+
+        </a>
+      </li>
+    
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../FAQ/" class="md-tabs__link">
+        
+  
+    
+  
+  Frequently Asked Questions
+
+      </a>
+    </li>
+  
+
+      
+        
+  
+  
+  
+    <li class="md-tabs__item">
+      <a href="../Support/" class="md-tabs__link">
+        
+  
+    
+  
+  Support
+
+      </a>
+    </li>
+  
+
+      
+    </ul>
+  </div>
+</nav>
+    
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+  
+
+
+<nav class="md-nav md-nav--primary md-nav--lifted" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="DIVE" class="md-nav__button md-logo" aria-label="DIVE" data-md-component="logo">
+      
+  <img src="../images/General/Kitware-Mark.png" alt="logo">
+
+    </a>
+    DIVE
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/Kitware/dive" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M439.55 236.05 244 40.45a28.87 28.87 0 0 0-40.81 0l-40.66 40.63 51.52 51.52c27.06-9.14 52.68 16.77 43.39 43.68l49.66 49.66c34.23-11.8 61.18 31 35.47 56.69-26.49 26.49-70.21-2.87-56-37.34L240.22 199v121.85c25.3 12.54 22.26 41.85 9.08 55a34.34 34.34 0 0 1-48.55 0c-17.57-17.6-11.07-46.91 11.25-56v-123c-20.8-8.51-24.6-30.74-18.64-45L142.57 101 8.45 235.14a28.86 28.86 0 0 0 0 40.81l195.61 195.6a28.86 28.86 0 0 0 40.8 0l194.69-194.69a28.86 28.86 0 0 0 0-40.81z"/></svg>
+  </div>
+  <div class="md-source__repository">
+    GitHub
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1" >
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    User Guide
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            User Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Home
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Web-Version/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Web Version
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Dive-Desktop/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Desktop Version
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Annotation-QuickStart/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Annotation Quickstart
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_5" id="__nav_1_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    User Interface Guide
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_5">
+            <span class="md-nav__icon md-icon"></span>
+            User Interface Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Annotation-User-Interface-Overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Navigation-Editing-Bar/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Navigation and Editing Bar
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Annotation-View/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Annotation Window
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Type-List/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Type List
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Track-List/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Track List
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Timeline/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Timeline
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_5_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_5_7" id="__nav_1_5_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Attributes
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="3" aria-labelledby="__nav_1_5_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_5_7">
+            <span class="md-nav__icon md-icon"></span>
+            Attributes
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Attributes/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Attributes
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-AttributeConfiguration/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Attributes Configuration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-AttributeDetails/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Attributes Details
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-AttributeTrackFiltering/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Attribute Track Filtering
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Suppression/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Suppression
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Group-Manager/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Group Manager
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-DatasetInfo/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Dataset Info
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../UI-Image-Enhancements/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Image Enhancements
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Annotation-Sets/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Annotation Sets
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Mouse-Keyboard-Shortcuts/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Keyboard Shortcut Reference
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_1_7" >
+        
+          
+          <label class="md-nav__link" for="__nav_1_7" id="__nav_1_7_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Advanced features
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="2" aria-labelledby="__nav_1_7_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_1_7">
+            <span class="md-nav__icon md-icon"></span>
+            Advanced features
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Pipeline-Import-Export/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pipeline Import and Export
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Command-Line-Tools/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Command Line Tools
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Large-Image-Support/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Large Image Support
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Multicamera-data/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Multicamera and Stereo Data
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Interactive-Annotation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Interactive Annotation (Desktop)
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Screenshots/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Screenshots
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Support/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Support
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Pipeline-Documentation/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Pipelines & Training
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../DataFormats/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Data Formats
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+      
+        
+        
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_4" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_4" id="__nav_4_label" tabindex="">
+            
+  
+  <span class="md-ellipsis">
+    Developer Guide
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_4_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_4">
+            <span class="md-nav__icon md-icon"></span>
+            Developer Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  <span class="md-ellipsis">
+    Codebase architecture
+  </span>
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  <span class="md-ellipsis">
+    Codebase architecture
+  </span>
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-repository-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      Top-level repository layout
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#girder-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Girder structure
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Girder structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#girder-server-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Girder server plugins
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#girder-worker-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      Girder Worker plugin
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-python-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Shared Python utilities
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-dive_server-does-on-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      What dive_server does on load
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest-layout-mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      REST layout (mental model)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-model-high-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      Data model (high level)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracks-detections-and-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tracks, detections, and attributes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#containers-and-docker-compose" class="md-nav__link">
+    <span class="md-ellipsis">
+      Containers and Docker Compose
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Containers and Docker Compose">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compose-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      Compose files
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#services-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      Services (runtime)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docker-compose-profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Docker Compose profiles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#environment-file-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment file (.env)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nvidia-gpu-cuda-and-pipelines-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      NVIDIA GPU, CUDA, and pipelines / training
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assigning-gpus-to-pipeline-vs-training-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Assigning GPUs to pipeline vs training workers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dockerfiles-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dockerfiles (docker/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#development-vs-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      Development vs production
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-code-and-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Server code and tasks
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Server code and tasks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python-project-layout-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      Python project layout (server/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job-flow-web" class="md-nav__link">
+    <span class="md-ellipsis">
+      Job flow (web)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celery-queues-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Celery queues and workers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#main-celery-tasks-dive_taskstaskspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Main Celery tasks (dive_tasks/tasks.py)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-to-start-in-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Where to start in code
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-web-desktop-and-shared-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Client: web, desktop, and shared code
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Client: web, desktop, and shared code">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#four-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Four layers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-vs-platform-specific" class="md-nav__link">
+    <span class="md-ellipsis">
+      Shared vs platform-specific
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unified-api-concept" class="md-nav__link">
+    <span class="md-ellipsis">
+      Unified API concept
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-api-specification-apispects" class="md-nav__link">
+    <span class="md-ellipsis">
+      Client API specification (apispec.ts)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-entry-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key entry points
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-platformweb-girder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Web (platform/web-girder/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#desktop-platformdesktop" class="md-nav__link">
+    <span class="md-ellipsis">
+      Desktop (platform/desktop/)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ancillary-plugins-and-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ancillary plugins and operations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glossary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Glossary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_5" >
+        
+          
+          <label class="md-nav__link" for="__nav_5" id="__nav_5_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Administrator Guide
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_5_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_5">
+            <span class="md-nav__icon md-icon"></span>
+            Administrator Guide
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Deployment-Overview/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Deployment Options Overview
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Deployment-Provision/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Provisioning Google Cloud
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Deployment-Docker-Compose/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Running with Docker Compose
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Deployment-Girder-5-Upgrade/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Upgrading to Girder 5
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Deployment-Storage/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Cloud Storage Integration
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="https://viame.kitware.com/api/v1" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    REST API Specification
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+      
+      
+    
+    
+    <li class="md-nav__item md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_6" >
+        
+          
+          <label class="md-nav__link" for="__nav_6" id="__nav_6_label" tabindex="0">
+            
+  
+  <span class="md-ellipsis">
+    Scripting
+  </span>
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_6_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_6">
+            <span class="md-nav__icon md-icon"></span>
+            Scripting
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripting/Scripting/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Introduction
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripting/Endpoints/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Endpoints
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../scripting/GirderClient/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    GirderClient
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../FAQ/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Frequently Asked Questions
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../Support/" class="md-nav__link">
+        
+  
+  <span class="md-ellipsis">
+    Support
+  </span>
+  
+
+      </a>
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+              
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="sidebar" data-md-type="toc" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#overview" class="md-nav__link">
+    <span class="md-ellipsis">
+      Overview
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#top-level-repository-layout" class="md-nav__link">
+    <span class="md-ellipsis">
+      Top-level repository layout
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#girder-structure" class="md-nav__link">
+    <span class="md-ellipsis">
+      Girder structure
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Girder structure">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#girder-server-plugins" class="md-nav__link">
+    <span class="md-ellipsis">
+      Girder server plugins
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#girder-worker-plugin" class="md-nav__link">
+    <span class="md-ellipsis">
+      Girder Worker plugin
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-python-utilities" class="md-nav__link">
+    <span class="md-ellipsis">
+      Shared Python utilities
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#what-dive_server-does-on-load" class="md-nav__link">
+    <span class="md-ellipsis">
+      What dive_server does on load
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#rest-layout-mental-model" class="md-nav__link">
+    <span class="md-ellipsis">
+      REST layout (mental model)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#data-model-high-level" class="md-nav__link">
+    <span class="md-ellipsis">
+      Data model (high level)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tracks-detections-and-attributes" class="md-nav__link">
+    <span class="md-ellipsis">
+      Tracks, detections, and attributes
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#containers-and-docker-compose" class="md-nav__link">
+    <span class="md-ellipsis">
+      Containers and Docker Compose
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Containers and Docker Compose">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#compose-files" class="md-nav__link">
+    <span class="md-ellipsis">
+      Compose files
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#services-runtime" class="md-nav__link">
+    <span class="md-ellipsis">
+      Services (runtime)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#docker-compose-profiles" class="md-nav__link">
+    <span class="md-ellipsis">
+      Docker Compose profiles
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#environment-file-env" class="md-nav__link">
+    <span class="md-ellipsis">
+      Environment file (.env)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#nvidia-gpu-cuda-and-pipelines-training" class="md-nav__link">
+    <span class="md-ellipsis">
+      NVIDIA GPU, CUDA, and pipelines / training
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#assigning-gpus-to-pipeline-vs-training-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Assigning GPUs to pipeline vs training workers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#dockerfiles-docker" class="md-nav__link">
+    <span class="md-ellipsis">
+      Dockerfiles (docker/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#development-vs-production" class="md-nav__link">
+    <span class="md-ellipsis">
+      Development vs production
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#server-code-and-tasks" class="md-nav__link">
+    <span class="md-ellipsis">
+      Server code and tasks
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Server code and tasks">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#python-project-layout-server" class="md-nav__link">
+    <span class="md-ellipsis">
+      Python project layout (server/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#job-flow-web" class="md-nav__link">
+    <span class="md-ellipsis">
+      Job flow (web)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#celery-queues-and-workers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Celery queues and workers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#main-celery-tasks-dive_taskstaskspy" class="md-nav__link">
+    <span class="md-ellipsis">
+      Main Celery tasks (dive_tasks/tasks.py)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#where-to-start-in-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Where to start in code
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#client-web-desktop-and-shared-code" class="md-nav__link">
+    <span class="md-ellipsis">
+      Client: web, desktop, and shared code
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Client: web, desktop, and shared code">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#four-layers" class="md-nav__link">
+    <span class="md-ellipsis">
+      Four layers
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#shared-vs-platform-specific" class="md-nav__link">
+    <span class="md-ellipsis">
+      Shared vs platform-specific
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#unified-api-concept" class="md-nav__link">
+    <span class="md-ellipsis">
+      Unified API concept
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#client-api-specification-apispects" class="md-nav__link">
+    <span class="md-ellipsis">
+      Client API specification (apispec.ts)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#key-entry-points" class="md-nav__link">
+    <span class="md-ellipsis">
+      Key entry points
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#web-platformweb-girder" class="md-nav__link">
+    <span class="md-ellipsis">
+      Web (platform/web-girder/)
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#desktop-platformdesktop" class="md-nav__link">
+    <span class="md-ellipsis">
+      Desktop (platform/desktop/)
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#ancillary-plugins-and-operations" class="md-nav__link">
+    <span class="md-ellipsis">
+      Ancillary plugins and operations
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#glossary" class="md-nav__link">
+    <span class="md-ellipsis">
+      Glossary
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+  
+  
+
+
+<h1 id="dive-architecture-overview">DIVE architecture overview</h1>
+<p>This page describes how the DIVE codebase is organized: repository layout, Girder plugins, Docker services, server and Celery tasks, and how the web and desktop clients share code.</p>
+<p><strong>DIVE</strong> is a web and desktop application for video/image annotation and integration with <a href="https://github.com/VIAME/VIAME">VIAME</a> computer-vision pipelines. At runtime it follows the standard <strong>Girder + Girder Worker + Docker</strong> pattern.</p>
+<h2 id="overview">Overview</h2>
+<p><strong>Users</strong> upload videos or image sequences, annotate them (boxes, polygons, tracks across frames), run VIAME detection/training pipelines, and export annotations.</p>
+<table>
+<thead>
+<tr>
+<th>Layer</th>
+<th>Stack</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data &amp; API</td>
+<td><a href="https://girder.readthedocs.io/">Girder</a> 5</td>
+</tr>
+<tr>
+<td>Async jobs</td>
+<td>Celery via <a href="https://girder-worker.readthedocs.io/">Girder Worker</a></td>
+</tr>
+<tr>
+<td>Persistence</td>
+<td>MongoDB</td>
+</tr>
+<tr>
+<td>Message broker</td>
+<td>RabbitMQ</td>
+</tr>
+<tr>
+<td>Job notifications</td>
+<td>Redis → WebSockets to the browser</td>
+</tr>
+<tr>
+<td>Frontend</td>
+<td>Vue 2 + Vuetify + GeoJS</td>
+</tr>
+<tr>
+<td>CV / media</td>
+<td>VIAME, FFmpeg (inside worker images)</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Two ways to run the UI:</strong></p>
+<ol>
+<li><strong>Web</strong> — Browser talks to Girder (for example <code>http://localhost:8010</code> when using Docker Compose locally, or a deployed host).</li>
+<li><strong>Desktop</strong> — Electron app with a local Express server that mirrors Girder-style APIs and runs VIAME/FFmpeg on the filesystem.</li>
+</ol>
+<p>Both UIs share the same annotator and DIVE shell code; only the <strong>platform layer</strong> (how data and jobs are reached) differs.</p>
+<pre class="mermaid"><code>flowchart TB
+  subgraph clients [Clients]
+    Web[Web: platform/web-girder]
+    Desktop[Desktop: Electron + Express]
+    Shared[dive-common + src annotator]
+    Web --&gt; Shared
+    Desktop --&gt; Shared
+  end
+
+  subgraph stack [Docker / server stack]
+    Traefik[Traefik :8010]
+    Girder[Girder API + static UI]
+    Mongo[(MongoDB)]
+    Rabbit[(RabbitMQ)]
+    Redis[(Redis)]
+    WDef[CPU worker — queue: celery]
+    WPipe[GPU worker — queue: pipelines]
+    WTrain[GPU worker — queue: training]
+    WLocal[localworker — queue: local]
+  end
+
+  Web --&gt;|REST + WebSocket| Traefik
+  Traefik --&gt; Girder
+  Girder --&gt; Mongo
+  Girder --&gt;|Celery apply_async| Rabbit
+  Rabbit --&gt; WDef
+  Rabbit --&gt; WPipe
+  Rabbit --&gt; WTrain
+  Girder --&gt; WLocal
+  Girder --&gt; Redis
+  Web --&gt;|job updates| Redis</code></pre>
+<h2 id="top-level-repository-layout">Top-level repository layout</h2>
+<p>DIVE is <strong>not</strong> an npm/yarn workspaces monorepo. There is one Python project under <code>server/</code> and one npm package under <code>client/</code>. Production Docker images <strong>build the client</strong> and <strong>bundle static assets</strong> into the Girder image.</p>
+<table>
+<thead>
+<tr>
+<th>Path</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>client/</code></strong></td>
+<td>Vue 2 frontend: web app, Electron desktop</td>
+</tr>
+<tr>
+<td><strong><code>server/</code></strong></td>
+<td>Python: Girder plugins, Celery tasks, shared utils, CLI, tests</td>
+</tr>
+<tr>
+<td><strong><code>docker/</code></strong></td>
+<td>Dockerfiles, entrypoints, <code>server_setup.py</code>, Traefik snippets</td>
+</tr>
+<tr>
+<td><strong><code>docker-compose.yml</code></strong></td>
+<td>Primary stack (plus <code>docker-compose.override.yml</code> for dev, <code>docker-compose.prod.yml</code> for prod)</td>
+</tr>
+<tr>
+<td><strong><code>docs/</code></strong></td>
+<td>MkDocs documentation (this site)</td>
+</tr>
+<tr>
+<td><strong><code>mkdocs.yml</code></strong></td>
+<td>Documentation site navigation</td>
+</tr>
+<tr>
+<td><strong><code>devops/</code></strong></td>
+<td>Deployment automation (for example Ansible)</td>
+</tr>
+<tr>
+<td><strong><code>samples/</code></strong></td>
+<td>Sample data and Girder import helpers</td>
+</tr>
+<tr>
+<td><strong><code>testutils/</code></strong></td>
+<td>Shared JSON fixtures for client/server tests</td>
+</tr>
+<tr>
+<td><strong><code>.github/workflows/</code></strong></td>
+<td>CI (docs, release, etc.)</td>
+</tr>
+<tr>
+<td><strong><code>.env.default</code></strong></td>
+<td>Environment template for Compose</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Related reading in the repository:</strong></p>
+<ul>
+<li>Root overview: <a href="https://github.com/Kitware/dive/blob/main/README.md">README.md</a></li>
+<li>Server development: <a href="https://github.com/Kitware/dive/blob/main/server/README.md">server/README.md</a></li>
+<li>Client development: <a href="https://github.com/Kitware/dive/blob/main/client/README.md">client/README.md</a></li>
+<li>Deployment: <a href="../Deployment-Overview/">Deployment Options Overview</a></li>
+</ul>
+<h2 id="girder-structure">Girder structure</h2>
+<p>Girder is the <strong>data management and REST API</strong> layer. DIVE does not use legacy <code>plugin.yml</code> files; plugins are <strong>Python packages</strong> registered in <a href="https://github.com/Kitware/dive/blob/main/server/pyproject.toml"><code>server/pyproject.toml</code></a> via entry points.</p>
+<h3 id="girder-server-plugins">Girder server plugins</h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">[project.entry-points.</span><span class="s2">&quot;girder.plugin&quot;</span><span class="k">]</span>
+<span class="n">dive_server</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;dive_server:GirderPlugin&quot;</span>
+<span class="n">bucket_notifications</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;bucket_notifications:GirderPlugin&quot;</span>
+<span class="n">rabbit_user_queues</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;rabbitmq_user_queues:GirderPlugin&quot;</span>
+</code></pre></div></td></tr></table></div>
+<table>
+<thead>
+<tr>
+<th>Plugin</th>
+<th>Package</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>dive_server</code></strong></td>
+<td><code>server/dive_server/</code></td>
+<td>Core DIVE API, models, static client, route extensions</td>
+</tr>
+<tr>
+<td><strong><code>bucket_notifications</code></strong></td>
+<td><code>server/bucket_notifications/</code></td>
+<td>GCS bucket notifications → assetstore import</td>
+</tr>
+<tr>
+<td><strong><code>rabbit_user_queues</code></strong></td>
+<td><code>server/rabbitmq_user_queues/</code></td>
+<td>Per-user private Celery/RabbitMQ queues (requires a public RabbitMQ server and not currently used)</td>
+</tr>
+</tbody>
+</table>
+<h3 id="girder-worker-plugin">Girder Worker plugin</h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code><span class="k">[project.entry-points.</span><span class="s2">&quot;girder_worker_plugins&quot;</span><span class="k">]</span>
+<span class="n">dive_tasks</span><span class="w"> </span><span class="o">=</span><span class="w"> </span><span class="s2">&quot;dive_tasks:DIVEPlugin&quot;</span>
+</code></pre></div></td></tr></table></div>
+<table>
+<thead>
+<tr>
+<th>Plugin</th>
+<th>Package</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>dive_tasks</code></strong></td>
+<td><code>server/dive_tasks/</code></td>
+<td>Registers Celery tasks on workers</td>
+</tr>
+</tbody>
+</table>
+<h3 id="shared-python-utilities">Shared Python utilities</h3>
+<table>
+<thead>
+<tr>
+<th>Package</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>dive_utils</code></strong></td>
+<td>Constants, Pydantic models, serializers (VIAME CSV, DIVE JSON, KPF, KWCOCO, etc.) — used by <strong>both</strong> server and worker</td>
+</tr>
+</tbody>
+</table>
+<h3 id="what-dive_server-does-on-load">What <code>dive_server</code> does on load</h3>
+<p>In <code>dive_server/__init__.py</code>, the plugin typically:</p>
+<ul>
+<li>Registers custom Girder models (<code>trackItem</code>, <code>groupItem</code>, <code>revisionLogItem</code>)</li>
+<li>Mounts REST resources: datasets, annotations, configuration, RPC (job launch)</li>
+<li>Extends Girder routes (jobs, shared folders, private-queue flags)</li>
+<li>Serves the built Vue app at <code>/</code> and Girder’s UI at <code>/girder</code></li>
+</ul>
+<h3 id="rest-layout-mental-model">REST layout (mental model)</h3>
+<table>
+<thead>
+<tr>
+<th>Pattern</th>
+<th>Examples</th>
+<th>Responsibility</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>views_*.py</code></td>
+<td><code>views_dataset.py</code>, <code>views_rpc.py</code></td>
+<td>HTTP endpoints (<code>Resource</code> subclasses)</td>
+</tr>
+<tr>
+<td><code>crud_*.py</code></td>
+<td><code>crud_dataset.py</code>, <code>crud_annotation.py</code></td>
+<td>Business logic</td>
+</tr>
+<tr>
+<td><code>crud_rpc.py</code></td>
+<td>—</td>
+<td>Creates Girder <code>Job</code> records and dispatches Celery tasks</td>
+</tr>
+<tr>
+<td><code>event.py</code></td>
+<td>—</td>
+<td>Upload postprocess, welcome email, etc.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="data-model-high-level">Data model (high level)</h3>
+<ul>
+<li>A <strong>dataset</strong> is a <strong>Girder folder</strong> with metadata (<code>annotate</code>, <code>type</code>, <code>fps</code>, etc.).</li>
+<li><strong>Annotations</strong> (tracks, groups) live in custom models with <strong>revision logs</strong> for history (web).</li>
+<li>Media files live in Girder’s assetstore; large images may use <strong>girder-large-image</strong> (Memcached-backed tiles).</li>
+</ul>
+<p>How tracks relate to per-frame detections and attributes is summarized in <strong><a href="#tracks-detections-and-attributes">Tracks, detections, and attributes</a></strong> below.</p>
+<p>See <a href="https://github.com/Kitware/dive/blob/main/server/README.md">server/README.md</a> for metadata property details.</p>
+<h2 id="tracks-detections-and-attributes">Tracks, detections, and attributes</h2>
+<p>In DIVE, a <strong>track</strong> is a persistent object (for example one animal or one vehicle) observed over time. A track is represented as a <strong>sequence of detections</strong>: each <strong>detection</strong> is a <strong>feature</strong> at a specific <strong>frame</strong> (bounding box, polygon, line, confidence, or optional geometry). Frames where the object is not visible have <strong>no detection</strong> for that track—the sequence can contain <strong>gaps</strong>. The UI interpolates or holds the last keyframe depending on interpolation settings.</p>
+<p><strong>Track-level attributes</strong> are key–value metadata stored on the whole track (for example species, behavior ID, or custom fields). <strong>Detection-level attributes</strong> attach to individual features (for example confidence notes or rotation). Both are arbitrary structured data within the schema, with a few reserved keys documented in the format spec.</p>
+<p>Authoritative JSON shapes (including <code>TrackData</code>, <code>Feature</code>, <code>GroupData</code>, and import/export formats) are described in <strong><a href="../DataFormats/">Data Formats</a></strong>. Server-side equivalents and serializers live in <code>server/dive_utils/</code>.</p>
+<h2 id="containers-and-docker-compose">Containers and Docker Compose</h2>
+<h3 id="compose-files">Compose files</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Use</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>docker-compose.yml</code></td>
+<td>Full stack definition</td>
+</tr>
+<tr>
+<td><code>docker-compose.override.yml</code></td>
+<td>Dev: bind-mount <code>./server</code>, hot reload</td>
+</tr>
+<tr>
+<td><code>docker-compose.prod.yml</code></td>
+<td>TLS, watchtower, backups</td>
+</tr>
+</tbody>
+</table>
+<h3 id="services-runtime">Services (runtime)</h3>
+<table>
+<thead>
+<tr>
+<th>Service</th>
+<th>Image / build</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>traefik</code></strong></td>
+<td><code>traefik:v3.7.4</code></td>
+<td>Reverse proxy; app on host port <strong>8010</strong></td>
+</tr>
+<tr>
+<td><strong><code>girder</code></strong></td>
+<td><code>docker/girder.Dockerfile</code> → <code>kitware/viame-web</code></td>
+<td>API + static DIVE + Girder web clients</td>
+</tr>
+<tr>
+<td><strong><code>mongo</code></strong></td>
+<td><code>mongo:5.0</code></td>
+<td>Girder database</td>
+</tr>
+<tr>
+<td><strong><code>rabbit</code></strong></td>
+<td><code>rabbitmq:4.2-management</code></td>
+<td>Celery broker (management UI on <strong>15672</strong>)</td>
+</tr>
+<tr>
+<td><strong><code>redis</code></strong></td>
+<td><code>redis:latest</code></td>
+<td>Job notifications (<code>GIRDER_NOTIFICATION_REDIS_URL</code>)</td>
+</tr>
+<tr>
+<td><strong><code>memcached</code></strong></td>
+<td><code>memcached</code></td>
+<td>Tile cache for <code>girder-large-image</code></td>
+</tr>
+<tr>
+<td><strong><code>localworker</code></strong></td>
+<td>Same image as girder</td>
+<td>Celery on queue <strong><code>local</code></strong> (required; batch postprocess, async assetstore import)</td>
+</tr>
+<tr>
+<td><strong><code>girder_worker_default</code></strong></td>
+<td><code>docker/girder_worker.Dockerfile</code> → <code>kitware/viame-worker:cpu</code></td>
+<td>Queue <strong><code>celery</code></strong> — transcoding, zip, image conversion</td>
+</tr>
+<tr>
+<td><strong><code>girder_worker_pipelines</code></strong></td>
+<td><code>docker/girder_worker_gpu.Dockerfile</code></td>
+<td>Queue <strong><code>pipelines</code></strong> — VIAME detection pipelines (GPU)</td>
+</tr>
+<tr>
+<td><strong><code>girder_worker_training</code></strong></td>
+<td>GPU Dockerfile</td>
+<td>Queue <strong><code>training</code></strong> — VIAME training (GPU)</td>
+</tr>
+<tr>
+<td><strong><code>autoheal</code></strong></td>
+<td><code>willfarrell/autoheal</code></td>
+<td>Restarts unhealthy GPU workers</td>
+</tr>
+</tbody>
+</table>
+<h3 id="docker-compose-profiles">Docker Compose profiles</h3>
+<p>Compose <strong>profiles</strong> decide which worker services start. Core services (Traefik, Girder, MongoDB, RabbitMQ, Redis, Memcached) are not profile-gated.</p>
+<ul>
+<li><strong>GPU profile (<code>gpu</code>):</strong> <code>girder_worker_default</code>, <code>localworker</code>, and the two <strong>GPU</strong> workers (<code>girder_worker_pipelines</code>, <code>girder_worker_training</code>) for VIAME pipelines and training.</li>
+<li><strong>CPU profile (<code>cpu</code>):</strong> <code>girder_worker_default</code> and <code>localworker</code> only—<strong>no</strong> pipeline or training workers.</li>
+</ul>
+<p>The template <a href="https://github.com/Kitware/dive/blob/main/.env.default"><code>.env.default</code></a> sets <code>COMPOSE_PROFILES=gpu</code> so a normal <code>docker compose up -d</code> after <code>cp .env.default .env</code> brings up the full GPU stack. Set <code>COMPOSE_PROFILES=cpu</code> in <code>.env</code> to run without GPU workers, or use the CLI form from the deployment guide:</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>docker<span class="w"> </span>compose<span class="w"> </span>-f<span class="w"> </span>docker-compose.yml<span class="w"> </span>--profile<span class="w"> </span>cpu<span class="w"> </span>up<span class="w"> </span>-d
+</code></pre></div></td></tr></table></div>
+<p>When <strong>no</strong> worker is consuming the <code>pipelines</code> or <code>training</code> queues, the web UI and API <strong>disable</strong> pipeline and training actions.</p>
+<h3 id="environment-file-env">Environment file (<code>.env</code>)</h3>
+<p>Configuration for Compose and containers is driven by a <strong><code>.env</code></strong> file in the repository root (not committed; create from the template):</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span></pre></div></td><td class="code"><div><pre><span></span><code>cp<span class="w"> </span>.env.default<span class="w"> </span>.env
+<span class="c1"># edit .env — see inline comments in .env.default</span>
+</code></pre></div></td></tr></table></div>
+<p>Common variables (see <a href="../Deployment-Docker-Compose/">Running with Docker Compose</a> for the full list):</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>COMPOSE_PROFILES</code></td>
+<td><code>gpu</code> (default template) vs <code>cpu</code> for worker stack shape</td>
+</tr>
+<tr>
+<td><code>TAG</code></td>
+<td>Image tag for <code>kitware/viame-web</code> / workers (<code>latest</code> by default)</td>
+</tr>
+<tr>
+<td><code>GIRDER_ADMIN_USER</code> / <code>GIRDER_ADMIN_PASS</code></td>
+<td>Initial Girder admin credentials</td>
+</tr>
+<tr>
+<td><code>PIPELINE_GPU_UUID</code> / <code>TRAINING_GPU_UUID</code></td>
+<td>Pin each GPU worker container to a specific NVIDIA device (below)</td>
+</tr>
+<tr>
+<td><code>PIPELINE_WORKER_CONCURRENCY</code> / <code>TRAINING_WORKER_CONCURRENCY</code> / <code>DEFAULT_WORKER_CONCURRENCY</code></td>
+<td>Celery concurrency per worker type</td>
+</tr>
+</tbody>
+</table>
+<h3 id="nvidia-gpu-cuda-and-pipelines-training">NVIDIA GPU, CUDA, and pipelines / training</h3>
+<p><strong>VIAME pipelines and training</strong> run inside the <strong><code>girder_worker_pipelines</code></strong> and <strong><code>girder_worker_training</code></strong> images. They require:</p>
+<ul>
+<li>A host with an <strong>NVIDIA GPU</strong> and a driver version <strong>compatible with VIAME</strong> (see the <a href="https://github.com/VIAME/VIAME#installations">VIAME installation notes</a>).</li>
+<li><strong><a href="https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html#docker">NVIDIA Container Toolkit</a></strong> so Docker can expose GPUs to containers (<code>nvidia</code> runtime / CDI, as used in <code>docker-compose.yml</code>).</li>
+<li>The default <strong>GPU</strong> Compose profile so those services are created.</li>
+</ul>
+<p>The CPU worker (<code>girder_worker_default</code>) handles <strong>transcoding</strong>, zip extraction, and similar jobs <strong>without</strong> requiring CUDA for DIVE’s own code path; only the <strong>pipeline</strong> and <strong>training</strong> queues need a working GPU stack inside the worker image.</p>
+<p>GPU worker containers use a <strong>healthcheck</strong> based on <code>nvidia-smi</code> so failures are visible to Compose and <strong>autoheal</strong> can restart unhealthy GPU workers.</p>
+<h3 id="assigning-gpus-to-pipeline-vs-training-workers">Assigning GPUs to pipeline vs training workers</h3>
+<p>By default, each GPU worker container receives <strong><code>WORKER_GPU_UUID</code></strong> from the environment. In Compose, that value is wired from <strong><code>.env</code></strong>:</p>
+<ul>
+<li><strong><code>PIPELINE_GPU_UUID</code></strong> → <code>girder_worker_pipelines</code> (<code>WORKER_GPU_UUID</code>)</li>
+<li><strong><code>TRAINING_GPU_UUID</code></strong> → <code>girder_worker_training</code> (<code>WORKER_GPU_UUID</code>)</li>
+</ul>
+<p>If these are <strong>unset</strong>, the worker code does not force <code>CUDA_VISIBLE_DEVICES</code> and the process can see whatever GPUs Docker exposes (often the first visible device per container policy).</p>
+<p>If set, the worker maps the UUID to a device index. In <code>server/dive_tasks/tasks.py</code>, <code>get_gpu_environment()</code> reads <strong><code>WORKER_GPU_UUID</code></strong>, matches it against installed GPUs (via GPUtil), and when it matches sets <strong><code>CUDA_VISIBLE_DEVICES</code></strong> so VIAME/Kwiver uses that device.</p>
+<p>List GPU UUIDs on the host (for example):</p>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span></pre></div></td><td class="code"><div><pre><span></span><code>nvidia-smi<span class="w"> </span>-L
+</code></pre></div></td></tr></table></div>
+<p>Set different UUIDs in <code>.env</code> to dedicate <strong>one physical GPU to pipelines</strong> and <strong>another to training</strong>, or leave one blank to use default visibility. For advanced host-level pinning, Compose also declares NVIDIA device reservations in <code>docker-compose.yml</code>; align those settings with your <code>.env</code> if you customize device lists.</p>
+<h3 id="dockerfiles-docker">Dockerfiles (<code>docker/</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>File</th>
+<th>Output</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>girder.Dockerfile</code></td>
+<td>Multi-stage: build Vue client + Girder web UI + <code>uv sync</code> server → <code>kitware/viame-web</code></td>
+</tr>
+<tr>
+<td><code>girder_worker.Dockerfile</code></td>
+<td>CPU worker (Python 3.11, FFmpeg transcoding, <code>dive_tasks</code>)</td>
+</tr>
+<tr>
+<td><code>girder_worker_gpu.Dockerfile</code></td>
+<td>Based on <code>kitware/viame:gpu-algorithms-web</code> + DIVE Python deps</td>
+</tr>
+<tr>
+<td><code>entrypoint_server.sh</code></td>
+<td>Dev client sync, <code>server_setup.py</code>, <code>girder serve</code></td>
+</tr>
+<tr>
+<td><code>entrypoint_worker.sh</code></td>
+<td><code>python -m dive_tasks</code> with <code>-Q $WORKER_WATCHING_QUEUES</code></td>
+</tr>
+<tr>
+<td><code>server_setup.py</code></td>
+<td>Admin user, assetstore, CORS, DB setup</td>
+</tr>
+</tbody>
+</table>
+<p><strong>Production static paths inside the Girder image:</strong></p>
+<ul>
+<li>DIVE client: <code>/opt/dive/clients/dive</code></li>
+<li>Girder client: <code>/opt/dive/clients/girder</code></li>
+<li>Server source: <code>/opt/dive/src</code></li>
+</ul>
+<h3 id="development-vs-production">Development vs production</h3>
+<table>
+<thead>
+<tr>
+<th>Mode</th>
+<th>Client</th>
+<th>Server</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Development</strong></td>
+<td><code>cd client &amp;&amp; npm run serve</code> (Vite proxies API to <code>:8010</code>)</td>
+<td>Girder hot-reloads via override; <strong>workers must be restarted</strong> for Celery changes</td>
+</tr>
+<tr>
+<td><strong>Production</strong></td>
+<td><code>npm run build:web</code> baked into image</td>
+<td>Single container serves API + static files</td>
+</tr>
+</tbody>
+</table>
+<p>Quick start: <code>cp .env.default .env</code> → edit <code>.env</code> if needed → <code>docker compose up -d</code> → http://localhost:8010</p>
+<p>More detail: <a href="../Deployment-Docker-Compose/">Running with Docker Compose</a>.</p>
+<h2 id="server-code-and-tasks">Server code and tasks</h2>
+<h3 id="python-project-layout-server">Python project layout (<code>server/</code>)</h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal">1</span>
+<span class="normal">2</span>
+<span class="normal">3</span>
+<span class="normal">4</span>
+<span class="normal">5</span>
+<span class="normal">6</span>
+<span class="normal">7</span>
+<span class="normal">8</span>
+<span class="normal">9</span></pre></div></td><td class="code"><div><pre><span></span><code>server/
+├── dive_server/       # Girder plugin — REST, events, RPC dispatch
+├── dive_tasks/        # Celery / Girder Worker plugin
+├── dive_utils/        # Shared models, constants, serializers
+├── bucket_notifications/
+├── rabbitmq_user_queues/
+├── scripts/           # CLI: dive, diveutils
+├── pyproject.toml     # deps + entry points
+└── tox.ini            # lint, mypy, pytest, docs
+</code></pre></div></td></tr></table></div>
+<p>Dependency management: <strong><a href="https://astral.sh/uv/">uv</a></strong> (<code>uv sync</code> locally; Docker uses the same lockfile).</p>
+<h3 id="job-flow-web">Job flow (web)</h3>
+<ol>
+<li>Browser calls <strong><code>dive_rpc</code></strong> REST endpoints (<code>views_rpc.py</code>).</li>
+<li>Server creates a Girder <strong><code>Job</code></strong> document and enqueues Celery with a <code>girder_client_token</code> (<code>crud_rpc.py</code>).</li>
+<li>Worker runs the task and updates job progress.</li>
+<li>Browser receives updates via <strong>Redis + WebSockets</strong>.</li>
+<li><code>worker_capabilities.py</code> checks RabbitMQ so the UI knows if GPU pipeline/training workers are available.</li>
+</ol>
+<h3 id="celery-queues-and-workers">Celery queues and workers</h3>
+<table>
+<thead>
+<tr>
+<th>Queue</th>
+<th>Worker service</th>
+<th>Typical work</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>celery</code></strong></td>
+<td><code>girder_worker_default</code></td>
+<td>Media prep: video transcode, image conversion, zip extract, large-image conversion</td>
+</tr>
+<tr>
+<td><strong><code>pipelines</code></strong></td>
+<td><code>girder_worker_pipelines</code></td>
+<td>Run VIAME detection/tracking/analysis pipelines on a dataset</td>
+</tr>
+<tr>
+<td><strong><code>training</code></strong></td>
+<td><code>girder_worker_training</code></td>
+<td>VIAME training jobs</td>
+</tr>
+<tr>
+<td><strong><code>local</code></strong></td>
+<td><code>localworker</code></td>
+<td>Batch postprocess, async assetstore import</td>
+</tr>
+<tr>
+<td><strong><code>{login}@private</code></strong></td>
+<td>User’s own worker (optional)</td>
+<td>Same tasks, routed per-user when private queue is enabled</td>
+</tr>
+</tbody>
+</table>
+<p>Worker entry: <code>python -m dive_tasks</code> (see <code>dive_tasks/__main__.py</code>, <code>dive_tasks/celeryconfig.py</code>).</p>
+<h3 id="main-celery-tasks-dive_taskstaskspy">Main Celery tasks (<code>dive_tasks/tasks.py</code>)</h3>
+<table>
+<thead>
+<tr>
+<th>Task</th>
+<th>Category</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>convert_video</code></td>
+<td>Transcoding</td>
+<td>FFmpeg → web-friendly playback</td>
+</tr>
+<tr>
+<td><code>convert_images</code></td>
+<td>Transcoding</td>
+<td>Normalize image sequences</td>
+</tr>
+<tr>
+<td><code>convert_large_images</code></td>
+<td>Transcoding</td>
+<td>girder-large-image conversion</td>
+</tr>
+<tr>
+<td><code>extract_zip</code></td>
+<td>Import</td>
+<td>Unpack uploaded archives</td>
+</tr>
+<tr>
+<td><code>run_pipeline</code></td>
+<td>Pipelines</td>
+<td>Execute VIAME pipeline on a dataset</td>
+</tr>
+<tr>
+<td><code>export_trained_pipeline</code></td>
+<td>Pipelines</td>
+<td>Export trained model (for example ONNX)</td>
+</tr>
+<tr>
+<td><code>train_pipeline</code></td>
+<td>Training</td>
+<td>VIAME training</td>
+</tr>
+<tr>
+<td><code>upgrade_pipelines</code></td>
+<td>Pipelines</td>
+<td>Refresh pipeline definitions from disk/addons</td>
+</tr>
+</tbody>
+</table>
+<p>Supporting modules: <code>pipeline_discovery.py</code>, <code>dive_batch_postprocess.py</code>, <code>local_tasks.py</code>, <code>worker_girder_events.py</code>.</p>
+<p><strong>VIAME on GPU workers:</strong> bundled under <code>/opt/noaa/viame/</code>; optional addons at <code>/tmp/addons</code> (writable on the pipeline worker).</p>
+<h3 id="where-to-start-in-code">Where to start in code</h3>
+<table>
+<thead>
+<tr>
+<th>Feature</th>
+<th>Start here</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Launch pipeline</td>
+<td><code>views_rpc.py</code> → <code>crud_rpc.py</code> → <code>dive_tasks/tasks.py</code> (<code>run_pipeline</code>)</td>
+</tr>
+<tr>
+<td>Upload → transcode</td>
+<td><code>event.py</code> → <code>convert_video</code> / <code>convert_images</code> on <code>celery</code></td>
+</tr>
+<tr>
+<td>Save annotation</td>
+<td><code>views_annotation.py</code> → <code>crud_annotation.py</code></td>
+</tr>
+<tr>
+<td>Dataset metadata</td>
+<td><code>views_dataset.py</code> → <code>crud_dataset.py</code></td>
+</tr>
+</tbody>
+</table>
+<h2 id="client-web-desktop-and-shared-code">Client: web, desktop, and shared code</h2>
+<p>Single npm package: <a href="https://github.com/Kitware/dive/blob/main/client/package.json"><code>client/package.json</code></a>. Published library name: <strong><code>vue-media-annotator</code></strong>.</p>
+<h3 id="four-layers">Four layers</h3>
+<div class="highlight"><table class="highlighttable"><tr><td class="linenos"><div class="linenodiv"><pre><span></span><span class="normal"> 1</span>
+<span class="normal"> 2</span>
+<span class="normal"> 3</span>
+<span class="normal"> 4</span>
+<span class="normal"> 5</span>
+<span class="normal"> 6</span>
+<span class="normal"> 7</span>
+<span class="normal"> 8</span>
+<span class="normal"> 9</span>
+<span class="normal">10</span></pre></div></td><td class="code"><div><pre><span></span><code>client/
+├── src/                    # Vue Media Annotator — core GeoJS annotator (format-agnostic)
+├── dive-common/            # DIVE shell: Viewer.vue, tracks UI, import/export, pipelines UI
+├── platform/
+│   ├── web-girder/         # Web: Girder API, routing, admin, data browser
+│   └── desktop/            # Electron: Express backend, native VIAME/FFmpeg, filesystem
+├── index.html              # Web entry → platform/web-girder/main.ts
+├── desktop.html            # Desktop renderer → platform/desktop/main.ts
+├── vite.config.ts          # Web dev/build (proxies /api, /notifications)
+└── electron.vite.config.ts # Electron main / preload / renderer
+</code></pre></div></td></tr></table></div>
+<p>Vite aliases:</p>
+<ul>
+<li><code>vue-media-annotator</code> → <code>client/src</code></li>
+<li><code>dive-common</code> → <code>client/dive-common</code></li>
+<li><code>platform</code> → <code>client/platform</code></li>
+</ul>
+<h3 id="shared-vs-platform-specific">Shared vs platform-specific</h3>
+<table>
+<thead>
+<tr>
+<th>Shared (both web and desktop)</th>
+<th>Platform-specific</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong><code>src/</code></strong> — annotator, GeoJS layers, track editing</td>
+<td><strong>Web:</strong> <code>@girder/components</code>, Girder REST, WebSocket job notifications</td>
+</tr>
+<tr>
+<td><strong><code>dive-common/</code></strong> — <code>Viewer.vue</code>, mode manager, pipeline/training UI, import/export UX</td>
+<td><strong>Desktop:</strong> Express <code>backend/server.ts</code>, Electron IPC (<code>preload.ts</code>), local job runners in <code>backend/native/</code></td>
+</tr>
+<tr>
+<td>Annotation timeline, attributes, recipes</td>
+<td><strong>Web:</strong> revision history API</td>
+</tr>
+<tr>
+<td></td>
+<td><strong>Desktop:</strong> multicam, local paths, OS-specific binaries</td>
+</tr>
+</tbody>
+</table>
+<h3 id="unified-api-concept">Unified API concept</h3>
+<p>Both platforms expose the <strong>same capabilities</strong> (load/save annotations, run pipelines/training, import/export) through different transports:</p>
+<ul>
+<li><strong>Web:</strong> <code>platform/web-girder/api/*.service.ts</code> → Girder REST</li>
+<li><strong>Desktop:</strong> <code>platform/desktop/frontend/api.ts</code> + <code>platform/desktop/backend/server.ts</code> → local Express</li>
+</ul>
+<p>This lets <strong><code>dive-common</code></strong> and <strong><code>src</code></strong> stay identical; only <code>ViewerLoader.vue</code> and API adapters change.</p>
+<h3 id="client-api-specification-apispects">Client API specification (<code>apispec.ts</code>)</h3>
+<p><a href="https://github.com/Kitware/dive/blob/main/client/dive-common/apispec.ts"><code>client/dive-common/apispec.ts</code></a> is the <strong>TypeScript contract</strong> between shared UI code and each platform’s backend. It defines:</p>
+<ul>
+<li>The <strong><code>Api</code> interface</strong> — async methods for pipelines, training, loading/saving <strong>detections</strong> (tracks and groups), dataset <strong>metadata</strong>, <strong>attributes</strong>, attribute track filters, optional large-image tiles, and file/disk helpers (<code>openFromDisk</code>, <code>importAnnotationFile</code>, etc.).</li>
+<li>Shared <strong>types</strong> exported for callers: <code>AnnotationSchema</code>, <code>DatasetMeta</code>, <code>SaveDetectionsArgs</code>, <code>Pipe</code>, <code>Pipelines</code>, and related structures used across <code>dive-common</code> and <code>vue-media-annotator</code>.</li>
+<li><strong><code>provideApi(api)</code></strong> / <strong><code>useApi()</code></strong> — Vue <code>provide</code> / <code>inject</code> wiring so any composable or component in <strong><code>dive-common</code></strong> can call <code>useApi()</code> without knowing whether it is running in the browser against Girder or inside Electron against Express.</li>
+</ul>
+<p><strong>Web</strong> — <a href="https://github.com/Kitware/dive/blob/main/client/platform/web-girder/App.vue"><code>platform/web-girder/App.vue</code></a> calls <code>provideApi({ ... })</code> with an object whose methods delegate to <strong><code>platform/web-girder/api/*.service.ts</code></strong> (REST, Girder tokens, WebSockets for jobs, Girder large-image tile URLs).</p>
+<p><strong>Desktop</strong> — <a href="https://github.com/Kitware/dive/blob/main/client/platform/desktop/App.vue"><code>platform/desktop/App.vue</code></a> calls <code>provideApi(statefulApi())</code>, where <strong><code>statefulApi()</code></strong> wraps the desktop frontend API and local Express backend (<code>backend/server.ts</code>, native runners).</p>
+<p>Optional methods on <strong><code>Api</code></strong> (for example <code>getTiles</code>, <code>getTileURL</code>, <code>getLastCalibration</code>, <code>saveCalibration</code>) exist for large-image or desktop-only flows; the web app implements the subset it needs, and the desktop app can supply the rest.</p>
+<h3 id="key-entry-points">Key entry points</h3>
+<table>
+<thead>
+<tr>
+<th>Component</th>
+<th>Path</th>
+<th>Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>ViewerLoader</strong></td>
+<td><code>platform/web-girder/views/ViewerLoader.vue</code> or <code>platform/desktop/frontend/components/ViewerLoader.vue</code></td>
+<td>Loads dataset by <code>id</code>, sets revision / read-only, mounts viewer</td>
+</tr>
+<tr>
+<td><strong>Viewer</strong></td>
+<td><code>dive-common/components/Viewer.vue</code></td>
+<td>Root annotator; <code>loadData</code>, <code>useSave</code>, <code>provideAnnotator</code>, etc.</td>
+</tr>
+</tbody>
+</table>
+<h3 id="web-platformweb-girder">Web (<code>platform/web-girder/</code>)</h3>
+<ul>
+<li><strong>Entry:</strong> <code>main.ts</code>, <code>App.vue</code></li>
+<li><strong>API:</strong> <code>api/*.service.ts</code> (dataset, annotation, rpc, configuration, largeImage)</li>
+<li><strong>Views:</strong> data browser, jobs, admin, training menus</li>
+<li><strong>Store:</strong> composables for user, dataset, jobs, config</li>
+<li><strong>Dev:</strong> <code>npm run serve</code> — Vite dev server with API proxy to Girder</li>
+</ul>
+<h3 id="desktop-platformdesktop">Desktop (<code>platform/desktop/</code>)</h3>
+<ul>
+<li><strong>Main process:</strong> <code>background.ts</code> — window, IPC, starts Express</li>
+<li><strong>Preload:</strong> <code>preload.ts</code> — <code>window.diveDesktop</code> bridge</li>
+<li><strong>Renderer:</strong> <code>main.ts</code>, <code>frontend/</code> — same viewer stack as web</li>
+<li><strong>Backend:</strong> <code>backend/server.ts</code> — Express routes mirroring Girder</li>
+<li><strong>Native jobs:</strong> <code>backend/native/</code> — VIAME pipelines, training, media jobs</li>
+<li><strong>Interactive service:</strong> <code>backend/native/interactive.ts</code> — unified segmentation + stereo subprocess (desktop only)</li>
+<li><strong>Serializers:</strong> <code>backend/serializers/</code> — format conversion (viame, coco, kpf, dive, …)</li>
+<li><strong>Build:</strong> <code>npm run build:electron</code> → <code>dist_electron/</code>; <code>npm run dev:electron</code> for local development</li>
+</ul>
+<p>Shared segmentation recipe: <code>dive-common/recipes/segmentationpointclick.ts</code>. User docs: <a href="../Interactive-Annotation/">Interactive Annotation</a>.</p>
+<p>More detail: <a href="https://github.com/Kitware/dive/blob/main/client/platform/desktop/README.md">client/platform/desktop/README.md</a>.</p>
+<pre class="mermaid"><code>flowchart LR
+  subgraph shared [Shared UI]
+    VMA[src - vue-media-annotator]
+    DC[dive-common - Viewer.vue]
+    VMA --&gt; DC
+  end
+
+  subgraph web [Web platform]
+    WG[web-girder API services]
+    Girder[Girder REST + WS]
+    WG --&gt; Girder
+    DC --&gt; WG
+  end
+
+  subgraph desk [Desktop platform]
+    FE[desktop frontend api]
+    EX[Express server.ts]
+    NAT[native VIAME / FFmpeg]
+    FE --&gt; EX --&gt; NAT
+    DC --&gt; FE
+  end</code></pre>
+<h2 id="ancillary-plugins-and-operations">Ancillary plugins and operations</h2>
+<table>
+<thead>
+<tr>
+<th>Area</th>
+<th>Location</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>GCS import rules</td>
+<td><code>server/bucket_notifications/</code></td>
+</tr>
+<tr>
+<td>Private user queues</td>
+<td><code>server/rabbitmq_user_queues/</code></td>
+</tr>
+<tr>
+<td>User documentation</td>
+<td><code>docs/</code> + <code>mkdocs.yml</code></td>
+</tr>
+<tr>
+<td>Deployment playbooks</td>
+<td><code>devops/</code></td>
+</tr>
+<tr>
+<td>CLI utilities</td>
+<td><code>server/scripts/</code> (<code>dive</code>, <code>diveutils</code>)</td>
+</tr>
+</tbody>
+</table>
+<h2 id="glossary">Glossary</h2>
+<table>
+<thead>
+<tr>
+<th>Term</th>
+<th>Meaning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>VIAME</strong></td>
+<td>Kitware video analytics toolkit; pipelines and training run inside GPU workers</td>
+</tr>
+<tr>
+<td><strong>Girder</strong></td>
+<td>Data platform: users, folders, files, permissions, REST API</td>
+</tr>
+<tr>
+<td><strong>Girder Worker</strong></td>
+<td>Celery integration for Girder jobs</td>
+</tr>
+<tr>
+<td><strong>Dataset</strong></td>
+<td>Annotatable folder (video or image sequence) with metadata</td>
+</tr>
+<tr>
+<td><strong>Track</strong></td>
+<td>One labeled object over time; a sequence of per-frame detections (features), possibly with gaps</td>
+</tr>
+<tr>
+<td><strong>Detection / feature</strong></td>
+<td>Single-frame geometry and metadata belonging to a track</td>
+</tr>
+<tr>
+<td><strong>Pipeline</strong></td>
+<td>VIAME algorithm config run on a dataset (detection, tracking, etc.)</td>
+</tr>
+<tr>
+<td><strong>Revision</strong></td>
+<td>Web-only snapshot of annotation history</td>
+</tr>
+<tr>
+<td><strong>vue-media-annotator</strong></td>
+<td>Reusable annotator component/library in <code>client/src</code></td>
+</tr>
+<tr>
+<td><strong><code>Api</code> / <code>apispec.ts</code></strong></td>
+<td>Shared TypeScript interface and <code>provideApi</code> / <code>useApi</code> for web vs desktop backends</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<p>This overview matches the repository layout for <strong>Girder 5</strong> and <strong>Docker Compose v2</strong>. For deployment and upgrades, see <a href="../Deployment-Overview/">Deployment Options Overview</a> and the rest of the Administrator Guide.</p>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        <div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/kitware/dive" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 496 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M165.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6zm-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3zm44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9zM244.8 8C106.1 8 0 113.3 0 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C428.2 457.8 496 362.9 496 252 496 113.3 383.5 8 244.8 8zM97.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1zm-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7zm32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1zm-11.4-14.7c-1.6 1-1.6 3.6 0 5.9 1.6 2.3 4.3 3.3 5.6 2.3 1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://hub.docker.com/r/kitware/viame-web" target="_blank" rel="noopener" title="hub.docker.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M349.9 236.3h-66.1v-59.4h66.1v59.4zm0-204.3h-66.1v60.7h66.1V32zm78.2 144.8H362v59.4h66.1v-59.4zm-156.3-72.1h-66.1v60.1h66.1v-60.1zm78.1 0h-66.1v60.1h66.1v-60.1zm276.8 100c-14.4-9.7-47.6-13.2-73.1-8.4-3.3-24-16.7-44.9-41.1-63.7l-14-9.3-9.3 14c-18.4 27.8-23.4 73.6-3.7 103.8-8.7 4.7-25.8 11.1-48.4 10.7H2.4c-8.7 50.8 5.8 116.8 44 162.1 37.1 43.9 92.7 66.2 165.4 66.2 157.4 0 273.9-72.5 328.4-204.2 21.4.4 67.6.1 91.3-45.2 1.5-2.5 6.6-13.2 8.5-17.1l-13.3-8.9zm-511.1-27.9h-66v59.4h66.1v-59.4zm78.1 0h-66.1v59.4h66.1v-59.4zm78.1 0h-66.1v59.4h66.1v-59.4zm-78.1-72.1h-66.1v60.1h66.1v-60.1z"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://discourse.kitware.com/c/viame-dive/17" target="_blank" rel="noopener" title="discourse.kitware.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 6.5.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2023 Fonticons, Inc.--><path d="M225.9 32C103.3 32 0 130.5 0 252.1 0 256 .1 480 .1 480l225.8-.2c122.7 0 222.1-102.3 222.1-223.9C448 134.3 348.6 32 225.9 32zM224 384c-19.4 0-37.9-4.3-54.4-12.1L88.5 392l22.9-75c-9.8-18.1-15.4-38.9-15.4-61 0-70.7 57.3-128 128-128s128 57.3 128 128-57.3 128-128 128z"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    <script id="__config" type="application/json">{"base": "..", "features": ["navigation.tabs", "navigation.tabs.sticky", "navigation.expand"], "search": "../assets/javascripts/workers/search.b8dbb3d2.min.js", "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.1e8ae164.min.js"></script>
+      
+    
+  </body>
+</html>
