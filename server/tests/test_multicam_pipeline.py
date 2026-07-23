@@ -1,11 +1,15 @@
+import json
 from pathlib import Path
 
 from dive_tasks.multicam_pipeline import (
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
+    build_registration_kwiver_settings,
+    build_registration_pairs,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
     is_stereo_or_multicam_pipeline,
+    pipeline_camera_order,
     pipeline_requires_input,
 )
 from dive_utils import constants
@@ -71,6 +75,113 @@ def test_build_multicam_kwiver_settings_image_sequence(tmp_path: Path):
     assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == (
         '/tmp/left/000.png\n/tmp/left/001.png'
     )
+
+
+def test_pipeline_camera_order():
+    # Reference first, remaining display order preserved.
+    assert pipeline_camera_order(['ir', 'rgb', 'uv'], 'rgb') == ['rgb', 'ir', 'uv']
+    assert pipeline_camera_order(['rgb', 'uv', 'ir'], 'rgb') == ['rgb', 'uv', 'ir']
+    assert pipeline_camera_order(['CENT_IR', 'CENT_EO'], 'CENT_EO') == ['CENT_EO', 'CENT_IR']
+    # Unknown reference leaves the order alone.
+    assert pipeline_camera_order(['a', 'b'], 'missing') == ['a', 'b']
+
+
+IR_TO_RGB = [[1, 0, 5], [0, 1, -3], [0, 0, 1]]
+RGB_TO_IR = [[1, 0, -5], [0, 1, 3], [0, 0, 1]]
+
+
+def test_build_registration_pairs():
+    folder_meta = {
+        'cameraHomographies': {'ir::rgb': {'AtoB': IR_TO_RGB, 'BtoA': RGB_TO_IR}},
+        'cameraCorrespondences': {
+            'ir::rgb': [{'id': 1, 'a': [1, 2], 'b': [3, 4]}],
+            'uv::rgb': [{'id': 1, 'a': [5, 6], 'b': [7, 8]}],
+        },
+        'cameraTransformTypes': {'ir::rgb': 'affine'},
+    }
+    pairs = build_registration_pairs(folder_meta)
+    assert pairs == [
+        {
+            'left': 'ir',
+            'right': 'rgb',
+            'points': [[1, 2, 3, 4]],
+            'leftToRight': IR_TO_RGB,
+            'rightToLeft': RGB_TO_IR,
+            'transformType': 'affine',
+        },
+        {
+            'left': 'uv',
+            'right': 'rgb',
+            'points': [[5, 6, 7, 8]],
+            'leftToRight': None,
+            'rightToLeft': None,
+            'transformType': 'similarity',
+        },
+    ]
+    assert build_registration_pairs({}) == []
+
+
+def test_build_registration_kwiver_settings(tmp_path: Path):
+    cameras = [
+        {'name': 'rgb', 'folder_id': '1', 'media_type': constants.ImageSequenceType},
+        {'name': 'ir', 'folder_id': '2', 'media_type': constants.ImageSequenceType},
+        {'name': 'uv', 'folder_id': '3', 'media_type': constants.ImageSequenceType},
+    ]
+    registration = {
+        'reference': 'rgb',
+        'pairs': [
+            {
+                'left': 'ir',
+                'right': 'rgb',
+                'points': [],
+                'leftToRight': IR_TO_RGB,
+                'rightToLeft': RGB_TO_IR,
+                'transformType': 'similarity',
+            },
+            # Points-only pair: uv has nothing fitted, so no warp3 settings.
+            {
+                'left': 'uv',
+                'right': 'rgb',
+                'points': [[1, 2, 3, 4]],
+                'leftToRight': None,
+                'rightToLeft': None,
+                'transformType': 'similarity',
+            },
+            # Non-star pair (two non-reference cameras): explicitly
+            # unsupported, never reaches the pipeline even though fitted.
+            {
+                'left': 'uv',
+                'right': 'ir',
+                'points': [],
+                'leftToRight': IR_TO_RGB,
+                'rightToLeft': RGB_TO_IR,
+                'transformType': 'similarity',
+            },
+        ],
+    }
+    settings = build_registration_kwiver_settings(tmp_path, cameras, registration)
+    # One file per camera pair; uv is points-only so it gets no file or settings.
+    registration_path = str(tmp_path / 'ir_to_rgb_registration.json')
+    assert settings == {
+        'warp2:transformation_file': registration_path,
+        'warp2:transform_reader:type': 'dive',
+        'warp2:transform_reader:dive:from_camera': 'ir',
+        'warp2:transform_reader:dive:to_camera': 'rgb',
+    }
+    written = json.loads((tmp_path / 'ir_to_rgb_registration.json').read_text(encoding='utf-8'))
+    assert written['type'] == 'dive-camera-registration'
+    assert len(written['pairs']) == 1
+    assert written['pairs'][0]['left'] == 'ir'
+    # uv produced no file: its only fitted pair skips the reference.
+    assert list(tmp_path.iterdir()) == [tmp_path / 'ir_to_rgb_registration.json']
+
+
+def test_build_registration_kwiver_settings_empty(tmp_path: Path):
+    cameras = [{'name': 'rgb', 'folder_id': '1', 'media_type': constants.ImageSequenceType}]
+    assert (
+        build_registration_kwiver_settings(tmp_path, cameras, {'reference': '', 'pairs': []}) == {}
+    )
+    assert list(tmp_path.iterdir()) == []
 
 
 def test_build_multicam_kwiver_settings_video(tmp_path: Path):

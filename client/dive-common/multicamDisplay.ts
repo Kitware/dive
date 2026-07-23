@@ -57,6 +57,19 @@ export function referenceCameraName(multiCamMedia: MultiCamMediaLike | null | un
   return defaultDisplay && ordered.includes(defaultDisplay) ? defaultDisplay : ordered[0];
 }
 
+/**
+ * Camera order for 2-cam/3-cam VIAME pipelines: the registration reference
+ * camera feeds input1 (the per-camera registrations all map onto the
+ * reference, and the pipes warp everything onto camera 1's frame), remaining
+ * cameras keep display order. Which detector a pipe runs on which input is
+ * the pipe's documented contract, not something DIVE infers.
+ */
+export function pipelineOrderedCameraNames(multiCamMedia: MultiCamMediaLike | null | undefined): string[] {
+  const ordered = orderedMultiCamCameraNames(multiCamMedia);
+  const reference = referenceCameraName(multiCamMedia);
+  return reference ? [reference, ...ordered.filter((name) => name !== reference)] : ordered;
+}
+
 export function isMultiCamSubType(subType: SubType | string | null | undefined): subType is MultiCamSubType {
   return subType === 'stereo' || subType === 'multicam';
 }

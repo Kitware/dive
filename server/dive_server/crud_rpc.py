@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 import json
-from typing import Dict, List, Optional, Tuple, TypedDict
 from pathlib import Path
+from typing import Dict, List, Optional, Tuple, TypedDict
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -19,7 +19,12 @@ import pymongo
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
 from dive_tasks.utils import choose_annotation_fps
-from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
+from dive_tasks.multicam_pipeline import (
+    build_registration_pairs,
+    is_stereo_or_multicam_pipeline,
+    pipeline_camera_order,
+    pipeline_requires_input,
+)
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
@@ -287,12 +292,24 @@ def run_pipeline(
     multicam_cameras: List[types.MulticamCameraJob] = []
     multicam_default_display = ''
     calibration_item_id: Optional[str] = None
+    is_warp_pipeline = False
+    reference_camera = ''
 
     if dataset_type == constants.MultiType:
         multi_cam = fromMeta(folder, constants.MultiCamMarker, required=True)
         multicam_default_display = multi_cam['defaultDisplay']
         camera_order = crud_dataset._multicam_camera_order(multi_cam)
         cameras_meta = multi_cam.get('cameras') or {}
+        is_warp_pipeline = pipeline['type'] in constants.MultiCamPipelineMarkers
+        if is_warp_pipeline and camera_order:
+            # 2-cam/3-cam pipes treat camera 1 as the reference frame the
+            # other cameras register onto; feed them reference-first.
+            reference_camera = (
+                multicam_default_display
+                if multicam_default_display in cameras_meta
+                else camera_order[0]
+            )
+            camera_order = pipeline_camera_order(camera_order, reference_camera)
         for name in camera_order:
             cam_info = cameras_meta[name]
             folder_id = cam_info.get('folderId')
@@ -352,6 +369,15 @@ def run_pipeline(
         params['multicam_requires_input'] = multicam_requires_input
         if calibration_item_id:
             params['calibration_item_id'] = calibration_item_id
+        if is_warp_pipeline and reference_camera:
+            registration_pairs = build_registration_pairs(folder.get('meta') or {})
+            if any(
+                pair.get('leftToRight') or pair.get('rightToLeft') for pair in registration_pairs
+            ):
+                params['multicam_registration'] = {
+                    'reference': reference_camera,
+                    'pairs': registration_pairs,
+                }
     if metadata_file_key and metadata_file_item_id:
         params['metadata_file_key'] = metadata_file_key
         params['metadata_file_item_id'] = metadata_file_item_id
