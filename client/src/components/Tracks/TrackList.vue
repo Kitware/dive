@@ -120,7 +120,12 @@ export default defineComponent({
         const suppressCamStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
         const suppType = clientSettings.typeSettings.suppressionType;
         const suppressedIds = (suppressCamStore && editRevision >= 0)
-          ? getSuppressedTrackIds(suppressCamStore, frameRef.value, suppType)
+          ? getSuppressedTrackIds(
+            suppressCamStore,
+            frameRef.value,
+            suppType,
+            { revision: editRevision },
+          )
           : new Set<number>();
         tracks = tracks.filter((track) => {
           if (suppressedIds.has(track.annotation.id)) {

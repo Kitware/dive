@@ -96,19 +96,68 @@ function overlapFraction(det: Shape, regions: Shape[]): number {
 }
 
 /**
+ * Upper bound on the fraction of the detection's bbox covered by the regions,
+ * from bbox overlaps alone (sum over regions, so overlapping regions
+ * over-count -- fine for an upper bound). Lets candidates that cannot
+ * possibly reach the threshold skip the expensive point sampling.
+ */
+function bboxCoverUpperBound(det: Rect, regions: Shape[]): number {
+  const [dx1, dy1, dx2, dy2] = det;
+  const detArea = Math.max(0, dx2 - dx1) * Math.max(0, dy2 - dy1);
+  if (detArea <= 0) return 0;
+  let sum = 0;
+  regions.forEach(({ bbox: [rx1, ry1, rx2, ry2] }) => {
+    const w = Math.min(dx2, rx2) - Math.max(dx1, rx1);
+    const h = Math.min(dy2, ry2) - Math.max(dy1, ry1);
+    if (w > 0 && h > 0) sum += w * h;
+  });
+  return sum / detArea;
+}
+
+interface SuppressionCacheEntry {
+  revision: number;
+  type: string;
+  byFrame: Map<number, Set<AnnotationId>>;
+}
+/** Per-store memo of frame results, valid for one edit revision. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const suppressionCache = new WeakMap<any, SuppressionCacheEntry>();
+
+/**
  * Track ids whose detection on `frame` is suppressed by a region on that frame.
  * Empty when suppressionType is falsy (feature disabled) or no regions exist.
+ * `options.revision` (typically the pending-save counter) memoizes the result
+ * per store+frame until the revision changes, so the canvas, type counts, and
+ * track list share one computation instead of repeating it.
  */
 export function getSuppressedTrackIds(
   trackStore: BaseAnnotationStore<Track>,
   frame: number,
   suppressionType: string | undefined,
+  options: { revision?: number } = {},
 ): Set<AnnotationId> {
+  if (!suppressionType) return new Set<AnnotationId>();
+
+  let cacheEntry: SuppressionCacheEntry | undefined;
+  const { revision } = options;
+  if (revision !== undefined) {
+    cacheEntry = suppressionCache.get(trackStore);
+    if (!cacheEntry || cacheEntry.revision !== revision
+      || cacheEntry.type !== suppressionType) {
+      cacheEntry = { revision, type: suppressionType, byFrame: new Map() };
+      suppressionCache.set(trackStore, cacheEntry);
+    }
+    const hit = cacheEntry.byFrame.get(frame);
+    if (hit !== undefined) return hit;
+  }
+
   const result = new Set<AnnotationId>();
-  if (!suppressionType) return result;
   const ids = trackStore.intervalTree.search([frame, frame])
     .map((s: string) => parseInt(s, 10));
-  if (ids.length === 0) return result;
+  if (ids.length === 0) {
+    cacheEntry?.byFrame.set(frame, result);
+    return result;
+  }
 
   const regions: Shape[] = [];
   const candidates: { id: AnnotationId; shape: Shape }[] = [];
@@ -123,12 +172,16 @@ export function getSuppressedTrackIds(
       candidates.push({ id, shape });
     }
   });
-  if (regions.length === 0) return result;
-
-  candidates.forEach(({ id, shape }) => {
-    if (overlapFraction(shape, regions) >= SUPPRESSION_THRESHOLD) {
-      result.add(id);
-    }
-  });
+  if (regions.length > 0) {
+    candidates.forEach(({ id, shape }) => {
+      if (bboxCoverUpperBound(shape.bbox, regions) < SUPPRESSION_THRESHOLD) {
+        return;
+      }
+      if (overlapFraction(shape, regions) >= SUPPRESSION_THRESHOLD) {
+        result.add(id);
+      }
+    });
+  }
+  cacheEntry?.byFrame.set(frame, result);
   return result;
 }

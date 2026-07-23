@@ -45,6 +45,7 @@ import {
   useComparisonSets,
   useLassoModeContext,
   useSegmentationPoints,
+  usePendingSaveCount,
 } from '../provides';
 import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 import useLayerManagerAlignedView from './layerManager/useLayerManagerAlignedView';
@@ -97,6 +98,7 @@ export default defineComponent({
       // aligned view store may not be provided in tests or minimal embeds.
     }
     const selectedCamera = useSelectedCamera();
+    const pendingSaveCount = usePendingSaveCount();
     const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
     const groupStore = cameraStore.camMap.value.get(props.camera)?.groupStore;
@@ -348,7 +350,12 @@ export default defineComponent({
       // Detections lying >=50% under a suppression region on this frame are
       // hidden from every layer at once (and excluded from counts elsewhere).
       const suppressedIds = trackStore
-        ? getSuppressedTrackIds(trackStore, frame, clientSettings.typeSettings.suppressionType)
+        ? getSuppressedTrackIds(
+          trackStore,
+          frame,
+          clientSettings.typeSettings.suppressionType,
+          { revision: pendingSaveCount.value },
+        )
         : new Set<AnnotationId>();
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
