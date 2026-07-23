@@ -47,7 +47,7 @@ export interface TypeStyling {
 
 /** Fraction of the suppression type's styling used for suppressed-display
  * detections (the remainder comes from the detection's own type). */
-export const SUPPRESSED_STYLE_WEIGHT = 0.5;
+export const SUPPRESSED_STYLE_WEIGHT = 2 / 3;
 
 interface UseStylingParams {
   markChangesPending: () => void;

@@ -40,14 +40,15 @@ describe('StyleManager', () => {
 });
 
 describe('suppressed-display style blending', () => {
-  it('blends the suppression style 50/50 with the natural type', () => {
+  it('blends the suppression style 2/3 over the natural type', () => {
     const markChangesPending = () => undefined;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sm = new StyleManager({ markChangesPending } as any);
     sm.updateTypeStyle({ type: 'B', value: { color: '#000000', opacity: 0.5 } });
     sm.updateTypeStyle({ type: 'Suppressed', value: { color: '#ffffff', opacity: 1.0 } });
-    // 0.5 * 255 + 0.5 * 0 = 127.5 -> 128 = 0x80 per channel
-    expect(sm.typeStyling.value.suppressedColor('B', 'Suppressed')).toBe('#808080');
-    expect(sm.typeStyling.value.suppressedOpacity('B', 'Suppressed')).toBeCloseTo(0.75, 6);
+    // (2/3) * 255 + (1/3) * 0 = 170 = 0xaa per channel
+    expect(sm.typeStyling.value.suppressedColor('B', 'Suppressed')).toBe('#aaaaaa');
+    // (2/3) * 1.0 + (1/3) * 0.5
+    expect(sm.typeStyling.value.suppressedOpacity('B', 'Suppressed')).toBeCloseTo(5 / 6, 6);
   });
 });

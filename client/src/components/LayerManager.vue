@@ -377,7 +377,7 @@ export default defineComponent({
             // A detection flagged with the suppression attribute (it is NOT
             // under a region - those are hidden above) stays visible but
             // displays as suppressed: layers label it 'Type - SuppressionType'
-            // and blend its styling 50/50 with the suppression type. It keeps
+            // and blend its styling 2/3 toward the suppression type. It keeps
             // its real type everywhere else.
             const styleType: [string, number] = colorBy === 'group' ? groupStyleType : trackStyleType;
             const suppressed = (suppressionType
