@@ -20,6 +20,8 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
+  /** Suppression type name when displaying as suppressed (blended style) */
+  suppressed?: string;
   set?: string;
   dashed?: boolean;
   rotation?: number;
@@ -171,6 +173,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           styleType: track.styleType,
           polygon,
           hasPoly,
+          suppressed: track.suppressed,
           set: track.set,
           dashed,
           rotation,
@@ -222,6 +225,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         if (data.selected) {
           return this.stateStyling.selected.color;
         }
+        if (data.suppressed && data.styleType) {
+          return this.typeStyling.value.suppressedColor(data.styleType[0], data.suppressed);
+        }
         if (data.styleType) {
           return this.typeStyling.value.color(data.styleType[0]);
         }
@@ -240,6 +246,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         if (data.set) {
           return this.typeStyling.value.annotationSetColor(data.set);
         }
+        if (data.suppressed && data.styleType) {
+          return this.typeStyling.value.suppressedColor(data.styleType[0], data.suppressed);
+        }
         if (data.styleType) {
           return this.typeStyling.value.color(data.styleType[0]);
         }
@@ -248,6 +257,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       fillOpacity: (_point, _index, data) => {
         if (data.set) {
           return this.typeStyling.value.opacity(data.set, true);
+        }
+        if (data.suppressed && data.styleType) {
+          return this.typeStyling.value.suppressedOpacity(data.styleType[0], data.suppressed);
         }
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);
@@ -265,6 +277,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         }
         if (data.selected) {
           return this.stateStyling.selected.opacity;
+        }
+        if (data.suppressed && data.styleType) {
+          return this.typeStyling.value.suppressedOpacity(data.styleType[0], data.suppressed);
         }
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);

@@ -11,6 +11,8 @@ interface PolyGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   polygonKey: string;
+  /** Suppression type name when displaying as suppressed (blended style) */
+  suppressed?: string;
   set?: string;
   isHole?: boolean; // True if this is a hole polygon (for styling)
 }
@@ -157,6 +159,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
                 styleType: frameData.styleType,
                 polygon,
                 polygonKey,
+                suppressed: frameData.suppressed,
                 set: frameData.set,
                 isHole: false,
               };
@@ -178,6 +181,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
                     styleType: frameData.styleType,
                     polygon: holePolygon,
                     polygonKey, // Same key as parent polygon
+                    suppressed: frameData.suppressed,
                     set: frameData.set,
                     isHole: true,
                   };
@@ -224,6 +228,8 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
         let color: string;
         if (data.selected) {
           color = this.stateStyling.selected.color;
+        } else if (data.suppressed && data.styleType) {
+          color = this.typeStyling.value.suppressedColor(data.styleType[0], data.suppressed);
         } else if (data.styleType) {
           color = this.typeStyling.value.color(data.styleType[0]);
         } else {
@@ -247,7 +253,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
       },
       fillColor: (_point, _index, data) => {
         let color: string;
-        if (data.styleType) {
+        if (data.suppressed && data.styleType) {
+          color = this.typeStyling.value.suppressedColor(data.styleType[0], data.suppressed);
+        } else if (data.styleType) {
           color = this.typeStyling.value.color(data.styleType[0]);
         } else {
           color = this.typeStyling.value.color('');
@@ -263,6 +271,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
         if (data.set) {
           return this.typeStyling.value.opacity(data.set);
         }
+        if (data.suppressed && data.styleType) {
+          return this.typeStyling.value.suppressedOpacity(data.styleType[0], data.suppressed);
+        }
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);
         }
@@ -271,6 +282,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
       strokeOpacity: (_point, _index, data) => {
         if (data.selected) {
           return this.stateStyling.selected.opacity;
+        }
+        if (data.suppressed && data.styleType) {
+          return this.typeStyling.value.suppressedOpacity(data.styleType[0], data.suppressed);
         }
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);
