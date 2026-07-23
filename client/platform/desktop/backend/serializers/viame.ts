@@ -179,9 +179,14 @@ function _deduceType(value: string): boolean | number | string {
   if (value === 'false') {
     return false;
   }
-  const float = parseFloat(value);
-  if (!Number.isNaN(float)) {
-    return float;
+  // Number() rejects partial parses — parseFloat would truncate
+  // filename-like values such as '0123ABC456' to their leading digits.
+  // Empty/whitespace strings coerce to 0, so they explicitly stay strings.
+  if (value.trim() !== '') {
+    const float = Number(value);
+    if (!Number.isNaN(float)) {
+      return float;
+    }
   }
   return value;
 }
