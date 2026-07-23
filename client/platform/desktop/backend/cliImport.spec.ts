@@ -133,6 +133,33 @@ describe('parseCliArgs multi-camera', () => {
     ])?.cameraOrder).toEqual(['c', 'a', 'b']);
   });
 
+  it('reorders a recognized STAR/CENTER/PORT rig to canonical display order', () => {
+    // Flags given PORT/CENTER/STAR should still display STAR/CENTER/PORT,
+    // matching the folder-import wizard, no matter the flag order.
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'PORT=/d/p', '--camera', 'CENTER=/d/c', '--camera', 'STAR=/d/s',
+    ])?.cameraOrder).toEqual(['STAR', 'CENTER', 'PORT']);
+    // Order-independent: a different flag order yields the same canonical order.
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'CENTER=/d/c', '--camera', 'STAR=/d/s', '--camera', 'PORT=/d/p',
+    ])?.cameraOrder).toEqual(['STAR', 'CENTER', 'PORT']);
+  });
+
+  it('defaults defaultDisplay to the first canonical camera for a rig', () => {
+    expect(parseCliArgs([
+      'app',
+      '--camera', 'PORT=/d/p', '--camera', 'CENTER=/d/c', '--camera', 'STAR=/d/s',
+    ])?.defaultDisplay).toEqual('STAR');
+  });
+
+  it('leaves a non-rig camera set in flag order', () => {
+    expect(parseCliArgs([
+      'app', '--camera', 'PORT=/d/p', '--camera', 'STAR=/d/s',
+    ])?.cameraOrder).toEqual(['PORT', 'STAR']);
+  });
+
   it('splits on the first = so windows paths survive', () => {
     expect(parseCliArgs([
       'app', '--camera', 'left=C:\\data\\left', '--camera', 'right=C:\\data\\right',

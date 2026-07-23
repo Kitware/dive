@@ -29,6 +29,9 @@ import npath from 'path';
 import mime from 'mime-types';
 
 import { MultiCamImportFolderArgs } from 'dive-common/apispec';
+import {
+  PREFERRED_SUBFOLDER_ORDER, sortSubfolderCameraNames,
+} from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { otherVideoTypes, websafeVideoTypes } from 'dive-common/constants';
 import {
   CliTranscodingNotice,
@@ -155,7 +158,8 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     };
   }
 
-  // Multi-camera. Order of the flags is the display order.
+  // Multi-camera. Flag order is the display order, except a recognized
+  // rig (STAR/CENTER/PORT) is shown in that canonical order (see below).
   const cameras: Record<string, string> = {};
   const cameraOrder: string[] = [];
   cameraArgs.forEach((arg) => {
@@ -170,6 +174,17 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     throw new Error('a multi-camera dataset needs at least two --camera arguments');
   }
 
+  // Rig cameras have a canonical display order (STAR/CENTER/PORT); apply it so
+  // a CLI import shows them the same way the folder-import wizard does, no
+  // matter which order the --camera flags were given. Any other camera set
+  // keeps the flag order verbatim.
+  const cameraOrderLower = new Set(cameraOrder.map((c) => c.toLowerCase()));
+  const isRecognizedRig = PREFERRED_SUBFOLDER_ORDER.every(
+    (preferred) => cameraOrderLower.has(preferred.toLowerCase()),
+  );
+  const displayOrder = isRecognizedRig
+    ? sortSubfolderCameraNames(cameraOrder) : cameraOrder;
+
   const cameraAnnotations: Record<string, string> = {};
   annotationArgs.forEach((arg) => {
     const [cameraName, annotationFile] = splitNamed(arg, '--annotations');
@@ -181,7 +196,7 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
   });
 
   const defaultDisplay = readFlag('--default-display') ?? (
-    cameras.left ? 'left' : cameraOrder[0]
+    cameras.left ? 'left' : displayOrder[0]
   );
   if (!cameras[defaultDisplay]) {
     throw new Error(`--default-display names an unknown camera '${defaultDisplay}'; `
@@ -190,7 +205,7 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
 
   return {
     cameras,
-    cameraOrder,
+    cameraOrder: displayOrder,
     cameraAnnotations,
     defaultDisplay,
     calibrationPath: calibration ? npath.resolve(calibration) : undefined,
