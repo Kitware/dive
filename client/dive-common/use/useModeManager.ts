@@ -696,6 +696,15 @@ export default function useModeManager({
         // If there's already a keyframe at this frame, we're editing an existing annotation
         const isEditingExisting = real !== null && real.keyframe;
         const normalizedRotation = validateRotation(rotation);
+        // Prefer the rotation passed with this edit. validateRotation maps ~0 to
+        // undefined, so detect an explicit arg via the raw parameter — otherwise
+        // fall back to the detection's stored rotation and avoid axis-align
+        // clipping a rotated box's polygon against its unrotated envelope.
+        const effectiveRotation = (rotation !== undefined && rotation !== null)
+          ? normalizedRotation
+          : getRotationFromAttributes(
+            track.features[frameNum]?.attributes ?? real?.attributes,
+          );
 
         // Trim any polygon on this detection to fit the new box. setFeature
         // rounds bounds, so clip against the rounded values to stay
@@ -704,7 +713,7 @@ export default function useModeManager({
         // would cut the wrong region.
         const clippedGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
         const removedPolygonKeys: string[] = [];
-        if (!hasSignificantRotation(normalizedRotation)) {
+        if (!hasSignificantRotation(effectiveRotation)) {
           const roundedBounds: RectBounds = [
             Math.round(bounds[0]), Math.round(bounds[1]),
             Math.round(bounds[2]), Math.round(bounds[3]),
