@@ -8,6 +8,7 @@ import {
   getRotationFromAttributes,
   getRotationArrowLine,
   hasSignificantRotation,
+  rectBoundsArea,
   rotateGeoJSONCoordinates,
 } from '../../utils';
 import {
@@ -17,6 +18,13 @@ import {
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 import LineLayer from './LineLayer';
+import {
+  candidateOwnsClick,
+} from './rectangleClickTarget';
+import type {
+  DisplayPolygon,
+  RectClickCandidate,
+} from './rectangleClickTarget';
 
 interface RectGeoJSData{
   trackId: number;
@@ -25,6 +33,18 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
+  /**
+   * Detection polygons in native coords (each entry is outer ring + holes),
+   * when hasPoly.
+   */
+  polyCoords: GeoJSON.Position[][][];
+  /**
+   * Rectangle outline in native coords (after rotation, before dash), used for
+   * closest-border click targeting.
+   */
+  boxRing: GeoJSON.Position[];
+  /** Axis-aligned bounds area; tie-break when border distances are equal. */
+  boxArea: number;
   /** Suppression type name when attribute-flagged as suppressed (dashed/fill styling). */
   suppressed?: string;
   set?: string;
@@ -82,9 +102,13 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       .createFeature('polygon', { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
         /**
-         * Handle clicking on individual annotations, if DrawingOther is true we use the
-         * Rectangle type if only the polygon is visible we use the polygon bounds
-         * */
+         * While polygons are drawn, prefer the detection whose polygon (or
+         * smallest box) actually owns the click so nested annotations win
+         * over larger envelopes.
+         */
+        if (!this.clickLandsOnDetection(e)) {
+          return;
+        }
         if (e.mouse.buttonsDown.left) {
           if (this.clickTargetsOnly) {
             // Hidden boxes are right-click edit targets only
@@ -178,15 +202,52 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     this.clickTargetsOnly = val;
   }
 
+  private toClickCandidate(data: RectGeoJSData): RectClickCandidate {
+    const polygons: DisplayPolygon[] = data.polyCoords
+      .filter((rings) => rings[0]?.length)
+      .map((rings) => ({
+        outer: rings[0].map((p) => this.transformPoint([p[0], p[1]])),
+        holes: rings.slice(1).map((ring) => ring.map((p) => this.transformPoint([p[0], p[1]]))),
+      }));
+    return {
+      trackId: data.trackId,
+      hasPoly: data.hasPoly,
+      polygons,
+      boxRing: data.boxRing.map((p) => this.transformPoint([p[0], p[1]])),
+      boxArea: data.boxArea,
+    };
+  }
+
+  /**
+   * Whether a click on this rectangle feature really lands on its detection.
+   * While polygons are drawn, prefer shape hits; among that pool (or all
+   * envelopes if none) the closest rectangle border wins.
+   */
+  private clickLandsOnDetection(e: GeoEvent): boolean {
+    if (!this.drawingOther) {
+      return true;
+    }
+    const point = { x: e.mouse.geo.x, y: e.mouse.geo.y };
+    const { found } = this.featureLayer.pointSearch(e.mouse.geo);
+    const candidates = (found as RectGeoJSData[])
+      .filter((d): d is RectGeoJSData => !!d)
+      .map((d) => this.toClickCandidate(d));
+    return candidateOwnsClick(e.data.trackId, candidates, point);
+  }
+
   formatData(frameData: FrameDataTrack[], comparisonSets: string[] = []) {
     const arr: RectGeoJSData[] = [];
     frameData.forEach((track: FrameDataTrack) => {
       if (track.features && track.features.bounds) {
         let polygon = boundToGeojson(track.features.bounds);
         let hasPoly = false;
+        let polyCoords: GeoJSON.Position[][][] = [];
         if (track.features.geometry?.features) {
           const filtered = track.features.geometry.features.filter((feature) => feature.geometry && feature.geometry.type === 'Polygon');
           hasPoly = filtered.length > 0;
+          polyCoords = filtered.map(
+            (feature) => (feature.geometry as GeoJSON.Polygon).coordinates,
+          );
         }
 
         // Get rotation from attributes if it exists
@@ -197,6 +258,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           const updatedCoords = rotateGeoJSONCoordinates(polygon.coordinates[0], rotation ?? 0);
           polygon.coordinates[0] = updatedCoords;
         }
+
+        // Capture the solid rectangle outline before dash styling mutates it.
+        const boxRing = polygon.coordinates[0].map((p) => [p[0], p[1]] as GeoJSON.Position);
 
         // Comparison-set tracks and attribute-suppressed detections both use
         // dashed outlines (odd stroke segments are made transparent below).
@@ -220,6 +284,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           styleType: track.styleType,
           polygon,
           hasPoly,
+          polyCoords,
+          boxRing,
+          boxArea: rectBoundsArea(track.features.bounds),
           suppressed: track.suppressed,
           set: track.set,
           dashed,

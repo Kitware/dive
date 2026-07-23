@@ -10,20 +10,7 @@ import type { LayerManagerAlignedView } from './useLayerManagerAlignedView';
 import routeMulticamEditToCamera from './useMulticamEditRouting';
 import type CameraStore from '../../CameraStore';
 import type TrackStore from '../../TrackStore';
-
-function pointInPolygon(point: [number, number], coords: [number, number][]): boolean {
-  let inside = false;
-  for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
-    const xi = coords[i][0];
-    const yi = coords[i][1];
-    const xj = coords[j][0];
-    const yj = coords[j][1];
-    const intersect = ((yi > point[1]) !== (yj > point[1]))
-      && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
+import { pointInPolygon } from '../../utils';
 
 export default function useAnnotationClickHandling(options: {
   camera: string;
@@ -223,8 +210,10 @@ export default function useAnnotationClickHandling(options: {
       const point = alignedView.mapNativePoint(geo.x, geo.y);
       const polygonData = polyAnnotationLayer.formattedData;
       const clickedPolygon = polygonData.find((item) => {
-        const coords = item.polygon.coordinates[0] as [number, number][];
-        return pointInPolygon(point, coords);
+        const rings = item.polygon.coordinates;
+        const outer = rings[0].map(([x, y]) => ({ x, y }));
+        const holes = rings.slice(1).map((ring) => ring.map(([x, y]) => ({ x, y })));
+        return pointInPolygon({ x: point[0], y: point[1] }, outer, holes);
       });
       if (clickedPolygon) {
         handler.selectFeatureHandle(-1, clickedPolygon.polygonKey || '');

@@ -20,6 +20,9 @@ import {
   polygonWithinBounds,
   polygonEqualsBounds,
   clipPolygonToBounds,
+  pointInPolygon,
+  pointInRing,
+  rectBoundsArea,
 } from './utils';
 import type { RectBounds } from './utils';
 import type { Feature } from './track';
@@ -507,5 +510,36 @@ describe('polygonEqualsBounds', () => {
     expect(polygonEqualsBounds(poly([[
       [0, 0], [40, 0], [40, 40], [0, 40], [0, 0],
     ]]), bounds)).toBe(false);
+  });
+});
+
+describe('pointInRing / pointInPolygon', () => {
+  const square = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+  const hole = [
+    { x: 3, y: 3 },
+    { x: 7, y: 3 },
+    { x: 7, y: 7 },
+    { x: 3, y: 7 },
+  ];
+
+  it('detects points inside and outside a ring', () => {
+    expect(pointInRing({ x: 5, y: 5 }, square)).toBe(true);
+    expect(pointInRing({ x: 15, y: 5 }, square)).toBe(false);
+  });
+
+  it('excludes holes from polygon containment', () => {
+    expect(pointInPolygon({ x: 1, y: 1 }, square, [hole])).toBe(true);
+    expect(pointInPolygon({ x: 5, y: 5 }, square, [hole])).toBe(false);
+    expect(pointInPolygon({ x: 5, y: 5 }, square)).toBe(true);
+  });
+
+  it('computes rect bounds area', () => {
+    expect(rectBoundsArea([0, 0, 10, 5] as RectBounds)).toBe(50);
+    expect(rectBoundsArea([10, 5, 0, 0] as RectBounds)).toBe(50);
   });
 });

@@ -97,6 +97,42 @@ function boundToGeojson(bounds: RectBounds): GeoJSON.Polygon {
   };
 }
 
+export type Point2D = { x: number; y: number };
+
+/** Ray-cast point-in-ring test (open or closed rings). */
+export function pointInRing(point: Point2D, ring: Point2D[]): boolean {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
+    const { x: xi, y: yi } = ring[i];
+    const { x: xj, y: yj } = ring[j];
+    if (((yi > point.y) !== (yj > point.y))
+      && (point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi)) {
+      inside = !inside;
+    }
+  }
+  return inside;
+}
+
+/**
+ * Point-in-polygon with optional holes: inside the outer ring and outside
+ * every hole.
+ */
+export function pointInPolygon(
+  point: Point2D,
+  outer: Point2D[],
+  holes: Point2D[][] = [],
+): boolean {
+  if (!pointInRing(point, outer)) {
+    return false;
+  }
+  return !holes.some((hole) => pointInRing(point, hole));
+}
+
+/** Area of an axis-aligned rect bounds tuple [xmin, ymin, xmax, ymax]. */
+export function rectBoundsArea(bounds: RectBounds): number {
+  return Math.abs((bounds[2] - bounds[0]) * (bounds[3] - bounds[1]));
+}
+
 function removePoint(data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>, index: number): boolean {
   if (data.geometry.type === 'Polygon') {
     const coords = data.geometry.coordinates[0];

@@ -482,8 +482,10 @@ export default defineComponent({
       } else {
         // Keep the hidden boxes around as invisible right-click targets so a
         // detection can still be right-clicked into edit mode no matter which
-        // of its displays are turned on
+        // of its displays are turned on. Keep drawingOther in sync with polygon
+        // visibility so nested click targeting still prefers polygon shapes.
         rectAnnotationLayer.setClickTargetsOnly(true);
+        rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
         rectAnnotationLayer.changeData(frameData, comparison.value);
       }
       if (visibleModes.includes('Polygon')) {
