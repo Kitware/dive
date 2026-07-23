@@ -32,6 +32,13 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
 
   hoverOn: boolean; //to turn over annnotations on
 
+  /**
+   * When box display is off the rectangles are kept as invisible hit targets
+   * so a detection can still be right-clicked into edit mode: nothing is
+   * drawn and left-clicks are ignored, but right-click still works.
+   */
+  clickTargetsOnly: boolean;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   arrowFeatureLayer: any;
 
@@ -39,6 +46,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     super(params);
     this.drawingOther = false;
     this.hoverOn = false;
+    this.clickTargetsOnly = false;
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
   }
@@ -55,6 +63,10 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
          * Rectangle type if only the polygon is visible we use the polygon bounds
          * */
         if (e.mouse.buttonsDown.left) {
+          if (this.clickTargetsOnly) {
+            // Hidden boxes are right-click edit targets only
+            return;
+          }
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             if (e.mouse.modifiers.ctrl) {
               this.bus.$emit('annotation-ctrl-clicked', e.data.trackId, false, { ctrl: true });
@@ -135,6 +147,14 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     this.drawingOther = val;
   }
 
+  /**
+   * Keep features as invisible right-click edit targets instead of
+   * drawing them (used when box display is toggled off)
+   */
+  setClickTargetsOnly(val: boolean) {
+    this.clickTargetsOnly = val;
+  }
+
   formatData(frameData: FrameDataTrack[], comparisonSets: string[] = []) {
     const arr: RectGeoJSData[] = [];
     frameData.forEach((track: FrameDataTrack) => {
@@ -187,7 +207,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       .data(this.formattedData)
       .polygon((d: RectGeoJSData) => d.polygon.coordinates[0])
       .draw();
-    const arrowData = this.formattedData.filter((d) => d.rotationArrow);
+    const arrowData = this.clickTargetsOnly
+      ? [] : this.formattedData.filter((d) => d.rotationArrow);
     this.arrowFeatureLayer
       .data(arrowData)
       .line((d: RectGeoJSData) => d.rotationArrow!.coordinates)
@@ -228,6 +249,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.typeStyling.value.color('');
       },
       fill: (data) => {
+        if (this.clickTargetsOnly) {
+          return false;
+        }
         // When the polygon is also drawn, fill belongs to the polygon.
         // If the poly exists but isn't visible, keep fill on the rectangle.
         if (this.drawingOther && data.hasPoly) {
@@ -260,6 +284,10 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.stateStyling.standard.opacity;
       },
       strokeOpacity: (_point, _index, data) => {
+        // Invisible click targets draw nothing
+        if (this.clickTargetsOnly) {
+          return 0.0;
+        }
         // Reduce the rectangle opacity if a polygon is also drawn
         if (_index % 2 === 1 && data.dashed) {
           return 0.0;
