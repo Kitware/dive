@@ -74,8 +74,73 @@ function pointInShape(px: number, py: number, shape: Shape): boolean {
   return px >= x1 && px <= x2 && py >= y1 && py <= y2;
 }
 
+// Rasterized polygon mask over a region's bbox (scanline even-odd fill, up
+// to RASTER_RES cells per axis). The sea-lion suppressor's warped
+// field-of-view polygons carry many vertices and every covered candidate
+// samples them GRID*GRID times, so each region is rasterized once per frame
+// and a sample becomes an O(1) lookup instead of O(vertices).
+const RASTER_RES = 256;
+interface RegionMask {
+  x0: number; y0: number; cw: number; ch: number;
+  cols: number; rows: number; data: Uint8Array;
+}
+interface PreparedRegion { shape: Shape; mask?: RegionMask }
+
+function rasterizePoly(poly: Pt[], bbox: Rect): RegionMask | null {
+  const [x1, y1, x2, y2] = bbox;
+  const w = x2 - x1;
+  const h = y2 - y1;
+  if (w <= 0 || h <= 0) return null;
+  const cols = Math.max(1, Math.min(RASTER_RES, Math.ceil(w)));
+  const rows = Math.max(1, Math.min(RASTER_RES, Math.ceil(h)));
+  const cw = w / cols;
+  const ch = h / rows;
+  const data = new Uint8Array(cols * rows);
+  const xs: number[] = [];
+  for (let iy = 0; iy < rows; iy += 1) {
+    const py = y1 + (iy + 0.5) * ch;
+    xs.length = 0;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i, i += 1) {
+      const [xi, yi] = poly[i];
+      const [xj, yj] = poly[j];
+      if ((yi > py) !== (yj > py)) {
+        xs.push(xi + (((py - yi) * (xj - xi)) / (yj - yi)));
+      }
+    }
+    xs.sort((a, b) => a - b);
+    for (let k = 0; k + 1 < xs.length; k += 2) {
+      const c0 = Math.max(0, Math.ceil((xs[k] - x1) / cw - 0.5));
+      const c1 = Math.min(cols - 1, Math.floor((xs[k + 1] - x1) / cw - 0.5));
+      for (let c = c0; c <= c1; c += 1) data[(iy * cols) + c] = 1;
+    }
+  }
+  return {
+    x0: x1, y0: y1, cw, ch, cols, rows, data,
+  };
+}
+
+function prepareRegion(shape: Shape): PreparedRegion {
+  // Simple polygons are cheap to test directly; masks only pay off (and
+  // only introduce their quantization) for vertex-heavy region polygons.
+  if (!shape.poly || shape.poly.length <= 8) {
+    return { shape };
+  }
+  return { shape, mask: rasterizePoly(shape.poly, shape.bbox) ?? undefined };
+}
+
+function pointInRegion(px: number, py: number, region: PreparedRegion): boolean {
+  const { mask } = region;
+  if (mask) {
+    const c = Math.floor((px - mask.x0) / mask.cw);
+    const r = Math.floor((py - mask.y0) / mask.ch);
+    if (c < 0 || r < 0 || c >= mask.cols || r >= mask.rows) return false;
+    return mask.data[(r * mask.cols) + c] === 1;
+  }
+  return pointInShape(px, py, region.shape);
+}
+
 /** Fraction of the detection's area covered by the union of the regions. */
-function overlapFraction(det: Shape, regions: Shape[]): number {
+function overlapFraction(det: Shape, regions: PreparedRegion[]): number {
   const [x1, y1, x2, y2] = det.bbox;
   const w = x2 - x1;
   const h = y2 - y1;
@@ -88,7 +153,7 @@ function overlapFraction(det: Shape, regions: Shape[]): number {
       const px = x1 + ((ix + 0.5) / GRID) * w;
       if (pointInShape(px, py, det)) {
         inDet += 1;
-        if (regions.some((r) => pointInShape(px, py, r))) covered += 1;
+        if (regions.some((r) => pointInRegion(px, py, r))) covered += 1;
       }
     }
   }
@@ -101,12 +166,12 @@ function overlapFraction(det: Shape, regions: Shape[]): number {
  * over-count -- fine for an upper bound). Lets candidates that cannot
  * possibly reach the threshold skip the expensive point sampling.
  */
-function bboxCoverUpperBound(det: Rect, regions: Shape[]): number {
+function bboxCoverUpperBound(det: Rect, regions: PreparedRegion[]): number {
   const [dx1, dy1, dx2, dy2] = det;
   const detArea = Math.max(0, dx2 - dx1) * Math.max(0, dy2 - dy1);
   if (detArea <= 0) return 0;
   let sum = 0;
-  regions.forEach(({ bbox: [rx1, ry1, rx2, ry2] }) => {
+  regions.forEach(({ shape: { bbox: [rx1, ry1, rx2, ry2] } }) => {
     const w = Math.min(dx2, rx2) - Math.max(dx1, rx1);
     const h = Math.min(dy2, ry2) - Math.max(dy1, ry1);
     if (w > 0 && h > 0) sum += w * h;
@@ -159,7 +224,7 @@ export function getSuppressedTrackIds(
     return result;
   }
 
-  const regions: Shape[] = [];
+  const regions: PreparedRegion[] = [];
   const candidates: { id: AnnotationId; shape: Shape }[] = [];
   ids.forEach((id) => {
     const track = trackStore.getPossible(id);
@@ -167,7 +232,7 @@ export function getSuppressedTrackIds(
     const shape = featureShape(track.getFeature(frame)[0]);
     if (!shape) return;
     if (track.confidencePairs.some(([t]) => t === suppressionType)) {
-      regions.push(shape);
+      regions.push(prepareRegion(shape));
     } else {
       candidates.push({ id, shape });
     }

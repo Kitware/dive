@@ -164,6 +164,19 @@ export default defineComponent({
         return;
       }
       cameraStore.camMap.value.forEach(({ trackStore: store }) => {
+        // Frames where a suppression region actually exists: a track with a
+        // keyframe on any other frame can never be fully suppressed, so its
+        // check bails without touching the per-frame computation at all.
+        const regionFrames = new Set<number>();
+        store.annotationMap.forEach((annotation) => {
+          const track = annotation as Track;
+          if (track.confidencePairs?.some(([t]) => t === suppType)) {
+            (track.featureIndex || []).forEach((f) => regionFrames.add(f));
+          }
+        });
+        if (regionFrames.size === 0) {
+          return;
+        }
         const suppressedAt = (f: number) => getSuppressedTrackIds(store, f, suppType, { revision: editRevision });
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
@@ -172,7 +185,8 @@ export default defineComponent({
           }
           const keyframes = track.features.filter((f) => f && f.keyframe);
           if (keyframes.length > 0
-            && keyframes.every((f) => suppressedAt(f.frame).has(track.id))) {
+            && keyframes.every((f) => regionFrames.has(f.frame)
+              && suppressedAt(f.frame).has(track.id))) {
             excluded.add(track.id);
           }
         });
