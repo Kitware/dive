@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { clientSettings } from 'dive-common/store/settings';
+import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
 import warpAnnotationsAcrossCameras from 'dive-common/utils/warpAnnotationsAcrossCameras';
 import { cloneDeep } from 'lodash';
@@ -47,7 +47,7 @@ export default defineComponent({
       default: false,
     },
   },
-  emits: ['calibration-imported'],
+  emits: ['calibration-imported', 'stereo-warp-imported'],
   setup(props, { emit }) {
     const api = useApi();
     const { openFromDisk, importAnnotationFile } = api;
@@ -57,13 +57,35 @@ export default defineComponent({
     const selectedCamera = useSelectedCamera();
     const alignedView = useAlignedView();
     const isMulticamDataset = computed(() => cameraStore.camMap.value.size > 1);
-    // Warping detections onto other cameras requires the whole rig to be
-    // registered (a native->reference transform for every camera).
-    const canWarpToAllCameras = computed(
-      () => isMulticamDataset.value && alignedView.available.value,
+    const isStereoDataset = computed(() => props.subType === 'stereo');
+    // Stereo warping goes through the interactive stereo service, which
+    // needs its features enabled and a camera calibration loaded.
+    const stereoWarpAvailable = computed(
+      () => isStereoDataset.value && isStereoInteractiveModeEnabled()
+        && !!props.calibrationFile,
     );
+    // Multicam (non-stereo) warping instead requires the whole rig to be
+    // registered (a native->reference transform for every camera).
+    const canWarpToAllCameras = computed(() => {
+      if (!isMulticamDataset.value) {
+        return false;
+      }
+      if (isStereoDataset.value) {
+        return stereoWarpAvailable.value;
+      }
+      return alignedView.available.value;
+    });
     const warpToAllCameras = ref(false);
     const warpToAllCamerasHint = computed(() => {
+      if (isStereoDataset.value) {
+        if (!isStereoInteractiveModeEnabled()) {
+          return 'Requires interactive stereo to be enabled';
+        }
+        if (!props.calibrationFile) {
+          return 'Requires a camera calibration';
+        }
+        return 'Warps imported detections to the other camera';
+      }
       const progress = alignedView.registrationProgress.value;
       return progress
         ? `${progress.registered}/${progress.total} cameras registered`
@@ -93,10 +115,12 @@ export default defineComponent({
       () => !!api.importCalibrationFile && props.subType === 'stereo',
     );
     // Camera registration import (per-camera transform files) is meaningful
-    // for any multicam dataset.
+    // for multicam datasets; stereo rigs use the calibration (camera file)
+    // import instead, so the registration section is hidden there.
     const cameraRegistration = useCameraRegistration();
     const registrationSupported = computed(
-      () => !!api.importCameraRegistration && isMulticamDataset.value,
+      () => !!api.importCameraRegistration && isMulticamDataset.value
+        && props.subType !== 'stereo',
     );
     // One import button per non-reference camera pair, labeled in the
     // direction of the mapping -- "Import ir → eo" registers ir onto the
@@ -203,15 +227,24 @@ export default defineComponent({
               warpToAllCameras.value
               && canWarpToAllCameras.value
               && activeCameraName.value
-              && alignedView.toReference.value
             ) {
-              const warped = warpAnnotationsAcrossCameras(
-                cameraStore,
-                alignedView.toReference.value,
-                activeCameraName.value,
-              );
-              if (warped.tracks > 0) {
-                await save();
+              if (isStereoDataset.value) {
+                // The platform (desktop) performs the warp through the
+                // interactive stereo service, one detection at a time.
+                // Await completion via resolve callback so processing stays
+                // true until warp + save finish (emit alone is fire-and-forget).
+                await new Promise<void>((resolve) => {
+                  emit('stereo-warp-imported', activeCameraName.value, resolve);
+                });
+              } else if (alignedView.toReference.value) {
+                const warped = warpAnnotationsAcrossCameras(
+                  cameraStore,
+                  alignedView.toReference.value,
+                  activeCameraName.value,
+                );
+                if (warped.tracks > 0) {
+                  await save();
+                }
               }
             }
           }
@@ -508,22 +541,38 @@ export default defineComponent({
                 </template>
               </v-combobox>
             </v-row>
-            <v-row>
+            <v-row
+              class="flex-nowrap"
+              align="center"
+            >
               <v-checkbox
                 :input-value="!additive"
                 label="Overwrite"
                 class="mt-2"
+                dense
+                hide-details
                 @change="additive = !$event"
               />
-              <v-checkbox
+              <v-tooltip
                 v-if="isMulticamDataset"
-                v-model="warpToAllCameras"
-                :disabled="!canWarpToAllCameras"
-                label="Warp to All"
-                :hint="warpToAllCamerasHint"
-                persistent-hint
-                class="ml-4"
-              />
+                bottom
+                :disabled="!warpToAllCamerasHint"
+                open-delay="200"
+              >
+                <template #activator="{ on }">
+                  <div v-on="on">
+                    <v-checkbox
+                      v-model="warpToAllCameras"
+                      :disabled="!canWarpToAllCameras"
+                      label="Warp to All"
+                      class="mt-2 ml-2"
+                      dense
+                      hide-details
+                    />
+                  </div>
+                </template>
+                <span>{{ warpToAllCamerasHint }}</span>
+              </v-tooltip>
             </v-row>
             <div v-if="additive">
               <div
