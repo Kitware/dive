@@ -229,6 +229,7 @@ export default defineComponent({
   color: #222;
   font-weight: 600;
   border-radius: 6px;
+  margin-left: 4px;
   padding: 0 5px;
   font-size: 12px;
 }
