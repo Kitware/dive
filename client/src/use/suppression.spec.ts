@@ -153,7 +153,7 @@ describe('getSuppressedTrackIds threshold', () => {
   });
   const store = makeStore([region, halfCovered, fullyCovered]);
 
-  it('at the default (95%) only the fully covered detection is suppressed', () => {
+  it('at the default (99%) only the fully covered detection is suppressed', () => {
     expect(getSuppressedTrackIds(store, 0, 'Suppressed')).toEqual(new Set([3]));
   });
 

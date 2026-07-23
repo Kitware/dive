@@ -27,7 +27,7 @@ interface AnnotationSettings {
     // Empty string disables the feature.
     suppressionType?: string;
     // Minimum covered percent (0-100] for a detection to count as
-    // suppressed; out-of-range values fall back to the default (95).
+    // suppressed; out-of-range values fall back to the default (99).
     suppressionThreshold?: number;
   };
   trackSettings: {
@@ -135,7 +135,7 @@ const defaultSettings: AnnotationSettings = {
     preventCascadeTypes: false,
     maxCountButton: false,
     suppressionType: 'Suppressed',
-    suppressionThreshold: 95,
+    suppressionThreshold: 99,
   },
   rowsPerPage: 20,
   annotationFPS: 10,

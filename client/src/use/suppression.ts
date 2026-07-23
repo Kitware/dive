@@ -4,7 +4,7 @@
  * A "suppression region" is an annotation whose type matches the configured
  * suppression type (clientSettings.typeSettings.suppressionType). Any detection
  * whose geometry lies at least the configured overlap threshold
- * (clientSettings.typeSettings.suppressionThreshold, default 95%) under one
+ * (clientSettings.typeSettings.suppressionThreshold, default 99%) under one
  * or more suppression regions on a given frame is treated as suppressed: it
  * is hidden from the canvas and excluded from type/track/detection counts.
  *
@@ -20,11 +20,11 @@ import type BaseAnnotationStore from 'vue-media-annotator/BaseAnnotationStore';
 import type Track from 'vue-media-annotator/track';
 import type { Feature } from 'vue-media-annotator/track';
 
-export const DEFAULT_SUPPRESSION_THRESHOLD = 0.95;
+export const DEFAULT_SUPPRESSION_THRESHOLD = 0.99;
 
 /**
  * Normalize the stored suppression-overlap setting (a percent, 0-100) to a
- * fraction, falling back to the default (95%) for missing or out-of-range
+ * fraction, falling back to the default (99%) for missing or out-of-range
  * values.
  */
 export function normalizeSuppressionThreshold(percent: number | undefined): number {
@@ -40,7 +40,7 @@ type Rect = [number, number, number, number];
 interface Shape { poly?: Pt[]; bbox: Rect }
 
 // Sampling resolution used to estimate the covered-area fraction. 16x16
-// keeps the per-frame cost low; at a 95% threshold it resolves the covered
+// keeps the per-frame cost low; at a 99% threshold it resolves the covered
 // fraction to ~0.4% granularity on typical detections.
 const GRID = 16;
 
@@ -147,7 +147,7 @@ export function hasSuppressionAttribute(
  * Track ids whose detection on `frame` is suppressed by a region on that frame.
  * Empty when suppressionType is falsy (feature disabled) or no regions exist.
  * `thresholdPercent` is the minimum covered fraction as a percent (0-100];
- * missing or out-of-range values fall back to the default (95%).
+ * missing or out-of-range values fall back to the default (99%).
  */
 export function getSuppressedTrackIds(
   trackStore: BaseAnnotationStore<Track>,
