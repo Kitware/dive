@@ -3,13 +3,27 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from dive_server import crud_dataset
+from dive_server import crud, crud_dataset
 from dive_server.crud_rpc import process_items, resolve_imported_dataset_info
 
 
+def _stub_folder_load_and_save(folder_cls, folder):
+    """Folder.load returns a deep-ish copy of meta; save returns the doc passed in."""
+
+    def _load(*_a, **_k):
+        return {
+            **folder,
+            'meta': dict(folder.get('meta') or {}),
+        }
+
+    folder_cls.return_value.load = MagicMock(side_effect=_load)
+    folder_cls.return_value.save = MagicMock(side_effect=lambda f: f)
+
+
+@patch('dive_server.crud.Folder')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
-def test_update_metadata_clears_time_filters_when_null(_verify, folder_cls):
+def test_update_metadata_clears_time_filters_when_null(_verify, folder_cls, crud_folder_cls):
     folder = {
         '_id': 'dataset-id',
         'meta': {
@@ -18,7 +32,8 @@ def test_update_metadata_clears_time_filters_when_null(_verify, folder_cls):
             'timeFilters': [0, 100],
         },
     }
-    folder_cls.return_value.save = MagicMock(side_effect=lambda f: f)
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
 
     crud_dataset.update_metadata(folder, {'timeFilters': None})
 
@@ -26,9 +41,10 @@ def test_update_metadata_clears_time_filters_when_null(_verify, folder_cls):
     folder_cls.return_value.save.assert_called_once()
 
 
+@patch('dive_server.crud.Folder')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
-def test_update_metadata_clears_calibration_source_when_null(_verify, folder_cls):
+def test_update_metadata_clears_calibration_source_when_null(_verify, folder_cls, crud_folder_cls):
     # A cleared / hand-refined calibration sends cameraRegistrationSource: null to
     # drop a stale producer stamp; exclude_none would otherwise leave it behind.
     folder = {
@@ -39,7 +55,8 @@ def test_update_metadata_clears_calibration_source_when_null(_verify, folder_cls
             'cameraRegistrationSource': {'model': 'colmap-v3', 'swathe': '17'},
         },
     }
-    folder_cls.return_value.save = MagicMock(side_effect=lambda f: f)
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
 
     crud_dataset.update_metadata(folder, {'cameraRegistrationSource': None})
 
@@ -47,9 +64,10 @@ def test_update_metadata_clears_calibration_source_when_null(_verify, folder_cls
     folder_cls.return_value.save.assert_called_once()
 
 
+@patch('dive_server.crud.Folder')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.verify_dataset')
-def test_update_metadata_sets_time_filters(_verify, folder_cls):
+def test_update_metadata_sets_time_filters(_verify, folder_cls, crud_folder_cls):
     folder = {
         '_id': 'dataset-id',
         'meta': {
@@ -57,11 +75,67 @@ def test_update_metadata_sets_time_filters(_verify, folder_cls):
             'type': 'video',
         },
     }
-    folder_cls.return_value.save = MagicMock(side_effect=lambda f: f)
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
 
     crud_dataset.update_metadata(folder, {'timeFilters': [10, 50]})
 
     assert folder['meta']['timeFilters'] == [10, 50]
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_preserves_concurrent_convert_fields(_verify, folder_cls, crud_folder_cls):
+    """Stale in-memory meta must not wipe annotate/ffprobe written by convert_video."""
+    stale = {
+        '_id': 'dataset-id',
+        'meta': {
+            'type': 'video',
+            'fps': -1,
+            'confidenceFilters': {'default': 0.1},
+        },
+    }
+    db_after_convert = {
+        '_id': 'dataset-id',
+        'meta': {
+            'type': 'video',
+            'fps': 20,
+            'confidenceFilters': {'default': 0.1},
+            'annotate': True,
+            'originalFps': 29.97,
+            'ffprobe_info': {'codec_name': 'h264'},
+        },
+    }
+    crud_folder_cls.return_value.load = MagicMock(return_value=dict(db_after_convert))
+    folder_cls.return_value.save = MagicMock(side_effect=lambda f: f)
+
+    crud_dataset.update_metadata(stale, {'datasetInfo': {'cruise': '2403'}}, verify=False)
+
+    saved = folder_cls.return_value.save.call_args.args[0]
+    assert saved['meta']['annotate'] is True
+    assert saved['meta']['originalFps'] == 29.97
+    assert saved['meta']['ffprobe_info']['codec_name'] == 'h264'
+    assert saved['meta']['fps'] == 20
+    assert saved['meta']['datasetInfo'] == {'cruise': '2403'}
+    # Caller's folder dict is refreshed in place
+    assert stale['meta']['annotate'] is True
+
+
+def test_refresh_folder_document_replaces_stale_meta_in_place():
+    folder = {'_id': 'dataset-id', 'meta': {'type': 'video'}, 'extra': 'gone'}
+    fresh = {
+        '_id': 'dataset-id',
+        'meta': {'type': 'video', 'annotate': True},
+        'name': 'bigfish',
+    }
+    with patch('dive_server.crud.Folder') as folder_cls:
+        folder_cls.return_value.load.return_value = fresh
+        crud.refresh_folder_document(folder)
+
+    assert folder['meta']['annotate'] is True
+    assert folder['name'] == 'bigfish'
+    assert 'extra' not in folder
 
 
 # --- datasetInfo re-import resolution ---

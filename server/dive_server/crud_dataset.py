@@ -394,6 +394,8 @@ def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
     """Update mutable metadata"""
     if verify:
         crud.verify_dataset(dsFolder)
+    # Reload before save so concurrent convert_video metadata is not wiped.
+    crud.refresh_folder_document(dsFolder)
     validated: MetadataMutableUpdateArgs = crud.get_validated_model(
         MetadataMutableUpdateArgs, **data
     )
@@ -1335,12 +1337,14 @@ def create_multicam(
         loaded_children[name] = child
         camera_types_by_name[name] = cam_type
 
-    use_video_fps = validated.type == constants.VideoType and validated.fps == -1
-    if use_video_fps:
+    # fps == -1 means auto: take the children's resolved rates (video native
+    # fps, or image-sequence/large-image default of 1 after post-process).
+    use_auto_fps = validated.fps == -1
+    if use_auto_fps:
         unique_fps = set(child_fps_by_name.values())
         if len(unique_fps) > 1:
             raise RestException(
-                'All cameras must have the same fps when using video-derived frame rate',
+                'All cameras must have the same fps when using auto frame rate',
                 code=400,
             )
     else:

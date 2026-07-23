@@ -440,9 +440,14 @@ export default defineComponent({
         const registrationSeed = transformEntries.length
           ? await parseRegistrationSeed(transformEntries, Object.keys(args.sourceList))
           : null;
-        const fps = args.type === VideoType
-          ? DefaultVideoFPS
-          : (clientSettings.annotationFPS || 1);
+        // annotationFPS of -1 ("Video FPS") is truthy in JS; for image /
+        // large-image multicam resolve it to 1 so create_multicam matches
+        // child folders after post-process (which also maps -1 → 1).
+        const annotationFps = clientSettings.annotationFPS;
+        let fps = DefaultVideoFPS;
+        if (args.type !== VideoType) {
+          fps = annotationFps > 0 ? annotationFps : 1;
+        }
         setMulticamImportProgress(MULTICAM_PROGRESS_START, `${labelPrefix}Creating dataset folder…`);
         const { data: datasetFolder } = await createGirderFolder({
           folderId: props.location._id,
