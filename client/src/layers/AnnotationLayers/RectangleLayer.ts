@@ -1,5 +1,6 @@
 /* eslint-disable class-methods-use-this */
 import geo, { GeoEvent } from 'geojs';
+import { Ref } from 'vue';
 
 import { cloneDeep } from 'lodash';
 import {
@@ -9,6 +10,10 @@ import {
   hasSignificantRotation,
   rotateGeoJSONCoordinates,
 } from '../../utils';
+import {
+  resolveSuppressionDisplay,
+  SuppressionDisplaySettings,
+} from '../../types';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 import LineLayer from './LineLayer';
@@ -20,11 +25,17 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
+  /** Suppression type name when attribute-flagged as suppressed (dashed/fill styling). */
+  suppressed?: string;
   set?: string;
   dashed?: boolean;
   rotation?: number;
   /** Small arrow on the right-edge midpoint when rotation is significant */
   rotationArrow?: GeoJSON.LineString | null;
+}
+
+interface RectangleLayerParams extends BaseLayerParams {
+  suppressionDisplay?: Ref<SuppressionDisplaySettings | undefined>;
 }
 
 export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
@@ -42,13 +53,25 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   arrowFeatureLayer: any;
 
-  constructor(params: BaseLayerParams) {
+  suppressionDisplay: Ref<SuppressionDisplaySettings | undefined>;
+
+  constructor(params: RectangleLayerParams) {
     super(params);
     this.drawingOther = false;
     this.hoverOn = false;
     this.clickTargetsOnly = false;
+    this.suppressionDisplay = params.suppressionDisplay
+      || ({ value: undefined } as Ref<SuppressionDisplaySettings | undefined>);
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
+  }
+
+  private suppressionStyle() {
+    return resolveSuppressionDisplay(this.suppressionDisplay.value);
+  }
+
+  private styleSuppressed(data: { suppressed?: string }) {
+    return !!(data.suppressed && this.suppressionStyle().enabled);
   }
 
   initialize() {
@@ -175,7 +198,13 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           polygon.coordinates[0] = updatedCoords;
         }
 
-        const dashed = !!(track.set && comparisonSets?.includes(track.set));
+        // Comparison-set tracks and attribute-suppressed detections both use
+        // dashed outlines (odd stroke segments are made transparent below).
+        const suppStyle = this.suppressionStyle();
+        const dashed = !!(
+          (track.suppressed && suppStyle.enabled && suppStyle.dashed)
+          || (track.set && comparisonSets?.includes(track.set))
+        );
         if (dashed) {
           const temp = cloneDeep(polygon);
           const width = track.features.bounds[2] - track.features.bounds[0];
@@ -191,6 +220,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           styleType: track.styleType,
           polygon,
           hasPoly,
+          suppressed: track.suppressed,
           set: track.set,
           dashed,
           rotation,
@@ -257,6 +287,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         if (this.drawingOther && data.hasPoly) {
           return false;
         }
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().fillOpacity > 0;
+        }
         if (data.set) {
           return this.typeStyling.value.fill(data.set, true);
         }
@@ -266,6 +299,12 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.stateStyling.standard.fill;
       },
       fillColor: (_point, _index, data) => {
+        if (this.styleSuppressed(data)) {
+          const { fillColor } = this.suppressionStyle();
+          if (fillColor) {
+            return fillColor;
+          }
+        }
         if (data.set) {
           return this.typeStyling.value.annotationSetColor(data.set);
         }
@@ -275,6 +314,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.typeStyling.value.color('');
       },
       fillOpacity: (_point, _index, data) => {
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().fillOpacity;
+        }
         if (data.set) {
           return this.typeStyling.value.opacity(data.set, true);
         }
@@ -298,6 +340,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         }
         if (data.selected) {
           return this.stateStyling.selected.opacity;
+        }
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().outlineOpacity;
         }
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);

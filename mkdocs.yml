@@ -67,6 +67,7 @@ nav:
         - Attributes Configuration: UI-AttributeConfiguration.md
         - Attributes Details: UI-AttributeDetails.md
         - Attribute Track Filtering: UI-AttributeTrackFiltering.md
+      - Suppression: UI-Suppression.md
       - Group Manager: UI-Group-Manager.md
       - Dataset Info: UI-DatasetInfo.md
       - Image Enhancements: UI-Image-Enhancements.md
