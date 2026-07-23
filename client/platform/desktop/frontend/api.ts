@@ -142,6 +142,7 @@ async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: Pipe
     pipeline,
     datasetId: itemId,
     pipelineParams,
+    outputDatasetName: pipelineParams?.outputDatasetName,
   };
   gpuJobQueue.enqueue(args);
 }
