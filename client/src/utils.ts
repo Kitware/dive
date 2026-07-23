@@ -261,6 +261,32 @@ function polygonWithinBounds(polygon: GeoJSON.Polygon, bounds: RectBounds): bool
 }
 
 /**
+ * Translate every vertex of a polygon by (dx, dy). Holes move with the exterior.
+ */
+function translatePolygon(
+  polygon: GeoJSON.Polygon,
+  dx: number,
+  dy: number,
+): GeoJSON.Polygon {
+  return {
+    type: 'Polygon',
+    coordinates: polygon.coordinates.map((ring) => (
+      ring.map((pos) => [pos[0] + dx, pos[1] + dy])
+    )),
+  };
+}
+
+/**
+ * True when `next` is the same width/height as `prev` but at a different origin
+ * (a pure translation / box move, not a resize).
+ */
+function isBoundsTranslation(prev: RectBounds, next: RectBounds): boolean {
+  return (prev[2] - prev[0]) === (next[2] - next[0])
+    && (prev[3] - prev[1]) === (next[3] - next[1])
+    && (prev[0] !== next[0] || prev[1] !== next[1]);
+}
+
+/**
  * True when the polygon is just the full axis-aligned rectangle of `bounds`:
  * no holes, its extent matches the bounds, and its area fills the whole box
  * (a simple polygon whose area equals its bounding box's area must be that
@@ -664,6 +690,8 @@ export {
   withinBounds,
   polygonWithinBounds,
   polygonEqualsBounds,
+  translatePolygon,
+  isBoundsTranslation,
   clipPolygonToBounds,
   frameToTimestamp,
   isAxisAligned,

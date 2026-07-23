@@ -11,6 +11,8 @@ import {
   hasSignificantRotation,
   polygonWithinBounds,
   polygonEqualsBounds,
+  translatePolygon,
+  isBoundsTranslation,
   clipPolygonToBounds,
   ROTATION_ATTRIBUTE_NAME,
 } from 'vue-media-annotator/utils';
@@ -706,31 +708,51 @@ export default function useModeManager({
             track.features[frameNum]?.attributes ?? real?.attributes,
           );
 
-        // Trim any polygon on this detection to fit the new box. setFeature
-        // rounds bounds, so clip against the rounded values to stay
-        // consistent with what gets stored. Rotated boxes are skipped: their
-        // stored bounds are the unrotated envelope, so an axis-aligned clip
-        // would cut the wrong region.
-        const clippedGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
+        // Keep polygons in sync with box edits. setFeature rounds bounds, so
+        // compare/clip against rounded values. Rotated boxes are skipped:
+        // their stored bounds are the unrotated envelope, so an axis-aligned
+        // clip would cut the wrong region.
+        // - Pure move (same size, new origin): translate polygons by the delta.
+        // - Resize: trim polygons that stick outside the new box.
+        const updatedGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
         const removedPolygonKeys: string[] = [];
         if (!hasSignificantRotation(effectiveRotation)) {
           const roundedBounds: RectBounds = [
             Math.round(bounds[0]), Math.round(bounds[1]),
             Math.round(bounds[2]), Math.round(bounds[3]),
           ];
-          track.getFeatureGeometry(frameNum, { type: 'Polygon' }).forEach((polyFeature) => {
-            const polygon = polyFeature.geometry as GeoJSON.Polygon;
-            if (!polygonWithinBounds(polygon, roundedBounds)) {
-              const clipped = clipPolygonToBounds(polygon, roundedBounds);
-              // A clip that leaves the polygon identical to the box carries
-              // no information beyond the box itself, so drop it too.
-              if (clipped && !polygonEqualsBounds(clipped, roundedBounds)) {
-                clippedGeometry.push({ ...polyFeature, geometry: clipped });
-              } else {
-                removedPolygonKeys.push(polyFeature.properties?.key ?? '');
+          const oldBounds: RectBounds | null = real?.bounds
+            ? [
+              Math.round(real.bounds[0]), Math.round(real.bounds[1]),
+              Math.round(real.bounds[2]), Math.round(real.bounds[3]),
+            ]
+            : null;
+          const polygons = track.getFeatureGeometry(frameNum, { type: 'Polygon' });
+          if (oldBounds && isBoundsTranslation(oldBounds, roundedBounds)) {
+            const dx = roundedBounds[0] - oldBounds[0];
+            const dy = roundedBounds[1] - oldBounds[1];
+            polygons.forEach((polyFeature) => {
+              const polygon = polyFeature.geometry as GeoJSON.Polygon;
+              updatedGeometry.push({
+                ...polyFeature,
+                geometry: translatePolygon(polygon, dx, dy),
+              });
+            });
+          } else {
+            polygons.forEach((polyFeature) => {
+              const polygon = polyFeature.geometry as GeoJSON.Polygon;
+              if (!polygonWithinBounds(polygon, roundedBounds)) {
+                const clipped = clipPolygonToBounds(polygon, roundedBounds);
+                // A clip that leaves the polygon identical to the box carries
+                // no information beyond the box itself, so drop it too.
+                if (clipped && !polygonEqualsBounds(clipped, roundedBounds)) {
+                  updatedGeometry.push({ ...polyFeature, geometry: clipped });
+                } else {
+                  removedPolygonKeys.push(polyFeature.properties?.key ?? '');
+                }
               }
-            }
-          });
+            });
+          }
         }
 
         track.setFeature({
@@ -739,7 +761,7 @@ export default function useModeManager({
           bounds,
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
-        }, clippedGeometry);
+        }, updatedGeometry);
         removedPolygonKeys.forEach((key) => {
           track.removeFeatureGeometry(frameNum, { key, type: 'Polygon' });
         });
