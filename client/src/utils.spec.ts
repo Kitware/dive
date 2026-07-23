@@ -19,6 +19,8 @@ import {
   featureHasSegmentationPolygon,
   polygonWithinBounds,
   polygonEqualsBounds,
+  translatePolygon,
+  isBoundsTranslation,
   clipPolygonToBounds,
   pointInPolygon,
   pointInRing,
@@ -458,6 +460,31 @@ describe('polygonWithinBounds / clipPolygonToBounds', () => {
       [[0, 20], [0, 0], [20, 0], [20, 20], [0, 20]],
       [[5, 5], [8, 5], [8, 8], [5, 8], [5, 5]],
     ]));
+  });
+});
+
+describe('translatePolygon / isBoundsTranslation', () => {
+  const poly = (rings: GeoJSON.Position[][]): GeoJSON.Polygon => ({
+    type: 'Polygon',
+    coordinates: rings,
+  });
+
+  it('translatePolygon shifts every vertex including holes', () => {
+    const withHole = poly([
+      [[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]],
+      [[5, 5], [8, 5], [8, 8], [5, 8], [5, 5]],
+    ]);
+    expect(translatePolygon(withHole, 10, -3)).toEqual(poly([
+      [[10, -3], [50, -3], [50, 37], [10, 37], [10, -3]],
+      [[15, 2], [18, 2], [18, 5], [15, 5], [15, 2]],
+    ]));
+  });
+
+  it('isBoundsTranslation is true only for same-size origin shifts', () => {
+    expect(isBoundsTranslation([0, 0, 40, 40], [10, 5, 50, 45])).toBe(true);
+    expect(isBoundsTranslation([0, 0, 40, 40], [0, 0, 40, 40])).toBe(false);
+    expect(isBoundsTranslation([0, 0, 40, 40], [0, 0, 20, 40])).toBe(false);
+    expect(isBoundsTranslation([0, 0, 40, 40], [10, 0, 40, 40])).toBe(false);
   });
 });
 
