@@ -182,10 +182,14 @@ function overlapFraction(det: Shape, regions: PreparedRegion[]): number {
 }
 
 /**
- * Upper bound on the fraction of the detection's bbox covered by the regions,
+ * Upper bound on the fraction of a bbox-only detection covered by the regions,
  * from bbox overlaps alone (sum over regions, so overlapping regions
  * over-count -- fine for an upper bound). Lets candidates that cannot
  * possibly reach the threshold skip the expensive point sampling.
+ *
+ * Not valid for polygon detections: overlapFraction is relative to the
+ * polygon footprint (≤ bbox area), so bbox_intersection / bbox_area can be
+ * below the threshold even when the polygon is fully covered.
  */
 function bboxCoverUpperBound(det: Rect, regions: PreparedRegion[]): number {
   const [dx1, dy1, dx2, dy2] = det;
@@ -301,7 +305,9 @@ export function getSuppressedTrackIds(
   });
   if (regions.length > 0) {
     candidates.forEach(({ id, shape }) => {
-      if (bboxCoverUpperBound(shape.bbox, regions) < threshold) {
+      // Bbox prefilter is only sound for bbox-only detections (see
+      // bboxCoverUpperBound). Polygon candidates always go to sampling.
+      if (!shape.poly && bboxCoverUpperBound(shape.bbox, regions) < threshold) {
         return;
       }
       if (overlapFraction(shape, regions) >= threshold) {

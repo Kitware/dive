@@ -278,3 +278,41 @@ describe('rasterized region polygons', () => {
     expect(getSuppressedTrackIds(store, 0, 'Suppressed')).toEqual(new Set([2]));
   });
 });
+
+describe('polygon detection vs bbox prefilter', () => {
+  // Thin strip polygon inside a large bbox: the region covers the strip
+  // fully, but only ~10% of the bbox. A bbox-area prefilter at 99% would
+  // skip sampling and incorrectly leave the detection unsuppressed.
+  const region = makeTrack({
+    id: 1,
+    confidencePairs: [['Suppressed', 1]],
+    features: [{
+      frame: 0, bounds: [0, 0, 100, 20], keyframe: true, interpolate: false,
+    }],
+  });
+  const stripPoly: [number, number][] = [
+    [0, 0], [100, 0], [100, 10], [0, 10], [0, 0],
+  ];
+  const thinStrip = makeTrack({
+    id: 2,
+    features: [{
+      frame: 0,
+      bounds: [0, 0, 100, 100],
+      keyframe: true,
+      interpolate: false,
+      geometry: {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [stripPoly] },
+          properties: { key: '' },
+        }],
+      },
+    }],
+  });
+
+  it('still suppresses a polygon fully covered even when bbox overlap is low', () => {
+    const store = makeStore([region, thinStrip]);
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed')).toEqual(new Set([2]));
+  });
+});
