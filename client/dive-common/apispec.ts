@@ -226,6 +226,21 @@ interface DatasetMetaMutable {
   error?: string;
 }
 const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
+/**
+ * Mutable keys the multicam/stereo viewer loads from the parent dataset.
+ * Camera-targeted imports sync only these onto the parent — not per-camera
+ * imageEnhancements, and not camera registration (homographies / correspondences /
+ * transform types / registration source), which must not be clobbered by config import.
+ */
+const MulticamSharedMutableKeys = [
+  'attributes',
+  'confidenceFilters',
+  'timeFilters',
+  'customTypeStyling',
+  'customGroupStyling',
+  'attributeTrackFilters',
+  'datasetInfo',
+];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -576,6 +591,7 @@ export {
   DatasetMeta,
   DatasetMetaMutable,
   DatasetMetaMutableKeys,
+  MulticamSharedMutableKeys,
   DatasetType,
   DiveParam,
   CameraCalibration,
