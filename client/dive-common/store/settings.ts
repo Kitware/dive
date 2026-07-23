@@ -31,6 +31,11 @@ interface AnnotationSettings {
     // Minimum covered percent (0-100] for region suppression;
     // out-of-range values fall back to the default (99).
     suppressionThreshold?: number;
+    // Where per-type/track/group color and style overrides are stored.
+    // 'shared': one set of colors is reused across every dataset (per user on
+    // web, across all sequences on desktop). 'dataset': colors are saved only
+    // with the dataset they were set on (the original behavior).
+    colorScope?: 'shared' | 'dataset';
   };
   trackSettings: {
     newTrackSettings: {
@@ -138,6 +143,7 @@ const defaultSettings: AnnotationSettings = {
     maxCountButton: false,
     suppressionType: 'Suppressed',
     suppressionThreshold: 99,
+    colorScope: 'shared',
   },
   rowsPerPage: 20,
   annotationFPS: 10,

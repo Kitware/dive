@@ -12,8 +12,13 @@ export default defineComponent({
     },
   },
   setup() {
+    const colorScopeItems = [
+      { text: 'Shared across all data', value: 'shared' },
+      { text: 'Per dataset', value: 'dataset' },
+    ];
     return {
       clientSettings,
+      colorScopeItems,
       isDesktopRuntime: isDesktopRuntime(),
     };
   },
@@ -29,11 +34,29 @@ export default defineComponent({
     <v-card>
       <v-card-title>User Settings</v-card-title>
       <v-card-text>
+        <v-select
+          v-model="clientSettings.typeSettings.colorScope"
+          :items="colorScopeItems"
+          color="primary"
+          item-color="primary"
+          class="my-0"
+          label="Type color scope"
+          :hint="isDesktopRuntime
+            ? 'Shared: reuse the same type/track colors across every sequence. '
+              + 'Per dataset: colors are saved only with the dataset they were set on. '
+              + 'Applies when a dataset is opened.'
+            : 'Shared: reuse your type/track colors across every dataset. '
+              + 'Per dataset: colors are saved only with the dataset they were set on. '
+              + 'Applies when a dataset is opened.'"
+          persistent-hint
+          dense
+          outlined
+        />
         <v-switch
           v-if="isDesktopRuntime"
           v-model="clientSettings.multiCamSettings.showToolbar"
           color="primary"
-          class="my-0"
+          class="my-0 mt-3"
           label="Show multi-camera toolbar"
           hint="Show multi-camera tools in the top toolbar when a track is selected."
           persistent-hint

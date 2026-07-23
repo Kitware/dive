@@ -43,6 +43,12 @@ export interface TypeStyling {
 interface UseStylingParams {
   markChangesPending: () => void;
   vuetify?: Vuetify;
+  /**
+   * Invoked after a user (or programmatic) style edit through updateTypeStyle.
+   * Used to mirror the change into a cross-dataset "shared color" store. Not
+   * called on populateTypeStyles (dataset load), only on genuine edits.
+   */
+  onStyleEdit?: () => void;
 }
 
 /**
@@ -114,7 +120,9 @@ export default class StyleManager {
 
   markChangesPending: () => void;
 
-  constructor({ markChangesPending, vuetify }: UseStylingParams) {
+  onStyleEdit?: () => void;
+
+  constructor({ markChangesPending, vuetify, onStyleEdit }: UseStylingParams) {
     this.revisionCounter = ref(1);
     this.customStyles = ref({} as Record<string, CustomStyle>);
     this.annotationSetStyles = ref({} as Record<string, CustomStyle>);
@@ -144,6 +152,7 @@ export default class StyleManager {
     this.stateStyles = { standard, selected, disabled };
     this.typeColors = d3.scaleOrdinal<string>().range(generateColors(10));
     this.markChangesPending = markChangesPending;
+    this.onStyleEdit = onStyleEdit;
     this.typeStyling = computed(() => {
       // establish dependency on revision counter
       if (this.revisionCounter.value) noop();
@@ -247,6 +256,9 @@ export default class StyleManager {
     VueSet(this.customStyles.value, type, merge(oldValue, value));
     this.revisionCounter.value += 1;
     this.markChangesPending();
+    if (this.onStyleEdit) {
+      this.onStyleEdit();
+    }
   }
 
   getTypeStyles(allTypes: Ref<readonly string[]>) {
