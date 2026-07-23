@@ -203,6 +203,20 @@ beforeEach(() => {
       annotationImport: {
         'viame.csv': emptyCsvString,
         'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
+        'foreign.meta.withExtras.json': JSON.stringify({
+          confidenceFilters: { default: 0.8 },
+          customTypeStyling: { fish: { color: 'green' } },
+          imageEnhancements: { brightness: 1.1 },
+          cameraHomographies: {
+            'left::right': {
+              AtoB: [[9, 0, 0], [0, 9, 0], [0, 0, 1]],
+              BtoA: [[9, 0, 0], [0, 9, 0], [0, 0, 1]],
+            },
+          },
+          cameraCorrespondences: { 'left::right': [{ id: 9, a: [9, 9], b: [8, 8] }] },
+          cameraTransformTypes: { 'left::right': 'affine' },
+          cameraRegistrationSource: { model: 'from-import' },
+        }),
         'dataset-info.config.json': JSON.stringify({
           datasetInfo: {
             year: '2025',
@@ -684,13 +698,41 @@ describe('native.common', () => {
       npath.join(projects, baseId, 'left'),
     );
 
-    await common.dataFileImport(settings, `${baseId}/left`, '/home/user/data/annotationImport/foreign.meta.json');
-    // The camera's own metadata receives the config,
+    // Seed parent registration so a config import must not clobber it.
+    const baseDir = common.getProjectDir(settings, baseId);
+    const seededBase = await common.loadJsonMetadata(baseDir.metaFileAbsPath);
+    seededBase.cameraHomographies = {
+      'left::right': {
+        AtoB: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        BtoA: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      },
+    };
+    seededBase.cameraCorrespondences = {
+      'left::right': [{ id: 1, a: [0, 0], b: [1, 1] }],
+    };
+    seededBase.cameraTransformTypes = { 'left::right': 'similarity' };
+    seededBase.cameraRegistrationSource = { model: 'seeded' };
+    await fs.writeJSON(baseDir.metaFileAbsPath, seededBase);
+
+    await common.dataFileImport(
+      settings,
+      `${baseId}/left`,
+      '/home/user/data/annotationImport/foreign.meta.withExtras.json',
+    );
+    // The camera's own metadata receives the full imported config,
     const cameraMeta = await common.loadMetadata(settings, `${baseId}/left`, urlMapper);
     expect(cameraMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
-    // and so does the base metadata, which is what the viewer reads.
+    expect(cameraMeta.imageEnhancements).toStrictEqual({ brightness: 1.1 });
+    // Shared keys land on the base metadata the viewer reads,
     const baseMeta = await common.loadMetadata(settings, baseId, urlMapper);
     expect(baseMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
+    expect(baseMeta.customTypeStyling).toStrictEqual({ fish: { color: 'green' } });
+    // but per-camera enhancements and registration must stay untouched on the parent.
+    expect(baseMeta.imageEnhancements).toBeUndefined();
+    expect(baseMeta.cameraHomographies).toStrictEqual(seededBase.cameraHomographies);
+    expect(baseMeta.cameraCorrespondences).toStrictEqual(seededBase.cameraCorrespondences);
+    expect(baseMeta.cameraTransformTypes).toStrictEqual(seededBase.cameraTransformTypes);
+    expect(baseMeta.cameraRegistrationSource).toStrictEqual(seededBase.cameraRegistrationSource);
   });
 
   it('saveMetadata writes per-camera registration files (pairs + points) and reloads them', async () => {
