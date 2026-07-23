@@ -223,7 +223,11 @@ export default defineComponent({
               if (isStereoDataset.value) {
                 // The platform (desktop) performs the warp through the
                 // interactive stereo service, one detection at a time.
-                emit('stereo-warp-imported', activeCameraName.value);
+                // Await completion via resolve callback so processing stays
+                // true until warp + save finish (emit alone is fire-and-forget).
+                await new Promise<void>((resolve) => {
+                  emit('stereo-warp-imported', activeCameraName.value, resolve);
+                });
               } else if (alignedView.toReference.value) {
                 const warped = warpAnnotationsAcrossCameras(
                   cameraStore,
