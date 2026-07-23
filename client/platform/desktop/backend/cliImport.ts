@@ -30,7 +30,8 @@ import mime from 'mime-types';
 
 import { MultiCamImportFolderArgs } from 'dive-common/apispec';
 import {
-  PREFERRED_SUBFOLDER_ORDER, sortSubfolderCameraNames,
+  orderSubfolderCameraNames,
+  pickDefaultMulticamCamera,
 } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { otherVideoTypes, websafeVideoTypes } from 'dive-common/constants';
 import {
@@ -58,9 +59,16 @@ export interface CliOpenArgs {
   cameraAnnotations?: Record<string, string>;
   /** Media per camera name. Presence of this selects the multi-camera import. */
   cameras?: Record<string, string>;
-  /** Camera names in the order given, which is the display order. */
+  /**
+   * Camera names in display order. Flag order is the baseline; recognized
+   * layouts (STAR/CENTER/PORT, EO/UV/IR, stereo left-first) are canonicalized
+   * to match the folder-import wizard.
+   */
   cameraOrder?: string[];
-  /** Camera shown by default; defaults to `left`, else the first camera. */
+  /**
+   * Camera shown by default; defaults via the same heuristics as the
+   * folder-import wizard (center/EO/left, else middle camera).
+   */
   defaultDisplay?: string;
   /** Stereo calibration file (.npz or .json). */
   calibrationPath?: string;
@@ -158,8 +166,9 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     };
   }
 
-  // Multi-camera. Flag order is the display order, except a recognized
-  // rig (STAR/CENTER/PORT) is shown in that canonical order (see below).
+  // Multi-camera. Flag order is the display-order baseline; recognized layouts
+  // (STAR/CENTER/PORT, EO-first/IR-last, stereo left-first) are canonicalized
+  // below so a CLI import matches the folder-import wizard.
   const cameras: Record<string, string> = {};
   const cameraOrder: string[] = [];
   cameraArgs.forEach((arg) => {
@@ -174,16 +183,9 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     throw new Error('a multi-camera dataset needs at least two --camera arguments');
   }
 
-  // Rig cameras have a canonical display order (STAR/CENTER/PORT); apply it so
-  // a CLI import shows them the same way the folder-import wizard does, no
-  // matter which order the --camera flags were given. Any other camera set
-  // keeps the flag order verbatim.
-  const cameraOrderLower = new Set(cameraOrder.map((c) => c.toLowerCase()));
-  const isRecognizedRig = PREFERRED_SUBFOLDER_ORDER.every(
-    (preferred) => cameraOrderLower.has(preferred.toLowerCase()),
-  );
-  const displayOrder = isRecognizedRig
-    ? sortSubfolderCameraNames(cameraOrder) : cameraOrder;
+  const displayOrder = orderSubfolderCameraNames(cameraOrder, {
+    preferLeftFirst: true,
+  });
 
   const cameraAnnotations: Record<string, string> = {};
   annotationArgs.forEach((arg) => {
@@ -195,8 +197,9 @@ export function parseCliArgs(argv: string[]): CliOpenArgs | null {
     cameraAnnotations[cameraName] = npath.resolve(annotationFile);
   });
 
-  const defaultDisplay = readFlag('--default-display') ?? (
-    cameras.left ? 'left' : displayOrder[0]
+  const defaultDisplay = readFlag('--default-display') ?? pickDefaultMulticamCamera(
+    displayOrder,
+    { preferLeftForStereo: true },
   );
   if (!cameras[defaultDisplay]) {
     throw new Error(`--default-display names an unknown camera '${defaultDisplay}'; `
