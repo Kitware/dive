@@ -135,14 +135,18 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
+async function importAnnotationFile(datasetId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
   if (file === undefined) {
     return false;
   }
+  // Resolve composite multicam ids (parent/camera) to the camera folder so
+  // annotations land on the active camera; mutable config is synced to the
+  // parent by server process_items (same behavior as desktop dataFileImport).
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   const resp = await girderRest.post('/file', null, {
     params: {
       parentType: 'folder',
-      parentId,
+      parentId: folderId,
       name: file.name,
       size: file.size,
       mimeType: file.type,
@@ -157,7 +161,7 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
       headers: { 'Content-Type': 'application/octet-stream' },
     });
     if (uploadResponse.status === 200) {
-      const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
+      const final = await postProcess(folderId, true, false, additive, additivePrepend, set);
       if (final.data.warnings !== undefined) {
         const { warnings } = final.data;
         return warnings;

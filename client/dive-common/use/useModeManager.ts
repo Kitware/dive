@@ -8,6 +8,10 @@ import {
   updateBounds,
   validateRotation,
   getRotationFromAttributes,
+  hasSignificantRotation,
+  polygonWithinBounds,
+  polygonEqualsBounds,
+  clipPolygonToBounds,
   ROTATION_ATTRIBUTE_NAME,
 } from 'vue-media-annotator/utils';
 import type AlignedViewStore from 'vue-media-annotator/alignedView/AlignedViewStore';
@@ -691,6 +695,43 @@ export default function useModeManager({
         const [real] = features;
         // If there's already a keyframe at this frame, we're editing an existing annotation
         const isEditingExisting = real !== null && real.keyframe;
+        const normalizedRotation = validateRotation(rotation);
+        // Prefer the rotation passed with this edit. validateRotation maps ~0 to
+        // undefined, so detect an explicit arg via the raw parameter — otherwise
+        // fall back to the detection's stored rotation and avoid axis-align
+        // clipping a rotated box's polygon against its unrotated envelope.
+        const effectiveRotation = (rotation !== undefined && rotation !== null)
+          ? normalizedRotation
+          : getRotationFromAttributes(
+            track.features[frameNum]?.attributes ?? real?.attributes,
+          );
+
+        // Trim any polygon on this detection to fit the new box. setFeature
+        // rounds bounds, so clip against the rounded values to stay
+        // consistent with what gets stored. Rotated boxes are skipped: their
+        // stored bounds are the unrotated envelope, so an axis-aligned clip
+        // would cut the wrong region.
+        const clippedGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
+        const removedPolygonKeys: string[] = [];
+        if (!hasSignificantRotation(effectiveRotation)) {
+          const roundedBounds: RectBounds = [
+            Math.round(bounds[0]), Math.round(bounds[1]),
+            Math.round(bounds[2]), Math.round(bounds[3]),
+          ];
+          track.getFeatureGeometry(frameNum, { type: 'Polygon' }).forEach((polyFeature) => {
+            const polygon = polyFeature.geometry as GeoJSON.Polygon;
+            if (!polygonWithinBounds(polygon, roundedBounds)) {
+              const clipped = clipPolygonToBounds(polygon, roundedBounds);
+              // A clip that leaves the polygon identical to the box carries
+              // no information beyond the box itself, so drop it too.
+              if (clipped && !polygonEqualsBounds(clipped, roundedBounds)) {
+                clippedGeometry.push({ ...polyFeature, geometry: clipped });
+              } else {
+                removedPolygonKeys.push(polyFeature.properties?.key ?? '');
+              }
+            }
+          });
+        }
 
         track.setFeature({
           frame: frameNum,
@@ -698,10 +739,12 @@ export default function useModeManager({
           bounds,
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
+        }, clippedGeometry);
+        removedPolygonKeys.forEach((key) => {
+          track.removeFeatureGeometry(frameNum, { key, type: 'Polygon' });
         });
 
         // Save rotation as detection attribute if provided
-        const normalizedRotation = validateRotation(rotation);
         if (normalizedRotation !== undefined) {
           track.setFeatureAttribute(frameNum, ROTATION_ATTRIBUTE_NAME, normalizedRotation);
         } else {

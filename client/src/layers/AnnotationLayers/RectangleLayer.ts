@@ -252,6 +252,11 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         if (this.clickTargetsOnly) {
           return false;
         }
+        // When the polygon is also drawn, fill belongs to the polygon.
+        // If the poly exists but isn't visible, keep fill on the rectangle.
+        if (this.drawingOther && data.hasPoly) {
+          return false;
+        }
         if (data.set) {
           return this.typeStyling.value.fill(data.set, true);
         }

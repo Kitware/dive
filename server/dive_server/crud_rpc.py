@@ -717,6 +717,19 @@ def process_items(
                 fromMeta(folder, 'datasetInfo', {}), results['meta'], additive
             )
             crud_dataset.update_metadata(folder, meta, False)
+        # Mutable config (styling, thresholds, attributes, ...) is loaded by the
+        # viewer from the multicam parent's metadata, so an import targeted at
+        # one camera must update the parent too (mirrors desktop dataFileImport).
+        parent = crud.get_multicam_parent_folder(folder, user)
+        if parent is not None:
+            if results['attributes']:
+                crud.saveImportAttributes(parent, results['attributes'], user)
+            shared_meta = crud.pick_multicam_shared_mutable(results['meta'] or {})
+            if shared_meta:
+                parent_meta = resolve_imported_dataset_info(
+                    fromMeta(parent, 'datasetInfo', {}), shared_meta, additive
+                )
+                crud_dataset.update_metadata(parent, parent_meta, False)
     return aggregate_warnings
 
 
@@ -745,9 +758,6 @@ def postprocess(
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     isClone = dsFolder.get(constants.ForeignMediaIdMarker, None) is not None
-    # add default confidence filter threshold to folder metadata
-    dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
-
     # Track job IDs for batch processing
     created_job_ids = []
 
@@ -756,6 +766,14 @@ def postprocess(
         raise RestException(f'{constants.FPSMarker} missing from metadata')
     if fromMeta(dsFolder, constants.TypeMarker) is None:
         raise RestException(f'{constants.TypeMarker} missing from metadata')
+
+    # Persist default confidence filter without a full stale meta write. Async
+    # convert_video (esp. skipTranscoding) can finish during CSV import and set
+    # annotate / originalFps / ffprobe_info; a later Folder().save of an old
+    # in-memory doc would wipe those keys.
+    crud.refresh_folder_document(dsFolder)
+    dsFolder.setdefault('meta', {})[constants.ConfidenceFiltersMarker] = {'default': 0.1}
+    Folder().save(dsFolder)
 
     if not skipJobs and not isClone:
         token = Token().createToken(user=user, days=2)
@@ -856,18 +874,17 @@ def postprocess(
             )
             created_job_ids.append(job['_id'])
 
-        elif imageItems.count() > 0:
-            dsFolder["meta"][constants.DatasetMarker] = True
-        elif largeImageItems.count() > 0:
-            dsFolder["meta"][constants.DatasetMarker] = True
-
-        Folder().save(dsFolder)
+        elif imageItems.count() > 0 or largeImageItems.count() > 0:
+            # Safe/web images need annotate now; convert_images sets it when it runs.
+            crud.refresh_folder_document(dsFolder)
+            dsFolder.setdefault('meta', {})[constants.DatasetMarker] = True
+            Folder().save(dsFolder)
 
     aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
     # Image sequences start at fps=-1 (auto). CSV import may have set a value;
     # otherwise default to 1. convert_images also resolves, but safe-image folders
     # skip that job and need this finalize step.
-    dsFolder = Folder().load(dsFolder['_id'], force=True)
+    crud.refresh_folder_document(dsFolder)
     media_type = fromMeta(dsFolder, constants.TypeMarker)
     if media_type in (constants.ImageSequenceType, constants.LargeImageType):
         requested_fps = fromMeta(dsFolder, constants.FPSMarker)
