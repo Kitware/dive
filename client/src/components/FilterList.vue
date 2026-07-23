@@ -1,9 +1,9 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, reactive, ref, Ref,
+  computed, defineComponent, onBeforeUnmount, PropType, reactive, ref, Ref,
   watch,
 } from 'vue';
-import { difference, union } from 'lodash';
+import { debounce, difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
@@ -150,27 +150,25 @@ export default defineComponent({
      * Ids of tracks whose every keyframe detection is suppressed - covered by
      * a region on each frame it appears, or flagged with the suppression
      * attribute - across all cameras. These are excluded from the
-     * dataset-wide type totals. Reactive to region/attribute edits via the
-     * save counter, since track geometry is not itself a reactive value.
+     * dataset-wide type totals. This walks every keyframe of every track, so
+     * it is recomputed on a debounce rather than on every save-counter bump:
+     * dragging a region's corner fires an edit per mouse move, and
+     * recomputing the whole dataset per move froze the resize.
      */
-    const fullySuppressedIds = computed(() => {
+    const fullySuppressedIds: Ref<Set<number>> = ref(new Set<number>());
+    function computeFullySuppressedIds() {
       const editRevision = pendingSaveCount.value;
       const suppType = clientSettings.typeSettings.suppressionType;
       const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
       const excluded = new Set<number>();
       if (!suppType || editRevision < 0) {
-        return excluded;
+        fullySuppressedIds.value = excluded;
+        return;
       }
       cameraStore.camMap.value.forEach(({ trackStore: store }) => {
-        const perFrame = new Map<number, Set<number>>();
-        const suppressedAt = (f: number) => {
-          let s = perFrame.get(f);
-          if (s === undefined) {
-            s = getSuppressedTrackIds(store, f, suppType, suppThreshold);
-            perFrame.set(f, s);
-          }
-          return s;
-        };
+        const suppressedAt = (f: number) => getSuppressedTrackIds(
+          store, f, suppType, suppThreshold, { revision: editRevision },
+        );
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
           if (typeof track.getFeature !== 'function') {
@@ -184,8 +182,16 @@ export default defineComponent({
           }
         });
       });
-      return excluded;
-    });
+      fullySuppressedIds.value = excluded;
+    }
+    const debouncedFullySuppressed = debounce(computeFullySuppressedIds, 500);
+    watch(pendingSaveCount, () => debouncedFullySuppressed());
+    watch(
+      [() => clientSettings.typeSettings.suppressionType, cameraStore.camMap],
+      () => computeFullySuppressedIds(),
+      { immediate: true },
+    );
+    onBeforeUnmount(() => debouncedFullySuppressed.cancel());
 
     const typeCounts = computed(() => {
       const excluded = fullySuppressedIds.value;
@@ -221,6 +227,7 @@ export default defineComponent({
           frame.value,
           suppType,
           clientSettings.typeSettings.suppressionThreshold,
+          { revision: editRevision },
         )
         : new Set<number>();
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {

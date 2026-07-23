@@ -45,6 +45,7 @@ import {
   useComparisonSets,
   useLassoModeContext,
   useSegmentationPoints,
+  usePendingSaveCount,
 } from '../provides';
 import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 
@@ -79,6 +80,7 @@ export default defineComponent({
     }
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
+    const pendingSaveCount = usePendingSaveCount();
     const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
     const groupStore = cameraStore.camMap.value.get(props.camera)?.groupStore;
@@ -282,7 +284,13 @@ export default defineComponent({
       // hidden from every layer at once (and excluded from counts elsewhere).
       const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       const suppressedIds = trackStore
-        ? getSuppressedTrackIds(trackStore, frame, suppressionType, suppressionThreshold)
+        ? getSuppressedTrackIds(
+          trackStore,
+          frame,
+          suppressionType,
+          suppressionThreshold,
+          { revision: pendingSaveCount.value },
+        )
         : new Set<AnnotationId>();
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {

@@ -125,6 +125,7 @@ export default defineComponent({
             frameRef.value,
             suppType,
             clientSettings.typeSettings.suppressionThreshold,
+            { revision: editRevision },
           )
           : new Set<number>();
         tracks = tracks.filter((track) => {
