@@ -166,9 +166,17 @@ export default defineComponent({
         return;
       }
       cameraStore.camMap.value.forEach(({ trackStore: store }) => {
-        const suppressedAt = (f: number) => getSuppressedTrackIds(
-          store, f, suppType, suppThreshold, { revision: editRevision },
-        );
+        // Frames where a suppression region actually exists: keyframes on
+        // any other frame can only be suppressed via the attribute flag, so
+        // they skip the per-frame region computation entirely.
+        const regionFrames = new Set<number>();
+        store.annotationMap.forEach((annotation) => {
+          const track = annotation as Track;
+          if (track.confidencePairs?.some(([t]) => t === suppType)) {
+            (track.featureIndex || []).forEach((f) => regionFrames.add(f));
+          }
+        });
+        const suppressedAt = (f: number) => getSuppressedTrackIds(store, f, suppType, suppThreshold, { revision: editRevision });
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
           if (typeof track.getFeature !== 'function') {
@@ -176,7 +184,8 @@ export default defineComponent({
           }
           const keyframes = track.features.filter((f) => f && f.keyframe);
           if (keyframes.length > 0
-            && keyframes.every((f) => suppressedAt(f.frame).has(track.id)
+            && keyframes.every((f) => (regionFrames.has(f.frame)
+              && suppressedAt(f.frame).has(track.id))
               || hasSuppressionAttribute(track, f.frame, suppType))) {
             excluded.add(track.id);
           }

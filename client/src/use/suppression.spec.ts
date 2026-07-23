@@ -235,3 +235,53 @@ describe('getSuppressedTrackIds prefilter and memoization', () => {
       .toEqual(new Set());
   });
 });
+
+describe('rasterized region polygons', () => {
+  // A 32-gon (circle-ish) region: enough vertices to trigger the mask path
+  const n = 32;
+  const circle: [number, number][] = [];
+  for (let i = 0; i < n; i += 1) {
+    const a = (2 * Math.PI * i) / n;
+    circle.push([50 + 45 * Math.cos(a), 50 + 45 * Math.sin(a)]);
+  }
+  const polyRegion = makeTrack({
+    id: 1,
+    confidencePairs: [['Suppressed', 1]],
+    features: [{
+      frame: 0,
+      bounds: [5, 5, 95, 95],
+      keyframe: true,
+      interpolate: false,
+      geometry: {
+        type: 'FeatureCollection',
+        features: [{
+          type: 'Feature',
+          geometry: { type: 'Polygon', coordinates: [[...circle, circle[0]]] },
+          properties: { key: '' },
+        }],
+      },
+    }],
+  });
+  // Fully inside the circle
+  const inCircle = makeTrack({
+    id: 2,
+    features: [{
+      frame: 0, bounds: [40, 40, 60, 60], keyframe: true, interpolate: false,
+    }],
+  });
+  // Inside the region's bbox but in a corner outside the circle
+  const inCorner = makeTrack({
+    id: 3,
+    features: [{
+      frame: 0, bounds: [5, 5, 18, 18], keyframe: true, interpolate: false,
+    }],
+  });
+
+  it('suppresses by the polygon shape, not its bbox', () => {
+    const store = {
+      intervalTree: { search: () => ['1', '2', '3'] },
+      getPossible: (id: number) => [polyRegion, inCircle, inCorner].find((t) => t.id === id),
+    } as unknown as Parameters<typeof getSuppressedTrackIds>[0];
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed')).toEqual(new Set([2]));
+  });
+});
