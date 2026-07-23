@@ -80,11 +80,30 @@ def get_or_create_source_folder(folder, user):
     return Folder().createFolder(folder, "source", reuseExisting=True, creator=user)
 
 
+def refresh_folder_document(folder: GirderModel) -> GirderModel:
+    """Replace *folder* in place with the latest DB document.
+
+    Async jobs such as convert_video write folder meta via addMetadataToFolder
+    (partial merge). Callers that keep an in-memory folder and later
+    Folder().save() the whole document must refresh first, or they can wipe
+    keys like annotate / originalFps / ffprobe_info.
+    """
+    fresh = Folder().load(folder['_id'], force=True)
+    if fresh is None:
+        raise RestException('Folder not found', code=404)
+    stale_keys = [key for key in folder if key not in fresh]
+    folder.update(fresh)
+    for key in stale_keys:
+        del folder[key]
+    return folder
+
+
 def itemIsWebsafeVideo(item: Item) -> bool:
     return fromMeta(item, "codec") == "h264"
 
 
 def saveImportAttributes(folder, attributes, user):
+    refresh_folder_document(folder)
     attributes_dict = fromMeta(folder, 'attributes', {})
     # we don't overwrite any existing meta attributes
     for attribute in attributes.values():
@@ -94,6 +113,42 @@ def saveImportAttributes(folder, attributes, user):
 
     folder['meta']['attributes'] = attributes_dict
     Folder().save(folder)
+
+
+# Mutable config keys the multicam/stereo viewer loads from the parent folder.
+# Camera-targeted imports sync only these onto the parent — not per-camera
+# imageEnhancements, and not camera registration fields (which must not be
+# clobbered by a DIVE configuration import).
+MULTICAM_SHARED_MUTABLE_KEYS = (
+    'attributes',
+    'confidenceFilters',
+    'timeFilters',
+    'customTypeStyling',
+    'customGroupStyling',
+    'attributeTrackFilters',
+    'datasetInfo',
+)
+
+
+def get_multicam_parent_folder(folder: GirderModel, user: GirderUserModel):
+    """Return the multicam parent if ``folder`` is one of its camera children, else None."""
+    parent_id = folder.get('parentId')
+    if not parent_id:
+        return None
+    parent = Folder().load(parent_id, level=AccessType.WRITE, user=user)
+    if parent is None or fromMeta(parent, constants.TypeMarker) != constants.MultiType:
+        return None
+    multi_cam = fromMeta(parent, constants.MultiCamMarker, default={}) or {}
+    cameras = multi_cam.get('cameras') or {}
+    folder_id = str(folder['_id'])
+    if not any(str(cam.get('folderId')) == folder_id for cam in cameras.values()):
+        return None
+    return parent
+
+
+def pick_multicam_shared_mutable(meta: dict) -> dict:
+    """Return only mutable keys shared across multicam parent/camera metadata."""
+    return {key: meta[key] for key in MULTICAM_SHARED_MUTABLE_KEYS if key in meta}
 
 
 def verify_dataset(folder: GirderModel):

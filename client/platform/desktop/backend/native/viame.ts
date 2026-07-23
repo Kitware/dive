@@ -19,8 +19,11 @@ import {
   MultiType,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
-  pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
+import {
+  isFilterPipeline,
+  pipelineCreatesNewDataset,
+} from 'dive-common/pipelineCreatesDataset';
 import * as common from './common';
 import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
 import {
@@ -158,6 +161,13 @@ async function runPipeline(
 ): Promise<DesktopJob> {
   const { datasetId, pipeline } = runPipelineArgs;
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
+  // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
+  // categorized under '2-cam'/'3-cam' rather than by their filename prefix,
+  // so output handling is recognized from the pipe filename as well as the type.
+  const createsNewDataset = pipelineCreatesNewDataset(pipeline);
+  const isFilterPipe = isFilterPipeline(pipeline);
+  const outputDatasetName = runPipelineArgs.outputDatasetName
+    ?? runPipelineArgs.pipelineParams?.outputDatasetName;
 
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -175,7 +185,7 @@ async function runPipeline(
   const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
   const outputDir = `${npath.join(settings.dataPath, JobsOutputFolderName, outputDirName)}`;
-  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+  if (createsNewDataset) {
     if (outputDir !== jobWorkDir) {
       await fs.mkdir(outputDir, { recursive: true });
     }
@@ -185,7 +195,7 @@ async function runPipeline(
   const trackOutputFileName = 'track_output.csv';
   let trackOutput: string;
   let detectorOutput: string;
-  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+  if (createsNewDataset) {
     detectorOutput = npath.join(outputDir, detectorOutputFileName);
     trackOutput = npath.join(outputDir, trackOutputFileName);
   } else {
@@ -246,7 +256,7 @@ async function runPipeline(
       command.push(`-s downsampler:frame_range_is_native=${isNative}`);
       // Transcode/filter pipes: output frames renumbered relative to new range
       // All other pipes: output frames relative to original video
-      const renumber = pipeline.type === 'transcode' || pipeline.type === 'filter';
+      const renumber = pipeline.type === 'transcode' || isFilterPipe;
       command.push(`-s downsampler:renumber_frames=${renumber}`);
       command.push(`-s downsampler:adjust_timestamps=${renumber}`);
     }
@@ -285,9 +295,14 @@ async function runPipeline(
     }
   }
 
-  if (runPipelineArgs.pipeline.type === 'filter') {
+  if (isFilterPipe) {
     command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
+    // Multicam filter pipes have one writer per camera (image_writer,
+    // image_writer2, image_writer3); extra -s keys for absent processes are
+    // ignored by the runner.
     command.push(`-s image_writer:file_name_prefix="${outputDir}/"`);
+    command.push(`-s image_writer2:file_name_prefix="${outputDir}/"`);
+    command.push(`-s image_writer3:file_name_prefix="${outputDir}/"`);
   }
 
   let transcodedFilename: string;
@@ -395,7 +410,7 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        if (!pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+        if (!createsNewDataset) {
           let finalDetectorOutput = detectorOutput;
           let finalTrackOutput = trackOutput;
 
@@ -429,14 +444,14 @@ async function runPipeline(
         }
 
         // Check if this is a transcode/filter pipeline and create a new dataset
-        if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+        if (createsNewDataset) {
           updater({
             ...jobBase,
             body: ['Creating dataset from output...'],
             exitCode: code,
             endTime: new Date(),
           });
-          const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
+          const datasetName = outputDatasetName || outputDir;
           if (runPipelineArgs.pipeline.type === 'transcode') {
             fs.readdir(outputDir, async (err, entries) => {
               if (err) {

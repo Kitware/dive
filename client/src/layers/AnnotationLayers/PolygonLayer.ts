@@ -1,8 +1,15 @@
 /* eslint-disable class-methods-use-this */
 import geo, { GeoEvent } from 'geojs';
+import { Ref } from 'vue';
 
+import { cloneDeep } from 'lodash';
+import {
+  resolveSuppressionDisplay,
+  SuppressionDisplaySettings,
+} from '../../types';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
+import LineLayer from './LineLayer';
 
 interface PolyGeoJSData{
   trackId: number;
@@ -11,8 +18,15 @@ interface PolyGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   polygonKey: string;
+  /** Suppression type name when attribute-flagged as suppressed (dashed/fill styling). */
+  suppressed?: string;
   set?: string;
+  dashed?: boolean;
   isHole?: boolean; // True if this is a hole polygon (for styling)
+}
+
+interface PolygonLayerParams extends BaseLayerParams {
+  suppressionDisplay?: Ref<SuppressionDisplaySettings | undefined>;
 }
 
 /**
@@ -39,12 +53,24 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
 
   hoverOn: boolean;
 
-  constructor(params: BaseLayerParams) {
+  suppressionDisplay: Ref<SuppressionDisplaySettings | undefined>;
+
+  constructor(params: PolygonLayerParams) {
     super(params);
     this.drawingOther = true; // Initialized to true in case polygons aren't supported
     //Only initialize once, prevents recreating Layer each edit
     this.hoverOn = false;
+    this.suppressionDisplay = params.suppressionDisplay
+      || ({ value: undefined } as Ref<SuppressionDisplaySettings | undefined>);
     this.initialize();
+  }
+
+  private suppressionStyle() {
+    return resolveSuppressionDisplay(this.suppressionDisplay.value);
+  }
+
+  private styleSuppressed(data: { suppressed?: string }) {
+    return !!(data.suppressed && this.suppressionStyle().enabled);
   }
 
   initialize() {
@@ -146,9 +172,21 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
     frameDataTracks.forEach((frameData: FrameDataTrack) => {
       if (frameData.features && frameData.features.bounds) {
         if (frameData.features.geometry?.features?.[0]) {
+          const suppStyle = this.suppressionStyle();
+          const dashed = !!(frameData.suppressed && suppStyle.enabled && suppStyle.dashed);
+          const width = frameData.features.bounds[2] - frameData.features.bounds[0];
+          const height = frameData.features.bounds[3] - frameData.features.bounds[1];
+          const dashSize = Math.min(width, height) / 20.0;
           frameData.features.geometry.features.forEach((feature) => {
             if (feature.geometry && feature.geometry.type === 'Polygon') {
-              const polygon = feature.geometry;
+              let polygon = feature.geometry as GeoJSON.Polygon;
+              if (dashed) {
+                const temp = cloneDeep(polygon);
+                temp.coordinates = temp.coordinates.map(
+                  (ring) => LineLayer.dashLine(ring, dashSize),
+                );
+                polygon = temp;
+              }
               const polygonKey = feature.properties?.key || '';
               const annotation: PolyGeoJSData = {
                 trackId: frameData.track.id,
@@ -157,7 +195,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
                 styleType: frameData.styleType,
                 polygon,
                 polygonKey,
+                suppressed: frameData.suppressed,
                 set: frameData.set,
+                dashed,
                 isHole: false,
               };
               arr.push(annotation);
@@ -178,7 +218,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
                     styleType: frameData.styleType,
                     polygon: holePolygon,
                     polygonKey, // Same key as parent polygon
+                    suppressed: frameData.suppressed,
                     set: frameData.set,
+                    dashed,
                     isHole: true,
                   };
                   arr.push(holeAnnotation);
@@ -237,6 +279,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
         if (data.isHole) {
           return true;
         }
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().fillOpacity > 0;
+        }
         if (data.set) {
           return this.typeStyling.value.fill(data.set);
         }
@@ -247,7 +292,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
       },
       fillColor: (_point, _index, data) => {
         let color: string;
-        if (data.styleType) {
+        if (this.styleSuppressed(data) && this.suppressionStyle().fillColor) {
+          color = this.suppressionStyle().fillColor;
+        } else if (data.styleType) {
           color = this.typeStyling.value.color(data.styleType[0]);
         } else {
           color = this.typeStyling.value.color('');
@@ -260,6 +307,9 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
         if (data.isHole) {
           return 0.5;
         }
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().fillOpacity;
+        }
         if (data.set) {
           return this.typeStyling.value.opacity(data.set);
         }
@@ -269,8 +319,14 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
         return this.stateStyling.standard.opacity;
       },
       strokeOpacity: (_point, _index, data) => {
+        if (_index % 2 === 1 && data.dashed) {
+          return 0.0;
+        }
         if (data.selected) {
           return this.stateStyling.selected.opacity;
+        }
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().outlineOpacity;
         }
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);

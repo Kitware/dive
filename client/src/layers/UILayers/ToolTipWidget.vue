@@ -66,7 +66,16 @@ export default defineComponent({
         >
           █
         </span>
-        <span>{{ `${item.type}:${item.confidence.toFixed(2)}` }}</span>
+        <span>{{ item.type }}</span>
+        <v-icon
+          v-if="item.suppressed"
+          x-small
+          class="mx-1"
+          :title="`Flagged suppressed (${item.suppressed})`"
+        >
+          mdi-eye-off
+        </v-icon>
+        <span>{{ `:${item.confidence.toFixed(2)}` }}</span>
       </div>
     </div>
   </v-card>

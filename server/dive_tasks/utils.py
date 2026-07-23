@@ -8,6 +8,7 @@ import subprocess
 from subprocess import Popen
 import tempfile
 import threading
+import time
 from typing import List, Optional, Tuple
 from urllib import request
 from urllib.parse import urlencode, urljoin
@@ -21,6 +22,10 @@ from dive_utils import constants, models, multicam_camera_order
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
 TIMEOUT_CHECK_INTERVAL = 30
+# How often the cancel monitor polls task/job status while a subprocess runs.
+CANCEL_MONITOR_INTERVAL = 30
+# Grace period after SIGTERM before escalating to SIGKILL of the process group.
+CANCEL_TERM_GRACE_SECONDS = 5
 
 
 def make_directory(path: Path):
@@ -152,6 +157,36 @@ def describe_exit(code: int) -> str:
     return f'exited with nonzero status code {code}'
 
 
+def _kill_process_group(
+    process: Popen, *, grace_seconds: float = CANCEL_TERM_GRACE_SECONDS
+) -> None:
+    """
+    Terminate a subprocess and its descendants.
+
+    Pipelines/training are launched with shell=True, so signaling only the shell
+    PID leaves KWIVER/training children alive and holding stdout open. Starting
+    the process in a new session lets us kill the whole group.
+    """
+    if process.poll() is not None:
+        return
+    try:
+        pgid = os.getpgid(process.pid)
+    except ProcessLookupError:
+        return
+
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pgid, sig)
+        except ProcessLookupError:
+            return
+        if sig == signal.SIGTERM:
+            deadline = time.monotonic() + grace_seconds
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    return
+                time.sleep(0.1)
+
+
 def stream_subprocess(
     task: Task,
     context: dict,
@@ -172,22 +207,36 @@ def stream_subprocess(
     assert 'args' in popen_kwargs, "popen_kwargs must contain key 'args'"
 
     stop_event = threading.Event()
+    cancel_requested = threading.Event()
+    # Copy so callers are not mutated; default to a new session so cancel can
+    # kill the full process tree (shell + VIAME children).
+    launch_kwargs = dict(popen_kwargs)
+    launch_kwargs.setdefault('start_new_session', True)
 
     def monitor_cancellation():
         """Thread that periodically checks for cancellation."""
-        while not stop_event.wait(30):  # Check every 30 seconds
+        while True:
+            if stop_event.is_set():
+                return
             manager.refreshStatus()
             if check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING:
-                manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
-                process.send_signal(signal.SIGTERM)
-                process.send_signal(signal.SIGKILL)
-                process.send_signal(signal.SIGINT)
-                return  # Stop the thread
+                cancel_requested.set()
+                _kill_process_group(process)
+                # Unblock the main thread's readline if any child still holds
+                # the write end open after the kill attempt.
+                if process.stdout is not None:
+                    try:
+                        process.stdout.close()
+                    except (ValueError, OSError):
+                        pass
+                return
+            if stop_event.wait(CANCEL_MONITOR_INTERVAL):
+                return
 
     with tempfile.TemporaryFile() as stderr_file:
-        manager.write(f"Running command: {str(popen_kwargs['args'])}\n", forceFlush=True)
+        manager.write(f"Running command: {str(launch_kwargs['args'])}\n", forceFlush=True)
         process = Popen(
-            **popen_kwargs,
+            **launch_kwargs,
             stdout=subprocess.PIPE,
             stderr=stderr_file,
         )
@@ -199,23 +248,42 @@ def stream_subprocess(
         cancel_thread = threading.Thread(target=monitor_cancellation, daemon=True)
         cancel_thread.start()
 
-        # call readline until it returns empty bytes
-        for line in iter(process.stdout.readline, b''):
-            # Pipeline tools may emit Latin-1 / CP1252 (e.g. 0xa0 NBSP) in log lines.
-            line_str = line.decode('utf-8', errors='replace')
-            manager.write(line_str)
-            if keep_stdout:
-                stdout += line_str
+        try:
+            # call readline until it returns empty bytes
+            for line in iter(process.stdout.readline, b''):
+                # Pipeline tools may emit Latin-1 / CP1252 (e.g. 0xa0 NBSP) in log lines.
+                line_str = line.decode('utf-8', errors='replace')
+                manager.write(line_str)
+                if keep_stdout:
+                    stdout += line_str
+        except (ValueError, OSError):
+            # stdout may be closed by the cancel monitor to unblock this loop.
+            pass
 
         stop_event.set()
-        cancel_thread.join()
+        cancel_thread.join(timeout=CANCEL_TERM_GRACE_SECONDS + 5)
+
+        if cancel_requested.is_set():
+            manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
 
         # flush logs
         manager._flush()
-        # Wait for exit up to 30 seconds after kill
-        code = process.wait(30)
 
-        if check_canceled(task, context):
+        try:
+            # Wait for exit up to 30 seconds after kill
+            code = process.wait(30)
+        except subprocess.TimeoutExpired:
+            _kill_process_group(process)
+            try:
+                code = process.wait(5)
+            except subprocess.TimeoutExpired:
+                if cancel_requested.is_set() or check_canceled(task, context):
+                    manager.write('\nCanceled during subprocess run.\n')
+                    manager.updateStatus(JobStatus.CANCELED)
+                    raise CanceledError('Job was canceled')
+                raise RuntimeError('Subprocess did not exit after kill')
+
+        if cancel_requested.is_set() or check_canceled(task, context):
             manager.write('\nCanceled during subprocess run.\n')
             manager.updateStatus(JobStatus.CANCELED)
             raise CanceledError('Job was canceled')

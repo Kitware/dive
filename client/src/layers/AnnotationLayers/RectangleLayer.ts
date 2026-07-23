@@ -1,5 +1,6 @@
 /* eslint-disable class-methods-use-this */
 import geo, { GeoEvent } from 'geojs';
+import { Ref } from 'vue';
 
 import { cloneDeep } from 'lodash';
 import {
@@ -7,11 +8,21 @@ import {
   getRotationFromAttributes,
   getRotationArrowLine,
   hasSignificantRotation,
+  rectBoundsArea,
   rotateGeoJSONCoordinates,
 } from '../../utils';
+import {
+  resolveSuppressionDisplay,
+  SuppressionDisplaySettings,
+} from '../../types';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
 import LineLayer from './LineLayer';
+import {
+  candidateOwnsClick,
+  type DisplayPolygon,
+  type RectClickCandidate,
+} from './rectangleClickTarget';
 
 interface RectGeoJSData{
   trackId: number;
@@ -20,8 +31,15 @@ interface RectGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   hasPoly: boolean;
-  /** Outer rings of the detection's own polygons (native coords), when hasPoly */
-  polyRings: GeoJSON.Position[][];
+  /**
+   * Detection polygons in native coords (each entry is outer ring + holes),
+   * when hasPoly.
+   */
+  polyCoords: GeoJSON.Position[][][];
+  /** Axis-aligned bounds area; used to prefer nested boxes on envelope clicks. */
+  boxArea: number;
+  /** Suppression type name when attribute-flagged as suppressed (dashed/fill styling). */
+  suppressed?: string;
   set?: string;
   dashed?: boolean;
   rotation?: number;
@@ -29,17 +47,8 @@ interface RectGeoJSData{
   rotationArrow?: GeoJSON.LineString | null;
 }
 
-function pointInRing(point: { x: number; y: number }, ring: { x: number; y: number }[]): boolean {
-  let inside = false;
-  for (let i = 0, j = ring.length - 1; i < ring.length; j = i, i += 1) {
-    const { x: xi, y: yi } = ring[i];
-    const { x: xj, y: yj } = ring[j];
-    if (((yi > point.y) !== (yj > point.y))
-      && (point.x < ((xj - xi) * (point.y - yi)) / (yj - yi) + xi)) {
-      inside = !inside;
-    }
-  }
-  return inside;
+interface RectangleLayerParams extends BaseLayerParams {
+  suppressionDisplay?: Ref<SuppressionDisplaySettings | undefined>;
 }
 
 export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
@@ -47,15 +56,35 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
 
   hoverOn: boolean; //to turn over annnotations on
 
+  /**
+   * When box display is off the rectangles are kept as invisible hit targets
+   * so a detection can still be right-clicked into edit mode: nothing is
+   * drawn and left-clicks are ignored, but right-click still works.
+   */
+  clickTargetsOnly: boolean;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   arrowFeatureLayer: any;
 
-  constructor(params: BaseLayerParams) {
+  suppressionDisplay: Ref<SuppressionDisplaySettings | undefined>;
+
+  constructor(params: RectangleLayerParams) {
     super(params);
     this.drawingOther = false;
     this.hoverOn = false;
+    this.clickTargetsOnly = false;
+    this.suppressionDisplay = params.suppressionDisplay
+      || ({ value: undefined } as Ref<SuppressionDisplaySettings | undefined>);
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
+  }
+
+  private suppressionStyle() {
+    return resolveSuppressionDisplay(this.suppressionDisplay.value);
+  }
+
+  private styleSuppressed(data: { suppressed?: string }) {
+    return !!(data.suppressed && this.suppressionStyle().enabled);
   }
 
   initialize() {
@@ -66,16 +95,18 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       .createFeature('polygon', { selectionAPI: true })
       .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
         /**
-         * Handle clicking on individual annotations, if DrawingOther is true we use the
-         * Rectangle type if only the polygon is visible we use the polygon bounds
-         * */
+         * While polygons are drawn, prefer the detection whose polygon (or
+         * smallest box) actually owns the click so nested annotations win
+         * over larger envelopes.
+         */
         if (!this.clickLandsOnDetection(e)) {
-          // The click is inside this detection's box but outside its drawn
-          // polygon: let whatever is actually under the cursor take it
-          // (e.g. a smaller annotation nested inside this one's box).
           return;
         }
         if (e.mouse.buttonsDown.left) {
+          if (this.clickTargetsOnly) {
+            // Hidden boxes are right-click edit targets only
+            return;
+          }
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             if (e.mouse.modifiers.ctrl) {
               this.bus.$emit('annotation-ctrl-clicked', e.data.trackId, false, { ctrl: true });
@@ -156,35 +187,44 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
     this.drawingOther = val;
   }
 
-  /** Whether the point sits inside the detection's own polygon(s), if any */
-  private pointInsideDetectionShape(data: RectGeoJSData, point: { x: number; y: number }): boolean {
-    if (!data.hasPoly || !data.polyRings.length) {
-      // No polygon: the box is the detection's shape
-      return true;
-    }
-    return data.polyRings.some((ring) => pointInRing(point, ring.map((p) => this.transformPoint([p[0], p[1]]))));
+  /**
+   * Keep features as invisible right-click edit targets instead of
+   * drawing them (used when box display is toggled off)
+   */
+  setClickTargetsOnly(val: boolean) {
+    this.clickTargetsOnly = val;
+  }
+
+  private toClickCandidate(data: RectGeoJSData): RectClickCandidate {
+    const polygons: DisplayPolygon[] = data.polyCoords
+      .filter((rings) => rings[0]?.length)
+      .map((rings) => ({
+        outer: rings[0].map((p) => this.transformPoint([p[0], p[1]])),
+        holes: rings.slice(1).map((ring) => ring.map((p) => this.transformPoint([p[0], p[1]]))),
+      }));
+    return {
+      trackId: data.trackId,
+      hasPoly: data.hasPoly,
+      polygons,
+      boxArea: data.boxArea,
+    };
   }
 
   /**
    * Whether a click on this rectangle feature really lands on its detection.
-   * While polygons are drawn, a detection that has one owns only its polygon
-   * shape - its rectangle is just the envelope - so a click inside the box
-   * but outside every polygon yields to another detection under the cursor.
-   * With no better candidate under the cursor the box click still counts,
-   * so a lone detection remains clickable anywhere within its box.
+   * While polygons are drawn, prefer shape hits; otherwise the smallest box
+   * under the cursor owns the click (nested envelopes beat larger ones).
    */
-  clickLandsOnDetection(e: GeoEvent): boolean {
+  private clickLandsOnDetection(e: GeoEvent): boolean {
     if (!this.drawingOther) {
       return true;
     }
     const point = { x: e.mouse.geo.x, y: e.mouse.geo.y };
-    if (this.pointInsideDetectionShape(e.data, point)) {
-      return true;
-    }
     const { found } = this.featureLayer.pointSearch(e.mouse.geo);
-    return !found.some((other: RectGeoJSData) => other
-      && other.trackId !== e.data.trackId
-      && this.pointInsideDetectionShape(other, point));
+    const candidates = (found as RectGeoJSData[])
+      .filter((d): d is RectGeoJSData => !!d)
+      .map((d) => this.toClickCandidate(d));
+    return candidateOwnsClick(e.data.trackId, candidates, point);
   }
 
   formatData(frameData: FrameDataTrack[], comparisonSets: string[] = []) {
@@ -193,12 +233,12 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       if (track.features && track.features.bounds) {
         let polygon = boundToGeojson(track.features.bounds);
         let hasPoly = false;
-        let polyRings: GeoJSON.Position[][] = [];
+        let polyCoords: GeoJSON.Position[][][] = [];
         if (track.features.geometry?.features) {
           const filtered = track.features.geometry.features.filter((feature) => feature.geometry && feature.geometry.type === 'Polygon');
           hasPoly = filtered.length > 0;
-          polyRings = filtered.map(
-            (feature) => (feature.geometry as GeoJSON.Polygon).coordinates[0],
+          polyCoords = filtered.map(
+            (feature) => (feature.geometry as GeoJSON.Polygon).coordinates,
           );
         }
 
@@ -211,7 +251,13 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           polygon.coordinates[0] = updatedCoords;
         }
 
-        const dashed = !!(track.set && comparisonSets?.includes(track.set));
+        // Comparison-set tracks and attribute-suppressed detections both use
+        // dashed outlines (odd stroke segments are made transparent below).
+        const suppStyle = this.suppressionStyle();
+        const dashed = !!(
+          (track.suppressed && suppStyle.enabled && suppStyle.dashed)
+          || (track.set && comparisonSets?.includes(track.set))
+        );
         if (dashed) {
           const temp = cloneDeep(polygon);
           const width = track.features.bounds[2] - track.features.bounds[0];
@@ -227,7 +273,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           styleType: track.styleType,
           polygon,
           hasPoly,
-          polyRings,
+          polyCoords,
+          boxArea: rectBoundsArea(track.features.bounds),
+          suppressed: track.suppressed,
           set: track.set,
           dashed,
           rotation,
@@ -244,7 +292,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       .data(this.formattedData)
       .polygon((d: RectGeoJSData) => d.polygon.coordinates[0])
       .draw();
-    const arrowData = this.formattedData.filter((d) => d.rotationArrow);
+    const arrowData = this.clickTargetsOnly
+      ? [] : this.formattedData.filter((d) => d.rotationArrow);
     this.arrowFeatureLayer
       .data(arrowData)
       .line((d: RectGeoJSData) => d.rotationArrow!.coordinates)
@@ -285,6 +334,17 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.typeStyling.value.color('');
       },
       fill: (data) => {
+        if (this.clickTargetsOnly) {
+          return false;
+        }
+        // When the polygon is also drawn, fill belongs to the polygon.
+        // If the poly exists but isn't visible, keep fill on the rectangle.
+        if (this.drawingOther && data.hasPoly) {
+          return false;
+        }
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().fillOpacity > 0;
+        }
         if (data.set) {
           return this.typeStyling.value.fill(data.set, true);
         }
@@ -294,6 +354,12 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.stateStyling.standard.fill;
       },
       fillColor: (_point, _index, data) => {
+        if (this.styleSuppressed(data)) {
+          const { fillColor } = this.suppressionStyle();
+          if (fillColor) {
+            return fillColor;
+          }
+        }
         if (data.set) {
           return this.typeStyling.value.annotationSetColor(data.set);
         }
@@ -303,6 +369,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.typeStyling.value.color('');
       },
       fillOpacity: (_point, _index, data) => {
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().fillOpacity;
+        }
         if (data.set) {
           return this.typeStyling.value.opacity(data.set, true);
         }
@@ -312,6 +381,10 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         return this.stateStyling.standard.opacity;
       },
       strokeOpacity: (_point, _index, data) => {
+        // Invisible click targets draw nothing
+        if (this.clickTargetsOnly) {
+          return 0.0;
+        }
         // Reduce the rectangle opacity if a polygon is also drawn
         if (_index % 2 === 1 && data.dashed) {
           return 0.0;
@@ -322,6 +395,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         }
         if (data.selected) {
           return this.stateStyling.selected.opacity;
+        }
+        if (this.styleSuppressed(data)) {
+          return this.suppressionStyle().outlineOpacity;
         }
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);

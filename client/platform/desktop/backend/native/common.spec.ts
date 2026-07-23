@@ -5,7 +5,7 @@ import { Console } from 'console';
 
 import {
   AnnotationsCurrentVersion, DesktopJob,
-  DesktopJobUpdate, JobType, JsonMeta, RunTraining, Settings,
+  DesktopJobUpdate, JobType, JsonMeta, ProjectsFolderName, RunTraining, Settings,
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
@@ -203,6 +203,20 @@ beforeEach(() => {
       annotationImport: {
         'viame.csv': emptyCsvString,
         'foreign.meta.json': '{ "confidenceFilters": {"default": 0.8}, "type": "invalidtype" }',
+        'foreign.meta.withExtras.json': JSON.stringify({
+          confidenceFilters: { default: 0.8 },
+          customTypeStyling: { fish: { color: 'green' } },
+          imageEnhancements: { brightness: 1.1 },
+          cameraHomographies: {
+            'left::right': {
+              AtoB: [[9, 0, 0], [0, 9, 0], [0, 0, 1]],
+              BtoA: [[9, 0, 0], [0, 9, 0], [0, 0, 1]],
+            },
+          },
+          cameraCorrespondences: { 'left::right': [{ id: 9, a: [9, 9], b: [8, 8] }] },
+          cameraTransformTypes: { 'left::right': 'affine' },
+          cameraRegistrationSource: { model: 'from-import' },
+        }),
         'dataset-info.config.json': JSON.stringify({
           datasetInfo: {
             year: '2025',
@@ -664,6 +678,61 @@ describe('native.common', () => {
       ...existingDatasetInfo,
       ...importedDatasetInfo,
     });
+  });
+
+  it('dataFileImport config targeted at a multicam camera updates the base metadata', async () => {
+    const basePayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const baseRes = await common.finalizeMediaImport(settings, basePayload);
+    const baseId = baseRes.meta.id;
+    const cameraPayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const cameraRes = await common.finalizeMediaImport(settings, cameraPayload);
+    // Relocate the second project to be a camera subfolder of the first,
+    // forming the `<base>/<camera>` composite layout of a multicam dataset.
+    const projects = npath.join(settings.dataPath, ProjectsFolderName);
+    await fs.move(
+      npath.join(projects, cameraRes.meta.id),
+      npath.join(projects, baseId, 'left'),
+    );
+
+    // Seed parent registration so a config import must not clobber it.
+    const baseDir = common.getProjectDir(settings, baseId);
+    const seededBase = await common.loadJsonMetadata(baseDir.metaFileAbsPath);
+    seededBase.cameraHomographies = {
+      'left::right': {
+        AtoB: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+        BtoA: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      },
+    };
+    seededBase.cameraCorrespondences = {
+      'left::right': [{ id: 1, a: [0, 0], b: [1, 1] }],
+    };
+    seededBase.cameraTransformTypes = { 'left::right': 'similarity' };
+    seededBase.cameraRegistrationSource = { model: 'seeded' };
+    await fs.writeJSON(baseDir.metaFileAbsPath, seededBase);
+
+    await common.dataFileImport(
+      settings,
+      `${baseId}/left`,
+      '/home/user/data/annotationImport/foreign.meta.withExtras.json',
+    );
+    // The camera's own metadata receives the full imported config,
+    const cameraMeta = await common.loadMetadata(settings, `${baseId}/left`, urlMapper);
+    expect(cameraMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
+    expect(cameraMeta.imageEnhancements).toStrictEqual({ brightness: 1.1 });
+    // Shared keys land on the base metadata the viewer reads,
+    const baseMeta = await common.loadMetadata(settings, baseId, urlMapper);
+    expect(baseMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
+    expect(baseMeta.customTypeStyling).toStrictEqual({ fish: { color: 'green' } });
+    // but per-camera enhancements and registration must stay untouched on the parent.
+    expect(baseMeta.imageEnhancements).toBeUndefined();
+    expect(baseMeta.cameraHomographies).toStrictEqual(seededBase.cameraHomographies);
+    expect(baseMeta.cameraCorrespondences).toStrictEqual(seededBase.cameraCorrespondences);
+    expect(baseMeta.cameraTransformTypes).toStrictEqual(seededBase.cameraTransformTypes);
+    expect(baseMeta.cameraRegistrationSource).toStrictEqual(seededBase.cameraRegistrationSource);
   });
 
   it('saveMetadata writes per-camera registration files (pairs + points) and reloads them', async () => {

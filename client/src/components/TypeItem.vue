@@ -44,6 +44,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** Configured region-overlap percent (0–100]; invalid values fall back to 99. */
+    suppressionThreshold: {
+      type: Number,
+      default: 99,
+    },
   },
   setup(props, { emit }) {
     /* Horizontal padding is the width of checkbox, scrollbar, and edit button */
@@ -54,11 +59,19 @@ export default defineComponent({
       return 42 + 14 + 20 + 30;
     });
     const cssVars = computed(() => ({ '--content-width': `${props.width - HorizontalPadding.value}px` }));
+    const effectiveOverlapPercent = computed(() => {
+      const p = Number(props.suppressionThreshold);
+      if (!Number.isFinite(p) || p <= 0 || p > 100) {
+        return 99;
+      }
+      return p;
+    });
     const goToFrame = () => {
       emit('goToMaxFrame', props.type);
     };
     return {
       cssVars,
+      effectiveOverlapPercent,
       goToFrame,
     };
   },
@@ -134,7 +147,10 @@ export default defineComponent({
               </template>
               <span>
                 This type is used for suppression.
-                Detections lying 50% or more under its regions are hidden and excluded from counts.
+                Detections lying {{ effectiveOverlapPercent }}% or more under its regions
+                are hidden and excluded from counts.
+                Detections with an attribute of this name set true stay visible
+                with their real type and an eye-off tag.
               </span>
             </v-tooltip>
           </div>

@@ -67,5 +67,8 @@ The **:material-eye: visibility** section contains toggle buttons that control t
 * ==:material-vector-polygon:== toggles **polygon** visibility
 * ==:material-vector-line:== toggles **head/tail line** visibility
 * ==:material-format-text:== toggles annotation type & confidence **text** visibility
+    * **Show user created/modified** — when text is on, optionally show a pencil glyph on annotations you created or edited.
+    * **Show suppressed tags** — when text is on, show an ==:material-eye-off:== glyph on [attribute-suppressed](UI-Suppression.md#attribute-suppression) detections in labels and hover tooltips.
 * ==:material-comment-text-outline:== toggles a **cursor hover tooltip**, helpful for reviewing very dense scenes with lots of overlap.
 * ==:material-navigation:== toggles **track trail** visibility.  The track trail is configurable to show up to 100 frames both ahead and behind each bounding box.  The trail line is made of bounding box midpoints.
+* ==:material-eye-off:== toggles **suppression** styling for attribute-suppressed detections (dashed outline, outline/fill opacity, optional fill color). Region-suppressed detections stay hidden regardless. See [Suppression](UI-Suppression.md#visibility-and-styling).

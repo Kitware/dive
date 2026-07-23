@@ -17,6 +17,12 @@ import {
   ROTATION_THRESHOLD,
   ROTATION_ATTRIBUTE_NAME,
   featureHasSegmentationPolygon,
+  polygonWithinBounds,
+  polygonEqualsBounds,
+  clipPolygonToBounds,
+  pointInPolygon,
+  pointInRing,
+  rectBoundsArea,
 } from './utils';
 import type { RectBounds } from './utils';
 import type { Feature } from './track';
@@ -390,5 +396,150 @@ describe('featureHasSegmentationPolygon', () => {
 
   it('a stray Point geometry (e.g. head marker) does not count as segmented', () => {
     expect(featureHasSegmentationPolygon(headPointOnly, SegmentationPolygonKey)).toBe(false);
+  });
+});
+
+describe('polygonWithinBounds / clipPolygonToBounds', () => {
+  const poly = (rings: GeoJSON.Position[][]): GeoJSON.Polygon => ({
+    type: 'Polygon',
+    coordinates: rings,
+  });
+  const square: GeoJSON.Polygon = poly([[
+    [10, 10], [30, 10], [30, 30], [10, 30], [10, 10],
+  ]]);
+  const bounds: RectBounds = [0, 0, 40, 40];
+
+  it('polygonWithinBounds is inclusive of the boundary', () => {
+    expect(polygonWithinBounds(square, bounds)).toBe(true);
+    expect(polygonWithinBounds(square, [10, 10, 30, 30])).toBe(true);
+    expect(polygonWithinBounds(square, [11, 10, 30, 30])).toBe(false);
+  });
+
+  it('a polygon fully inside is returned unchanged', () => {
+    expect(clipPolygonToBounds(square, bounds)).toEqual(square);
+  });
+
+  it('a polygon crossing the bounds is trimmed to fit', () => {
+    const clipped = clipPolygonToBounds(square, [0, 0, 20, 40]);
+    expect(clipped).toEqual(poly([[
+      [10, 10], [20, 10], [20, 30], [10, 30], [10, 10],
+    ]]));
+  });
+
+  it('a polygon fully outside returns null', () => {
+    expect(clipPolygonToBounds(square, [50, 50, 80, 80])).toBeNull();
+  });
+
+  it('clips against all four edges at once', () => {
+    const clipped = clipPolygonToBounds(square, [15, 15, 25, 25]);
+    expect(clipped).toEqual(poly([[
+      [15, 25], [15, 15], [25, 15], [25, 25], [15, 25],
+    ]]));
+  });
+
+  it('computes intersection points on slanted edges', () => {
+    const triangle = poly([[
+      [0, 0], [20, 0], [0, 20], [0, 0],
+    ]]);
+    const clipped = clipPolygonToBounds(triangle, [0, 0, 10, 20]);
+    expect(clipped).toEqual(poly([[
+      [0, 0], [10, 0], [10, 10], [0, 20], [0, 0],
+    ]]));
+  });
+
+  it('clips holes and drops holes left entirely outside', () => {
+    const withHoles = poly([
+      [[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]],
+      [[5, 5], [8, 5], [8, 8], [5, 8], [5, 5]],
+      [[30, 30], [35, 30], [35, 35], [30, 35], [30, 30]],
+    ]);
+    const clipped = clipPolygonToBounds(withHoles, [0, 0, 20, 20]);
+    expect(clipped).toEqual(poly([
+      [[0, 20], [0, 0], [20, 0], [20, 20], [0, 20]],
+      [[5, 5], [8, 5], [8, 8], [5, 8], [5, 5]],
+    ]));
+  });
+});
+
+describe('polygonEqualsBounds', () => {
+  const poly = (rings: GeoJSON.Position[][]): GeoJSON.Polygon => ({
+    type: 'Polygon',
+    coordinates: rings,
+  });
+  const bounds: RectBounds = [10, 20, 50, 60];
+
+  it('matches the exact box rectangle', () => {
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [50, 20], [50, 60], [10, 60], [10, 20],
+    ]]), bounds)).toBe(true);
+    // Any starting vertex / winding
+    expect(polygonEqualsBounds(poly([[
+      [10, 60], [50, 60], [50, 20], [10, 20], [10, 60],
+    ]]), bounds)).toBe(true);
+  });
+
+  it('matches a box rectangle with extra collinear points (clip artifacts)', () => {
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [30, 20], [50, 20], [50, 40], [50, 60], [10, 60], [10, 20],
+    ]]), bounds)).toBe(true);
+  });
+
+  it('rejects polygons that do not fill the box', () => {
+    // Triangle whose vertices sit on the box perimeter
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [50, 20], [10, 60], [10, 20],
+    ]]), bounds)).toBe(false);
+    // Smaller rectangle
+    expect(polygonEqualsBounds(poly([[
+      [15, 25], [45, 25], [45, 55], [15, 55], [15, 25],
+    ]]), bounds)).toBe(false);
+    // Same extent, notched corner
+    expect(polygonEqualsBounds(poly([[
+      [10, 20], [50, 20], [50, 60], [30, 60], [30, 40], [10, 40], [10, 20],
+    ]]), bounds)).toBe(false);
+  });
+
+  it('rejects polygons with holes', () => {
+    expect(polygonEqualsBounds(poly([
+      [[10, 20], [50, 20], [50, 60], [10, 60], [10, 20]],
+      [[20, 30], [30, 30], [30, 40], [20, 40], [20, 30]],
+    ]), bounds)).toBe(false);
+  });
+
+  it('rejects a box rectangle with a different extent', () => {
+    expect(polygonEqualsBounds(poly([[
+      [0, 0], [40, 0], [40, 40], [0, 40], [0, 0],
+    ]]), bounds)).toBe(false);
+  });
+});
+
+describe('pointInRing / pointInPolygon', () => {
+  const square = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+  const hole = [
+    { x: 3, y: 3 },
+    { x: 7, y: 3 },
+    { x: 7, y: 7 },
+    { x: 3, y: 7 },
+  ];
+
+  it('detects points inside and outside a ring', () => {
+    expect(pointInRing({ x: 5, y: 5 }, square)).toBe(true);
+    expect(pointInRing({ x: 15, y: 5 }, square)).toBe(false);
+  });
+
+  it('excludes holes from polygon containment', () => {
+    expect(pointInPolygon({ x: 1, y: 1 }, square, [hole])).toBe(true);
+    expect(pointInPolygon({ x: 5, y: 5 }, square, [hole])).toBe(false);
+    expect(pointInPolygon({ x: 5, y: 5 }, square)).toBe(true);
+  });
+
+  it('computes rect bounds area', () => {
+    expect(rectBoundsArea([0, 0, 10, 5] as RectBounds)).toBe(50);
+    expect(rectBoundsArea([10, 5, 0, 0] as RectBounds)).toBe(50);
   });
 });
