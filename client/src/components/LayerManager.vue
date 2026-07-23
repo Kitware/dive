@@ -362,7 +362,13 @@ export default defineComponent({
       // (and excluded from counts elsewhere).
       const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       const suppressedIds = trackStore
-        ? getSuppressedTrackIds(trackStore, frame, suppressionType, suppressionThreshold)
+        ? getSuppressedTrackIds(
+          trackStore,
+          frame,
+          suppressionType,
+          suppressionThreshold,
+          { revision: pendingSaveCount.value },
+        )
         : new Set<AnnotationId>();
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
