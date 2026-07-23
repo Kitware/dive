@@ -21,9 +21,8 @@ export interface FrameDataTrack {
   styleType: [string, number];
 
   /* Suppression type name when the detection displays as suppressed
-   * (under a region or flagged by the suppression attribute): layers
-   * label it 'Type - SuppressionType' and blend styling 80/20 toward
-   * the suppression type. */
+   * (flagged by the suppression attribute): layers label it
+   * 'Type - SuppressionType' and draw a dashed outline. */
   suppressed?: string;
 
   /* The Set if it exists for the Track */

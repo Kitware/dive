@@ -36,18 +36,9 @@ export interface TypeStyling {
   strokeWidth: (type: string, set?: boolean) => number;
   fill: (type: string, set?: boolean) => boolean;
   opacity: (type: string, set?: boolean) => number;
-  /** Weighted blend for suppressed-display detections: SUPPRESSED_STYLE_WEIGHT
-   * of the suppression type's color over the detection's own type color. */
-  suppressedColor: (type: string, suppressionType: string) => string;
-  /** Same weighted blend applied to the opacity. */
-  suppressedOpacity: (type: string, suppressionType: string) => number;
   labelSettings: (type: string, set?: boolean) => { showLabel: boolean; showConfidence: boolean };
   annotationSetColor: (set: string) => string;
 }
-
-/** Fraction of the suppression type's styling used for suppressed-display
- * detections (the remainder comes from the detection's own type). */
-export const SUPPRESSED_STYLE_WEIGHT = 2 / 3;
 
 interface UseStylingParams {
   markChangesPending: () => void;
@@ -211,25 +202,6 @@ export default class StyleManager {
           return this.stateStyles.standard.fill;
         },
         opacity: opacityFor,
-        suppressedColor: (type: string, suppressionType: string) => {
-          const supp = d3.color(colorFor(suppressionType));
-          const natural = d3.color(colorFor(type));
-          if (!supp || !natural) {
-            return colorFor(suppressionType);
-          }
-          const sr = supp.rgb();
-          const nr = natural.rgb();
-          const w = SUPPRESSED_STYLE_WEIGHT;
-          return d3.rgb(
-            (w * sr.r) + ((1 - w) * nr.r),
-            (w * sr.g) + ((1 - w) * nr.g),
-            (w * sr.b) + ((1 - w) * nr.b),
-          ).hex();
-        },
-        suppressedOpacity: (type: string, suppressionType: string) => (
-          (SUPPRESSED_STYLE_WEIGHT * opacityFor(suppressionType))
-          + ((1 - SUPPRESSED_STYLE_WEIGHT) * opacityFor(type))
-        ),
         labelSettings: (type: string, set?: boolean) => {
           let { showLabel, showConfidence } = this.stateStyles.standard;
           if (_customStyles[type]) {

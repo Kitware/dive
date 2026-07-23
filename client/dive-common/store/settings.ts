@@ -150,6 +150,14 @@ const defaultSettings: AnnotationSettings = {
       transition: false,
     },
     showUserCreatedIcon: false,
+    showSuppressedTags: true,
+    suppressionDisplay: {
+      enabled: true,
+      dashed: true,
+      outlineOpacity: 1,
+      fillColor: '',
+      fillOpacity: 0.3,
+    },
   },
   timelineCountSettings: {
     totalCount: true,

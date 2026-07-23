@@ -45,6 +45,7 @@ import {
   useComparisonSets,
   useLassoModeContext,
   useSegmentationPoints,
+  usePendingSaveCount,
 } from '../provides';
 import SegmentationPointsLayer from '../layers/AnnotationLayers/SegmentationPointsLayer';
 import useLayerManagerAlignedView from './layerManager/useLayerManagerAlignedView';
@@ -113,6 +114,9 @@ export default defineComponent({
     const trackStyleManager = useTrackStyleManager();
     const groupStyleManager = useGroupStyleManager();
     const annotatorPrefs = useAnnotatorPreferences();
+    // Bumped on every annotation edit (including attribute toggles); needed so
+    // attribute-suppressed dashed outlines / tags redraw without a frame change.
+    const pendingSaveCount = usePendingSaveCount();
     const typeStylingRef = computed(() => {
       if (props.colorBy === 'group') {
         return groupStyleManager.typeStyling.value;
@@ -140,10 +144,15 @@ export default defineComponent({
       editingModeRef,
     });
 
+    const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
+    const showSuppressedTagsRef = computed(() => annotatorPrefs.value.showSuppressedTags ?? true);
+    const suppressionDisplayRef = computed(() => annotatorPrefs.value.suppressionDisplay);
+
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
+      suppressionDisplay: suppressionDisplayRef,
     });
     const overlapLayer = new OverlapLayer({
       annotator,
@@ -155,6 +164,7 @@ export default defineComponent({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
+      suppressionDisplay: suppressionDisplayRef,
     });
 
     const lineLayer = new LineLayer({
@@ -173,13 +183,13 @@ export default defineComponent({
       typeStyling: typeStylingRef,
     }, trackStore);
 
-    const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
     const textLayer = new TextLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
       formatter: props.formatTextRow,
       showUserCreatedIcon: showUserCreatedIconRef,
+      showSuppressedTags: showSuppressedTagsRef,
     });
 
     const attributeBoxLayer = new AttributeBoxLayer({
@@ -379,8 +389,7 @@ export default defineComponent({
             // A detection flagged with the suppression attribute (it is NOT
             // under a region - those are hidden above) stays visible but
             // displays as suppressed: layers label it 'Type - SuppressionType'
-            // and blend its styling 2/3 toward the suppression type. It keeps
-            // its real type everywhere else.
+            // and draw a dashed outline. It keeps its real type everywhere else.
             const styleType: [string, number] = colorBy === 'group' ? groupStyleType : trackStyleType;
             const suppressed = (suppressionType
               && hasSuppressionAttribute(track, frame, suppressionType))
@@ -638,6 +647,8 @@ export default defineComponent({
         // re-render when the suppression-region type or threshold is changed
         () => clientSettings.typeSettings.suppressionType,
         () => clientSettings.typeSettings.suppressionThreshold,
+        // re-render when attributes/geometry change (e.g. suppression attribute toggle)
+        pendingSaveCount,
       ],
       () => {
         refreshLayers();

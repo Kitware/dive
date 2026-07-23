@@ -2167,6 +2167,8 @@ export default defineComponent({
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
+          :show-suppressed-tags.sync="clientSettings.annotatorPreferences.showSuppressedTags"
+          :suppression-display.sync="clientSettings.annotatorPreferences.suppressionDisplay"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
           @text-query-init="$emit('text-query-init')"

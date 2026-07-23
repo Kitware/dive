@@ -4,6 +4,7 @@ import {
   reactive,
   PropType,
   ref,
+  computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 
@@ -32,6 +33,12 @@ export default defineComponent({
     const importDialog = ref(false);
     const importTypes = ref('');
     const active = ref(false);
+    // Always offer the default suppression type even when no annotations use it yet.
+    const suppressionTypeItems = computed(() => (
+      props.allTypes.includes('Suppressed')
+        ? props.allTypes
+        : ['Suppressed', ...props.allTypes]
+    ));
 
     const confirmImport = () => {
       // Go through the importTypes and create types for importing
@@ -50,6 +57,7 @@ export default defineComponent({
       importDialog,
       importTypes,
       confirmImport,
+      suppressionTypeItems,
     };
   },
 });
@@ -285,7 +293,7 @@ export default defineComponent({
             <v-col class="py-1">
               <v-select
                 v-model="clientSettings.typeSettings.suppressionType"
-                :items="allTypes"
+                :items="suppressionTypeItems"
                 label="Suppression Region Type"
                 class="my-0 ml-1 pt-0"
                 dense
@@ -314,7 +322,10 @@ export default defineComponent({
               </v-tooltip>
             </v-col>
           </v-row>
-          <v-row class="mt-2">
+          <v-row
+            v-if="clientSettings.typeSettings.suppressionType"
+            class="mt-8"
+          >
             <v-col class="py-1">
               <v-text-field
                 v-model.number="clientSettings.typeSettings.suppressionThreshold"
