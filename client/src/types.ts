@@ -42,7 +42,8 @@ export interface AnnotatorPreferences {
   multiBounds?: false | number;
   };
   showUserCreatedIcon?: boolean;
-  /** When true, annotation text labels include an mdi-eye-off icon for suppressed detections. */
+  /** When true, annotation text labels and hover tooltips include an mdi-eye-off icon for attribute-suppressed detections. */
   showSuppressedTags?: boolean;
+  /** Canvas outline/fill styling for attribute-suppressed detections. */
   suppressionDisplay?: SuppressionDisplaySettings;
 }

@@ -295,6 +295,7 @@ export default defineComponent({
                   >
                     mdi-eye-off
                   </v-icon>
+                  <span class="ml-1 text--secondary">(labels & tooltips)</span>
                 </span>
               </template>
             </v-checkbox>
@@ -511,6 +512,7 @@ export default defineComponent({
                   >
                     mdi-eye-off
                   </v-icon>
+                  <span class="ml-1 text--secondary">(labels & tooltips)</span>
                 </span>
               </template>
             </v-checkbox>
@@ -627,9 +629,9 @@ export default defineComponent({
               </template>
               <span>
                 Detections flagged with a suppression attribute stay visible
-                but can be drawn with a dashed outline, custom fill, and
-                opacity so they are easy to distinguish from normal detections.
-                Enable this to apply those styles.
+                with their real type. When enabled, they can be drawn with a
+                dashed outline, custom fill, and opacity so they are easy to
+                distinguish from normal detections.
               </span>
             </v-tooltip>
           </div>

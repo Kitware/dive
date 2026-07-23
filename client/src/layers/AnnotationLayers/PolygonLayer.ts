@@ -18,7 +18,7 @@ interface PolyGeoJSData{
   styleType: [string, number] | null;
   polygon: GeoJSON.Polygon;
   polygonKey: string;
-  /** Suppression type name when displaying as suppressed (dashed outline) */
+  /** Suppression type name when attribute-flagged as suppressed (dashed/fill styling). */
   suppressed?: string;
   set?: string;
   dashed?: boolean;

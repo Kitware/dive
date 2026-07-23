@@ -1,5 +1,5 @@
 /**
- * Suppression regions.
+ * Suppression regions and attribute-flagged suppression.
  *
  * A "suppression region" is an annotation whose type matches the configured
  * suppression type (clientSettings.typeSettings.suppressionType). Any detection
@@ -7,6 +7,12 @@
  * (clientSettings.typeSettings.suppressionThreshold, default 99%) under one
  * or more suppression regions on a given frame is treated as suppressed: it
  * is hidden from the canvas and excluded from type/track/detection counts.
+ *
+ * Separately, a detection may carry an attribute named after the suppression
+ * type (track- or detection-level). That flag is display-only: the detection
+ * stays visible with its real type, may get dashed/fill styling and an
+ * eye-off tag, and is excluded from its own type's counts (it is not credited
+ * to the suppression type either).
  *
  * Overlap uses whichever geometry each side actually has: the region's polygon
  * if it has one, else its bounding box; likewise for the detection. The overlap
@@ -128,8 +134,8 @@ export function isSuppressedAttributeValue(value: unknown): boolean {
  * named after the suppression type, set on the track or on its detection at
  * `frame` (falling back to the previous keyframe when the frame is
  * interpolated). Unlike region suppression this is display-only: the
- * detection stays visible but is styled, labeled, and counted as the
- * suppression type instead of its own.
+ * detection stays visible with its real type (optional dashed/fill styling
+ * and an eye-off tag) and is excluded from its own type's counts.
  */
 export function hasSuppressionAttribute(
   track: Track,

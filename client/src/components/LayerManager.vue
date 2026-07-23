@@ -387,9 +387,9 @@ export default defineComponent({
             );
             const groupStyleType = groups?.[0]?.getType() ?? cameraStore.defaultGroup;
             // A detection flagged with the suppression attribute (it is NOT
-            // under a region - those are hidden above) stays visible but
-            // displays as suppressed: layers label it 'Type - SuppressionType'
-            // and draw a dashed outline. It keeps its real type everywhere else.
+            // under a region — those are hidden above) stays visible but is
+            // marked suppressed: optional dashed/fill styling, an eye-off
+            // tag on the canvas label and hover tooltip. Real type is kept.
             const styleType: [string, number] = colorBy === 'group' ? groupStyleType : trackStyleType;
             const suppressed = (suppressionType
               && hasSuppressionAttribute(track, frame, suppressionType))
@@ -732,10 +732,13 @@ export default defineComponent({
             }
           });
           hoveredVals.push({
-            type: item.suppressed
-              ? `${item.styleType[0]} - ${item.suppressed}` : item.styleType[0],
+            // Keep the real type so color lookup stays correct; the tooltip
+            // widget renders an eye-off icon when suppressed is set (same
+            // preference as canvas labels).
+            type: item.styleType[0],
             confidence: item.styleType[1],
             trackId: item.trackId,
+            suppressed: showSuppressedTagsRef.value ? item.suppressed : undefined,
             maxX,
           });
         }

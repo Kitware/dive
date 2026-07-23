@@ -26,7 +26,7 @@ export default defineComponent({
       preventCascadeTypes: 'When a track has multiple types, this will prevent the type from displaying if the max type is not visible in the type list',
       filterTypesByFrame: 'Filters the type list by only types that are visible in the current frame',
       maxCountButton: 'Show a max count button that will jump to the frame with the max count for the type',
-      suppressionType: 'Detections lying at least the Suppression Overlap percent under an annotation of this type are hidden and excluded from counts. A detection carrying an attribute of this name set to true stays visible but displays as this type and is excluded from its own type\'s counts. Leave empty to disable.',
+      suppressionType: 'Detections lying at least the Suppression Overlap percent under an annotation of this type are hidden and excluded from counts. A detection carrying an attribute of this name set to true stays visible with its real type (optional dashed/fill styling and an eye-off tag) and is excluded from its own type\'s counts. Leave empty to disable.',
       suppressionThreshold: 'Minimum percent of a detection that must lie under suppression regions for it to be hidden (default 99).',
     });
     const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');

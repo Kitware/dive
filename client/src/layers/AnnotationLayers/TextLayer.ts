@@ -7,7 +7,7 @@ export interface TextData {
   selected: boolean;
   editing: boolean | string;
   type: string;
-  /** Suppression type name when displaying as suppressed (label indicator) */
+  /** Suppression type name when attribute-flagged as suppressed (eye-off tag). */
   suppressed?: string;
   confidence: number;
   text: string;
