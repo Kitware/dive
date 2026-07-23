@@ -167,16 +167,17 @@ export default defineComponent({
         return;
       }
       cameraStore.camMap.value.forEach(({ trackStore: store }) => {
-        // Frames where a suppression region actually exists: a track with a
-        // keyframe on any other frame can never be region-suppressed there,
-        // so its region check bails without touching the per-frame computation.
-        const regionFrames = new Set<number>();
+        // Inclusive [begin, end] spans of suppression-region tracks. Regions
+        // interpolate between keyframes, so a keyframe-only set would miss
+        // detections whose keyframes fall on interpolated-only region frames.
+        const regionRanges: [number, number][] = [];
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
           if (track.confidencePairs?.some(([t]) => t === suppType)) {
-            (track.featureIndex || []).forEach((f) => regionFrames.add(f));
+            regionRanges.push([track.begin, track.end]);
           }
         });
+        const hasRegionAt = (f: number) => regionRanges.some(([b, e]) => f >= b && f <= e);
         const suppressedAt = (f: number) => getSuppressedTrackIds(
           store, f, suppType, suppThreshold, { revision: editRevision },
         );
@@ -187,7 +188,7 @@ export default defineComponent({
           }
           const keyframes = track.features.filter((f) => f && f.keyframe);
           if (keyframes.length > 0
-            && keyframes.every((f) => (regionFrames.has(f.frame)
+            && keyframes.every((f) => (hasRegionAt(f.frame)
                 && suppressedAt(f.frame).has(track.id))
               || hasSuppressionAttribute(track, f.frame, suppType))) {
             excluded.add(track.id);
@@ -199,7 +200,11 @@ export default defineComponent({
     const debouncedFullySuppressed = debounce(computeFullySuppressedIds, 500);
     watch(pendingSaveCount, () => debouncedFullySuppressed());
     watch(
-      [() => clientSettings.typeSettings.suppressionType, cameraStore.camMap],
+      [
+        () => clientSettings.typeSettings.suppressionType,
+        () => clientSettings.typeSettings.suppressionThreshold,
+        cameraStore.camMap,
+      ],
       () => computeFullySuppressedIds(),
       { immediate: true },
     );
