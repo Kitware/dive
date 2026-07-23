@@ -88,6 +88,10 @@ Click the ==:material-cog:== button next to an existing attribute to edit its de
 1. Or directly edit the value field when in the attribute editing mode
 1. Setting an attribute to the empty value will remove the value from the track/detection
 
+### Suppression attributes
+
+If [suppression](UI-Suppression.md) is enabled, an attribute whose **name matches the Suppression Region Type** (default `Suppressed`) marks a detection or track as attribute-suppressed when set to a truthy value (`true`, `1`, `yes`, `on`, or a nonzero number). The detection stays visible with its real type, can show dashed/fill styling and an eye-off tag, and is excluded from its own type's counts. Create a Boolean track or detection attribute with that name to edit the flag in this panel.
+
 ## Importing and Exporting Attributes
 
 Attributes are part of the dataset configuration that can be imported and exported.

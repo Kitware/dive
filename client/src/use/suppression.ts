@@ -1,11 +1,18 @@
 /**
- * Suppression regions.
+ * Suppression regions and attribute-flagged suppression.
  *
  * A "suppression region" is an annotation whose type matches the configured
  * suppression type (clientSettings.typeSettings.suppressionType). Any detection
- * whose geometry lies at least SUPPRESSION_THRESHOLD (50%) under one or more
- * suppression regions on a given frame is treated as suppressed: it is hidden
- * from the canvas and excluded from type/track/detection counts.
+ * whose geometry lies at least the configured overlap threshold
+ * (clientSettings.typeSettings.suppressionThreshold, default 99%) under one
+ * or more suppression regions on a given frame is treated as suppressed: it
+ * is hidden from the canvas and excluded from type/track/detection counts.
+ *
+ * Separately, a detection may carry an attribute named after the suppression
+ * type (track- or detection-level). That flag is display-only: the detection
+ * stays visible with its real type, may get dashed/fill styling and an
+ * eye-off tag, and is excluded from its own type's counts (it is not credited
+ * to the suppression type either).
  *
  * Overlap uses whichever geometry each side actually has: the region's polygon
  * if it has one, else its bounding box; likewise for the detection. The overlap
@@ -19,14 +26,28 @@ import type BaseAnnotationStore from 'vue-media-annotator/BaseAnnotationStore';
 import type Track from 'vue-media-annotator/track';
 import type { Feature } from 'vue-media-annotator/track';
 
-export const SUPPRESSION_THRESHOLD = 0.5;
+export const DEFAULT_SUPPRESSION_THRESHOLD = 0.99;
+
+/**
+ * Normalize the stored suppression-overlap setting (a percent, 0-100) to a
+ * fraction, falling back to the default (99%) for missing or out-of-range
+ * values.
+ */
+export function normalizeSuppressionThreshold(percent: number | undefined): number {
+  const p = Number(percent);
+  if (!Number.isFinite(p) || p <= 0 || p > 100) {
+    return DEFAULT_SUPPRESSION_THRESHOLD;
+  }
+  return p / 100;
+}
 
 type Pt = [number, number];
 type Rect = [number, number, number, number];
 interface Shape { poly?: Pt[]; bbox: Rect }
 
-// Sampling resolution used to estimate the covered-area fraction. 16x16 is
-// plenty for a 50% threshold and keeps the per-frame cost low.
+// Sampling resolution used to estimate the covered-area fraction. 16x16
+// keeps the per-frame cost low; at a 99% threshold it resolves the covered
+// fraction to ~0.4% granularity on typical detections.
 const GRID = 16;
 
 function bboxOfPoly(poly: Pt[]): Rect {
@@ -182,6 +203,7 @@ function bboxCoverUpperBound(det: Rect, regions: PreparedRegion[]): number {
 interface SuppressionCacheEntry {
   revision: number;
   type: string;
+  threshold: number;
   byFrame: Map<number, Set<AnnotationId>>;
 }
 /** Per-store memo of frame results, valid for one edit revision. */
@@ -189,8 +211,43 @@ interface SuppressionCacheEntry {
 const suppressionCache = new WeakMap<any, SuppressionCacheEntry>();
 
 /**
+ * Loose truthiness for a suppression attribute value set by a user or
+ * pipeline: true, a nonzero number, or 'true'/'yes'/'on'/'1' (any case).
+ */
+export function isSuppressedAttributeValue(value: unknown): boolean {
+  if (value === true) return true;
+  if (typeof value === 'number') return value !== 0;
+  if (typeof value === 'string') {
+    return ['true', 'yes', 'on', '1'].includes(value.trim().toLowerCase());
+  }
+  return false;
+}
+
+/**
+ * True when the detection carries the suppression attribute: an attribute
+ * named after the suppression type, set on the track or on its detection at
+ * `frame` (falling back to the previous keyframe when the frame is
+ * interpolated). Unlike region suppression this is display-only: the
+ * detection stays visible with its real type (optional dashed/fill styling
+ * and an eye-off tag) and is excluded from its own type's counts.
+ */
+export function hasSuppressionAttribute(
+  track: Track,
+  frame: number,
+  suppressionType: string | undefined,
+): boolean {
+  if (!suppressionType) return false;
+  if (isSuppressedAttributeValue(track.attributes?.[suppressionType])) return true;
+  const [real, lower] = track.getFeature(frame);
+  const feature = real?.attributes ? real : lower;
+  return isSuppressedAttributeValue(feature?.attributes?.[suppressionType]);
+}
+
+/**
  * Track ids whose detection on `frame` is suppressed by a region on that frame.
  * Empty when suppressionType is falsy (feature disabled) or no regions exist.
+ * `thresholdPercent` is the minimum covered fraction as a percent (0-100];
+ * missing or out-of-range values fall back to the default (99%).
  * `options.revision` (typically the pending-save counter) memoizes the result
  * per store+frame until the revision changes, so the canvas, type counts, and
  * track list share one computation instead of repeating it.
@@ -199,17 +256,22 @@ export function getSuppressedTrackIds(
   trackStore: BaseAnnotationStore<Track>,
   frame: number,
   suppressionType: string | undefined,
+  thresholdPercent?: number,
   options: { revision?: number } = {},
 ): Set<AnnotationId> {
   if (!suppressionType) return new Set<AnnotationId>();
+  const threshold = normalizeSuppressionThreshold(thresholdPercent);
 
   let cacheEntry: SuppressionCacheEntry | undefined;
   const { revision } = options;
   if (revision !== undefined) {
     cacheEntry = suppressionCache.get(trackStore);
     if (!cacheEntry || cacheEntry.revision !== revision
-      || cacheEntry.type !== suppressionType) {
-      cacheEntry = { revision, type: suppressionType, byFrame: new Map() };
+      || cacheEntry.type !== suppressionType
+      || cacheEntry.threshold !== threshold) {
+      cacheEntry = {
+        revision, type: suppressionType, threshold, byFrame: new Map(),
+      };
       suppressionCache.set(trackStore, cacheEntry);
     }
     const hit = cacheEntry.byFrame.get(frame);
@@ -239,10 +301,10 @@ export function getSuppressedTrackIds(
   });
   if (regions.length > 0) {
     candidates.forEach(({ id, shape }) => {
-      if (bboxCoverUpperBound(shape.bbox, regions) < SUPPRESSION_THRESHOLD) {
+      if (bboxCoverUpperBound(shape.bbox, regions) < threshold) {
         return;
       }
-      if (overlapFraction(shape, regions) >= SUPPRESSION_THRESHOLD) {
+      if (overlapFraction(shape, regions) >= threshold) {
         result.add(id);
       }
     });

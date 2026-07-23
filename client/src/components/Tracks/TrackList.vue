@@ -124,6 +124,7 @@ export default defineComponent({
             suppressCamStore,
             frameRef.value,
             suppType,
+            clientSettings.typeSettings.suppressionThreshold,
             { revision: editRevision },
           )
           : new Set<number>();

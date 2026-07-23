@@ -21,6 +21,7 @@ import {
   FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
   DatasetMetaMutableKeys,
+  MulticamSharedMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
   Pipe,
@@ -50,6 +51,7 @@ import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
+import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
@@ -1528,6 +1530,25 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
       : result.meta.datasetInfo;
   }
   await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
+  // Shared mutable config (styling, thresholds, attributes, datasetInfo, ...) is
+  // loaded by the viewer from the base dataset's metadata, so an import
+  // targeted at one camera of a multicam dataset must update the base too.
+  // Do not sync per-camera imageEnhancements or camera-registration fields.
+  const { parentId, cameraName } = parseCompositeDatasetId(id);
+  if (cameraName && MulticamSharedMutableKeys.some((key) => key in result.meta)) {
+    const baseProjectDir = getProjectDir(settings, parentId);
+    if (await fs.pathExists(baseProjectDir.metaFileAbsPath)) {
+      const baseMeta = await loadJsonMetadata(baseProjectDir.metaFileAbsPath);
+      const existingBaseDatasetInfo = baseMeta.datasetInfo;
+      merge(baseMeta, pick(result.meta, MulticamSharedMutableKeys));
+      if (result.meta.datasetInfo) {
+        baseMeta.datasetInfo = additive
+          ? { ...(existingBaseDatasetInfo ?? {}), ...result.meta.datasetInfo }
+          : result.meta.datasetInfo;
+      }
+      await _saveAsJson(baseProjectDir.metaFileAbsPath, baseMeta);
+    }
+  }
   return result;
 }
 

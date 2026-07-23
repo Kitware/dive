@@ -1356,7 +1356,16 @@ export default defineComponent({
      * Handle stereo annotation complete event from Viewer
      * Warps annotation from source camera to the other camera
      */
-    async function handleStereoAnnotationComplete(params: StereoAnnotationCompleteParams) {
+    /**
+     * @param quiet When true, skip per-transfer dialog updates and return a
+     *   result status instead — used by bulk import "Warp to All" so failures
+     *   can be aggregated rather than cleared by the next job.
+     */
+    async function handleStereoAnnotationComplete(
+      params: StereoAnnotationCompleteParams,
+      forceAutoCompute = false,
+      quiet = false,
+    ): Promise<'transferred' | 'skipped' | 'failed'> {
       // This handler only fires on human edits — the stereo warp writes
       // geometry directly, bypassing the annotation-complete event — so the
       // camera the user just drew/edited is now human-authored. Mark it
@@ -1375,17 +1384,19 @@ export default defineComponent({
       // for it rather than dropping the annotation's stereo work -- the
       // other-camera state below is re-read after the wait, so lines drawn on
       // both cameras in the meantime still get their length computed.
-      if (!stereoEnabled.value && !(await stereoServiceReady())) return;
+      if (!stereoEnabled.value && !(await stereoServiceReady())) {
+        return quiet ? 'failed' : 'skipped';
+      }
 
       const viewer = viewerRef.value;
-      if (!viewer) return;
+      if (!viewer) return quiet ? 'failed' : 'skipped';
 
       const { cameraStore, multiCamList } = viewer;
-      if (multiCamList.length < 2) return;
+      if (multiCamList.length < 2) return quiet ? 'failed' : 'skipped';
 
       // Determine the other camera
       const otherCamera = multiCamList.find((c: string) => c !== params.camera);
-      if (!otherCamera) return;
+      if (!otherCamera) return quiet ? 'failed' : 'skipped';
 
       const otherTrack = cameraStore.getPossibleTrack(params.trackId, otherCamera);
       const [otherFeature] = otherTrack ? otherTrack.getFeature(params.frameNum) : [null];
@@ -1397,7 +1408,10 @@ export default defineComponent({
       //  - autoCompute: warp the annotation to the other camera when it has no
       //    detection for it yet (or its line is still machine-generated).
       const updateLengths = clientSettings.stereoSettings.updateLengthsOnModify;
-      const autoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+      // forceAutoCompute bypasses the auto-compute preference for explicit
+      // requests (the Import menu's "Warp to All").
+      const autoCompute = forceAutoCompute
+        || clientSettings.stereoSettings.autoComputeOtherCamera;
 
       if (params.type === 'line') {
         const otherIsHuman = otherHasFeature
@@ -1413,31 +1427,34 @@ export default defineComponent({
               console.warn('[Stereo] Measurement update failed:', err);
             }
           }
-          return;
+          return 'skipped';
         }
         // Otherwise (auto-compute on, other side absent or still machine-generated)
         // fall through and (re)warp source -> other so the auto-generated line
         // keeps tracking edits.
       } else if (otherHasFeature) {
         // Box / polygon / segmentation: warp only once; leave existing untouched.
-        return;
+        return 'skipped';
       } else if (!autoCompute) {
         // Creating geometry on the other camera is gated by auto-compute.
-        return;
+        return 'skipped';
       }
 
-      // Show loading indicator while waiting for stereo transfer
-      stereoLoadingMessage.value = 'Computing stereo correspondence...';
-      stereoLoadingError.value = '';
-      stereoLoadingDialog.value = true;
-
-      // Guarantee the backend has this frame's images before transferring. The
-      // proactive watcher only fires on frame-number changes, so a draw on the
-      // frame where stereo was enabled would otherwise stall in the backend's
-      // deferred disparity wait.
-      await ensureStereoFrame(params.frameNum);
+      // Show loading indicator while waiting for stereo transfer (interactive
+      // single-transfer path only; bulk import owns the dialog itself).
+      if (!quiet) {
+        stereoLoadingMessage.value = 'Computing stereo correspondence...';
+        stereoLoadingError.value = '';
+        stereoLoadingDialog.value = true;
+      }
 
       try {
+        // Guarantee the backend has this frame's images before transferring. The
+        // proactive watcher only fires on frame-number changes, so a draw on the
+        // frame where stereo was enabled would otherwise stall in the backend's
+        // deferred disparity wait.
+        await ensureStereoFrame(params.frameNum);
+
         if (params.type === 'line') {
           const response = await stereoTransferLine({ line: params.line });
           if (!response.success || !response.transferredLine) {
@@ -1673,18 +1690,154 @@ export default defineComponent({
             }
           }
         }
-        // Success — hide loading dialog
-        stereoLoadingDialog.value = false;
+        // Success — hide loading dialog (interactive path only)
+        if (!quiet) {
+          stereoLoadingDialog.value = false;
+        }
+        return 'transferred';
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        if (quiet) {
+          console.warn('[Stereo] Transfer failed:', err);
+          return 'failed';
+        }
         // Surface the failure in the SAME dialog that was showing the
         // "Computing stereo correspondence..." spinner: switch it to its error
         // state (title + message + Close button) rather than hiding it and
         // popping a separate prompt, which flashed two windows in sequence.
-        const message = err instanceof Error ? err.message : String(err);
         stereoErrorTitle.value = 'Stereo Transfer Error';
         stereoErrorSeverity.value = 'warning';
         stereoLoadingError.value = `Failed to transfer annotation to the other camera. ${message}`;
         stereoLoadingDialog.value = true;
+        return 'failed';
+      }
+    }
+
+    /**
+     * Import menu "Warp to All" on a stereo dataset: warp every detection
+     * loaded on the source camera to the other camera through the
+     * interactive stereo service. Reuses the per-annotation transfer
+     * (service-ready wait, frame preparation) with the auto-compute
+     * preference bypassed — the user asked for the warp explicitly. Frames
+     * the other camera already has are left untouched. Head/tail lines
+     * transfer as lines (which also computes the stereo measurement),
+     * polygons as polygons, and plain boxes as boxes.
+     *
+     * resolve completes the Promise ImportAnnotations awaits so its
+     * processing spinner stays up through warp + save.
+     */
+    async function handleStereoWarpImported(
+      sourceCamera: string,
+      resolve?: () => void,
+    ) {
+      try {
+        const viewer = viewerRef.value;
+        if (!viewer) {
+          resolve?.();
+          return;
+        }
+        const { cameraStore, multiCamList } = viewer;
+        if (multiCamList.length < 2) {
+          resolve?.();
+          return;
+        }
+        const otherCamera = multiCamList.find((c: string) => c !== sourceCamera);
+        const store = cameraStore.camMap.value.get(sourceCamera)?.trackStore;
+        if (!store || !otherCamera) {
+          resolve?.();
+          return;
+        }
+        const jobs: StereoAnnotationCompleteParams[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        store.annotationMap.forEach((track: any) => {
+          if (typeof track.getFeature !== 'function') return;
+          (track.featureIndex || []).forEach((frameNum: number) => {
+            const [feature] = track.getFeature(frameNum);
+            if (!feature || !feature.keyframe || !feature.bounds) return;
+            // Only fill in missing counterparts; never touch geometry the
+            // other camera already has for this frame.
+            const otherTrack = cameraStore.getPossibleTrack(track.id, otherCamera);
+            const [otherFeature] = otherTrack ? otherTrack.getFeature(frameNum) : [null];
+            if (otherFeature) return;
+            const geoFeatures = feature.geometry?.features || [];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const line = geoFeatures.find((g: any) => g.geometry?.type === 'LineString'
+              && g.geometry.coordinates?.length === 2);
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const poly = geoFeatures.find((g: any) => g.geometry?.type === 'Polygon');
+            const base = { camera: sourceCamera, trackId: track.id, frameNum };
+            if (line) {
+              jobs.push({
+                ...base,
+                type: 'line',
+                line: line.geometry.coordinates as [[number, number], [number, number]],
+                key: line.properties?.key ?? '',
+              });
+            } else if (poly) {
+              jobs.push({
+                ...base,
+                type: 'polygon',
+                polygon: poly.geometry.coordinates[0] as [number, number][],
+                key: poly.properties?.key ?? '',
+              });
+            } else {
+              jobs.push({
+                ...base,
+                type: 'box',
+                bounds: feature.bounds as [number, number, number, number],
+              });
+            }
+          });
+        });
+
+        if (!jobs.length) {
+          resolve?.();
+          return;
+        }
+
+        let transferred = 0;
+        let failed = 0;
+        stereoLoadingError.value = '';
+        stereoLoadingMessage.value = `Warping detections to other camera (0/${jobs.length})...`;
+        stereoLoadingDialog.value = true;
+
+        for (let i = 0; i < jobs.length; i += 1) {
+          stereoLoadingMessage.value = `Warping detections to other camera (${i + 1}/${jobs.length})...`;
+          // eslint-disable-next-line no-await-in-loop
+          const result = await handleStereoAnnotationComplete(jobs[i], true, true);
+          if (result === 'transferred') {
+            transferred += 1;
+          } else if (result === 'failed') {
+            failed += 1;
+          }
+        }
+
+        if (transferred) {
+          await viewer.save();
+        }
+
+        if (failed) {
+          stereoErrorTitle.value = 'Stereo Transfer Error';
+          stereoErrorSeverity.value = 'warning';
+          stereoLoadingError.value = failed === jobs.length
+            ? `Failed to warp all ${jobs.length} detections to the other camera.`
+            : `Warped ${transferred} of ${jobs.length} detections; ${failed} failed.`;
+          stereoLoadingDialog.value = true;
+        } else {
+          stereoLoadingDialog.value = false;
+        }
+        resolve?.();
+      } catch (err) {
+        console.warn('[Stereo] Import warp failed:', err);
+        stereoErrorTitle.value = 'Stereo Transfer Error';
+        stereoErrorSeverity.value = 'warning';
+        stereoLoadingError.value = `Failed to warp imported detections. ${
+          err instanceof Error ? err.message : String(err)
+        }`;
+        stereoLoadingDialog.value = true;
+        // Resolve (don't reject) so Import doesn't treat a post-import warp
+        // failure as an import failure; the stereo dialog reports it.
+        resolve?.();
       }
     }
 
@@ -1829,6 +1982,7 @@ export default defineComponent({
       stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
+      handleStereoWarpImported,
       handleStereoAnnotationReset,
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
@@ -1897,6 +2051,7 @@ export default defineComponent({
           v-bind="{ buttonOptions, menuOptions, readOnlyMode }"
           block-on-unsaved
           @calibration-imported="onCalibrationImported"
+          @stereo-warp-imported="handleStereoWarpImported"
         />
         <Export
           v-if="datasets[id]"

@@ -21,7 +21,7 @@ import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
-import { getSuppressedTrackIds } from '../use/suppression';
+import { getSuppressedTrackIds, hasSuppressionAttribute } from '../use/suppression';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
@@ -115,6 +115,9 @@ export default defineComponent({
     const trackStyleManager = useTrackStyleManager();
     const groupStyleManager = useGroupStyleManager();
     const annotatorPrefs = useAnnotatorPreferences();
+    // Bumped on every annotation edit (including attribute toggles); needed so
+    // attribute-suppressed dashed outlines / tags redraw without a frame change.
+    const pendingSaveCount = usePendingSaveCount();
     const typeStylingRef = computed(() => {
       if (props.colorBy === 'group') {
         return groupStyleManager.typeStyling.value;
@@ -142,10 +145,15 @@ export default defineComponent({
       editingModeRef,
     });
 
+    const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
+    const showSuppressedTagsRef = computed(() => annotatorPrefs.value.showSuppressedTags ?? true);
+    const suppressionDisplayRef = computed(() => annotatorPrefs.value.suppressionDisplay);
+
     const rectAnnotationLayer = new RectangleLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
+      suppressionDisplay: suppressionDisplayRef,
     });
     const overlapLayer = new OverlapLayer({
       annotator,
@@ -157,6 +165,7 @@ export default defineComponent({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
+      suppressionDisplay: suppressionDisplayRef,
     });
 
     const lineLayer = new LineLayer({
@@ -175,13 +184,13 @@ export default defineComponent({
       typeStyling: typeStylingRef,
     }, trackStore);
 
-    const showUserCreatedIconRef = computed(() => annotatorPrefs.value.showUserCreatedIcon ?? true);
     const textLayer = new TextLayer({
       annotator,
       stateStyling: trackStyleManager.stateStyles,
       typeStyling: typeStylingRef,
       formatter: props.formatTextRow,
       showUserCreatedIcon: showUserCreatedIconRef,
+      showSuppressedTags: showSuppressedTagsRef,
     });
 
     const attributeBoxLayer = new AttributeBoxLayer({
@@ -337,7 +346,9 @@ export default defineComponent({
         .search([frame, frame])
         .map((str) => parseInt(str, 10));
       const inlcudesTooltip = visibleModes.includes('tooltip');
-      rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
+      // Hidden boxes (kept only as invisible click targets) should not
+      // produce hover tooltips
+      rectAnnotationLayer.setHoverAnnotations(inlcudesTooltip && visibleModes.includes('rectangle'));
       polyAnnotationLayer.setHoverAnnotations(inlcudesTooltip);
       if (!inlcudesTooltip) {
         hoverOvered.value = [];
@@ -347,13 +358,16 @@ export default defineComponent({
       if (currentFrameIds === undefined) {
         return;
       }
-      // Detections lying >=50% under a suppression region on this frame are
-      // hidden from every layer at once (and excluded from counts elsewhere).
+      // Detections lying under a suppression region on this frame (by at
+      // least the configured overlap) are hidden from every layer at once
+      // (and excluded from counts elsewhere).
+      const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       const suppressedIds = trackStore
         ? getSuppressedTrackIds(
           trackStore,
           frame,
-          clientSettings.typeSettings.suppressionType,
+          suppressionType,
+          suppressionThreshold,
           { revision: pendingSaveCount.value },
         )
         : new Set<AnnotationId>();
@@ -379,6 +393,14 @@ export default defineComponent({
               enabledTracks[enabledIndex].context.confidencePairIndex,
             );
             const groupStyleType = groups?.[0]?.getType() ?? cameraStore.defaultGroup;
+            // A detection flagged with the suppression attribute (it is NOT
+            // under a region — those are hidden above) stays visible but is
+            // marked suppressed: optional dashed/fill styling, an eye-off
+            // tag on the canvas label and hover tooltip. Real type is kept.
+            const styleType: [string, number] = colorBy === 'group' ? groupStyleType : trackStyleType;
+            const suppressed = (suppressionType
+              && hasSuppressionAttribute(track, frame, suppressionType))
+              ? suppressionType : undefined;
             const trackFrame = {
               selected: ((selectedTrackId === track.trackId)
                 || (multiSelectList.includes(track.trackId))),
@@ -386,7 +408,8 @@ export default defineComponent({
               track,
               groups,
               features,
-              styleType: colorBy === 'group' ? groupStyleType : trackStyleType,
+              styleType,
+              suppressed,
               set: track.set,
             };
             frameData.push(trackFrame);
@@ -456,6 +479,7 @@ export default defineComponent({
       );
 
       if (visibleModes.includes('rectangle')) {
+        rectAnnotationLayer.setClickTargetsOnly(false);
         //We modify rects opacity/thickness if polygons are visible or not
         rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
         rectAnnotationLayer.changeData(frameData, comparison.value);
@@ -463,7 +487,13 @@ export default defineComponent({
           overlapLayer.changeData(frameData);
         }
       } else {
-        rectAnnotationLayer.disable();
+        // Keep the hidden boxes around as invisible right-click targets so a
+        // detection can still be right-clicked into edit mode no matter which
+        // of its displays are turned on. Keep drawingOther in sync with polygon
+        // visibility so nested click targeting still prefers polygon shapes.
+        rectAnnotationLayer.setClickTargetsOnly(true);
+        rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
+        rectAnnotationLayer.changeData(frameData, comparison.value);
       }
       if (visibleModes.includes('Polygon')) {
         polyAnnotationLayer.setDrawingOther(visibleModes.includes('rectangle'));
@@ -623,8 +653,11 @@ export default defineComponent({
         toRef(props, 'colorBy'),
         selectedCamera,
         selectedKeyRef,
-        // re-render when the suppression-region type is changed
+        // re-render when the suppression-region type or threshold is changed
         () => clientSettings.typeSettings.suppressionType,
+        () => clientSettings.typeSettings.suppressionThreshold,
+        // re-render when attributes/geometry change (e.g. suppression attribute toggle)
+        pendingSaveCount,
       ],
       () => {
         refreshLayers();
@@ -690,6 +723,7 @@ export default defineComponent({
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];
+          suppressed?: string;
           trackId: number;
           polygon: { coordinates: Array<Array<[number, number]>>};
         }[],
@@ -707,9 +741,13 @@ export default defineComponent({
             }
           });
           hoveredVals.push({
+            // Keep the real type so color lookup stays correct; the tooltip
+            // widget renders an eye-off icon when suppressed is set (same
+            // preference as canvas labels).
             type: item.styleType[0],
             confidence: item.styleType[1],
             trackId: item.trackId,
+            suppressed: showSuppressedTagsRef.value ? item.suppressed : undefined,
             maxX,
           });
         }
