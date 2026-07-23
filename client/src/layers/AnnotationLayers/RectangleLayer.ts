@@ -20,8 +20,10 @@ import { FrameDataTrack } from '../LayerTypes';
 import LineLayer from './LineLayer';
 import {
   candidateOwnsClick,
-  type DisplayPolygon,
-  type RectClickCandidate,
+} from './rectangleClickTarget';
+import type {
+  DisplayPolygon,
+  RectClickCandidate,
 } from './rectangleClickTarget';
 
 interface RectGeoJSData{
@@ -36,7 +38,12 @@ interface RectGeoJSData{
    * when hasPoly.
    */
   polyCoords: GeoJSON.Position[][][];
-  /** Axis-aligned bounds area; used to prefer nested boxes on envelope clicks. */
+  /**
+   * Rectangle outline in native coords (after rotation, before dash), used for
+   * closest-border click targeting.
+   */
+  boxRing: GeoJSON.Position[];
+  /** Axis-aligned bounds area; tie-break when border distances are equal. */
   boxArea: number;
   /** Suppression type name when attribute-flagged as suppressed (dashed/fill styling). */
   suppressed?: string;
@@ -206,14 +213,15 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
       trackId: data.trackId,
       hasPoly: data.hasPoly,
       polygons,
+      boxRing: data.boxRing.map((p) => this.transformPoint([p[0], p[1]])),
       boxArea: data.boxArea,
     };
   }
 
   /**
    * Whether a click on this rectangle feature really lands on its detection.
-   * While polygons are drawn, prefer shape hits; otherwise the smallest box
-   * under the cursor owns the click (nested envelopes beat larger ones).
+   * While polygons are drawn, prefer shape hits; among that pool (or all
+   * envelopes if none) the closest rectangle border wins.
    */
   private clickLandsOnDetection(e: GeoEvent): boolean {
     if (!this.drawingOther) {
@@ -251,6 +259,9 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           polygon.coordinates[0] = updatedCoords;
         }
 
+        // Capture the solid rectangle outline before dash styling mutates it.
+        const boxRing = polygon.coordinates[0].map((p) => [p[0], p[1]] as GeoJSON.Position);
+
         // Comparison-set tracks and attribute-suppressed detections both use
         // dashed outlines (odd stroke segments are made transparent below).
         const suppStyle = this.suppressionStyle();
@@ -274,6 +285,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           polygon,
           hasPoly,
           polyCoords,
+          boxRing,
           boxArea: rectBoundsArea(track.features.bounds),
           suppressed: track.suppressed,
           set: track.set,
