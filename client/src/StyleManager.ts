@@ -36,9 +36,18 @@ export interface TypeStyling {
   strokeWidth: (type: string, set?: boolean) => number;
   fill: (type: string, set?: boolean) => boolean;
   opacity: (type: string, set?: boolean) => number;
+  /** Weighted blend for suppressed-display detections: SUPPRESSED_STYLE_WEIGHT
+   * of the suppression type's color over the detection's own type color. */
+  suppressedColor: (type: string, suppressionType: string) => string;
+  /** Same weighted blend applied to the opacity. */
+  suppressedOpacity: (type: string, suppressionType: string) => number;
   labelSettings: (type: string, set?: boolean) => { showLabel: boolean; showConfidence: boolean };
   annotationSetColor: (set: string) => string;
 }
+
+/** Fraction of the suppression type's styling used for suppressed-display
+ * detections (the remainder comes from the detection's own type). */
+export const SUPPRESSED_STYLE_WEIGHT = 0.5;
 
 interface UseStylingParams {
   markChangesPending: () => void;
@@ -149,20 +158,30 @@ export default class StyleManager {
       if (this.revisionCounter.value) noop();
       const _customStyles = this.customStyles.value;
       const _annotationSetStyles = this.annotationSetStyles.value;
-      return {
-        color: (type: string, set?: boolean) => {
-          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].color) {
-            return _annotationSetStyles[type].color;
-          }
+      const colorFor = (type: string, set?: boolean) => {
+        if (set && _annotationSetStyles[type] && _annotationSetStyles[type].color) {
+          return _annotationSetStyles[type].color;
+        }
 
-          if (_customStyles[type] && _customStyles[type].color) {
-            return _customStyles[type].color;
-          }
-          if (type === '') {
-            return this.typeColors.range()[0];
-          }
-          return this.typeColors(type);
-        },
+        if (_customStyles[type] && _customStyles[type].color) {
+          return _customStyles[type].color;
+        }
+        if (type === '') {
+          return this.typeColors.range()[0];
+        }
+        return this.typeColors(type);
+      };
+      const opacityFor = (type: string, set?: boolean) => {
+        if (set && _annotationSetStyles[type] && _annotationSetStyles[type].opacity) {
+          return _annotationSetStyles[type].opacity;
+        }
+        if (_customStyles[type] && _customStyles[type].opacity) {
+          return _customStyles[type].opacity;
+        }
+        return this.stateStyles.standard.opacity;
+      };
+      return {
+        color: colorFor,
         annotationSetColor: (set: string) => {
           if (!set) {
             return 'white';
@@ -191,15 +210,26 @@ export default class StyleManager {
           }
           return this.stateStyles.standard.fill;
         },
-        opacity: (type: string, set?: boolean) => {
-          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].opacity) {
-            return _annotationSetStyles[type].opacity;
+        opacity: opacityFor,
+        suppressedColor: (type: string, suppressionType: string) => {
+          const supp = d3.color(colorFor(suppressionType));
+          const natural = d3.color(colorFor(type));
+          if (!supp || !natural) {
+            return colorFor(suppressionType);
           }
-          if (_customStyles[type] && _customStyles[type].opacity) {
-            return _customStyles[type].opacity;
-          }
-          return this.stateStyles.standard.opacity;
+          const sr = supp.rgb();
+          const nr = natural.rgb();
+          const w = SUPPRESSED_STYLE_WEIGHT;
+          return d3.rgb(
+            (w * sr.r) + ((1 - w) * nr.r),
+            (w * sr.g) + ((1 - w) * nr.g),
+            (w * sr.b) + ((1 - w) * nr.b),
+          ).hex();
         },
+        suppressedOpacity: (type: string, suppressionType: string) => (
+          (SUPPRESSED_STYLE_WEIGHT * opacityFor(suppressionType))
+          + ((1 - SUPPRESSED_STYLE_WEIGHT) * opacityFor(type))
+        ),
         labelSettings: (type: string, set?: boolean) => {
           let { showLabel, showConfidence } = this.stateStyles.standard;
           if (_customStyles[type]) {

@@ -280,8 +280,9 @@ export default defineComponent({
       if (currentFrameIds === undefined) {
         return;
       }
-      // Detections lying >=50% under a suppression region on this frame are
-      // hidden from every layer at once (and excluded from counts elsewhere).
+      // Detections lying under a suppression region on this frame (by at
+      // least the configured overlap) are hidden from every layer at once
+      // (and excluded from counts elsewhere).
       const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       const suppressedIds = trackStore
         ? getSuppressedTrackIds(
@@ -314,14 +315,15 @@ export default defineComponent({
               enabledTracks[enabledIndex].context.confidencePairIndex,
             );
             const groupStyleType = groups?.[0]?.getType() ?? cameraStore.defaultGroup;
-            // A detection flagged with the suppression attribute (outside any
-            // region) keeps its real type but displays as the suppression
-            // type: styleType feeds the color/opacity/fill styling, the text
-            // label, and the hover tooltip of every layer.
-            let styleType: [string, number] = colorBy === 'group' ? groupStyleType : trackStyleType;
-            if (suppressionType && hasSuppressionAttribute(track, frame, suppressionType)) {
-              styleType = [suppressionType, 1];
-            }
+            // A detection flagged with the suppression attribute (it is NOT
+            // under a region - those are hidden above) stays visible but
+            // displays as suppressed: layers label it 'Type - SuppressionType'
+            // and blend its styling 50/50 with the suppression type. It keeps
+            // its real type everywhere else.
+            const styleType: [string, number] = colorBy === 'group' ? groupStyleType : trackStyleType;
+            const suppressed = (suppressionType
+              && hasSuppressionAttribute(track, frame, suppressionType))
+              ? suppressionType : undefined;
             const trackFrame = {
               selected: ((selectedTrackId === track.trackId)
                 || (multiSelectList.includes(track.trackId))),
@@ -330,6 +332,7 @@ export default defineComponent({
               groups,
               features,
               styleType,
+              suppressed,
               set: track.set,
             };
             frameData.push(trackFrame);
@@ -890,6 +893,7 @@ export default defineComponent({
     const annotationHoverTooltip = (
       found: {
           styleType: [string, number];
+          suppressed?: string;
           trackId: number;
           polygon: { coordinates: Array<Array<[number, number]>>};
         }[],
@@ -907,7 +911,8 @@ export default defineComponent({
             }
           });
           hoveredVals.push({
-            type: item.styleType[0],
+            type: item.suppressed
+              ? `${item.styleType[0]} - ${item.suppressed}` : item.styleType[0],
             confidence: item.styleType[1],
             trackId: item.trackId,
             maxX,

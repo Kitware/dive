@@ -7,6 +7,8 @@ export interface TextData {
   selected: boolean;
   editing: boolean | string;
   type: string;
+  /** Suppression type name when displaying as suppressed (blended color) */
+  suppressed?: string;
   confidence: number;
   text: string;
   x: number;
@@ -57,20 +59,24 @@ function defaultFormatter(
       const userCreated = annotation.track.attributes?.userCreated === true;
       // Show pencil icon if detection is userModified OR if track is userCreated, and showUserCreatedIcon is true
       const modifiedIndicator = (showUserCreatedIcon && (userModified || userCreated)) ? ' ✏️' : '';
+      // Suppressed-display detections label as 'Type - SuppressionType'
+      const displayType = annotation.suppressed
+        ? `${type} - ${annotation.suppressed}` : type;
       if (typeStyling) {
         const { showLabel, showConfidence } = typeStyling.labelSettings(type);
         if (showLabel && !showConfidence) {
-          text = type + modifiedIndicator;
+          text = displayType + modifiedIndicator;
         } else if (showConfidence && !showLabel) {
           text = `${confidence.toFixed(2)}${modifiedIndicator}`;
         } else if (showConfidence && showLabel) {
-          text = `${type}: ${confidence.toFixed(2)}${modifiedIndicator}`;
+          text = `${displayType}: ${confidence.toFixed(2)}${modifiedIndicator}`;
         }
       }
       arr.push({
         selected: annotation.selected,
         editing: annotation.editing,
         type: annotation.styleType[0],
+        suppressed: annotation.suppressed,
         confidence,
         text,
         x: bounds[2],
@@ -161,12 +167,21 @@ export default class TextLayer extends BaseLayer<TextData> {
             if (this.stateStyling.disabled.color !== 'type') {
               return this.stateStyling.disabled.color;
             }
+            // Editing some OTHER detection must not strip the suppressed
+            // blend from this one ('editing' is set on every annotation
+            // while any edit is active).
+            if (data.suppressed) {
+              return this.typeStyling.value.suppressedColor(data.type, data.suppressed);
+            }
             return this.typeStyling.value.color(data.type);
           }
           if (data.selected) {
             return this.stateStyling.selected.color;
           }
           return this.typeStyling.value.color(data.type);
+        }
+        if (data.suppressed) {
+          return this.typeStyling.value.suppressedColor(data.type, data.suppressed);
         }
         return this.typeStyling.value.color(data.type);
       },
