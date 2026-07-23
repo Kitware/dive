@@ -717,6 +717,19 @@ def process_items(
                 fromMeta(folder, 'datasetInfo', {}), results['meta'], additive
             )
             crud_dataset.update_metadata(folder, meta, False)
+        # Mutable config (styling, thresholds, attributes, ...) is loaded by the
+        # viewer from the multicam parent's metadata, so an import targeted at
+        # one camera must update the parent too (mirrors desktop dataFileImport).
+        parent = crud.get_multicam_parent_folder(folder, user)
+        if parent is not None:
+            if results['attributes']:
+                crud.saveImportAttributes(parent, results['attributes'], user)
+            shared_meta = crud.pick_multicam_shared_mutable(results['meta'] or {})
+            if shared_meta:
+                parent_meta = resolve_imported_dataset_info(
+                    fromMeta(parent, 'datasetInfo', {}), shared_meta, additive
+                )
+                crud_dataset.update_metadata(parent, parent_meta, False)
     return aggregate_warnings
 
 

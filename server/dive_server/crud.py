@@ -96,6 +96,42 @@ def saveImportAttributes(folder, attributes, user):
     Folder().save(folder)
 
 
+# Mutable config keys the multicam/stereo viewer loads from the parent folder.
+# Camera-targeted imports sync only these onto the parent — not per-camera
+# imageEnhancements, and not camera registration fields (which must not be
+# clobbered by a DIVE configuration import).
+MULTICAM_SHARED_MUTABLE_KEYS = (
+    'attributes',
+    'confidenceFilters',
+    'timeFilters',
+    'customTypeStyling',
+    'customGroupStyling',
+    'attributeTrackFilters',
+    'datasetInfo',
+)
+
+
+def get_multicam_parent_folder(folder: GirderModel, user: GirderUserModel):
+    """Return the multicam parent if ``folder`` is one of its camera children, else None."""
+    parent_id = folder.get('parentId')
+    if not parent_id:
+        return None
+    parent = Folder().load(parent_id, level=AccessType.WRITE, user=user)
+    if parent is None or fromMeta(parent, constants.TypeMarker) != constants.MultiType:
+        return None
+    multi_cam = fromMeta(parent, constants.MultiCamMarker, default={}) or {}
+    cameras = multi_cam.get('cameras') or {}
+    folder_id = str(folder['_id'])
+    if not any(str(cam.get('folderId')) == folder_id for cam in cameras.values()):
+        return None
+    return parent
+
+
+def pick_multicam_shared_mutable(meta: dict) -> dict:
+    """Return only mutable keys shared across multicam parent/camera metadata."""
+    return {key: meta[key] for key in MULTICAM_SHARED_MUTABLE_KEYS if key in meta}
+
+
 def verify_dataset(folder: GirderModel):
     """Verify that a given folder is a DIVE dataset"""
     if not asbool(fromMeta(folder, constants.DatasetMarker, False)):

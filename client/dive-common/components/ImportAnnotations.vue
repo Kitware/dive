@@ -79,6 +79,14 @@ export default defineComponent({
       const parts = (props.datasetId || '').split('/');
       return parts.length > 1 ? parts[1] : null;
     });
+    // Multicam imports target the active camera folder; shared mutable config
+    // is also written to the parent by desktop/web backends so the viewer sees it.
+    const importDatasetId = computed(() => {
+      if (isMulticamDataset.value && activeCameraName.value) {
+        return `${parentDatasetId(props.datasetId)}/${activeCameraName.value}`;
+      }
+      return props.datasetId;
+    });
     // Camera/calibration file import requires importCalibrationFile (web + desktop)
     // and is only meaningful for stereo datasets.
     const cameraFileSupported = computed(
@@ -161,7 +169,7 @@ export default defineComponent({
           const set = currentSet.value === 'default' ? undefined : currentSet.value;
           if (ret.fileList?.length) {
             importFile = await importAnnotationFile(
-              props.datasetId,
+              importDatasetId.value,
               path,
               ret.fileList[0],
               additive.value,
@@ -170,7 +178,7 @@ export default defineComponent({
             );
           } else {
             importFile = await importAnnotationFile(
-              props.datasetId,
+              importDatasetId.value,
               path,
               undefined,
               additive.value,
