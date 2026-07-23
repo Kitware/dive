@@ -98,7 +98,6 @@ export default defineComponent({
       // aligned view store may not be provided in tests or minimal embeds.
     }
     const selectedCamera = useSelectedCamera();
-    const pendingSaveCount = usePendingSaveCount();
     const comparison = useComparisonSets();
     const trackStore = cameraStore.camMap.value.get(props.camera)?.trackStore;
     const groupStore = cameraStore.camMap.value.get(props.camera)?.groupStore;
