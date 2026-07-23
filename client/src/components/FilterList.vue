@@ -179,7 +179,11 @@ export default defineComponent({
         });
         const hasRegionAt = (f: number) => regionRanges.some(([b, e]) => f >= b && f <= e);
         const suppressedAt = (f: number) => getSuppressedTrackIds(
-          store, f, suppType, suppThreshold, { revision: editRevision },
+          store,
+          f,
+          suppType,
+          suppThreshold,
+          { revision: editRevision },
         );
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
