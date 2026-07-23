@@ -79,6 +79,8 @@ interface PipelineRuntimeParams {
 interface PipelineParams {
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
+  /** Desktop filter/transcode pipelines: name for the newly created dataset. */
+  outputDatasetName?: string;
 }
 
 interface Pipe {

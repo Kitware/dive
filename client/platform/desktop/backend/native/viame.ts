@@ -19,8 +19,11 @@ import {
   MultiType,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
-  pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
+import {
+  isFilterPipeline,
+  pipelineCreatesNewDataset,
+} from 'dive-common/pipelineCreatesDataset';
 import * as common from './common';
 import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
 import {
@@ -160,11 +163,11 @@ async function runPipeline(
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
   // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
   // categorized under '2-cam'/'3-cam' rather than by their filename prefix,
-  // so output handling (image writing, new-dataset creation) is recognized
-  // from the pipe filename as well as the type.
-  const createsNewDataset = pipelineCreatesDatasetMarkers.includes(pipeline.type)
-    || pipelineCreatesDatasetMarkers.some((marker) => pipeline.pipe.startsWith(`${marker}_`));
-  const isFilterPipe = pipeline.type === 'filter' || pipeline.pipe.startsWith('filter_');
+  // so output handling is recognized from the pipe filename as well as the type.
+  const createsNewDataset = pipelineCreatesNewDataset(pipeline);
+  const isFilterPipe = isFilterPipeline(pipeline);
+  const outputDatasetName = runPipelineArgs.outputDatasetName
+    ?? runPipelineArgs.pipelineParams?.outputDatasetName;
 
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -448,7 +451,7 @@ async function runPipeline(
             exitCode: code,
             endTime: new Date(),
           });
-          const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
+          const datasetName = outputDatasetName || outputDir;
           if (runPipelineArgs.pipeline.type === 'transcode') {
             fs.readdir(outputDir, async (err, entries) => {
               if (err) {
