@@ -817,6 +817,11 @@ def postprocess(
             total_items = len(list((Folder().childItems(dsFolder))))
             if total_items > 1:
                 raise RestException('There are multiple files besides a zip, cannot continue')
+            convert_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+            }
             newjob = tasks.extract_zip.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -824,7 +829,9 @@ def postprocess(
                     itemId=str(item["_id"]),
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
-                    girder_job_title=f"Extracting {item['_id']} to folder {str(dsFolder['_id'])}",
+                    girder_job_title=(
+                        f"Extracting {item['name']} to folder {dsFolder['name']}"
+                    ),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -834,6 +841,7 @@ def postprocess(
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                     constants.JOBCONST_DATASET_ID: str(item["folderId"]),
+                    constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
             )
@@ -846,6 +854,11 @@ def postprocess(
         )
 
         for item in videoItems:
+            convert_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+            }
             newjob = tasks.convert_video.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -854,7 +867,9 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     skip_transcoding=skipTranscoding,
-                    girder_job_title=f"Converting {item['_id']} to a web friendly format",
+                    girder_job_title=(
+                        f"Converting {dsFolder['name']} to a web friendly format"
+                    ),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -864,6 +879,8 @@ def postprocess(
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                     constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_PARAMS: convert_params,
+                    constants.JOBCONST_CREATOR: str(user['_id']),
                 },
             )
             created_job_ids.append(job['_id'])
@@ -880,6 +897,11 @@ def postprocess(
         )
 
         if imageItems.count() > safeImageItems.count():
+            convert_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+            }
             newjob = tasks.convert_images.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -887,7 +909,9 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     girder_client_token=str(token["_id"]),
-                    girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
+                    girder_job_title=(
+                        f"Converting {dsFolder['name']} to a web friendly format"
+                    ),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
@@ -896,6 +920,8 @@ def postprocess(
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                     constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_PARAMS: convert_params,
+                    constants.JOBCONST_CREATOR: str(user['_id']),
                 },
             )
             created_job_ids.append(job['_id'])
@@ -930,6 +956,11 @@ def convert_large_image(
 
     if not isClone:
         token = Token().createToken(user=user, days=2)
+        convert_params = {
+            'user_id': str(user["_id"]),
+            'user_login': str(user["login"]),
+            'input_folder': str(dsFolder["_id"]),
+        }
         newjob = tasks.convert_large_images.apply_async(
             queue=_get_queue_name(user),
             kwargs=dict(
@@ -937,7 +968,9 @@ def convert_large_image(
                 user_id=str(user["_id"]),
                 user_login=str(user["login"]),
                 girder_client_token=str(token["_id"]),
-                girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
+                girder_job_title=(
+                    f"Converting {dsFolder['name']} to a web friendly format"
+                ),
                 girder_job_type="private" if job_is_private else "convert",
             ),
         )
@@ -946,6 +979,8 @@ def convert_large_image(
             **{
                 constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                 constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                constants.JOBCONST_PARAMS: convert_params,
+                constants.JOBCONST_CREATOR: str(user['_id']),
             },
         )
         Notification().createNotification(
