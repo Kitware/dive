@@ -47,7 +47,7 @@ export default class AlignedViewStore {
    * reference space, out of all loaded cameras. Maintained by the viewer
    * alongside {@link setTransforms}; null for single-camera datasets. Lets
    * UI outside the viewer core (e.g. the import menu) show the same
-   * "N/M cameras registered" status as the Align View toggle without
+   * "N/M cameras ready" status as the Align View toggle without
    * re-deriving the pair graph.
    */
   registrationProgress: Ref<{ registered: number; total: number } | null>;

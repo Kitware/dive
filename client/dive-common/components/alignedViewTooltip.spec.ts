@@ -25,7 +25,7 @@ describe('alignedViewTooltipText', () => {
       enabled: false,
       sourceIsMixed: false,
       progress: { registered: 1, total: 3 },
-    })).toBe('Align View — 1/3 cameras registered');
+    })).toBe('Align View — 1/3 cameras ready');
   });
 
   it('appends a mixed-calibration warning', () => {

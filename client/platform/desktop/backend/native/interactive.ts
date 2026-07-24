@@ -19,6 +19,7 @@ import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
 import readline from 'readline';
 import { EventEmitter } from 'events';
+import type { AutoRegisterRequest, AutoRegisterResponse } from 'dive-common/apispec';
 import { Settings } from 'platform/desktop/constants';
 import { observeChild } from './processManager';
 import linux from './linux';
@@ -112,6 +113,25 @@ interface PendingRequest {
   resolve: (response: ServiceResponse) => void;
   reject: (error: Error) => void;
   timeout: NodeJS.Timeout;
+}
+
+/**
+ * Snake_case payload of the service's register_images response; mapped to the
+ * camelCase AutoRegisterResponse before it leaves this module.
+ */
+interface RegisterImagesWireResponse {
+  success: boolean;
+  code?: string;
+  error?: string;
+  homography?: number[][];
+  inliers?: [number, number, number, number][];
+  num_matches?: number;
+  num_inliers?: number;
+  inlier_ratio?: number;
+  image_size_a?: [number, number];
+  image_size_b?: [number, number];
+  model?: string;
+  elapsed_ms?: number;
 }
 
 export class InteractiveServiceManager extends EventEmitter {
@@ -475,6 +495,45 @@ export class InteractiveServiceManager extends EventEmitter {
       point_labels: request.pointLabels,
       frame_time: request.frameTime,
     }, 'Text query');
+  }
+
+  /**
+   * Auto-register: compute a cross-modality homography between two camera
+   * frames (image A -> image B, native pixel coordinates) with the deep
+   * matcher hosted by the alignment backend. The matcher model loads lazily
+   * on the first call and stays resident in the service process.
+   */
+  async autoRegister(request: AutoRegisterRequest): Promise<AutoRegisterResponse> {
+    const raw = await this.sendRequest({
+      // Wire name is verb-object style, unlike the autoRegister() method
+      // above, which matches the UI naming.
+      command: 'register_images',
+      image_path_a: request.imagePathA,
+      image_path_b: request.imagePathB,
+      options: request.options && {
+        ransac_threshold: request.options.ransacThreshold,
+        min_matches: request.options.minMatches,
+        min_inliers: request.options.minInliers,
+        min_inlier_ratio: request.options.minInlierRatio,
+        top_k: request.options.topK,
+        match_threshold: request.options.matchThreshold,
+      },
+    }, 'Auto register') as RegisterImagesWireResponse;
+    // Map the service's snake_case payload to the AutoRegisterResponse shape.
+    return {
+      success: raw.success,
+      code: raw.code,
+      error: raw.error,
+      homography: raw.homography,
+      inliers: raw.inliers,
+      numMatches: raw.num_matches,
+      numInliers: raw.num_inliers,
+      inlierRatio: raw.inlier_ratio,
+      imageSizeA: raw.image_size_a,
+      imageSizeB: raw.image_size_b,
+      model: raw.model,
+      elapsedMs: raw.elapsed_ms,
+    };
   }
 
   async refineDetections(request: {

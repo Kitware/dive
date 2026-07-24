@@ -60,13 +60,16 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
+import { provideAutoRegister } from 'dive-common/use/useAutoRegister';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
-import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import {
+  useApi, FrameImage, DatasetType, AutoRegisterResponse,
+} from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
@@ -158,6 +161,17 @@ export default defineComponent({
     textQueryAvailable: {
       type: Boolean,
       default: false,
+    },
+    /**
+     * Platform-supplied auto-register runner for the Camera Registration panel:
+     * resolves each camera's image for a frame and computes an alignment via
+     * the interactive service. Desktop-only; when null (web) the panel hides
+     * its Auto Register button.
+     */
+    autoRegisterHandler: {
+      type: Function as PropType<
+        ((cameraA: string, cameraB: string, frameNum: number) => Promise<unknown>) | null>,
+      default: null,
     },
   },
   setup(props, { emit }) {
@@ -478,7 +492,7 @@ export default defineComponent({
     });
     // Publish how much of the rig resolves so UI outside the viewer core
     // (e.g. the import menu's "Import to all cameras" checkbox) shows the
-    // same "N/M cameras registered" status as the Align View toggle.
+    // same "N/M cameras ready" status as the Align View toggle.
     const registrationProgress = computed(() => {
       if (!isMultiCameraDataset.value) {
         return null;
@@ -510,7 +524,7 @@ export default defineComponent({
      * Camera panes currently displayed. While the Camera Registration panel is
      * open with an active pair on a 3+ camera dataset, only the pair's two
      * panes show, so the left/right alignment flow reads without unrelated
-     * panes in between (regardless of whether Pick points is toggled on).
+     * panes in between (regardless of whether Edit points is toggled on).
      * Panes are hidden (v-show), not unmounted, so their viewers keep state.
      */
     const displayedCameras = computed(() => {
@@ -572,6 +586,20 @@ export default defineComponent({
 
     const lassoMode = useLassoMode();
     provide(LassoModeSymbol, lassoMode);
+
+    // Auto-register bridge for the Camera Registration panel: injects the current
+    // frame into the platform handler (mirrors onTextQuerySubmit). Provided
+    // unconditionally; `available` tracks the handler prop, which the desktop
+    // platform sets once its availability probe resolves (never on web).
+    provideAutoRegister({
+      available: computed(() => !!props.autoRegisterHandler),
+      run: (cameraA: string, cameraB: string) => {
+        if (!props.autoRegisterHandler) {
+          return Promise.reject(new Error('Auto-register is not available on this platform'));
+        }
+        return props.autoRegisterHandler(cameraA, cameraB, aggregateController.value.frame.value) as Promise<AutoRegisterResponse>;
+      },
+    });
 
     // Provides wrappers for actions to integrate with settings
     const {
