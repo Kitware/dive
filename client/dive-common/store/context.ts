@@ -7,7 +7,7 @@ import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideB
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 import RegistrationTools from 'dive-common/components/CameraRegistration/RegistrationTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
-import DatasetInfo from 'dive-common/components/DatasetInfo.vue';
+import DatasetInfo from 'dive-common/components/DatasetInfo/DatasetInfo.vue';
 
 interface ContextState {
   last: string;
@@ -20,8 +20,11 @@ interface ComponentMapItem {
   component: Component;
 }
 
+// The pane the context sidebar opens on, here and after every dataset load via resetActive.
+const DEFAULT_CONTEXT = 'DatasetInfo';
+
 const state: ContextState = reactive({
-  last: 'TypeThreshold',
+  last: DEFAULT_CONTEXT,
   active: null,
   subCategory: null,
 });
@@ -72,7 +75,7 @@ function unregister(item: ComponentMapItem) {
 }
 
 function resetActive() {
-  state.last = 'TypeThreshold';
+  state.last = DEFAULT_CONTEXT;
   state.active = null;
 }
 

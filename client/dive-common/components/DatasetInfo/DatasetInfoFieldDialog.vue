@@ -4,7 +4,7 @@ import {
 } from 'vue';
 
 export default defineComponent({
-  name: 'DatasetConfigEditorDialog',
+  name: 'DatasetInfoFieldDialog',
 
   props: {
     value: {
