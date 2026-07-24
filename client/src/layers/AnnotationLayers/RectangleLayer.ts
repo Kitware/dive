@@ -313,7 +313,7 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
   }
 
   disable() {
-    if (!this.featureLayer) {
+    if (!this.hasRenderableFeatureLayer()) {
       return;
     }
     try {
