@@ -458,8 +458,28 @@ async function runPipeline(
           );
           if (calibrationFile) {
             const calibrationPath = npath.join(jobWorkDir, calibrationFile);
-            const savedPath = await common.saveLastCalibration(settings, calibrationPath);
-            await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath, calibrationFile);
+            try {
+              // Apply calibration directly to the dataset that ran the pipeline
+              await common.applyCalibrationToDataset(
+                settings,
+                datasetId,
+                calibrationPath,
+                calibrationFile,
+              );
+              // Also save as last calibration for future imports
+              await common.saveLastCalibration(settings, calibrationPath);
+              // Signal UI to refresh calibration info
+              sendToRenderer('calibration-assigned', {
+                datasetId,
+                calibrationFile,
+              });
+            } catch (err) {
+              console.error(`Failed to apply calibration to dataset ${datasetId}:`, err);
+              await fs.appendFile(
+                joblog,
+                `\nError assigning calibration file to dataset: ${(err as Error).message}`,
+              );
+            }
           }
         }
 

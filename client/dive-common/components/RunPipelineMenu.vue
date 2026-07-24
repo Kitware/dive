@@ -6,6 +6,7 @@ import {
   ref,
   Ref,
   onBeforeMount,
+  onMounted,
   watch,
 } from 'vue';
 import {
@@ -165,6 +166,16 @@ export default defineComponent({
     watch(() => props.selectedDatasetIds, () => {
       refreshCalibrationStatus();
     }, { immediate: true });
+
+    // Listen for calibration assignment from backend (desktop only)
+    onMounted(() => {
+      if (typeof window !== 'undefined' && (window as any).diveDesktop) {
+        (window as any).diveDesktop.on('calibration-assigned', () => {
+          // Refresh calibration status when a pipeline assigns a calibration to a dataset
+          refreshCalibrationStatus();
+        });
+      }
+    });
 
     function isPipelineDisabledForCalibration(pipeline: Pipe) {
       return pipelineDisabledForMissingCalibration(

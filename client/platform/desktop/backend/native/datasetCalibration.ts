@@ -290,6 +290,38 @@ export async function getDatasetCalibration(
 }
 
 /**
+ * Apply a calibration file to a specific stereo dataset.
+ * The source file is copied into the dataset's project directory, normalized to JSON,
+ * and recorded in multiCam.calibration. Primarily used when a calibration pipeline
+ * outputs a file that should be assigned to the dataset that ran the pipeline.
+ * @param settings app settings
+ * @param datasetId the stereo dataset to calibrate
+ * @param calibrationPath path to the calibration file to apply
+ * @param originalName optional user-facing original filename (for display)
+ * @returns absolute path of the calibration file now associated with the dataset
+ * @throws if the dataset is not a stereo dataset
+ */
+export async function applyCalibrationToDataset(
+  settings: Settings,
+  datasetId: string,
+  calibrationPath: string,
+  originalName?: string,
+): Promise<string> {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+
+  if (!fullMeta.multiCam) {
+    throw new Error(`Dataset ${datasetId} is not a stereo/multicam dataset`);
+  }
+  if (fullMeta.subType !== 'stereo') {
+    throw new Error(`Dataset ${datasetId} is not a stereo dataset; calibration is stereo-only`);
+  }
+
+  // Use setDatasetCalibration to handle the actual assignment
+  return setDatasetCalibration(settings, datasetId, calibrationPath);
+}
+
+/**
  * Remove the calibration file associated with a dataset and clear the reference
  * in its metadata. The original (pre-conversion) file, if any, is left in place.
  */
