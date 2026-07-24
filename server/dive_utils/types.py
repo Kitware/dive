@@ -138,6 +138,8 @@ class PipelineJob(TypedDict):
     # target declared by the pipe's `# Metadata File:` header.
     metadata_file_item_id: NotRequired[Optional[str]]
     metadata_file_key: NotRequired[Optional[str]]
+    # Set when a single-camera pipeline runs on one camera folder of a multicam parent.
+    camera_name: NotRequired[Optional[str]]
 
 
 class MulticamPipelineJob(PipelineJob, total=False):

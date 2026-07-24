@@ -368,6 +368,12 @@ def run_pipeline(self: Task, params: PipelineJob):
     frame_range = runtime_params.get('frameRange')
     multicam_params: MulticamPipelineJob = params
     multicam_cameras: List[MulticamCameraJob] = multicam_params.get('multicam_cameras') or []
+    camera_name = params.get('camera_name')
+    if camera_name:
+        # Log non-default camera targets so job history shows which view ran.
+        default_display = multicam_params.get('multicam_default_display')
+        if not default_display or camera_name != default_display:
+            print(f'Running pipeline on camera: {camera_name}')
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')

@@ -240,11 +240,23 @@ def run_pipeline(
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
     folder_id_str = str(folder["_id"])
+
+    # Single-camera pipelines may target a per-camera child folder. Attribute the
+    # job to the multicam parent so the viewer tracks running/complete state.
+    multicam_parent = crud.get_multicam_parent_folder(folder, user)
+    camera_name: Optional[str] = None
+    job_dataset_id = folder_id_str
+    if multicam_parent is not None:
+        camera_name = crud.get_multicam_camera_name(folder, multicam_parent)
+        job_dataset_id = str(multicam_parent["_id"])
+
     # First, verify that no other outstanding jobs are running on this dataset
-    if _check_running_jobs(folder_id_str):
+    if _check_running_jobs(job_dataset_id) or (
+        job_dataset_id != folder_id_str and _check_running_jobs(folder_id_str)
+    ):
         raise RestException(
             (
-                f"A pipeline for {folder_id_str} is already running. "
+                f"A pipeline for {job_dataset_id} is already running. "
                 "Only one outstanding job may be run at a time for "
                 "a dataset."
             )
@@ -346,6 +358,12 @@ def run_pipeline(
         'runtime_params': runtime_params,
         'kwiver_params': kwiver_params,
     }
+    if camera_name:
+        params['camera_name'] = camera_name
+        multi_cam_meta = fromMeta(multicam_parent, constants.MultiCamMarker, default={}) or {}
+        default_display = multi_cam_meta.get('defaultDisplay')
+        if default_display:
+            params['multicam_default_display'] = default_display
     if multicam_cameras:
         params['multicam_cameras'] = multicam_cameras
         params['multicam_default_display'] = multicam_default_display
@@ -355,11 +373,19 @@ def run_pipeline(
     if metadata_file_key and metadata_file_item_id:
         params['metadata_file_key'] = metadata_file_key
         params['metadata_file_item_id'] = metadata_file_item_id
+
+    job_title = f"Running {pipeline['name']} on {str(folder['name'])}"
+    if multicam_parent is not None and camera_name:
+        job_title = (
+            f"Running {pipeline['name']} on {str(multicam_parent['name'])} "
+            f"with camera: {camera_name}"
+        )
+
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
         kwargs=dict(
             params=params,
-            girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
+            girder_job_title=job_title,
             girder_client_token=str(token["_id"]),
             girder_job_type="private" if job_is_private else "pipelines",
         ),
@@ -369,7 +395,7 @@ def run_pipeline(
         access_source=folder,
         **{
             constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-            constants.JOBCONST_DATASET_ID: folder_id_str,
+            constants.JOBCONST_DATASET_ID: job_dataset_id,
             constants.JOBCONST_PARAMS: params,
             constants.JOBCONST_CREATOR: str(user['_id']),
         },
