@@ -275,6 +275,7 @@ export async function getDatasetCalibration(
     return null;
   }
   const result: DatasetCalibrationResult = {
+    itemId: calibrationPath, // Set itemId to enable download on desktop
     path: npath.basename(calibrationPath),
     originalName: realCalibrationName(fullMeta.multiCam?.calibrationOriginalName),
   };
