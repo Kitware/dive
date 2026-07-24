@@ -487,3 +487,25 @@ def test_get_multicam_parent_folder_ignores_unregistered_child(folder_cls):
     folder_cls.return_value.load.return_value = parent
 
     assert crud.get_multicam_parent_folder(camera, {'_id': 'user-id'}) is None
+
+
+def test_get_multicam_camera_name_returns_matching_camera():
+    from dive_server import crud
+    from dive_utils import constants
+
+    parent = {
+        '_id': 'parent-id',
+        'meta': {
+            'type': constants.MultiType,
+            'multiCam': {
+                'defaultDisplay': 'left',
+                'cameras': {
+                    'left': {'folderId': 'left-id', 'type': 'image-sequence'},
+                    'right': {'folderId': 'right-id', 'type': 'image-sequence'},
+                },
+            },
+        },
+    }
+    assert crud.get_multicam_camera_name({'_id': 'left-id'}, parent) == 'left'
+    assert crud.get_multicam_camera_name({'_id': 'right-id'}, parent) == 'right'
+    assert crud.get_multicam_camera_name({'_id': 'other-id'}, parent) is None
