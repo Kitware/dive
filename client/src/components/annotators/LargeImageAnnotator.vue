@@ -136,7 +136,7 @@ export default defineComponent({
       container,
       initializeViewer,
       mediaController,
-    } = cameraInitializer(props.camera, {
+    } = cameraInitializer(props.camera, 'large-image', {
       // allow hoisting for these functions to pass a reference before defining them.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
