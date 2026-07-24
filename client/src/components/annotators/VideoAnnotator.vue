@@ -122,7 +122,7 @@ export default defineComponent({
       initializeViewer,
       mediaController,
       externallyDriven,
-    } = cameraInitializer(props.camera, {
+    } = cameraInitializer(props.camera, 'video', {
       // allow hoisting for these functions.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek,
