@@ -117,7 +117,7 @@ export default defineComponent({
       if (Number.isNaN(parsed)) return undefined;
       return parsed;
     });
-    const currentJob = computed(() => jobs.getDatasetCompleteJobs(props.id));
+    const currentJob = computed(() => jobs.getDatasetCompleteJobs(parentDatasetId(props.id)));
 
     const typeList = computed((): DatasetType[] => {
       const t = datasetMeta.value?.type;
@@ -126,12 +126,47 @@ export default defineComponent({
     const subTypeList = computed((): SubType[] => [datasetMeta.value?.subType ?? null]);
     const cameraNumbers = computed(() => [getMultiCamCameraCount(datasetMeta.value)]);
     const timeFilter: Ref<[number, number] | null> = ref(null);
+    // Track the active camera so single-camera pipelines target that folder
+    // (parentId/cameraName), matching desktop ViewerLoader behavior.
+    const selectedCamera = ref('');
+    function changeCamera(cameraName: string) {
+      selectedCamera.value = cameraName;
+    }
+    // Prefer the @change-camera event, then Viewer's live selection, then the
+    // multicam defaultDisplay once meta for this dataset is loaded. Avoids a
+    // window where modifiedId is still the parent id and single-cam pipes 400.
+    const modifiedId = computed(() => {
+      const parentId = parentDatasetId(props.id);
+      const viewerCam = viewerRef.value?.selectedCamera as string | undefined;
+      const meta = datasetMeta.value;
+      const metaMatches = meta != null && (meta.id === parentId || meta.id === props.id);
+      const camera = selectedCamera.value
+        || (viewerCam && viewerCam !== 'singleCam' ? viewerCam : '')
+        || (metaMatches ? meta.multiCamMedia?.defaultDisplay : undefined)
+        || '';
+      if (camera) {
+        return `${parentId}/${camera}`;
+      }
+      return props.id;
+    });
 
     watch(() => props.id, (datasetId) => {
+      selectedCamera.value = '';
       loadDataset(datasetId).catch((reason) => {
         reportHandledPromiseRejection('ViewerLoader: loadDataset', reason);
       });
     }, { immediate: true });
+
+    // Seed as soon as parent meta arrives so pipeline menus don't wait on Viewer emit.
+    watch(datasetMeta, (meta) => {
+      if (selectedCamera.value || !meta?.multiCamMedia?.defaultDisplay) {
+        return;
+      }
+      const parentId = parentDatasetId(props.id);
+      if (meta.id === parentId || meta.id === props.id) {
+        selectedCamera.value = meta.multiCamMedia.defaultDisplay;
+      }
+    });
 
     async function refreshCalibrationFile() {
       if (!getDatasetCalibration || subTypeList.value[0] !== 'stereo') {
@@ -173,8 +208,10 @@ export default defineComponent({
     );
     const runningPipelines = computed(() => {
       const results: string[] = [];
-      if (jobs.getDatasetRunningState(props.id)) {
-        results.push(props.id);
+      // Jobs on a camera child are attributed to the multicam parent id.
+      if (jobs.getDatasetRunningState(parentDatasetId(props.id))) {
+        results.push(modifiedId.value);
+        results.push(parentDatasetId(props.id));
       }
       return results;
     });
@@ -196,7 +233,7 @@ export default defineComponent({
             positiveButton: 'Reload',
             negativeButton: '',
           });
-          jobs.removeCompleteJob({ datasetId: props.id });
+          jobs.removeCompleteJob({ datasetId: parentDatasetId(props.id) });
           if (result) {
             viewerRef.value.reloadAnnotations();
           }
@@ -207,7 +244,7 @@ export default defineComponent({
               'either failed or was cancelled by the user',
             ],
           });
-          jobs.removeCompleteJob({ datasetId: props.id });
+          jobs.removeCompleteJob({ datasetId: parentDatasetId(props.id) });
         }
       }
     });
@@ -295,6 +332,8 @@ export default defineComponent({
       calibrationFile,
       onCalibrationImported,
       onCalibrationDeleted,
+      changeCamera,
+      modifiedId,
     };
   },
 });
@@ -311,6 +350,7 @@ export default defineComponent({
     :comparison-sets="comparisonSets"
     @large-image-warning="largeImageWarning()"
     @update:set="routeSet"
+    @change-camera="changeCamera"
   >
     <template #title>
       <ViewerAlert />
@@ -338,7 +378,7 @@ export default defineComponent({
           subTypeList,
           cameraNumbers,
         }"
-        :selected-dataset-ids="[id]"
+        :selected-dataset-ids="[modifiedId]"
         :running-pipelines="runningPipelines"
         :read-only-mode="revisionNum !== undefined"
         :time-filter="timeFilter"
@@ -348,7 +388,7 @@ export default defineComponent({
         :button-options="buttonOptions"
         :menu-options="menuOptions"
         :read-only-mode="!!jobs.getDatasetRunningState(id) || revisionNum !== undefined"
-        :dataset-id="id"
+        :dataset-id="modifiedId"
         :sub-type="subTypeList[0]"
         :calibration-file="calibrationFile"
         block-on-unsaved
