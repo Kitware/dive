@@ -75,6 +75,7 @@ nav:
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
+      - Frame Metadata: Frame-Metadata.md
       - Command Line Tools: Command-Line-Tools.md
       - Large Image Support: Large-Image-Support.md
       - Multicamera and Stereo Data: Multicamera-data.md
