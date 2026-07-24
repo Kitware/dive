@@ -23,6 +23,7 @@ class DIVEBatchPostprocessTaskParams:
         userId: str,
         girderToken: str,
         girderApiUrl: str,
+        user_login: str = 'unknown',
     ):
         self.source_folder_id = source_folder_id
         self.skipJobs = skipJobs
@@ -30,6 +31,7 @@ class DIVEBatchPostprocessTaskParams:
         self.additive = additive
         self.additivePrepend = additivePrepend
         self.userId = userId
+        self.user_login = user_login
         self.girderToken = girderToken
         self.girderApiUrl = girderApiUrl
 
