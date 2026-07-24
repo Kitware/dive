@@ -7,6 +7,7 @@ import {
   Ref,
   onBeforeMount,
   onMounted,
+  onBeforeUnmount,
   watch,
 } from 'vue';
 import {
@@ -167,13 +168,22 @@ export default defineComponent({
       refreshCalibrationStatus();
     }, { immediate: true });
 
+    let removeCalibrationAssignedListener: (() => void) | null = null;
+
     // Listen for calibration assignment from backend (desktop only)
     onMounted(() => {
-      if (typeof window !== 'undefined' && (window as any).diveDesktop) {
-        (window as any).diveDesktop.on('calibration-assigned', () => {
+      if (typeof window !== 'undefined' && window.diveDesktop) {
+        removeCalibrationAssignedListener = window.diveDesktop.on('calibration-assigned', () => {
           // Refresh calibration status when a pipeline assigns a calibration to a dataset
           refreshCalibrationStatus();
         });
+      }
+    });
+
+    onBeforeUnmount(() => {
+      if (removeCalibrationAssignedListener) {
+        removeCalibrationAssignedListener();
+        removeCalibrationAssignedListener = null;
       }
     });
 

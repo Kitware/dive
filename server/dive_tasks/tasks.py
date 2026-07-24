@@ -511,11 +511,12 @@ def run_pipeline(self: Task, params: PipelineJob):
                             input_folder_id,
                             str(calibration_output),
                         )
-                        uploaded_calibration_file_id = str(uploaded_calibration.get('_id'))
-                        if uploaded_calibration_file_id:
+                        uploaded_calibration_file_id = uploaded_calibration.get('_id')
+                        if uploaded_calibration_file_id is not None:
+                            uploaded_calibration_file_id_str = str(uploaded_calibration_file_id)
                             gc.sendRestRequest(
                                 'POST',
-                                f'/dive_dataset/{input_folder_id}/calibration?fileId={uploaded_calibration_file_id}',
+                                f'/dive_dataset/{input_folder_id}/calibration?fileId={uploaded_calibration_file_id_str}',
                             )
                             manager.write(
                                 f'Assigned calibration output to dataset: {calibration_output.name}\n'
