@@ -464,7 +464,6 @@ async function runPipeline(
                 settings,
                 datasetId,
                 calibrationPath,
-                calibrationFile,
               );
               // Also save as last calibration for future imports
               await common.saveLastCalibration(settings, calibrationPath);

@@ -298,7 +298,6 @@ export async function getDatasetCalibration(
  * @param settings app settings
  * @param datasetId the stereo dataset to calibrate
  * @param calibrationPath path to the calibration file to apply
- * @param originalName optional user-facing original filename (for display)
  * @returns absolute path of the calibration file now associated with the dataset
  * @throws if the dataset is not a stereo dataset
  */
@@ -306,7 +305,6 @@ export async function applyCalibrationToDataset(
   settings: Settings,
   datasetId: string,
   calibrationPath: string,
-  originalName?: string,
 ): Promise<string> {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const fullMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
