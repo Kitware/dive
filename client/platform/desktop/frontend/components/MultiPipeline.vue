@@ -9,6 +9,7 @@ import {
 import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
   itemsPerPageOptions,
   stereoPipelineMarker,
@@ -125,8 +126,9 @@ async function refreshCalibrationForDatasets(datasetIds: string[]) {
   if (!hasCalibrationFile || !datasetIds.length) {
     return;
   }
+  const parentIds = [...new Set(datasetIds.map((id) => parentDatasetId(id)))];
   const entries = await Promise.all(
-    datasetIds.map(async (id) => [id, await hasCalibrationFile(id)] as const),
+    parentIds.map(async (id) => [id, await hasCalibrationFile(id)] as const),
   );
   calibrationAvailableByDatasetId.value = {
     ...calibrationAvailableByDatasetId.value,
@@ -146,7 +148,7 @@ const runDisabled = computed(() => {
     return false;
   }
   return stagedDatasets.value.some(
-    (dataset) => !calibrationAvailableByDatasetId.value[dataset.id],
+    (dataset) => !calibrationAvailableByDatasetId.value[parentDatasetId(dataset.id)],
   );
 });
 
@@ -154,7 +156,7 @@ function isPipelineItemDisabledForCalibration(pipe: Pipe) {
   return pipelineDisabledForMissingCalibration(
     pipe,
     calibrationAvailableByDatasetId.value,
-    availableItems.value.map((dataset) => dataset.id),
+    availableItems.value.map((dataset) => parentDatasetId(dataset.id)),
   );
 }
 
