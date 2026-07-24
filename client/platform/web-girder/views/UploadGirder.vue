@@ -8,7 +8,7 @@ import {
 } from 'platform/web-girder/constants';
 
 import {
-  makeViameFolder, postProcess, uploadMetadataFileItem, setDatasetMetadataFile,
+  makeViameFolder, postProcess, uploadAndSetMetadataFile,
 } from 'platform/web-girder/api';
 import { GirderUploadManager } from 'platform/web-girder/utils';
 
@@ -116,13 +116,23 @@ export default Vue.extend({
         folder = await this.createUploadFolder(name, fps, pendingUpload.type);
         if (folder) {
           await this.uploadFiles(pendingUpload.name, folder, files, uploaded, skipTranscoding);
-          if (metadataFile) {
-            const itemId = await uploadMetadataFileItem(folder._id, metadataFile);
-            await setDatasetMetadataFile(folder._id, itemId);
+          // The media dataset is created and uploaded at this point. A metadata attachment
+          // failure must not unwind the upload: doing so
+          // would orphan the finished dataset on the server and leave the pending row stuck for a
+          // duplicate retry. Surface the failure, but always retire the row and keep the dataset.
+          try {
+            if (metadataFile) {
+              await uploadAndSetMetadataFile(folder._id, metadataFile);
+            }
+          } catch (err) {
+            this.$emit('error', { err, name: pendingUpload.name });
+          } finally {
+            this.remove(pendingUpload);
           }
-          this.remove(pendingUpload);
         }
       } else {
+        // Fan-out: N videos have N independent frame numberings, so one frame-keyed metadata
+        // attachment cannot serve them. The row reports it in `ignored` instead.
         while (files.length > 0) {
           // take the file name and convert it to a folder name;
           const subfile = files.splice(0, 1);

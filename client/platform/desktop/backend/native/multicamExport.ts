@@ -7,16 +7,21 @@ import os from 'os';
 import fs from 'fs-extra';
 import { createWriteStream } from 'fs';
 import archiver from 'archiver';
+import { omit } from 'lodash';
 
 import { MultiType } from 'dive-common/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
-import { ExportMulticamEverythingArgs, Settings } from 'platform/desktop/constants';
+import {
+  Camera, ExportMulticamEverythingArgs, JsonConfig, Settings,
+} from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as dive from 'platform/desktop/backend/serializers/dive';
 
 // eslint-disable-next-line import/no-cycle
-import { getValidatedProjectDir, loadAnnotationFile, loadJsonConfig } from './common';
+import {
+  ArchiveMetadataFolderName, getValidatedProjectDir, loadAnnotationFile, loadJsonConfig,
+} from './common';
 import {
   findParentFolderCalibrationFile,
   getDatasetCalibrationExportPath,
@@ -29,8 +34,28 @@ async function writeJsonFile(absPath: string, data: unknown): Promise<void> {
   await fs.writeFile(absPath, JSON.stringify(data, null, 2));
 }
 
+/**
+ * Attachment locators never travel in an archive: `metadataFile` holds this machine's absolute
+ * path, which a re-import would read as a local file that does not exist there. The attachment
+ * itself travels as the single file in each scope's `metadata/` directory, which is where both
+ * importers look for it.
+ */
+function withoutMetadataAttachment<T extends JsonConfig | Camera>(scope: T) {
+  return omit(scope, ['metadataFile', 'metadataOriginalName']);
+}
+
 function buildExportMetaJson(meta: JsonConfig): Record<string, unknown> {
-  const output: Record<string, unknown> = { ...meta };
+  const output: Record<string, unknown> = withoutMetadataAttachment(meta);
+  if (meta.multiCam?.cameras) {
+    output.multiCam = {
+      ...meta.multiCam,
+      cameras: Object.fromEntries(
+        Object.entries(meta.multiCam.cameras).map(([cameraName, camera]) => [
+          cameraName, withoutMetadataAttachment(camera),
+        ]),
+      ),
+    };
+  }
   if (meta.type === 'image-sequence') {
     const files = meta.transcodedImageFiles?.length
       ? meta.transcodedImageFiles
@@ -61,7 +86,17 @@ async function writeDatasetExportContents(
   };
 
   await fs.ensureDir(destDir);
-  await fs.writeJSON(npath.join(destDir, 'config.json'), buildExportMetaJson(meta), { spaces: 2 });
+  const exportMeta = buildExportMetaJson(meta);
+  if (meta.metadataFile) {
+    if (!await fs.pathExists(meta.metadataFile)) {
+      throw new Error(`Metadata attachment is missing: ${meta.metadataFile}`);
+    }
+    const metadataName = npath.basename(meta.metadataOriginalName ?? meta.metadataFile);
+    const metadataDir = npath.join(destDir, ArchiveMetadataFolderName);
+    await fs.ensureDir(metadataDir);
+    await fs.copy(meta.metadataFile, npath.join(metadataDir, metadataName));
+  }
+  await fs.writeJSON(npath.join(destDir, 'config.json'), exportMeta, { spaces: 2 });
   await dive.serializeFile(
     npath.join(destDir, 'annotations.dive.json'),
     data,
@@ -117,7 +152,7 @@ export async function exportMulticamEverything(
     await fs.ensureDir(datasetDir);
     await fs.writeJSON(
       npath.join(datasetDir, 'multiCam.json'),
-      parentMeta.multiCam,
+      buildExportMetaJson(parentMeta).multiCam,
       { spaces: 2 },
     );
     await writeDatasetExportContents(
@@ -134,13 +169,6 @@ export async function exportMulticamEverything(
       const calibrationName = parentMeta.multiCam.calibrationOriginalName
         ?? npath.basename(calibrationPath);
       await fs.copy(calibrationPath, npath.join(datasetDir, calibrationName));
-    }
-
-    // Optional pipeline metadata sidecar (e.g. flight log), same as web full export.
-    if (parentMeta.metadataFile && await fs.pathExists(parentMeta.metadataFile)) {
-      const metadataName = parentMeta.metadataOriginalName
-        ?? npath.basename(parentMeta.metadataFile);
-      await fs.copy(parentMeta.metadataFile, npath.join(datasetDir, metadataName));
     }
 
     // Regenerate the camera registration as its per-camera files so the
