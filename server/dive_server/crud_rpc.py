@@ -335,7 +335,7 @@ def run_pipeline(
         if needs_calibration and calibration_item_id is None:
             raise RestException(
                 'This pipeline requires a calibration file. '
-                'Import or upload a calibration file with the calibrationFile marker.',
+                'Import or attach a calibration file to the dataset.',
                 code=404,
             )
 

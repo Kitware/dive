@@ -1200,11 +1200,9 @@ def _dataset_calibration_result(
 
 
 def pipeline_requires_calibration(pipeline: types.PipelineDescription) -> bool:
-    """True when pipeline metadata (or legacy measurement type) requires calibration input."""
+    """True only when pipeline metadata explicitly requires calibration input."""
     metadata = pipeline.get('metadata') or {}
-    if 'requiresCalibration' in metadata:
-        return bool(metadata['requiresCalibration'])
-    return pipeline.get('type') == constants.StereoPipelineMarker
+    return metadata.get('requiresCalibration') is True
 
 
 def resolve_stereo_calibration_item_id(

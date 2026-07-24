@@ -1918,6 +1918,7 @@ export {
   getLastCalibrationPath,
   saveLastCalibration,
   applyCalibrationToUncalibratedStereoDatasets,
+  applyCalibrationToDataset,
   datasetHasCalibrationFile,
   getDatasetCalibrationPath,
   getDatasetCalibrationExportPath,
