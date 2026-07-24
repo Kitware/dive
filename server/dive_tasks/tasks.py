@@ -409,9 +409,15 @@ def _inject_dataset_metadata_file(command, gc, working_dir: Path, params, manage
     md_item = gc.getItem(metadata_file_item_id)
     md_dir = utils.make_directory(working_dir / 'metadata_file')
     gc.downloadItem(metadata_file_item_id, str(md_dir), name=md_item.get('name'))
-    md_path = md_dir / md_item.get('name')
-    if md_path.exists():
-        append_metadata_file_kwiver_settings(command, md_path, metadata_file_key)
+    # Locate what actually landed rather than reconstructing md_dir/<item name>: girder_client
+    # nests the download under a directory of that name when the item's file is named differently
+    # from the item (a sidecar renamed after upload), and it sanitizes the name with
+    # transformFilename first. Both make the reconstructed path wrong -- and in the nested case it
+    # is a directory, so an exists() check passes and binds a directory into the KWIVER setting.
+    # md_dir is created fresh for this item, so anything under it is its content.
+    downloaded = next((path for path in sorted(md_dir.rglob('*')) if path.is_file()), None)
+    if downloaded is not None:
+        append_metadata_file_kwiver_settings(command, downloaded, metadata_file_key)
     else:
         manager.write(
             f'Warning: metadata item {metadata_file_item_id} '

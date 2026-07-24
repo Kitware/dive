@@ -16,7 +16,7 @@ from girder_jobs.models.job import Job
 from girder_plugin_worker.utils import getWorkerApiUrl
 
 from dive_tasks.dive_batch_postprocess import DIVEBatchPostprocessTaskParams
-from dive_utils import asbool, fromMeta
+from dive_utils import asbool, frame_metadata, fromMeta
 from dive_utils.constants import (
     AnnotationFileFutureProcessMarker,
     AssetstoreSourceMarker,
@@ -106,6 +106,10 @@ def process_assetstore_import(event, meta: dict):
         # Set the dataset to Video Type
         dataset_type = VideoType
     elif possibleAnnotationRegex.search(importPath):
+        if frame_metadata.is_frame_metadata_source_name(item['name']):
+            # Declared frame metadata sidecars are plain files: leave them in place for
+            # read-time discovery, no marker and no relocation.
+            return
         # Look for parent folder with same name
         parentFolder = Folder().findOne({"_id": item["folderId"]})
         userId = parentFolder['creatorId'] or parentFolder['baseParentId']

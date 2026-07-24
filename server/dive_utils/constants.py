@@ -122,10 +122,9 @@ CalibrationConversionErrorMarker = "calibrationConversionError"
 # Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
 CalibrationFileMarker = "calibrationFile"
 # Optional per-dataset metadata file (folder marker points at a Girder item id;
-# the item itself carries MetadataFileMarker). Applies to single and multicam.
+# the owning folder carries the locator). Applies to single and multicam.
 MetadataFileItemIdMarker = "metadataFileItemId"
 MetadataFileOriginalNameMarker = "metadataFileOriginalName"
-MetadataFileMarker = "metadataFile"
 # Girder item meta: JSON camera-rig used for calibration display
 JsonCalibrationFileMarker = "jsonCalibrationFile"
 AssetstoreSourceMarker = "import_source"

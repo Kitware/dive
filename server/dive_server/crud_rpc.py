@@ -19,7 +19,15 @@ from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
 from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
 from dive_tasks.utils import choose_annotation_fps
-from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
+from dive_utils import (
+    TRUTHY_META_VALUES,
+    asbool,
+    constants,
+    frame_metadata,
+    fromMeta,
+    models,
+    types,
+)
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
 
@@ -303,6 +311,7 @@ def run_pipeline(
     multicam_cameras: List[types.MulticamCameraJob] = []
     multicam_default_display = ''
     calibration_item_id: Optional[str] = None
+    default_camera_folder: Optional[types.GirderModel] = None
 
     if dataset_type == constants.MultiType:
         multi_cam = fromMeta(folder, constants.MultiCamMarker, required=True)
@@ -315,6 +324,8 @@ def run_pipeline(
             child = Folder().load(folder_id, level=AccessType.READ, user=user)
             if child is None:
                 raise RestException(f'Camera folder for "{name}" was not found', code=404)
+            if name == multicam_default_display:
+                default_camera_folder = child
             cam_type = cam_info.get('type') or fromMeta(child, constants.TypeMarker)
             camera_job: types.MulticamCameraJob = {
                 'name': name,
@@ -344,11 +355,21 @@ def run_pipeline(
             )
 
     # Resolve the dataset's optional metadata file for pipelines that opt in via a
-    # `# Metadata File: <block>:<key>` header. Applies to single and multicam.
+    # `# Metadata File: <block>:<key>` header. Scope precedence mirrors what the metadata
+    # panel resolves: a single-camera run prefers its own camera's attachment and falls
+    # back to the multicam parent's shared one, a stereo/multicam run prefers the shared
+    # attachment and falls back to the default display camera's. Every lookup goes through
+    # the one resolver that owns "what is this scope's attachment", so a run and the panel
+    # never disagree.
     metadata_file_key = (pipeline.get("metadata") or {}).get("metadataFileKey")
     metadata_file_item_id: Optional[str] = None
     if metadata_file_key:
-        metadata_file_item_id = crud_dataset.resolve_metadata_file_item_id(folder)
+        scope_item_ids = (
+            crud_dataset.resolve_metadata_attachment_item_id(scope, user)
+            for scope in (folder, multicam_parent, default_camera_folder)
+            if scope is not None
+        )
+        metadata_file_item_id = next((item_id for item_id in scope_item_ids if item_id), None)
 
     params: types.MulticamPipelineJob = {
         "pipeline": pipeline,
@@ -381,7 +402,6 @@ def run_pipeline(
     if metadata_file_key and metadata_file_item_id:
         params['metadata_file_key'] = metadata_file_key
         params['metadata_file_item_id'] = metadata_file_item_id
-
     job_title = f"Running {pipeline['name']} on {str(folder['name'])}"
     if multicam_parent is not None and camera_name:
         job_title = (
@@ -408,6 +428,17 @@ def run_pipeline(
             constants.JOBCONST_CREATOR: str(user['_id']),
         },
     )
+    if metadata_file_key and not metadata_file_item_id:
+        # Same shape as the missing-calibration notice the task writes: the run continues
+        # without the `-s <block>:<key>=<path>` setting, so say so instead of dropping it.
+        Job().updateJob(
+            job,
+            log=(
+                f'Warning: {pipeline["pipe"]} declares metadata file key {metadata_file_key} '
+                'but this dataset has no metadata attachment; '
+                'running without the metadata file setting\n'
+            ),
+        )
     # Inform Client of new Job added in inactive state
     Notification(
         type='job_status',
@@ -560,6 +591,11 @@ GetDataReturnType = TypedDict(
 )
 
 
+def _frame_metadata_kept_warning(name: str) -> str:
+    """Notice that a file was kept as a frame-metadata sidecar rather than imported."""
+    return f'{name} was stored as frame metadata, not annotations; it stays in the dataset folder.'
+
+
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
@@ -677,6 +713,19 @@ def resolve_imported_dataset_info(existing: types.DatasetInfo, meta: dict, addit
     return {**meta, 'datasetInfo': resolved}
 
 
+def _attach_swept_sidecar(folder: types.GirderModel, item: types.GirderModel):
+    """Record a swept sidecar as the folder's explicit metadata attachment.
+
+    Girder's save is a full-document replace and async jobs (convert_video) write folder
+    meta while this sweep runs, so refresh first or their keys (annotate, originalFps,
+    ffprobe_info) are replaced with this stale in-memory copy.
+    """
+    crud.refresh_folder_document(folder)
+    folder['meta'][constants.MetadataFileItemIdMarker] = str(item['_id'])
+    folder['meta'][constants.MetadataFileOriginalNameMarker] = item['name']
+    Folder().save(folder)
+
+
 def process_items(
     folder: types.GirderModel,
     user: types.GirderUserModel,
@@ -687,45 +736,129 @@ def process_items(
     """
     Discover unprocessed items in a dataset and process them by type in order of creation
     """
-    unprocessed_items = Folder().childItems(
-        folder,
-        filters={
-            "$or": [
-                {"lowerName": {"$regex": constants.csvRegex}},
-                {"lowerName": {"$regex": constants.jsonRegex}},
-                {"lowerName": {"$regex": constants.ymlRegex}},
-            ]
-        },
-        # Processing order: oldest to newest
-        sort=[("created", pymongo.ASCENDING)],
+    attachment_item_id = crud_dataset.resolve_metadata_attachment_item_id(folder, user)
+
+    def is_declared_sidecar(item: types.GirderModel) -> bool:
+        return str(item['_id']) == attachment_item_id or (
+            frame_metadata.is_frame_metadata_source_name(item['name'])
+        )
+
+    unprocessed_items = list(
+        Folder().childItems(
+            folder,
+            filters={
+                "$and": [
+                    {
+                        "$or": [
+                            {"lowerName": {"$regex": constants.csvRegex}},
+                            {"lowerName": {"$regex": constants.jsonRegex}},
+                            {"lowerName": {"$regex": constants.ymlRegex}},
+                            # Reserved sidecar names include .txt, which no annotation
+                            # extension covers. Sweeping them keeps all six behaving
+                            # identically instead of leaving .txt undiscovered.
+                            frame_metadata.frame_metadata_source_name_query(),
+                        ]
+                    },
+                    # Frame-metadata sidecars are marked processed but stay in the dataset
+                    # folder; excluding them here keeps a left-in-place sidecar from being
+                    # re-swept on a later postprocess.
+                    {f'meta.{constants.ProcessedMarker}': {'$ne': True}},
+                ]
+            },
+            # Processing order: oldest to newest
+            sort=[("created", pymongo.ASCENDING)],
+        )
     )
-    auxiliary = crud.get_or_create_auxiliary_folder(
-        folder,
-        user,
-    )
-    aggregate_warnings = []
+    aggregate_warnings: List[str] = []
+
+    # This sweep is also the convergence point for headless writers (assetstore/S3 import),
+    # where nobody picked these files and nothing can be corrected pre-upload. Attachment
+    # ambiguity degrades to a warning rather than raising: a raise strips the folder's retry
+    # marker and leaves fps at -1, so the folder would never converge.
+    reserved_items = [
+        item
+        for item in unprocessed_items
+        if frame_metadata.is_frame_metadata_source_name(item['name'])
+    ]
+    if attachment_item_id is None and len(reserved_items) > 1:
+        # The extras stay in the folder, so the remedy is to delete all but one and
+        # re-import; nothing is marked, so there is nothing to undo.
+        reserved_names = ', '.join(item['name'] for item in reserved_items)
+        aggregate_warnings.append(
+            f'More than one metadata file was found in the dataset folder: {reserved_names}. '
+            'None was attached; keep one and re-import.'
+        )
+
+    # Import the oldest annotation CSV and name the rest in a warning rather than failing.
+    annotation_csv_items = [
+        item
+        for item in unprocessed_items
+        if constants.csvRegex.search(item['name']) and not is_declared_sidecar(item)
+    ]
+    skipped_csv_items = annotation_csv_items[1:]
+    if skipped_csv_items:
+        skipped_names = ', '.join(item['name'] for item in skipped_csv_items)
+        aggregate_warnings.append(
+            f'Imported annotations from {annotation_csv_items[0]["name"]} only; '
+            f'skipped {skipped_names}. A dataset imports one annotation CSV at a time.'
+        )
+        skipped_ids = {str(item['_id']) for item in skipped_csv_items}
+        unprocessed_items = [
+            item for item in unprocessed_items if str(item['_id']) not in skipped_ids
+        ]
+
+    # image_map (extension-stripped media stems) feeds the VIAME parser and only exists for
+    # image-sequence folders. Skip the media walk entirely when only sidecars are present:
+    # a declared sidecar is classified by name and never joined here.
+    image_map = None
+    if fromMeta(folder, constants.TypeMarker) == constants.ImageSequenceType and any(
+        not is_declared_sidecar(item) for item in unprocessed_items
+    ):
+        image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
+
+    auxiliary = None
     for item in unprocessed_items:
         file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
         if file is None:
             raise RestException('Item had no associated files')
 
+        # The single classification point: a declared sidecar is identified by attachment
+        # identity or reserved name and never reaches the annotation classifier. Keep it in
+        # the dataset folder for read-time discovery and mark it processed so it is not
+        # re-swept, but never import it as annotations, move it, or remove it.
+        if is_declared_sidecar(item):
+            if str(item['_id']) == attachment_item_id and not fromMeta(
+                folder, constants.MetadataFileItemIdMarker
+            ):
+                _attach_swept_sidecar(folder, item)
+            item['meta'][constants.ProcessedMarker] = True
+            Item().save(item)
+            aggregate_warnings.append(_frame_metadata_kept_warning(file['name']))
+            continue
+
         try:
-            image_map = None
-            if fromMeta(folder, constants.TypeMarker) == 'image-sequence':
-                image_map = crud.valid_image_names_dict(crud.valid_images(folder, user))
             results, warnings = _get_data_by_type(file, image_map=image_map)
             if warnings:
                 aggregate_warnings += warnings
         except Exception as e:
             Item().remove(item)
             if isinstance(e, ValueError):
-                raise RestException(f'Failed to import {file["name"]}: {e}') from e
+                hint = (
+                    ' If this file is frame metadata rather than annotations, upload it '
+                    'in the "Metadata File (Optional)" field on the upload page, or rename '
+                    'it to frame-metadata.csv and re-upload.'
+                    if constants.csvRegex.search(file['name'])
+                    else ''
+                )
+                raise RestException(f'Failed to import {file["name"]}: {e}{hint}') from e
             raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
 
         if results is None:
             Item().remove(item)
             raise RestException(f'Unknown file type for {file["name"]}')
 
+        if auxiliary is None:
+            auxiliary = crud.get_or_create_auxiliary_folder(folder, user)
         item['meta'][constants.ProcessedMarker] = True
         Item().move(item, auxiliary)
         if results['annotations']:

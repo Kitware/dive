@@ -21,6 +21,7 @@ from dive_utils import (
     asbool,
     calibration_format,
     constants,
+    frame_metadata,
     fromMeta,
     models,
     multicam_camera_order,
@@ -124,6 +125,8 @@ def _create_multicam_soft_clone(
         creator=owner,
     )
     cloned_folder['meta'] = copy.deepcopy(source_folder['meta'])
+    media_source_folder = crud.getCloneRoot(owner, source_folder)
+    cloned_folder[constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
     cloned_folder['meta'][constants.PublishedMarker] = False
     if constants.ConfidenceFiltersMarker not in cloned_folder['meta']:
         cloned_folder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
@@ -247,6 +250,29 @@ def list_datasets(
 def _multicam_camera_order(multi_cam: dict) -> List[str]:
     """Return camera names in display order (shared helper, matches the client)."""
     return multicam_camera_order(multi_cam)
+
+
+def _iter_multicam_camera_folders(
+    multi_cam: dict,
+    user: types.GirderUserModel,
+) -> Iterable[Tuple[str, types.GirderModel]]:
+    """Yield (camera_name, camera_folder) in display order, loading each child folder.
+
+    Every camera entry has a folderId (crud.verify_dataset rejects a multicam dataset
+    without one). Raises a 404 when a camera's folder cannot be loaded, e.g. a clone whose
+    source was deleted.
+    """
+    cameras_meta = multi_cam.get('cameras') or {}
+    for camera_name in _multicam_camera_order(multi_cam):
+        child = Folder().load(
+            cameras_meta[camera_name]['folderId'], level=AccessType.READ, user=user
+        )
+        if child is None:
+            raise RestException(
+                f'Camera folder for "{camera_name}" was not found',
+                code=404,
+            )
+        yield camera_name, child
 
 
 def get_multi_cam_media(
@@ -381,6 +407,178 @@ def get_media(
     return models.DatasetSourceMedia(
         imageData=imageData, video=videoResource, sourceVideo=sourceVideoResource
     )
+
+
+def _clone_root(
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> types.GirderModel:
+    """The folder's media source root, or the folder itself when it is not a clone.
+
+    crud.getCloneRoot verifies the dataset before walking, and attachment resolution runs
+    mid-import (process_items) on folders that do not yet carry fps. A folder with no
+    foreign-media marker is its own root, so skipping the walk skips that verification
+    without changing the answer.
+    """
+    if not folder.get(constants.ForeignMediaIdMarker):
+        return folder
+    return crud.getCloneRoot(user, folder)
+
+
+def _metadata_attachment(
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> Optional[Dict[str, str]]:
+    """Resolve one folder's explicit metadata attachment without parsing its contents.
+
+    The item id comes from folder metadata and can name any item in the instance, so
+    membership in this scope is the guard: the item must live in ``folder`` or its clone
+    root. Resolution asserts no ACL, because it cannot: a clone root is force-loaded
+    (``crud.getCloneRoot``) and may be unreadable to ``user``, exactly as ``crud.valid_images``
+    already lists that root's media. Access is enforced where the bytes are served -- the
+    Girder item download route.
+    """
+    item_id = folder.get('meta', {}).get(constants.MetadataFileItemIdMarker)
+    if not item_id:
+        return None
+    original_name = fromMeta(
+        folder,
+        constants.MetadataFileOriginalNameMarker,
+        '',
+    )
+    item = Item().load(str(item_id), force=True)
+    allowed_folder_ids = {
+        str(folder['_id']),
+        str(_clone_root(folder, user)['_id']),
+    }
+    if (
+        item is None
+        or str(item.get('folderId')) not in allowed_folder_ids
+        or not constants.metadataFileRegex.search(item['name'])
+    ):
+        return {
+            'name': original_name or 'Metadata File',
+            'error': 'Metadata attachment is unavailable.',
+        }
+    return {'itemId': str(item['_id']), 'name': original_name or item['name']}
+
+
+def _reserved_metadata_attachment(folder: types.GirderModel) -> Optional[Dict[str, str]]:
+    """Resolve the singular reserved-name fallback in one folder.
+
+    The query is the reserved-basename predicate, so every returned item is an attachment.
+    Like the explicit path this establishes identity only, and for the same reason: ``folder``
+    may be a force-loaded clone root, so there is no ACL for the resolver to assert.
+    """
+    items = list(
+        Folder().childItems(
+            folder,
+            filters=frame_metadata.frame_metadata_source_name_query(),
+        )
+    )
+    if len(items) > 1:
+        return {
+            'name': 'Metadata File',
+            'error': 'More than one reserved-name metadata attachment is available.',
+        }
+    if not items:
+        return None
+    item = items[0]
+    return {'itemId': str(item['_id']), 'name': item['name']}
+
+
+def _first_metadata_attachment(
+    folders: Iterable[Optional[types.GirderModel]],
+    user: types.GirderUserModel,
+    *,
+    reserved: bool,
+) -> Optional[Dict[str, str]]:
+    """Resolve the first attachment across placement-precedence folders."""
+    seen_folder_ids: set[str] = set()
+    for folder in folders:
+        if folder is None:
+            continue
+        folder_id = str(folder['_id'])
+        if folder_id in seen_folder_ids:
+            continue
+        seen_folder_ids.add(folder_id)
+        attachment = (
+            _reserved_metadata_attachment(folder)
+            if reserved
+            else _metadata_attachment(folder, user)
+        )
+        if attachment is not None:
+            return attachment
+    return None
+
+
+def resolve_metadata_attachment(
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> Optional[Dict[str, str]]:
+    """Resolve one scope's metadata attachment identity.
+
+    The single owner of "what is this scope's attachment": an explicit marker on the folder
+    or its clone root first, then the reserved-name file in the same folders. Returns
+    ``{itemId, name}`` when resolvable, ``{name, error}`` when declared but unavailable, and
+    None when the scope has no attachment.
+    """
+    folders = [folder, _clone_root(folder, user)]
+    explicit = _first_metadata_attachment(folders, user, reserved=False)
+    if explicit is not None:
+        return explicit
+    return _first_metadata_attachment(folders, user, reserved=True)
+
+
+def resolve_metadata_attachment_item_id(
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> Optional[str]:
+    """Return the resolved attachment's item id, or None when absent or unavailable."""
+    attachment = resolve_metadata_attachment(folder, user)
+    if attachment is None:
+        return None
+    return attachment.get('itemId')
+
+
+def load_frame_metadata_sources(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> dict:
+    """Return one normalized metadata attachment identity per metadata scope."""
+    crud.verify_dataset(dsFolder)
+    source_type = fromMeta(dsFolder, constants.TypeMarker)
+    if source_type == constants.MultiType:
+        return _load_multicam_frame_metadata_sources(dsFolder, user)
+    if source_type not in (constants.ImageSequenceType, constants.VideoType):
+        return {'cameras': {}}
+    shared = resolve_metadata_attachment(dsFolder, user)
+    return {'shared': shared, 'cameras': {}} if shared is not None else {'cameras': {}}
+
+
+def _load_multicam_frame_metadata_sources(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> dict:
+    multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
+    shared = resolve_metadata_attachment(dsFolder, user)
+    cameras: Dict[str, Dict[str, str]] = {}
+    for camera_name, child in _iter_multicam_camera_folders(multi_cam, user):
+        if fromMeta(child, constants.TypeMarker) not in (
+            constants.ImageSequenceType,
+            constants.VideoType,
+        ):
+            continue
+        # A camera-local attachment replaces the shared one for that camera, whether it was
+        # declared explicitly or by reserved name.
+        attachment = resolve_metadata_attachment(child, user)
+        if attachment is not None:
+            cameras[camera_name] = attachment
+
+    response: Dict[str, Any] = {'cameras': cameras}
+    if shared is not None:
+        response['shared'] = shared
+    return response
 
 
 class MetadataMutableUpdateArgs(models.MetadataMutable):
@@ -641,24 +839,26 @@ def _yield_metadata_file(
     z: ziputil.ZipGenerator,
     zip_path: str,
     folder: types.GirderModel,
+    user: types.GirderUserModel,
 ) -> Generator[bytes, None, None]:
-    """Add the optional per-dataset metadata file when one is attached.
+    """Add the folder's attachment at its archive-relative metadata path.
 
-    Mirrors calibration inclusion in full exports so pipeline sidecars
-    (e.g. flight logs) survive dataset zip round-trips.
+    ``metadata/<originalName>`` is the archive's only record of the attachment; importers
+    discover it by directory, so meta.json carries no locator. Resolution already confined
+    the item to this dataset's scope, and the export walks a clone's media source the same
+    way, so the item is loaded without a second access check -- one that would raise
+    AccessException past the ``except RestException`` guard in export_datasets_zipstream and
+    abort the whole stream instead of naming the dataset in failed_datasets.txt.
     """
-    item_id = resolve_metadata_file_item_id(folder)
-    if not item_id:
+    attachment = resolve_metadata_attachment(folder, user)
+    if attachment is None or 'itemId' not in attachment:
         return
-    md_item = Item().findOne({'_id': _mongo_id(item_id)})
+    md_item = Item().load(attachment['itemId'], force=True)
     if md_item is None:
         return
-    # Prefer the preserved original filename when present so re-import can
-    # match the name users attached at import time.
-    original_name = folder.get('meta', {}).get(constants.MetadataFileOriginalNameMarker)
-    for path, file in Item().fileList(md_item):
-        out_name = original_name or path
-        for data in z.addFile(file, Path(f'{zip_path}{out_name}')):
+    original_name = Path(attachment['name']).name
+    for _path, file in Item().fileList(md_item):
+        for data in z.addFile(file, Path(f'{zip_path}metadata/{original_name}')):
             yield data
         break
 
@@ -695,13 +895,17 @@ def _yield_single_dataset_export(
         """Include dataset metadata file with full export"""
         meta = get_dataset(dsFolder, user)
         media = get_media(dsFolder, user)
-        yield json.dumps(
-            {
-                **meta.dict(exclude_none=True),
-                **media.dict(exclude_none=True),
-            },
-            indent=2,
-        )
+        output = {
+            **meta.dict(exclude_none=True),
+            **media.dict(exclude_none=True),
+        }
+        # Attachment locators never travel in an archive: a server-local item id means
+        # nothing there, and the name is already carried by metadata/<originalName>, which
+        # is where both importers look. Mirrors withoutMetadataAttachment in the desktop
+        # exporter (client/platform/desktop/backend/native/multicamExport.ts).
+        output.pop(constants.MetadataFileItemIdMarker, None)
+        output.pop(constants.MetadataFileOriginalNameMarker, None)
+        yield json.dumps(output, indent=2)
 
     def makeDiveJson():
         """Include DIVE JSON output annotation file"""
@@ -749,7 +953,7 @@ def _yield_single_dataset_export(
             yield data
 
     if includeMedia:
-        for data in _yield_metadata_file(z, zip_path, dsFolder):
+        for data in _yield_metadata_file(z, zip_path, dsFolder, user):
             yield data
 
 
@@ -772,12 +976,13 @@ def _yield_multicam_dataset_export(
     for data in z.addFile(makeMultiCamJson, Path(f'{zip_path}multiCam.json')):
         yield data
 
+    # The parent has no media of its own; includeMedia governs only its shared attachment.
     for data in _yield_single_dataset_export(
         z,
         zip_path,
         dsFolder,
         user,
-        False,
+        includeMedia,
         includeDetections,
         excludeBelowThreshold,
         typeFilter,
@@ -786,11 +991,6 @@ def _yield_multicam_dataset_export(
 
     if includeMedia:
         for data in _yield_calibration_files(z, zip_path, str(dsFolder['_id'])):
-            yield data
-        # Parent folder holds the optional metadata sidecar (not camera children).
-        # Parent _yield_single_dataset_export runs with includeMedia=False, so
-        # yield it here alongside calibration.
-        for data in _yield_metadata_file(z, zip_path, dsFolder):
             yield data
 
     for cam_name in _multicam_camera_order(multi_cam):
@@ -1114,16 +1314,12 @@ def _mark_calibration_source_and_json_item(cal_item: dict) -> None:
     )
 
 
-def _mark_metadata_file_item(md_item: dict) -> None:
-    Item().setMetadata(md_item, {constants.MetadataFileMarker: 'true'})
-
-
 def _validate_metadata_file_item(
     user: types.GirderUserModel,
     folder: types.GirderModel,
     item_id: str,
 ) -> types.GirderModel:
-    """Validate and mark a Girder item as the dataset's optional metadata file."""
+    """Validate a Girder item as the dataset's optional metadata file."""
     md_item = Item().load(item_id, level=AccessType.WRITE, user=user)
     if md_item is None:
         raise RestException('Metadata file was not found', code=404)
@@ -1131,7 +1327,6 @@ def _validate_metadata_file_item(
         raise RestException('Metadata file must be stored in the dataset folder', code=400)
     if not constants.metadataFileRegex.search(md_item['name']):
         raise RestException('Metadata file must be .json, .txt, or .csv', code=400)
-    _mark_metadata_file_item(md_item)
     return md_item
 
 
@@ -1463,22 +1658,30 @@ def validate_files(files: List[str]):
 
     ``type`` is present only when ``ok``: a rejected selection has no single media type.
     """
-    videos = [f for f in files if constants.videoRegex.search(f)]
-    images = [f for f in files if constants.imageRegex.search(f)]
-    large_images = [f for f in files if constants.largeImageRegEx.search(f)]
+    # Partition frame-metadata sidecars first so they never trip the
+    # generic csv/txt classification below.
+    frame_meta = [f for f in files if frame_metadata.is_frame_metadata_source_name(f)]
+    frame_meta_set = set(frame_meta)
+
+    videos = [f for f in files if constants.videoRegex.search(f) and f not in frame_meta_set]
+    images = [f for f in files if constants.imageRegex.search(f) and f not in frame_meta_set]
+    large_images = [
+        f for f in files if constants.largeImageRegEx.search(f) and f not in frame_meta_set
+    ]
     media = images + videos + large_images
 
-    # Dataset config JSON follows the same meta/config filename contract as the client's
-    # JsonMetaRegEx; annotation JSON is every other .json.
+    # Keep dataset config filename detection aligned with the client's JsonMetaRegEx.
     dataset_config = [
         f for f in files if constants.jsonRegex.search(f) and constants.metaRegex.search(f)
     ]
     dataset_config_set = set(dataset_config)
 
-    annotation_csvs = [f for f in files if constants.csvRegex.search(f)]
+    annotation_csvs = [f for f in files if constants.csvRegex.search(f) and f not in frame_meta_set]
     annotation_ymls = [f for f in files if constants.ymlRegex.search(f)]
     annotation_jsons = [
-        f for f in files if constants.jsonRegex.search(f) and f not in dataset_config_set
+        f
+        for f in files
+        if constants.jsonRegex.search(f) and f not in dataset_config_set and f not in frame_meta_set
     ]
     annotations = annotation_csvs + annotation_ymls + annotation_jsons
 
@@ -1502,6 +1705,9 @@ def validate_files(files: List[str]):
     elif len(annotation_csvs) > 1:
         ok = False
         message = "Can only upload a single CSV Annotation per import"
+    elif len(frame_meta) > 1:
+        ok = False
+        message = "More than one metadata file was selected. Choose one file and try again."
     elif len(dataset_config) > 1:
         ok = False
         message = "Can only upload a single configuration JSON per import"
@@ -1526,7 +1732,9 @@ def validate_files(files: List[str]):
         ok = False
         message = "No supported media-type files found"
 
-    accepted = set(media) | set(annotations) | set(dataset_config)
+    # A metadata attachment is stored for every dataset type; read time decides what to do
+    # with it, so there is no media-type gate here.
+    accepted = set(media) | set(annotations) | set(dataset_config) | frame_meta_set
     ignored = [f for f in files if f not in accepted]
 
     return {
@@ -1538,6 +1746,7 @@ def validate_files(files: List[str]):
             "media": media,
             "annotations": annotations,
             "datasetConfig": dataset_config,
+            "frameMetadata": frame_meta,
             "ignored": ignored,
         },
         "reasons": {f: UNSUPPORTED_SIDE_FILE_REASON for f in ignored},
@@ -1692,17 +1901,35 @@ def set_metadata_file(
     folder root. Handed to opt-in pipelines at run time (see the pipe
     `# Metadata File:` header).
     """
+    # Supersede cleanup removes only an attachment DIVE itself stored. A reserved-name file
+    # is the user's own folder content, uploaded with the media and merely discovered by
+    # resolution -- and process_items records what it discovers in this same marker, so the
+    # marker alone cannot tell the two apart. The name can: replacing the attachment shadows
+    # a reserved-name file, and deleting it would destroy a file the user uploaded.
+    declared_item_id = folder.get('meta', {}).get(constants.MetadataFileItemIdMarker)
+    previous_item_id = str(declared_item_id) if declared_item_id else None
     md_item = _validate_metadata_file_item(user, folder, item_id)
+    previous_item = None
+    if previous_item_id and previous_item_id != str(md_item['_id']):
+        candidate = Item().load(previous_item_id, level=AccessType.WRITE, user=user)
+        if (
+            candidate is not None
+            and str(candidate.get('folderId')) == str(folder['_id'])
+            and not frame_metadata.is_frame_metadata_source_name(candidate['name'])
+        ):
+            previous_item = candidate
     folder['meta'][constants.MetadataFileItemIdMarker] = str(md_item['_id'])
     folder['meta'][constants.MetadataFileOriginalNameMarker] = md_item['name']
     Folder().save(folder)
+    if previous_item is not None:
+        try:
+            Item().remove(previous_item)
+        except Exception:
+            cherrypy.log(
+                f'Unable to remove superseded metadata attachment {previous_item["_id"]}',
+                traceback=True,
+            )
     return {
         'metadataFileItemId': str(md_item['_id']),
         'metadataFileOriginalName': md_item['name'],
     }
-
-
-def resolve_metadata_file_item_id(folder: types.GirderModel) -> Optional[str]:
-    """Return the dataset's metadata file item id, if one is attached."""
-    item_id = folder.get('meta', {}).get(constants.MetadataFileItemIdMarker)
-    return str(item_id) if item_id else None

@@ -202,6 +202,7 @@ def test_resolve_imported_dataset_info_does_not_mutate_inputs():
         ),
     ],
 )
+@patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
 @patch('dive_server.crud_rpc.crud_dataset.update_metadata')
 @patch('dive_server.crud_rpc.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_rpc.File')
@@ -213,6 +214,7 @@ def test_process_items_resolves_dataset_info_from_dive_configuration_import(
     file_cls,
     get_auxiliary_folder,
     update_metadata,
+    resolve_attachment_item_id,
     additive,
     expected,
 ):
@@ -233,6 +235,9 @@ def test_process_items_resolves_dataset_info_from_dive_configuration_import(
         }
     }
 
+    # The attachment resolver reaches Mongo through crud_dataset for its reserved-name
+    # fallback, so it is stubbed here like every other process_items unit test.
+    resolve_attachment_item_id.return_value = None
     folder_cls.return_value.childItems.return_value = [item]
     item_cls.return_value.childFiles.return_value = iter([file])
     file_cls.return_value.download.return_value = lambda: [json.dumps(payload).encode()]
@@ -250,6 +255,7 @@ def test_process_items_resolves_dataset_info_from_dive_configuration_import(
     assert verify is False
 
 
+@patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
 @patch('dive_server.crud_rpc.crud_dataset.update_metadata')
 @patch('dive_server.crud_rpc.crud.saveImportAttributes')
 @patch('dive_server.crud_rpc.crud.get_multicam_parent_folder')
@@ -265,6 +271,7 @@ def test_process_items_syncs_mutable_config_to_multicam_parent(
     get_multicam_parent,
     save_import_attributes,
     update_metadata,
+    resolve_attachment_item_id,
 ):
     """Camera-targeted DIVE config also updates the multicam parent the viewer reads."""
     # Use video so process_items skips valid_images (needs Mongo).
@@ -300,6 +307,7 @@ def test_process_items_syncs_mutable_config_to_multicam_parent(
         'cameraRegistrationSource': {'model': 'from-import'},
     }
 
+    resolve_attachment_item_id.return_value = None
     folder_cls.return_value.childItems.return_value = [item]
     item_cls.return_value.childFiles.return_value = iter([file])
     file_cls.return_value.download.return_value = lambda: [json.dumps(payload).encode()]
@@ -335,6 +343,7 @@ def test_process_items_syncs_mutable_config_to_multicam_parent(
     assert parent_call.args[2] is False
 
 
+@patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
 @patch('dive_server.crud_rpc.crud_annotation.save_annotations')
 @patch('dive_server.crud_rpc.dive.migrate')
 @patch('dive_server.crud_rpc.viame.load_json_as_track_and_attributes')
@@ -356,6 +365,7 @@ def test_process_items_syncs_track_attributes_to_multicam_parent(
     load_json,
     migrate,
     save_annotations,
+    resolve_attachment_item_id,
 ):
     """Annotation imports that derive attributes also union them onto the parent."""
     camera_folder = {
@@ -392,6 +402,7 @@ def test_process_items_syncs_track_attributes_to_multicam_parent(
         }
     }
 
+    resolve_attachment_item_id.return_value = None
     folder_cls.return_value.childItems.return_value = [item]
     item_cls.return_value.childFiles.return_value = iter([file])
     file_cls.return_value.download.return_value = lambda: [json.dumps(payload).encode()]
