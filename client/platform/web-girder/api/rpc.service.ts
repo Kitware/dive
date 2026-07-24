@@ -1,6 +1,7 @@
 import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
 import type { Pipe, PipelineParams } from 'dive-common/apispec';
+import { resolveDatasetFolderId } from './multicamResolve';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
   return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
@@ -10,9 +11,12 @@ function postProcess(folderId: string, skipJobs = false, skipTranscoding = false
   });
 }
 
-function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams) {
+async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams) {
+  // Composite multicam ids (parent/camera) resolve to the camera folder so
+  // single-camera pipelines can run on the selected camera.
+  const { folderId } = await resolveDatasetFolderId(itemId);
   const params: Record<string, unknown> = {
-    folderId: itemId,
+    folderId,
     pipeline,
   };
   if (pipelineParams) {

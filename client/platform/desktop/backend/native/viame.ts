@@ -20,6 +20,7 @@ import {
   stereoPipelineMarker,
   multiCamPipelineMarkers,
 } from 'dive-common/constants';
+import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 import {
   isFilterPipeline,
   pipelineCreatesNewDataset,
@@ -181,6 +182,21 @@ async function runPipeline(
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
+
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  let cameraLogLine: string | null = null;
+  if (cameraName) {
+    try {
+      const parentInfo = await common.getValidatedProjectDir(settings, parentId);
+      const parentMeta = await common.loadJsonMetadata(parentInfo.metaFileAbsPath);
+      const defaultDisplay = parentMeta.multiCam?.defaultDisplay;
+      if (cameraName !== defaultDisplay) {
+        cameraLogLine = `Running pipeline on camera: ${cameraName}`;
+      }
+    } catch {
+      cameraLogLine = `Running pipeline on camera: ${cameraName}`;
+    }
+  }
 
   const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
@@ -399,9 +415,13 @@ async function runPipeline(
 
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
+  if (cameraLogLine) {
+    await fs.appendFile(joblog, `${cameraLogLine}\n`);
+  }
+
   updater({
     ...jobBase,
-    body: [''],
+    body: cameraLogLine ? [cameraLogLine, ''] : [''],
   });
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
