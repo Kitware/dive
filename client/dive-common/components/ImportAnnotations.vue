@@ -5,6 +5,7 @@ import {
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
+import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
 import clearLengthAttributes from 'dive-common/utils/clearLengthAttributes';
 import warpAnnotationsAcrossCameras from 'dive-common/utils/warpAnnotationsAcrossCameras';
 import { cloneDeep } from 'lodash';
@@ -188,6 +189,22 @@ export default defineComponent({
         if (!ret.canceled) {
           menuOpen.value = false;
           const path = ret.filePaths[0];
+          // A reserved-name sidecar is frame metadata, not annotations. Reject before
+          // the import call: web uploads the file and postprocesses afterwards, so a
+          // later check would leave it sitting in the dataset folder.
+          const name = ret.fileList?.[0]?.name ?? path;
+          if (isFrameMetadataSourceName(name)) {
+            await prompt({
+              title: 'Not an Annotation File',
+              text: [
+                `"${name.replace(/^.*[\\/]/, '')}" is a frame metadata file, not annotations.`,
+                'Attach frame metadata with the "Metadata File (Optional)" field when the dataset is created.',
+                'Attached that way, a frame metadata file may have any name.',
+              ],
+              positiveButton: 'OK',
+            });
+            return;
+          }
           let importFile: boolean | string[] = false;
           processing.value = true;
           const set = currentSet.value === 'default' ? undefined : currentSet.value;
