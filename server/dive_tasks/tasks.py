@@ -343,6 +343,21 @@ def _append_input_list_kwiver_settings(command, pipeline, image_lists) -> None:
             command.append(f'-s {shlex.quote(key)}={shlex.quote(image_lists[0])}')
 
 
+def _find_stereo_calibration_outputs(output_dir: Path) -> List[Path]:
+    """Return likely calibration outputs written by stereo calibration pipelines."""
+    candidates: List[Path] = []
+    for path in output_dir.iterdir():
+        if not path.is_file():
+            continue
+        lower_name = path.name.lower()
+        if 'calibration' not in lower_name:
+            continue
+        if not constants.stereoCalibrationRegex.search(path.name):
+            continue
+        candidates.append(path)
+    return sorted(candidates, key=lambda p: p.name.lower())
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
@@ -483,6 +498,40 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'env': conf.gpu_process_env,
             }
             utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+            if (
+                is_stereo_measurement_pipeline(pipeline)
+                and 'calibrate_cameras' in str(pipeline.get('pipe', '')).lower()
+            ):
+                calibration_outputs = _find_stereo_calibration_outputs(output_path)
+                if calibration_outputs:
+                    calibration_output = calibration_outputs[0]
+                    try:
+                        uploaded_calibration = gc.uploadFileToFolder(
+                            input_folder_id,
+                            str(calibration_output),
+                        )
+                        uploaded_calibration_file_id = str(uploaded_calibration.get('_id'))
+                        if uploaded_calibration_file_id:
+                            gc.sendRestRequest(
+                                'POST',
+                                f'/dive_dataset/{input_folder_id}/calibration?fileId={uploaded_calibration_file_id}',
+                            )
+                            manager.write(
+                                f'Assigned calibration output to dataset: {calibration_output.name}\n'
+                            )
+                        else:
+                            manager.write(
+                                f'Warning: uploaded calibration output {calibration_output.name} has no file id\n'
+                            )
+                    except Exception as exc:
+                        manager.write(
+                            f'Warning: failed to assign calibration output {calibration_output.name}: {exc}\n'
+                        )
+                else:
+                    manager.write(
+                        'Warning: stereo calibration pipeline produced no recognized calibration output file\n'
+                    )
 
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             for camera in multicam_cameras:
