@@ -1447,57 +1447,100 @@ def create_multicam(
     return parent_folder_doc
 
 
+UNSUPPORTED_SIDE_FILE_REASON = "Unsupported side file"
+
+
 def validate_files(files: List[str]):
     """
-    Given a collection of filenames, guess based on regular expressions
-    if the collection represents a valid dataset, and if so, which files
-    represent which type of data
+    Given a collection of filenames, classify each into a semantic upload role.
+
+    Every filename appears under exactly one key of ``roles``; files that are not needed get
+    the ``ignored`` role, and ``reasons`` maps a filename to why it landed there. Only the
+    interactive browser upload honours the per-file drop, uploading the selection minus
+    ``roles['ignored']`` so nothing is discarded without a reason the user can see. The
+    girder-worker zip path (``dive_tasks.utils.upload_zipped_flat_media_files``) uses this as a
+    whole-archive gate and then uploads every extracted file.
+
+    ``type`` is present only when ``ok``: a rejected selection has no single media type.
     """
-    ok = True
-    message = ""
-    mediatype = ""
     videos = [f for f in files if constants.videoRegex.search(f)]
-    csvs = [f for f in files if constants.csvRegex.search(f)]
     images = [f for f in files if constants.imageRegex.search(f)]
     large_images = [f for f in files if constants.largeImageRegEx.search(f)]
-    ymls = [f for f in files if constants.ymlRegex.search(f)]
-    jsons = [f for f in files if constants.jsonRegex.search(f)]
+    media = images + videos + large_images
+
+    # Dataset config JSON follows the same meta/config filename contract as the client's
+    # JsonMetaRegEx; annotation JSON is every other .json.
+    dataset_config = [
+        f for f in files if constants.jsonRegex.search(f) and constants.metaRegex.search(f)
+    ]
+    dataset_config_set = set(dataset_config)
+
+    annotation_csvs = [f for f in files if constants.csvRegex.search(f)]
+    annotation_ymls = [f for f in files if constants.ymlRegex.search(f)]
+    annotation_jsons = [
+        f for f in files if constants.jsonRegex.search(f) and f not in dataset_config_set
+    ]
+    annotations = annotation_csvs + annotation_ymls + annotation_jsons
+
+    if len(videos):
+        mediatype = constants.VideoType
+    elif len(images):
+        mediatype = constants.ImageSequenceType
+    elif len(large_images):
+        mediatype = constants.LargeImageType
+    else:
+        mediatype = ""
+
+    ok = True
+    message = ""
     if len(videos) and (len(images) or len(large_images)):
         ok = False
         message = "Do not upload images and videos in the same batch."
     elif len(large_images) and len(images):
         ok = False
         message = "Do not upload images and tile images in the same batch."
-    elif len(csvs) > 1:
+    elif len(annotation_csvs) > 1:
         ok = False
         message = "Can only upload a single CSV Annotation per import"
-    elif len(jsons) > 2:
+    elif len(dataset_config) > 1:
         ok = False
-        message = (
-            "Can only upload a single JSON Annotation and single configuration JSON per import"
-        )
-    elif len(csvs) == 1 and len(ymls):
+        message = "Can only upload a single configuration JSON per import"
+    elif len(annotation_jsons) > 1:
+        ok = False
+        message = "Can only upload a single annotation JSON per import"
+    elif len(annotation_csvs) and len(annotation_ymls):
         ok = False
         message = "Cannot mix annotation import types"
-    elif len(videos) > 1 and (len(csvs) or len(ymls) or len(jsons)):
+    elif len(annotation_ymls) > 1:
+        ok = False
+        message = "Can only upload a single YAML Annotation per import"
+    elif len(annotation_csvs) + len(annotation_ymls) + len(annotation_jsons) > 1:
+        # Multiple annotation sources across formats (e.g. CSV + JSON) would silently
+        # overwrite each other at import, so only one annotation source is allowed.
+        ok = False
+        message = "Cannot mix annotation import types"
+    elif len(videos) > 1 and (len(annotations) or len(dataset_config)):
         ok = False
         message = "Annotation upload is not supported when multiple videos are uploaded"
-    elif (not len(videos)) and (not len(images)) and (not len(large_images)):
+    elif not (len(videos) or len(images) or len(large_images)):
         ok = False
         message = "No supported media-type files found"
-    elif len(videos):
-        mediatype = constants.VideoType
-    elif len(images):
-        mediatype = constants.ImageSequenceType
-    elif len(large_images):
-        mediatype = constants.LargeImageType
+
+    accepted = set(media) | set(annotations) | set(dataset_config)
+    ignored = [f for f in files if f not in accepted]
 
     return {
         "ok": ok,
+        # Only an accepted selection has a media type.
+        **({"type": mediatype} if ok else {}),
         "message": message,
-        "type": mediatype,
-        "media": images + videos + large_images,
-        "annotations": csvs + ymls + jsons,
+        "roles": {
+            "media": media,
+            "annotations": annotations,
+            "datasetConfig": dataset_config,
+            "ignored": ignored,
+        },
+        "reasons": {f: UNSUPPORTED_SIDE_FILE_REASON for f in ignored},
     }
 
 

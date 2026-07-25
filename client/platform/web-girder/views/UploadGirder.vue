@@ -46,8 +46,7 @@ export default Vue.extend({
       this.$emit('abort');
     },
     remove(pendingUpload) {
-      const index = this.pendingUploads.indexOf(pendingUpload);
-      this.$emit('remove-upload', index);
+      this.$emit('remove-upload', pendingUpload);
     },
     async upload() {
       if (this.location._modelType !== 'folder') {
@@ -70,9 +69,15 @@ export default Vue.extend({
           break;
         }
       }
-      if (!error) {
-        this.$emit('update:uploading', false);
+      if (error) {
+        // Reset failed/interrupted rows so the dialog recovers: the progress
+        // spinner stops and each row's controls (remove, FPS) re-enable.
+        pendingUplodsCopy.forEach((pendingUpload) => {
+          // eslint-disable-next-line no-param-reassign
+          pendingUpload.uploading = false;
+        });
       }
+      this.$emit('update:uploading', false);
     },
     convertFileToInternal(file) {
       if (file === null) {
@@ -92,14 +97,12 @@ export default Vue.extend({
     },
     async uploadPending(pendingUpload, uploaded) {
       const {
-        name, createSubFolders, meta, annotationFile, mediaList, metadataFile,
+        name, createSubFolders, uploadFiles, metadataFile,
       } = pendingUpload;
-      //Combine the files for uploading. The optional metadata file is uploaded
-      //separately (as a marked item) so postprocess does not classify it.
-      let files = mediaList.map((item) => this.convertFileToInternal(item));
-      files.push(this.convertFileToInternal(meta));
-      files.push(this.convertFileToInternal(annotationFile));
-      files = files.filter((item) => item !== null);
+      // The validated package is the only source of files to upload.
+      const files = uploadFiles
+        .map(this.convertFileToInternal)
+        .filter((item) => item !== null);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.files = files;
       const fps = parseInt(pendingUpload.fps, 10);
@@ -180,13 +183,12 @@ export default Vue.extend({
      * Upload a single camera dataset folder (used by multicam import).
      */
     async uploadCameraDataset({
-      name, fps, type, mediaList, meta = null, annotationFile = null, skipTranscoding = true,
-      parentFolderId = null,
+      name, fps, type, uploadFiles, skipTranscoding = true, parentFolderId = null,
     }) {
-      let files = mediaList.map((item) => this.convertFileToInternal(item));
-      files.push(this.convertFileToInternal(meta));
-      files.push(this.convertFileToInternal(annotationFile));
-      files = files.filter((item) => item !== null);
+      // The validated package is the only source of files to upload for the camera.
+      const files = uploadFiles
+        .map(this.convertFileToInternal)
+        .filter((item) => item !== null);
       const folder = await this.createUploadFolder(name, parseInt(fps, 10), type, parentFolderId);
       if (!folder) {
         throw new Error(`Failed to create folder for camera ${name}`);

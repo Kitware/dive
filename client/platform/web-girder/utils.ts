@@ -44,7 +44,10 @@ async function openFromDisk(
 ): Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
-  const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
+  // Side files a media selection may carry: an annotation source or a metadata attachment.
+  // Filtering one out here would settle its fate before the server ever classified it.
+  const baseTypes: string[] = [...new Set([...inputAnnotationFileTypes, ...metadataFileTypes])]
+    .map((item) => `.${item}`);
   if (!['calibration', 'annotation', 'zip', 'metadata'].includes(datasetType)) {
     input.multiple = true;
   }

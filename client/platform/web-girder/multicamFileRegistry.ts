@@ -2,6 +2,13 @@
 
 import { Location } from '@girder/components/src';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
+import {
+  ImageSequenceType,
+  VideoType,
+  fileVideoTypes,
+  largeImageFileExtensions,
+} from 'dive-common/constants';
+import { fileImageTypes } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import { openFromDisk, GirderUploadManager } from './utils';
 
 const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
@@ -89,8 +96,26 @@ export function flattenUploadFiles(files: File[]): File[] {
   });
 }
 
-export function mediaFileNamesForImport(files: File[]): string[] {
-  return flattenUploadFiles(files).map((file) => file.name);
+function fileExtension(fileName: string): string {
+  return fileName.split('.').pop()?.toLowerCase() ?? '';
+}
+
+/**
+ * Extensions a camera folder can contribute as importable images: the set multicam subfolder
+ * discovery accepts, plus the large-image formats an all-TIFF camera folder imports as. A
+ * camera that discovery registered must never report zero media files here, or Begin Import
+ * is disabled with no way to correct it.
+ */
+const importableImageExtensions = [...fileImageTypes, ...largeImageFileExtensions];
+
+export function mediaFileNamesForImport(
+  files: File[],
+  mediaType: typeof ImageSequenceType | typeof VideoType = ImageSequenceType,
+): string[] {
+  const allowedExtensions = mediaType === VideoType ? fileVideoTypes : importableImageExtensions;
+  return files
+    .map((file) => file.name)
+    .filter((name) => allowedExtensions.includes(fileExtension(name)));
 }
 
 export function stashAnnotationFile(key: string, file: File): void {
@@ -99,6 +124,52 @@ export function stashAnnotationFile(key: string, file: File): void {
 
 export function getAnnotationFile(key: string): File | undefined {
   return annotationFilesByKey.get(key);
+}
+
+export interface CameraPackage {
+  /** Files to validate and upload with the camera. */
+  files: File[];
+  /**
+   * Camera-folder files left out only because an explicit pick claimed their name. They are
+   * a different file than the one the user chose, so the caller must report them.
+   */
+  replaced: File[];
+}
+
+/** Two selections of the same file on disk are distinct File objects; treat them as one. */
+function isSameSelection(a: File, b: File): boolean {
+  return a === b
+    || (a.name === b.name && a.size === b.size && a.lastModified === b.lastModified);
+}
+
+/**
+ * Assemble the complete file package for one multicam camera: the camera folder's files plus
+ * the annotation file explicitly chosen for that camera.
+ *
+ * An explicit pick always wins over a folder file of the same name — the folder copy is
+ * dropped, so the user uploads the file they chose and Girder never sees a duplicate name.
+ *
+ * A dropped folder copy that is not the picked file is a real file leaving the upload, so it
+ * is returned in `replaced` rather than vanishing.
+ *
+ * `flattenUploadFiles` is applied here, before validation, so the names sent to
+ * the server for validation match the names uploaded to Girder.
+ */
+export function getCameraPackageFiles(
+  folderFiles: File[],
+  annotationKey?: string,
+): CameraPackage {
+  const annotationFile = annotationKey ? getAnnotationFile(annotationKey) : undefined;
+  const explicitFiles = annotationFile ? [annotationFile] : [];
+  const explicitNames = new Set(explicitFiles.map((file) => file.name));
+  const folderPackage = flattenUploadFiles(
+    folderFiles.filter((file) => !explicitNames.has(file.name)),
+  );
+  return {
+    files: annotationFile ? [...folderPackage, annotationFile] : folderPackage,
+    replaced: folderFiles.filter((file) => explicitNames.has(file.name)
+      && !explicitFiles.some((pick) => isSameSelection(pick, file))),
+  };
 }
 
 function calibrationLookupKeys(key: string): string[] {

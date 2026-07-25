@@ -5,11 +5,12 @@ import {
 import { useRouter } from 'vue-router/composables';
 
 import {
-  ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
+  ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions, LargeImageType,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes, JsonMetaRegEx, getLargeImageFileAccept, LargeImageType,
+  websafeImageTypes, otherImageTypes, getLargeImageFileAccept,
   metadataFileTypes,
 } from 'dive-common/constants';
+import suggestUploadSlots from 'platform/web-girder/uploadSlots';
 
 import {
   fileSuffixRegex,
@@ -32,14 +33,18 @@ import {
   validateUploadGroup,
   waitForFolderDatasetReady,
 } from 'platform/web-girder/api';
+import type {
+  IgnoredUploadFile,
+  ValidationResponse,
+} from 'platform/web-girder/api';
 import {
   clearMulticamFileRegistry,
-  getAnnotationFile,
   getCalibrationFile,
   getMetadataFile,
+  getCameraPackageFiles,
   getFilesForSourceKey,
   getTransformFile,
-  flattenUploadFiles,
+  mediaFileNamesForImport,
   removeCameraFolderFiles,
   renameCameraFolderFiles,
   stashCameraFolderFiles,
@@ -75,10 +80,22 @@ export interface PendingUpload {
   createSubFolders: boolean;
   name: string;
   files: InteralFiles[];
-  meta: null | File;
-  metadataFile: null | File;
-  annotationFile: null | File;
+  /**
+   * Per-role upload slots. The user declares each file's role by which slot it goes in;
+   * placement is a suggestion the server re-validates at upload.
+   */
   mediaList: File[];
+  annotationFile: File | null;
+  configFile: File | null;
+  /** Optional dataset-level file handed to pipelines that request it. */
+  metadataFile: File | null;
+  /** Media/annotation/config package the server validated for upload (rebuilt at start). */
+  uploadFiles: File[];
+  /** Picked files that have no slot on this row, each with the reason it is not uploaded. */
+  unslotted: IgnoredUploadFile[];
+  ignored: IgnoredUploadFile[];
+  /** Blocking validation message for this row; the slots stay editable until it clears. */
+  error: string | null;
   type: DatasetType | 'zip';
   fps: number;
   uploading: boolean;
@@ -94,10 +111,9 @@ interface GirderUpload {
     name: string;
     fps: number;
     type: DatasetType;
-    mediaList: File[];
-    meta?: File | null;
-    annotationFile?: File | null;
+    uploadFiles: File[];
     skipTranscoding?: boolean;
+    parentFolderId?: string;
   }) => Promise<{ folder: { _id: string }; jobIds: string[] }>;
 }
 
@@ -124,6 +140,54 @@ function multicamCameraSlotPercent(
   return MULTICAM_PROGRESS_START + (cameraIndex * span) + (subFraction * span);
 }
 
+/**
+ * The server names every file it did not accept, so what to upload is the validated
+ * selection minus those names.
+ */
+function acceptedUploadFiles(files: File[], validation: ValidationResponse): File[] {
+  const ignoredNames = new Set(validation.roles.ignored);
+  return files.filter((file) => !ignoredNames.has(file.name));
+}
+
+/** The server's ignored role, each name paired with the reason it reported for it. */
+function validationIgnoredFiles(validation: ValidationResponse): IgnoredUploadFile[] {
+  return validation.roles.ignored.map((name) => ({
+    name,
+    reason: validation.reasons[name] ?? 'Not accepted for upload',
+  }));
+}
+
+/** Only a multi-video upload fans out into per-video subfolders. */
+function fansOutToSubFolders(validation: ValidationResponse): boolean {
+  return validation.type === VideoType && validation.roles.media.length > 1;
+}
+
+/**
+ * The folder name a row starts with: the single media file's name, or — when the row holds
+ * several media files — the first one with its suffix stripped. Derived from the server's
+ * media role, so a row that was rejected on pick still gets a name once it validates.
+ */
+function defaultRowName(validation: ValidationResponse): string {
+  const [firstMedia = ''] = validation.roles.media;
+  return validation.roles.media.length > 1
+    ? firstMedia.replace(fileSuffixRegex, '')
+    : firstMedia;
+}
+
+/**
+ * Every picked file this row will not upload, with the reason: what the server ignored, and
+ * what had no slot to go in.
+ */
+function rowIgnoredFiles(
+  row: Pick<PendingUpload, 'unslotted'>,
+  validation: ValidationResponse,
+): IgnoredUploadFile[] {
+  return [
+    ...validationIgnoredFiles(validation),
+    ...row.unslotted,
+  ];
+}
+
 export default defineComponent({
   components: {
     ImportButton,
@@ -140,6 +204,8 @@ export default defineComponent({
   setup(props, { emit }) {
     const preUploadErrorMessage: Ref<string | null> = ref(null);
     const pendingUploads: Ref<PendingUpload[]> = ref([]);
+    /** True from the moment Start upload is clicked until its upload settles. */
+    const preparing = ref(false);
     const stereo = ref(false);
     const multiCamOpenType = ref('image-sequence');
     const importMultiCamDialog = ref(false);
@@ -194,150 +260,119 @@ export default defineComponent({
         createSubFolders: false,
         name: defaultFilename,
         files: [], //Will be set in the GirderUpload Component
-        meta: null,
-        metadataFile: null,
-        annotationFile: null,
         mediaList: allFiles,
+        annotationFile: null,
+        configFile: null,
+        metadataFile: null,
+        uploadFiles: allFiles,
+        unslotted: [],
+        ignored: [],
+        error: null,
         type: 'zip',
         fps,
         uploading: false,
       });
     };
 
+    // Accept filters per slot, mirroring the file dialog's own filters.
+    const filterFileUpload = (type: DatasetType | 'meta' | 'annotation' | 'metadata') => {
+      if (type === 'meta') {
+        return '.json';
+      }
+      if (type === 'annotation') {
+        return inputAnnotationFileTypes.map((item) => `.${item}`).join(',');
+      }
+      if (type === 'metadata') {
+        return metadataFileTypes.map((item) => `.${item}`).join(',');
+      }
+      if (type === 'video') {
+        return websafeVideoTypes.concat(otherVideoTypes);
+      }
+      if (type === 'large-image') {
+        return getLargeImageFileAccept();
+      }
+      return websafeImageTypes.concat(otherImageTypes);
+    };
+
+    /**
+     * Until a row validates, its type is only the import menu the user opened, which the
+     * server may yet contradict (an image-sequence pick of TIFFs validates as large-image).
+     * An error row is therefore left unfiltered: filtering by the guess would hide the very
+     * files the user has to re-pick to clear the error.
+     */
+    const mediaSlotAccept = (pendingUpload: PendingUpload) => (
+      pendingUpload.error ? undefined : filterFileUpload(pendingUpload.type)
+    );
+
+    // Every slot file the server validates, in a single list.
+    const slotFileList = (pendingUpload: PendingUpload): File[] => [
+      ...pendingUpload.mediaList,
+      ...(pendingUpload.annotationFile ? [pendingUpload.annotationFile] : []),
+      ...(pendingUpload.configFile ? [pendingUpload.configFile] : []),
+    ];
+
     const addPendingUpload = async (
-      name: string,
       allFiles: File[],
-      meta: File | null,
-      annotationFile: File | null,
-      mediaList: File[],
       suggestedFps?: number, // suggested FPS for large/images
       expectedType?: DatasetType,
     ) => {
-      const resp = (await validateUploadGroup(allFiles.map((f) => f.name))).data;
-      if (!resp.ok) {
-        if (resp.message) {
-          preUploadErrorMessage.value = resp.message;
-        }
-        throw new Error(resp.message);
-      }
-      const uploadType = expectedType === LargeImageType ? LargeImageType : resp.type;
-      const fps = suggestedFps || clientSettings.annotationFPS || DefaultVideoFPS;
-      const defaultFilename = resp.media[0];
-      const validFiles = resp.media.concat(resp.annotations);
-      // mapping needs to be done for the mixin upload functions
-      const internalFiles = allFiles
-        .filter((f) => validFiles.includes(f.name));
-      let createSubFolders = false;
-      if (resp.type === 'video') {
-        if (resp.media.length > 1) {
-          createSubFolders = true;
-        }
-      }
-      pendingUploads.value.push({
-        createSubFolders,
-        name:
-          internalFiles.length > 1
-            ? defaultFilename.replace(fileSuffixRegex, '')
-            : defaultFilename,
+      const slots = suggestUploadSlots(allFiles);
+      // Validate the slotted selection so the media type is server-determined.
+      const row: PendingUpload = {
+        createSubFolders: false,
+        name: '',
         files: [], //Will be set in the GirderUpload Component
-        meta,
+        mediaList: slots.mediaList,
+        annotationFile: slots.annotationFile,
+        configFile: slots.configFile,
         metadataFile: null,
-        annotationFile,
-        mediaList,
-        type: uploadType,
-        fps,
+        uploadFiles: [],
+        unslotted: slots.unslotted,
+        ignored: [...slots.unslotted],
+        error: null,
+        type: expectedType ?? ImageSequenceType,
+        fps: suggestedFps || clientSettings.annotationFPS || DefaultVideoFPS,
         uploading: false,
         skipTranscoding: true,
-      });
-    };
-    /**
-     * Processes the imported media files to distinguish between
-     * Media Files - Default files that aren't the Annotation or Meta
-     * Annotation File - CSV or JSON file, or more in the future
-     * Meta File - Right now a json file which has 'meta' or 'config in the name
-     */
-    const processImport = (files: {
-      canceled: boolean; filePaths: string[]; fileList?: File[];
-    }) => {
-      //Check for auto files for meta and annotations
-      const output: {
-        annotationFile: null | File;
-        metaFile: null | File;
-        mediaList: File[];
-        fullList: File[];
-      } = {
-        annotationFile: null,
-        metaFile: null,
-        mediaList: [],
-        fullList: [],
       };
-      const jsonFiles: [string, number][] = [];
-      const csvFiles: [string, number][] = [];
-      if (files.fileList) {
-        files.filePaths.forEach((item, index) => {
-          if (item.indexOf('.json') !== -1) {
-            jsonFiles.push([item, index]);
-          } else if (item.indexOf('.csv') !== -1) {
-            csvFiles.push([item, index]);
-          }
-        });
-        output.mediaList = files.fileList.filter((item) => (
-          item.name.indexOf('.json') === -1 && item.name.indexOf('.csv') === -1));
-        const metaIndex = jsonFiles.findIndex((item) => (JsonMetaRegEx.test(item[0])));
-        if (metaIndex !== -1) {
-          output.metaFile = files.fileList[jsonFiles[metaIndex][1]];
-          jsonFiles.splice(metaIndex, 1); //remove chosen meta from list
-        }
-        if (jsonFiles.length === 1 && csvFiles.length === 0) { // only remaining json file
-          output.annotationFile = files.fileList[jsonFiles[0][1]];
-        } else if (csvFiles.length) { // Prefer First CSV if both found
-          output.annotationFile = files.fileList[csvFiles[0][1]];
-        } else if (jsonFiles.length > 1) { //multiple jsons, filter out additional meta/configs
-          const filtered = jsonFiles.filter((item) => (!JsonMetaRegEx.test(item[0]) && (item[0].indexOf('.json') !== -1)));
-          if (filtered.length) { // take first filtered JSON file
-            output.annotationFile = files.fileList[filtered[0][1]];
-          }
-        }
-        output.fullList = [...output.mediaList];
-        if (output.annotationFile) {
-          output.fullList.push(output.annotationFile);
-        }
-        if (output.metaFile) {
-          output.fullList.push(output.metaFile);
-        }
+      const slotFiles = slotFileList(row);
+      const validation = (await validateUploadGroup(slotFiles.map((f) => f.name))).data;
+      // A rejected selection still gets a row: its slot editor is the only place the user
+      // can correct the problem without reopening the OS file picker.
+      if (!validation.ok) {
+        row.error = validation.message || 'Upload validation failed';
+        pendingUploads.value.push(row);
+        return;
       }
-      return output;
+      // Server validation is authoritative for the media/annotation/config roles.
+      row.createSubFolders = fansOutToSubFolders(validation);
+      row.name = defaultRowName(validation);
+      row.uploadFiles = acceptedUploadFiles(slotFiles, validation);
+      row.ignored = rowIgnoredFiles(row, validation);
+      row.type = expectedType === LargeImageType ? LargeImageType : validation.type;
+      pendingUploads.value.push(row);
     };
     /**
-     * Initial opening of file dialog
+     * Initial opening of file dialog. The complete selection is sent to server
+     * validation, which is what classifies the files.
      */
     const openImport = async (dstype: DatasetType | 'zip') => {
       const ret = await openFromDisk(dstype);
-      if (!ret.canceled && ret.fileList) {
-        const processed = processImport(ret);
-        if (processed?.fullList?.length === 0) return;
-        if (processed && processed.fullList) {
-          const name = processed.fullList.length === 1 ? processed.fullList[0].name : '';
-          preUploadErrorMessage.value = null;
-          try {
-            if (dstype !== 'zip') {
-              const suggestedFps = dstype === 'image-sequence' || dstype === 'large-image' ? 1 : undefined;
-              await addPendingUpload(
-                name,
-                processed.fullList,
-                processed.metaFile,
-                processed.annotationFile,
-                processed.mediaList,
-                suggestedFps,
-                dstype,
-              );
-            } else {
-              addPendingZipUpload(name, processed.fullList);
-            }
-          } catch (err) {
-            preUploadErrorMessage.value = err.response?.data?.message || err;
-          }
+      if (ret.canceled || !ret.fileList || ret.fileList.length === 0) {
+        return;
+      }
+      const allFiles = ret.fileList;
+      preUploadErrorMessage.value = null;
+      try {
+        if (dstype === 'zip') {
+          const name = allFiles.length === 1 ? allFiles[0].name : '';
+          addPendingZipUpload(name, allFiles);
+        } else {
+          const suggestedFps = dstype === 'image-sequence' || dstype === 'large-image' ? 1 : undefined;
+          await addPendingUpload(allFiles, suggestedFps, dstype);
         }
+      } catch (err) {
+        preUploadErrorMessage.value = err.response?.data?.message || err;
       }
     };
     const openMultiCamDialog = (args: { stereo: boolean; openType: 'image-sequence' | 'video' }) => {
@@ -345,26 +380,12 @@ export default defineComponent({
       multiCamOpenType.value = args.openType;
       importMultiCamDialog.value = true;
     };
-    const filterFileUpload = (type: DatasetType | 'meta' | 'annotation' | 'metadata') => {
-      if (type === 'meta') {
-        return '.json';
-      } if (type === 'metadata') {
-        return metadataFileTypes.map((item) => `.${item}`).join(',');
-      } if (type === 'annotation') {
-        return inputAnnotationFileTypes.map((item) => `.${item}`).join(',');
-      } if (type === 'video') {
-        return websafeVideoTypes.concat(otherVideoTypes);
-      } if (type === 'large-image') {
-        return getLargeImageFileAccept();
-      }
-      return websafeImageTypes.concat(otherImageTypes);
-    };
-
     const multiCamImportCheck = (sourcePath: string): MediaImportResponse => {
       const files = getFilesForSourceKey(sourcePath) ?? [];
+      const mediaType = multiCamOpenType.value === VideoType ? VideoType : ImageSequenceType;
       return {
         jsonMeta: {
-          originalImageFiles: files.map((file) => file.name),
+          originalImageFiles: mediaFileNamesForImport(files, mediaType),
         },
         globPattern: '',
         mediaConvertList: [],
@@ -463,19 +484,28 @@ export default defineComponent({
           .filter((name) => args.sourceList[name])
           .map((name) => [name, args.sourceList[name]] as const);
         const totalCameras = cameraEntries.length;
+        // Collect files the server accepted-but-ignored per camera so they can be
+        // surfaced before navigation — no selected file is silently dropped.
+        const ignoredAcrossCameras: { camera: string; name: string; reason: string }[] = [];
 
         for (let i = 0; i < cameraEntries.length; i += 1) {
           const [cameraName, source] = cameraEntries[i];
-          let files = flattenUploadFiles(getFilesForSourceKey(source.sourcePath) ?? []);
+          let folderFiles = getFilesForSourceKey(source.sourcePath) ?? [];
           if (source.glob) {
             // Cameras sharing one folder (per-modality suffixes) upload only their glob's files
-            files = files.filter((file) => filterByGlob(source.glob as string, [file.name]).length === 1);
+            folderFiles = folderFiles.filter((file) => filterByGlob(source.glob as string, [file.name]).length === 1);
           }
-          if (!files?.length) {
+          if (!folderFiles.length) {
             throw new Error(`No media files found for camera "${cameraName}"`);
           }
+          // Flatten before validation so the names the server validates match the
+          // names uploaded to Girder.
+          const { files: cameraFiles, replaced } = getCameraPackageFiles(
+            folderFiles,
+            source.trackFile,
+          );
           // eslint-disable-next-line no-await-in-loop -- validate then upload each camera sequentially
-          const validation = (await validateUploadGroup(files.map((f) => f.name))).data;
+          const validation = (await validateUploadGroup(cameraFiles.map((f) => f.name))).data;
           if (!validation.ok) {
             throw new Error(validation.message || `Invalid files for camera "${cameraName}"`);
           }
@@ -485,18 +515,25 @@ export default defineComponent({
           if (!compatibleTypes.has(uploadType)) {
             throw new Error(`Camera "${cameraName}" must use ${cameraType} media`);
           }
-          const mediaList = files.filter((file) => validation.media.includes(file.name));
-          const annotationFile = source.trackFile
-            ? getAnnotationFile(source.trackFile)
-            : undefined;
+          // Server validation is the authority: upload exactly what it accepted,
+          // which includes validated camera-folder sidecars and annotation/config
+          // files, not just validation.roles.media.
+          const uploadFiles = acceptedUploadFiles(cameraFiles, validation);
+          validationIgnoredFiles(validation).forEach((entry) => ignoredAcrossCameras.push({
+            camera: cameraName, name: entry.name, reason: entry.reason,
+          }));
+          replaced.forEach((entry) => ignoredAcrossCameras.push({
+            camera: cameraName,
+            name: entry.name,
+            reason: 'a different file you chose for this camera has the same name',
+          }));
           trackMulticamCameraUploadProgress(i, totalCameras, cameraName);
           // eslint-disable-next-line no-await-in-loop
           const { folder, jobIds } = await uploadComponent.uploadCameraDataset({
             name: cameraName,
             fps,
             type: uploadType,
-            mediaList,
-            annotationFile: annotationFile ?? null,
+            uploadFiles,
             skipTranscoding: true,
             parentFolderId: datasetFolder._id,
           });
@@ -594,6 +631,19 @@ export default defineComponent({
           await prompt({
             title: 'Registration Warnings',
             text: registrationSeed.warnings,
+            positiveButton: 'OK',
+          });
+        }
+
+        if (ignoredAcrossCameras.length) {
+          await prompt({
+            title: 'Some files were not uploaded',
+            text: [
+              'These selected files were not needed for the dataset and were left out:',
+              ...ignoredAcrossCameras.map(
+                (entry) => `${entry.camera}: ${entry.name} — ${entry.reason}`,
+              ),
+            ],
             positiveButton: 'OK',
           });
         }
@@ -732,9 +782,51 @@ export default defineComponent({
     const getFilenameInputValue = (pendingUpload: PendingUpload) => (
       pendingUpload.createSubFolders && pendingUpload.type !== 'zip' ? 'default' : pendingUpload.name
     );
+    /**
+     * Rebuild every non-zip row's validated media/annotation/config package from its
+     * (possibly edited) slots, then start the shared Girder upload. The server stays the
+     * authority for those roles; the metadata attachment is uploaded separately.
+     */
+    const prepAndUpload = async (uploadFn: () => Promise<void>) => {
+      // Validation is an awaited round-trip, so without this gate a second click starts the
+      // whole upload again before the first one has set any row's `uploading` flag.
+      if (preparing.value || uploading.value) {
+        return;
+      }
+      preparing.value = true;
+      preUploadErrorMessage.value = null;
+      try {
+        for (let i = 0; i < pendingUploads.value.length; i += 1) {
+          const pendingUpload = pendingUploads.value[i];
+          if (pendingUpload.type !== 'zip') {
+            const slotFiles = slotFileList(pendingUpload);
+            // eslint-disable-next-line no-await-in-loop -- validate each row before upload
+            const validation = (await validateUploadGroup(slotFiles.map((f) => f.name))).data;
+            if (!validation.ok) {
+              pendingUpload.error = validation.message || 'Upload validation failed';
+              return;
+            }
+            pendingUpload.error = null;
+            // A row rejected on pick has no name yet; name it now that the user's
+            // correction validates, so it never uploads into an unnamed folder.
+            if (!pendingUpload.name) {
+              pendingUpload.name = defaultRowName(validation);
+            }
+            pendingUpload.createSubFolders = fansOutToSubFolders(validation);
+            pendingUpload.uploadFiles = acceptedUploadFiles(slotFiles, validation);
+            pendingUpload.ignored = rowIgnoredFiles(pendingUpload, validation);
+          }
+        }
+        await uploadFn();
+      } catch (err) {
+        preUploadErrorMessage.value = err.response?.data?.message || err.message || String(err);
+      } finally {
+        preparing.value = false;
+      }
+    };
     const remove = (pendingUpload: PendingUpload) => {
-      const index = pendingUploads.value.indexOf(pendingUpload);
-      pendingUploads.value.splice(index, 1);
+      // Identity, not index: a row retired twice must never take a different row with it.
+      pendingUploads.value = pendingUploads.value.filter((row) => row !== pendingUpload);
     };
     function close() {
       emit('close');
@@ -788,15 +880,14 @@ export default defineComponent({
       girderUpload,
       multicamImporting,
       multicamImportProgress,
+      preparing,
       uploading,
       clientSettings,
       //methods
       close,
       closeMultiCamBatchDialog,
       openImport,
-      processImport,
       openMultiCamDialog,
-      filterFileUpload,
       multiCamImportCheck,
       multiCamImport,
       chooseAndScanBatch,
@@ -809,7 +900,9 @@ export default defineComponent({
       getFilenameInputValue,
       getFilenameInputStateDisabled,
       getFilenameInputStateHint,
-      addPendingUpload,
+      filterFileUpload,
+      mediaSlotAccept,
+      prepAndUpload,
       remove,
       abort,
       errorHandler,
@@ -961,7 +1054,24 @@ export default defineComponent({
                 </v-btn>
               </v-col>
             </v-row>
-            <v-row v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'zip'">
+            <v-alert
+              v-if="pendingUpload.error"
+              dense
+              outlined
+              type="error"
+              class="mt-2 mb-0 text-body-2"
+            >
+              {{ pendingUpload.error }}
+            </v-alert>
+            <!--
+              mt-3 states the gap outright instead of relying on Vuetify's `.row + .row` rule: the
+              error alert and the ignored-file list sit between these rows, and when either renders
+              the row falls back to the base -12px and rides up over it.
+            -->
+            <v-row
+              v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'zip'"
+              class="mt-3"
+            >
               <v-col class="py-0 mx-2">
                 <v-row>
                   <v-file-input
@@ -983,7 +1093,7 @@ export default defineComponent({
                           : 'Tiled Image files'
                     "
                     :rules="[val => (val || '').length > 0 || 'Media Files are required']"
-                    :accept="filterFileUpload(pendingUpload.type)"
+                    :accept="mediaSlotAccept(pendingUpload)"
                   />
                 </v-row>
                 <v-row>
@@ -1000,7 +1110,7 @@ export default defineComponent({
                 </v-row>
                 <v-row>
                   <v-file-input
-                    v-model="pendingUpload.meta"
+                    v-model="pendingUpload.configFile"
                     show-size
                     counter
                     label="Configuration File (Optional)"
@@ -1047,9 +1157,38 @@ export default defineComponent({
                   If skipping fails it will fallback to transcoding.</span>
               </v-tooltip>
             </v-row>
-            <span v-if="uploading">
+            <!--
+              Below the slots, where it reads as the remainder of the selection the slot counts
+              above do not account for. mt-3 clears the negative bottom margin the row above ends on.
+            -->
+            <div
+              v-if="pendingUpload.ignored.length"
+              class="mx-4 mt-3"
+            >
+              <div class="text-caption warning--text">
+                Ignored (not uploaded):
+              </div>
+              <div
+                v-for="(ignoredFile, ignoredIndex) in pendingUpload.ignored"
+                :key="`${ignoredIndex}-${ignoredFile.name}`"
+                class="text-caption grey--text"
+              >
+                {{ ignoredFile.name }} ({{ ignoredFile.reason }})
+              </div>
+            </div>
+            <!-- mt-3 clears the negative bottom margin the row above ends on. -->
+            <div
+              v-if="uploading"
+              class="mx-4 mt-3 text-body-2 d-flex align-center"
+            >
+              <v-progress-circular
+                indeterminate
+                size="16"
+                width="2"
+                class="mr-2"
+              />
               {{ computeUploadProgress(pendingUpload) }}
-            </span>
+            </div>
           </v-card>
           <div>
             <v-list>
@@ -1119,12 +1258,12 @@ export default defineComponent({
           </div>
           <v-btn
             v-if="pendingUploads.length"
-            :disabled="uploading"
+            :disabled="uploading || preparing"
             block
             large
             color="primary"
             class="my-6"
-            @click="upload"
+            @click="prepAndUpload(upload)"
           >
             <v-icon class="pr-3">
               mdi-upload
