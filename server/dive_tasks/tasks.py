@@ -11,6 +11,8 @@ from urllib import request
 from urllib.parse import urlparse
 import zipfile
 
+import gdown
+from gdown.parse_url import is_google_drive_url, parse_url
 from GPUtil import getGPUs
 from girder_client import GirderClient, HttpError
 from girder_worker.app import app
@@ -196,13 +198,42 @@ class Config:
         return pipeline_path
 
 
+def _normalize_google_drive_url(url: str) -> str:
+    """Strip a leading www. so gdown recognizes common pasted Drive links."""
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    if host.startswith('www.'):
+        return parsed._replace(netloc=host[4:]).geturl()
+    return url
+
+
+def is_google_drive_addon_url(url: str) -> bool:
+    """Return True if url is a Google Drive link (after normalizing www.)."""
+    return is_google_drive_url(_normalize_google_drive_url(url))
+
+
+def download_google_drive_zip(url: str, dest: Path) -> None:
+    """Download a publicly shared Google Drive zip to dest via gdown."""
+    gdown.download(url=_normalize_google_drive_url(url), output=str(dest), quiet=True)
+
+
+def _addon_zip_path_for_url(addon_url: str, addon_zip_dir: Path) -> Path:
+    normalized = _normalize_google_drive_url(addon_url)
+    if is_google_drive_url(normalized):
+        file_id, _ = parse_url(normalized)
+        if file_id:
+            return addon_zip_dir / f'gdrive_{file_id}.zip'
+    download_name = urlparse(addon_url).path.replace(os.path.sep, '_')
+    return addon_zip_dir / f'{download_name}.zip'
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def upgrade_pipelines(
     self: Task,
     urls: List[str] = UPGRADE_JOB_DEFAULT_URLS,
     force: bool = False,
 ):
-    """Install addons from zip files over HTTP"""
+    """Install addons from zip files over HTTP (including Google Drive share links)"""
     conf = Config()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
@@ -215,13 +246,15 @@ def upgrade_pipelines(
     addons_to_update_update: List[Path] = []
 
     for addon in urls:
-        download_name = urlparse(addon).path.replace(os.path.sep, '_')
-        zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
+        zipfile_path = _addon_zip_path_for_url(addon, conf.addon_zip_path)
         had_existing_zip = zipfile_path.exists()
         try:
             if not had_existing_zip or force:
                 manager.write(f'Downloading {addon} to {zipfile_path}\n')
-                request.urlretrieve(addon, filename=zipfile_path)
+                if is_google_drive_addon_url(addon):
+                    download_google_drive_zip(addon, zipfile_path)
+                else:
+                    request.urlretrieve(addon, filename=zipfile_path)
             else:
                 manager.write(f'Skipping download of {zipfile_path}\n')
             addons_to_update_update.append(zipfile_path)
