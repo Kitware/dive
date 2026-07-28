@@ -70,6 +70,14 @@ interface PipeMetadata {
    * it gets the first camera's list. Parsed from a `# Image List Keys:` header.
    */
   imageListKeys?: string[];
+  /**
+   * KWIVER config keys (e.g. "depth_map:computer:ocv_stereo_disparity:calibration_file")
+   * that the dataset's stereo calibration file is bound to at run time. Parsed from a
+   * `# Calibration Keys: <k> [k...]` header. Pipes whose calibration consumer is not the
+   * conventional `measurer`/`calibration_reader` declare their own keys here; when unset
+   * the two conventional keys are used.
+   */
+  calibrationKeys?: string[];
 }
 
 interface PipelineRuntimeParams {

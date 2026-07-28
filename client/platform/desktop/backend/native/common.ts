@@ -230,7 +230,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
@@ -271,6 +271,19 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
         const keys = imageListMatch[1].trim().split(/[\s,]+/).filter((k) => k);
         if (keys.length) {
           metadata.imageListKeys = keys;
+        }
+      }
+
+      // `# Calibration Keys: <k> [k...]` binds the dataset's stereo calibration
+      // file to each listed KWIVER key. Needed because `$CONFIG{global:...}`
+      // indirection cannot receive `-s` overrides (macros expand at parse time,
+      // `-s` blocks are appended last), so a pipe must name the consuming process
+      // key directly.
+      const calibrationKeysMatch = line.match(/^#\s*Calibration\s+Keys?:\s*(.+)/i);
+      if (calibrationKeysMatch) {
+        const keys = calibrationKeysMatch[1].trim().split(/[\s,]+/).filter((k) => k);
+        if (keys.length) {
+          metadata.calibrationKeys = keys;
         }
       }
     });

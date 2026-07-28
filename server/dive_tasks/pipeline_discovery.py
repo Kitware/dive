@@ -206,7 +206,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
                             r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
-                            r'|Image\s+List\s+Keys?):',
+                            r'|Image\s+List\s+Keys?|Calibration\s+Keys?):',
                             line_raw,
                             re.IGNORECASE,
                         )
@@ -260,6 +260,23 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     keys = [k for k in re.split(r'[\s,]+', image_list_match.group(1).strip()) if k]
                     if keys:
                         metadata["imageListKeys"] = keys
+
+                # `# Calibration Keys: <k> [k...]` binds the dataset's stereo
+                # calibration file to each listed KWIVER key. Needed because
+                # `$CONFIG{global:...}` indirection cannot receive `-s` overrides
+                # (macros expand at parse time, `-s` blocks are appended last), so a
+                # pipe must name the consuming process key directly.
+                calibration_keys_match = re.match(
+                    r'^#\s*Calibration\s+Keys?:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if calibration_keys_match:
+                    keys = [
+                        k
+                        for k in re.split(r'[\s,]+', calibration_keys_match.group(1).strip())
+                        if k
+                    ]
+                    if keys:
+                        metadata["calibrationKeys"] = keys
 
         if full_description_parts:
             metadata["description"] = " ".join(full_description_parts)

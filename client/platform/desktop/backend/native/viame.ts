@@ -355,8 +355,14 @@ async function runPipeline(
     trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.defaultDisplay]);
 
     if (meta.multiCam.calibration) {
-      command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
-      command.push(`-s calibration_reader:file="${meta.multiCam.calibration}"`);
+      // A pipe whose calibration consumer is not the conventional
+      // `measurer`/`calibration_reader` names its own keys via `# Calibration Keys:`.
+      const calibrationKeys = runPipelineArgs.pipeline.metadata?.calibrationKeys?.length
+        ? runPipelineArgs.pipeline.metadata.calibrationKeys
+        : ['measurer:calibration_file', 'calibration_reader:file'];
+      calibrationKeys.forEach((key) => {
+        command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
+      });
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');

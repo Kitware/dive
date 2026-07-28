@@ -87,6 +87,11 @@ class PipeMetadata(TypedDict):
     # (one single-file list per camera). A `{cam}` placeholder is expanded per
     # camera (1-based); a key without it gets the first camera's list.
     imageListKeys: NotRequired[Optional[list[str]]]
+    # KWIVER config keys the dataset's stereo calibration file is bound to, parsed
+    # from `# Calibration Keys: <k> [k...]`. Pipes whose calibration consumer is
+    # not the conventional `measurer`/`calibration_reader` declare their own keys
+    # here; when unset the two conventional keys are used.
+    calibrationKeys: NotRequired[Optional[list[str]]]
 
 
 class PipelineDescription(TypedDict):
