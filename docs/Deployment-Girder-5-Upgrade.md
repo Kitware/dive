@@ -21,12 +21,15 @@ Update your `.env` (and any external orchestration) to use Girder 5 names:
 | Girder 4 / legacy name | Girder 5 name | Purpose |
 |------------------------|---------------|---------|
 | `CELERY_BROKER_URL` | `GIRDER_WORKER_BROKER` | RabbitMQ URL for Celery (message broker). |
-| `WORKER_API_URL` | `GIRDER_SETTING_WORKER_API_URL` | Girder REST API URL workers call (e.g. `http://girder:8080/api/v1`). |
+| `WORKER_API_URL` | `GIRDER_SETTING_WORKER_API_URL` | Server-side Girder setting `worker.api_url` stamped into jobs at schedule time (e.g. `http://girder:8080/api/v1`). |
+| *(not used)* | `GIRDER_WORKER_API_URL` | Optional **worker-side** override of the stamped API URL for callbacks. Set on remote workers that cannot reach the server-stamped URL. |
 | *(not used)* | `GIRDER_WORKER_BACKEND` | Celery result backend (Compose default: `rpc://guest:guest@localhost/`). |
 | *(not used)* | `GIRDER_NOTIFICATION_REDIS_URL` | Redis URL for Girder notification fan-out (e.g. `redis://redis:6379`). |
 | *(not used)* | `GIRDER_STATIC_ROOT_DIR` | Path to built web client inside the Girder container (set in Compose). |
 
-`GIRDER_WORKER_BACKEND` is **not** a replacement for `WORKER_API_URL`. Do not point it at `http://…/api/v1`; use `GIRDER_SETTING_WORKER_API_URL` for that.
+`GIRDER_WORKER_BACKEND` is **not** a replacement for `WORKER_API_URL`. Do not point it at `http://…/api/v1`.
+
+Use `GIRDER_SETTING_WORKER_API_URL` on the **web server** (what gets stamped into jobs). Use `GIRDER_WORKER_API_URL` on **worker** processes when they need a different reachable API base than the stamped value. Details: [Worker API URL settings](Deployment-Docker-Compose.md#worker-api-url-settings).
 
 ## Recommended upgrade steps
 
@@ -35,7 +38,7 @@ Update your `.env` (and any external orchestration) to use Girder 5 names:
 3. **Set image tag** if needed (for example `TAG=latest` in `.env`), then pull images.
 4. **Add Redis** — use the `redis` service from `docker-compose.yml` or an external Redis instance and set `GIRDER_NOTIFICATION_REDIS_URL` on `girder` and all worker services.
 5. **Rename variables** in `.env` per the table above.
-6. **Multi-node deployments:** set `GIRDER_WORKER_BROKER` to your RabbitMQ URL and `GIRDER_SETTING_WORKER_API_URL` to your Girder API URL on every worker host; workers must reach Redis used by the web tier if they rely on notification-related features configured in Compose.
+6. **Multi-node deployments:** set `GIRDER_WORKER_BROKER` to your RabbitMQ URL and `GIRDER_WORKER_API_URL` to a Girder API URL reachable from that worker (for example `http://WEB_HOST:8010/api/v1`). Keep `GIRDER_SETTING_WORKER_API_URL` on the web VM at the value appropriate for `localworker` (often the Compose default `http://girder:8080/api/v1`). Workers must reach Redis used by the web tier if they rely on notification-related features configured in Compose.
 7. **Rebuild or pull** images, then restart the stack:
 
 ```bash
