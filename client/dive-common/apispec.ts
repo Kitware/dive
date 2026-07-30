@@ -46,6 +46,8 @@ interface DiveParam {
   type_props?: string[];
   key: string;
   default: string;
+  /** True if the user must supply a value before the pipeline can run. */
+  required?: boolean;
 }
 
 interface PipeMetadata {
@@ -54,6 +56,20 @@ interface PipeMetadata {
   outputType?: string;
   diveParams?: DiveParam[];
   requiresCalibration?: boolean;
+  /**
+   * KWIVER config key (e.g. "stabilizer:flight_log") that the dataset's optional
+   * metadata file should be bound to at run time. Parsed from a pipe header
+   * `# Metadata File: <block>:<key>`. When unset, the pipe does not consume a
+   * metadata file and none is injected.
+   */
+  metadataFileKey?: string;
+  /**
+   * KWIVER config key templates (e.g. "stabilizer:image_list{cam}") bound to the
+   * run's per-camera input image lists — one single-file, line-separated list per
+   * camera. A `{cam}` placeholder is expanded per camera (1-based); a key without
+   * it gets the first camera's list. Parsed from a `# Image List Keys:` header.
+   */
+  imageListKeys?: string[];
 }
 
 interface PipelineRuntimeParams {
@@ -63,6 +79,8 @@ interface PipelineRuntimeParams {
 interface PipelineParams {
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
+  /** Desktop filter/transcode pipelines: name for the newly created dataset. */
+  outputDatasetName?: string;
 }
 
 interface Pipe {
@@ -154,6 +172,7 @@ export interface MultiCamImportFolderArgs {
     glob?: string;
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence' | 'video' | 'large-image';
 }
 
@@ -165,6 +184,7 @@ export interface MultiCamImportKeywordArgs {
     trackFile: string;
   }>; // glob pattern for base folder
   calibrationFile?: string; // NPZ calibation matrix file
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -208,6 +228,21 @@ interface DatasetMetaMutable {
   error?: string;
 }
 const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
+/**
+ * Mutable keys the multicam/stereo viewer loads from the parent dataset.
+ * Camera-targeted imports sync only these onto the parent — not per-camera
+ * imageEnhancements, and not camera registration (homographies / correspondences /
+ * transform types / registration source), which must not be clobbered by config import.
+ */
+const MulticamSharedMutableKeys = [
+  'attributes',
+  'confidenceFilters',
+  'timeFilters',
+  'customTypeStyling',
+  'customGroupStyling',
+  'attributeTrackFilters',
+  'datasetInfo',
+];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
@@ -222,6 +257,12 @@ interface DatasetMeta extends DatasetMetaMutable {
   multiCamMedia: Readonly<MultiCamMedia | null>;
   /** Stereo calibration / camera file currently associated with the dataset (desktop). */
   calibration?: Readonly<string | null>;
+  /** Optional metadata file associated with the dataset, passed to opt-in pipelines. */
+  metadataFile?: Readonly<string | null>;
+  /** Girder item id of the optional per-dataset metadata file (web). */
+  metadataFileItemId?: Readonly<string | null>;
+  /** Original filename of the optional per-dataset metadata file (web). */
+  metadataFileOriginalName?: Readonly<string | null>;
 }
 
 interface CameraCalibration {
@@ -297,7 +338,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
@@ -552,6 +593,7 @@ export {
   DatasetMeta,
   DatasetMetaMutable,
   DatasetMetaMutableKeys,
+  MulticamSharedMutableKeys,
   DatasetType,
   DiveParam,
   CameraCalibration,

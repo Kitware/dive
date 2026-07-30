@@ -69,9 +69,18 @@ export default defineComponent({
     });
 
     const { openFromDisk } = useApi();
-    const openUpload = async (type: 'annotation' | 'meta') => {
-      const argMap = { annotation: 'trackFileAbsPath', meta: 'metaFileAbsPath' };
-      const ret = await openFromDisk('annotation');
+    const openUpload = async (type: 'annotation' | 'meta' | 'metadata') => {
+      const argMap = {
+        annotation: 'trackFileAbsPath',
+        meta: 'metaFileAbsPath',
+        metadata: 'metadataFileAbsPath',
+      } as const;
+      const openTypeMap = {
+        annotation: 'annotation',
+        meta: 'annotation',
+        metadata: 'metadata',
+      } as const;
+      const ret = await openFromDisk(openTypeMap[type]);
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
           const path = ret.filePaths[0];
@@ -253,6 +262,22 @@ export default defineComponent({
           @click="openUpload('meta')"
           @click:prepend-inner="openUpload('meta')"
           @click:clear="argCopy.metaFileAbsPath = ''"
+        />
+        <v-text-field
+          :value="argCopy.metadataFileAbsPath"
+          outlined
+          clearable
+          dense
+          class="mt-3"
+          prepend-inner-icon="mdi-file-cog"
+          label="Metadata File (Optional)"
+          hint="Optional. A .json, .txt, or .csv file passed to pipelines that request it
+            (e.g. a sea-lion flight log)."
+          persistent-hint
+          @input="argCopy.metadataFileAbsPath = $event"
+          @click="openUpload('metadata')"
+          @click:prepend-inner="openUpload('metadata')"
+          @click:clear="argCopy.metadataFileAbsPath = ''"
         />
         <v-text-field
           v-if="argCopy.jsonMeta.type === 'image-sequence'"

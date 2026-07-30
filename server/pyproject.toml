@@ -58,6 +58,7 @@ dependencies = [
   "girder-large-image==1.34.3a186",
   "cherrypy>=18.9.0",
   "numpy==1.24.4",
+  "gdown>=6.1.0",
 ]
 
 [dependency-groups]
@@ -67,7 +68,7 @@ dev = [
   "tox-uv>=1.0.0",
   "mkdocs>=1.5.0",
   "mkdocs-material>=8.2.1",
-  "pymdown-extensions>=10.0",
+  "pymdown-extensions>=11.0",
 ]
 
 [project.optional-dependencies]

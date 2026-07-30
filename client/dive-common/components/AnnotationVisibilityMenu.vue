@@ -8,6 +8,7 @@ import {
 } from 'vue';
 
 import { VisibleAnnotationTypes } from 'vue-media-annotator/layers';
+import { DEFAULT_SUPPRESSION_DISPLAY, SuppressionDisplaySettings } from 'vue-media-annotator/types';
 
 import OutlinedLabeledGroup from './OutlinedLabeledGroup.vue';
 import ToolbarExpandToggle from './ToolbarExpandToggle.vue';
@@ -40,8 +41,22 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    showSuppressedTags: {
+      type: Boolean,
+      default: true,
+    },
+    suppressionDisplay: {
+      type: Object as PropType<SuppressionDisplaySettings>,
+      default: () => ({ ...DEFAULT_SUPPRESSION_DISPLAY }),
+    },
   },
-  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
+  emits: [
+    'set-annotation-state',
+    'update:tail-settings',
+    'update:show-user-created-icon',
+    'update:show-suppressed-tags',
+    'update:suppression-display',
+  ],
   setup(props, { emit }) {
     const STORAGE_KEY = 'annotationVisibilityMenu.expanded';
 
@@ -129,7 +144,9 @@ export default defineComponent({
     );
 
     const advancedVisibilityActive = computed(
-      () => isVisible('tooltip') || isVisible('TrackTail'),
+      () => isVisible('tooltip')
+        || isVisible('TrackTail')
+        || !!props.suppressionDisplay?.enabled,
     );
 
     const updateTailSettings = (type: 'before' | 'after', event: Event) => {
@@ -140,6 +157,36 @@ export default defineComponent({
 
     const toggleShowUserCreatedIcon = () => {
       emit('update:show-user-created-icon', !props.showUserCreatedIcon);
+    };
+
+    const toggleShowSuppressedTags = () => {
+      emit('update:show-suppressed-tags', !props.showSuppressedTags);
+    };
+
+    const patchSuppressionDisplay = (patch: Partial<SuppressionDisplaySettings>) => {
+      emit('update:suppression-display', {
+        ...DEFAULT_SUPPRESSION_DISPLAY,
+        ...props.suppressionDisplay,
+        ...patch,
+      });
+    };
+
+    const toggleSuppressionDisplay = () => {
+      patchSuppressionDisplay({ enabled: !props.suppressionDisplay?.enabled });
+    };
+
+    const updateSuppressionSlider = (
+      key: 'outlineOpacity' | 'fillOpacity',
+      event: Event,
+    ) => {
+      const value = Number.parseFloat((event.target as HTMLInputElement).value);
+      patchSuppressionDisplay({ [key]: value });
+    };
+
+    const updateSuppressionFillColor = (event: Event) => {
+      patchSuppressionDisplay({
+        fillColor: (event.target as HTMLInputElement).value,
+      });
     };
 
     return {
@@ -153,6 +200,11 @@ export default defineComponent({
       toggleExpanded,
       updateTailSettings,
       toggleShowUserCreatedIcon,
+      toggleShowSuppressedTags,
+      toggleSuppressionDisplay,
+      patchSuppressionDisplay,
+      updateSuppressionSlider,
+      updateSuppressionFillColor,
     };
   },
 });
@@ -207,13 +259,46 @@ export default defineComponent({
             <v-checkbox
               v-if="button.id === 'text'"
               :input-value="showUserCreatedIcon"
-              label="Show user created/modified icons"
               dense
               hide-details
               class="mt-0"
               @click.stop
               @change="toggleShowUserCreatedIcon"
-            />
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show user created/modified
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-pencil
+                  </v-icon>
+                </span>
+              </template>
+            </v-checkbox>
+            <v-checkbox
+              v-if="button.id === 'text'"
+              :input-value="showSuppressedTags"
+              dense
+              hide-details
+              class="mt-0"
+              @click.stop
+              @change="toggleShowSuppressedTags"
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show suppressed tags
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-eye-off
+                  </v-icon>
+                  <span class="ml-1 text--secondary">(labels & tooltips)</span>
+                </span>
+              </template>
+            </v-checkbox>
           </v-list-item-content>
         </v-list-item>
         <v-list-item>
@@ -229,6 +314,21 @@ export default defineComponent({
           </v-list-item-icon>
           <v-list-item-content>
             <v-list-item-title>Track Trails</v-list-item-title>
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item>
+          <v-list-item-icon>
+            <v-btn
+              :color="suppressionDisplay.enabled ? 'grey darken-2' : ''"
+              class="mx-1 mode-button"
+              small
+              @click="toggleSuppressionDisplay"
+            >
+              <v-icon>mdi-eye-off</v-icon>
+            </v-btn>
+          </v-list-item-icon>
+          <v-list-item-content>
+            <v-list-item-title>Suppression</v-list-item-title>
           </v-list-item-content>
         </v-list-item>
         <v-divider />
@@ -262,6 +362,68 @@ export default defineComponent({
                 max="100"
                 :value="tailSettings.after"
                 @input="updateTailSettings('after', $event)"
+              >
+            </v-card>
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item v-if="suppressionDisplay.enabled">
+          <v-list-item-content>
+            <v-card
+              class="pa-4 flex-column d-flex"
+              outlined
+              flat
+            >
+              <v-checkbox
+                :input-value="suppressionDisplay.dashed"
+                label="Dashed outline"
+                dense
+                hide-details
+                class="mt-0"
+                @click.stop
+                @change="patchSuppressionDisplay({ dashed: !suppressionDisplay.dashed })"
+              />
+              <label
+                for="suppression-outline-opacity"
+                class="mt-3"
+              >
+                Outline opacity: {{ Math.round(suppressionDisplay.outlineOpacity * 100) }}%
+              </label>
+              <input
+                id="suppression-outline-opacity"
+                type="range"
+                class="tail-slider-width"
+                min="0"
+                max="1"
+                step="0.05"
+                :value="suppressionDisplay.outlineOpacity"
+                @input="updateSuppressionSlider('outlineOpacity', $event)"
+              >
+              <div class="d-flex align-center mt-3">
+                <label for="suppression-fill-color">Fill color</label>
+                <input
+                  id="suppression-fill-color"
+                  type="color"
+                  class="ml-2 suppression-color-input"
+                  :value="suppressionDisplay.fillColor || '#888888'"
+                  :title="suppressionDisplay.fillColor || '#888888'"
+                  @input="updateSuppressionFillColor"
+                >
+              </div>
+              <label
+                for="suppression-fill-opacity"
+                class="mt-3"
+              >
+                Fill opacity: {{ Math.round(suppressionDisplay.fillOpacity * 100) }}%
+              </label>
+              <input
+                id="suppression-fill-opacity"
+                type="range"
+                class="tail-slider-width"
+                min="0"
+                max="1"
+                step="0.05"
+                :value="suppressionDisplay.fillOpacity"
+                @input="updateSuppressionSlider('fillOpacity', $event)"
               >
             </v-card>
           </v-list-item-content>
@@ -318,11 +480,42 @@ export default defineComponent({
           >
             <v-checkbox
               :input-value="showUserCreatedIcon"
-              label="Show user created/modified icons"
               dense
               hide-details
               @change="toggleShowUserCreatedIcon"
-            />
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show user created/modified
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-pencil
+                  </v-icon>
+                </span>
+              </template>
+            </v-checkbox>
+            <v-checkbox
+              :input-value="showSuppressedTags"
+              dense
+              hide-details
+              class="mt-2"
+              @change="toggleShowSuppressedTags"
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show suppressed tags
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-eye-off
+                  </v-icon>
+                  <span class="ml-1 text--secondary">(labels & tooltips)</span>
+                </span>
+              </template>
+            </v-checkbox>
           </v-card>
         </v-menu>
         <v-btn
@@ -410,6 +603,92 @@ export default defineComponent({
               @input="updateTailSettings('after', $event)"
             >
           </template>
+          <div class="d-flex align-center advanced-menu-row">
+            <v-btn
+              :color="suppressionDisplay.enabled ? 'grey darken-2' : ''"
+              class="mode-button"
+              small
+              @click="toggleSuppressionDisplay"
+            >
+              <v-icon>mdi-eye-off</v-icon>
+            </v-btn>
+            <span class="ml-2">Suppression</span>
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="280"
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  class="ml-1"
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>
+                Detections flagged with a suppression attribute stay visible
+                with their real type. When enabled, they can be drawn with a
+                dashed outline, custom fill, and opacity so they are easy to
+                distinguish from normal detections.
+              </span>
+            </v-tooltip>
+          </div>
+          <template v-if="suppressionDisplay.enabled">
+            <v-divider class="my-2" />
+            <v-checkbox
+              :input-value="suppressionDisplay.dashed"
+              label="Dashed outline"
+              dense
+              hide-details
+              class="mt-0"
+              @change="patchSuppressionDisplay({ dashed: !suppressionDisplay.dashed })"
+            />
+            <label
+              for="suppression-outline-opacity-full"
+              class="mt-3"
+            >
+              Outline opacity: {{ Math.round(suppressionDisplay.outlineOpacity * 100) }}%
+            </label>
+            <input
+              id="suppression-outline-opacity-full"
+              type="range"
+              class="tail-slider-width"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="suppressionDisplay.outlineOpacity"
+              @input="updateSuppressionSlider('outlineOpacity', $event)"
+            >
+            <div class="d-flex align-center mt-3">
+              <label for="suppression-fill-color-full">Fill color</label>
+              <input
+                id="suppression-fill-color-full"
+                type="color"
+                class="ml-2 suppression-color-input"
+                :value="suppressionDisplay.fillColor || '#888888'"
+                :title="suppressionDisplay.fillColor || '#888888'"
+                @input="updateSuppressionFillColor"
+              >
+            </div>
+            <label
+              for="suppression-fill-opacity-full"
+              class="mt-3"
+            >
+              Fill opacity: {{ Math.round(suppressionDisplay.fillOpacity * 100) }}%
+            </label>
+            <input
+              id="suppression-fill-opacity-full"
+              type="range"
+              class="tail-slider-width"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="suppressionDisplay.fillOpacity"
+              @input="updateSuppressionSlider('fillOpacity', $event)"
+            >
+          </template>
         </v-card>
       </v-menu>
     </outlined-labeled-group>
@@ -428,5 +707,13 @@ export default defineComponent({
 }
 .advanced-menu-row + .advanced-menu-row {
   margin-top: 8px;
+}
+.suppression-color-input {
+  width: 36px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid grey;
+  background: transparent;
+  cursor: pointer;
 }
 </style>

@@ -70,15 +70,19 @@ export function updateHistory(args: DesktopJobUpdate) {
   }
   // Only update exitCode if explicitly set
   if (args.exitCode !== undefined) {
-    existing.job.exitCode = args.exitCode;
+    set(existing.job, 'exitCode', args.exitCode);
   }
   // Only update cancelledJob if explicitly set to true (preserve true once set)
   if (args.cancelledJob === true) {
-    existing.job.cancelledJob = true;
-    existing.job.exitCode = cancelledJobExitCode; // SIGTERM
+    set(existing.job, 'cancelledJob', true);
+    set(existing.job, 'exitCode', cancelledJobExitCode); // SIGTERM
   }
+  // `endTime` (like `cancelledJob`) does not exist on the job object until a
+  // job finishes. Vue 2 cannot observe properties added by plain assignment,
+  // so these must go through set() or the `runningJobs` computed (and with it
+  // the job spinner and the dataset read-only lock) never re-evaluates.
   if (args.endTime !== undefined) {
-    existing.job.endTime = args.endTime;
+    set(existing.job, 'endTime', args.endTime);
   }
 
   // A job that has finished (endTime set) but still carries a null exitCode was
@@ -91,7 +95,7 @@ export function updateHistory(args: DesktopJobUpdate) {
   if (existing.job.endTime !== undefined
       && existing.job.exitCode === null
       && !existing.job.cancelledJob) {
-    existing.job.exitCode = abnormalTerminationExitCode;
+    set(existing.job, 'exitCode', abnormalTerminationExitCode);
   }
 
   // Surface a failed job to the user with a single dialog once it exits with a
@@ -113,6 +117,18 @@ export function updateHistory(args: DesktopJobUpdate) {
       .map((line) => line.trim())
       .filter((line) => line.startsWith('ERROR:'))
       .map((line) => line.replace(/^ERROR:\s*/, ''));
+    if (errorLines.length === 0) {
+      // No DIVE-convention "ERROR:" lines. Fall back to the last Python /
+      // native exception line (e.g. "RuntimeError: ...") so the dialog shows
+      // the actual cause instead of only the exit code. A traceback echoes the
+      // same exception line more than once; keep only the final occurrence.
+      const exceptionLines = existing.truncatedLogs
+        .map((line) => line.trim())
+        .filter((line) => /^[A-Za-z_][\w.]*(?:Error|Exception)\s*:\s+\S/.test(line));
+      if (exceptionLines.length > 0) {
+        errorLines.push(exceptionLines[exceptionLines.length - 1]);
+      }
+    }
     const text = errorLines.length > 0
       ? errorLines
       : [

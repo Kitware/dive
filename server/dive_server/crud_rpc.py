@@ -240,11 +240,23 @@ def run_pipeline(
     verify_pipe(user, pipeline)
     crud.getCloneRoot(user, folder)
     folder_id_str = str(folder["_id"])
+
+    # Single-camera pipelines may target a per-camera child folder. Attribute the
+    # job to the multicam parent so the viewer tracks running/complete state.
+    multicam_parent = crud.get_multicam_parent_folder(folder, user)
+    camera_name: Optional[str] = None
+    job_dataset_id = folder_id_str
+    if multicam_parent is not None:
+        camera_name = crud.get_multicam_camera_name(folder, multicam_parent)
+        job_dataset_id = str(multicam_parent["_id"])
+
     # First, verify that no other outstanding jobs are running on this dataset
-    if _check_running_jobs(folder_id_str):
+    if _check_running_jobs(job_dataset_id) or (
+        job_dataset_id != folder_id_str and _check_running_jobs(folder_id_str)
+    ):
         raise RestException(
             (
-                f"A pipeline for {folder_id_str} is already running. "
+                f"A pipeline for {job_dataset_id} is already running. "
                 "Only one outstanding job may be run at a time for "
                 "a dataset."
             )
@@ -323,9 +335,16 @@ def run_pipeline(
         if needs_calibration and calibration_item_id is None:
             raise RestException(
                 'This pipeline requires a calibration file. '
-                'Import or upload a calibration file with the calibrationFile marker.',
+                'Import or attach a calibration file to the dataset.',
                 code=404,
             )
+
+    # Resolve the dataset's optional metadata file for pipelines that opt in via a
+    # `# Metadata File: <block>:<key>` header. Applies to single and multicam.
+    metadata_file_key = (pipeline.get("metadata") or {}).get("metadataFileKey")
+    metadata_file_item_id: Optional[str] = None
+    if metadata_file_key:
+        metadata_file_item_id = crud_dataset.resolve_metadata_file_item_id(folder)
 
     params: types.MulticamPipelineJob = {
         "pipeline": pipeline,
@@ -339,17 +358,34 @@ def run_pipeline(
         'runtime_params': runtime_params,
         'kwiver_params': kwiver_params,
     }
+    if camera_name:
+        params['camera_name'] = camera_name
+        multi_cam_meta = fromMeta(multicam_parent, constants.MultiCamMarker, default={}) or {}
+        default_display = multi_cam_meta.get('defaultDisplay')
+        if default_display:
+            params['multicam_default_display'] = default_display
     if multicam_cameras:
         params['multicam_cameras'] = multicam_cameras
         params['multicam_default_display'] = multicam_default_display
         params['multicam_requires_input'] = multicam_requires_input
         if calibration_item_id:
             params['calibration_item_id'] = calibration_item_id
+    if metadata_file_key and metadata_file_item_id:
+        params['metadata_file_key'] = metadata_file_key
+        params['metadata_file_item_id'] = metadata_file_item_id
+
+    job_title = f"Running {pipeline['name']} on {str(folder['name'])}"
+    if multicam_parent is not None and camera_name:
+        job_title = (
+            f"Running {pipeline['name']} on {str(multicam_parent['name'])} "
+            f"with camera: {camera_name}"
+        )
+
     newjob = tasks.run_pipeline.apply_async(
         queue=_get_queue_name(user, "pipelines"),
         kwargs=dict(
             params=params,
-            girder_job_title=f"Running {pipeline['name']} on {str(folder['name'])}",
+            girder_job_title=job_title,
             girder_client_token=str(token["_id"]),
             girder_job_type="private" if job_is_private else "pipelines",
         ),
@@ -359,7 +395,7 @@ def run_pipeline(
         access_source=folder,
         **{
             constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-            constants.JOBCONST_DATASET_ID: folder_id_str,
+            constants.JOBCONST_DATASET_ID: job_dataset_id,
             constants.JOBCONST_PARAMS: params,
             constants.JOBCONST_CREATOR: str(user['_id']),
         },
@@ -707,6 +743,19 @@ def process_items(
                 fromMeta(folder, 'datasetInfo', {}), results['meta'], additive
             )
             crud_dataset.update_metadata(folder, meta, False)
+        # Mutable config (styling, thresholds, attributes, ...) is loaded by the
+        # viewer from the multicam parent's metadata, so an import targeted at
+        # one camera must update the parent too (mirrors desktop dataFileImport).
+        parent = crud.get_multicam_parent_folder(folder, user)
+        if parent is not None:
+            if results['attributes']:
+                crud.saveImportAttributes(parent, results['attributes'], user)
+            shared_meta = crud.pick_multicam_shared_mutable(results['meta'] or {})
+            if shared_meta:
+                parent_meta = resolve_imported_dataset_info(
+                    fromMeta(parent, 'datasetInfo', {}), shared_meta, additive
+                )
+                crud_dataset.update_metadata(parent, parent_meta, False)
     return aggregate_warnings
 
 
@@ -735,9 +784,6 @@ def postprocess(
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
     isClone = dsFolder.get(constants.ForeignMediaIdMarker, None) is not None
-    # add default confidence filter threshold to folder metadata
-    dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
-
     # Track job IDs for batch processing
     created_job_ids = []
 
@@ -746,6 +792,14 @@ def postprocess(
         raise RestException(f'{constants.FPSMarker} missing from metadata')
     if fromMeta(dsFolder, constants.TypeMarker) is None:
         raise RestException(f'{constants.TypeMarker} missing from metadata')
+
+    # Persist default confidence filter without a full stale meta write. Async
+    # convert_video (esp. skipTranscoding) can finish during CSV import and set
+    # annotate / originalFps / ffprobe_info; a later Folder().save of an old
+    # in-memory doc would wipe those keys.
+    crud.refresh_folder_document(dsFolder)
+    dsFolder.setdefault('meta', {})[constants.ConfidenceFiltersMarker] = {'default': 0.1}
+    Folder().save(dsFolder)
 
     if not skipJobs and not isClone:
         token = Token().createToken(user=user, days=2)
@@ -763,6 +817,11 @@ def postprocess(
             total_items = len(list((Folder().childItems(dsFolder))))
             if total_items > 1:
                 raise RestException('There are multiple files besides a zip, cannot continue')
+            convert_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+            }
             newjob = tasks.extract_zip.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -770,7 +829,9 @@ def postprocess(
                     itemId=str(item["_id"]),
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
-                    girder_job_title=f"Extracting {item['_id']} to folder {str(dsFolder['_id'])}",
+                    girder_job_title=(
+                        f"Extracting {item['name']} to folder {dsFolder['name']}"
+                    ),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -780,6 +841,7 @@ def postprocess(
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                     constants.JOBCONST_DATASET_ID: str(item["folderId"]),
+                    constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
             )
@@ -792,6 +854,11 @@ def postprocess(
         )
 
         for item in videoItems:
+            convert_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+            }
             newjob = tasks.convert_video.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -800,7 +867,9 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     skip_transcoding=skipTranscoding,
-                    girder_job_title=f"Converting {item['_id']} to a web friendly format",
+                    girder_job_title=(
+                        f"Converting {dsFolder['name']} to a web friendly format"
+                    ),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -810,6 +879,8 @@ def postprocess(
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                     constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_PARAMS: convert_params,
+                    constants.JOBCONST_CREATOR: str(user['_id']),
                 },
             )
             created_job_ids.append(job['_id'])
@@ -826,6 +897,11 @@ def postprocess(
         )
 
         if imageItems.count() > safeImageItems.count():
+            convert_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+            }
             newjob = tasks.convert_images.apply_async(
                 queue=_get_queue_name(user),
                 kwargs=dict(
@@ -833,7 +909,9 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     girder_client_token=str(token["_id"]),
-                    girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
+                    girder_job_title=(
+                        f"Converting {dsFolder['name']} to a web friendly format"
+                    ),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
@@ -842,22 +920,23 @@ def postprocess(
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                     constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_PARAMS: convert_params,
+                    constants.JOBCONST_CREATOR: str(user['_id']),
                 },
             )
             created_job_ids.append(job['_id'])
 
-        elif imageItems.count() > 0:
-            dsFolder["meta"][constants.DatasetMarker] = True
-        elif largeImageItems.count() > 0:
-            dsFolder["meta"][constants.DatasetMarker] = True
-
-        Folder().save(dsFolder)
+        elif imageItems.count() > 0 or largeImageItems.count() > 0:
+            # Safe/web images need annotate now; convert_images sets it when it runs.
+            crud.refresh_folder_document(dsFolder)
+            dsFolder.setdefault('meta', {})[constants.DatasetMarker] = True
+            Folder().save(dsFolder)
 
     aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
     # Image sequences start at fps=-1 (auto). CSV import may have set a value;
     # otherwise default to 1. convert_images also resolves, but safe-image folders
     # skip that job and need this finalize step.
-    dsFolder = Folder().load(dsFolder['_id'], force=True)
+    crud.refresh_folder_document(dsFolder)
     media_type = fromMeta(dsFolder, constants.TypeMarker)
     if media_type in (constants.ImageSequenceType, constants.LargeImageType):
         requested_fps = fromMeta(dsFolder, constants.FPSMarker)
@@ -877,6 +956,11 @@ def convert_large_image(
 
     if not isClone:
         token = Token().createToken(user=user, days=2)
+        convert_params = {
+            'user_id': str(user["_id"]),
+            'user_login': str(user["login"]),
+            'input_folder': str(dsFolder["_id"]),
+        }
         newjob = tasks.convert_large_images.apply_async(
             queue=_get_queue_name(user),
             kwargs=dict(
@@ -884,7 +968,9 @@ def convert_large_image(
                 user_id=str(user["_id"]),
                 user_login=str(user["login"]),
                 girder_client_token=str(token["_id"]),
-                girder_job_title=f"Converting {dsFolder['_id']} to a web friendly format",
+                girder_job_title=(
+                    f"Converting {dsFolder['name']} to a web friendly format"
+                ),
                 girder_job_type="private" if job_is_private else "convert",
             ),
         )
@@ -893,6 +979,8 @@ def convert_large_image(
             **{
                 constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                 constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                constants.JOBCONST_PARAMS: convert_params,
+                constants.JOBCONST_CREATOR: str(user['_id']),
             },
         )
         Notification().createNotification(

@@ -1,9 +1,12 @@
 import signal
+import time
 from unittest.mock import MagicMock
 
 import pytest
+from girder_worker.utils import JobStatus
 
-from dive_tasks.utils import describe_exit, stream_subprocess
+from dive_tasks import utils
+from dive_tasks.utils import CanceledError, describe_exit, stream_subprocess
 
 
 def run_command(args):
@@ -43,3 +46,84 @@ def test_nonzero_exit_raises():
 
 def test_successful_exit_returns_normally():
     assert run_command(['bash', '-c', 'exit 0']) == ""
+
+
+def test_cancel_kills_process_group_and_raises_canceled(monkeypatch):
+    """
+    Cancel must kill shell descendants, not only the shell PID.
+
+    Long VIAME jobs use shell=True. If only the shell is signaled, children
+    keep stdout open and stream_subprocess blocks forever in CANCELING.
+    """
+    monkeypatch.setattr(utils, 'CANCEL_MONITOR_INTERVAL', 0.05)
+    monkeypatch.setattr(utils, 'CANCEL_TERM_GRACE_SECONDS', 0.5)
+
+    # Background child keeps writing; shell waits on it. Without process-group
+    # kill this hangs on readline after the shell alone is killed.
+    script = r"""
+python3 -c "
+import sys, time
+while True:
+    print('tick', flush=True)
+    time.sleep(0.05)
+" &
+wait
+"""
+    task = MagicMock()
+    task.canceled = False
+    manager = MagicMock()
+    manager.status = None
+
+    def flip_cancel(*_args, **_kwargs):
+        task.canceled = True
+        manager.status = JobStatus.CANCELING
+
+    # First status refresh arms cancel so the monitor notices quickly.
+    manager.refreshStatus.side_effect = flip_cancel
+
+    start = time.monotonic()
+    with pytest.raises(CanceledError, match='canceled'):
+        stream_subprocess(
+            task,
+            {},
+            manager,
+            {
+                'args': script,
+                'shell': True,
+                'executable': '/bin/bash',
+            },
+        )
+    elapsed = time.monotonic() - start
+
+    manager.updateStatus.assert_called_with(JobStatus.CANCELED)
+    # Must finish promptly; a hang here is the production failure mode.
+    assert elapsed < 10
+
+
+def test_cancel_via_task_canceled_flag(monkeypatch):
+    monkeypatch.setattr(utils, 'CANCEL_MONITOR_INTERVAL', 0.05)
+    monkeypatch.setattr(utils, 'CANCEL_TERM_GRACE_SECONDS', 0.5)
+
+    task = MagicMock()
+    task.canceled = False
+    manager = MagicMock()
+    manager.status = None
+
+    def flip_cancel(*_args, **_kwargs):
+        task.canceled = True
+
+    manager.refreshStatus.side_effect = flip_cancel
+
+    with pytest.raises(CanceledError, match='canceled'):
+        stream_subprocess(
+            task,
+            {},
+            manager,
+            {
+                'args': 'while true; do echo tick; sleep 0.05; done',
+                'shell': True,
+                'executable': '/bin/bash',
+            },
+        )
+
+    manager.updateStatus.assert_called_with(JobStatus.CANCELED)

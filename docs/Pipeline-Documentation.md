@@ -31,6 +31,10 @@ Best for a series of images that have no temporal relationship, such as arial ph
 | <pre>scallop netharn left</pre>  | deep learning detector for benthic images, process left half of each frame only |
 | <pre>sea lion multi class</pre>  | detects bulls, cows, pups, etc |
 | <pre>sea lion single class</pre>  | detector |
+
+!!! note
+
+    Some sea-lion **registration** add-on pipes expect an optional per-dataset **Metadata File** (typically a flight log) and may declare `# Metadata File:` / `# Image List Keys:` in the pipe header. Attach the sidecar at import on desktop or web; see [Pipe file headers](Pipeline-Import-Export.md#pipe-file-headers).
 | <pre>sefsc bw group</pre>  | black-and-white fish detector (18 class, lower granularity) (oldest, v1) |
 | <pre>sefsc bw species v2</pre>  | black-and-white fish species detector (updated, v2) |
 
@@ -125,4 +129,4 @@ By default, training runs include all frames from the chosen input datasets, and
 
 ## Pipeline Import and Export
 
-Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Pipeline Import and Export](Pipeline-Import-Export.md) for details.
+Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Pipeline Import and Export](Pipeline-Import-Export.md) for upload steps and [pipe file headers](Pipeline-Import-Export.md#pipe-file-headers) (including `# Metadata File:` and `# Image List Keys:`).

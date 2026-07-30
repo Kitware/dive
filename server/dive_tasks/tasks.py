@@ -11,6 +11,8 @@ from urllib import request
 from urllib.parse import urlparse
 import zipfile
 
+import gdown
+from gdown.parse_url import is_google_drive_url, parse_url
 from GPUtil import getGPUs
 from girder_client import GirderClient, HttpError
 from girder_worker.app import app
@@ -21,6 +23,7 @@ from dive_tasks import utils
 from dive_tasks.frame_alignment import check_and_fix_frame_alignment, is_frame_misaligned
 from dive_tasks.manager import patch_manager
 from dive_tasks.multicam_pipeline import (
+    append_metadata_file_kwiver_settings,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     find_downloaded_calibration_file,
@@ -195,13 +198,42 @@ class Config:
         return pipeline_path
 
 
+def _normalize_google_drive_url(url: str) -> str:
+    """Strip a leading www. so gdown recognizes common pasted Drive links."""
+    parsed = urlparse(url)
+    host = parsed.netloc.lower()
+    if host.startswith('www.'):
+        return parsed._replace(netloc=host[4:]).geturl()
+    return url
+
+
+def is_google_drive_addon_url(url: str) -> bool:
+    """Return True if url is a Google Drive link (after normalizing www.)."""
+    return is_google_drive_url(_normalize_google_drive_url(url))
+
+
+def download_google_drive_zip(url: str, dest: Path) -> None:
+    """Download a publicly shared Google Drive zip to dest via gdown."""
+    gdown.download(url=_normalize_google_drive_url(url), output=str(dest), quiet=True)
+
+
+def _addon_zip_path_for_url(addon_url: str, addon_zip_dir: Path) -> Path:
+    normalized = _normalize_google_drive_url(addon_url)
+    if is_google_drive_url(normalized):
+        file_id, _ = parse_url(normalized)
+        if file_id:
+            return addon_zip_dir / f'gdrive_{file_id}.zip'
+    download_name = urlparse(addon_url).path.replace(os.path.sep, '_')
+    return addon_zip_dir / f'{download_name}.zip'
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def upgrade_pipelines(
     self: Task,
     urls: List[str] = UPGRADE_JOB_DEFAULT_URLS,
     force: bool = False,
 ):
-    """Install addons from zip files over HTTP"""
+    """Install addons from zip files over HTTP (including Google Drive share links)"""
     conf = Config()
     context: dict = {}
     manager: JobManager = patch_manager(self.job_manager)
@@ -214,13 +246,15 @@ def upgrade_pipelines(
     addons_to_update_update: List[Path] = []
 
     for addon in urls:
-        download_name = urlparse(addon).path.replace(os.path.sep, '_')
-        zipfile_path = conf.addon_zip_path / f'{download_name}.zip'
+        zipfile_path = _addon_zip_path_for_url(addon, conf.addon_zip_path)
         had_existing_zip = zipfile_path.exists()
         try:
             if not had_existing_zip or force:
                 manager.write(f'Downloading {addon} to {zipfile_path}\n')
-                request.urlretrieve(addon, filename=zipfile_path)
+                if is_google_drive_addon_url(addon):
+                    download_google_drive_zip(addon, zipfile_path)
+                else:
+                    request.urlretrieve(addon, filename=zipfile_path)
             else:
                 manager.write(f'Skipping download of {zipfile_path}\n')
             addons_to_update_update.append(zipfile_path)
@@ -299,6 +333,64 @@ def _append_frame_range_video_settings(
     command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
 
 
+def _inject_dataset_metadata_file(command, gc, working_dir: Path, params, manager) -> None:
+    """
+    Download the dataset's optional metadata file (if the pipeline opted in) and
+    append its `-s <key>=<path>` override. Shared by the single and multicam
+    command-building branches.
+    """
+    metadata_file_item_id = params.get('metadata_file_item_id')
+    metadata_file_key = params.get('metadata_file_key')
+    if not (metadata_file_item_id and metadata_file_key):
+        return
+    md_item = gc.getItem(metadata_file_item_id)
+    md_dir = utils.make_directory(working_dir / 'metadata_file')
+    gc.downloadItem(metadata_file_item_id, str(md_dir), name=md_item.get('name'))
+    md_path = md_dir / md_item.get('name')
+    if md_path.exists():
+        append_metadata_file_kwiver_settings(command, md_path, metadata_file_key)
+    else:
+        manager.write(
+            f'Warning: metadata item {metadata_file_item_id} '
+            f'has no downloadable file under {md_dir}\n'
+        )
+
+
+def _append_input_list_kwiver_settings(command, pipeline, image_lists) -> None:
+    """
+    Bind the run's per-camera input image lists to the KWIVER keys a pipe declares
+    via `# Image List Keys:`. image_lists is one single-file, line-separated list
+    per camera. A key template containing `{cam}` is expanded per camera (1-based)
+    — e.g. `stabilizer:image_list{cam}` -> image_list1, image_list2, ...; a key
+    without `{cam}` gets the first camera's list. Sea-lion registration needs the
+    list here in addition to the input reader's video_filename.
+    """
+    if not image_lists:
+        return
+    for key in (pipeline.get('metadata') or {}).get('imageListKeys') or []:
+        if '{cam}' in key:
+            for idx, image_list in enumerate(image_lists, start=1):
+                expanded = key.replace('{cam}', str(idx))
+                command.append(f'-s {shlex.quote(expanded)}={shlex.quote(image_list)}')
+        else:
+            command.append(f'-s {shlex.quote(key)}={shlex.quote(image_lists[0])}')
+
+
+def _find_stereo_calibration_outputs(output_dir: Path) -> List[Path]:
+    """Return likely calibration outputs written by stereo calibration pipelines."""
+    candidates: List[Path] = []
+    for path in output_dir.iterdir():
+        if not path.is_file():
+            continue
+        lower_name = path.name.lower()
+        if 'calibration' not in lower_name:
+            continue
+        if not constants.stereoCalibrationRegex.search(path.name):
+            continue
+        candidates.append(path)
+    return sorted(candidates, key=lambda p: p.name.lower())
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def run_pipeline(self: Task, params: PipelineJob):
     conf = Config()
@@ -324,6 +416,12 @@ def run_pipeline(self: Task, params: PipelineJob):
     frame_range = runtime_params.get('frameRange')
     multicam_params: MulticamPipelineJob = params
     multicam_cameras: List[MulticamCameraJob] = multicam_params.get('multicam_cameras') or []
+    camera_name = params.get('camera_name')
+    if camera_name:
+        # Log non-default camera targets so job history shows which view ran.
+        default_display = multicam_params.get('multicam_default_display')
+        if not default_display or camera_name != default_display:
+            print(f'Running pipeline on camera: {camera_name}')
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         input_path = utils.make_directory(_working_directory_path / 'input')
@@ -407,6 +505,18 @@ def run_pipeline(self: Task, params: PipelineJob):
                         f'has no recognized calibration file under {cal_dir}\n'
                     )
 
+            # One image list per camera (each a single line-separated file).
+            input_manifests = [
+                arg_file_pair[f'input{i + 1}:video_filename']
+                for i in range(len(multicam_cameras))
+                if f'input{i + 1}:video_filename' in arg_file_pair
+            ]
+            _append_input_list_kwiver_settings(command, pipeline, input_manifests)
+
+            _inject_dataset_metadata_file(
+                command, gc, _working_directory_path, params, manager
+            )
+
             kwiver_params = params.get('kwiver_params')
             if kwiver_params:
                 for key, value in kwiver_params.items():
@@ -421,6 +531,41 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'env': conf.gpu_process_env,
             }
             utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+            if (
+                is_stereo_measurement_pipeline(pipeline)
+                and 'calibrate_cameras' in str(pipeline.get('pipe', '')).lower()
+            ):
+                calibration_outputs = _find_stereo_calibration_outputs(output_path)
+                if calibration_outputs:
+                    calibration_output = calibration_outputs[0]
+                    try:
+                        uploaded_calibration = gc.uploadFileToFolder(
+                            input_folder_id,
+                            str(calibration_output),
+                        )
+                        uploaded_calibration_file_id = uploaded_calibration.get('_id')
+                        if uploaded_calibration_file_id is not None:
+                            uploaded_calibration_file_id_str = str(uploaded_calibration_file_id)
+                            gc.sendRestRequest(
+                                'POST',
+                                f'/dive_dataset/{input_folder_id}/calibration?fileId={uploaded_calibration_file_id_str}',
+                            )
+                            manager.write(
+                                f'Assigned calibration output to dataset: {calibration_output.name}\n'
+                            )
+                        else:
+                            manager.write(
+                                f'Warning: uploaded calibration output {calibration_output.name} has no file id\n'
+                            )
+                    except Exception as exc:
+                        manager.write(
+                            f'Warning: failed to assign calibration output {calibration_output.name}: {exc}\n'
+                        )
+                else:
+                    manager.write(
+                        'Warning: stereo calibration pipeline produced no recognized calibration output file\n'
+                    )
 
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             for camera in multicam_cameras:
@@ -497,6 +642,15 @@ def run_pipeline(self: Task, params: PipelineJob):
             quoted_input_file = shlex.quote(str(pipeline_input_file))
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
+
+        single_input_manifest = (
+            str(img_list_path)
+            if input_type == constants.ImageSequenceType
+            else input_media_list[0]
+        )
+        _append_input_list_kwiver_settings(command, pipeline, [single_input_manifest])
+
+        _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
 
         # Apply user-provided KWIVER parameter overrides.
         kwiver_params = params.get('kwiver_params')

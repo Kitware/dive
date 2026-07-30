@@ -1,6 +1,6 @@
 import { UploadManager, Location } from '@girder/components/src';
 import {
-  calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
+  calibrationFileTypes, metadataFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
   getLargeImageAllowedExtensions, getLargeImageFileAccept,
   otherImageTypes, otherVideoTypes, transformFileTypes,
   websafeImageTypes, websafeVideoTypes, zipFileTypes,
@@ -39,13 +39,13 @@ function getRouteFromLocation(location: LocationType): string {
 }
 
 async function openFromDisk(
-  datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform',
+  datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata',
   directory = false,
 ): Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
   const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  if (!['calibration', 'annotation', 'zip'].includes(datasetType)) {
+  if (!['calibration', 'annotation', 'zip', 'metadata'].includes(datasetType)) {
     input.multiple = true;
   }
   if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
@@ -72,6 +72,9 @@ async function openFromDisk(
     input.multiple = false;
   } else if (datasetType === 'text') {
     input.accept = '.txt,.text';
+    input.multiple = false;
+  } else if (datasetType === 'metadata') {
+    input.accept = metadataFileTypes.map((item) => `.${item}`).join(',');
     input.multiple = false;
   }
 

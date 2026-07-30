@@ -51,3 +51,45 @@ User-uploaded pipelines may depend on any pipe already installed from the base i
 !!! tip
 
     KWIVER pipe files can be exported for use with DIVE using [kwiver pipe-config](https://kwiver.readthedocs.io/en/latest/tools/pipe-config.html?highlight=pipe-config)
+
+## Pipe file headers
+
+DIVE reads optional comment headers at the top of a `.pipe` file to decide how to present and run the pipeline. Headers are case-insensitive. Pipes without these headers behave as they always have.
+
+Example:
+
+``` text
+# Description: Sea-lion registration stabilizer
+# Metadata File: stabilizer:flight_log
+# Image List Keys: stabilizer:image_list{cam}
+# Input: image
+# Output: image
+# Requires Calibration: False
+```
+
+| Header | Meaning |
+| ------ | ------- |
+| `# Description:` | Human-readable summary shown in the Run Pipeline UI. May continue on following `#` comment lines until the next named header. |
+| `# Input:` / `# Output:` | Declared media/annotation kinds for the pipe (used when discovering and categorizing static pipelines). |
+| `# Requires Calibration: True` | Restricts the pipe to stereo datasets that have a calibration file attached. Values `true`, `yes`, and `1` are accepted. |
+| `# Metadata File: <block>:<key>` | Opt-in: when the dataset has an attached **Metadata File**, DIVE appends a KWIVER override `-s <block>:<key>=<path>` at run time. Without this header, no metadata file is injected. |
+| `# Image List Keys: <k> [k…]` | Opt-in: binds the run's per-camera input image list(s) to each listed KWIVER key. Keys may be space- or comma-separated. A key containing `{cam}` is expanded once per camera (1-based), e.g. `stabilizer:image_list{cam}` → `image_list1`, `image_list2`, …. A key without `{cam}` receives camera 1's list only. |
+
+### Metadata File vs Configuration File
+
+These are different files with different jobs:
+
+| Import field | What it is | Consumed by |
+| ------------ | ---------- | ----------- |
+| **Configuration File** | DIVE JSON (`meta` / attributes, styles, FPS, …) | DIVE itself |
+| **Metadata File** | Opaque sidecar (`.json`, `.txt`, or `.csv`), e.g. a UAV flight log | Only pipelines that declare `# Metadata File:` |
+
+DIVE does **not** auto-discover a flight log in the media folder — the user must pick it at import (UI or CLI `--metadata`). The file format is opaque to DIVE; the KWIVER process behind the pipe owns the schema. Metadata is available on **single-camera and multicamera** imports alike; it is not stereo-gated (unlike calibration).
+
+!!! note
+
+    Injection is opt-in and silent when either side is missing: if a pipe declares `# Metadata File:` but the dataset has no attached file (or the reverse), the job still runs without that `-s` override. Prefer attaching the sidecar at import for registration pipes that need it.
+
+!!! tip
+
+    `# Image List Keys:` is intended for **image-sequence** (and multicam image) runs where DIVE builds line-separated image manifests. On video runs the bound value is the video path, which may not be what a registration-style process expects.

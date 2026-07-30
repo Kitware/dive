@@ -9,13 +9,14 @@ import {
 import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
   itemsPerPageOptions,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
-  pipelineCreatesDatasetMarkers,
   MultiType,
 } from 'dive-common/constants';
+import { pipelineCreatesNewDataset } from 'dive-common/pipelineCreatesDataset';
 import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import {
   pipelineDisabledForMissingCalibration,
@@ -125,8 +126,9 @@ async function refreshCalibrationForDatasets(datasetIds: string[]) {
   if (!hasCalibrationFile || !datasetIds.length) {
     return;
   }
+  const parentIds = [...new Set(datasetIds.map((id) => parentDatasetId(id)))];
   const entries = await Promise.all(
-    datasetIds.map(async (id) => [id, await hasCalibrationFile(id)] as const),
+    parentIds.map(async (id) => [id, await hasCalibrationFile(id)] as const),
   );
   calibrationAvailableByDatasetId.value = {
     ...calibrationAvailableByDatasetId.value,
@@ -146,7 +148,7 @@ const runDisabled = computed(() => {
     return false;
   }
   return stagedDatasets.value.some(
-    (dataset) => !calibrationAvailableByDatasetId.value[dataset.id],
+    (dataset) => !calibrationAvailableByDatasetId.value[parentDatasetId(dataset.id)],
   );
 });
 
@@ -154,7 +156,7 @@ function isPipelineItemDisabledForCalibration(pipe: Pipe) {
   return pipelineDisabledForMissingCalibration(
     pipe,
     calibrationAvailableByDatasetId.value,
-    availableItems.value.map((dataset) => dataset.id),
+    availableItems.value.map((dataset) => parentDatasetId(dataset.id)),
   );
 }
 
@@ -173,7 +175,7 @@ async function runPipelineForDatasets() {
   if (selectedPipeline.value !== null) {
     const results = await Promise.allSettled(
       stagedDatasetIds.value.map((datasetId: string) => {
-        if (['transcode', 'filter'].includes(selectedPipeline.value?.type || '')) {
+        if (pipelineCreatesNewDataset(selectedPipeline.value)) {
           const datasetMeta = availableItems.value.find((item: JsonMetaCache) => item.id === datasetId);
           if (!datasetMeta) {
             throw new Error(`Attempted to run pipeline on nonexistant dataset ${datasetId}`);
@@ -286,7 +288,8 @@ onBeforeMount(async () => {
         <v-data-table
           dense
           v-bind="{
-            headers: pipelineCreatesDatasetMarkers.includes(selectedPipelineType || '') ? createNewDatasetHeaders : stagedDatasetHeaders,
+            headers: selectedPipeline && pipelineCreatesNewDataset(selectedPipeline)
+              ? createNewDatasetHeaders : stagedDatasetHeaders,
             items: stagedDatasets,
           }"
           :items-per-page.sync="clientSettings.rowsPerPage"

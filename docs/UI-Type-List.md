@@ -58,3 +58,14 @@ In locked mode, only a specified list of classes can be used, and must be select
 
 * Set **Lock Types** to on to constrain annotation types to those already defined.
 * You can add new types using the ==:material-plus: Types== button under type settings.
+
+<div style="clear: both;"/>
+
+### Suppression
+
+Type settings also configure [suppression](UI-Suppression.md):
+
+* **Suppression Region Type** — annotations of this type act as ignore / occlusion regions. Detections covered by at least the overlap threshold are hidden and excluded from counts. Clear the field to disable suppression. Defaults to `Suppressed`.
+* **Suppression Overlap (%)** — minimum percent of a detection that must lie under suppression regions for it to be hidden (default **99**). Shown only when a suppression type is set.
+
+The active suppression type shows an ==:material-eye-off:== icon in the type list. Detections may also be flagged with an attribute of the same name; see [Suppression](UI-Suppression.md) for region vs attribute behavior and display options.

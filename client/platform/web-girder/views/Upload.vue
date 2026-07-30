@@ -8,6 +8,7 @@ import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
   websafeImageTypes, otherImageTypes, JsonMetaRegEx, getLargeImageFileAccept, LargeImageType,
+  metadataFileTypes,
 } from 'dive-common/constants';
 
 import {
@@ -27,6 +28,7 @@ import {
   deleteResources,
   saveMetadata,
   uploadCalibrationItem,
+  uploadMetadataFileItem,
   validateUploadGroup,
   waitForFolderDatasetReady,
 } from 'platform/web-girder/api';
@@ -34,6 +36,7 @@ import {
   clearMulticamFileRegistry,
   getAnnotationFile,
   getCalibrationFile,
+  getMetadataFile,
   getFilesForSourceKey,
   getTransformFile,
   flattenUploadFiles,
@@ -73,6 +76,7 @@ export interface PendingUpload {
   name: string;
   files: InteralFiles[];
   meta: null | File;
+  metadataFile: null | File;
   annotationFile: null | File;
   mediaList: File[];
   type: DatasetType | 'zip';
@@ -191,6 +195,7 @@ export default defineComponent({
         name: defaultFilename,
         files: [], //Will be set in the GirderUpload Component
         meta: null,
+        metadataFile: null,
         annotationFile: null,
         mediaList: allFiles,
         type: 'zip',
@@ -236,6 +241,7 @@ export default defineComponent({
             : defaultFilename,
         files: [], //Will be set in the GirderUpload Component
         meta,
+        metadataFile: null,
         annotationFile,
         mediaList,
         type: uploadType,
@@ -339,9 +345,11 @@ export default defineComponent({
       multiCamOpenType.value = args.openType;
       importMultiCamDialog.value = true;
     };
-    const filterFileUpload = (type: DatasetType | 'meta' | 'annotation') => {
+    const filterFileUpload = (type: DatasetType | 'meta' | 'annotation' | 'metadata') => {
       if (type === 'meta') {
         return '.json';
+      } if (type === 'metadata') {
+        return metadataFileTypes.map((item) => `.${item}`).join(',');
       } if (type === 'annotation') {
         return inputAnnotationFileTypes.map((item) => `.${item}`).join(',');
       } if (type === 'video') {
@@ -432,9 +440,14 @@ export default defineComponent({
         const registrationSeed = transformEntries.length
           ? await parseRegistrationSeed(transformEntries, Object.keys(args.sourceList))
           : null;
-        const fps = args.type === VideoType
-          ? DefaultVideoFPS
-          : (clientSettings.annotationFPS || 1);
+        // annotationFPS of -1 ("Video FPS") is truthy in JS; for image /
+        // large-image multicam resolve it to 1 so create_multicam matches
+        // child folders after post-process (which also maps -1 → 1).
+        const annotationFps = clientSettings.annotationFPS;
+        let fps = DefaultVideoFPS;
+        if (args.type !== VideoType) {
+          fps = annotationFps > 0 ? annotationFps : 1;
+        }
         setMulticamImportProgress(MULTICAM_PROGRESS_START, `${labelPrefix}Creating dataset folder…`);
         const { data: datasetFolder } = await createGirderFolder({
           folderId: props.location._id,
@@ -535,6 +548,18 @@ export default defineComponent({
           calibrationFileId = await uploadCalibrationItem(datasetFolder._id, calFile);
         }
 
+        let metadataFileId: string | undefined;
+        if (args.metadataFile) {
+          setMulticamImportProgress(95, `${labelPrefix}Uploading metadata file…`);
+          const metadataFile = getMetadataFile(args.metadataFile);
+          if (!metadataFile) {
+            throw new Error(
+              'Metadata file was not found. Use "Choose metadata" in the import dialog to select the file again.',
+            );
+          }
+          metadataFileId = await uploadMetadataFileItem(datasetFolder._id, metadataFile);
+        }
+
         const subType = stereo.value ? 'stereo' : 'multicam';
         setMulticamImportProgress(97, `${labelPrefix}Linking cameras…`);
         const { data: parentFolder } = await createMulticamDataset({
@@ -547,6 +572,7 @@ export default defineComponent({
           cameras,
           cameraOrder,
           calibrationFileId,
+          metadataFileId,
         });
         multicamLinked = true;
 
@@ -981,6 +1007,19 @@ export default defineComponent({
                     hint="Optional"
                     :disabled="pendingUpload.uploading"
                     :accept="filterFileUpload('meta')"
+                  />
+                </v-row>
+                <v-row>
+                  <v-file-input
+                    v-model="pendingUpload.metadataFile"
+                    show-size
+                    counter
+                    prepend-icon="mdi-file-cog"
+                    label="Metadata File (Optional)"
+                    hint="Optional. A .json, .txt, or .csv file passed to pipelines that request it."
+                    persistent-hint
+                    :disabled="pendingUpload.uploading"
+                    :accept="filterFileUpload('metadata')"
                   />
                 </v-row>
               </v-col>

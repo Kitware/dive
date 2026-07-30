@@ -149,20 +149,30 @@ export default class StyleManager {
       if (this.revisionCounter.value) noop();
       const _customStyles = this.customStyles.value;
       const _annotationSetStyles = this.annotationSetStyles.value;
-      return {
-        color: (type: string, set?: boolean) => {
-          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].color) {
-            return _annotationSetStyles[type].color;
-          }
+      const colorFor = (type: string, set?: boolean) => {
+        if (set && _annotationSetStyles[type] && _annotationSetStyles[type].color) {
+          return _annotationSetStyles[type].color;
+        }
 
-          if (_customStyles[type] && _customStyles[type].color) {
-            return _customStyles[type].color;
-          }
-          if (type === '') {
-            return this.typeColors.range()[0];
-          }
-          return this.typeColors(type);
-        },
+        if (_customStyles[type] && _customStyles[type].color) {
+          return _customStyles[type].color;
+        }
+        if (type === '') {
+          return this.typeColors.range()[0];
+        }
+        return this.typeColors(type);
+      };
+      const opacityFor = (type: string, set?: boolean) => {
+        if (set && _annotationSetStyles[type] && _annotationSetStyles[type].opacity) {
+          return _annotationSetStyles[type].opacity;
+        }
+        if (_customStyles[type] && _customStyles[type].opacity) {
+          return _customStyles[type].opacity;
+        }
+        return this.stateStyles.standard.opacity;
+      };
+      return {
+        color: colorFor,
         annotationSetColor: (set: string) => {
           if (!set) {
             return 'white';
@@ -191,15 +201,7 @@ export default class StyleManager {
           }
           return this.stateStyles.standard.fill;
         },
-        opacity: (type: string, set?: boolean) => {
-          if (set && _annotationSetStyles[type] && _annotationSetStyles[type].opacity) {
-            return _annotationSetStyles[type].opacity;
-          }
-          if (_customStyles[type] && _customStyles[type].opacity) {
-            return _customStyles[type].opacity;
-          }
-          return this.stateStyles.standard.opacity;
-        },
+        opacity: opacityFor,
         labelSettings: (type: string, set?: boolean) => {
           let { showLabel, showConfidence } = this.stateStyles.standard;
           if (_customStyles[type]) {

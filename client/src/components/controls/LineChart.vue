@@ -148,9 +148,9 @@ export default Vue.extend({
         .attr('class', 'line')
         .attr('d', (d) => line(d.values))
         .style('stroke', (d) => (d.color ? d.color : '#4c9ac2'))
-        // Non-Arrow function to preserve the 'this' context for d3.mouse(this)
-        .on('mouseenter', function mouseEnterHandler(d) {
-          const [_x, _y] = d3.mouse(this);
+        // Non-Arrow function to preserve the 'this' context for d3.pointer(event, this)
+        .on('mouseenter', function mouseEnterHandler(event, d) {
+          const [_x, _y] = d3.pointer(event, this);
           tooltipTimeoutHandle = setTimeout(() => {
             tooltip
               .style('left', `${_x + 2}px`)

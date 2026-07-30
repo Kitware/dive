@@ -55,6 +55,18 @@ def append_stereo_calibration_kwiver_settings(
     command.append(f'-s calibration_reader:file={cal_path}')
 
 
+def append_metadata_file_kwiver_settings(
+    command: List[str],
+    metadata_path: Path,
+    kwiver_key: str,
+) -> None:
+    """
+    Bind the dataset's optional metadata file to the KWIVER config key the pipe
+    declared via its `# Metadata File:` header (e.g. stabilizer:flight_log).
+    """
+    command.append(f'-s {shlex.quote(kwiver_key)}={shlex.quote(str(metadata_path))}')
+
+
 def build_multicam_kwiver_settings(
     work_dir: Path,
     cameras: List[MulticamCameraJob],

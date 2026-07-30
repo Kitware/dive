@@ -47,7 +47,11 @@ function processTrackAttributes(tracks: TrackData[]):
             lowCount = val;
           }
           values.push(key);
-          if (attributeType === 'number' && Number.isNaN(parseFloat(key))) {
+          // Full-string numeric check: parseFloat would accept the leading
+          // digits of filename-like values ('0123ABC456') and mistype the
+          // attribute as a number.
+          if (attributeType === 'number'
+            && (key.trim() === '' || Number.isNaN(Number(key)))) {
             attributeType = 'boolean';
           }
           if (attributeType === 'boolean' && key !== 'true' && key !== 'false') {

@@ -49,8 +49,9 @@ class GirderPlugin(plugin.GirderPlugin):
         )
         User().exposeFields(AccessType.READ, constants.UserPrivateQueueEnabledMarker)
 
-        # Expose Job dataset assocation
+        # Expose Job dataset association and params (login, input_folder, etc.)
         Job().exposeFields(AccessType.READ, constants.JOBCONST_DATASET_ID)
+        Job().exposeFields(AccessType.READ, constants.JOBCONST_PARAMS)
 
         DIVE_MAIL_TEMPLATES = Path(os.path.realpath(__file__)).parent / 'mail_templates'
         mail_utils.addTemplateDirectory(str(DIVE_MAIL_TEMPLATES))

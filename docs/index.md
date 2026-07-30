@@ -76,3 +76,5 @@ Manual refinement of auto-generated annotations | ✔️ | ✔️
 **Interpolation** - The implicit bounding boxes between keyframes in a track.
 
 **Attributes** - Attributes are free-form secondary characteristics on both tracks and detections. For example, a `fish` type track may have an `is_adult` boolean attribute.
+
+**Suppression** - A review feature that hides detections under configured ignore regions, or visually flags detections that carry a suppression attribute, while excluding them from type counts. See [Suppression](UI-Suppression.md).

@@ -4,6 +4,7 @@ import {
   reactive,
   PropType,
   ref,
+  computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 
@@ -25,12 +26,19 @@ export default defineComponent({
       preventCascadeTypes: 'When a track has multiple types, this will prevent the type from displaying if the max type is not visible in the type list',
       filterTypesByFrame: 'Filters the type list by only types that are visible in the current frame',
       maxCountButton: 'Show a max count button that will jump to the frame with the max count for the type',
-      suppressionType: 'Detections lying 50% or more under an annotation of this type are hidden and excluded from counts. Leave empty to disable.',
+      suppressionType: 'Detections lying at least the Suppression Overlap percent under an annotation of this type are hidden and excluded from counts. A detection carrying an attribute of this name set to true stays visible with its real type (optional dashed/fill styling and an eye-off tag) and is excluded from its own type\'s counts. Leave empty to disable.',
+      suppressionThreshold: 'Minimum percent of a detection that must lie under suppression regions for it to be hidden (default 99).',
     });
     const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');
     const importDialog = ref(false);
     const importTypes = ref('');
     const active = ref(false);
+    // Always offer the default suppression type even when no annotations use it yet.
+    const suppressionTypeItems = computed(() => (
+      props.allTypes.includes('Suppressed')
+        ? props.allTypes
+        : ['Suppressed', ...props.allTypes]
+    ));
 
     const confirmImport = () => {
       // Go through the importTypes and create types for importing
@@ -49,6 +57,7 @@ export default defineComponent({
       importDialog,
       importTypes,
       confirmImport,
+      suppressionTypeItems,
     };
   },
 });
@@ -284,7 +293,7 @@ export default defineComponent({
             <v-col class="py-1">
               <v-select
                 v-model="clientSettings.typeSettings.suppressionType"
-                :items="allTypes"
+                :items="suppressionTypeItems"
                 label="Suppression Region Type"
                 class="my-0 ml-1 pt-0"
                 dense
@@ -310,6 +319,44 @@ export default defineComponent({
                   </v-icon>
                 </template>
                 <span>{{ help.suppressionType }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row
+            v-if="clientSettings.typeSettings.suppressionType"
+            class="mt-8"
+          >
+            <v-col class="py-1">
+              <v-text-field
+                v-model.number="clientSettings.typeSettings.suppressionThreshold"
+                label="Suppression Overlap (%)"
+                type="number"
+                min="1"
+                max="100"
+                step="1"
+                class="my-0 ml-1 pt-0"
+                dense
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.suppressionThreshold }}</span>
               </v-tooltip>
             </v-col>
           </v-row>

@@ -8,6 +8,12 @@ import {
   updateBounds,
   validateRotation,
   getRotationFromAttributes,
+  hasSignificantRotation,
+  polygonWithinBounds,
+  polygonEqualsBounds,
+  translatePolygon,
+  isBoundsTranslation,
+  clipPolygonToBounds,
   ROTATION_ATTRIBUTE_NAME,
 } from 'vue-media-annotator/utils';
 import type AlignedViewStore from 'vue-media-annotator/alignedView/AlignedViewStore';
@@ -691,6 +697,63 @@ export default function useModeManager({
         const [real] = features;
         // If there's already a keyframe at this frame, we're editing an existing annotation
         const isEditingExisting = real !== null && real.keyframe;
+        const normalizedRotation = validateRotation(rotation);
+        // Prefer the rotation passed with this edit. validateRotation maps ~0 to
+        // undefined, so detect an explicit arg via the raw parameter — otherwise
+        // fall back to the detection's stored rotation and avoid axis-align
+        // clipping a rotated box's polygon against its unrotated envelope.
+        const effectiveRotation = (rotation !== undefined && rotation !== null)
+          ? normalizedRotation
+          : getRotationFromAttributes(
+            track.features[frameNum]?.attributes ?? real?.attributes,
+          );
+
+        // Keep polygons in sync with box edits. setFeature rounds bounds, so
+        // compare/clip against rounded values. Rotated boxes are skipped:
+        // their stored bounds are the unrotated envelope, so an axis-aligned
+        // clip would cut the wrong region.
+        // - Pure move (same size, new origin): translate polygons by the delta.
+        // - Resize: trim polygons that stick outside the new box.
+        const updatedGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
+        const removedPolygonKeys: string[] = [];
+        if (!hasSignificantRotation(effectiveRotation)) {
+          const roundedBounds: RectBounds = [
+            Math.round(bounds[0]), Math.round(bounds[1]),
+            Math.round(bounds[2]), Math.round(bounds[3]),
+          ];
+          const oldBounds: RectBounds | null = real?.bounds
+            ? [
+              Math.round(real.bounds[0]), Math.round(real.bounds[1]),
+              Math.round(real.bounds[2]), Math.round(real.bounds[3]),
+            ]
+            : null;
+          const polygons = track.getFeatureGeometry(frameNum, { type: 'Polygon' });
+          if (oldBounds && isBoundsTranslation(oldBounds, roundedBounds)) {
+            const dx = roundedBounds[0] - oldBounds[0];
+            const dy = roundedBounds[1] - oldBounds[1];
+            polygons.forEach((polyFeature) => {
+              const polygon = polyFeature.geometry as GeoJSON.Polygon;
+              updatedGeometry.push({
+                ...polyFeature,
+                geometry: translatePolygon(polygon, dx, dy),
+              });
+            });
+          } else {
+            polygons.forEach((polyFeature) => {
+              const polygon = polyFeature.geometry as GeoJSON.Polygon;
+              if (!polygonWithinBounds(polygon, roundedBounds)) {
+                const clipped = clipPolygonToBounds(polygon, roundedBounds);
+                // A clip that leaves the polygon identical to the box carries
+                // no information beyond the box itself, so drop it too.
+                if (clipped && !polygonEqualsBounds(clipped, roundedBounds)) {
+                  updatedGeometry.push({ ...polyFeature, geometry: clipped });
+                } else {
+                  removedPolygonKeys.push(polyFeature.properties?.key ?? '');
+                }
+              }
+            });
+          }
+        }
 
         track.setFeature({
           frame: frameNum,
@@ -698,10 +761,12 @@ export default function useModeManager({
           bounds,
           keyframe: true,
           interpolate: _shouldInterpolate(interpolate),
+        }, updatedGeometry);
+        removedPolygonKeys.forEach((key) => {
+          track.removeFeatureGeometry(frameNum, { key, type: 'Polygon' });
         });
 
         // Save rotation as detection attribute if provided
-        const normalizedRotation = validateRotation(rotation);
         if (normalizedRotation !== undefined) {
           track.setFeatureAttribute(frameNum, ROTATION_ATTRIBUTE_NAME, normalizedRotation);
         } else {

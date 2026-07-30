@@ -85,6 +85,16 @@ def _resolve_detection_length(
     return {**(attributes or {}), 'length': resolved}, resolved
 
 
+# A fully numeric string. float() alone is too permissive for attribute
+# values: it accepts underscore digit separators ('20240624_120000') and
+# inf/nan spellings, which corrupts filename-like values.
+NUMERIC_VALUE_REGEX = re.compile(r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?')
+
+
+def _is_numeric_string(value: Any) -> bool:
+    return bool(NUMERIC_VALUE_REGEX.fullmatch(str(value).strip()))
+
+
 def _deduceType(value: Any) -> Union[bool, float, str, None]:
     if isinstance(value, dict) or isinstance(value, list):
         return None
@@ -95,11 +105,11 @@ def _deduceType(value: Any) -> Union[bool, float, str, None]:
         return True
     if value == "false":
         return False
-    try:
-        number = float(value)
-        return number
-    except ValueError:
-        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if _is_numeric_string(value):
+        return float(value)
+    return value
 
 
 def get_next_polygon_key(features: Dict[str, Any]) -> str:
@@ -313,11 +323,8 @@ def calculate_attribute_types(
                 if val <= low_count:
                     low_count = val
                 values.append(key)
-                if attribute_type == 'number':
-                    try:
-                        float(key)
-                    except ValueError:
-                        attribute_type = 'boolean'
+                if attribute_type == 'number' and not _is_numeric_string(key):
+                    attribute_type = 'boolean'
                 if attribute_type == 'boolean' and key != 'True' and key != 'False':
                     attribute_type = 'text'
             # If all text values are used 3 or more times they are defined values

@@ -1,9 +1,9 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, reactive, ref, Ref,
+  computed, defineComponent, onBeforeUnmount, PropType, reactive, ref, Ref,
   watch,
 } from 'vue';
-import { difference, union } from 'lodash';
+import { debounce, difference, union } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
@@ -18,7 +18,7 @@ import BaseFilterControls from '../BaseFilterControls';
 import Track from '../track';
 import Group from '../Group';
 import StyleManager from '../StyleManager';
-import { getSuppressedTrackIds } from '../use/suppression';
+import { getSuppressedTrackIds, hasSuppressionAttribute } from '../use/suppression';
 
 interface VirtualTypeItem {
   type: string;
@@ -27,6 +27,7 @@ interface VirtualTypeItem {
   color: string;
   checked: boolean;
   isSuppressionType: boolean;
+  suppressionThreshold: number;
 }
 
 export default defineComponent({
@@ -147,28 +148,43 @@ export default defineComponent({
     }
 
     /**
-     * Ids of tracks whose every keyframe detection is suppressed (a region
-     * covers it on each frame it appears), across all cameras - these are
-     * excluded from the dataset-wide type totals. Reactive to region edits via
-     * the save counter, since track geometry is not itself a reactive value.
+     * Ids of tracks whose every keyframe detection is suppressed - covered by
+     * a region on each frame it appears, or flagged with the suppression
+     * attribute - across all cameras. These are excluded from the
+     * dataset-wide type totals. This walks every keyframe of every track, so
+     * it is recomputed on a debounce rather than on every save-counter bump:
+     * dragging a region's corner fires an edit per mouse move, and
+     * recomputing the whole dataset per move froze the resize.
      */
-    const fullySuppressedIds = computed(() => {
+    const fullySuppressedIds: Ref<Set<number>> = ref(new Set<number>());
+    function computeFullySuppressedIds() {
       const editRevision = pendingSaveCount.value;
       const suppType = clientSettings.typeSettings.suppressionType;
+      const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
       const excluded = new Set<number>();
       if (!suppType || editRevision < 0) {
-        return excluded;
+        fullySuppressedIds.value = excluded;
+        return;
       }
       cameraStore.camMap.value.forEach(({ trackStore: store }) => {
-        const perFrame = new Map<number, Set<number>>();
-        const suppressedAt = (f: number) => {
-          let s = perFrame.get(f);
-          if (s === undefined) {
-            s = getSuppressedTrackIds(store, f, suppType);
-            perFrame.set(f, s);
+        // Inclusive [begin, end] spans of suppression-region tracks. Regions
+        // interpolate between keyframes, so a keyframe-only set would miss
+        // detections whose keyframes fall on interpolated-only region frames.
+        const regionRanges: [number, number][] = [];
+        store.annotationMap.forEach((annotation) => {
+          const track = annotation as Track;
+          if (track.confidencePairs?.some(([t]) => t === suppType)) {
+            regionRanges.push([track.begin, track.end]);
           }
-          return s;
-        };
+        });
+        const hasRegionAt = (f: number) => regionRanges.some(([b, e]) => f >= b && f <= e);
+        const suppressedAt = (f: number) => getSuppressedTrackIds(
+          store,
+          f,
+          suppType,
+          suppThreshold,
+          { revision: editRevision },
+        );
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
           if (typeof track.getFeature !== 'function') {
@@ -176,13 +192,27 @@ export default defineComponent({
           }
           const keyframes = track.features.filter((f) => f && f.keyframe);
           if (keyframes.length > 0
-            && keyframes.every((f) => suppressedAt(f.frame).has(track.id))) {
+            && keyframes.every((f) => (hasRegionAt(f.frame)
+                && suppressedAt(f.frame).has(track.id))
+              || hasSuppressionAttribute(track, f.frame, suppType))) {
             excluded.add(track.id);
           }
         });
       });
-      return excluded;
-    });
+      fullySuppressedIds.value = excluded;
+    }
+    const debouncedFullySuppressed = debounce(computeFullySuppressedIds, 500);
+    watch(pendingSaveCount, () => debouncedFullySuppressed());
+    watch(
+      [
+        () => clientSettings.typeSettings.suppressionType,
+        () => clientSettings.typeSettings.suppressionThreshold,
+        cameraStore.camMap,
+      ],
+      () => computeFullySuppressedIds(),
+      { immediate: true },
+    );
+    onBeforeUnmount(() => debouncedFullySuppressed.cancel());
 
     const typeCounts = computed(() => {
       const excluded = fullySuppressedIds.value;
@@ -208,15 +238,28 @@ export default defineComponent({
         .search([frame.value, frame.value])
         .map((str) => parseInt(str, 10));
       // Detections suppressed by a region on this frame are dropped so the
-      // per-frame type counts read off the interface exclude them.
+      // per-frame type counts read off the interface exclude them, and
+      // attribute-suppressed detections (visible, real type retained) don't
+      // count toward their own type either.
+      const suppType = clientSettings.typeSettings.suppressionType;
       const suppressedIds = (trackStore && editRevision >= 0)
-        ? getSuppressedTrackIds(trackStore, frame.value, clientSettings.typeSettings.suppressionType)
+        ? getSuppressedTrackIds(
+          trackStore,
+          frame.value,
+          suppType,
+          clientSettings.typeSettings.suppressionThreshold,
+          { revision: editRevision },
+        )
         : new Set<number>();
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
         if (suppressedIds.has(track.annotation.id)) {
           return false;
         }
-        const keyframe = trackStore?.getPossible(track.annotation.id)?.getFeature(frame.value)[0];
+        const realTrack = trackStore?.getPossible(track.annotation.id);
+        if (realTrack && hasSuppressionAttribute(realTrack, frame.value, suppType)) {
+          return false;
+        }
+        const keyframe = realTrack?.getFeature(frame.value)[0];
         return !!keyframe?.keyframe;
       });
       return (filteredKeyFrameTracks.filter((track) => trackIdsForFrame?.includes(track.annotation.id)));
@@ -271,14 +314,15 @@ export default defineComponent({
       if (filterTypesByFrame.value) {
         filteredTypeList = filteredTypeList.filter((item) => frameTrackTypesDeRef.get(item));
       }
-      const { suppressionType } = clientSettings.typeSettings;
+      const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       return filteredTypeList.map((item) => ({
         type: item,
         confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
-        displayText: `${typeCountsDeRef.get(item) || 0}:${frameTrackTypesDeRef.get(item) || 0} ${item}`,
+        displayText: `${typeCountsDeRef.get(item) || 0} : ${frameTrackTypesDeRef.get(item) || 0}\u00A0 ${item}`,
         color: typeStylingDeRef.color(item),
         checked: checkedTypesDeRef.includes(item),
         isSuppressionType: !!suppressionType && item === suppressionType,
+        suppressionThreshold: suppressionThreshold ?? 99,
       }));
     });
     const headCheckState = computed(() => {
@@ -493,6 +537,7 @@ export default defineComponent({
             :display-max-button="showMaxFrameButton"
             :disabled="disableAnnotationFilters"
             :is-suppression-type="item.isSuppressionType"
+            :suppression-threshold="item.suppressionThreshold"
             @setCheckedTypes="updateCheckedType($event, item.type)"
             @goToMaxFrame="goToPeakTrackFrame($event)"
             @clickEdit="clickEdit"

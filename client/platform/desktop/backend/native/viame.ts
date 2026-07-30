@@ -19,8 +19,12 @@ import {
   MultiType,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
-  pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
+import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import {
+  isFilterPipeline,
+  pipelineCreatesNewDataset,
+} from 'dive-common/pipelineCreatesDataset';
 import * as common from './common';
 import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
 import {
@@ -158,6 +162,13 @@ async function runPipeline(
 ): Promise<DesktopJob> {
   const { datasetId, pipeline } = runPipelineArgs;
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
+  // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
+  // categorized under '2-cam'/'3-cam' rather than by their filename prefix,
+  // so output handling is recognized from the pipe filename as well as the type.
+  const createsNewDataset = pipelineCreatesNewDataset(pipeline);
+  const isFilterPipe = isFilterPipeline(pipeline);
+  const outputDatasetName = runPipelineArgs.outputDatasetName
+    ?? runPipelineArgs.pipelineParams?.outputDatasetName;
 
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -172,10 +183,25 @@ async function runPipeline(
   const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
 
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  let cameraLogLine: string | null = null;
+  if (cameraName) {
+    try {
+      const parentInfo = await common.getValidatedProjectDir(settings, parentId);
+      const parentMeta = await common.loadJsonMetadata(parentInfo.metaFileAbsPath);
+      const defaultDisplay = parentMeta.multiCam?.defaultDisplay;
+      if (cameraName !== defaultDisplay) {
+        cameraLogLine = `Running pipeline on camera: ${cameraName}`;
+      }
+    } catch {
+      cameraLogLine = `Running pipeline on camera: ${cameraName}`;
+    }
+  }
+
   const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
   const outputDir = `${npath.join(settings.dataPath, JobsOutputFolderName, outputDirName)}`;
-  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+  if (createsNewDataset) {
     if (outputDir !== jobWorkDir) {
       await fs.mkdir(outputDir, { recursive: true });
     }
@@ -185,7 +211,7 @@ async function runPipeline(
   const trackOutputFileName = 'track_output.csv';
   let trackOutput: string;
   let detectorOutput: string;
-  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+  if (createsNewDataset) {
     detectorOutput = npath.join(outputDir, detectorOutputFileName);
     trackOutput = npath.join(outputDir, trackOutputFileName);
   } else {
@@ -220,6 +246,10 @@ async function runPipeline(
   let command: string[] = [];
   const stereoOrMultiCam = (pipeline.type === stereoPipelineMarker
     || multiCamPipelineMarkers.includes(pipeline.type));
+  // Input image list(s) so opt-in pipes (sea-lion registration) can read the same
+  // lists DIVE feeds the input reader — one single-file, line-separated list per
+  // camera (single-cam: one entry).
+  let inputImageLists: string[] = [];
 
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
@@ -242,7 +272,7 @@ async function runPipeline(
       command.push(`-s downsampler:frame_range_is_native=${isNative}`);
       // Transcode/filter pipes: output frames renumbered relative to new range
       // All other pipes: output frames relative to original video
-      const renumber = pipeline.type === 'transcode' || pipeline.type === 'filter';
+      const renumber = pipeline.type === 'transcode' || isFilterPipe;
       command.push(`-s downsampler:renumber_frames=${renumber}`);
       command.push(`-s downsampler:adjust_timestamps=${renumber}`);
     }
@@ -250,6 +280,7 @@ async function runPipeline(
       command.push(`-s input:video_filename="${videoAbsPath}"`);
       command.push(`-s detector_writer:file_name="${detectorOutput}"`);
       command.push(`-s track_writer:file_name="${trackOutput}"`);
+      inputImageLists = [videoAbsPath];
     }
   } else if (metaType === 'image-sequence') {
     // Create frame image manifest
@@ -276,12 +307,18 @@ async function runPipeline(
       command.push(`-s input:video_filename="${manifestFile}"`);
       command.push(`-s detector_writer:file_name="${detectorOutput}"`);
       command.push(`-s track_writer:file_name="${trackOutput}"`);
+      inputImageLists = [manifestFile];
     }
   }
 
-  if (runPipelineArgs.pipeline.type === 'filter') {
+  if (isFilterPipe) {
     command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
+    // Multicam filter pipes have one writer per camera (image_writer,
+    // image_writer2, image_writer3); extra -s keys for absent processes are
+    // ignored by the runner.
     command.push(`-s image_writer:file_name_prefix="${outputDir}/"`);
+    command.push(`-s image_writer2:file_name_prefix="${outputDir}/"`);
+    command.push(`-s image_writer3:file_name_prefix="${outputDir}/"`);
   }
 
   let transcodedFilename: string;
@@ -303,6 +340,14 @@ async function runPipeline(
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
+    // One image list per camera (each a single line-separated file).
+    const orderedInputManifests = Object.keys(argFilePair)
+      .filter((arg) => /^input\d+:video_filename$/.test(arg))
+      .sort((a, b) => parseInt(a.match(/\d+/)![0], 10) - parseInt(b.match(/\d+/)![0], 10))
+      .map((arg) => argFilePair[arg]);
+    if (orderedInputManifests.length) {
+      inputImageLists = orderedInputManifests;
+    }
     multiOutFiles = {};
     Object.entries(outFiles).forEach(([cameraName, fileName]) => {
       multiOutFiles[cameraName] = npath.join(jobWorkDir, fileName);
@@ -315,6 +360,30 @@ async function runPipeline(
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
+  }
+
+  // Hand the dataset's optional metadata file to pipelines that opt in via a
+  // `# Metadata File: <block>:<key>` header (e.g. sea-lion stabilizer:flight_log).
+  const metadataFileKey = runPipelineArgs.pipeline.metadata?.metadataFileKey;
+  if (metadataFileKey && meta.metadataFile) {
+    command.push(`-s ${metadataFileKey}="${meta.metadataFile}"`);
+  }
+
+  // Bind the per-camera input image lists to the keys a pipe declares via
+  // `# Image List Keys:`, so the sea-lion registration stabilizer reads the same
+  // frames DIVE runs on. A `{cam}` placeholder is expanded per camera (1-based);
+  // a key without it gets the first camera's list.
+  const { imageListKeys } = runPipelineArgs.pipeline.metadata ?? {};
+  if (inputImageLists.length) {
+    (imageListKeys ?? []).forEach((key) => {
+      if (key.includes('{cam}')) {
+        inputImageLists.forEach((imageList, idx) => {
+          command.push(`-s ${key.replace('{cam}', String(idx + 1))}="${imageList}"`);
+        });
+      } else {
+        command.push(`-s ${key}="${inputImageLists[0]}"`);
+      }
+    });
   }
 
   // Add any custom pipeline parameters
@@ -346,9 +415,13 @@ async function runPipeline(
 
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
+  if (cameraLogLine) {
+    await fs.appendFile(joblog, `${cameraLogLine}\n`);
+  }
+
   updater({
     ...jobBase,
-    body: [''],
+    body: cameraLogLine ? [cameraLogLine, ''] : [''],
   });
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
@@ -357,7 +430,7 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        if (!pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+        if (!createsNewDataset) {
           let finalDetectorOutput = detectorOutput;
           let finalTrackOutput = trackOutput;
 
@@ -385,20 +458,39 @@ async function runPipeline(
           );
           if (calibrationFile) {
             const calibrationPath = npath.join(jobWorkDir, calibrationFile);
-            const savedPath = await common.saveLastCalibration(settings, calibrationPath);
-            await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath, calibrationFile);
+            try {
+              // Apply calibration directly to the dataset that ran the pipeline
+              await common.applyCalibrationToDataset(
+                settings,
+                datasetId,
+                calibrationPath,
+              );
+              // Also save as last calibration for future imports
+              await common.saveLastCalibration(settings, calibrationPath);
+              // Signal UI to refresh calibration info
+              sendToRenderer('calibration-assigned', {
+                datasetId,
+                calibrationFile,
+              });
+            } catch (err) {
+              console.error(`Failed to apply calibration to dataset ${datasetId}:`, err);
+              await fs.appendFile(
+                joblog,
+                `\nError assigning calibration file to dataset: ${(err as Error).message}`,
+              );
+            }
           }
         }
 
         // Check if this is a transcode/filter pipeline and create a new dataset
-        if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+        if (createsNewDataset) {
           updater({
             ...jobBase,
             body: ['Creating dataset from output...'],
             exitCode: code,
             endTime: new Date(),
           });
-          const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
+          const datasetName = outputDatasetName || outputDir;
           if (runPipelineArgs.pipeline.type === 'transcode') {
             fs.readdir(outputDir, async (err, entries) => {
               if (err) {

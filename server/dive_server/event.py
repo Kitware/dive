@@ -202,6 +202,7 @@ def convert_video_recursive(folder, user):
         "additive": False,
         "additivePrepend": '',
         "userId": str(user['_id']),
+        "user_login": str(user.get('login', 'unknown')),
         "girderToken": str(token['_id']),
         "girderApiUrl": getWorkerApiUrl(),
     }

@@ -8,7 +8,7 @@ import {
 } from 'vue';
 import { flatten } from 'lodash';
 
-import { Mousetrap } from 'vue-media-annotator/types';
+import { Mousetrap, SuppressionDisplaySettings } from 'vue-media-annotator/types';
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
 import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
@@ -84,6 +84,14 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    showSuppressedTags: {
+      type: Boolean,
+      default: true,
+    },
+    suppressionDisplay: {
+      type: Object as PropType<SuppressionDisplaySettings>,
+      default: undefined,
+    },
     textQueryEnabled: {
       type: Boolean,
       default: false,
@@ -97,6 +105,8 @@ export default defineComponent({
     'set-annotation-state',
     'update:tail-settings',
     'update:show-user-created-icon',
+    'update:show-suppressed-tags',
+    'update:suppression-display',
     'text-query-init',
     'text-query',
     'text-query-all-frames',
@@ -587,9 +597,13 @@ export default defineComponent({
         :visible-modes="visibleModes"
         :tail-settings="tailSettings"
         :show-user-created-icon="showUserCreatedIcon"
+        :show-suppressed-tags="showSuppressedTags"
+        :suppression-display="suppressionDisplay"
         @set-annotation-state="$emit('set-annotation-state', $event)"
         @update:tail-settings="$emit('update:tail-settings', $event)"
         @update:show-user-created-icon="$emit('update:show-user-created-icon', $event)"
+        @update:show-suppressed-tags="$emit('update:show-suppressed-tags', $event)"
+        @update:suppression-display="$emit('update:suppression-display', $event)"
       />
     </div>
 

@@ -199,6 +199,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
       calibration: args.calibrationFile,
       defaultDisplay: args.defaultDisplay,
     },
+    // Stash the metadata source path; finalizeMediaImport copies it into the
+    // project directory and rewrites this to the stored copy's path.
+    metadataFile: args.metadataFile || undefined,
     subType: null,
   };
   if (Object.keys(seedHomographies).length || Object.keys(seedCorrespondences).length) {

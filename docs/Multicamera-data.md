@@ -35,8 +35,9 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
     * ==:material-folder-multiple-image: MultiCam Batch== — import many multicam datasets at once from a folder of **collect** subfolders (image sequences only). See [Batch multicam import](#batch-multicam-import).
 6. In the import dialog, assign a source folder or video file to each camera. All cameras must use the same media type (all image sequences or all videos). By default, every camera must have the same number of frames (or matching video duration). For **image-sequence** imports with capture timestamps in filenames, enable **Infer frame index from filename** to allow unequal per-camera counts — see [Infer frame index from filename](#infer-frame-index-from-filename).
 7. Optionally attach a per-camera annotation file during import.
-8. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
-9. When upload finishes, DIVE opens the new multicam dataset in the annotator.
+8. Optionally attach a **Metadata File** (`.json`, `.txt`, or `.csv`) — for example a flight log used by registration pipelines. This is **not** stereo-only and is independent of the calibration file. See [Pipe file headers](Pipeline-Import-Export.md#pipe-file-headers).
+9. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
+10. When upload finishes, DIVE opens the new multicam dataset in the annotator.
 
 !!! note
 
@@ -54,11 +55,11 @@ For general web upload concepts (permissions, transcoding, zip import), see [Upl
 
 Desktop additionally supports ==:material-view-list-outline: Image List== and glob-based folder filtering for single-camera imports, and glob/keyword layout options for multicam import.
 
-You can also open stereo and multicam datasets from the command line with repeated `--camera` flags (and optional per-camera `--annotations` and `--calibration`). See [Launching from the command line](Dive-Desktop.md#launching-from-the-command-line).
+You can also open stereo and multicam datasets from the command line with repeated `--camera` flags (and optional per-camera `--annotations`, `--calibration`, and `--metadata`). See [Launching from the command line](Dive-Desktop.md#launching-from-the-command-line).
 
 !!! info
 
-    Stereoscopic data **requires** a calibration file. Generic multicamera data does **not**.
+    Stereoscopic data **requires** a calibration file. Generic multicamera data does **not**. An optional **Metadata File** (pipeline sidecar) can be attached on stereo, multicam, or single-camera imports; it is not a substitute for stereo calibration.
 
 ### Batch multicam import
 

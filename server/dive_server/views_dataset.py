@@ -39,6 +39,7 @@ class DatasetResource(Resource):
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", ("calibration",), self.get_dataset_calibration)
         self.route("POST", (":id", "calibration"), self.set_dataset_calibration)
+        self.route("POST", (":id", "metadata_file"), self.set_dataset_metadata_file)
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
@@ -235,6 +236,19 @@ class DatasetResource(Resource):
     )
     def set_dataset_calibration(self, folder, fileId):
         return crud_dataset.set_calibration(self.getCurrentUser(), folder, fileId)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Set the optional metadata file for a dataset")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .param(
+            "itemId",
+            "Girder item id of a metadata file already uploaded to the dataset folder",
+            required=True,
+        )
+    )
+    def set_dataset_metadata_file(self, folder, itemId):
+        return crud_dataset.set_metadata_file(self.getCurrentUser(), folder, itemId)
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @rawResponse

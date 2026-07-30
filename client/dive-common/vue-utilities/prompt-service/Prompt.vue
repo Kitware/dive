@@ -99,9 +99,11 @@ export default defineComponent({
 <template>
   <v-dialog
     v-model="show"
-    max-width="400"
+    max-width="560"
   >
     <v-card>
+      <!-- Vuetify's v-card-title defaults to word-break: break-all, which
+        splits words (e.g. long pipeline names) mid-word across lines. -->
       <v-card-title
         v-if="title"
         v-mousetrap="[
@@ -110,6 +112,7 @@ export default defineComponent({
           { bind: 'enter', handler: () => select(), disable: !show },
         ]"
         class="title"
+        style="word-break: normal;"
       >
         {{ title }}
       </v-card-title>

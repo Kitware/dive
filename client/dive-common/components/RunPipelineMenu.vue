@@ -6,6 +6,8 @@ import {
   ref,
   Ref,
   onBeforeMount,
+  onMounted,
+  onBeforeUnmount,
   watch,
 } from 'vue';
 import {
@@ -22,13 +24,14 @@ import {
   stereoPipelineMarker,
   multiCamPipelineMarkers,
   LargeImageType,
-  pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
 import {
   pipelineDisabledForMissingCalibration,
 } from 'dive-common/pipelineCalibration';
+import { pipelineCreatesNewDataset } from 'dive-common/pipelineCreatesDataset';
+import { pipelineHasParams, pipelineRequiresParams } from 'dive-common/pipelineParams';
 import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -165,6 +168,25 @@ export default defineComponent({
       refreshCalibrationStatus();
     }, { immediate: true });
 
+    let removeCalibrationAssignedListener: (() => void) | null = null;
+
+    // Listen for calibration assignment from backend (desktop only)
+    onMounted(() => {
+      if (typeof window !== 'undefined' && window.diveDesktop) {
+        removeCalibrationAssignedListener = window.diveDesktop.on('calibration-assigned', () => {
+          // Refresh calibration status when a pipeline assigns a calibration to a dataset
+          refreshCalibrationStatus();
+        });
+      }
+    });
+
+    onBeforeUnmount(() => {
+      if (removeCalibrationAssignedListener) {
+        removeCalibrationAssignedListener();
+        removeCalibrationAssignedListener = null;
+      }
+    });
+
     function isPipelineDisabledForCalibration(pipeline: Pipe) {
       return pipelineDisabledForMissingCalibration(
         pipeline,
@@ -202,7 +224,7 @@ export default defineComponent({
 
     async function _runPipelineOnSelectedItemInner(
       pipeline: Pipe,
-      additionalConfigById?: Record<string, Record<string, string> | undefined>,
+      outputDatasetNameById?: Record<string, string>,
     ) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
@@ -230,13 +252,10 @@ export default defineComponent({
       selectedPipeline.value = pipeline;
       const frameRange = props.timeFilter;
       await _runPipelineRequest(() => Promise.all(
-        datasetIds.map((id) => {
-          const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
-          return runPipeline(id, pipeline, {
-            kwiverParams: additionalConfig,
-            runtimeParams: frameRange ? { frameRange } : undefined,
-          });
-        }),
+        datasetIds.map((id) => runPipeline(id, pipeline, {
+          runtimeParams: frameRange ? { frameRange } : undefined,
+          outputDatasetName: outputDatasetNameById?.[id],
+        })),
       ));
     }
 
@@ -244,16 +263,19 @@ export default defineComponent({
       if (isPipelineDisabledForCalibration(pipeline)) {
         return;
       }
-      if (pipeline.metadata?.diveParams && pipeline.metadata?.diveParams?.length > 0) {
+      // Only required params block the run; optional ones already hold the
+      // .pipe file's own values, and stay reachable from the gear.
+      if (pipelineRequiresParams(pipeline)) {
         openDiveParamsDialog(pipeline);
         return;
       }
-      if (!pipelineCreatesDatasetMarkers.includes(pipeline.type)) {
+      if (!pipelineCreatesNewDataset(pipeline)) {
         _runPipelineOnSelectedItemInner(pipeline);
       } else {
         // If a pipeline creates datasets, open the configuration dialog
         // to allow users to name that dataset
         // This is relevant for filter and transcode pipeline types
+        // (including multicam filter_*_N-cam pipes categorized as 2-cam/3-cam)
         selectedPipeline.value = pipeline;
         menuState.value = 'configuring'; // force the dialog open
       }
@@ -268,14 +290,18 @@ export default defineComponent({
      */
     async function exitPipelineConfig(outputNameMap: Record<string, string>) {
       menuState.value = 'idle'; // close the dialog
-      const additionalConfigById: Record<string, Record<string, string>> = {};
-      Object.keys(outputNameMap).forEach((id: string) => {
-        additionalConfigById[id] = {
-          outputDatasetName: outputNameMap[id],
-        };
-      });
       if (selectedPipeline.value) {
-        _runPipelineOnSelectedItemInner(selectedPipeline.value, additionalConfigById);
+        let nameByDatasetId = outputNameMap;
+        // Multicam/stereo pipes run against the parent dataset id; remap names
+        // keyed by camera composite ids so the chosen name is applied.
+        if (multiCamPipelineMarkers.includes(selectedPipeline.value.type)
+          || stereoPipelineMarker === selectedPipeline.value.type) {
+          nameByDatasetId = {};
+          Object.entries(outputNameMap).forEach(([id, name]) => {
+            nameByDatasetId[parentDatasetId(id)] = name;
+          });
+        }
+        _runPipelineOnSelectedItemInner(selectedPipeline.value, nameByDatasetId);
       }
       selectedPipeline.value = null; // reset selected pipeline state
     }
@@ -302,6 +328,8 @@ export default defineComponent({
       confirmPipelineExecution,
       isPipelineDisabledForCalibration,
       pipelineTooltipDisabled,
+      openDiveParamsDialog,
+      pipelineHasParams,
     };
   },
 });
@@ -463,11 +491,19 @@ export default defineComponent({
                               <PipelineCalibrationWarningIcon
                                 v-if="isPipelineDisabledForCalibration(pipeline)"
                               />
-                              <v-icon style="font-size: 1.5em;">
-                                <template v-if="pipeline.metadata?.diveParams?.length ?? 0 > 0">
-                                  mdi-cog-outline
-                                </template>
-                              </v-icon>
+                              <!-- The gear is its own hit target: clicking it
+                                configures, clicking anywhere else on the entry
+                                runs with the pipeline's own defaults. -->
+                              <v-btn
+                                v-if="pipelineHasParams(pipeline)"
+                                icon
+                                small
+                                class="pipeline-params-button"
+                                :aria-label="`Configure ${pipeline.name}`"
+                                @click.stop="openDiveParamsDialog(pipeline)"
+                              >
+                                <v-icon>mdi-cog-outline</v-icon>
+                              </v-btn>
                             </span>
                           </v-list-item-title>
                         </v-list-item>
@@ -517,6 +553,12 @@ export default defineComponent({
 .pipeline-submenu-list {
   max-height: 60vh;
   overflow-y: auto;
+}
+
+/* Keep the gear's hit area comfortably clear of the pipeline name, so a click
+   meant for the name does not land on the button. */
+.pipeline-params-button {
+  margin-left: 20px;
 }
 
 .pipeline-category-col--last {

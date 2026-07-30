@@ -12,6 +12,8 @@ The track list allows for selecting and editing tracks.  A selected track will l
 * ==:material-delete:=={ .error } deletes all tracks in the track list
 * ==:material-plus: Track/Detection== begins creation of a new annotation.
 
+When [suppression](UI-Suppression.md) is enabled, detections covered by a suppression region on the current frame are omitted from this list (attribute-flagged detections remain listed).
+
 <div style="clear: both;"/>
 
 ## Single Detection

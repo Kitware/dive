@@ -59,6 +59,8 @@ zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
 npzRegex = re.compile(r"\.npz$", re.IGNORECASE)
 # Stereo/multicam calibration uploads (aligned with dive-common calibrationFileTypes)
 stereoCalibrationRegex = re.compile(r"\.(?:npz|json|cam|yml|zip)$", re.IGNORECASE)
+# Optional per-dataset metadata file uploads (aligned with dive-common metadataFileTypes)
+metadataFileRegex = re.compile(r"\.(?:json|txt|csv)$", re.IGNORECASE)
 metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
 # .json or .csv file
 possibleAnnotationRegex = re.compile(r"\.(json|csv)$", re.IGNORECASE)
@@ -119,6 +121,11 @@ CalibrationOriginalNameMarker = "calibrationOriginalName"
 CalibrationConversionErrorMarker = "calibrationConversionError"
 # Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
 CalibrationFileMarker = "calibrationFile"
+# Optional per-dataset metadata file (folder marker points at a Girder item id;
+# the item itself carries MetadataFileMarker). Applies to single and multicam.
+MetadataFileItemIdMarker = "metadataFileItemId"
+MetadataFileOriginalNameMarker = "metadataFileOriginalName"
+MetadataFileMarker = "metadataFile"
 # Girder item meta: JSON camera-rig used for calibration display
 JsonCalibrationFileMarker = "jsonCalibrationFile"
 AssetstoreSourceMarker = "import_source"
