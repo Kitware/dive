@@ -197,6 +197,7 @@ export default Vue.extend({
 
   .axis-y {
     font-size: 12px;
+    user-select: none;
 
     g:first-of-type,
     g:last-of-type {

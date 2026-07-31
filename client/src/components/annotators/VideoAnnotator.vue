@@ -202,6 +202,8 @@ export default defineComponent({
         data.frame = Math.floor(newFrame);
         data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
+        // Keep shared time.frame in sync so Timeline playhead tracks playback
+        props.updateTime(data);
         geoViewer.value.scheduleAnimationFrame(syncWithVideo);
       }
       data.currentTime = video.currentTime;
