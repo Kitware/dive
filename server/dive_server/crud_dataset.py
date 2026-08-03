@@ -7,9 +7,9 @@ from bson.objectid import InvalidId, ObjectId
 import cherrypy
 from girder.constants import AccessType
 from girder.exceptions import RestException
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
-from girder.models.file import File
 from girder.models.token import Token
 from girder.utility import ziputil
 from pydantic.main import BaseModel
@@ -1012,9 +1012,9 @@ def _source_calibration_items_in_folder_root(folder_id: str):
     Camera media lives in child folders; only direct items on folder_id are considered.
     """
     for cal_item in Item().find({'folderId': _mongo_id(folder_id)}, sort=[('created', -1)]):
-        if _item_has_source_calibration_marker(cal_item) and constants.stereoCalibrationRegex.search(
-            cal_item['name']
-        ):
+        if _item_has_source_calibration_marker(
+            cal_item
+        ) and constants.stereoCalibrationRegex.search(cal_item['name']):
             yield cal_item
 
 
@@ -1160,7 +1160,7 @@ def _read_json_calibration_file(
                 chunks.append(chunk)
         data = json.loads(b"".join(chunks).decode("utf-8"))
         return _parse_stereo_calibration_json(data)
-    except (ValueError, KeyError, TypeError, UnicodeDecodeError):
+    except (ValueError, KeyError, TypeError):
         return None
 
 

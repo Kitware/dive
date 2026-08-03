@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 import json
 from typing import Dict, List, Optional, Tuple, TypedDict
-from pathlib import Path
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -18,8 +17,8 @@ import pymongo
 
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
-from dive_tasks.utils import choose_annotation_fps
 from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
+from dive_tasks.utils import choose_annotation_fps
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
@@ -838,9 +837,7 @@ def postprocess(
                     itemId=str(item["_id"]),
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
-                    girder_job_title=(
-                        f"Extracting {item['name']} to folder {dsFolder['name']}"
-                    ),
+                    girder_job_title=(f"Extracting {item['name']} to folder {dsFolder['name']}"),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -876,9 +873,7 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     skip_transcoding=skipTranscoding,
-                    girder_job_title=(
-                        f"Converting {dsFolder['name']} to a web friendly format"
-                    ),
+                    girder_job_title=(f"Converting {dsFolder['name']} to a web friendly format"),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -918,9 +913,7 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     girder_client_token=str(token["_id"]),
-                    girder_job_title=(
-                        f"Converting {dsFolder['name']} to a web friendly format"
-                    ),
+                    girder_job_title=(f"Converting {dsFolder['name']} to a web friendly format"),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
@@ -977,9 +970,7 @@ def convert_large_image(
                 user_id=str(user["_id"]),
                 user_login=str(user["login"]),
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(
-                    f"Converting {dsFolder['name']} to a web friendly format"
-                ),
+                girder_job_title=(f"Converting {dsFolder['name']} to a web friendly format"),
                 girder_job_type="private" if job_is_private else "convert",
             ),
         )

@@ -91,14 +91,14 @@ export default defineComponent({
           const { data: rootpath } = await girderRest.get(
             `folder/${loc._id}/rootpath_or_relative`,
           );
-          for (const crumb of rootpath || []) {
+          (rootpath || []).forEach((crumb) => {
             const obj = crumb.object || crumb;
             if (obj._modelType === 'user') {
               parts.push(obj.login || obj.name || 'User');
             } else if (obj.name) {
               parts.push(obj.name);
             }
-          }
+          });
           if (loc.name) {
             parts.push(loc.name);
           } else {

@@ -620,24 +620,29 @@ def run_pipeline(self: Task, params: PipelineJob):
                         uploaded_calibration_file_id = uploaded_calibration.get('_id')
                         if uploaded_calibration_file_id is not None:
                             uploaded_calibration_file_id_str = str(uploaded_calibration_file_id)
-                            gc.sendRestRequest(
-                                'POST',
-                                f'/dive_dataset/{input_folder_id}/calibration?fileId={uploaded_calibration_file_id_str}',
+                            cal_url = (
+                                f'/dive_dataset/{input_folder_id}/calibration'
+                                f'?fileId={uploaded_calibration_file_id_str}'
                             )
+                            gc.sendRestRequest('POST', cal_url)
                             manager.write(
-                                f'Assigned calibration output to dataset: {calibration_output.name}\n'
+                                'Assigned calibration output to dataset: '
+                                f'{calibration_output.name}\n'
                             )
                         else:
                             manager.write(
-                                f'Warning: uploaded calibration output {calibration_output.name} has no file id\n'
+                                'Warning: uploaded calibration output '
+                                f'{calibration_output.name} has no file id\n'
                             )
                     except Exception as exc:
                         manager.write(
-                            f'Warning: failed to assign calibration output {calibration_output.name}: {exc}\n'
+                            'Warning: failed to assign calibration output '
+                            f'{calibration_output.name}: {exc}\n'
                         )
                 else:
                     manager.write(
-                        'Warning: stereo calibration pipeline produced no recognized calibration output file\n'
+                        'Warning: stereo calibration pipeline produced no '
+                        'recognized calibration output file\n'
                     )
 
             if creates_new_dataset:
