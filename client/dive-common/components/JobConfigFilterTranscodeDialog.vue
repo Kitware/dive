@@ -129,38 +129,44 @@ export default defineComponent({
       if (!showDestinationPicker) {
         return;
       }
-      const { default: girderRest } = await import('platform/web-girder/plugins/girder');
-      const userId = girderRest.user?._id;
-      const fallback: DestinationLocation | null = userId
-        ? {
-          _id: userId,
-          _modelType: 'user',
-          login: girderRest.user?.login,
-        }
-        : null;
-      if (!props.selectedDatasetIds.length) {
-        location.value = fallback;
-        await refreshBreadcrumbPath(location.value);
-        return;
-      }
+      pathLoading.value = true;
       try {
-        const datasetId = parentDatasetId(props.selectedDatasetIds[0]);
-        const { data: folder } = await girderRest.get(`folder/${datasetId}`);
-        if (folder.parentCollection === 'folder' && folder.parentId) {
-          const { data: parent } = await girderRest.get(`folder/${folder.parentId}`);
-          location.value = {
-            _id: parent._id,
-            _modelType: 'folder',
-            name: parent.name,
-          };
-        } else {
+        const { default: girderRest } = await import('platform/web-girder/plugins/girder');
+        const userId = girderRest.user?._id;
+        const fallback: DestinationLocation | null = userId
+          ? {
+            _id: userId,
+            _modelType: 'user',
+            login: girderRest.user?.login,
+          }
+          : null;
+        if (!props.selectedDatasetIds.length) {
           location.value = fallback;
+        } else {
+          try {
+            const datasetId = parentDatasetId(props.selectedDatasetIds[0]);
+            const { data: folder } = await girderRest.get(`folder/${datasetId}`);
+            if (folder.parentCollection === 'folder' && folder.parentId) {
+              const { data: parent } = await girderRest.get(`folder/${folder.parentId}`);
+              location.value = {
+                _id: parent._id,
+                _modelType: 'folder',
+                name: parent.name,
+              };
+            } else {
+              location.value = fallback;
+            }
+          } catch {
+            location.value = fallback;
+          }
         }
-      } catch {
-        location.value = fallback;
+        await refreshBreadcrumbPath(location.value);
+      } finally {
+        pathLoading.value = false;
       }
-      await refreshBreadcrumbPath(location.value);
     }
+
+    let destinationInitPromise: Promise<void> = Promise.resolve();
 
     watch(() => props.value, (open) => {
       if (!open) {
@@ -171,11 +177,18 @@ export default defineComponent({
       props.selectedDatasetIds.forEach((id: string) => {
         outputDatasetNames.value[id] = `${props.pipelineName}_${id}_${dialogOpenTimestamp.value}`;
       });
-      initDestinationLocation();
+      destinationInitPromise = initDestinationLocation();
     });
 
-    function openFolderPicker() {
-      draftLocation.value = location.value ? { ...location.value } : null;
+    async function openFolderPicker() {
+      await destinationInitPromise;
+      if (!location.value) {
+        await initDestinationLocation();
+      }
+      if (!location.value) {
+        return;
+      }
+      draftLocation.value = { ...location.value };
       pickerOpen.value = true;
     }
 

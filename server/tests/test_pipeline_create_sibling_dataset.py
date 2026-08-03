@@ -1,6 +1,8 @@
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
+
 from dive_tasks.utils import create_sibling_dataset_from_media
 from dive_utils import constants
 
@@ -57,3 +59,27 @@ def test_create_sibling_dataset_uses_explicit_parent_folder(tmp_path: Path):
     meta = gc.addMetadataToFolder.call_args[0][1]
     assert meta[constants.TypeMarker] == constants.VideoType
     assert meta[constants.FPSMarker] == 30
+
+
+def test_create_sibling_dataset_raises_before_create_when_no_media(tmp_path: Path):
+    media = tmp_path / 'out'
+    media.mkdir()
+    (media / 'notes.txt').write_text('not media')
+
+    gc = MagicMock()
+    manager = MagicMock()
+
+    with pytest.raises(Exception, match='No media files found'):
+        create_sibling_dataset_from_media(
+            gc,
+            manager,
+            'input-id',
+            media,
+            'empty_out',
+            constants.ImageSequenceType,
+            1,
+        )
+
+    gc.createFolder.assert_not_called()
+    gc.getFolder.assert_not_called()
+    gc.uploadFileToFolder.assert_not_called()

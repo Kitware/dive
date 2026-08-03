@@ -400,12 +400,8 @@ def create_sibling_dataset_from_media(
     Returns the new folder id.
     """
     media_directory = Path(media_directory)
-    input_folder = gc.getFolder(input_folder_id)
-    parent_id = str(parent_folder_id) if parent_folder_id else str(input_folder['parentId'])
     name = dataset_name or media_directory.name
-    new_folder = gc.createFolder(parent_id, name, reuseExisting=False)
-    new_folder_id = str(new_folder['_id'])
-
+    # Validate media before createFolder so a failed import never leaves an empty folder.
     media_files = [
         path
         for path in sorted(media_directory.iterdir())
@@ -415,6 +411,11 @@ def create_sibling_dataset_from_media(
     ]
     if not media_files:
         raise Exception(f'No media files found in {media_directory} to create dataset "{name}"')
+
+    input_folder = gc.getFolder(input_folder_id)
+    parent_id = str(parent_folder_id) if parent_folder_id else str(input_folder['parentId'])
+    new_folder = gc.createFolder(parent_id, name, reuseExisting=False)
+    new_folder_id = str(new_folder['_id'])
 
     manager.write(f'Creating dataset "{name}" from {len(media_files)} media file(s)\n')
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
