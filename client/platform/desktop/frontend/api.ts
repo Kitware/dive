@@ -8,6 +8,7 @@ import type {
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
+  AutoRegisterRequest, AutoRegisterResponse,
 } from 'dive-common/apispec';
 
 import {
@@ -375,6 +376,20 @@ async function segmentationSam3Installed(): Promise<{ installed: boolean }> {
 
 async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> {
   return window.diveDesktop.invoke('segmentation-text-query', request);
+}
+
+/**
+ * Auto Register API (Camera Registration panel)
+ * Computes a cross-modality homography between two camera frames using the
+ * deep matcher hosted by the interactive service.
+ */
+
+async function autoRegisterAvailable(): Promise<{ installed: boolean }> {
+  return window.diveDesktop.invoke('register-images-available');
+}
+
+async function autoRegister(request: AutoRegisterRequest): Promise<AutoRegisterResponse> {
+  return window.diveDesktop.invoke('register-images', request);
 }
 
 async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
@@ -769,6 +784,9 @@ export {
   textQuery,
   refineDetections,
   runTextQueryPipeline,
+  /* Auto Register APIs */
+  autoRegisterAvailable,
+  autoRegister,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,

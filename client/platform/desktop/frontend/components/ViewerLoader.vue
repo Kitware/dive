@@ -11,7 +11,7 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
-import { isStereoscopicDatasetMeta } from 'dive-common/multicamDisplay';
+import { isStereoscopicDatasetMeta, isMultiCamDatasetMeta } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -29,6 +29,7 @@ import {
   segmentationSam3Installed,
   loadMetadata, textQuery,
   runTextQueryPipeline,
+  autoRegister, autoRegisterAvailable,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
@@ -151,6 +152,7 @@ export default defineComponent({
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
+    const autoRegisterReady = ref(false);
 
     async function refreshTextQueryAvailability() {
       try {
@@ -161,8 +163,18 @@ export default defineComponent({
       }
     }
 
+    async function refreshAutoRegisterAvailability() {
+      try {
+        const result = await autoRegisterAvailable();
+        autoRegisterReady.value = result.installed;
+      } catch {
+        autoRegisterReady.value = false;
+      }
+    }
+
     watch(() => settings.value?.viamePath, () => {
       refreshTextQueryAvailability();
+      refreshAutoRegisterAvailability();
     });
 
     watch(
@@ -547,6 +559,7 @@ export default defineComponent({
     onMounted(() => {
       initializeSegmentation();
       refreshTextQueryAvailability();
+      refreshAutoRegisterAvailability();
     });
 
     /**
@@ -639,52 +652,79 @@ export default defineComponent({
     let stereoDatasetFps: number | undefined;
 
     /**
-     * Load multicam metadata for both cameras to build image path getters
+     * Populate stereoImagePathGetters (per-camera frame -> image path) from a
+     * dataset's already-loaded multicam metadata. This part is not stereo
+     * specific: both the stereo features and Auto Register resolve per-camera
+     * image paths the same way. Callers gate on the dataset kind they support
+     * (stereo requires a stereoscopic dataset; auto-register accepts any multicam)
+     * before calling this. `meta.multiCamMedia` must already be truthy.
      */
+    async function populateMultiCamImagePathGetters(
+      meta: Awaited<ReturnType<typeof loadMetadata>>,
+    ): Promise<boolean> {
+      // Extract calibration file path from multiCam metadata
+      stereoCalibrationFile = meta.multiCam?.calibration || undefined;
+      // Capture the dataset-level fps as a fallback for per-camera frame times.
+      stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
+
+      // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
+      if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
+
+      const { cameras } = meta.multiCamMedia;
+      const cameraNames = Object.keys(cameras);
+
+      for (let i = 0; i < cameraNames.length; i += 1) {
+        const cam = cameraNames[i];
+        const cameraId = `${props.id}/${cam}`;
+        // eslint-disable-next-line no-await-in-loop
+        const camMeta = await loadMetadata(cameraId);
+        const {
+          originalBasePath, originalImageFiles, type, originalVideoFile,
+        } = camMeta;
+
+        stereoImagePathGetters.value[cam] = (frameNum: number): string => {
+          if (type === 'video') {
+            return joinPath(originalBasePath, originalVideoFile || '');
+          }
+          if (originalImageFiles && originalImageFiles[frameNum]) {
+            const imagePath = originalImageFiles[frameNum];
+            if (isAbsolutePath(imagePath)) {
+              return imagePath;
+            }
+            return joinPath(originalBasePath, imagePath);
+          }
+          return '';
+        };
+      }
+      return true;
+    }
+
     async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadMetadata(props.id);
         // Plain multicam and single-camera datasets have no stereo pair: report
         // no stereo so the caller does not load the stereo service.
         if (!meta.multiCamMedia || !isStereoscopicDatasetMeta(meta)) return false;
-
-        // Extract calibration file path from multiCam metadata
-        stereoCalibrationFile = meta.multiCam?.calibration || undefined;
-        // Capture the dataset-level fps as a fallback for per-camera frame times.
-        stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
-
-        // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
-        if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
-
-        const { cameras } = meta.multiCamMedia;
-        const cameraNames = Object.keys(cameras);
-
-        for (let i = 0; i < cameraNames.length; i += 1) {
-          const cam = cameraNames[i];
-          const cameraId = `${props.id}/${cam}`;
-          // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadMetadata(cameraId);
-          const {
-            originalBasePath, originalImageFiles, type, originalVideoFile,
-          } = camMeta;
-
-          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-            if (type === 'video') {
-              return joinPath(originalBasePath, originalVideoFile || '');
-            }
-            if (originalImageFiles && originalImageFiles[frameNum]) {
-              const imagePath = originalImageFiles[frameNum];
-              if (isAbsolutePath(imagePath)) {
-                return imagePath;
-              }
-              return joinPath(originalBasePath, imagePath);
-            }
-            return '';
-          };
-        }
-        return true;
+        return await populateMultiCamImagePathGetters(meta);
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
+        return false;
+      }
+    }
+
+    /**
+     * Multicam metadata loader for Auto Register. Unlike loadStereoMetadata this
+     * accepts ANY multi-camera dataset (stereoscopic or plain 'multicam', e.g.
+     * an EO/IR rig), since deep-feature alignment does not require a calibrated
+     * stereo pair -- only two cameras' images for the current frame.
+     */
+    async function loadMultiCamMetadata(): Promise<boolean> {
+      try {
+        const meta = await loadMetadata(props.id);
+        if (!meta.multiCamMedia || !isMultiCamDatasetMeta(meta)) return false;
+        return await populateMultiCamImagePathGetters(meta);
+      } catch (err) {
+        console.error('[MultiCam] Failed to load multicam metadata:', err);
         return false;
       }
     }
@@ -726,6 +766,34 @@ export default defineComponent({
         console.warn('[Stereo] Failed to set frame:', err);
         return false;
       }
+    }
+
+    /**
+     * Auto-register handler for the Camera Registration panel (passed down through
+     * Viewer's auto-register bridge). Resolves each camera's image path for the
+     * requested frame via the same per-camera getters stereo uses, then asks
+     * the interactive service for a deep-matched homography. The returned
+     * correspondences/homography map camera A native pixels -> camera B.
+     */
+    async function handleAutoRegister(cameraA: string, cameraB: string, frameNum: number) {
+      // Populates stereoImagePathGetters from multicam metadata (no-op when
+      // already loaded). Accepts any multi-camera dataset (stereoscopic or
+      // plain multicam); false means this is a single-camera dataset.
+      const isMulticam = await loadMultiCamMetadata();
+      if (!isMulticam) {
+        throw new Error('Auto-register requires a multi-camera dataset');
+      }
+      const getterA = stereoImagePathGetters.value[cameraA];
+      const getterB = stereoImagePathGetters.value[cameraB];
+      if (!getterA || !getterB) {
+        throw new Error(`Could not resolve media for cameras "${cameraA}" and "${cameraB}"`);
+      }
+      const imagePathA = getterA(frameNum);
+      const imagePathB = getterB(frameNum);
+      if (!imagePathA || !imagePathB) {
+        throw new Error(`No image found for frame ${frameNum} on both cameras`);
+      }
+      return autoRegister({ imagePathA, imagePathB });
     }
 
     // The backend stereo service is needed whenever either stereo feature is on
@@ -1970,6 +2038,8 @@ export default defineComponent({
       handleTextQueryInit,
       handleTextQueryAllFrames,
       textQueryAvailable,
+      autoRegisterReady,
+      handleAutoRegister,
       openLink,
       /* Stereo */
       stereoLoadingDialog,
@@ -2001,6 +2071,7 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
+      :auto-register-handler="autoRegisterReady ? handleAutoRegister : null"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @text-query-submit="handleTextQuerySubmit"

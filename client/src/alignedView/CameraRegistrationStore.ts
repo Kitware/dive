@@ -463,7 +463,7 @@ export default class CameraRegistrationStore {
    * unless the pair already has a file-loaded transform, in which case it
    * opens in a review posture (false) so stray clicks don't start placing
    * points on top of a registration that needs no points. The user can still
-   * opt back in via the panel's "Pick points" toggle to refine.
+   * opt back in via the panel's "Edit points" toggle to refine.
    */
   pickingDefaultFor(key: string | null): boolean {
     return !(key && this.homographies.value[key] && this.isLoadedHomography(key));
@@ -635,6 +635,44 @@ export default class CameraRegistrationStore {
     this.homographies.value = { ...this.homographies.value, [key]: { AtoB, BtoA } };
     this.homographySources[key] = 'fit';
     return { AtoB, BtoA };
+  }
+
+  /**
+   * Apply an automatically computed alignment for `camA` -> `camB`: replace the
+   * pair's correspondences with the matcher's inlier points ([ax, ay, bx, by]
+   * rows in native pixels), switch the pair to a homography fit, and fit from
+   * those points. The points land in the normal correspondence table so the
+   * user can inspect, delete, or drag-refine them exactly like hand-picked
+   * ones. Picking is switched on so the injected points are immediately
+   * visible for that review -- the keypoint layer draws nothing while picking
+   * is off.
+   *
+   * Deliberately does NOT touch {@link source}: that stamp is rig-global
+   * (written into EVERY per-camera registration file), so recording this one
+   * pair's matcher provenance there would falsely restamp -- and therefore
+   * rewrite -- the other cameras' files on the next save. The pair's
+   * divergence from a loaded producer registration still surfaces through
+   * {@link isRefinedFromSource}, like any in-app refit. Persisted per-pair
+   * matcher provenance needs a pair-level source in the file format first.
+   */
+  applyAutoRegistration(
+    camA: string,
+    camB: string,
+    inliers: [number, number, number, number][],
+  ) {
+    const key = this.pairKey(camA, camB);
+    const list: Correspondence[] = inliers.map(([ax, ay, bx, by]) => ({
+      // eslint-disable-next-line no-plusplus
+      id: this.nextId++,
+      a: [ax, ay] as Point,
+      b: [bx, by] as Point,
+    }));
+    this.correspondences.value = { ...this.correspondences.value, [key]: list };
+    this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
+    this.transformTypes.value = { ...this.transformTypes.value, [key]: 'homography' };
+    this.pickingEnabled.value = true;
+    this.maybeFitPair(key);
   }
 
   /**

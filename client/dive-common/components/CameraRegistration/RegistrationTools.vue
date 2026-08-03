@@ -16,6 +16,7 @@ import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useAutoRegister } from 'dive-common/use/useAutoRegister';
 
 export default defineComponent({
   name: 'CameraRegistration',
@@ -64,7 +65,7 @@ export default defineComponent({
       return {
         icon: complete ? 'mdi-check-circle' : 'mdi-alert',
         color: complete ? 'success' : 'warning',
-        text: `${total - unresolvedCount}/${total} cameras registered`,
+        text: `${total - unresolvedCount}/${total} cameras ready`,
       };
     });
     const camLeft = ref<string | null>(null);
@@ -79,7 +80,7 @@ export default defineComponent({
     /**
      * Author-vs-review posture: picking defaults on for a pair that still
      * needs points, and off for one whose transform came from a registration
-     * file (review it; the "Pick points" toggle opts back in to refine).
+     * file (review it; the "Edit points" toggle opts back in to refine).
      * Re-applied whenever the active pair changes identity, so it overrides a
      * manual toggle on pair switch -- each pair opens in its own posture.
      */
@@ -369,6 +370,57 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Auto Register: ask the platform's deep matcher (interactive service) for
+     * correspondences between the selected pair on the current frame, then
+     * inject them as ordinary point pairs and fit a homography. The service
+     * is null / unavailable on platforms without the capability (web), which
+     * hides the button entirely.
+     */
+    const autoRegisterService = useAutoRegister();
+    const autoRegisterAvailable = computed(() => !!autoRegisterService?.available.value);
+    const autoRegistering = ref(false);
+    const autoRegisterError = ref<string | null>(null);
+    const autoRegisterSummary = ref<string | null>(null);
+
+    async function runAutoRegister() {
+      if (!autoRegisterService || !camLeft.value || !camRight.value) {
+        return;
+      }
+      if (correspondences.value.length > 0 || hasLoadedTransform.value) {
+        const confirmed = await prompt({
+          title: 'Auto Register',
+          text: `This will replace the existing points/transform for ${camLeft.value} → `
+            + `${camRight.value} with automatically matched points. Continue?`,
+          confirm: true,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
+      autoRegistering.value = true;
+      autoRegisterError.value = null;
+      autoRegisterSummary.value = null;
+      try {
+        const result = await autoRegisterService.run(camLeft.value, camRight.value);
+        if (!result.success || !result.inliers || result.inliers.length === 0) {
+          autoRegisterError.value = result.error
+            || 'Auto-register could not compute an alignment for this frame.';
+          return;
+        }
+        registration.applyAutoRegistration(camLeft.value, camRight.value, result.inliers);
+        const consensus = result.inlierRatio !== undefined
+          ? ` (${Math.round(result.inlierRatio * 100)}% match consensus)` : '';
+        autoRegisterSummary.value = `Aligned with ${result.inliers.length} matched `
+          + `points${consensus}. Review the points and overlay warp, refine if `
+          + 'needed, then save.';
+      } catch (err) {
+        autoRegisterError.value = err instanceof Error ? err.message : String(err);
+      } finally {
+        autoRegistering.value = false;
+      }
+    }
+
     return {
       cameras,
       cameraAlignmentStatuses,
@@ -404,6 +456,11 @@ export default defineComponent({
       setTransformType,
       setAlignmentMode,
       save,
+      autoRegisterAvailable,
+      autoRegistering,
+      autoRegisterError,
+      autoRegisterSummary,
+      runAutoRegister,
     };
   },
 });
@@ -429,14 +486,23 @@ export default defineComponent({
     >
       Source: {{ sourceReadout }}
     </span>
+    <!-- Persistent divergence status (survives save by design); only the
+         action hint tracks the save state so it never asks for a save
+         that's already done. -->
     <span
       v-if="refinedFromSource"
       class="text-caption warning--text d-block"
     >
       This pair has been refined in-app since the source registration was
-      produced. Save, then download the camera's registration from the
-      Export menu to hand the refinement (and its points) back to the
-      producer.
+      produced.
+      <template v-if="dirty">
+        Save, then download the camera's registration from the Export menu
+        to hand the refinement (and its points) back to the producer.
+      </template>
+      <template v-else>
+        Download the camera's registration from the Export menu to hand the
+        refinement (and its points) back to the producer.
+      </template>
     </span>
 
     <div
@@ -522,6 +588,47 @@ export default defineComponent({
       points is optional: fitting {{ minPoints }} or more pairs replaces it.
     </span>
 
+    <v-tooltip
+      v-if="autoRegisterAvailable"
+      bottom
+      open-delay="200"
+    >
+      <template #activator="{ on }">
+        <v-btn
+          block
+          outlined
+          small
+          color="primary"
+          :disabled="!camLeft || !camRight || camLeft === camRight || autoRegistering"
+          :loading="autoRegistering"
+          class="mt-2"
+          v-on="on"
+          @click="runAutoRegister"
+        >
+          <v-icon
+            small
+            left
+          >
+            mdi-auto-fix
+          </v-icon>
+          Auto Register
+        </v-btn>
+      </template>
+      <span>Automatically match points between the two cameras on the current frame</span>
+    </v-tooltip>
+    <span
+      v-if="autoRegisterError"
+      class="text-caption error--text d-block mt-1"
+    >
+      {{ autoRegisterError }}
+    </span>
+    <span
+      v-else-if="autoRegisterSummary"
+      class="text-caption success--text d-block mt-1"
+    >
+      {{ autoRegisterSummary }}
+    </span>
+
     <v-checkbox
       :input-value="linkedNav"
       :disabled="!hasTransform"
@@ -537,7 +644,7 @@ export default defineComponent({
 
     <v-switch
       v-model="pickingEnabled"
-      label="Pick points"
+      label="Edit points"
       dense
       hide-details
       class="mt-0"
