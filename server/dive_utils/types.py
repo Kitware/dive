@@ -114,6 +114,8 @@ class PipelineRuntimeParams(TypedDict, total=False):
 class PipelineParams(TypedDict, total=False):
     kwiverParams: Dict[str, str]
     runtimeParams: PipelineRuntimeParams
+    # Name for the newly created dataset (filter / transcode / disparity).
+    outputDatasetName: str
 
 
 class MulticamCameraJob(TypedDict):
@@ -145,6 +147,8 @@ class PipelineJob(TypedDict):
     metadata_file_key: NotRequired[Optional[str]]
     # Set when a single-camera pipeline runs on one camera folder of a multicam parent.
     camera_name: NotRequired[Optional[str]]
+    # Name for a sibling dataset created from filter/transcode/disparity media output.
+    output_dataset_name: NotRequired[Optional[str]]
 
 
 class MulticamPipelineJob(PipelineJob, total=False):

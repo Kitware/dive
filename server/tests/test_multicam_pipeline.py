@@ -16,6 +16,21 @@ from dive_utils import constants
 def test_pipeline_requires_input():
     assert pipeline_requires_input({'name': 'u', 'type': 'x', 'pipe': 'utility_foo.pipe'})
     assert not pipeline_requires_input({'name': 'd', 'type': 'x', 'pipe': 'detector_foo.pipe'})
+    # Disparity writes images; it does not consume annotation CSV.
+    assert not pipeline_requires_input(
+        {
+            'name': 'disparity',
+            'type': constants.StereoPipelineMarker,
+            'pipe': 'measurement_compute_rectified_disparity.pipe',
+        }
+    )
+    assert pipeline_requires_input(
+        {
+            'name': 'meas',
+            'type': constants.StereoPipelineMarker,
+            'pipe': 'measurement_gmm_left_right_stereo.pipe',
+        }
+    )
 
 
 def test_is_stereo_or_multicam_pipeline():
@@ -80,7 +95,9 @@ def test_append_stereo_calibration_kwiver_settings_declared_keys():
 def test_stereo_calibration_keys_defaults():
     assert stereo_calibration_keys(None) == DEFAULT_CALIBRATION_KEYS
     assert stereo_calibration_keys({'metadata': None}) == DEFAULT_CALIBRATION_KEYS
-    assert stereo_calibration_keys({'metadata': {'calibrationKeys': []}}) == DEFAULT_CALIBRATION_KEYS
+    assert (
+        stereo_calibration_keys({'metadata': {'calibrationKeys': []}}) == DEFAULT_CALIBRATION_KEYS
+    )
     assert stereo_calibration_keys({'metadata': {'calibrationKeys': ['a:b']}}) == ('a:b',)
 
 

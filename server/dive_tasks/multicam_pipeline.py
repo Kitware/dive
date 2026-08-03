@@ -7,6 +7,7 @@ import re
 import shlex
 from typing import Dict, List, Optional, Tuple
 
+from dive_tasks.pipeline_creates_dataset import is_disparity_image_pipeline
 from dive_utils import constants
 from dive_utils.types import MulticamCameraJob, PipelineDescription
 
@@ -15,6 +16,9 @@ _PIPELINE_INPUT_PATTERN = re.compile(r'utility_|filter_|transcode_|measurement_'
 
 def pipeline_requires_input(pipeline: PipelineDescription) -> bool:
     """True when the pipe needs existing detections/tracks as input (matches desktop)."""
+    # Disparity image pipe is measurement_* but only needs stereo media + calibration.
+    if is_disparity_image_pipeline(pipeline):
+        return False
     return bool(_PIPELINE_INPUT_PATTERN.search(pipeline['pipe']))
 
 

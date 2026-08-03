@@ -294,6 +294,7 @@ def run_pipeline(
 
     runtime_params = (pipeline_params or {}).get("runtimeParams")
     kwiver_params = (pipeline_params or {}).get("kwiverParams")
+    output_dataset_name = (pipeline_params or {}).get("outputDatasetName")
 
     input_type = dataset_type
     multicam_cameras: List[types.MulticamCameraJob] = []
@@ -358,6 +359,8 @@ def run_pipeline(
         'runtime_params': runtime_params,
         'kwiver_params': kwiver_params,
     }
+    if output_dataset_name:
+        params['output_dataset_name'] = output_dataset_name
     if camera_name:
         params['camera_name'] = camera_name
         multi_cam_meta = fromMeta(multicam_parent, constants.MultiCamMarker, default={}) or {}
