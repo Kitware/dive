@@ -353,6 +353,7 @@ def _push_new_dataset_from_media(
     output_dataset_name = params.get('output_dataset_name') or (
         f"{pipeline.get('name', 'pipeline')}_output"
     )
+    output_parent_folder_id = params.get('output_parent_folder_id')
     input_folder = gc.getFolder(input_folder_id)
     source_fps = fromMeta(input_folder, constants.FPSMarker, default=-1)
 
@@ -379,6 +380,7 @@ def _push_new_dataset_from_media(
             output_dataset_name,
             constants.VideoType,
             source_fps,
+            parent_folder_id=output_parent_folder_id,
         )
         return
 
@@ -390,6 +392,7 @@ def _push_new_dataset_from_media(
         output_dataset_name,
         constants.ImageSequenceType,
         source_fps,
+        parent_folder_id=output_parent_folder_id,
     )
 
 

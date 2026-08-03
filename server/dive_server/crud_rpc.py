@@ -295,6 +295,10 @@ def run_pipeline(
     runtime_params = (pipeline_params or {}).get("runtimeParams")
     kwiver_params = (pipeline_params or {}).get("kwiverParams")
     output_dataset_name = (pipeline_params or {}).get("outputDatasetName")
+    output_parent_folder_id = (pipeline_params or {}).get("outputParentFolderId")
+    if output_parent_folder_id:
+        # Fail early if the user cannot write the chosen destination.
+        Folder().load(output_parent_folder_id, level=AccessType.WRITE, user=user, exc=True)
 
     input_type = dataset_type
     multicam_cameras: List[types.MulticamCameraJob] = []
@@ -361,6 +365,8 @@ def run_pipeline(
     }
     if output_dataset_name:
         params['output_dataset_name'] = output_dataset_name
+    if output_parent_folder_id:
+        params['output_parent_folder_id'] = output_parent_folder_id
     if camera_name:
         params['camera_name'] = camera_name
         multi_cam_meta = fromMeta(multicam_parent, constants.MultiCamMarker, default={}) or {}

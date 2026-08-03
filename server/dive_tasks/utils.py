@@ -389,16 +389,19 @@ def create_sibling_dataset_from_media(
     dataset_name: str,
     dataset_type: str,
     fps,
+    parent_folder_id: Optional[str] = None,
 ) -> str:
     """
-    Create a sibling Girder folder next to input_folder and import media from media_directory.
+    Create a Girder folder and import media from media_directory.
 
     Used by filter / transcode / disparity pipelines that produce a new dataset.
+    Defaults to a sibling of input_folder; pass parent_folder_id to choose another
+    destination (web destination picker).
     Returns the new folder id.
     """
     media_directory = Path(media_directory)
     input_folder = gc.getFolder(input_folder_id)
-    parent_id = str(input_folder['parentId'])
+    parent_id = str(parent_folder_id) if parent_folder_id else str(input_folder['parentId'])
     name = dataset_name or media_directory.name
     new_folder = gc.createFolder(parent_id, name, reuseExisting=False)
     new_folder_id = str(new_folder['_id'])
