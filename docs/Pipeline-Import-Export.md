@@ -72,6 +72,7 @@ Example:
 | `# Description:` | Human-readable summary shown in the Run Pipeline UI. May continue on following `#` comment lines until the next named header. |
 | `# Input:` / `# Output:` | Declared media/annotation kinds for the pipe (used when discovering and categorizing static pipelines). |
 | `# Requires Calibration: True` | Restricts the pipe to stereo datasets that have a calibration file attached. Values `true`, `yes`, and `1` are accepted. |
+| `# Calibration Keys: <k> [k…]` | Opt-in: binds the dataset's stereo calibration file to each listed KWIVER config key at run time (one `-s <k>=<cal-path>` per key). Keys may be space- or comma-separated. Use this when the pipe's calibration consumer is not the conventional `measurer:calibration_file` / `calibration_reader:file` pair (those are used when the header is unset). Needed because `$CONFIG{global:…}` indirection cannot receive `-s` overrides (macros expand at parse time; `-s` blocks are appended last). |
 | `# Metadata File: <block>:<key>` | Opt-in: when the dataset has an attached **Metadata File**, DIVE appends a KWIVER override `-s <block>:<key>=<path>` at run time. Without this header, no metadata file is injected. |
 | `# Image List Keys: <k> [k…]` | Opt-in: binds the run's per-camera input image list(s) to each listed KWIVER key. Keys may be space- or comma-separated. A key containing `{cam}` is expanded once per camera (1-based), e.g. `stabilizer:image_list{cam}` → `image_list1`, `image_list2`, …. A key without `{cam}` receives camera 1's list only. |
 

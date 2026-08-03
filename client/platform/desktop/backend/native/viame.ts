@@ -35,6 +35,12 @@ import {
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
 
+// Calibration consumers every stereo pipe is assumed to have unless it declares
+// its own via a `# Calibration Keys:` header.
+// Keep in sync with server/dive_tasks/multicam_pipeline.py DEFAULT_CALIBRATION_KEYS.
+const DEFAULT_CALIBRATION_KEYS = ['measurer:calibration_file', 'calibration_reader:file'] as const;
+
+
 /**
  * Filter an image list to only include images within frame range.
  * @param imageList List of image file paths
@@ -359,7 +365,7 @@ async function runPipeline(
       // `measurer`/`calibration_reader` names its own keys via `# Calibration Keys:`.
       const calibrationKeys = runPipelineArgs.pipeline.metadata?.calibrationKeys?.length
         ? runPipelineArgs.pipeline.metadata.calibrationKeys
-        : ['measurer:calibration_file', 'calibration_reader:file'];
+        : DEFAULT_CALIBRATION_KEYS;
       calibrationKeys.forEach((key) => {
         command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
       });
@@ -811,4 +817,5 @@ export {
   runPipeline,
   exportTrainedPipeline,
   train,
+  DEFAULT_CALIBRATION_KEYS,
 };
