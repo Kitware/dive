@@ -45,14 +45,32 @@ def find_downloaded_calibration_file(directory: Path) -> Optional[Path]:
     return sorted(matches, key=lambda p: (len(p.parts), str(p)))[0]
 
 
+# Calibration consumers every stereo pipe is assumed to have unless it declares
+# its own via a `# Calibration Keys:` header.
+DEFAULT_CALIBRATION_KEYS = ('measurer:calibration_file', 'calibration_reader:file')
+
+
+def stereo_calibration_keys(pipeline: Optional[PipelineDescription]) -> Tuple[str, ...]:
+    """
+    KWIVER keys the dataset's calibration file binds to for this pipe.
+
+    A pipe opts out of the `measurer`/`calibration_reader` convention with a
+    `# Calibration Keys: <k> [k...]` header, naming the consuming process keys
+    directly (e.g. `depth_map:computer:ocv_stereo_disparity:calibration_file`).
+    """
+    declared = ((pipeline or {}).get('metadata') or {}).get('calibrationKeys')
+    return tuple(declared) if declared else DEFAULT_CALIBRATION_KEYS
+
+
 def append_stereo_calibration_kwiver_settings(
     command: List[str],
     calibration_path: Path,
+    pipeline: Optional[PipelineDescription] = None,
 ) -> None:
     """Append KWIVER settings used by desktop for stereoscopic calibration input."""
     cal_path = shlex.quote(str(calibration_path))
-    command.append(f'-s measurer:calibration_file={cal_path}')
-    command.append(f'-s calibration_reader:file={cal_path}')
+    for key in stereo_calibration_keys(pipeline):
+        command.append(f'-s {shlex.quote(key)}={cal_path}')
 
 
 def append_metadata_file_kwiver_settings(

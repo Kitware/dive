@@ -1,12 +1,14 @@
 from pathlib import Path
 
 from dive_tasks.multicam_pipeline import (
+    DEFAULT_CALIBRATION_KEYS,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
     is_stereo_or_multicam_pipeline,
     pipeline_requires_input,
+    stereo_calibration_keys,
 )
 from dive_utils import constants
 
@@ -52,6 +54,34 @@ def test_append_stereo_calibration_kwiver_settings():
         '-s measurer:calibration_file=/work/stereo-cal.json',
         '-s calibration_reader:file=/work/stereo-cal.json',
     ]
+
+
+def test_append_stereo_calibration_kwiver_settings_declared_keys():
+    """A pipe's `# Calibration Keys:` header replaces the default keys."""
+    pipeline = {
+        'name': 'disparity',
+        'type': constants.StereoPipelineMarker,
+        'pipe': 'measurement_compute_rectified_disparity.pipe',
+        'metadata': {
+            'calibrationKeys': [
+                'depth_map:computer:ocv_stereo_disparity:calibration_file',
+                'stereo_pairing:cameras_directory',
+            ]
+        },
+    }
+    command: list = []
+    append_stereo_calibration_kwiver_settings(command, Path('/work/cal.npz'), pipeline)
+    assert command == [
+        '-s depth_map:computer:ocv_stereo_disparity:calibration_file=/work/cal.npz',
+        '-s stereo_pairing:cameras_directory=/work/cal.npz',
+    ]
+
+
+def test_stereo_calibration_keys_defaults():
+    assert stereo_calibration_keys(None) == DEFAULT_CALIBRATION_KEYS
+    assert stereo_calibration_keys({'metadata': None}) == DEFAULT_CALIBRATION_KEYS
+    assert stereo_calibration_keys({'metadata': {'calibrationKeys': []}}) == DEFAULT_CALIBRATION_KEYS
+    assert stereo_calibration_keys({'metadata': {'calibrationKeys': ['a:b']}}) == ('a:b',)
 
 
 def test_build_multicam_kwiver_settings_image_sequence(tmp_path: Path):

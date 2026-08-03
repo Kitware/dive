@@ -498,7 +498,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 )
                 cal_path = find_downloaded_calibration_file(cal_dir)
                 if cal_path is not None:
-                    append_stereo_calibration_kwiver_settings(command, cal_path)
+                    append_stereo_calibration_kwiver_settings(command, cal_path, pipeline)
                 else:
                     manager.write(
                         f'Warning: calibration item {calibration_item_id} '

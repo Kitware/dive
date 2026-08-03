@@ -94,3 +94,27 @@ def test_extract_pipe_metadata_requires_calibration(tmp_path: Path):
     assert metadata['description'] == 'stereo measurement'
     assert metadata['inputType'] == 'TRACK'
     assert metadata['outputType'] == 'TRACK'
+    assert metadata.get('calibrationKeys') is None
+
+
+def test_extract_pipe_metadata_calibration_keys(tmp_path: Path):
+    pipe = tmp_path / 'measurement_disparity.pipe'
+    pipe.write_text(
+        '\n'.join(
+            [
+                '# Description: rectified disparity',
+                '# Requires Calibration: True',
+                '# Calibration Keys: depth_map:computer:ocv_stereo_disparity:calibration_file'
+                ' stereo_pairing:cameras_directory',
+            ]
+        )
+    )
+
+    metadata = extract_pipe_metadata(pipe)
+
+    assert metadata['calibrationKeys'] == [
+        'depth_map:computer:ocv_stereo_disparity:calibration_file',
+        'stereo_pairing:cameras_directory',
+    ]
+    # The header must not bleed into the multi-line description.
+    assert metadata['description'] == 'rectified disparity'
