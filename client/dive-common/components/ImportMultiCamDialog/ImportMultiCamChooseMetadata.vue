@@ -14,7 +14,7 @@ export default defineComponent({
 
 <template>
   <v-row
-    class="align-center"
+    class="align-start"
     no-gutters
   >
     <v-text-field
@@ -26,18 +26,11 @@ export default defineComponent({
       readonly
       outlined
       dense
+      clearable
       :value="metadataFile"
       class="mr-3"
+      @click:clear="$emit('clear')"
     />
-    <v-btn
-      v-if="metadataFile"
-      icon
-      class="mr-2"
-      aria-label="Clear camera metadata file"
-      @click="$emit('clear')"
-    >
-      <v-icon>mdi-close</v-icon>
-    </v-btn>
     <v-btn
       color="primary"
       @click="$emit('open')"
