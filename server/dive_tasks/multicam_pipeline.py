@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 import shlex
 from typing import Dict, List, Optional, Tuple
 
 from dive_utils import constants
-from dive_utils.types import MulticamCameraJob, PipelineDescription
+from dive_utils.types import MulticamCameraJob, MulticamRegistrationJob, PipelineDescription
 
 _PIPELINE_INPUT_PATTERN = re.compile(r'utility_|filter_|transcode_|measurement_')
 
@@ -65,6 +66,111 @@ def append_metadata_file_kwiver_settings(
     declared via its `# Metadata File:` header (e.g. stabilizer:flight_log).
     """
     command.append(f'-s {shlex.quote(kwiver_key)}={shlex.quote(str(metadata_path))}')
+
+
+def pipeline_camera_order(camera_names: List[str], reference: str) -> List[str]:
+    """
+    Camera order for 2-cam/3-cam pipelines, matching the desktop client: the
+    registration reference camera feeds input1 (the per-camera registrations
+    all map onto the reference, and the pipes warp everything onto camera 1's
+    frame), remaining cameras keep display order. Which detector a pipe runs
+    on which input is the pipe's documented contract, not something DIVE
+    infers.
+    """
+    if reference not in camera_names:
+        return camera_names
+    return [reference] + [name for name in camera_names if name != reference]
+
+
+def build_registration_pairs(folder_meta: dict) -> List[dict]:
+    """
+    Convert a dataset folder's camera registration meta (cameraHomographies /
+    cameraCorrespondences / cameraTransformTypes, keyed by directional
+    "left::right") into dive-camera-registration file pairs.
+    """
+    homographies = folder_meta.get('cameraHomographies') or {}
+    correspondences = folder_meta.get('cameraCorrespondences') or {}
+    transform_types = folder_meta.get('cameraTransformTypes') or {}
+    keys = set(homographies) | set(correspondences) | set(transform_types)
+    pairs: List[dict] = []
+    for key in sorted(keys):
+        left, _, right = key.partition('::')
+        homography = homographies.get(key)
+        pairs.append(
+            {
+                'left': left,
+                'right': right,
+                'points': [
+                    [c['a'][0], c['a'][1], c['b'][0], c['b'][1]]
+                    for c in correspondences.get(key) or []
+                ],
+                'leftToRight': homography.get('AtoB') if homography else None,
+                'rightToLeft': homography.get('BtoA') if homography else None,
+                'transformType': transform_types.get(key, 'similarity'),
+            }
+        )
+    return pairs
+
+
+def build_registration_kwiver_settings(
+    work_dir: Path,
+    cameras: List[MulticamCameraJob],
+    registration: MulticamRegistrationJob,
+) -> Dict[str, str]:
+    """
+    Build the -s settings handing the camera registration to a 2-cam/3-cam
+    pipeline. One standard <camera>_to_<reference>_registration.json per
+    non-reference camera is written into the work dir; each camera's warp
+    process (warp2, warp3, ... matching the job camera order) gets its own
+    single-pair file. The pair and direction are still pinned via the
+    reader's from_camera/to_camera config, since a pair may be stored in
+    either orientation.
+
+    Only pairs registering a camera directly onto the reference are
+    supported: pairs between two non-reference cameras are explicitly
+    unsupported here (there is no transform composition) and never reach the
+    pipeline. Cameras without a fitted reference pair get no settings.
+    """
+    reference = registration.get('reference')
+    if not reference:
+        return {}
+    reference_pairs = [
+        pair
+        for pair in registration.get('pairs') or []
+        if reference in (pair['left'], pair['right']) and pair['left'] != pair['right']
+    ]
+    pairs_by_camera: Dict[str, List[dict]] = {}
+    for pair in reference_pairs:
+        camera = pair['left'] if pair['right'] == reference else pair['right']
+        pairs_by_camera.setdefault(camera, []).append(pair)
+    fitted = {
+        (pair['left'], pair['right'])
+        for pair in reference_pairs
+        if pair.get('leftToRight') or pair.get('rightToLeft')
+    }
+    settings: Dict[str, str] = {}
+    for index, camera in enumerate(cameras):
+        name = camera['name']
+        if index == 0 or name == reference:
+            continue
+        if (name, reference) not in fitted and (reference, name) not in fitted:
+            continue
+        camera_pairs = pairs_by_camera.get(name)
+        if not camera_pairs:
+            continue
+        registration_path = work_dir / f'{name}_to_{reference}_registration.json'
+        with open(registration_path, 'w', encoding='utf-8') as registration_file:
+            json.dump(
+                {'type': 'dive-camera-registration', 'version': 1, 'pairs': camera_pairs},
+                registration_file,
+                indent=2,
+            )
+        warp = f'warp{index + 1}'
+        settings[f'{warp}:transformation_file'] = str(registration_path)
+        settings[f'{warp}:transform_reader:type'] = 'dive'
+        settings[f'{warp}:transform_reader:dive:from_camera'] = name
+        settings[f'{warp}:transform_reader:dive:to_camera'] = reference
+    return settings
 
 
 def build_multicam_kwiver_settings(

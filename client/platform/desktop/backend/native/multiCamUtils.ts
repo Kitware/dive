@@ -11,6 +11,7 @@ import { JsonMeta, Settings } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonMetadata, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
+import { pipelineOrderedCameraNames } from 'dive-common/multicamDisplay';
 
 /**
  * Figure out the destination location
@@ -76,11 +77,25 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta, settings: Settings, utility = false, forceTranscoded = false) {
+async function writeMultiCamStereoPipelineArgs(
+  jobWorkDir: string,
+  meta: JsonMeta,
+  settings: Settings,
+  utility = false,
+  forceTranscoded = false,
+  // 2-cam/3-cam pipes treat camera 1 as the reference frame the other
+  // cameras register onto, so their inputs go reference-first; stereo
+  // measurement keeps the stored left/right order.
+  referenceFirst = false,
+) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
-    const cameraList = Object.entries(meta.multiCam.cameras);
+    const { cameras } = meta.multiCam;
+    const cameraNames = referenceFirst
+      ? pipelineOrderedCameraNames(meta.multiCam).filter((name) => name in cameras)
+      : Object.keys(cameras);
+    const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
     for (let i = 0; i < cameraList.length; i += 1) {
       const [key, list] = cameraList[i];
       const { originalBasePath } = list;
@@ -152,6 +167,7 @@ function getMultiCamUrls(
     }
     const multiCamMedia: MultiCamMedia = {
       cameras: {},
+      cameraOrder: projectMetaData.multiCam.cameraOrder,
       defaultDisplay: projectMetaData.multiCam.defaultDisplay,
     };
 
