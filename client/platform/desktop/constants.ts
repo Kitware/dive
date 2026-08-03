@@ -16,6 +16,9 @@ export const PipelinesFolderName = 'DIVE_Pipelines';
 // Basename (without extension) of the saved "most recently used" calibration.
 // The stored file keeps the source file's real extension (e.g. last_calibration.npz).
 export const LastCalibrationBaseName = 'last_calibration';
+// Cross-dataset "shared" color/style overrides, stored once per data directory
+// and reused across every sequence when the shared color scope is enabled.
+export const GlobalStyleSettingsFileName = 'global_style_settings.json';
 
 export interface Settings {
   // version a schema version

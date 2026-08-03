@@ -22,6 +22,7 @@ import {
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
+import type { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
@@ -192,6 +193,7 @@ export default defineComponent({
     const videoUrl: Ref<Record<string, string>> = ref({});
     const {
       loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL, getTileHistogram,
+      loadGlobalStyleSettings, saveGlobalStyleSettings,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -425,6 +427,38 @@ export default defineComponent({
     const vuetify = inject('vuetify') as Vuetify;
     const trackStyleManager = new StyleManager({ markChangesPending, vuetify });
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
+
+    /**
+     * Shared (cross-dataset) color/style overrides. When the "shared" color
+     * scope is enabled, these are loaded for every dataset and overlaid on top
+     * of the dataset's own styling, and any style the user edits is mirrored
+     * back so the same colors follow them to every sequence.
+     */
+    const globalTypeStyles: Ref<Record<string, CustomStyle>> = ref({});
+    const globalGroupStyles: Ref<Record<string, CustomStyle>> = ref({});
+    const sharedColorsEnabled = () => (
+      clientSettings.typeSettings.colorScope !== 'dataset' && !!saveGlobalStyleSettings
+    );
+    function persistGlobalStyles() {
+      if (!sharedColorsEnabled() || !saveGlobalStyleSettings) {
+        return;
+      }
+      // Merge current explicit overrides into the shared store so choices made
+      // here extend rather than replace styles set on other sequences.
+      globalTypeStyles.value = {
+        ...globalTypeStyles.value, ...trackStyleManager.customStyles.value,
+      };
+      globalGroupStyles.value = {
+        ...globalGroupStyles.value, ...groupStyleManager.customStyles.value,
+      };
+      saveGlobalStyleSettings({
+        customTypeStyling: globalTypeStyles.value,
+        customGroupStyling: globalGroupStyles.value,
+      });
+    }
+    const scheduleGlobalStylePersist = debounce(persistGlobalStyles, 500);
+    trackStyleManager.onStyleEdit = scheduleGlobalStylePersist;
+    groupStyleManager.onStyleEdit = scheduleGlobalStylePersist;
 
     const cameraStore = new CameraStore({ markChangesPending });
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
@@ -1404,13 +1438,64 @@ export default defineComponent({
           resetMulticamAlignment();
         }
         /* Otherwise, complete loading of the dataset */
-        trackStyleManager.populateTypeStyles(meta.customTypeStyling);
-        groupStyleManager.populateTypeStyles(meta.customGroupStyling);
+        /**
+         * When shared colors are enabled, overlay the cross-dataset styles on
+         * top of this dataset's own styling (shared wins on conflicts), and
+         * seed the shared store with any dataset styles it doesn't yet know so
+         * imported colors propagate to future sequences.
+         */
+        let loadedGlobalStyles = false;
+        if (sharedColorsEnabled() && loadGlobalStyleSettings) {
+          try {
+            const shared = await loadGlobalStyleSettings();
+            globalTypeStyles.value = shared.customTypeStyling ?? {};
+            globalGroupStyles.value = shared.customGroupStyling ?? {};
+            loadedGlobalStyles = true;
+          } catch (err) {
+            // Non-fatal: fall back to dataset-only styling.
+            globalTypeStyles.value = {};
+            globalGroupStyles.value = {};
+          }
+        }
+        trackStyleManager.populateTypeStyles(
+          loadedGlobalStyles
+            ? { ...(meta.customTypeStyling ?? {}), ...globalTypeStyles.value }
+            : meta.customTypeStyling,
+        );
+        groupStyleManager.populateTypeStyles(
+          loadedGlobalStyles
+            ? { ...(meta.customGroupStyling ?? {}), ...globalGroupStyles.value }
+            : meta.customGroupStyling,
+        );
         if (meta.customTypeStyling) {
           trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
         }
         if (meta.customGroupStyling) {
           groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
+        }
+        if (loadedGlobalStyles) {
+          trackFilters.importTypes(Object.keys(globalTypeStyles.value), false);
+          groupFilters.importTypes(Object.keys(globalGroupStyles.value), false);
+          // Seed the shared store with dataset styles it doesn't already have,
+          // without overwriting the user's existing shared choices.
+          const seededType = Object.keys(meta.customTypeStyling ?? {})
+            .some((t) => !(t in globalTypeStyles.value));
+          const seededGroup = Object.keys(meta.customGroupStyling ?? {})
+            .some((t) => !(t in globalGroupStyles.value));
+          if (seededType || seededGroup) {
+            globalTypeStyles.value = {
+              ...(meta.customTypeStyling ?? {}), ...globalTypeStyles.value,
+            };
+            globalGroupStyles.value = {
+              ...(meta.customGroupStyling ?? {}), ...globalGroupStyles.value,
+            };
+            if (saveGlobalStyleSettings) {
+              saveGlobalStyleSettings({
+                customTypeStyling: globalTypeStyles.value,
+                customGroupStyling: globalGroupStyles.value,
+              });
+            }
+          }
         }
         if (meta.attributes) {
           loadAttributes(meta.attributes, { enableStereoLengthRender: meta.subType === 'stereo' });

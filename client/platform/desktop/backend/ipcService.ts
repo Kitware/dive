@@ -6,7 +6,7 @@ import {
   app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
-import type { Pipe } from 'dive-common/apispec';
+import type { Pipe, GlobalStyleSettings } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   ExportMulticamEverythingArgs,
@@ -248,6 +248,14 @@ export default function register() {
   });
 
   ipcMain.handle('get-last-calibration', async () => common.getLastCalibrationPath(settings.get()));
+
+  ipcMain.handle('load-global-style-settings', async () => (
+    common.loadGlobalStyleSettings(settings.get())
+  ));
+
+  ipcMain.handle('save-global-style-settings', async (_, styleSettings: GlobalStyleSettings) => {
+    await common.saveGlobalStyleSettings(settings.get(), styleSettings);
+  });
 
   ipcMain.handle('save-calibration', async (_, { path: sourcePath }: { path: string }) => {
     const savedPath = await common.saveLastCalibration(settings.get(), sourcePath);
