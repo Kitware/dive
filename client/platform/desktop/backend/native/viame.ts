@@ -40,7 +40,6 @@ const DiveJobManifestName = 'dive_job_manifest.json';
 // Keep in sync with server/dive_tasks/multicam_pipeline.py DEFAULT_CALIBRATION_KEYS.
 const DEFAULT_CALIBRATION_KEYS = ['measurer:calibration_file', 'calibration_reader:file'] as const;
 
-
 /**
  * Filter an image list to only include images within frame range.
  * @param imageList List of image file paths
