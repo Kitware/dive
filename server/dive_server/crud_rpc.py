@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 import json
 from typing import Dict, List, Optional, Tuple, TypedDict
-from pathlib import Path
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -18,8 +17,8 @@ import pymongo
 
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
-from dive_tasks.utils import choose_annotation_fps
 from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
+from dive_tasks.utils import choose_annotation_fps
 from dive_utils import TRUTHY_META_VALUES, asbool, constants, fromMeta, models, types
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
@@ -294,6 +293,11 @@ def run_pipeline(
 
     runtime_params = (pipeline_params or {}).get("runtimeParams")
     kwiver_params = (pipeline_params or {}).get("kwiverParams")
+    output_dataset_name = (pipeline_params or {}).get("outputDatasetName")
+    output_parent_folder_id = (pipeline_params or {}).get("outputParentFolderId")
+    if output_parent_folder_id:
+        # Fail early if the user cannot write the chosen destination.
+        Folder().load(output_parent_folder_id, level=AccessType.WRITE, user=user, exc=True)
 
     input_type = dataset_type
     multicam_cameras: List[types.MulticamCameraJob] = []
@@ -358,6 +362,10 @@ def run_pipeline(
         'runtime_params': runtime_params,
         'kwiver_params': kwiver_params,
     }
+    if output_dataset_name:
+        params['output_dataset_name'] = output_dataset_name
+    if output_parent_folder_id:
+        params['output_parent_folder_id'] = output_parent_folder_id
     if camera_name:
         params['camera_name'] = camera_name
         multi_cam_meta = fromMeta(multicam_parent, constants.MultiCamMarker, default={}) or {}
@@ -829,9 +837,7 @@ def postprocess(
                     itemId=str(item["_id"]),
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
-                    girder_job_title=(
-                        f"Extracting {item['name']} to folder {dsFolder['name']}"
-                    ),
+                    girder_job_title=(f"Extracting {item['name']} to folder {dsFolder['name']}"),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -867,9 +873,7 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     skip_transcoding=skipTranscoding,
-                    girder_job_title=(
-                        f"Converting {dsFolder['name']} to a web friendly format"
-                    ),
+                    girder_job_title=(f"Converting {dsFolder['name']} to a web friendly format"),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
@@ -909,9 +913,7 @@ def postprocess(
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
                     girder_client_token=str(token["_id"]),
-                    girder_job_title=(
-                        f"Converting {dsFolder['name']} to a web friendly format"
-                    ),
+                    girder_job_title=(f"Converting {dsFolder['name']} to a web friendly format"),
                     girder_job_type="private" if job_is_private else "convert",
                 ),
             )
@@ -968,9 +970,7 @@ def convert_large_image(
                 user_id=str(user["_id"]),
                 user_login=str(user["login"]),
                 girder_client_token=str(token["_id"]),
-                girder_job_title=(
-                    f"Converting {dsFolder['name']} to a web friendly format"
-                ),
+                girder_job_title=(f"Converting {dsFolder['name']} to a web friendly format"),
                 girder_job_type="private" if job_is_private else "convert",
             ),
         )

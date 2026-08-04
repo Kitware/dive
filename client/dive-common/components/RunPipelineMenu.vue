@@ -16,6 +16,7 @@ import {
   useApi,
   SubType,
   DatasetType,
+  NewDatasetJobConfig,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
@@ -225,6 +226,7 @@ export default defineComponent({
     async function _runPipelineOnSelectedItemInner(
       pipeline: Pipe,
       outputDatasetNameById?: Record<string, string>,
+      outputParentFolderId?: string,
     ) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
@@ -255,6 +257,7 @@ export default defineComponent({
         datasetIds.map((id) => runPipeline(id, pipeline, {
           runtimeParams: frameRange ? { frameRange } : undefined,
           outputDatasetName: outputDatasetNameById?.[id],
+          outputParentFolderId,
         })),
       ));
     }
@@ -284,24 +287,25 @@ export default defineComponent({
     /**
      * Handle a user confirming additional configuration for filter
      * or transcode pipelines, which create new datasets.
-     *
-     * @param outputNameMap Map selected dataset IDs to the name
-     * of the resultant dataset created by the pipeline
      */
-    async function exitPipelineConfig(outputNameMap: Record<string, string>) {
+    async function exitPipelineConfig(config: NewDatasetJobConfig) {
       menuState.value = 'idle'; // close the dialog
       if (selectedPipeline.value) {
-        let nameByDatasetId = outputNameMap;
+        let nameByDatasetId = config.names;
         // Multicam/stereo pipes run against the parent dataset id; remap names
         // keyed by camera composite ids so the chosen name is applied.
         if (multiCamPipelineMarkers.includes(selectedPipeline.value.type)
           || stereoPipelineMarker === selectedPipeline.value.type) {
           nameByDatasetId = {};
-          Object.entries(outputNameMap).forEach(([id, name]) => {
+          Object.entries(config.names).forEach(([id, name]) => {
             nameByDatasetId[parentDatasetId(id)] = name;
           });
         }
-        _runPipelineOnSelectedItemInner(selectedPipeline.value, nameByDatasetId);
+        _runPipelineOnSelectedItemInner(
+          selectedPipeline.value,
+          nameByDatasetId,
+          config.parentFolderId,
+        );
       }
       selectedPipeline.value = null; // reset selected pipeline state
     }

@@ -381,6 +381,59 @@ def upload_zipped_flat_media_files(
         raise Exception("Could not Validate media Files")
 
 
+def create_sibling_dataset_from_media(
+    gc: GirderClient,
+    manager: JobManager,
+    input_folder_id: str,
+    media_directory: Path,
+    dataset_name: str,
+    dataset_type: str,
+    fps,
+    parent_folder_id: Optional[str] = None,
+) -> str:
+    """
+    Create a Girder folder and import media from media_directory.
+
+    Used by filter / transcode / disparity pipelines that produce a new dataset.
+    Defaults to a sibling of input_folder; pass parent_folder_id to choose another
+    destination (web destination picker).
+    Returns the new folder id.
+    """
+    media_directory = Path(media_directory)
+    name = dataset_name or media_directory.name
+    # Validate media before createFolder so a failed import never leaves an empty folder.
+    media_files = [
+        path
+        for path in sorted(media_directory.iterdir())
+        if path.is_file()
+        and not path.name.startswith('.')
+        and (constants.imageRegex.search(path.name) or constants.videoRegex.search(path.name))
+    ]
+    if not media_files:
+        raise Exception(f'No media files found in {media_directory} to create dataset "{name}"')
+
+    input_folder = gc.getFolder(input_folder_id)
+    parent_id = str(parent_folder_id) if parent_folder_id else str(input_folder['parentId'])
+    new_folder = gc.createFolder(parent_id, name, reuseExisting=False)
+    new_folder_id = str(new_folder['_id'])
+
+    manager.write(f'Creating dataset "{name}" from {len(media_files)} media file(s)\n')
+    manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+    for media_path in media_files:
+        gc.uploadFileToFolder(new_folder_id, str(media_path))
+
+    folder_fps = fps
+    if dataset_type == constants.ImageSequenceType and (folder_fps is None or folder_fps == -1):
+        folder_fps = 1
+    gc.addMetadataToFolder(
+        new_folder_id,
+        {constants.TypeMarker: dataset_type, constants.FPSMarker: folder_fps},
+    )
+    # Convert media for web playback (not skipJobs).
+    gc.sendRestRequest('POST', f'/dive_rpc/postprocess/{new_folder_id}')
+    return new_folder_id
+
+
 def _load_exported_dataset_meta(working_directory: Path) -> dict:
     list_of_names = os.listdir(working_directory)
     potential_meta_files = list(filter(constants.metaRegex.match, list_of_names))

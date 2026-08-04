@@ -22,7 +22,9 @@ import {
 } from 'dive-common/constants';
 import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 import {
+  isDisparityImagePipeline,
   isFilterPipeline,
+  isTranscodePipeline,
   pipelineCreatesNewDataset,
 } from 'dive-common/pipelineCreatesDataset';
 import * as common from './common';
@@ -172,6 +174,8 @@ async function runPipeline(
   // so output handling is recognized from the pipe filename as well as the type.
   const createsNewDataset = pipelineCreatesNewDataset(pipeline);
   const isFilterPipe = isFilterPipeline(pipeline);
+  const isTranscodePipe = isTranscodePipeline(pipeline);
+  const isDisparityPipe = isDisparityImagePipeline(pipeline);
   const outputDatasetName = runPipelineArgs.outputDatasetName
     ?? runPipelineArgs.pipelineParams?.outputDatasetName;
 
@@ -226,8 +230,12 @@ async function runPipeline(
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
+  // Disparity image pipe is measurement_* but only needs stereo media + calibration.
   let requiresInput = false;
-  if ((/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)) {
+  if (
+    !isDisparityPipe
+    && (/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)
+  ) {
     requiresInput = true;
   }
   let groundTruthFileName;
@@ -275,9 +283,9 @@ async function runPipeline(
       command.push(`-s downsampler:end_frame=${frameRange[1]}`);
       const isNative = !meta.originalFps || meta.fps >= meta.originalFps;
       command.push(`-s downsampler:frame_range_is_native=${isNative}`);
-      // Transcode/filter pipes: output frames renumbered relative to new range
+      // Transcode/filter/disparity pipes: output frames renumbered relative to new range
       // All other pipes: output frames relative to original video
-      const renumber = pipeline.type === 'transcode' || isFilterPipe;
+      const renumber = isTranscodePipe || isFilterPipe || isDisparityPipe;
       command.push(`-s downsampler:renumber_frames=${renumber}`);
       command.push(`-s downsampler:adjust_timestamps=${renumber}`);
     }
@@ -326,8 +334,17 @@ async function runPipeline(
     command.push(`-s image_writer3:file_name_prefix="${outputDir}/"`);
   }
 
+  // Disparity pipe writes via process `output` with file_name_template.
+  // Override that key directly: $CONFIG{global:...} expands at parse time and
+  // would ignore a -s on global:output_depths_directory.
+  if (isDisparityPipe) {
+    command.push(
+      `-s output:file_name_template="${outputDir}/depth_map%06d.png"`,
+    );
+  }
+
   let transcodedFilename: string;
-  if (runPipelineArgs.pipeline.type === 'transcode') {
+  if (isTranscodePipe) {
     // Note: the output of the pipeline may be HEVC encoded
     transcodedFilename = npath.join(outputDir, `${runPipelineArgs.pipeline.name}_${datasetId}_${timestamp}.mp4`);
     command.push(`-s video_writer:video_filename="${transcodedFilename}"`);
@@ -502,7 +519,7 @@ async function runPipeline(
             endTime: new Date(),
           });
           const datasetName = outputDatasetName || outputDir;
-          if (runPipelineArgs.pipeline.type === 'transcode') {
+          if (isTranscodePipe) {
             fs.readdir(outputDir, async (err, entries) => {
               if (err) {
                 console.error(`Failed to traverse ${outputDir}.`);

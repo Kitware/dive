@@ -1,4 +1,3 @@
-import json
 from typing import List, Optional
 
 import cherrypy
@@ -9,7 +8,7 @@ from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 
-from dive_utils import constants, fromMeta, models, setContentDisposition
+from dive_utils import constants, fromMeta, setContentDisposition
 
 from . import crud, crud_annotation, crud_dataset
 

@@ -11,9 +11,9 @@ from urllib import request
 from urllib.parse import urlparse
 import zipfile
 
+from GPUtil import getGPUs
 import gdown
 from gdown.parse_url import is_google_drive_url, parse_url
-from GPUtil import getGPUs
 from girder_client import GirderClient, HttpError
 from girder_worker.app import app
 from girder_worker.task import Task
@@ -28,6 +28,12 @@ from dive_tasks.multicam_pipeline import (
     build_multicam_kwiver_settings,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
+)
+from dive_tasks.pipeline_creates_dataset import (
+    append_new_dataset_media_writers,
+    is_transcode_pipeline,
+    pipeline_creates_new_dataset,
+    pipeline_renumbers_frames,
 )
 from dive_tasks.pipeline_discovery import discover_configs
 from dive_utils import asbool, calibration_format, constants, fromMeta
@@ -328,9 +334,66 @@ def _append_frame_range_video_settings(
     original_fps = fromMeta(input_folder, constants.OriginalFPSMarker, default=None)
     is_native = original_fps is None or input_fps >= original_fps
     command.append(f"-s downsampler:frame_range_is_native={str(is_native).lower()}")
-    renumber = pipeline_pipe.startswith(("transcode_", "filter_"))
+    renumber = pipeline_renumbers_frames(pipeline_pipe)
     command.append(f"-s downsampler:renumber_frames={str(renumber).lower()}")
     command.append(f"-s downsampler:adjust_timestamps={str(renumber).lower()}")
+
+
+def _push_new_dataset_from_media(
+    gc: GirderClient,
+    manager: JobManager,
+    params: PipelineJob,
+    input_folder_id: str,
+    output_path: Path,
+    pipeline: dict,
+    *,
+    transcoded_video: Optional[str] = None,
+) -> None:
+    """Create a sibling dataset from KWIVER media output (filter/transcode/disparity)."""
+    output_dataset_name = params.get('output_dataset_name') or (
+        f"{pipeline.get('name', 'pipeline')}_output"
+    )
+    output_parent_folder_id = params.get('output_parent_folder_id')
+    input_folder = gc.getFolder(input_folder_id)
+    source_fps = fromMeta(input_folder, constants.FPSMarker, default=-1)
+
+    if is_transcode_pipeline(pipeline) and transcoded_video:
+        # Prefer uploading only the produced video via a dedicated staging dir
+        # when other files may be present under output_path.
+        staging = output_path / '_dataset_media'
+        utils.make_directory(staging)
+        video_path = Path(transcoded_video)
+        if not video_path.exists():
+            # Fallback: first mp4 under output_path
+            videos = sorted(output_path.glob('*.mp4'))
+            if not videos:
+                raise Exception('Transcode pipeline produced no video file')
+            video_path = videos[0]
+        staged = staging / video_path.name
+        if video_path.resolve() != staged.resolve():
+            shutil.copy2(video_path, staged)
+        utils.create_sibling_dataset_from_media(
+            gc,
+            manager,
+            input_folder_id,
+            staging,
+            output_dataset_name,
+            constants.VideoType,
+            source_fps,
+            parent_folder_id=output_parent_folder_id,
+        )
+        return
+
+    utils.create_sibling_dataset_from_media(
+        gc,
+        manager,
+        input_folder_id,
+        output_path,
+        output_dataset_name,
+        constants.ImageSequenceType,
+        source_fps,
+        parent_folder_id=output_parent_folder_id,
+    )
 
 
 def _inject_dataset_metadata_file(command, gc, working_dir: Path, params, manager) -> None:
@@ -444,6 +507,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             input_folder = gc.getFolder(input_folder_id)
             input_fps = fromMeta(input_folder, constants.FPSMarker)
             requires_input = multicam_params.get('multicam_requires_input', False)
+            creates_new_dataset = pipeline_creates_new_dataset(pipeline)
             camera_media: Dict[str, Tuple[List[str], str]] = {}
 
             for cam_index, camera in enumerate(multicam_cameras, start=1):
@@ -487,6 +551,17 @@ def run_pipeline(self: Task, params: PipelineJob):
             for arg, file_name in arg_file_pair.items():
                 command.append(f"-s {shlex.quote(arg)}={shlex.quote(file_name)}")
 
+            transcoded_video: Optional[str] = None
+            if creates_new_dataset:
+                video_name = None
+                if is_transcode_pipeline(pipeline):
+                    video_name = str(
+                        output_path / f"{pipeline.get('name', 'transcode')}_{input_folder_id}.mp4"
+                    )
+                transcoded_video = append_new_dataset_media_writers(
+                    command, pipeline, output_path, video_filename=video_name
+                )
+
             calibration_item_id = multicam_params.get('calibration_item_id')
             if calibration_item_id and is_stereo_measurement_pipeline(pipeline):
                 cal_item = gc.getItem(calibration_item_id)
@@ -513,9 +588,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             ]
             _append_input_list_kwiver_settings(command, pipeline, input_manifests)
 
-            _inject_dataset_metadata_file(
-                command, gc, _working_directory_path, params, manager
-            )
+            _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
 
             kwiver_params = params.get('kwiver_params')
             if kwiver_params:
@@ -547,25 +620,43 @@ def run_pipeline(self: Task, params: PipelineJob):
                         uploaded_calibration_file_id = uploaded_calibration.get('_id')
                         if uploaded_calibration_file_id is not None:
                             uploaded_calibration_file_id_str = str(uploaded_calibration_file_id)
-                            gc.sendRestRequest(
-                                'POST',
-                                f'/dive_dataset/{input_folder_id}/calibration?fileId={uploaded_calibration_file_id_str}',
+                            cal_url = (
+                                f'/dive_dataset/{input_folder_id}/calibration'
+                                f'?fileId={uploaded_calibration_file_id_str}'
                             )
+                            gc.sendRestRequest('POST', cal_url)
                             manager.write(
-                                f'Assigned calibration output to dataset: {calibration_output.name}\n'
+                                'Assigned calibration output to dataset: '
+                                f'{calibration_output.name}\n'
                             )
                         else:
                             manager.write(
-                                f'Warning: uploaded calibration output {calibration_output.name} has no file id\n'
+                                'Warning: uploaded calibration output '
+                                f'{calibration_output.name} has no file id\n'
                             )
                     except Exception as exc:
                         manager.write(
-                            f'Warning: failed to assign calibration output {calibration_output.name}: {exc}\n'
+                            'Warning: failed to assign calibration output '
+                            f'{calibration_output.name}: {exc}\n'
                         )
                 else:
                     manager.write(
-                        'Warning: stereo calibration pipeline produced no recognized calibration output file\n'
+                        'Warning: stereo calibration pipeline produced no '
+                        'recognized calibration output file\n'
                     )
+
+            if creates_new_dataset:
+                manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+                _push_new_dataset_from_media(
+                    gc,
+                    manager,
+                    params,
+                    input_folder_id,
+                    output_path,
+                    pipeline,
+                    transcoded_video=transcoded_video,
+                )
+                return
 
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
             for camera in multicam_cameras:
@@ -592,6 +683,7 @@ def run_pipeline(self: Task, params: PipelineJob):
 
         # Download source media
         input_folder: GirderModel = gc.getFolder(input_folder_id)
+        creates_new_dataset = pipeline_creates_new_dataset(pipeline)
         input_media_list, _ = utils.download_source_media(
             gc, input_folder_id, input_path, force_transcoded
         )
@@ -643,10 +735,19 @@ def run_pipeline(self: Task, params: PipelineJob):
             command.append(f'-s detection_reader:file_name={quoted_input_file}')
             command.append(f'-s track_reader:file_name={quoted_input_file}')
 
+        transcoded_video = None
+        if creates_new_dataset:
+            video_name = None
+            if is_transcode_pipeline(pipeline):
+                video_name = str(
+                    output_path / f"{pipeline.get('name', 'transcode')}_{input_folder_id}.mp4"
+                )
+            transcoded_video = append_new_dataset_media_writers(
+                command, pipeline, output_path, video_filename=video_name
+            )
+
         single_input_manifest = (
-            str(img_list_path)
-            if input_type == constants.ImageSequenceType
-            else input_media_list[0]
+            str(img_list_path) if input_type == constants.ImageSequenceType else input_media_list[0]
         )
         _append_input_list_kwiver_settings(command, pipeline, [single_input_manifest])
 
@@ -667,6 +768,19 @@ def run_pipeline(self: Task, params: PipelineJob):
             'env': conf.gpu_process_env,
         }
         utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+        if creates_new_dataset:
+            manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            _push_new_dataset_from_media(
+                gc,
+                manager,
+                params,
+                input_folder_id,
+                output_path,
+                pipeline,
+                transcoded_video=transcoded_video,
+            )
+            return
 
         if Path(track_output_file).exists() and os.path.getsize(track_output_file):
             output_file = track_output_file
@@ -991,7 +1105,9 @@ def convert_calibration(self: Task, itemId: str):
         folder = gc.getFolder(folder_id)
         multi_cam = (folder.get('meta') or {}).get(constants.MultiCamMarker) or {}
         if str(multi_cam.get(constants.CalibrationItemIdMarker)) != str(itemId):
-            manager.write('Calibration source was replaced before linking JSON; discarding output.\n')
+            manager.write(
+                'Calibration source was replaced before linking JSON; discarding output.\n'
+            )
             gc.delete(f'item/{json_item_id}')
             return
 

@@ -87,8 +87,20 @@ interface PipelineRuntimeParams {
 interface PipelineParams {
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
-  /** Desktop filter/transcode pipelines: name for the newly created dataset. */
+  /** Filter / transcode / disparity pipelines: name for the newly created dataset. */
   outputDatasetName?: string;
+  /**
+   * Web only: Girder folder id that should own the newly created dataset.
+   * When omitted, the dataset is created as a sibling of the input folder.
+   */
+  outputParentFolderId?: string;
+}
+
+/** Confirm payload from the filter/transcode/disparity dataset-creation dialog. */
+interface NewDatasetJobConfig {
+  names: Record<string, string>;
+  /** Web only: Girder folder that should own the new dataset(s). */
+  parentFolderId?: string;
 }
 
 interface Pipe {
@@ -615,6 +627,7 @@ export {
   Pipe,
   PipelineParams,
   PipelineRuntimeParams,
+  NewDatasetJobConfig,
   PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,

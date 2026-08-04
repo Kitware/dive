@@ -5,8 +5,8 @@ from typing import Dict, List, Optional
 
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.types import (
-    DiveParam,
     AvailableJobSchema,
+    DiveParam,
     PipelineCategory,
     PipelineDescription,
     PipeMetadata,
@@ -91,9 +91,7 @@ def _parse_dive_param_lines(lines: List[str]) -> "tuple[List[DiveParam], List[st
         # `config <key>` opens a config block; its entries are keyed
         # under the block name (e.g. `config global` + `:scale` ->
         # `global:scale`).
-        config_block_match = re.match(
-            r'^config\s+([\w:.-]+)\s*(?:#.*)?$', trimmed, re.IGNORECASE
-        )
+        config_block_match = re.match(r'^config\s+([\w:.-]+)\s*(?:#.*)?$', trimmed, re.IGNORECASE)
         if config_block_match:
             context_stack = config_block_match.group(1).split(':')
             continue
@@ -117,8 +115,11 @@ def _parse_dive_param_lines(lines: List[str]) -> "tuple[List[DiveParam], List[st
             config_match = re.match(r'^config\s+([\w:.-]+)\s*=\s*([^#]+)', trimmed, re.IGNORECASE)
             # Otherwise a regular per-process/block parameter assignment.
             param_line_match = (
-                re.match(r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed, re.IGNORECASE)
-                if not config_match else None
+                re.match(
+                    r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed, re.IGNORECASE
+                )
+                if not config_match
+                else None
             )
 
             full_key = None
@@ -145,9 +146,7 @@ def _parse_dive_param_lines(lines: List[str]) -> "tuple[List[DiveParam], List[st
     return params, includes
 
 
-def _collect_dive_params(
-    file_path: Path, collected: "Dict[str, DiveParam]", visited: set
-) -> None:
+def _collect_dive_params(file_path: Path, collected: "Dict[str, DiveParam]", visited: set) -> None:
     """Collect DIVE_PARAMs from a pipe and, recursively, from its includes.
 
     Wrapper pipes inherit the params of the pipes they include; a file's own
@@ -233,7 +232,9 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     r'^#\s*Requires\s+Calibration:\s*(.*)', line_raw, re.IGNORECASE
                 )
                 if calibration_match:
-                    metadata["requiresCalibration"] = calibration_match.group(1).strip().lower() in (
+                    metadata["requiresCalibration"] = calibration_match.group(
+                        1
+                    ).strip().lower() in (
                         'true',
                         'yes',
                         '1',
@@ -271,9 +272,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                 )
                 if calibration_keys_match:
                     keys = [
-                        k
-                        for k in re.split(r'[\s,]+', calibration_keys_match.group(1).strip())
-                        if k
+                        k for k in re.split(r'[\s,]+', calibration_keys_match.group(1).strip()) if k
                     ]
                     if keys:
                         metadata["calibrationKeys"] = keys
