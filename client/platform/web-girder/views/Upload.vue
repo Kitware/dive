@@ -1109,7 +1109,7 @@ export default defineComponent({
               dense
               outlined
               type="error"
-              class="mt-2 mb-0 text-body-2"
+              class="mt-4 mb-0 text-body-2"
             >
               {{ pendingUpload.error }}
             </v-alert>
@@ -1213,7 +1213,7 @@ export default defineComponent({
             -->
             <div
               v-if="pendingUpload.ignored.length"
-              class="mx-4 mt-3"
+              class="mx-4 mt-6"
             >
               <div class="text-caption warning--text">
                 Ignored (not uploaded):
