@@ -12,7 +12,7 @@ import {
   watch,
 } from 'vue';
 import {
-  DatasetMeta, Pipelines, TrainingConfigs, useApi, Pipe,
+  DatasetConfig, Pipelines, TrainingConfigs, useApi, Pipe,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
@@ -75,7 +75,7 @@ export default defineComponent({
     ];
 
     const data = reactive({
-      stagedItems: {} as Record<string, DatasetMeta>,
+      stagedItems: {} as Record<string, DatasetConfig>,
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
       fineTuneTraining: false,
@@ -133,7 +133,7 @@ export default defineComponent({
       return [];
     });
 
-    function toggleStaged(meta: DatasetMeta) {
+    function toggleStaged(meta: DatasetConfig) {
       if (data.stagedItems[meta.id]) {
         del(data.stagedItems, meta.id);
       } else {

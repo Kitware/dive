@@ -10,7 +10,7 @@ import { provideApi } from 'dive-common/apispec';
 import { useRoute } from 'vue-router/composables';
 import { useDataset } from 'platform/web-girder/store/useDataset';
 import { useLocation } from 'platform/web-girder/store/useLocation';
-import type { GirderMetadata } from './constants';
+import type { GirderConfig } from './constants';
 import {
   getPipelineList,
   deleteTrainedPipeline,
@@ -19,7 +19,7 @@ import {
   getDatasetCalibration,
   getTrainingConfigurations,
   runTraining,
-  saveMetadata,
+  saveConfig,
   saveAttributes,
   saveAttributeTrackFilters,
   importAnnotationFile,
@@ -51,7 +51,7 @@ export default defineComponent({
     const route = useRoute();
     const { loadDataset } = useDataset();
     const { setLocationFromRoute } = useLocation();
-    async function loadMetadata(datasetId: string): Promise<GirderMetadata> {
+    async function loadConfig(datasetId: string): Promise<GirderConfig> {
       return loadDataset(datasetId);
     }
 
@@ -71,10 +71,10 @@ export default defineComponent({
       runTraining: unwrap(runTraining),
       loadDetections,
       saveDetections: unwrap(saveDetections),
-      saveMetadata: unwrap(saveMetadata),
+      saveConfig: unwrap(saveConfig),
       saveAttributes: unwrap(saveAttributes),
       saveAttributeTrackFilters: unwrap(saveAttributeTrackFilters),
-      loadMetadata,
+      loadConfig,
       hasCalibrationFile,
       openFromDisk: openFromDiskWithRegistry,
       getLastCalibration,

@@ -14,7 +14,7 @@ import {
   JobType,
   RunPipeline,
   RunTraining,
-  JsonMeta,
+  JsonConfig,
 } from 'platform/desktop/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import AsyncGpuJobQueue from './queues/asyncGpuJobQueue';
@@ -180,7 +180,7 @@ function init() {
       ...args, body: ['Job cancelled by user'], exitCode: cancelledJobExitCode, endTime: new Date(), cancelledJob: true,
     });
   });
-  window.diveDesktop.on('filter-complete', (args: JsonMeta) => {
+  window.diveDesktop.on('filter-complete', (args: JsonConfig) => {
     setRecents(args);
   });
 }

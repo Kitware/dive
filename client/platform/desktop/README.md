@@ -157,38 +157,38 @@ Due to tight OS coupling, some methods will have to be implemented to target a s
 
 Desktop has the capability to import and run pipelines on stereo and multicamera pipelines.  There is a Root folder as well as individual folders for each camera.  To achieve this the folder structure for storage of data is slightly different.
 
-* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `meta.json` file will contain a parmeter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`. 
-* Camera Folders - Individual folders for each camera which behave like their own dataset with their own meta.json and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
+* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `config.json` file will contain a parameter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`. Legacy datasets may still have `meta.json`; DIVE reads that as a fallback and migrates to `config.json` on the next save.
+* Camera Folders - Individual folders for each camera which behave like their own dataset with their own `config.json` and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
 
 ``` text
 DIVE_Projects
 ├── stereodataset_jp7hq88vfv
-│  ├── meta.json
+│  ├── config.json
 │  ├── result_06-01-2021_10-55-38.627.json
 │  ├── left
 |  |  ├── auxiliary
 |  │  │  └── result_06-01-2021_10-52-28.347.json
-│  │  ├── meta.json
+│  │  ├── config.json
 │  │  └── result_06-01-2021_10-55-38.627.json
 │  └── right
 |     ├── auxiliary
 |     │  └── result_06-01-2021_10-52-28.347.json
-│     ├── meta.json
+│     ├── config.json
 │     └── result_06-01-2021_10-55-38.627.json
 └── multicamera_jrgdq760gu
-   ├── meta.json
+   ├── config.json
    ├── result_06-18-2021_22-50-38.435.json
    ├── camera1
    |  ├── auxiliary
-   │  ├── meta.json
+   │  ├── config.json
    │  └── result_06-18-2021_22-50-38.435.json
    ├── camera2
    |  ├── auxiliary
-   │  ├── meta.json
+   │  ├── config.json
    │  └── result_06-18-2021_22-50-38.234.json
    └──── camera3
       ├── auxiliary
-      ├── meta.json
+      ├── config.json
       └── result_06-18-2021_22-50-38.126.json
 ```
 
@@ -198,7 +198,7 @@ When multicamera pipelines are run they will create individual annotation files 
 
 ### MultiCamera Ids and Requests
 
-Internally to reference difference cameras the system creates a datasetId which combines the base datasetId with the cameraName.  So in the example above `stereodataset_jp7hq88vfv` and the `left` camera would be referenced by `stereodataset_jp7hq88vfv/left`.  That is the Id that would be used to loadMetadata, saveMetadata, loadDetections and saveDetections.
+Internally to reference difference cameras the system creates a datasetId which combines the base datasetId with the cameraName.  So in the example above `stereodataset_jp7hq88vfv` and the `left` camera would be referenced by `stereodataset_jp7hq88vfv/left`.  That is the Id that would be used to loadConfig, saveConfig, loadDetections and saveDetections.
 
 ### MultiCamera Display/Loading Process
 

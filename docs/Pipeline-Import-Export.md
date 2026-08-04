@@ -82,8 +82,8 @@ These are different files with different jobs:
 
 | Import field | What it is | Consumed by |
 | ------------ | ---------- | ----------- |
-| **Configuration File** | DIVE JSON (`meta` / attributes, styles, FPS, …) | DIVE itself |
-| **Metadata File** | Opaque sidecar (`.json`, `.txt`, or `.csv`), e.g. a UAV flight log | Only pipelines that declare `# Metadata File:` |
+| **Configuration File** (`config`) | DIVE JSON (`config.json`, or legacy `meta.json` / `*.meta.json` / `*.config.json`: attributes, styles, FPS, …) | DIVE itself |
+| **Metadata File** (`metadata`) | Opaque sidecar (`.json`, `.txt`, or `.csv`), e.g. a UAV flight log | Only pipelines that declare `# Metadata File:` |
 
 DIVE does **not** auto-discover a flight log in the media folder — the user must pick it at import (UI or CLI `--metadata`). The file format is opaque to DIVE; the KWIVER process behind the pipe owns the schema. Metadata is available on **single-camera and multicamera** imports alike; it is not stereo-gated (unlike calibration).
 

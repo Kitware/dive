@@ -222,16 +222,16 @@ interface MultiCamMedia {
 }
 
 interface MediaImportResponse {
-  jsonMeta: {
+  jsonConfig: {
     originalImageFiles: string[];
   };
   globPattern: string;
   mediaConvertList: string[];
 }
 /**
- * The parts of metadata a user should be able to modify.
+ * The parts of dataset config a user should be able to modify.
  */
-interface DatasetMetaMutable {
+interface DatasetConfigMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
@@ -247,7 +247,7 @@ interface DatasetMetaMutable {
   cameraRegistrationSource?: RegistrationSource | null;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
 /**
  * Mutable keys the multicam/stereo viewer loads from the parent dataset.
  * Camera-targeted imports sync only these onto the parent — not per-camera
@@ -264,7 +264,7 @@ const MulticamSharedMutableKeys = [
   'datasetInfo',
 ];
 
-interface DatasetMeta extends DatasetMetaMutable {
+interface DatasetConfig extends DatasetConfigMutable {
   id: Readonly<string>;
   imageData: Readonly<FrameImage[]>;
   videoUrl: Readonly<string | undefined>;
@@ -349,16 +349,16 @@ interface Api {
     },
   ): Promise<unknown>;
 
-  loadMetadata(datasetId: string): Promise<DatasetMeta>;
+  loadConfig(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
-  saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
+  saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
     Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
@@ -610,9 +610,9 @@ export {
 export {
   AnnotationSchema,
   Api,
-  DatasetMeta,
-  DatasetMetaMutable,
-  DatasetMetaMutableKeys,
+  DatasetConfig,
+  DatasetConfigMutable,
+  DatasetConfigMutableKeys,
   MulticamSharedMutableKeys,
   DatasetType,
   DiveParam,

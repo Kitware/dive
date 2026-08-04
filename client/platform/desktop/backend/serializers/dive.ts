@@ -1,6 +1,6 @@
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
 import { has } from 'lodash';
-import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
+import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
 import fs from 'fs-extra';
 
@@ -43,7 +43,7 @@ function migrate(jsonData: any): AnnotationSchema {
 
 function filterTracks(
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,
@@ -75,7 +75,7 @@ function filterTracks(
 async function serializeFile(
   path: string,
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,

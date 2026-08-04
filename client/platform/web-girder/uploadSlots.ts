@@ -1,4 +1,4 @@
-import { JsonMetaRegEx } from 'dive-common/constants';
+import { JsonConfigRegEx } from 'dive-common/constants';
 import type { IgnoredUploadFile } from './api/dataset.service';
 
 export interface SuggestedUploadSlots {
@@ -35,7 +35,7 @@ function annotationCandidates(files: File[], configFiles: File[]): File[] {
  * in exactly one slot or in `unslotted`, so nothing the user picked is ever silently dropped.
  */
 export default function suggestUploadSlots(fileList: File[]): SuggestedUploadSlots {
-  const configFiles = fileList.filter((f) => JsonMetaRegEx.test(f.name));
+  const configFiles = fileList.filter((f) => JsonConfigRegEx.test(f.name));
   const [configFile = null, ...extraConfigs] = configFiles;
   const [annotationFile = null, ...extraAnnotations] = annotationCandidates(fileList, configFiles);
   const claimed = new Set<File>([

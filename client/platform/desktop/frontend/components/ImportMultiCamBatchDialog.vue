@@ -30,7 +30,7 @@ export default defineComponent({
       if (conversionArgs.mediaList.length > 0) {
         await api.convert(conversionArgs);
       }
-      const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
+      const recentsMeta = await api.loadConfig(conversionArgs.meta.id);
       setRecents(recentsMeta);
       // Batch imports skip the confirmation dialog that normally shows these.
       return importPayload.importWarnings;

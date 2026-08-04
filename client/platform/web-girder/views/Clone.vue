@@ -5,7 +5,7 @@ import {
 import { GirderFileManager, GirderModelType } from '@girder/components/src';
 import useRequest from 'dive-common/use/useRequest';
 import { RootlessLocationType } from 'platform/web-girder/store/types';
-import { GirderMetadataStatic } from 'platform/web-girder/constants';
+import { GirderConfigStatic } from 'platform/web-girder/constants';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
 import { clone, getDataset } from 'platform/web-girder/api';
 import { useRouter } from 'vue-router/composables';
@@ -36,7 +36,7 @@ export default defineComponent({
   setup(props) {
     const girderRest = useGirderRest();
     const router = useRouter();
-    const source = ref(null as GirderMetadataStatic | null);
+    const source = ref(null as GirderConfigStatic | null);
     const open = ref(false);
     const location: Ref<RootlessLocationType> = ref({
       _modelType: ('user' as GirderModelType),

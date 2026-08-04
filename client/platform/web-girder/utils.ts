@@ -39,7 +39,7 @@ function getRouteFromLocation(location: LocationType): string {
 }
 
 async function openFromDisk(
-  datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata',
+  datasetType: DatasetType | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata',
   directory = false,
 ): Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
@@ -48,7 +48,7 @@ async function openFromDisk(
   // Filtering one out here would settle its fate before the server ever classified it.
   const baseTypes: string[] = [...new Set([...inputAnnotationFileTypes, ...metadataFileTypes])]
     .map((item) => `.${item}`);
-  if (!['calibration', 'annotation', 'zip', 'metadata'].includes(datasetType)) {
+  if (!['calibration', 'annotation', 'config', 'zip', 'metadata'].includes(datasetType)) {
     input.multiple = true;
   }
   if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
@@ -68,6 +68,9 @@ async function openFromDisk(
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
+  } else if (datasetType === 'config') {
+    input.accept = '.json';
+    input.multiple = false;
   } else if (datasetType === 'zip') {
     input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'transform') {

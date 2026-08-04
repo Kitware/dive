@@ -11,7 +11,7 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
-import { isStereoscopicDatasetMeta } from 'dive-common/multicamDisplay';
+import { isStereoscopicDatasetConfig } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -27,7 +27,7 @@ import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
   segmentationEnsureStarted,
   segmentationSam3Installed,
-  loadMetadata, textQuery,
+  loadConfig, textQuery,
   runTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
@@ -233,7 +233,7 @@ export default defineComponent({
 
       try {
         // Load metadata to get image paths
-        const meta = await loadMetadata(props.id);
+        const meta = await loadConfig(props.id);
 
         let getImagePath: (frameNum: number) => string;
         let getFrameTime: ((frameNum: number) => number | undefined) | undefined;
@@ -246,7 +246,7 @@ export default defineComponent({
           for (let i = 0; i < cameraNames.length; i += 1) {
             const cam = cameraNames[i];
             // eslint-disable-next-line no-await-in-loop
-            const camMeta = await loadMetadata(`${props.id}/${cam}`);
+            const camMeta = await loadConfig(`${props.id}/${cam}`);
             stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
             if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
             if (camMeta.type === 'video') multiCamIsVideo = true;
@@ -381,7 +381,7 @@ export default defineComponent({
       // Ensure metadata is loaded
       if (!cachedMeta) {
         try {
-          const meta = await loadMetadata(props.id);
+          const meta = await loadConfig(props.id);
           cachedMeta = {
             originalBasePath: meta.originalBasePath,
             originalImageFiles: meta.originalImageFiles,
@@ -643,10 +643,10 @@ export default defineComponent({
      */
     async function loadStereoMetadata(): Promise<boolean> {
       try {
-        const meta = await loadMetadata(props.id);
+        const meta = await loadConfig(props.id);
         // Plain multicam and single-camera datasets have no stereo pair: report
         // no stereo so the caller does not load the stereo service.
-        if (!meta.multiCamMedia || !isStereoscopicDatasetMeta(meta)) return false;
+        if (!meta.multiCamMedia || !isStereoscopicDatasetConfig(meta)) return false;
 
         // Extract calibration file path from multiCam metadata
         stereoCalibrationFile = meta.multiCam?.calibration || undefined;
@@ -663,7 +663,7 @@ export default defineComponent({
           const cam = cameraNames[i];
           const cameraId = `${props.id}/${cam}`;
           // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadMetadata(cameraId);
+          const camMeta = await loadConfig(cameraId);
           const {
             originalBasePath, originalImageFiles, type, originalVideoFile,
           } = camMeta;

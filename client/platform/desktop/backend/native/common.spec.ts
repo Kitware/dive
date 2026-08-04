@@ -5,7 +5,7 @@ import { Console } from 'console';
 
 import {
   AnnotationsCurrentVersion, DesktopJob,
-  DesktopJobUpdate, JobType, JsonMeta, ProjectsFolderName, RunTraining, Settings,
+  DesktopJobUpdate, JobType, JsonConfig, ProjectsFolderName, RunTraining, Settings,
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
@@ -336,7 +336,7 @@ beforeEach(() => {
               'foo_20230615_143022.png',
               'bar.png',
             ],
-          } as JsonMeta),
+          } as JsonConfig),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
         },
@@ -348,7 +348,7 @@ beforeEach(() => {
             fps: 5,
             originalVideoFile: 'whatever.mp4',
             transcodedVideoFile: 'whatever-transcoded.mp4',
-          } as JsonMeta),
+          } as JsonConfig),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
         },
@@ -448,7 +448,7 @@ beforeEach(() => {
             fps: 5,
             originalVideoFile: 'whatever.mp4',
             transcodedVideoFile: 'whatever-transcoded.mp4',
-          } as JsonMeta),
+          } as JsonConfig),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
         },
@@ -474,9 +474,23 @@ describe('native.common', () => {
     const basedir = 'DIVE_Projects/projectid1';
     const dir = await common.getValidatedProjectDir(settings, 'projectid1');
     expect(dir.basePath).toBe(npath.join(settings.dataPath, basedir));
-    expect(dir.metaFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'meta.json'));
+    // Fixtures still use legacy meta.json; resolve falls back until a save migrates.
+    expect(dir.configFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'meta.json'));
     expect(dir.auxDirAbsPath).toBe(npath.join(settings.dataPath, basedir, 'auxiliary'));
     expect(dir.trackFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'result_whatever.json'));
+  });
+
+  it('saveProjectConfig migrates legacy meta.json to config.json', async () => {
+    const basedir = npath.join(settings.dataPath, 'DIVE_Projects/projectid1');
+    const legacy = npath.join(basedir, 'meta.json');
+    const preferred = npath.join(basedir, 'config.json');
+    expect(await fs.pathExists(legacy)).toBe(true);
+    const existing = await fs.readJSON(legacy);
+    await common.saveProjectConfig(basedir, existing);
+    expect(await fs.pathExists(preferred)).toBe(true);
+    expect(await fs.pathExists(legacy)).toBe(false);
+    const dir = await common.getValidatedProjectDir(settings, 'projectid1');
+    expect(dir.configFileAbsPath).toBe(preferred);
   });
   it('getValidatedProjectDir loads initial track.json', async () => {
     const basedir = 'DIVE_Projects/projectid4Bad';
@@ -488,11 +502,11 @@ describe('native.common', () => {
     await expect(common.getValidatedProjectDir(settings, 'projectid2Bad'))
       .rejects.toThrow('missing track json file');
     await expect(common.getValidatedProjectDir(settings, 'projectid3Bad'))
-      .rejects.toThrow('missing metadata json file');
+      .rejects.toThrow('missing configuration json file');
   });
 
-  it('loadJsonMetadata loads metadata from file', async () => {
-    const data = await common.loadMetadata(settings, 'projectid1', urlMapper);
+  it('loadJsonConfig loads configuration from file', async () => {
+    const data = await common.loadConfig(settings, 'projectid1', urlMapper);
     expect(data.id).toBe('projectid1');
     expect(data.imageData.map(({ filename }) => filename)).toEqual([
       'foo_20230615_143022.png', 'bar.png',
@@ -501,8 +515,8 @@ describe('native.common', () => {
     expect(data.imageData[1].timestamp).toBeUndefined();
   });
 
-  it('loadJsonMetadata parses per-camera frame timestamps for multicam datasets', async () => {
-    const data = await common.loadMetadata(settings, 'stereoDataset', urlMapper);
+  it('loadJsonConfig parses per-camera frame timestamps for multicam datasets', async () => {
+    const data = await common.loadConfig(settings, 'stereoDataset', urlMapper);
     expect(data.multiCamMedia).not.toBeNull();
     const { cameras } = data.multiCamMedia!;
     expect(cameras.left.imageData.map(({ timestamp }) => timestamp)).toEqual([
@@ -513,21 +527,21 @@ describe('native.common', () => {
     ]);
   });
 
-  it('loadJsonMetadata prefers transcoded media when it exists', async () => {
-    const data = await common.loadMetadata(settings, 'projectid1VideoGood', urlMapper);
+  it('loadJsonConfig prefers transcoded media when it exists', async () => {
+    const data = await common.loadConfig(settings, 'projectid1VideoGood', urlMapper);
     const videoPath = npath.join(settings.dataPath, 'DIVE_Projects', 'projectid1VideoGood', 'whatever-transcoded.mp4');
     expect(data.videoUrl).toBe(`http://localhost:8888/api/media?path=${videoPath}`);
   });
 
-  it('loadJsonMetadata type multi without multiCam', async () => {
-    await expect(common.loadMetadata(settings, 'projectid5missingMultiCam', urlMapper))
+  it('loadJsonConfig type multi without multiCam', async () => {
+    await expect(common.loadConfig(settings, 'projectid5missingMultiCam', urlMapper))
       .rejects.toThrow('Dataset: missingMulti is of type multiCam or stereo but contains no multiCam data');
   });
 
   it('createWorkingDirectory creates pipeline run directories', async () => {
     await expect(createWorkingDirectory(settings, [], 'whatever.pipe'))
-      .rejects.toThrow('At least 1 jsonMeta item');
-    const jsonMeta: JsonMeta = {
+      .rejects.toThrow('At least 1 jsonConfig item');
+    const jsonConfig: JsonConfig = {
       version: 1,
       type: 'image-sequence',
       fps: 100,
@@ -543,7 +557,7 @@ describe('native.common', () => {
       multiCam: null,
       subType: null,
     };
-    const result = await createWorkingDirectory(settings, [jsonMeta], 'mypipeline.pipe');
+    const result = await createWorkingDirectory(settings, [jsonConfig], 'mypipeline.pipe');
     const stat = fs.statSync(result);
     const contents = fs.readdirSync(result);
     expect(stat.isDirectory()).toBe(true);
@@ -553,24 +567,24 @@ describe('native.common', () => {
 
   it('beginMediaImport image sequence success', async () => {
     const payload = await common.beginMediaImport('/home/user/data/imageSuccess');
-    expect(payload.jsonMeta.name).toBe('imageSuccess');
-    expect(payload.jsonMeta.originalImageFiles).toEqual(['bar.png', 'foo.png']);
-    expect(payload.jsonMeta.originalVideoFile).toBe('');
-    expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/imageSuccess');
+    expect(payload.jsonConfig.name).toBe('imageSuccess');
+    expect(payload.jsonConfig.originalImageFiles).toEqual(['bar.png', 'foo.png']);
+    expect(payload.jsonConfig.originalVideoFile).toBe('');
+    expect(payload.jsonConfig.originalBasePath).toBe('/home/user/data/imageSuccess');
   });
 
   it('beginMediaImport image lists success', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
     );
-    expect(payload.jsonMeta.originalBasePath).toBe('');
-    expect(payload.jsonMeta.originalImageFiles).toEqual([
+    expect(payload.jsonConfig.originalBasePath).toBe('');
+    expect(payload.jsonConfig.originalImageFiles).toEqual([
       '/home/user/data/imageLists/success/image3.png',
       '/home/user/data/imageLists/success/image2.png',
       '/home/user/data/imageLists/success/image4.png',
       '/home/user/data/imageLists/success/image1.png',
     ]);
-    expect(payload.jsonMeta.name).toBe('success');
+    expect(payload.jsonConfig.name).toBe('success');
     const res = await common.finalizeMediaImport(settings, payload);
     const final = res.meta;
     expect(final.originalImageFiles.length).toBe(4);
@@ -583,7 +597,7 @@ describe('native.common', () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/successGlob/image_list.txt',
     );
-    expect(payload.jsonMeta.originalBasePath).toBe('');
+    expect(payload.jsonConfig.originalBasePath).toBe('');
     payload.globPattern = '2018*';
     const res = await common.finalizeMediaImport(settings, payload);
     const final = res.meta;
@@ -593,7 +607,7 @@ describe('native.common', () => {
     ];
     expect(final.originalImageFiles).toEqual(expectedImageFiles);
     expect(final.originalBasePath).toBe('');
-    const reload = await common.loadMetadata(settings, final.id, urlMapper);
+    const reload = await common.loadConfig(settings, final.id, urlMapper);
     expect(reload.originalImageFiles).toEqual(expectedImageFiles);
     expect(reload.imageListPath).toBe('/home/user/data/imageLists/successGlob/image_list.txt');
   });
@@ -639,11 +653,11 @@ describe('native.common', () => {
     const annotations2 = await common.loadDetections(settings, final.id);
     console.log(annotations2);
     expect(Object.keys(annotations2.tracks)).toHaveLength(0);
-    const meta = await common.loadMetadata(settings, final.id, urlMapper);
+    const meta = await common.loadConfig(settings, final.id, urlMapper);
     expect(meta.fps).toBe(32);
 
     await common.dataFileImport(settings, final.id, '/home/user/data/annotationImport/foreign.meta.json');
-    const meta2 = await common.loadMetadata(settings, final.id, urlMapper);
+    const meta2 = await common.loadConfig(settings, final.id, urlMapper);
     expect(meta2.confidenceFilters).toStrictEqual({ default: 0.8 });
     expect(meta2.type).toBe('image-sequence'); // Ensure meta import cannot change immutable fields.
   });
@@ -657,23 +671,23 @@ describe('native.common', () => {
     const existingDatasetInfo = { cruise: '2403', sta_lat: '26.8195', year: '2024' };
     const importedDatasetInfo = { year: '2025', gfishsite_id: '2024TXN012' };
 
-    await common.saveMetadata(settings, final.id, { datasetInfo: existingDatasetInfo });
+    await common.saveConfig(settings, final.id, { datasetInfo: existingDatasetInfo });
     await common.dataFileImport(
       settings,
       final.id,
       '/home/user/data/annotationImport/dataset-info.config.json',
     );
-    const overwriteMeta = await common.loadMetadata(settings, final.id, urlMapper);
+    const overwriteMeta = await common.loadConfig(settings, final.id, urlMapper);
     expect(overwriteMeta.datasetInfo).toStrictEqual(importedDatasetInfo);
 
-    await common.saveMetadata(settings, final.id, { datasetInfo: existingDatasetInfo });
+    await common.saveConfig(settings, final.id, { datasetInfo: existingDatasetInfo });
     await common.dataFileImport(
       settings,
       final.id,
       '/home/user/data/annotationImport/dataset-info.config.json',
       true,
     );
-    const additiveMeta = await common.loadMetadata(settings, final.id, urlMapper);
+    const additiveMeta = await common.loadConfig(settings, final.id, urlMapper);
     expect(additiveMeta.datasetInfo).toStrictEqual({
       ...existingDatasetInfo,
       ...importedDatasetInfo,
@@ -700,7 +714,7 @@ describe('native.common', () => {
 
     // Seed parent registration so a config import must not clobber it.
     const baseDir = common.getProjectDir(settings, baseId);
-    const seededBase = await common.loadJsonMetadata(baseDir.metaFileAbsPath);
+    const seededBase = await common.loadJsonConfig(baseDir.configFileAbsPath);
     seededBase.cameraHomographies = {
       'left::right': {
         AtoB: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
@@ -712,7 +726,7 @@ describe('native.common', () => {
     };
     seededBase.cameraTransformTypes = { 'left::right': 'similarity' };
     seededBase.cameraRegistrationSource = { model: 'seeded' };
-    await fs.writeJSON(baseDir.metaFileAbsPath, seededBase);
+    await fs.writeJSON(baseDir.configFileAbsPath, seededBase);
 
     await common.dataFileImport(
       settings,
@@ -720,11 +734,11 @@ describe('native.common', () => {
       '/home/user/data/annotationImport/foreign.meta.withExtras.json',
     );
     // The camera's own metadata receives the full imported config,
-    const cameraMeta = await common.loadMetadata(settings, `${baseId}/left`, urlMapper);
+    const cameraMeta = await common.loadConfig(settings, `${baseId}/left`, urlMapper);
     expect(cameraMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
     expect(cameraMeta.imageEnhancements).toStrictEqual({ brightness: 1.1 });
     // Shared keys land on the base metadata the viewer reads,
-    const baseMeta = await common.loadMetadata(settings, baseId, urlMapper);
+    const baseMeta = await common.loadConfig(settings, baseId, urlMapper);
     expect(baseMeta.confidenceFilters).toStrictEqual({ default: 0.8 });
     expect(baseMeta.customTypeStyling).toStrictEqual({ fish: { color: 'green' } });
     // but per-camera enhancements and registration must stay untouched on the parent.
@@ -735,7 +749,7 @@ describe('native.common', () => {
     expect(baseMeta.cameraRegistrationSource).toStrictEqual(seededBase.cameraRegistrationSource);
   });
 
-  it('saveMetadata writes per-camera registration files (pairs + points) and reloads them', async () => {
+  it('saveConfig writes per-camera registration files (pairs + points) and reloads them', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
     );
@@ -755,7 +769,7 @@ describe('native.common', () => {
       ],
     };
 
-    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraCorrespondences });
+    await common.saveConfig(settings, final.id, { cameraHomographies, cameraCorrespondences });
 
     // Persisted as a standalone per-camera file, named for the mapping it
     // carries (ir warps onto rgb): pairs labeled left/right, with points
@@ -778,20 +792,23 @@ describe('native.common', () => {
       },
     ]);
 
-    // Not embedded in meta.json.
-    const meta = await fs.readJSON(npath.join(projectDir, 'meta.json'));
+    // Not embedded in the Configuration File.
+    const configPath = npath.join(projectDir, 'config.json');
+    expect(await fs.pathExists(configPath)).toBe(true);
+    expect(await fs.pathExists(npath.join(projectDir, 'meta.json'))).toBe(false);
+    const meta = await fs.readJSON(configPath);
     expect(meta.cameraHomographies).toBeUndefined();
     expect(meta.cameraCorrespondences).toBeUndefined();
     expect(meta.cameraTransformTypes).toBeUndefined();
 
     // Rehydrated on load back into the in-app shapes.
-    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    const reloaded = await common.loadConfig(settings, final.id, urlMapper);
     expect(reloaded.cameraHomographies).toStrictEqual(cameraHomographies);
     expect(reloaded.cameraCorrespondences).toStrictEqual(cameraCorrespondences);
     expect(reloaded.cameraTransformTypes).toStrictEqual({ 'rgb::ir': 'similarity' });
   });
 
-  it('saveMetadata persists a non-default transformType per pair and reloads it', async () => {
+  it('saveConfig persists a non-default transformType per pair and reloads it', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
     );
@@ -805,13 +822,13 @@ describe('native.common', () => {
     };
     const cameraTransformTypes = { 'rgb::ir': 'rigid' as const };
 
-    await common.saveMetadata(settings, final.id, { cameraHomographies, cameraTransformTypes });
+    await common.saveConfig(settings, final.id, { cameraHomographies, cameraTransformTypes });
 
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
     const registration = await fs.readJSON(npath.join(projectDir, 'ir_to_rgb_registration.json'));
     expect(registration.pairs[0].transformType).toBe('rigid');
 
-    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    const reloaded = await common.loadConfig(settings, final.id, urlMapper);
     expect(reloaded.cameraTransformTypes).toStrictEqual(cameraTransformTypes);
   });
 
@@ -880,7 +897,7 @@ describe('native.common', () => {
     expect(correspondences['eo::ir']).toHaveLength(1);
   });
 
-  it('saveMetadata persists the registration source stamp and reloads it', async () => {
+  it('saveConfig persists the registration source stamp and reloads it', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
     );
@@ -894,7 +911,7 @@ describe('native.common', () => {
     };
     const source = { model: 'colmap-2026-07-01', swathe: 'fl07_C' };
 
-    await common.saveMetadata(settings, final.id, {
+    await common.saveConfig(settings, final.id, {
       cameraHomographies,
       cameraRegistrationSource: source,
     });
@@ -902,17 +919,17 @@ describe('native.common', () => {
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
     const registrationPath = npath.join(projectDir, 'ir_to_rgb_registration.json');
     expect((await fs.readJSON(registrationPath)).source).toStrictEqual(source);
-    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    const reloaded = await common.loadConfig(settings, final.id, urlMapper);
     expect(reloaded.cameraRegistrationSource).toStrictEqual(source);
 
     // A save that doesn't mention the stamp leaves it alone.
-    await common.saveMetadata(settings, final.id, {
+    await common.saveConfig(settings, final.id, {
       cameraTransformTypes: { 'rgb::ir': 'rigid' },
     });
     expect((await fs.readJSON(registrationPath)).source).toStrictEqual(source);
 
     // An explicit null clears it.
-    await common.saveMetadata(settings, final.id, {
+    await common.saveConfig(settings, final.id, {
       cameraHomographies,
       cameraRegistrationSource: null,
     });
@@ -942,7 +959,7 @@ describe('native.common', () => {
 
     // Both pairs merge; the disagreeing stamps become a mixed composite so
     // the client can warn about a rig assembled from different generations.
-    const mixed = await common.loadMetadata(settings, final.id, urlMapper);
+    const mixed = await common.loadConfig(settings, final.id, urlMapper);
     expect(Object.keys(mixed.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
     expect(mixed.cameraRegistrationSource).toStrictEqual({
       mixed: true,
@@ -956,7 +973,7 @@ describe('native.common', () => {
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
       version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [uvPair],
     });
-    const agreeing = await common.loadMetadata(settings, final.id, urlMapper);
+    const agreeing = await common.loadConfig(settings, final.id, urlMapper);
     expect(agreeing.cameraRegistrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
 
     // A save of the mixed set never stamps the per-camera files with the
@@ -964,8 +981,8 @@ describe('native.common', () => {
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
       version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
     });
-    const beforeSave = await common.loadMetadata(settings, final.id, urlMapper);
-    await common.saveMetadata(settings, final.id, {
+    const beforeSave = await common.loadConfig(settings, final.id, urlMapper);
+    await common.saveConfig(settings, final.id, {
       cameraHomographies: beforeSave.cameraHomographies,
       cameraRegistrationSource: beforeSave.cameraRegistrationSource,
     });
@@ -989,7 +1006,7 @@ describe('native.common', () => {
       },
     };
     const source = { producer: 'kamera', run: 'fl07' };
-    await common.saveMetadata(settings, final.id, {
+    await common.saveConfig(settings, final.id, {
       cameraHomographies,
       cameraRegistrationSource: source,
     });
@@ -1016,7 +1033,7 @@ describe('native.common', () => {
     );
     const res = await common.finalizeMediaImport(settings, payload);
     const final = res.meta;
-    await common.saveMetadata(settings, final.id, {
+    await common.saveConfig(settings, final.id, {
       cameraHomographies: {
         'rgb::ir': {
           AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
@@ -1038,7 +1055,7 @@ describe('native.common', () => {
     const result = await common.importCameraRegistration(settings, final.id, '/home/user/output/uv_to_rgb_registration.json');
     expect(result).toStrictEqual({ cameras: ['rgb', 'uv'], pairCount: 1 });
 
-    const reloaded = await common.loadMetadata(settings, final.id, urlMapper);
+    const reloaded = await common.loadConfig(settings, final.id, urlMapper);
     expect(Object.keys(reloaded.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
     // Agreeing stamps stay a single plain stamp, persisted into the files.
     expect(reloaded.cameraRegistrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
@@ -1058,7 +1075,7 @@ describe('native.common', () => {
     );
     const res = await common.finalizeMediaImport(settings, payload);
     const final = res.meta;
-    await common.saveMetadata(settings, final.id, {
+    await common.saveConfig(settings, final.id, {
       cameraHomographies: {
         'rgb::ir': {
           AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
@@ -1082,14 +1099,14 @@ describe('native.common', () => {
     });
     const scoped = await common.importCameraRegistration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'uv' });
     expect(scoped).toStrictEqual({ cameras: ['rgb', 'uv'], pairCount: 1 });
-    const merged = await common.loadMetadata(settings, final.id, urlMapper);
+    const merged = await common.loadConfig(settings, final.id, urlMapper);
     expect(Object.keys(merged.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
     // The scoped import left the existing ir pair untouched.
     expect(merged.cameraHomographies?.['rgb::ir'].AtoB).toStrictEqual([[1, 0, 5], [0, 1, -3], [0, 0, 1]]);
 
     // Re-importing scoped to ir replaces that pair while keeping uv.
     await common.importCameraRegistration(settings, final.id, '/home/user/output/allpairs.json', { camera: 'ir' });
-    const replaced = await common.loadMetadata(settings, final.id, urlMapper);
+    const replaced = await common.loadConfig(settings, final.id, urlMapper);
     expect(Object.keys(replaced.cameraHomographies ?? {}).sort()).toStrictEqual(['rgb::ir', 'rgb::uv']);
     expect(replaced.cameraHomographies?.['rgb::ir'].AtoB).toStrictEqual([[2, 0, 0], [0, 2, 0], [0, 0, 1]]);
 
@@ -1105,7 +1122,7 @@ describe('native.common', () => {
     const final = res.meta;
     // A mixed composite stamp describes the assembled set, not any single
     // file; stamping an exported file with it would present a unanimous rig.
-    await common.saveMetadata(settings, final.id, {
+    await common.saveConfig(settings, final.id, {
       cameraHomographies: {
         'rgb::ir': {
           AtoB: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
@@ -1134,69 +1151,69 @@ describe('native.common', () => {
   it('import with CSV annotations without specifying track file', async () => {
     const payload = await common.beginMediaImport('/home/user/data/imageSuccessWithAnnotations');
     payload.trackFileAbsPath = ''; //It returns null be default but users change it.
-    payload.jsonMeta.fps = 12; // simulate user specify FPS action
+    payload.jsonConfig.fps = 12; // simulate user specify FPS action
     await common.finalizeMediaImport(settings, payload);
-    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    const meta = await common.loadConfig(settings, payload.jsonConfig.id, urlMapper);
     expect(meta.fps).toBe(12);
   });
 
   it('import with CSV annotations with specifying track file', async () => {
     const payload = await common.beginMediaImport('/home/user/data/imageSuccessWithAnnotations');
     payload.trackFileAbsPath = '/home/user/data/imageSuccessWithAnnotations/file1.csv';
-    payload.jsonMeta.fps = 12; // simulate user specify FPS action
+    payload.jsonConfig.fps = 12; // simulate user specify FPS action
     await common.finalizeMediaImport(settings, payload);
-    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    const meta = await common.loadConfig(settings, payload.jsonConfig.id, urlMapper);
     expect(meta.fps).toBe(32);
   });
 
   it('import with user selected FPS > originalFPS', async () => {
     const payload = await common.beginMediaImport('/home/user/data/videoSuccess/video1.mp4');
-    payload.jsonMeta.fps = 50; // above 30
+    payload.jsonConfig.fps = 50; // above 30
     await common.finalizeMediaImport(settings, payload);
-    const meta1 = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    const meta1 = await common.loadConfig(settings, payload.jsonConfig.id, urlMapper);
     expect(meta1.fps).toBe(30);
 
-    payload.jsonMeta.fps = -1; // above 30
+    payload.jsonConfig.fps = -1; // above 30
     await common.finalizeMediaImport(settings, payload);
-    const meta2 = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    const meta2 = await common.loadConfig(settings, payload.jsonConfig.id, urlMapper);
     expect(meta2.fps).toBe(1);
   });
 
   it('importMedia video success', async () => {
     const payload = await common.beginMediaImport('/home/user/data/videoSuccess/video1.mp4');
-    expect(payload.jsonMeta.name).toBe('video1');
-    expect(payload.jsonMeta.originalImageFiles.length).toBe(0);
-    expect(payload.jsonMeta.originalVideoFile).toBe('video1.mp4');
-    expect(payload.jsonMeta.originalBasePath).toBe('/home/user/data/videoSuccess');
-    expect(payload.jsonMeta.fps).toBe(5); // 5 is still the default
+    expect(payload.jsonConfig.name).toBe('video1');
+    expect(payload.jsonConfig.originalImageFiles.length).toBe(0);
+    expect(payload.jsonConfig.originalVideoFile).toBe('video1.mp4');
+    expect(payload.jsonConfig.originalBasePath).toBe('/home/user/data/videoSuccess');
+    expect(payload.jsonConfig.fps).toBe(5); // 5 is still the default
   });
 
   it('importMedia empty json file success', async () => {
     const payload = await common.beginMediaImport('/home/user/data/annotationEmptySuccess/video1.mp4');
     await common.finalizeMediaImport(settings, payload);
-    const annotations = await common.loadDetections(settings, payload.jsonMeta.id);
+    const annotations = await common.loadDetections(settings, payload.jsonConfig.id);
     expect(annotations).toEqual(makeEmptyAnnotationFile());
   });
 
   it('importMedia include meta.json file ', async () => {
     const payload = await common.beginMediaImport('/home/user/data/metaJsonIncluded/video1.mp4');
-    expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
+    expect(payload.configFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
     await common.finalizeMediaImport(settings, payload);
-    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
-    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    const tracks = await common.loadDetections(settings, payload.jsonConfig.id);
+    const meta = await common.loadConfig(settings, payload.jsonConfig.id, urlMapper);
     expect(meta?.customTypeStyling?.other.color).toBe('blue');
     expect(tracks).toEqual(makeEmptyAnnotationFile());
   });
 
   it('Export  meta.json file ', async () => {
     const payload = await common.beginMediaImport('/home/user/data/metaJsonIncluded/video1.mp4');
-    expect(payload.metaFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
+    expect(payload.configFileAbsPath).toBe('/home/user/data/metaJsonIncluded/meta.json');
     await common.finalizeMediaImport(settings, payload);
-    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
-    const meta = await common.loadMetadata(settings, payload.jsonMeta.id, urlMapper);
+    const tracks = await common.loadDetections(settings, payload.jsonConfig.id);
+    const meta = await common.loadConfig(settings, payload.jsonConfig.id, urlMapper);
     expect(meta?.customTypeStyling?.other.color).toBe('blue');
     expect(tracks).toEqual(makeEmptyAnnotationFile());
-    await common.exportConfiguration(settings, { id: payload.jsonMeta.id, path: '/home/user/output/test.json' });
+    await common.exportConfiguration(settings, { id: payload.jsonConfig.id, path: '/home/user/output/test.json' });
     const outputMeta = await fs.readJSON('/home/user/output/test.json');
     expect(outputMeta?.customTypeStyling?.other.color).toBe('blue');
   });
@@ -1214,7 +1231,7 @@ describe('native.common', () => {
   it('import first CSV in list', async () => {
     const payload = await common.beginMediaImport('/home/user/data/multiCSV/video1.mp4');
     await common.finalizeMediaImport(settings, payload);
-    const tracks = await common.loadDetections(settings, payload.jsonMeta.id);
+    const tracks = await common.loadDetections(settings, payload.jsonConfig.id);
     expect(tracks).toEqual(makeEmptyAnnotationFile());
   });
 
@@ -1225,13 +1242,13 @@ describe('native.common', () => {
   });
 
   it('check Dastset existence', async () => {
-    await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing metadata');
+    await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing configuration');
     await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
-    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing metadata');
+    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing configuration');
   });
 
   it('delete datasets', async () => {
-    await expect(common.deleteDataset(settings, 'missingFolder')).rejects.toThrow('missing metadata');
+    await expect(common.deleteDataset(settings, 'missingFolder')).rejects.toThrow('missing configuration');
     let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
     expect(exists).toBe(true);
     await expect(common.deleteDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
@@ -1335,7 +1352,7 @@ describe('native.common', () => {
       const payload = await common.beginMediaImport(
         `/home/user/testPairs/test${num}`,
       );
-      expect(payload.jsonMeta.originalImageFiles).toEqual([
+      expect(payload.jsonConfig.originalImageFiles).toEqual([
         '1.png',
         '2.png',
         '3.png',

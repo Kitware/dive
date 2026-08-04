@@ -439,11 +439,15 @@ def _load_exported_dataset_meta(working_directory: Path) -> dict:
     potential_meta_files = list(filter(constants.metaRegex.match, list_of_names))
     if len(potential_meta_files) == 0:
         raise ValueError('Could not find meta.json or config.json in exported dataset folder')
-    meta = {}
-    for meta_name in potential_meta_files:
-        with open(working_directory / meta_name) as f:
-            meta = json.load(f)
-    return meta
+    # Prefer config.json, then legacy meta.json, then any other *.meta/config.json match.
+    by_lower = {name.lower(): name for name in potential_meta_files}
+    chosen = (
+        by_lower.get(constants.ConfigFileName)
+        or by_lower.get(constants.LegacyConfigFileName)
+        or potential_meta_files[0]
+    )
+    with open(working_directory / chosen) as f:
+        return json.load(f)
 
 
 def _import_exported_dataset_directory(
@@ -622,7 +626,7 @@ def upload_exported_multicam_zipped_dataset(
     sub_type = parent_meta.get(constants.SubTypeMarker)
     if sub_type not in ('stereo', 'multicam'):
         raise Exception(
-            'Exported multicam dataset is missing subType "stereo" or "multicam" in meta.json'
+            'Exported multicam dataset is missing subType "stereo" or "multicam" in config.json'
         )
 
     parent_folder_id = folderId

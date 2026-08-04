@@ -199,7 +199,7 @@ const webExcludedPipelineTerms = ['seagis'];
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
-const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
+const JsonConfigRegEx = /^.*\.?(meta|config)\.json$/;
 
 function simplifyTrainingName(item: string) {
   return item.replace('.conf', '');
@@ -241,6 +241,6 @@ export {
   webExcludedPipelineTerms,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
-  JsonMetaRegEx,
+  JsonConfigRegEx,
   simplifyTrainingName,
 };

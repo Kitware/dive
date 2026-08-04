@@ -8,7 +8,7 @@ import {
 } from 'platform/web-girder/constants';
 
 import {
-  makeViameFolder, postProcess, uploadMetadataFileItem, setDatasetMetadataFile,
+  makeViameFolder, postProcess, uploadConfigFileItem, setDatasetConfigdataFile,
 } from 'platform/web-girder/api';
 import { GirderUploadManager } from 'platform/web-girder/utils';
 
@@ -117,8 +117,8 @@ export default Vue.extend({
         if (folder) {
           await this.uploadFiles(pendingUpload.name, folder, files, uploaded, skipTranscoding);
           if (metadataFile) {
-            const itemId = await uploadMetadataFileItem(folder._id, metadataFile);
-            await setDatasetMetadataFile(folder._id, itemId);
+            const itemId = await uploadConfigFileItem(folder._id, metadataFile);
+            await setDatasetConfigdataFile(folder._id, itemId);
           }
           this.remove(pendingUpload);
         }

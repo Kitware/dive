@@ -3,7 +3,7 @@ import { readonly, ref, Ref } from 'vue';
 import Track, { TrackId } from 'vue-media-annotator/track';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 
-import { useApi, DatasetMetaMutable } from 'dive-common/apispec';
+import { useApi, DatasetConfigMutable } from 'dive-common/apispec';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import Group from 'vue-media-annotator/Group';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
@@ -55,11 +55,11 @@ export default function useSave(
     },
   };
   const {
-    saveDetections, saveMetadata, saveAttributes, saveAttributeTrackFilters,
+    saveDetections, saveConfig, saveAttributes, saveAttributeTrackFilters,
   } = useApi();
 
   async function save(
-    datasetMeta?: DatasetMetaMutable,
+    datasetMeta?: DatasetConfigMutable,
     set?: string,
   ) {
     if (readonlyMode.value) {
@@ -92,7 +92,7 @@ export default function useSave(
       }
       if (datasetMeta && pendingChangeMap.meta > 0) {
         // Save once for each camera into their own metadata file
-        promiseList.push(saveMetadata(saveId, datasetMeta).then(() => {
+        promiseList.push(saveConfig(saveId, datasetMeta).then(() => {
           // eslint-disable-next-line no-param-reassign
           pendingChangeMap.meta = 0;
         }));
@@ -123,7 +123,7 @@ export default function useSave(
     });
     // Final save into the multi-cam metadata if multiple cameras exists
     if (globalMetadataUpdated && datasetMeta && pendingChangeMaps) {
-      promiseList.push(saveMetadata(datasetId.value, datasetMeta));
+      promiseList.push(saveConfig(datasetId.value, datasetMeta));
     }
     await Promise.all(promiseList);
     pendingSaveCount.value = 0;

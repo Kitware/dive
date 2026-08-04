@@ -61,24 +61,24 @@ export function isMultiCamSubType(subType: SubType | string | null | undefined):
   return subType === 'stereo' || subType === 'multicam';
 }
 
-export type DatasetMetaLike = {
+export type DatasetConfigLike = {
   type?: string;
   subType?: string;
 };
 
 export type FolderMetaLike = {
-  meta?: DatasetMetaLike;
+  meta?: DatasetConfigLike;
   parentId?: string;
   _id?: string;
 };
 
 /** True when folder meta describes a stereoscopic or multicam parent dataset. */
-export function isMultiCamDatasetMeta(meta: DatasetMetaLike | null | undefined): boolean {
+export function isMultiCamDatasetConfig(meta: DatasetConfigLike | null | undefined): boolean {
   return getMultiCamSubType(meta) !== null;
 }
 
 /** True when folder meta describes a stereoscopic (not plain multicam) parent dataset. */
-export function isStereoscopicDatasetMeta(meta: DatasetMetaLike | null | undefined): boolean {
+export function isStereoscopicDatasetConfig(meta: DatasetConfigLike | null | undefined): boolean {
   return getMultiCamSubType(meta) === 'stereo';
 }
 
@@ -90,10 +90,10 @@ export function isMultiCamTrainingTarget(
   folders: FolderMetaLike[],
   browseLocation: FolderMetaLike | null,
 ): boolean {
-  if (folders.some((folder) => isMultiCamDatasetMeta(folder.meta))) {
+  if (folders.some((folder) => isMultiCamDatasetConfig(folder.meta))) {
     return true;
   }
-  if (!browseLocation || !isMultiCamDatasetMeta(browseLocation.meta) || !browseLocation._id) {
+  if (!browseLocation || !isMultiCamDatasetConfig(browseLocation.meta) || !browseLocation._id) {
     return false;
   }
   if (folders.length === 0) {

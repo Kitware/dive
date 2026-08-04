@@ -1,5 +1,5 @@
 import {
-  Camera, DesktopMetadata, JsonMeta, ProjectsFolderName, Settings,
+  Camera, DesktopConfig, JsonConfig, ProjectsFolderName, Settings,
 } from 'platform/desktop/constants';
 
 export interface LabeledPath {
@@ -62,7 +62,7 @@ function getCameraSourceFolder(camera: Camera): string {
   return camera.originalBasePath;
 }
 
-function getSingleCameraPaths(meta: JsonMeta): { mediaSource: string; sourceFolder: string } {
+function getSingleCameraPaths(meta: JsonConfig): { mediaSource: string; sourceFolder: string } {
   if (meta.type === 'video') {
     return {
       mediaSource: joinPath(meta.originalBasePath, meta.originalVideoFile),
@@ -101,7 +101,7 @@ function getSingleCameraPaths(meta: JsonMeta): { mediaSource: string; sourceFold
  * Resolve the user's original calibration file path. New datasets store
  * `calibrationSourcePath`; older datasets only stored the basename.
  */
-function resolveCalibrationSourcePath(meta: JsonMeta): string | null {
+function resolveCalibrationSourcePath(meta: JsonConfig): string | null {
   const { multiCam } = meta;
   if (!multiCam?.calibration && !multiCam?.calibrationOriginalName) {
     return null;
@@ -124,7 +124,7 @@ function resolveCalibrationSourcePath(meta: JsonMeta): string | null {
 }
 
 export function buildDatasetSourceInfo(
-  meta: DesktopMetadata,
+  meta: DesktopConfig,
   appSettings: Settings | null,
 ): DatasetSourceInfo {
   const projectDirectory = getProjectDirectory(meta.id, appSettings);

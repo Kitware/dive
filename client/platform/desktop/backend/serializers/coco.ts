@@ -1,7 +1,7 @@
 import fs from 'fs-extra';
 import { isEmpty } from 'lodash';
 import { AnnotationSchema } from 'dive-common/apispec';
-import { JsonMeta } from 'platform/desktop/constants';
+import { JsonConfig } from 'platform/desktop/constants';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
 import { TrackSupportedFeature } from 'vue-media-annotator/track';
 
@@ -309,7 +309,7 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
   return [annotations, meta, warnings];
 }
 
-function frameNameForExport(frame: number, meta: JsonMeta): string {
+function frameNameForExport(frame: number, meta: JsonConfig): string {
   if (meta.type === 'image-sequence') {
     return meta.originalImageFiles[frame] || `frame_${frame.toString().padStart(6, '0')}.jpg`;
   }
@@ -319,7 +319,7 @@ function frameNameForExport(frame: number, meta: JsonMeta): string {
 async function serializeFile(
   path: string,
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,

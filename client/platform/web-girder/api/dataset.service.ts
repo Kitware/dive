@@ -5,13 +5,13 @@ import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  DatasetMetaMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  DatasetConfigMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker, jsonCalibrationFileMarker, metadataFileMarker } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
-import { GirderMetadataStatic } from 'platform/web-girder/constants';
+import { GirderConfigStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
@@ -22,7 +22,7 @@ interface HTMLFile extends File {
 
 async function getDataset(datasetId: string) {
   const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
-  const response = await girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
+  const response = await girderRest.get<GirderConfigStatic>(`dive_dataset/${folderId}`);
   if (compositeId) {
     response.data.id = compositeId;
   }
@@ -186,9 +186,9 @@ async function saveAttributeTrackFilters(
   return girderRest.patch(`/dive_dataset/${folderId}/attribute_track_filters`, args);
 }
 
-async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
+async function saveConfig(datasetId: string, config: DatasetConfigMutable) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
-  return girderRest.patch(`/dive_dataset/${folderId}`, metadata);
+  return girderRest.patch(`/dive_dataset/${folderId}`, config);
 }
 
 /**
@@ -238,7 +238,7 @@ async function importCameraRegistration(
     incoming,
     file.name,
   );
-  await saveMetadata(parentId, {
+  await saveConfig(parentId, {
     cameraHomographies: merged.homographies,
     cameraCorrespondences: merged.correspondences,
     cameraTransformTypes: merged.transformTypes,
@@ -353,7 +353,7 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
  * Upload an optional per-dataset metadata file as a marked Girder item in the
  * dataset (parent) folder and return its item id.
  */
-async function uploadMetadataFileItem(parentFolderId: string, file: File): Promise<string> {
+async function uploadConfigFileItem(parentFolderId: string, file: File): Promise<string> {
   const metadataMeta = { [metadataFileMarker]: 'true' };
   const itemResp = await girderRest.post<GirderModel>('/item', null, {
     params: {
@@ -385,7 +385,7 @@ async function uploadMetadataFileItem(parentFolderId: string, file: File): Promi
 }
 
 /** Mark an already-uploaded metadata item as the dataset's metadata file. */
-function setDatasetMetadataFile(folderId: string, itemId: string) {
+function setDatasetConfigdataFile(folderId: string, itemId: string) {
   return girderRest.post(`dive_dataset/${folderId}/metadata_file`, null, {
     params: { itemId },
   });
@@ -460,9 +460,9 @@ export {
   makeViameFolder,
   saveAttributes,
   saveAttributeTrackFilters,
-  saveMetadata,
+  saveConfig,
   uploadCalibrationItem,
-  uploadMetadataFileItem,
-  setDatasetMetadataFile,
+  uploadConfigFileItem,
+  setDatasetConfigdataFile,
   validateUploadGroup,
 };

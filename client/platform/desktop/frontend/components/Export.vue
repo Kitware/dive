@@ -11,10 +11,10 @@ import { MultiType } from 'dive-common/constants';
 import { referenceCameraName } from 'dive-common/multicamDisplay';
 import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  loadMetadata, exportDataset, exportConfiguration, exportCalibrationFile,
+  loadConfig, exportDataset, exportConfiguration, exportCalibrationFile,
   exportCameraRegistration, exportMulticamEverything,
 } from 'platform/desktop/frontend/api';
-import type { JsonMeta } from 'platform/desktop/constants';
+import type { JsonConfig } from 'platform/desktop/constants';
 
 type ExportType = 'dataset' | 'configuration' | 'trackJSON' | 'coco' | 'everything';
 
@@ -45,7 +45,7 @@ export default defineComponent({
       excludeUncheckedTypes: false,
       activator: 0,
       err: null as unknown,
-      meta: null as JsonMeta | null,
+      meta: null as JsonConfig | null,
       outPath: '',
     });
     const savePrompt = ref(false);
@@ -60,7 +60,7 @@ export default defineComponent({
 
     watch(toRef(data, 'menuOpen'), async (newval) => {
       if (newval) {
-        data.meta = await loadMetadata(parentId.value);
+        data.meta = await loadConfig(parentId.value);
       } else {
         data.err = null;
         data.outPath = '';

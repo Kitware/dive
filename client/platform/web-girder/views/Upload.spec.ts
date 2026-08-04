@@ -19,9 +19,9 @@ vi.mock('platform/web-girder/api', () => ({
   createGirderFolder: vi.fn(),
   createMulticamDataset: vi.fn(),
   deleteResources: vi.fn(),
-  saveMetadata: vi.fn(),
+  saveConfig: vi.fn(),
   uploadCalibrationItem: vi.fn(),
-  uploadMetadataFileItem: vi.fn(),
+  uploadConfigFileItem: vi.fn(),
   validateUploadGroup: vi.fn(),
   waitForFolderDatasetReady: vi.fn(),
 }));

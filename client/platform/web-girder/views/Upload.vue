@@ -27,9 +27,9 @@ import {
   createGirderFolder,
   createMulticamDataset,
   deleteResources,
-  saveMetadata,
+  saveConfig,
   uploadCalibrationItem,
-  uploadMetadataFileItem,
+  uploadConfigFileItem,
   validateUploadGroup,
   waitForFolderDatasetReady,
 } from 'platform/web-girder/api';
@@ -86,8 +86,9 @@ export interface PendingUpload {
    */
   mediaList: File[];
   annotationFile: File | null;
+  /** Optional DIVE Configuration File (JSON attributes, styles, FPS, …). */
   configFile: File | null;
-  /** Optional dataset-level file handed to pipelines that request it. */
+  /** Optional Metadata File handed to pipelines that declare `# Metadata File:`. */
   metadataFile: File | null;
   /** Media/annotation/config package the server validated for upload (rebuilt at start). */
   uploadFiles: File[];
@@ -275,8 +276,10 @@ export default defineComponent({
     };
 
     // Accept filters per slot, mirroring the file dialog's own filters.
-    const filterFileUpload = (type: DatasetType | 'meta' | 'annotation' | 'metadata') => {
-      if (type === 'meta') {
+    // 'config' is the DIVE JSON configuration file; 'metadata' is the optional
+    // pipeline sidecar — keep these names distinct from each other.
+    const filterFileUpload = (type: DatasetType | 'config' | 'annotation' | 'metadata') => {
+      if (type === 'config') {
         return '.json';
       }
       if (type === 'annotation') {
@@ -384,7 +387,7 @@ export default defineComponent({
       const files = getFilesForSourceKey(sourcePath) ?? [];
       const mediaType = multiCamOpenType.value === VideoType ? VideoType : ImageSequenceType;
       return {
-        jsonMeta: {
+        jsonConfig: {
           originalImageFiles: mediaFileNamesForImport(files, mediaType),
         },
         globPattern: '',
@@ -594,7 +597,7 @@ export default defineComponent({
               'Metadata file was not found. Use "Choose metadata" in the import dialog to select the file again.',
             );
           }
-          metadataFileId = await uploadMetadataFileItem(datasetFolder._id, metadataFile);
+          metadataFileId = await uploadConfigFileItem(datasetFolder._id, metadataFile);
         }
 
         const subType = stereo.value ? 'stereo' : 'multicam';
@@ -618,7 +621,7 @@ export default defineComponent({
           // registration the in-app panel edits and the Align button
           // applies); the camera* fields are allowlisted in the meta PATCH.
           setMulticamImportProgress(98, `${labelPrefix}Saving camera registration…`);
-          await saveMetadata(parentFolder._id, {
+          await saveConfig(parentFolder._id, {
             cameraHomographies: registrationSeed.values.homographies,
             cameraCorrespondences: registrationSeed.values.correspondences,
             cameraTransformTypes: registrationSeed.values.transformTypes,
@@ -1124,7 +1127,7 @@ export default defineComponent({
                     label="Configuration File (Optional)"
                     hint="Optional"
                     :disabled="pendingUpload.uploading"
-                    :accept="filterFileUpload('meta')"
+                    :accept="filterFileUpload('config')"
                   />
                 </v-row>
                 <v-row>

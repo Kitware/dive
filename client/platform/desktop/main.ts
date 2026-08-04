@@ -30,7 +30,7 @@ migrate().then(() => {
   window.diveDesktop.on('desktop:open-dataset', async (id) => {
     const datasetId = String(id);
     try {
-      setRecents(await api.loadMetadata(datasetId));
+      setRecents(await api.loadConfig(datasetId));
     } catch {
       // A dataset that cannot be summarized can still be opened; recents is
       // only a convenience listing.
@@ -46,7 +46,7 @@ migrate().then(() => {
   window.diveDesktop.on('desktop:cli-transcoding', async (payload) => {
     const notice = payload as CliTranscodingNotice;
     try {
-      setRecents(await api.loadMetadata(notice.datasetId));
+      setRecents(await api.loadConfig(notice.datasetId));
     } catch {
       // Still show the dialog even if recents cannot be updated yet.
     }

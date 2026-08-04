@@ -727,7 +727,7 @@ def _yield_single_dataset_export(
         annotations['tracks'] = updated_tracks
         yield json.dumps(annotations)
 
-    for data in z.addFile(makeMetajson, Path(f'{zip_path}meta.json')):
+    for data in z.addFile(makeMetajson, Path(f'{zip_path}{constants.ConfigFileName}')):
         yield data
 
     for data in z.addFile(makeDiveJson, Path(f'{zip_path}annotations.dive.json')):

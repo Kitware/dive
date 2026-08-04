@@ -2,7 +2,7 @@
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { AnnotationSchema } from 'dive-common/apispec';
-import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
+import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import { isCocoJson, parseFile, serializeFile } from 'platform/desktop/backend/serializers/coco';
 
 const cocoInput = {
@@ -66,7 +66,7 @@ const imageMeta = {
   confidenceFilters: { default: 0.1 },
   multiCam: null,
   subType: null,
-} as JsonMeta;
+} as JsonConfig;
 
 beforeEach(() => {
   mockfs({

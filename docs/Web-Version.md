@@ -27,7 +27,7 @@ A user account is required to store data and run pipelines on viame.kitware.com.
 * Select a video or multi-select a group of image frames.
     * Use ++ctrl++ or ++shift++ to click every file you want to upload.
     * If you already have `annotations.csv` or an annotation or configuration JSON select that too.
-    * Optionally select a **Metadata File** (`.json`, `.txt`, or `.csv`) such as a flight log. This is separate from the DIVE configuration JSON; only pipelines that declare `# Metadata File:` use it. See [Pipe file headers](Pipeline-Import-Export.md#pipe-file-headers).
+    * Optionally select a **Metadata File** (`.json`, `.txt`, or `.csv`) such as a flight log. This is separate from the DIVE **Configuration File** JSON; only pipelines that declare `# Metadata File:` use it. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
     * Uploads that contain only `.tif` / `.tiff` files are classified as [large-image](Large-Image-Support.md) datasets rather than image sequences.
 * Choose a name for the dataset and enter the optional playback frame rate or select other optional files.
 * Press ==Start Upload==

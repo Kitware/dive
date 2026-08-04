@@ -38,7 +38,7 @@ export default defineComponent({
   setup(props, { emit }) {
     const trackFilters = useTrackFilters();
     const { frameRate } = useTime();
-    const { saveMetadata } = useApi();
+    const { saveConfig } = useApi();
     const datasetId = useDatasetId();
 
     const init = ref(!!props.maxFrame || 1);
@@ -324,7 +324,7 @@ export default defineComponent({
         draggingTimeFilter.value = null;
         dragTooltipFrame.value = null;
         dragTooltipPosition.value = null;
-        saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
+        saveConfig(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
         return;
       }
       if (dragging.value) {
@@ -393,7 +393,7 @@ export default defineComponent({
         draggingTimeFilter.value = null;
         dragTooltipFrame.value = null;
         dragTooltipPosition.value = null;
-        saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
+        saveConfig(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
       }
     }
 

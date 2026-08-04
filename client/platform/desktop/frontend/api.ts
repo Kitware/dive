@@ -1,7 +1,7 @@
 import axios, { AxiosInstance } from 'axios';
 
 import type {
-  DatasetMetaMutable, DatasetType, MultiCamImportArgs,
+  DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
   DatasetCalibrationResult,
@@ -17,7 +17,7 @@ import {
   metadataFileTypes,
 } from 'dive-common/constants';
 import {
-  DesktopMetadata, NvidiaSmiReply,
+  DesktopConfig, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   ExportMulticamEverythingArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
@@ -48,7 +48,7 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'transform' | 'metadata', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'transform' | 'metadata', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -71,6 +71,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'annotation') {
     filters = [
       { name: 'annotation', extensions: inputAnnotationFileTypes },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'config') {
+    filters = [
+      { name: 'configuration', extensions: ['json'] },
       allFiles,
     ];
   }
@@ -103,6 +109,11 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
       (item) => allowed.has(getExtension(item)),
     )) {
       throw Error('File Types did not match JSON or CSV');
+    }
+  }
+  if (datasetType === 'config') {
+    if (!results.filePaths.every((item) => getExtension(item) === 'json')) {
+      throw Error('Configuration File must be JSON');
     }
   }
   if (datasetType === 'large-image') {
@@ -251,7 +262,7 @@ function importAnnotationFile(id: string, path: string, _htmlFile = undefined, a
 }
 
 function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArgs> {
-  // Have this return JsonMeta as well as everything needed to start a job?
+  // Have this return JsonConfig as well as everything needed to start a job?
   return window.diveDesktop.invoke('finalize-import', args);
 }
 
@@ -616,9 +627,9 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
   return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
-async function loadMetadata(id: string) {
+async function loadConfig(id: string) {
   const client = await getClient();
-  const { data } = await client.get<DesktopMetadata>(`dataset/${id}/meta`);
+  const { data } = await client.get<DesktopConfig>(`dataset/${id}/meta`);
   return { ...data, calibration: data.multiCam?.calibration ?? null };
 }
 
@@ -632,7 +643,7 @@ async function loadDetections(datasetId: string) {
   };
 }
 
-async function saveMetadata(id: string, args: DatasetMetaMutable) {
+async function saveConfig(id: string, args: DatasetConfigMutable) {
   const client = await getClient();
   return client.post(`dataset/${id}/meta`, args);
 }
@@ -709,7 +720,7 @@ function deleteCalibration(datasetId: string): Promise<void> {
 
 export {
   /* Standard Specification APIs */
-  loadMetadata,
+  loadConfig,
   loadDetections,
   getPipelineList,
   deleteTrainedPipeline,
@@ -717,7 +728,7 @@ export {
   exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
-  saveMetadata,
+  saveConfig,
   saveDetections,
   saveAttributes,
   saveAttributeTrackFilters,

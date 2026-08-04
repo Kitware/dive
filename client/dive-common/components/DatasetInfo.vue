@@ -3,21 +3,21 @@ import {
   computed, defineComponent, ref, watch,
 } from 'vue';
 import { useDatasetId, useReadOnlyMode } from 'vue-media-annotator/provides';
-import { useApi, DatasetMeta } from 'dive-common/apispec';
+import { useApi, DatasetConfig } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import DatasetMetaEditorDialog from 'dive-common/components/DatasetMetaEditorDialog.vue';
+import DatasetConfigEditorDialog from 'dive-common/components/DatasetConfigEditorDialog.vue';
 
 export default defineComponent({
   name: 'DatasetInfo',
 
-  components: { DatasetMetaEditorDialog },
+  components: { DatasetConfigEditorDialog },
 
   setup() {
     const datasetId = useDatasetId();
     const readOnlyMode = useReadOnlyMode();
-    const { loadMetadata, saveMetadata } = useApi();
+    const { loadConfig, saveConfig } = useApi();
     const { prompt } = usePrompt();
-    const meta = ref<DatasetMeta | null>(null);
+    const meta = ref<DatasetConfig | null>(null);
     const customMeta = ref<Record<string, unknown>>({});
     const newKey = ref('');
     const newValue = ref('');
@@ -31,7 +31,7 @@ export default defineComponent({
         customMeta.value = {};
         return;
       }
-      meta.value = await loadMetadata(datasetId.value);
+      meta.value = await loadConfig(datasetId.value);
       customMeta.value = { ...(meta.value.datasetInfo || {}) };
     };
 
@@ -73,7 +73,7 @@ export default defineComponent({
         return;
       }
       try {
-        await saveMetadata(datasetId.value, { datasetInfo: { ...customMeta.value } });
+        await saveConfig(datasetId.value, { datasetInfo: { ...customMeta.value } });
       } catch (err) {
         const saveErr = err as { response?: { status?: number } };
         const status = saveErr.response?.status;
@@ -300,7 +300,7 @@ export default defineComponent({
       </div>
     </v-container>
 
-    <DatasetMetaEditorDialog
+    <DatasetConfigEditorDialog
       v-model="editorOpen"
       :field-name="editorKey"
       :field-value="editorValue"
