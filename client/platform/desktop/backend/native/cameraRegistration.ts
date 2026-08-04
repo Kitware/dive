@@ -3,7 +3,7 @@
  *
  * Registration transforms are stored as standalone per-camera
  * *_registration.json files in the dataset directory rather than embedded in
- * the Configuration File (config.json / legacy meta.json).
+ * dataset.json (or legacy meta.json).
  */
 
 import npath from 'path';
@@ -290,7 +290,7 @@ export async function exportCameraRegistration(
   camera: string,
 ): Promise<string> {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId.split('/')[0]);
-  const meta = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const calibration = await loadEffectiveRegistration(projectDirInfo.basePath, meta);
   const files = buildPerCameraRegistrationFiles(calibration, referenceCameraName(meta));
   if (!files.length) {
@@ -320,7 +320,7 @@ export async function importCameraRegistration(
 ): Promise<{ cameras: string[]; pairCount: number }> {
   const parentId = datasetId.split('/')[0];
   const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const meta = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   let data;
   try {
     data = await fs.readJson(filePath);

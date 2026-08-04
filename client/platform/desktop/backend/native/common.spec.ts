@@ -475,22 +475,22 @@ describe('native.common', () => {
     const dir = await common.getValidatedProjectDir(settings, 'projectid1');
     expect(dir.basePath).toBe(npath.join(settings.dataPath, basedir));
     // Fixtures still use legacy meta.json; resolve falls back until a save migrates.
-    expect(dir.configFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'meta.json'));
+    expect(dir.datasetFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'meta.json'));
     expect(dir.auxDirAbsPath).toBe(npath.join(settings.dataPath, basedir, 'auxiliary'));
     expect(dir.trackFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'result_whatever.json'));
   });
 
-  it('saveProjectConfig migrates legacy meta.json to config.json', async () => {
+  it('saveProjectConfig migrates legacy meta.json to dataset.json', async () => {
     const basedir = npath.join(settings.dataPath, 'DIVE_Projects/projectid1');
     const legacy = npath.join(basedir, 'meta.json');
-    const preferred = npath.join(basedir, 'config.json');
+    const preferred = npath.join(basedir, 'dataset.json');
     expect(await fs.pathExists(legacy)).toBe(true);
     const existing = await fs.readJSON(legacy);
     await common.saveProjectConfig(basedir, existing);
     expect(await fs.pathExists(preferred)).toBe(true);
     expect(await fs.pathExists(legacy)).toBe(false);
     const dir = await common.getValidatedProjectDir(settings, 'projectid1');
-    expect(dir.configFileAbsPath).toBe(preferred);
+    expect(dir.datasetFileAbsPath).toBe(preferred);
   });
   it('getValidatedProjectDir loads initial track.json', async () => {
     const basedir = 'DIVE_Projects/projectid4Bad';
@@ -502,7 +502,7 @@ describe('native.common', () => {
     await expect(common.getValidatedProjectDir(settings, 'projectid2Bad'))
       .rejects.toThrow('missing track json file');
     await expect(common.getValidatedProjectDir(settings, 'projectid3Bad'))
-      .rejects.toThrow('missing configuration json file');
+      .rejects.toThrow('missing dataset json file');
   });
 
   it('loadJsonConfig loads configuration from file', async () => {
@@ -714,7 +714,7 @@ describe('native.common', () => {
 
     // Seed parent registration so a config import must not clobber it.
     const baseDir = common.getProjectDir(settings, baseId);
-    const seededBase = await common.loadJsonConfig(baseDir.configFileAbsPath);
+    const seededBase = await common.loadJsonConfig(baseDir.datasetFileAbsPath);
     seededBase.cameraHomographies = {
       'left::right': {
         AtoB: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
@@ -726,7 +726,7 @@ describe('native.common', () => {
     };
     seededBase.cameraTransformTypes = { 'left::right': 'similarity' };
     seededBase.cameraRegistrationSource = { model: 'seeded' };
-    await fs.writeJSON(baseDir.configFileAbsPath, seededBase);
+    await fs.writeJSON(baseDir.datasetFileAbsPath, seededBase);
 
     await common.dataFileImport(
       settings,
@@ -792,11 +792,11 @@ describe('native.common', () => {
       },
     ]);
 
-    // Not embedded in the Configuration File.
-    const configPath = npath.join(projectDir, 'config.json');
-    expect(await fs.pathExists(configPath)).toBe(true);
+    // Not embedded in dataset.json.
+    const datasetPath = npath.join(projectDir, 'dataset.json');
+    expect(await fs.pathExists(datasetPath)).toBe(true);
     expect(await fs.pathExists(npath.join(projectDir, 'meta.json'))).toBe(false);
-    const meta = await fs.readJSON(configPath);
+    const meta = await fs.readJSON(datasetPath);
     expect(meta.cameraHomographies).toBeUndefined();
     expect(meta.cameraCorrespondences).toBeUndefined();
     expect(meta.cameraTransformTypes).toBeUndefined();
@@ -1242,13 +1242,13 @@ describe('native.common', () => {
   });
 
   it('check Dastset existence', async () => {
-    await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing configuration');
+    await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing dataset json');
     await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
-    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing configuration');
+    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing dataset json');
   });
 
   it('delete datasets', async () => {
-    await expect(common.deleteDataset(settings, 'missingFolder')).rejects.toThrow('missing configuration');
+    await expect(common.deleteDataset(settings, 'missingFolder')).rejects.toThrow('missing dataset json');
     let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
     expect(exists).toBe(true);
     await expect(common.deleteDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');

@@ -53,7 +53,7 @@ async function writeDatasetExportContents(
   typeFilter: Set<string>,
 ): Promise<void> {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const meta = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
   const serializeOptions = {
     excludeBelowThreshold,
@@ -98,7 +98,7 @@ export async function exportMulticamEverything(
 ): Promise<string> {
   const parentId = args.id.split('/')[0];
   const parentDirInfo = await getValidatedProjectDir(settings, parentId);
-  const parentMeta = await loadJsonConfig(parentDirInfo.configFileAbsPath);
+  const parentMeta = await loadJsonConfig(parentDirInfo.datasetFileAbsPath);
   if (parentMeta.type !== MultiType || !parentMeta.multiCam) {
     throw new Error('Everything export is only available for multi-camera datasets.');
   }

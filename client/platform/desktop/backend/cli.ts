@@ -277,7 +277,7 @@ if (argv._.includes('viame2json')) {
     await Promise.all(dsids.map(async (id) => {
       try {
         const proj = await common.getValidatedProjectDir(settings, id);
-        const meta = await common.loadJsonConfig(proj.configFileAbsPath);
+        const meta = await common.loadJsonConfig(proj.datasetFileAbsPath);
         const tracks = await common.loadAnnotationFile(proj.trackFileAbsPath);
         const tracklist = Object.values(tracks);
         const hydrated = tracklist.map((t) => Track.fromJSON(t));

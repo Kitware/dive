@@ -185,16 +185,18 @@ VIAME_DATA
    ├── fish_training_data_c_jp7hq88vfv
    │  ├── auxiliary
    │  │  └── result_06-01-2021_10-55-38.627.json
-   │  ├── config.json
+   │  ├── dataset.json
    │  └── result_06-01-2021_04-53-38.050.json
    └── scallop_2_jrgdq760gu
       ├── auxiliary
       │  └── result_06-01-2021_10-54-56.034.json
-      ├── config.json
+      ├── dataset.json
       └── result_06-01-2021_11-02-35.857.json
 ```
 
-Existing datasets that still have `meta.json` are read normally; the next save migrates them to `config.json` and removes the legacy file.
+Each project folder stores a `dataset.json` with desktop-specific dataset state (media paths, ids, transcodes, multicam layout, …). This is separate from the portable **Configuration File** (`config.json`) used on import/export for attributes, styles, FPS, and related settings.
+
+Existing datasets that still have `meta.json` in the project folder are read normally; the next save migrates them to `dataset.json` and removes the legacy file.
 ### Configuration with env
 
 DIVE Desktop looks for the these environment variables on launch.

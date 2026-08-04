@@ -129,7 +129,7 @@ async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonCon
           argFilePair['detection_reader:file_name'] = groundTruthFileName;
           argFilePair['track_reader:file_name'] = groundTruthFileName;
         }
-        const subMeta = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+        const subMeta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
         const inputData = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
         await serialize(groundTruthFileStream, inputData, subMeta);
         groundTruthFileStream.end();

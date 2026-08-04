@@ -189,7 +189,7 @@ async function runPipeline(
     pipelinePath = pipeline.pipe;
   }
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
-  const meta = await common.loadJsonConfig(projectInfo.configFileAbsPath);
+  const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
 
   const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
@@ -197,7 +197,7 @@ async function runPipeline(
   if (cameraName) {
     try {
       const parentInfo = await common.getValidatedProjectDir(settings, parentId);
-      const parentMeta = await common.loadJsonConfig(parentInfo.configFileAbsPath);
+      const parentMeta = await common.loadJsonConfig(parentInfo.datasetFileAbsPath);
       const defaultDisplay = parentMeta.multiCam?.defaultDisplay;
       if (cameraName !== defaultDisplay) {
         cameraLogLine = `Running pipeline on camera: ${cameraName}`;
@@ -695,7 +695,7 @@ async function train(
   const infoAndMeta = await Promise.all(
     runTrainingArgs.datasetIds.map(async (id) => {
       const projectInfo = await common.getValidatedProjectDir(settings, id);
-      const meta = await common.loadJsonConfig(projectInfo.configFileAbsPath);
+      const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
       return { projectInfo, meta };
     }),
   );

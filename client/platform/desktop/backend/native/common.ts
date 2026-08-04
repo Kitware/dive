@@ -69,20 +69,27 @@ const AuxFolderName = 'auxiliary';
 
 const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
-/** Canonical on-disk DIVE Configuration File name for new writes. */
-const JsonConfigFileName = 'config.json';
-/** Legacy project config filename; still read, migrated away on save. */
-const JsonConfigFileNameLegacy = 'meta.json';
+/**
+ * Canonical desktop project dataset file under DIVE_Projects (media paths, id,
+ * type, multicam layout, …). Distinct from the portable Configuration File
+ * (`config.json`) used on import/export.
+ */
+const DatasetFileName = 'dataset.json';
+/** Legacy project filename; still read, migrated away on save. */
+const DatasetFileNameLegacy = 'meta.json';
+/** Portable Configuration File name used on import/export (not the project store). */
+const PortableConfigFileName = 'config.json';
+const PortableConfigFileNameLegacy = 'meta.json';
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
 
 /**
- * Resolve the project Configuration File path: prefer config.json, fall back to
- * meta.json for existing datasets, else the preferred name for new projects.
+ * Resolve the project dataset.json path: prefer dataset.json, fall back to
+ * legacy meta.json for existing datasets, else the preferred name for new projects.
  */
-function resolveConfigFileAbsPath(basePath: string): string {
-  const preferred = npath.join(basePath, JsonConfigFileName);
-  const legacy = npath.join(basePath, JsonConfigFileNameLegacy);
+function resolveDatasetFileAbsPath(basePath: string): string {
+  const preferred = npath.join(basePath, DatasetFileName);
+  const legacy = npath.join(basePath, DatasetFileNameLegacy);
   if (fs.pathExistsSync(preferred)) {
     return preferred;
   }
@@ -435,14 +442,16 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
         jsonFileCandidates.push(fullPath);
       }
     } else if (JsonConfigRegEx.test(name)) {
-      // Prefer exact config.json, then legacy meta.json, then other *.meta/config.json.
+      // Prefer exact portable config.json, then legacy meta.json, then other
+      // *.meta/config.json. dataset.json is the desktop project store and is
+      // not matched by JsonConfigRegEx.
       const lower = name.toLowerCase();
       const current = configFileAbsPath
         ? npath.basename(configFileAbsPath).toLowerCase()
         : '';
-      if (lower === JsonConfigFileName) {
+      if (lower === PortableConfigFileName) {
         configFileAbsPath = fullPath;
-      } else if (lower === JsonConfigFileNameLegacy && current !== JsonConfigFileName) {
+      } else if (lower === PortableConfigFileNameLegacy && current !== PortableConfigFileName) {
         configFileAbsPath = fullPath;
       } else if (!configFileAbsPath) {
         configFileAbsPath = fullPath;
@@ -464,12 +473,12 @@ function getProjectDir(settings: Settings, datasetId: string) {
   return {
     auxDirAbsPath,
     basePath,
-    configFileAbsPath: resolveConfigFileAbsPath(basePath),
+    datasetFileAbsPath: resolveDatasetFileAbsPath(basePath),
   };
 }
 
 /**
- * REQUIRED members: config.json (or legacy meta.json), results*.json
+ * REQUIRED members: dataset.json (or legacy meta.json), results*.json
  * OPTIONAL members: aux/ will be created if none exists
  */
 async function getValidatedProjectDir(settings: Settings, datasetId: string) {
@@ -478,8 +487,8 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
   if (!fs.pathExistsSync(projectInfo.basePath)) {
     throw new Error(`missing project directory ${projectInfo.basePath}`);
   }
-  if (!fs.pathExistsSync(projectInfo.configFileAbsPath)) {
-    throw new Error(`missing configuration json file ${projectInfo.configFileAbsPath}`);
+  if (!fs.pathExistsSync(projectInfo.datasetFileAbsPath)) {
+    throw new Error(`missing dataset json file ${projectInfo.datasetFileAbsPath}`);
   }
   const { trackFileAbsPath } = await _findJsonAndMetaTrackFile(projectInfo.basePath);
   if (trackFileAbsPath === '') {
@@ -517,7 +526,7 @@ async function loadConfig(
   makeMediaUrl: (path: string) => string,
 ): Promise<DesktopConfig> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonConfig(projectDirData.configFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
 
   // Load the standalone camera registration (transforms + correspondences)
   // from the per-camera *_registration.json files, if present; the dataset
@@ -627,7 +636,7 @@ async function autodiscoverData(settings: Settings): Promise<JsonConfig[]> {
     const datasetId = dsids[i];
     try {
       const projectDirData = await getValidatedProjectDir(settings, datasetId);
-      const metadata = await loadJsonConfig(projectDirData.configFileAbsPath);
+      const metadata = await loadJsonConfig(projectDirData.datasetFileAbsPath);
       metas.push(metadata);
     } catch {
       // noop, dataset was invalid
@@ -862,12 +871,12 @@ async function _saveAsJson(absPath: string, data: unknown) {
 }
 
 /**
- * Write the project Configuration File as config.json and remove a legacy
+ * Write the project dataset file as dataset.json and remove a legacy
  * meta.json if one was present, so there is only one source of truth.
  */
 async function saveProjectConfig(basePath: string, data: unknown) {
-  const preferred = npath.join(basePath, JsonConfigFileName);
-  const legacy = npath.join(basePath, JsonConfigFileNameLegacy);
+  const preferred = npath.join(basePath, DatasetFileName);
+  const legacy = npath.join(basePath, DatasetFileNameLegacy);
   await _saveAsJson(preferred, data);
   if (await fs.pathExists(legacy)) {
     await fs.remove(legacy);
@@ -876,13 +885,13 @@ async function saveProjectConfig(basePath: string, data: unknown) {
 
 async function saveConfig(settings: Settings, datasetId: string, args: DatasetConfigMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  // Lock against the canonical config path so migrate-on-save stays stable.
+  // Lock against the canonical dataset path so migrate-on-save stays stable.
   const release = await _acquireLock(
     projectDirInfo.basePath,
-    npath.join(projectDirInfo.basePath, JsonConfigFileName),
+    npath.join(projectDirInfo.basePath, DatasetFileName),
     'meta',
   );
-  const existing = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+  const existing = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   if (args.confidenceFilters) {
     existing.confidenceFilters = args.confidenceFilters;
   }
@@ -910,7 +919,7 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
 
   // The camera registration (transforms + the points behind them) is
   // persisted as standalone <camera>_to_<reference>_registration.json files
-  // in the dataset directory rather than embedded in the Configuration File, so each
+  // in the dataset directory rather than embedded in dataset.json, so each
   // camera's registration is easy to find, hand-edit, and consume as a
   // self-contained artifact. There is deliberately never a single all-pairs
   // file.
@@ -929,7 +938,7 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
 
 async function saveAttributes(settings: Settings, datasetId: string, args: SaveAttributeArgs) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonConfig(projectDirData.configFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   if (!projectMetaData.attributes) {
     projectMetaData.attributes = {};
   }
@@ -952,7 +961,7 @@ async function saveAttributeTrackFilters(
   args: SaveAttributeTrackFilterArgs,
 ) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonConfig(projectDirData.configFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   if (!projectMetaData.attributeTrackFilters) {
     projectMetaData.attributeTrackFilters = {};
   }
@@ -1182,7 +1191,7 @@ async function deleteDataset(
 ): Promise<boolean> {
   // Confirm dataset exists
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   await fs.remove(projectDirInfo.basePath);
   // If the dataset source is inside DIVE_Jobs_Output, delete that output folder
   if (projectMetaData.originalBasePath) {
@@ -1203,7 +1212,7 @@ async function checkDataset(
   datasetId: string,
 ): Promise<boolean> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonConfig(projectDirData.configFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   if (projectMetaData.originalBasePath !== '') {
     const exists = await fs.pathExists(projectMetaData.originalBasePath);
     if (!exists) {
@@ -1475,7 +1484,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     confidenceFilters: { default: DefaultConfidence },
   };
 
-  /* TODO: Look for an EXISTING meta.json file to override the above */
+  /* TODO: Look for an EXISTING portable config.json to override the above */
 
   if (datasetType === 'video') {
     // get parent folder, since videos reference a file directly
@@ -1570,7 +1579,7 @@ function validImageNamesMap(jsonConfig: JsonConfig) {
 
 async function dataFileImport(settings: Settings, id: string, path: string, additive = false, additivePrepend = '') {
   const projectDirData = await getValidatedProjectDir(settings, id);
-  const jsonConfig = await loadJsonConfig(projectDirData.configFileAbsPath);
+  const jsonConfig = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   const existingDatasetInfo = jsonConfig.datasetInfo;
   const result = await ingestDataFiles(
     settings,
@@ -1598,8 +1607,8 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   const { parentId, cameraName } = parseCompositeDatasetId(id);
   if (cameraName && MulticamSharedMutableKeys.some((key) => key in result.meta)) {
     const baseProjectDir = getProjectDir(settings, parentId);
-    if (await fs.pathExists(baseProjectDir.configFileAbsPath)) {
-      const baseMeta = await loadJsonConfig(baseProjectDir.configFileAbsPath);
+    if (await fs.pathExists(baseProjectDir.datasetFileAbsPath)) {
+      const baseMeta = await loadJsonConfig(baseProjectDir.datasetFileAbsPath);
       const existingBaseDatasetInfo = baseMeta.datasetInfo;
       merge(baseMeta, pick(result.meta, MulticamSharedMutableKeys));
       if (result.meta.datasetInfo) {
@@ -1803,7 +1812,7 @@ async function finalizeMediaImport(
 async function getLargeImagePath(settings: Settings, datasetId: string): Promise<string | null> {
   try {
     const projectDirData = await getValidatedProjectDir(settings, datasetId);
-    const meta = await loadJsonConfig(projectDirData.configFileAbsPath);
+    const meta = await loadJsonConfig(projectDirData.datasetFileAbsPath);
     if (meta.type !== 'large-image' || !meta.originalLargeImageFile) {
       console.warn(
         `[tiles] getLargeImagePath: no path for dataset "${datasetId}" (meta.type=${meta.type}, hasOriginalLargeImageFile=${!!meta.originalLargeImageFile})`,
@@ -1835,7 +1844,7 @@ async function getDisplayImagePath(
 ): Promise<string | null> {
   try {
     const projectDirData = await getValidatedProjectDir(settings, datasetId);
-    const meta = await loadJsonConfig(projectDirData.configFileAbsPath);
+    const meta = await loadJsonConfig(projectDirData.datasetFileAbsPath);
     const originals = meta.originalImageFiles ?? [];
     if (!Number.isInteger(frame) || frame < 0 || frame >= originals.length) {
       console.warn(
@@ -1898,7 +1907,7 @@ async function openPathInFileManager(targetPath: string): Promise<string> {
 
 async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
-  const meta = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
   if (args.type === 'json') {
     return dive.serializeFile(args.path, data, meta, args.typeFilter, {
@@ -1919,7 +1928,7 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
 
 async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
-  const meta = await loadJsonConfig(projectDirInfo.configFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const output: DatasetConfigMutable & { version: number} = { version: meta.version };
   if (DatasetConfigMutableKeys.some((key) => key in meta)) {
     // DIVE Configuration File fields (attributes, styles, FPS, …)
