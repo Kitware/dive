@@ -831,6 +831,8 @@ def process_items(
                 folder, constants.MetadataFileItemIdMarker
             ):
                 _attach_swept_sidecar(folder, item)
+            # Tag for Girder UI; folder locator alone is not visible on the item.
+            item['meta'][constants.FrameMetadataFileMarker] = 'true'
             item['meta'][constants.ProcessedMarker] = True
             Item().save(item)
             aggregate_warnings.append(_frame_metadata_kept_warning(file['name']))

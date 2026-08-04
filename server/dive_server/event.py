@@ -23,6 +23,7 @@ from dive_utils.constants import (
     AssetstoreSourcePathMarker,
     DatasetMarker,
     FPSMarker,
+    FrameMetadataFileMarker,
     ImageSequenceType,
     LargeImageType,
     MarkForPostProcess,
@@ -107,8 +108,9 @@ def process_assetstore_import(event, meta: dict):
         dataset_type = VideoType
     elif possibleAnnotationRegex.search(importPath):
         if frame_metadata.is_frame_metadata_source_name(item['name']):
-            # Declared frame metadata sidecars are plain files: leave them in place for
-            # read-time discovery, no marker and no relocation.
+            # Declared frame metadata sidecars stay in place for read-time discovery.
+            # Tag the item for Girder UI; process_items records the folder locator later.
+            Item().setMetadata(item, {FrameMetadataFileMarker: 'true'})
             return
         # Look for parent folder with same name
         parentFolder = Folder().findOne({"_id": item["folderId"]})

@@ -1314,6 +1314,11 @@ def _mark_calibration_source_and_json_item(cal_item: dict) -> None:
     )
 
 
+def _mark_frame_metadata_item(md_item: dict) -> None:
+    """Tag a Girder item as frame metadata for Girder UI visualization."""
+    Item().setMetadata(md_item, {constants.FrameMetadataFileMarker: 'true'})
+
+
 def _validate_metadata_file_item(
     user: types.GirderUserModel,
     folder: types.GirderModel,
@@ -1327,6 +1332,7 @@ def _validate_metadata_file_item(
         raise RestException('Metadata file must be stored in the dataset folder', code=400)
     if not constants.metadataFileRegex.search(md_item['name']):
         raise RestException('Metadata file must be .json, .txt, or .csv', code=400)
+    _mark_frame_metadata_item(md_item)
     return md_item
 
 

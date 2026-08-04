@@ -217,6 +217,8 @@ const stereoPipelineMarker = 'measurement';
 const calibrationFileMarker = 'calibrationFile';
 /** Girder item meta key marking the JSON camera-rig used for calibration display. */
 const jsonCalibrationFileMarker = 'jsonCalibrationFile';
+/** Girder item meta key marking a frame-metadata attachment for Girder UI. */
+const frameMetadataFileMarker = 'frameMetadata';
 /** Legacy common_stereo category key; never shown in the run-pipeline menu. */
 const hiddenPipelineCategories = ['stereo'];
 /** Pipeline name/category substrings hidden from the web run-pipeline menu. */
@@ -264,6 +266,7 @@ export {
   stereoPipelineMarker,
   calibrationFileMarker,
   jsonCalibrationFileMarker,
+  frameMetadataFileMarker,
   hiddenPipelineCategories,
   webExcludedPipelineTerms,
   multiCamPipelineMarkers,

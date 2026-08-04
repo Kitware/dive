@@ -69,6 +69,7 @@ def test_frame_metadata_csv_is_kept_in_place_for_every_media_type(
     assert 'frame_metadata.csv' in warnings[0]
     assert 'stays in the dataset folder' in warnings[0]
     assert item['meta'][constants.ProcessedMarker] is True
+    assert item['meta'][constants.FrameMetadataFileMarker] == 'true'
     item_cls.return_value.save.assert_called_once_with(item)
     item_cls.return_value.move.assert_not_called()
     item_cls.return_value.remove.assert_not_called()
@@ -104,6 +105,7 @@ def test_reserved_txt_sidecar_is_swept_like_the_other_reserved_names(
     assert len(warnings) == 1
     assert 'frame_metadata.txt' in warnings[0]
     assert item['meta'][constants.ProcessedMarker] is True
+    assert item['meta'][constants.FrameMetadataFileMarker] == 'true'
     assert folder['meta'][constants.MetadataFileItemIdMarker] == 'item-id'
 
 
@@ -307,6 +309,7 @@ def test_more_than_one_reserved_metadata_item_warns_and_attaches_none(
     item_cls.return_value.remove.assert_not_called()
     folder_cls.return_value.save.assert_not_called()
     assert all(item['meta'][constants.ProcessedMarker] is True for item in items)
+    assert all(item['meta'][constants.FrameMetadataFileMarker] == 'true' for item in items)
 
 
 @patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
@@ -349,6 +352,7 @@ def test_attached_item_short_circuits_sweep(
     assert len(warnings) == 1
     assert 'stays in the dataset folder' in warnings[0]
     assert item['meta'][constants.ProcessedMarker] is True
+    assert item['meta'][constants.FrameMetadataFileMarker] == 'true'
     item_cls.return_value.save.assert_called_once_with(item)
     item_cls.return_value.move.assert_not_called()
     item_cls.return_value.remove.assert_not_called()
@@ -412,6 +416,7 @@ def test_attached_csv_does_not_trip_two_csv_guard(
     item_cls.return_value.move.assert_called_once_with(plain, {'_id': 'aux-id'})
     save_annotations.assert_called_once()
     assert marked['meta'][constants.ProcessedMarker] is True
+    assert marked['meta'][constants.FrameMetadataFileMarker] == 'true'
 
 
 @patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
