@@ -179,29 +179,6 @@ function defaultRowName(validation: ValidationResponse, folderHint?: string): st
 }
 
 /**
- * webkitdirectory includes nested files; single-camera import only uses the selected folder's
- * immediate children (desktop readdir parity). Nested collects belong to MultiCam Batch.
- */
-function topLevelDirectoryFiles(files: File[]): File[] {
-  const withRelative = files.filter((file) => file.webkitRelativePath);
-  if (!withRelative.length) {
-    return files;
-  }
-  return files.filter((file) => {
-    const parts = (file.webkitRelativePath || file.name).replace(/\\/g, '/').split('/').filter(Boolean);
-    return parts.length === 2;
-  });
-}
-
-function directoryFolderName(files: File[]): string | undefined {
-  const relative = files.find((file) => file.webkitRelativePath)?.webkitRelativePath;
-  if (!relative) {
-    return undefined;
-  }
-  return relative.replace(/\\/g, '/').split('/').filter(Boolean)[0];
-}
-
-/**
  * Every picked file this row will not upload, with the reason: what the server ignored, and
  * what had no slot to go in.
  */
@@ -387,31 +364,20 @@ export default defineComponent({
      * validation, which is what classifies the files.
      */
     const openImport = async (dstype: DatasetType | 'zip') => {
-      // Image-sequence / large-image match desktop: open a directory, not a multi-file picker.
-      // Directory mode also clears accept so multi-dot frame names are not filtered out.
-      const useDirectory = dstype === ImageSequenceType || dstype === LargeImageType;
-      const ret = await openFromDisk(dstype, useDirectory);
+      // Multi-file picker (not directory): web uploads an explicit selection. Multi-dot frame
+      // names are kept selectable via getImageSequenceFileAccept() in openFromDisk.
+      const ret = await openFromDisk(dstype);
       if (ret.canceled || !ret.fileList || ret.fileList.length === 0) {
-        return;
-      }
-      const allFiles = useDirectory ? topLevelDirectoryFiles(ret.fileList) : ret.fileList;
-      if (!allFiles.length) {
-        preUploadErrorMessage.value = 'No files found in the selected folder.';
         return;
       }
       preUploadErrorMessage.value = null;
       try {
         if (dstype === 'zip') {
-          const name = allFiles.length === 1 ? allFiles[0].name : '';
-          addPendingZipUpload(name, allFiles);
+          const name = ret.fileList.length === 1 ? ret.fileList[0].name : '';
+          addPendingZipUpload(name, ret.fileList);
         } else {
           const suggestedFps = dstype === 'image-sequence' || dstype === 'large-image' ? 1 : undefined;
-          await addPendingUpload(
-            allFiles,
-            suggestedFps,
-            dstype,
-            useDirectory ? directoryFolderName(allFiles) : undefined,
-          );
+          await addPendingUpload(ret.fileList, suggestedFps, dstype);
         }
       } catch (err) {
         preUploadErrorMessage.value = err.response?.data?.message || err;

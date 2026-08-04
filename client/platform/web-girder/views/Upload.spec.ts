@@ -94,23 +94,12 @@ function mountUpload(upload: () => Promise<void> = () => Promise.resolve()) {
   });
 }
 
-function pick(files: File[], options: { directory?: boolean } = {}) {
-  const fileList = options.directory
-    ? files.map((f) => {
-      // Simulate webkitdirectory: root folder + basename path.
-      const clone = new File([f], f.name, { type: f.type });
-      Object.defineProperty(clone, 'webkitRelativePath', {
-        value: `Ehu/${f.name}`,
-        configurable: true,
-      });
-      return clone;
-    })
-    : files;
+function pick(files: File[]) {
+  const fileList = files;
   vi.mocked(openFromDisk).mockResolvedValue({
     canceled: false,
-    filePaths: fileList.map((f) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name),
+    filePaths: fileList.map((f) => f.name),
     fileList,
-    root: options.directory ? 'Ehu' : undefined,
   });
 }
 
@@ -270,8 +259,8 @@ describe('Upload pending rows', () => {
     expect(wrapper.vm.pendingUploads.map((row: { name: string }) => row.name)).toEqual(['b.mp4']);
   });
 
-  it('opens image-sequence as a directory and names the row from the folder', async () => {
-    pick([file('20171027.214830.208.029135.png'), file('meta.json')], { directory: true });
+  it('opens image-sequence as a multi-file picker and keeps multi-dot frame names', async () => {
+    pick([file('20171027.214830.208.029135.png'), file('meta.json')]);
     vi.mocked(validateUploadGroup).mockResolvedValue({
       data: validation({
         type: 'image-sequence',
@@ -285,42 +274,14 @@ describe('Upload pending rows', () => {
     const wrapper = mountUpload();
     await wrapper.vm.openImport('image-sequence');
 
-    expect(openFromDisk).toHaveBeenCalledWith('image-sequence', true);
+    expect(openFromDisk).toHaveBeenCalledWith('image-sequence');
     const [row] = wrapper.vm.pendingUploads;
-    expect(row.name).toBe('Ehu');
+    expect(row.name).toBe('20171027.214830.208.029135.png');
     expect(row.type).toBe('image-sequence');
     expect(row.uploadFiles.map((f: File) => f.name)).toEqual([
       '20171027.214830.208.029135.png',
       'meta.json',
     ]);
-  });
-
-  it('drops nested directory files from a single image-sequence import', async () => {
-    const top = file('top.png');
-    Object.defineProperty(top, 'webkitRelativePath', { value: 'Ehu/top.png', configurable: true });
-    const nested = file('nested.png');
-    Object.defineProperty(nested, 'webkitRelativePath', {
-      value: 'Ehu/midRange/nested.png',
-      configurable: true,
-    });
-    vi.mocked(openFromDisk).mockResolvedValue({
-      canceled: false,
-      filePaths: [top.webkitRelativePath, nested.webkitRelativePath],
-      fileList: [top, nested],
-      root: 'Ehu',
-    });
-    vi.mocked(validateUploadGroup).mockResolvedValue({
-      data: validation({
-        type: 'image-sequence',
-        roles: { media: ['top.png'] },
-      }),
-    } as never);
-
-    const wrapper = mountUpload();
-    await wrapper.vm.openImport('image-sequence');
-
-    expect(validateUploadGroup).toHaveBeenCalledWith(['top.png']);
-    expect(wrapper.vm.pendingUploads[0].name).toBe('Ehu');
   });
 
   it('starts only one upload when Start upload is clicked twice', async () => {
