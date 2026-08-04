@@ -29,7 +29,7 @@ import {
   deleteResources,
   saveConfig,
   uploadCalibrationItem,
-  uploadConfigFileItem,
+  uploadMetadataFileItem,
   validateUploadGroup,
   waitForFolderDatasetReady,
 } from 'platform/web-girder/api';
@@ -636,7 +636,7 @@ export default defineComponent({
               'Metadata file was not found. Use "Choose metadata" in the import dialog to select the file again.',
             );
           }
-          metadataFileId = await uploadConfigFileItem(datasetFolder._id, metadataFile);
+          metadataFileId = await uploadMetadataFileItem(datasetFolder._id, metadataFile);
         }
 
         const subType = stereo.value ? 'stereo' : 'multicam';

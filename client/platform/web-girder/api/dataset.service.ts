@@ -353,7 +353,7 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
  * Upload an optional per-dataset metadata file as a marked Girder item in the
  * dataset (parent) folder and return its item id.
  */
-async function uploadConfigFileItem(parentFolderId: string, file: File): Promise<string> {
+async function uploadMetadataFileItem(parentFolderId: string, file: File): Promise<string> {
   const metadataMeta = { [metadataFileMarker]: 'true' };
   const itemResp = await girderRest.post<GirderModel>('/item', null, {
     params: {
@@ -385,7 +385,7 @@ async function uploadConfigFileItem(parentFolderId: string, file: File): Promise
 }
 
 /** Mark an already-uploaded metadata item as the dataset's metadata file. */
-function setDatasetConfigdataFile(folderId: string, itemId: string) {
+function setDatasetMetadataFile(folderId: string, itemId: string) {
   return girderRest.post(`dive_dataset/${folderId}/metadata_file`, null, {
     params: { itemId },
   });
@@ -462,7 +462,7 @@ export {
   saveAttributeTrackFilters,
   saveConfig,
   uploadCalibrationItem,
-  uploadConfigFileItem,
-  setDatasetConfigdataFile,
+  uploadMetadataFileItem,
+  setDatasetMetadataFile,
   validateUploadGroup,
 };
