@@ -196,6 +196,35 @@ describe('Upload pending rows', () => {
     expect(upload).toHaveBeenCalledTimes(1);
   });
 
+  it('updates type from the server when Start upload validates a corrected error row', async () => {
+    // Error rows leave the media slot unfiltered, so the user can replace a mixed
+    // video pick with images. The folder must be created as image-sequence, not video.
+    pick([file('a.mp4'), file('img.png')]);
+    vi.mocked(validateUploadGroup).mockResolvedValueOnce({
+      data: rejection('Do not upload images and videos in the same batch.'),
+    } as never);
+    const upload = vi.fn().mockResolvedValue(undefined);
+
+    const wrapper = mountUpload(upload);
+    await wrapper.vm.openImport('video');
+
+    const [row] = wrapper.vm.pendingUploads;
+    expect(row.type).toBe('video');
+
+    row.mediaList = [file('img.png')];
+    vi.mocked(validateUploadGroup).mockResolvedValue({
+      data: validation({
+        type: 'image-sequence',
+        roles: { media: ['img.png'] },
+      }),
+    } as never);
+    await wrapper.vm.prepAndUpload(upload);
+
+    expect(row.error).toBeNull();
+    expect(row.type).toBe('image-sequence');
+    expect(upload).toHaveBeenCalledTimes(1);
+  });
+
   it('lists every ignored file, including two that share a basename', async () => {
     // A selection spanning subfolders repeats basenames, and both copies are dropped, so the
     // notice has to name both — the list is keyed by position for that reason.

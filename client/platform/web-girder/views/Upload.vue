@@ -812,6 +812,14 @@ export default defineComponent({
             if (!pendingUpload.name) {
               pendingUpload.name = defaultRowName(validation);
             }
+            // Server confirms the media type here too: an error row's type was only the
+            // import menu until now, and the (unfiltered) slot editor may have changed
+            // media kinds. Preserve the large-image menu preference when the server
+            // still classifies the files as an image sequence, matching addPendingUpload.
+            pendingUpload.type = pendingUpload.type === LargeImageType
+              && validation.type === ImageSequenceType
+              ? LargeImageType
+              : validation.type;
             pendingUpload.createSubFolders = fansOutToSubFolders(validation);
             pendingUpload.uploadFiles = acceptedUploadFiles(slotFiles, validation);
             pendingUpload.ignored = rowIgnoredFiles(pendingUpload, validation);
