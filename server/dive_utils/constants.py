@@ -152,8 +152,9 @@ TrainingOutputFolderName = "VIAME Training Results"
 SourceFolderName = "source"
 # The name of the auxiliary folder
 AuxiliaryFolderName = "auxiliary"
-# the name of the meta file
-MetaFileName = "meta.json"
+# the name of the configuration file (legacy meta.json is still accepted on read)
+ConfigFileName = "config.json"
+LegacyConfigFileName = "meta.json"
 # Exported multicam datasets include this file at the dataset root (see crud_dataset export).
 MultiCamJsonFileName = "multiCam.json"
 

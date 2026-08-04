@@ -4,7 +4,7 @@ import parseSync from 'csv-parse/lib/sync';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { Readable } from 'stream';
-import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
+import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
@@ -179,7 +179,7 @@ const meta = {
   },
   multiCam: null,
   subType: null,
-} as JsonMeta;
+} as JsonConfig;
 const testFiles: Record<string, string> = { };
 testData.forEach((item, index) => {
   // eslint-disable-next-line prefer-destructuring
@@ -347,7 +347,7 @@ describe('VIAME datasetInfo passthrough', () => {
   it('writes a populated datasetInfo as one nested JSON entry on the # metadata line', async () => {
     const path = '/home/test.json';
     const stream = fs.createWriteStream(path);
-    await serialize(stream, data, { ...meta, datasetInfo } as JsonMeta, new Set<string>(), {
+    await serialize(stream, data, { ...meta, datasetInfo } as JsonConfig, new Set<string>(), {
       excludeBelowThreshold: false,
       header: true,
     });
@@ -363,7 +363,7 @@ describe('VIAME datasetInfo passthrough', () => {
   it('omits the datasetInfo entry entirely when datasetInfo is empty', async () => {
     const path = '/home/test.json';
     const stream = fs.createWriteStream(path);
-    await serialize(stream, data, { ...meta, datasetInfo: {} } as JsonMeta, new Set<string>(), {
+    await serialize(stream, data, { ...meta, datasetInfo: {} } as JsonConfig, new Set<string>(), {
       excludeBelowThreshold: false,
       header: true,
     });
@@ -376,7 +376,7 @@ describe('VIAME datasetInfo passthrough', () => {
   it('restores datasetInfo from the # metadata line on parse', async () => {
     const path = '/home/test.json';
     const stream = fs.createWriteStream(path);
-    await serialize(stream, data, { ...meta, datasetInfo } as JsonMeta, new Set<string>(), {
+    await serialize(stream, data, { ...meta, datasetInfo } as JsonConfig, new Set<string>(), {
       excludeBelowThreshold: false,
       header: true,
     });

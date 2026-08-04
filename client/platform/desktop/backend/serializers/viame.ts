@@ -12,7 +12,7 @@ import { cloneDeep, flattenDeep, isEmpty } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
 import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
-import { JsonMeta } from 'platform/desktop/constants';
+import { JsonConfig } from 'platform/desktop/constants';
 import { splitExt } from 'platform/desktop/backend/native/utils';
 // Imports that involve actual code require relative imports because ts-node barely works
 // https://github.com/TypeStrong/ts-node/issues/422
@@ -645,7 +645,7 @@ async function parseFile(path: string, imageMap?: Map<string, number>):
   return parse(stream, imageMap);
 }
 
-async function writeHeader(writer: Writable, meta: JsonMeta) {
+async function writeHeader(writer: Writable, meta: JsonConfig) {
   writer.write([
     '# 1: Detection or Track-id',
     '2: Video or Image Identifier',
@@ -683,7 +683,7 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
 async function serialize(
   stream: Writable,
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,
@@ -809,7 +809,7 @@ async function serialize(
 async function serializeFile(
   path: string,
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,

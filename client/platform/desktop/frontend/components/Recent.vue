@@ -20,7 +20,7 @@ import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
 import * as api from '../api';
 import {
-  JsonMetaCache, recents, removeRecents, setRecents,
+  JsonConfigCache, recents, removeRecents, setRecents,
 } from '../store/dataset';
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
@@ -97,7 +97,7 @@ export default defineComponent({
         if (conversionArgs.mediaList.length > 0) {
           await api.convert(conversionArgs);
         }
-        const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
+        const recentsMeta = await api.loadConfig(conversionArgs.meta.id);
         setRecents(recentsMeta);
       });
 
@@ -119,7 +119,7 @@ export default defineComponent({
           // Queue conversion job
           await api.convert(conversionArgs);
           // Display new data and await transcoding to complete
-          const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
+          const recentsMeta = await api.loadConfig(conversionArgs.meta.id);
           setRecents(recentsMeta);
         }
       });
@@ -167,7 +167,7 @@ export default defineComponent({
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
-    function getTypeIcon(recent: JsonMetaCache) {
+    function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
         if (recent.subType === 'stereo') {
           return 'mdi-binoculars';
@@ -187,12 +187,12 @@ export default defineComponent({
       return 'mdi-image-multiple';
     }
 
-    async function preloadCheck(recent: JsonMetaCache) {
+    async function preloadCheck(recent: JsonConfigCache) {
       //Attempts to preload the data to see if there are any isues
       try {
         await api.checkDataset(recent.id);
       } catch (e) {
-        const recentsMeta = await api.loadMetadata(recent.id);
+        const recentsMeta = await api.loadConfig(recent.id);
         setRecents(recentsMeta);
         await prompt({
           title: 'Error Loading Data',

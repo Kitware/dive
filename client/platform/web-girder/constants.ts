@@ -1,14 +1,14 @@
 import {
-  DatasetMeta, DatasetMetaMutable, DatasetType, MultiCamMedia, SubType,
+  DatasetConfig, DatasetConfigMutable, DatasetType, MultiCamMedia, SubType,
 } from 'dive-common/apispec';
 
 /**
  * Static properties loaded from the girder folder data/metadata
  */
-interface GirderMetadataStatic extends DatasetMetaMutable {
+interface GirderConfigStatic extends DatasetConfigMutable {
   /**
    * Required fields
-   * Everything copied from DatasetMeta except imageData and videoUrl
+   * Everything copied from DatasetConfig except imageData and videoUrl
    */
   id: Readonly<string>;
   name: Readonly<string>;
@@ -32,12 +32,12 @@ interface GirderMetadataStatic extends DatasetMetaMutable {
 /**
  * Full metadata including dynamic properties (image list, video url)
  */
-type GirderMetadata = DatasetMeta & GirderMetadataStatic;
+type GirderConfig = DatasetConfig & GirderConfigStatic;
 
 const fileSuffixRegex = /\.[^.]*$/;
 
 export {
   fileSuffixRegex,
-  GirderMetadataStatic,
-  GirderMetadata,
+  GirderConfigStatic,
+  GirderConfig,
 };

@@ -25,7 +25,7 @@ import {
 import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
-import { datasets, JsonMetaCache } from '../store/dataset';
+import { datasets, JsonConfigCache } from '../store/dataset';
 
 const { getPipelineList, runPipeline, hasCalibrationFile } = useApi();
 const { prompt } = usePrompt();
@@ -99,27 +99,27 @@ const createNewDatasetHeaders: DataTableHeader[] = headersTmpl.concat([
     width: 80,
   },
 ]);
-function computeOutputDatasetName(item: JsonMetaCache) {
+function computeOutputDatasetName(item: JsonConfigCache) {
   const timeStamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   return `${selectedPipeline.value?.name}_${item.name}_${timeStamp}`;
 }
-function getAvailableItems(): JsonMetaCache[] {
+function getAvailableItems(): JsonConfigCache[] {
   if (!selectedPipelineType.value || !selectedPipeline.value) {
     return [];
   }
   if (selectedPipelineType.value === stereoPipelineMarker) {
     // Only allow stereo datasets to be included for bulk pipeline
     // operations if the selected pipeline type is a measurement.
-    return Object.values(datasets.value).filter((dataset: JsonMetaCache) => (
+    return Object.values(datasets.value).filter((dataset: JsonConfigCache) => (
       dataset.type === MultiType && dataset.cameraNumber === 2
     ));
   }
   return Object.values(datasets.value);
 }
-const availableItems: Ref<JsonMetaCache[]> = ref([]);
+const availableItems: Ref<JsonConfigCache[]> = ref([]);
 const availableDatasetSearch = ref('');
 const stagedDatasetIds: Ref<string[]> = ref([]);
-const stagedDatasets = computed(() => availableItems.value.filter((item: JsonMetaCache) => stagedDatasetIds.value.includes(item.id)));
+const stagedDatasets = computed(() => availableItems.value.filter((item: JsonConfigCache) => stagedDatasetIds.value.includes(item.id)));
 const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
 
 async function refreshCalibrationForDatasets(datasetIds: string[]) {
@@ -163,7 +163,7 @@ function isPipelineItemDisabledForCalibration(pipe: Pipe) {
 watch(selectedPipeline, () => {
   availableItems.value = getAvailableItems();
 });
-function toggleStaged(item: JsonMetaCache) {
+function toggleStaged(item: JsonConfigCache) {
   if (stagedDatasetIds.value.includes(item.id)) {
     stagedDatasetIds.value = stagedDatasetIds.value.filter((id: string) => id !== item.id);
   } else {
@@ -176,7 +176,7 @@ async function runPipelineForDatasets() {
     const results = await Promise.allSettled(
       stagedDatasetIds.value.map((datasetId: string) => {
         if (pipelineCreatesNewDataset(selectedPipeline.value)) {
-          const datasetMeta = availableItems.value.find((item: JsonMetaCache) => item.id === datasetId);
+          const datasetMeta = availableItems.value.find((item: JsonConfigCache) => item.id === datasetId);
           if (!datasetMeta) {
             throw new Error(`Attempted to run pipeline on nonexistant dataset ${datasetId}`);
           }

@@ -272,10 +272,10 @@ export async function runCliImport(
     ? await beginMultiCamImport(buildMultiCamArgs(args))
     : await common.beginMediaImport(args.importPath as string);
   if (args.name) {
-    importPayload.jsonMeta.name = args.name;
+    importPayload.jsonConfig.name = args.name;
   }
   // Single-camera metadata rides on the finalize payload; multicam stashes the
-  // source path on jsonMeta during beginMultiCamImport (same as the wizard).
+  // source path on jsonConfig during beginMultiCamImport (same as the wizard).
   if (args.metadataPath && !args.cameras) {
     importPayload.metadataFileAbsPath = args.metadataPath;
   }

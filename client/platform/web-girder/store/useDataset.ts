@@ -1,5 +1,5 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
-import type { GirderMetadata } from 'platform/web-girder/constants';
+import type { GirderConfig } from 'platform/web-girder/constants';
 import { ref } from 'vue';
 import {
   getDataset, getDatasetMedia, getFolder, resolveDatasetFolderId,
@@ -9,25 +9,25 @@ import { MultiType } from 'dive-common/constants';
 
 import { useLocation } from './useLocation';
 
-const meta = ref<GirderMetadata | null>(null);
+const meta = ref<GirderConfig | null>(null);
 
 export function useDataset() {
-  function getMeta(): GirderMetadata | null {
+  function getMeta(): GirderConfig | null {
     return meta.value;
   }
 
-  function setMeta(dataset: GirderMetadata | null): void {
+  function setMeta(dataset: GirderConfig | null): void {
     meta.value = dataset;
   }
 
-  async function loadDataset(datasetId: string): Promise<GirderMetadata> {
+  async function loadDataset(datasetId: string): Promise<GirderConfig> {
     const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
     const [folder, metaStatic, media] = await Promise.all([
       getFolder(folderId),
       getDataset(datasetId),
       getDatasetMedia(datasetId),
     ]);
-    const dsMeta: GirderMetadata = {
+    const dsMeta: GirderConfig = {
       ...metaStatic.data,
       ...media.data,
       id: compositeId ?? metaStatic.data.id,

@@ -317,7 +317,7 @@ export default defineComponent({
         // hydrate() clears it, and the camera list doesn't change on import,
         // so nothing else would re-establish the panel's state.
         const priorPair = cameraRegistration.activePair.value;
-        const meta = await api.loadMetadata(parentDatasetId(props.datasetId));
+        const meta = await api.loadConfig(parentDatasetId(props.datasetId));
         cameraRegistration.hydrate(
           meta.cameraHomographies,
           meta.cameraCorrespondences,

@@ -97,7 +97,7 @@ describe('native.multiCamImport', () => {
       },
       type: 'image-sequence',
     });
-    expect(output.jsonMeta.name).toBe('my_stereo_scene');
+    expect(output.jsonConfig.name).toBe('my_stereo_scene');
   });
 
   if (multiCamSetup.folderTests) {
@@ -105,7 +105,7 @@ describe('native.multiCamImport', () => {
     Object.entries(folderTests).forEach(([key, val]) => {
       it(`Test Folder Import: ${key}`, async () => {
         const output = await beginMultiCamImport(val.input);
-        expect(output.jsonMeta.multiCam).toEqual(val.output.multiCam);
+        expect(output.jsonConfig.multiCam).toEqual(val.output.multiCam);
         expect(output.mediaConvertList).toEqual(val.output.mediaConvertList);
       });
     });
@@ -115,7 +115,7 @@ describe('native.multiCamImport', () => {
     Object.entries(keywordTests).forEach(([key, val]) => {
       it(`Test Keyword Import: ${key}`, async () => {
         const output = await beginMultiCamImport(val.input);
-        expect(output.jsonMeta.multiCam).toEqual(val.output.multiCam);
+        expect(output.jsonConfig.multiCam).toEqual(val.output.multiCam);
         expect(output.mediaConvertList).toEqual(val.output.mediaConvertList);
       });
     });

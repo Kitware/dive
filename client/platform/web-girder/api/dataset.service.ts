@@ -5,13 +5,13 @@ import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  DatasetConfigMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import { calibrationFileMarker, jsonCalibrationFileMarker, metadataFileMarker } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
-import { GirderMetadataStatic } from 'platform/web-girder/constants';
+import { GirderConfigStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
@@ -22,7 +22,7 @@ interface HTMLFile extends File {
 
 async function getDataset(datasetId: string) {
   const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
-  const response = await girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
+  const response = await girderRest.get<GirderConfigStatic>(`dive_dataset/${folderId}`);
   if (compositeId) {
     response.data.id = compositeId;
   }
@@ -186,9 +186,9 @@ async function saveAttributeTrackFilters(
   return girderRest.patch(`/dive_dataset/${folderId}/attribute_track_filters`, args);
 }
 
-async function saveMetadata(datasetId: string, metadata: DatasetMetaMutable) {
+async function saveConfig(datasetId: string, config: DatasetConfigMutable) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
-  return girderRest.patch(`/dive_dataset/${folderId}`, metadata);
+  return girderRest.patch(`/dive_dataset/${folderId}`, config);
 }
 
 /**
@@ -238,7 +238,7 @@ async function importCameraRegistration(
     incoming,
     file.name,
   );
-  await saveMetadata(parentId, {
+  await saveConfig(parentId, {
     cameraHomographies: merged.homographies,
     cameraCorrespondences: merged.correspondences,
     cameraTransformTypes: merged.transformTypes,
@@ -247,13 +247,32 @@ async function importCameraRegistration(
   return summary;
 }
 
-interface ValidationResponse {
-  ok: boolean;
-  type: 'video' | 'image-sequence' | 'large-image';
-  media: string[];
-  annotations: string[];
-  message: string;
+export type UploadRole = 'media' | 'annotations' | 'datasetConfig' | 'ignored';
+
+/** Every validated filename under exactly one role. `ignored` is the files not accepted. */
+export type ValidatedUploadRoleMap = Record<UploadRole, string[]>;
+
+/** A filename with the reason it is not uploaded. Display shape; the wire carries `reasons`. */
+export interface IgnoredUploadFile {
+  name: string;
+  reason: string;
 }
+
+interface ValidationBase {
+  message: string;
+  roles: ValidatedUploadRoleMap;
+  /** Why a file landed in its role, keyed by filename. Populated for the `ignored` role. */
+  reasons: Record<string, string>;
+}
+
+/**
+ * Server classification of one upload selection. `roles` is authoritative for what each file
+ * is for, so the set to upload is the selection minus `roles.ignored`. Only an accepted
+ * selection has a media type, so `ok` narrows `type` to a real DatasetType.
+ */
+export type ValidationResponse =
+  | (ValidationBase & { ok: true; type: DatasetType })
+  | (ValidationBase & { ok: false; type?: undefined });
 
 function validateUploadGroup(names: string[]) {
   return girderRest.post<ValidationResponse>('dive_dataset/validate_files', names);
@@ -441,7 +460,7 @@ export {
   makeViameFolder,
   saveAttributes,
   saveAttributeTrackFilters,
-  saveMetadata,
+  saveConfig,
   uploadCalibrationItem,
   uploadMetadataFileItem,
   setDatasetMetadataFile,

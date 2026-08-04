@@ -283,7 +283,7 @@ describe('native.multiCollectImport', () => {
       throw new Error('expected fl01 importArgs');
     }
     const imported = await beginMultiCamImport(fl01.importArgs);
-    expect(imported.jsonMeta.cameraHomographies?.['EO::IR'].AtoB).toEqual(
+    expect(imported.jsonConfig.cameraHomographies?.['EO::IR'].AtoB).toEqual(
       [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
     );
     expect(imported.importWarnings).toBeUndefined();
@@ -326,11 +326,11 @@ describe('native.multiCollectImport', () => {
       return;
     }
     const imported = await beginMultiCamImport(importArgs);
-    expect(imported.jsonMeta.name).toBe('fl09_center_view');
-    expect(imported.jsonMeta.subType).toBe('multicam');
-    expect(Object.keys(imported.jsonMeta.multiCam?.cameras ?? {})).toEqual(['rgb', 'ir']);
-    const rgb = imported.jsonMeta.multiCam?.cameras.rgb;
-    const ir = imported.jsonMeta.multiCam?.cameras.ir;
+    expect(imported.jsonConfig.name).toBe('fl09_center_view');
+    expect(imported.jsonConfig.subType).toBe('multicam');
+    expect(Object.keys(imported.jsonConfig.multiCam?.cameras ?? {})).toEqual(['rgb', 'ir']);
+    const rgb = imported.jsonConfig.multiCam?.cameras.rgb;
+    const ir = imported.jsonConfig.multiCam?.cameras.ir;
     expect(rgb?.originalBasePath).toBe('/data/fl09/center_view');
     expect(rgb?.originalImageFiles).toHaveLength(2);
     expect(rgb?.originalImageFiles.every((name) => name.endsWith('_rgb.jpg'))).toBe(true);
@@ -351,11 +351,11 @@ describe('native.multiCollectImport', () => {
       return;
     }
     const imported = await beginMultiCamImport(importArgs);
-    expect(imported.jsonMeta.name).toBe('fl01');
-    expect(imported.jsonMeta.subType).toBe('multicam');
-    expect(imported.jsonMeta.multiCam?.defaultDisplay).toBe('EO');
-    expect(Object.keys(imported.jsonMeta.multiCam?.cameras ?? {})).toEqual(['EO', 'IR']);
-    expect(imported.jsonMeta.multiCam?.cameras.EO.originalBasePath).toBe('/survey/fl01/EO');
-    expect(imported.jsonMeta.multiCam?.cameras.EO.originalImageFiles).toHaveLength(2);
+    expect(imported.jsonConfig.name).toBe('fl01');
+    expect(imported.jsonConfig.subType).toBe('multicam');
+    expect(imported.jsonConfig.multiCam?.defaultDisplay).toBe('EO');
+    expect(Object.keys(imported.jsonConfig.multiCam?.cameras ?? {})).toEqual(['EO', 'IR']);
+    expect(imported.jsonConfig.multiCam?.cameras.EO.originalBasePath).toBe('/survey/fl01/EO');
+    expect(imported.jsonConfig.multiCam?.cameras.EO.originalImageFiles).toHaveLength(2);
   });
 });

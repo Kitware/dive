@@ -1,16 +1,16 @@
 import Vue, { ref, computed } from 'vue';
-import { JsonMeta } from 'platform/desktop/constants';
+import { JsonConfig } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
 import { initializedSettings } from './settings';
 
 const RecentsKey = 'desktop.recent';
 
 /**
- * JsonMetaCache is a subset of JsonMeta
+ * JsonConfigCache is a subset of JsonConfig
  * cached in localStorage for quickly listing
  * known datasets
  */
-export interface JsonMetaCache {
+export interface JsonConfigCache {
   version: number;
   type: DatasetType | 'multi';
   id: string;
@@ -29,10 +29,10 @@ export interface JsonMetaCache {
 }
 
 /**
- * Handle migration for changes in JsonMetaCache schema
+ * Handle migration for changes in JsonConfigCache schema
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
+function hydrateJsonConfigCacheValue(input: any): JsonConfigCache {
   return {
     originalVideoFile: '',
     transcodedVideoFile: '',
@@ -43,11 +43,11 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
   };
 }
 
-const datasets = ref({} as Record<string, JsonMetaCache>);
+const datasets = ref({} as Record<string, JsonConfigCache>);
 
 const recents = computed(() => (Object.values(datasets.value)));
 
-function setRecents(meta: JsonMeta, accessTime?: string) {
+function setRecents(meta: JsonConfig, accessTime?: string) {
   Vue.set(datasets.value, meta.id, {
     version: meta.version,
     type: meta.type,
@@ -64,7 +64,7 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     error: meta.error,
     cameraNumber: Object.keys(meta.multiCam?.cameras || {}).length,
     calibration: meta.multiCam?.calibration ?? null,
-  } as JsonMetaCache);
+  } as JsonConfigCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }
@@ -79,7 +79,7 @@ async function autoDiscover() {
   /* Make sure settings are ready on backend */
   await initializedSettings;
   /* Nothing came from localStorage, try to populate from autodiscovery */
-  const discovered: JsonMeta[] = await window.diveDesktop.invoke('autodiscover-data');
+  const discovered: JsonConfig[] = await window.diveDesktop.invoke('autodiscover-data');
   discovered.forEach((d) => setRecents(d));
 }
 
@@ -87,8 +87,8 @@ async function autoDiscover() {
  * Load recent datasets from localstorage.
  *
  * Note that the localStorage copy is just a cache and not a source of truth.
- * The real dataset JsonMeta must be loaded from disk through the
- * loadMetadata() backend method.
+ * The real dataset JsonConfig must be loaded from disk through the
+ * loadConfig() backend method.
  */
 async function load() {
   let loaded = [];
@@ -97,8 +97,8 @@ async function load() {
     if (arr) {
       const maybeArr = JSON.parse(arr);
       if (maybeArr.length) { // verify maybeArr is an array
-        maybeArr.forEach((meta: JsonMetaCache) => (
-          Vue.set(datasets.value, meta.id, hydrateJsonMetaCacheValue(meta))
+        maybeArr.forEach((meta: JsonConfigCache) => (
+          Vue.set(datasets.value, meta.id, hydrateJsonConfigCacheValue(meta))
         ));
         loaded = maybeArr;
       }
@@ -111,7 +111,7 @@ async function load() {
   }
 }
 
-function locateDuplicates(meta: JsonMeta) {
+function locateDuplicates(meta: JsonConfig) {
   return recents.value.filter((candidate) => (
     candidate.originalBasePath === meta.originalBasePath
     && (

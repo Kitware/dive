@@ -6,7 +6,7 @@ import {
   Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
-  JsonMeta,
+  JsonConfig,
   JobsOutputFolderName,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
@@ -130,7 +130,7 @@ async function importNewMedia(
     return;
   }
   const importPayload = await common.beginMediaImport(sourceName);
-  importPayload.jsonMeta.name = datasetName;
+  importPayload.jsonConfig.name = datasetName;
   const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
   if (conversionJobArgs.mediaList.length > 0) {
     // Convert the media, directly in this job
@@ -144,7 +144,7 @@ async function importNewMedia(
       settings,
       conversionJobArgs,
       updater,
-      (_key: string, meta: JsonMeta) => sendToRenderer('filter-complete', meta),
+      (_key: string, meta: JsonConfig) => sendToRenderer('filter-complete', meta),
       undefined,
       false,
       0,
@@ -189,7 +189,7 @@ async function runPipeline(
     pipelinePath = pipeline.pipe;
   }
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
-  const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
+  const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
 
   const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
@@ -197,7 +197,7 @@ async function runPipeline(
   if (cameraName) {
     try {
       const parentInfo = await common.getValidatedProjectDir(settings, parentId);
-      const parentMeta = await common.loadJsonMetadata(parentInfo.metaFileAbsPath);
+      const parentMeta = await common.loadJsonConfig(parentInfo.datasetFileAbsPath);
       const defaultDisplay = parentMeta.multiCam?.defaultDisplay;
       if (cameraName !== defaultDisplay) {
         cameraLogLine = `Running pipeline on camera: ${cameraName}`;
@@ -474,7 +474,7 @@ async function runPipeline(
           const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
           if (newMeta) {
             meta.attributes = newMeta.attributes;
-            await common.saveMetadata(settings, datasetId, meta);
+            await common.saveConfig(settings, datasetId, meta);
           }
         }
 
@@ -695,14 +695,14 @@ async function train(
   const infoAndMeta = await Promise.all(
     runTrainingArgs.datasetIds.map(async (id) => {
       const projectInfo = await common.getValidatedProjectDir(settings, id);
-      const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
+      const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
       return { projectInfo, meta };
     }),
   );
-  const jsonMetaList = infoAndMeta.map(({ meta }) => meta);
+  const jsonConfigList = infoAndMeta.map(({ meta }) => meta);
 
   // Working dir for training
-  const jobWorkDir = await createWorkingDirectory(settings, jsonMetaList, runTrainingArgs.pipelineName);
+  const jobWorkDir = await createWorkingDirectory(settings, jsonConfigList, runTrainingArgs.pipelineName);
 
   // Argument files for training
   const inputFolderFileList = npath.join(jobWorkDir, 'input_folder_list.txt');

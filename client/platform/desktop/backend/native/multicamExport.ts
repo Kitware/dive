@@ -16,7 +16,7 @@ import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as dive from 'platform/desktop/backend/serializers/dive';
 
 // eslint-disable-next-line import/no-cycle
-import { getValidatedProjectDir, loadAnnotationFile, loadJsonMetadata } from './common';
+import { getValidatedProjectDir, loadAnnotationFile, loadJsonConfig } from './common';
 import {
   findParentFolderCalibrationFile,
   getDatasetCalibrationExportPath,
@@ -29,7 +29,7 @@ async function writeJsonFile(absPath: string, data: unknown): Promise<void> {
   await fs.writeFile(absPath, JSON.stringify(data, null, 2));
 }
 
-function buildExportMetaJson(meta: JsonMeta): Record<string, unknown> {
+function buildExportMetaJson(meta: JsonConfig): Record<string, unknown> {
   const output: Record<string, unknown> = { ...meta };
   if (meta.type === 'image-sequence') {
     const files = meta.transcodedImageFiles?.length
@@ -53,7 +53,7 @@ async function writeDatasetExportContents(
   typeFilter: Set<string>,
 ): Promise<void> {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
   const serializeOptions = {
     excludeBelowThreshold,
@@ -61,7 +61,7 @@ async function writeDatasetExportContents(
   };
 
   await fs.ensureDir(destDir);
-  await fs.writeJSON(npath.join(destDir, 'meta.json'), buildExportMetaJson(meta), { spaces: 2 });
+  await fs.writeJSON(npath.join(destDir, 'config.json'), buildExportMetaJson(meta), { spaces: 2 });
   await dive.serializeFile(
     npath.join(destDir, 'annotations.dive.json'),
     data,
@@ -98,7 +98,7 @@ export async function exportMulticamEverything(
 ): Promise<string> {
   const parentId = args.id.split('/')[0];
   const parentDirInfo = await getValidatedProjectDir(settings, parentId);
-  const parentMeta = await loadJsonMetadata(parentDirInfo.metaFileAbsPath);
+  const parentMeta = await loadJsonConfig(parentDirInfo.datasetFileAbsPath);
   if (parentMeta.type !== MultiType || !parentMeta.multiCam) {
     throw new Error('Everything export is only available for multi-camera datasets.');
   }

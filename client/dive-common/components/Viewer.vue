@@ -191,7 +191,7 @@ export default defineComponent({
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
     const {
-      loadDetections, loadMetadata, saveMetadata, getTiles, getTileURL, getTileHistogram,
+      loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -857,13 +857,13 @@ export default defineComponent({
     }
 
     function saveThreshold() {
-      saveMetadata(datasetId.value, {
+      saveConfig(datasetId.value, {
         confidenceFilters: trackFilters.confidenceFilters.value,
       });
     }
 
     function saveTimeFilter() {
-      saveMetadata(datasetId.value, {
+      saveConfig(datasetId.value, {
         timeFilters: trackFilters.timeFilters.value,
       });
     }
@@ -879,7 +879,7 @@ export default defineComponent({
     function getDebouncedSave(camera: string) {
       if (!debouncedSaves[camera]) {
         debouncedSaves[camera] = debounce(
-          () => saveMetadata(
+          () => saveConfig(
             getCameraId(camera),
             { imageEnhancements: imageEnhancementsByCamera.value[camera] },
           ),
@@ -1162,7 +1162,7 @@ export default defineComponent({
         return;
       }
       cameraRegistration.maybeFitActivePair();
-      await saveMetadata(datasetId.value, {
+      await saveConfig(datasetId.value, {
         cameraHomographies: cameraRegistration.homographies.value,
         cameraCorrespondences: cameraRegistration.correspondences.value,
         cameraTransformTypes: cameraRegistration.transformTypes.value,
@@ -1388,7 +1388,7 @@ export default defineComponent({
       try {
         // Close and reset sideBar
         context.resetActive();
-        const meta = await loadMetadata(datasetId.value);
+        const meta = await loadConfig(datasetId.value);
         baseMulticamDatasetId.value = datasetId.value;
         if (meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
@@ -1442,7 +1442,7 @@ export default defineComponent({
             cameraId = `${baseMulticamDatasetId.value}/${camera}`;
           }
           // eslint-disable-next-line no-await-in-loop
-          const subCameraMeta = await loadMetadata(cameraId);
+          const subCameraMeta = await loadConfig(cameraId);
           VueSet(cameraTypesByCamera.value, camera, subCameraMeta.type as DatasetType);
           if (multiCamList.value.length <= 1) {
             datasetType.value = subCameraMeta.type as DatasetType;

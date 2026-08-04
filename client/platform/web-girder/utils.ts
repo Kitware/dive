@@ -1,9 +1,9 @@
 import { UploadManager, Location } from '@girder/components/src';
 import {
   calibrationFileTypes, metadataFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
-  getLargeImageAllowedExtensions, getLargeImageFileAccept,
-  otherImageTypes, otherVideoTypes, transformFileTypes,
-  websafeImageTypes, websafeVideoTypes, zipFileTypes,
+  getImageSequenceFileAccept, getLargeImageAllowedExtensions, getLargeImageFileAccept,
+  otherVideoTypes, transformFileTypes,
+  websafeVideoTypes, zipFileTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
@@ -39,23 +39,29 @@ function getRouteFromLocation(location: LocationType): string {
 }
 
 async function openFromDisk(
-  datasetType: DatasetType | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata',
+  datasetType: DatasetType | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata',
   directory = false,
 ): Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
-  const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  if (!['calibration', 'annotation', 'zip', 'metadata'].includes(datasetType)) {
+  // Side files a media selection may carry: an annotation source or a metadata attachment.
+  // Filtering one out here would settle its fate before the server ever classified it.
+  const baseTypes: string[] = [...new Set([...inputAnnotationFileTypes, ...metadataFileTypes])]
+    .map((item) => `.${item}`);
+  if (!['calibration', 'annotation', 'config', 'zip', 'metadata'].includes(datasetType)) {
     input.multiple = true;
   }
-  if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
+  if (
+    directory
+    && (datasetType === 'image-sequence' || datasetType === 'video' || datasetType === 'large-image')
+  ) {
+    // Empty accept so multi-dot names (e.g. a.b.c.png) are not hidden by MIME/extension filters.
     input.setAttribute('webkitdirectory', '');
     input.multiple = true;
-  }
-  if (datasetType === 'image-sequence' && !directory) {
-    input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
-  } else if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
     input.accept = '';
+  } else if (datasetType === 'image-sequence') {
+    // Extensions + MIME: some Linux pickers miss multi-dot PNGs when only MIME is listed.
+    input.accept = [...baseTypes, getImageSequenceFileAccept()].join(',');
   } else if (datasetType === 'video') {
     input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
   } else if (datasetType === 'large-image') {
@@ -65,6 +71,9 @@ async function openFromDisk(
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
+  } else if (datasetType === 'config') {
+    input.accept = '.json';
+    input.multiple = false;
   } else if (datasetType === 'zip') {
     input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'transform') {

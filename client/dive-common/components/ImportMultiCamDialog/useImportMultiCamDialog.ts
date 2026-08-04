@@ -261,7 +261,7 @@ export function useImportMultiCamDialog(
     const filtered: Record<string, string[]> = {};
     Object.entries(globList.value).forEach(([cameraName, val]) => {
       const payload = pendingImportPayloads.value.keyword;
-      filtered[cameraName] = filterByGlob(val.glob, payload?.jsonMeta.originalImageFiles);
+      filtered[cameraName] = filterByGlob(val.glob, payload?.jsonConfig.originalImageFiles);
     });
     return filtered;
   });
@@ -270,7 +270,7 @@ export function useImportMultiCamDialog(
     const filtered: Record<string, string[]> = {};
     Object.entries(folderList.value).forEach(([cameraName, entry]) => {
       const payload = pendingImportPayloads.value[cameraName];
-      const images = payload?.jsonMeta.originalImageFiles || [];
+      const images = payload?.jsonConfig.originalImageFiles || [];
       filtered[cameraName] = entry.glob ? filterByGlob(entry.glob, images) : images;
     });
     return filtered;
@@ -352,7 +352,7 @@ export function useImportMultiCamDialog(
         // Not importable as a flat image folder; fall back to subfolder handling
         return false;
       }
-      imageNames = sharedPayload.jsonMeta.originalImageFiles || [];
+      imageNames = sharedPayload.jsonConfig.originalImageFiles || [];
     }
     const modalities = detectFolderModalities(imageNames);
     if (!modalities.length) {

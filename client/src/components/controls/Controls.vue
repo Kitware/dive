@@ -73,7 +73,7 @@ export default defineComponent({
     const { frameRate } = useTime();
     const { visible } = usePrompt();
     const trackFilters = useTrackFilters();
-    const { saveMetadata } = useApi();
+    const { saveConfig } = useApi();
     const datasetId = useDatasetId();
     const activeLockedCamera = ref(false);
     const activeTimeFilter = ref(false);
@@ -131,7 +131,7 @@ export default defineComponent({
     const timeFilterMax = computed(() => trackFilters.timeFilters.value?.[1] ?? mediaController.maxFrame.value);
 
     function saveTimeFilter() {
-      saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
+      saveConfig(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
     }
 
     function handleTimeFilterClick() {

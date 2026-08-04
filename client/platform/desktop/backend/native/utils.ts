@@ -6,7 +6,7 @@ import os from 'os';
 
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
-  DesktopJob, DesktopJobUpdater, JsonMeta, Settings, JobsFolderName,
+  DesktopJob, DesktopJobUpdater, JsonConfig, Settings, JobsFolderName,
 } from 'platform/desktop/constants';
 
 const processChunk = (chunk: Buffer) => chunk
@@ -91,14 +91,14 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
 /**
  * Create job run working directory
  */
-async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta[], pipeline: string) {
-  if (jsonMetaList.length === 0) {
-    throw new Error('At least 1 jsonMeta item must be provided');
+async function createWorkingDirectory(settings: Settings, jsonConfigList: JsonConfig[], pipeline: string) {
+  if (jsonConfigList.length === 0) {
+    throw new Error('At least 1 jsonConfig item must be provided');
   }
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
   // eslint won't recognize \. as valid escape
   // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = jsonMetaList[0].id.replace(/[\.\s/]+/g, '_');
+  const safeDatasetName = jsonConfigList[0].id.replace(/[\.\s/]+/g, '_');
   const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {

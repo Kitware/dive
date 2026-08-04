@@ -298,9 +298,9 @@ def test_export_multicam_integration_zip_paths(
         list(stream())
 
     assert 'stereo-dataset/multiCam.json' in zip_entries
-    assert 'stereo-dataset/meta.json' in zip_entries
-    assert 'stereo-dataset/left/meta.json' in zip_entries
-    assert 'stereo-dataset/right/meta.json' in zip_entries
+    assert 'stereo-dataset/config.json' in zip_entries
+    assert 'stereo-dataset/left/config.json' in zip_entries
+    assert 'stereo-dataset/right/config.json' in zip_entries
     multi_cam = json.loads(zip_entries['stereo-dataset/multiCam.json'].decode())
     assert multi_cam['defaultDisplay'] == 'left'
 

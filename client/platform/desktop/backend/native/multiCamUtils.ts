@@ -6,9 +6,9 @@ import {
   MultiCamMedia,
 } from 'dive-common/apispec';
 
-import { JsonMeta, Settings } from 'platform/desktop/constants';
+import { JsonConfig, Settings } from 'platform/desktop/constants';
 // eslint-disable-next-line import/no-cycle
-import { loadAnnotationFile, loadJsonMetadata, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
+import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 
@@ -16,13 +16,13 @@ import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
  * Figure out the destination location
  */
 function transcodeMultiCam(
-  jsonMeta: JsonMeta,
+  jsonConfig: JsonConfig,
   item: string,
   projectDirAbsPath: string,
 ) {
   let destLoc = '';
-  if (jsonMeta.multiCam) {
-    const entries = Object.entries(jsonMeta.multiCam.cameras);
+  if (jsonConfig.multiCam) {
+    const entries = Object.entries(jsonConfig.multiCam.cameras);
     for (let i = 0; i < entries.length; i += 1) {
       const [cameraName, cameraData] = entries[i];
       if (cameraData.imageListPath) {
@@ -56,12 +56,12 @@ function transcodeMultiCam(
   return destLoc;
 }
 
-function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
+function getTranscodedMultiCamType(imageListFile: string, jsonConfig: JsonConfig) {
   // Look through cameras trying to find the match for the key/name and type to return back the type
-  if (jsonMeta.multiCam) {
+  if (jsonConfig.multiCam) {
     const base = npath.basename(imageListFile).replace(npath.extname(imageListFile), '');
     let type;
-    Object.values(jsonMeta.multiCam.cameras).forEach((val) => {
+    Object.values(jsonConfig.multiCam.cameras).forEach((val) => {
       if (val.originalImageFiles.map((item) => item.replace(npath.extname(item), '')).includes(base)) {
         type = val.type;
       }
@@ -76,7 +76,7 @@ function getTranscodedMultiCamType(imageListFile: string, jsonMeta: JsonMeta) {
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMeta, settings: Settings, utility = false, forceTranscoded = false) {
+async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonConfig, settings: Settings, utility = false, forceTranscoded = false) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
@@ -129,7 +129,7 @@ async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMet
           argFilePair['detection_reader:file_name'] = groundTruthFileName;
           argFilePair['track_reader:file_name'] = groundTruthFileName;
         }
-        const subMeta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+        const subMeta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
         const inputData = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
         await serialize(groundTruthFileStream, inputData, subMeta);
         groundTruthFileStream.end();
@@ -140,7 +140,7 @@ async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonMet
 }
 
 function getMultiCamUrls(
-  projectMetaData: JsonMeta,
+  projectMetaData: JsonConfig,
   projectBasePath: string,
   makeMediaUrl: (path: string) => string,
 ) {
@@ -196,7 +196,7 @@ function getMultiCamUrls(
   throw new Error('There is no multiCam data associated with this');
 }
 
-function getMultiCamVideoPath(meta: JsonMeta, forceTranscodedVideo?: boolean) {
+function getMultiCamVideoPath(meta: JsonConfig, forceTranscodedVideo?: boolean) {
   if (meta.multiCam && meta.multiCam.defaultDisplay) {
     if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
       const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];
@@ -210,7 +210,7 @@ function getMultiCamVideoPath(meta: JsonMeta, forceTranscodedVideo?: boolean) {
   throw new Error(`${meta.id} does not contain multiCam data`);
 }
 
-function getMultiCamImageFiles(meta: JsonMeta) {
+function getMultiCamImageFiles(meta: JsonConfig) {
   if (meta.multiCam && meta.multiCam.defaultDisplay) {
     if (meta.multiCam.cameras[meta.multiCam.defaultDisplay]) {
       const display = meta.multiCam.cameras[meta.multiCam.defaultDisplay];

@@ -12,7 +12,7 @@ import {
 } from 'dive-common/constants';
 import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import {
-  JsonMeta, JsonMetaCurrentVersion,
+  JsonConfig, JsonConfigCurrentVersion,
   DesktopMediaImportResponse,
   Camera,
 } from 'platform/desktop/constants';
@@ -122,7 +122,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
 
   // Per-camera transform/registration files seed the dataset's saved camera
   // registration -- the same single registration the in-app panel edits and
-  // the aligned view consumes (loadMetadata falls back to these meta fields
+  // the aligned view consumes (loadConfig falls back to these meta fields
   // until a save writes the standalone per-camera files).
   const seedHomographies: CameraHomographies = {};
   const seedCorrespondences: CameraCorrespondences = {};
@@ -178,8 +178,8 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     });
   }
 
-  const jsonMeta: JsonMeta = {
-    version: JsonMetaCurrentVersion,
+  const jsonConfig: JsonConfig = {
+    version: JsonConfigCurrentVersion,
     type: datasetType,
     id: '', // will be assigned on finalize
     fps: 5,
@@ -205,12 +205,12 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     subType: null,
   };
   if (Object.keys(seedHomographies).length || Object.keys(seedCorrespondences).length) {
-    jsonMeta.cameraHomographies = seedHomographies;
-    jsonMeta.cameraCorrespondences = seedCorrespondences;
-    jsonMeta.cameraTransformTypes = seedTransformTypes;
+    jsonConfig.cameraHomographies = seedHomographies;
+    jsonConfig.cameraCorrespondences = seedCorrespondences;
+    jsonConfig.cameraTransformTypes = seedTransformTypes;
     const seedRegistrationSource = mergeRegistrationSources(seedSourceStamps);
     if (seedRegistrationSource) {
-      jsonMeta.cameraRegistrationSource = seedRegistrationSource;
+      jsonConfig.cameraRegistrationSource = seedRegistrationSource;
     }
   }
 
@@ -229,7 +229,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
           const video = item.sourcePath;
           const mimetype = mime.lookup(video);
           if (cameraName === args.defaultDisplay) {
-            jsonMeta.originalVideoFile = npath.basename(video);
+            jsonConfig.originalVideoFile = npath.basename(video);
           }
           if (mimetype) {
             if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
@@ -239,17 +239,17 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
               if (!checkMediaResult.websafe || otherVideoTypes.includes(mimetype)) {
                 mediaConvertList.push(video);
               }
-              if (jsonMeta.multiCam && jsonMeta.multiCam.cameras[cameraName] !== undefined) {
-                jsonMeta.multiCam.cameras[cameraName].originalVideoFile = npath.basename(video);
+              if (jsonConfig.multiCam && jsonConfig.multiCam.cameras[cameraName] !== undefined) {
+                jsonConfig.multiCam.cameras[cameraName].originalVideoFile = npath.basename(video);
               }
               const newAnnotationFps = Math.floor(
-                Math.min(jsonMeta.fps, checkMediaResult.originalFps),
+                Math.min(jsonConfig.fps, checkMediaResult.originalFps),
               );
               if (newAnnotationFps <= 0) {
                 throw new Error('fps < 1 unsupported');
               }
-              jsonMeta.originalFps = checkMediaResult.originalFps;
-              jsonMeta.fps = newAnnotationFps;
+              jsonConfig.originalFps = checkMediaResult.originalFps;
+              jsonConfig.fps = newAnnotationFps;
             } else {
               throw new Error(`unsupported MIME type for video ${mimetype}`);
             }
@@ -279,13 +279,13 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             cameras[cameraName].originalImageFiles = found.imageNames;
           } else if (found.source === 'image-list') {
             cameras[cameraName].originalImageFiles = found.imagePaths;
-            cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
+            cameras[cameraName].imageListPath = jsonConfig.originalBasePath;
             cameras[cameraName].originalBasePath = '';
           }
         },
       );
     } else if (isKeywordArgs(args)) {
-      jsonMeta.originalBasePath = args.sourcePath;
+      jsonConfig.originalBasePath = args.sourcePath;
       await asyncForEach(
         Object.entries(args.globList),
         async ([cameraName, item]) => {
@@ -295,7 +295,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
             cameras[cameraName].originalImageFiles = found.imageNames;
           } else if (found.source === 'image-list') {
             cameras[cameraName].originalImageFiles = found.imagePaths;
-            cameras[cameraName].imageListPath = jsonMeta.originalBasePath;
+            cameras[cameraName].imageListPath = jsonConfig.originalBasePath;
             cameras[cameraName].originalBasePath = '';
           }
         },
@@ -305,11 +305,11 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     throw new Error('only video and image-sequence types are supported');
   }
 
-  if (jsonMeta.multiCam?.cameras && jsonMeta.multiCam.cameras.left
-    && jsonMeta.multiCam.cameras.right) {
-    jsonMeta.subType = 'stereo';
-  } else if (jsonMeta.multiCam) {
-    jsonMeta.subType = 'multicam';
+  if (jsonConfig.multiCam?.cameras && jsonConfig.multiCam.cameras.left
+    && jsonConfig.multiCam.cameras.right) {
+    jsonConfig.subType = 'stereo';
+  } else if (jsonConfig.multiCam) {
+    jsonConfig.subType = 'multicam';
   }
 
   if (mediaConvertList.length && Object.values(cameras).some((cam) => cam.imageListPath)) {
@@ -317,7 +317,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   }
 
   return {
-    jsonMeta,
+    jsonConfig,
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath: '',

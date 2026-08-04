@@ -59,9 +59,9 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 * ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
 * ==:material-folder-multiple-image: MultiCam Batch== will prompt you to choose a root folder of **collect** subfolders and import one multicam image-sequence dataset per collect. See [Batch multicam import](Multicamera-data.md#batch-multicam-import) for the expected folder layout.
 
-The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a **Configuration File** (DIVE JSON). Neither is required.
+The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a **Configuration File** (DIVE JSON, sometimes named `*.meta.json` or `*.config.json`). Neither is required.
 
-Advanced options also include an optional **Metadata File** (`.json`, `.txt`, or `.csv`) — a pipeline sidecar such as a flight log. This is **not** the same as the Configuration File: DIVE does not parse it, and only pipelines that declare `# Metadata File:` receive it at run time. Metadata can be attached on single-camera, stereo, and multicam imports. See [Pipe file headers](Pipeline-Import-Export.md#pipe-file-headers).
+Advanced options also include an optional **Metadata File** (`.json`, `.txt`, or `.csv`) — a pipeline sidecar such as a flight log. This is **not** the same as the Configuration File: DIVE does not parse it, and only pipelines that declare `# Metadata File:` receive it at run time. Metadata can be attached on single-camera, stereo, and multicam imports. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
 
 ### Launching from the command line
 
@@ -185,15 +185,18 @@ VIAME_DATA
    ├── fish_training_data_c_jp7hq88vfv
    │  ├── auxiliary
    │  │  └── result_06-01-2021_10-55-38.627.json
-   │  ├── meta.json
+   │  ├── dataset.json
    │  └── result_06-01-2021_04-53-38.050.json
    └── scallop_2_jrgdq760gu
       ├── auxiliary
       │  └── result_06-01-2021_10-54-56.034.json
-      ├── meta.json
+      ├── dataset.json
       └── result_06-01-2021_11-02-35.857.json
 ```
 
+Each project folder stores a `dataset.json` with desktop-specific dataset state (media paths, ids, transcodes, multicam layout, …). This is separate from the portable **Configuration File** (`config.json`) used on import/export for attributes, styles, FPS, and related settings.
+
+Existing datasets that still have `meta.json` in the project folder are read normally; the next save migrates them to `dataset.json` and removes the legacy file.
 ### Configuration with env
 
 DIVE Desktop looks for the these environment variables on launch.
