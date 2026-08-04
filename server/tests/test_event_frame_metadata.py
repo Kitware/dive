@@ -2,7 +2,7 @@ import types as pytypes
 from unittest.mock import patch
 
 from dive_server import event
-from dive_utils.constants import AnnotationFileFutureProcessMarker
+from dive_utils.constants import AnnotationFileFutureProcessMarker, FrameMetadataFileMarker
 
 
 def _event(info):
@@ -16,7 +16,7 @@ _OWNER_ID = '000000000000000000000000'
 @patch('dive_server.event.User')
 @patch('dive_server.event.Folder')
 @patch('dive_server.event.Item')
-def test_assetstore_import_leaves_meta_sidecar_unmarked(item_cls, folder_cls, user_cls):
+def test_assetstore_import_tags_meta_sidecar(item_cls, folder_cls, user_cls):
     item = {'_id': 'i1', 'name': 'frame_metadata.csv', 'meta': {}, 'folderId': 'f1'}
     item_model = item_cls.return_value
     item_model.findOne.return_value = item
@@ -26,9 +26,12 @@ def test_assetstore_import_leaves_meta_sidecar_unmarked(item_cls, folder_cls, us
         {},
     )
 
-    # Declared sidecar: no future-process marker, no save, no relocation, folder untouched.
+    # Declared sidecar: tagged for Girder UI, no future-process marker, no relocation.
     assert AnnotationFileFutureProcessMarker not in item['meta']
-    item_model.save.assert_not_called()
+    item_model.setMetadata.assert_called_once_with(
+        item,
+        {FrameMetadataFileMarker: 'true'},
+    )
     item_model.move.assert_not_called()
     folder_cls.return_value.findOne.assert_not_called()
 

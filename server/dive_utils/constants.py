@@ -125,6 +125,8 @@ CalibrationFileMarker = "calibrationFile"
 # the owning folder carries the locator). Applies to single and multicam.
 MetadataFileItemIdMarker = "metadataFileItemId"
 MetadataFileOriginalNameMarker = "metadataFileOriginalName"
+# Girder item meta: marks an item as a frame-metadata attachment for Girder UI.
+FrameMetadataFileMarker = "frameMetadata"
 # Girder item meta: JSON camera-rig used for calibration display
 JsonCalibrationFileMarker = "jsonCalibrationFile"
 AssetstoreSourceMarker = "import_source"

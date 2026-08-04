@@ -187,6 +187,10 @@ def test_import_exported_dataset_uploads_and_links_the_metadata_directory_attach
     uploaded = [call_args.args[0] for call_args in mock_gc.upload.call_args_list]
     assert str(root / 'metadata' / 'nav.csv') in uploaded
     assert str(root / 'metadata') not in uploaded
+    mock_gc.addMetadataToItem.assert_any_call(
+        'dest-nav.csv',
+        {constants.FrameMetadataFileMarker: 'true'},
+    )
     folder_meta = mock_gc.addMetadataToFolder.call_args.args[1]
     assert folder_meta[constants.MetadataFileItemIdMarker] == 'dest-nav.csv'
     assert folder_meta[constants.MetadataFileOriginalNameMarker] == 'nav.csv'
@@ -236,6 +240,10 @@ def test_import_exported_dataset_finds_a_nested_metadata_directory_attachment(
 
     uploaded = [call_args.args[0] for call_args in mock_gc.upload.call_args_list]
     assert str(nested / 'nav.csv') in uploaded
+    mock_gc.addMetadataToItem.assert_any_call(
+        'dest-nav.csv',
+        {constants.FrameMetadataFileMarker: 'true'},
+    )
     folder_meta = mock_gc.addMetadataToFolder.call_args.args[1]
     assert folder_meta[constants.MetadataFileItemIdMarker] == 'dest-nav.csv'
     assert folder_meta[constants.MetadataFileOriginalNameMarker] == 'nav.csv'

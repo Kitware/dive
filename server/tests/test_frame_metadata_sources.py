@@ -522,6 +522,10 @@ def test_replace_attachment_removes_owned_previous_item_after_record_save(
         'metadataFileItemId': 'new-id',
         'metadataFileOriginalName': 'new.csv',
     }
+    item_cls.return_value.setMetadata.assert_called_once_with(
+        new_item,
+        {constants.FrameMetadataFileMarker: 'true'},
+    )
     folder_cls.return_value.save.assert_called_once_with(dataset)
     item_cls.return_value.remove.assert_called_once_with(old_item)
 

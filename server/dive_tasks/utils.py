@@ -501,7 +501,9 @@ def _upload_archive_metadata_attachment(
     items = list(gc.listItem(dest_folder_id, name=attachment.name))
     if len(items) != 1:
         raise ValueError(f'Could not resolve uploaded metadata attachment {attachment.name}')
-    return str(items[0]['_id'])
+    item_id = str(items[0]['_id'])
+    gc.addMetadataToItem(item_id, {constants.FrameMetadataFileMarker: 'true'})
+    return item_id
 
 
 def _import_exported_dataset_directory(

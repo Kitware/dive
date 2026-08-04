@@ -8,7 +8,7 @@ import {
   DatasetConfigMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import {
-  calibrationFileMarker, jsonCalibrationFileMarker,
+  calibrationFileMarker, frameMetadataFileMarker, jsonCalibrationFileMarker,
 } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
@@ -377,10 +377,12 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
  * Upload an optional per-dataset metadata file and return its item id.
  */
 async function uploadMetadataFileItem(parentFolderId: string, file: File): Promise<string> {
+  const frameMetadataMeta = { [frameMetadataFileMarker]: 'true' };
   const itemResp = await girderRest.post<GirderModel>('/item', null, {
     params: {
       folderId: parentFolderId,
       name: file.name,
+      metadata: JSON.stringify(frameMetadataMeta),
     },
   });
   const itemId = itemResp.data._id;
@@ -400,6 +402,8 @@ async function uploadMetadataFileItem(parentFolderId: string, file: File): Promi
     },
     headers: { 'Content-Type': 'application/octet-stream' },
   });
+  // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
+  await girderRest.put(`item/${itemId}/metadata`, frameMetadataMeta);
   return itemId;
 }
 
