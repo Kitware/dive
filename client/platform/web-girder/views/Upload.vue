@@ -7,7 +7,7 @@ import { useRouter } from 'vue-router/composables';
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions, LargeImageType,
   inputAnnotationFileTypes, websafeVideoTypes, otherVideoTypes,
-  websafeImageTypes, otherImageTypes, getLargeImageFileAccept,
+  getImageSequenceFileAccept, getLargeImageFileAccept,
   metadataFileTypes,
 } from 'dive-common/constants';
 import suggestUploadSlots from 'platform/web-girder/uploadSlots';
@@ -168,11 +168,37 @@ function fansOutToSubFolders(validation: ValidationResponse): boolean {
  * several media files — the first one with its suffix stripped. Derived from the server's
  * media role, so a row that was rejected on pick still gets a name once it validates.
  */
-function defaultRowName(validation: ValidationResponse): string {
+function defaultRowName(validation: ValidationResponse, folderHint?: string): string {
+  if (folderHint) {
+    return folderHint;
+  }
   const [firstMedia = ''] = validation.roles.media;
   return validation.roles.media.length > 1
     ? firstMedia.replace(fileSuffixRegex, '')
     : firstMedia;
+}
+
+/**
+ * webkitdirectory includes nested files; single-camera import only uses the selected folder's
+ * immediate children (desktop readdir parity). Nested collects belong to MultiCam Batch.
+ */
+function topLevelDirectoryFiles(files: File[]): File[] {
+  const withRelative = files.filter((file) => file.webkitRelativePath);
+  if (!withRelative.length) {
+    return files;
+  }
+  return files.filter((file) => {
+    const parts = (file.webkitRelativePath || file.name).replace(/\\/g, '/').split('/').filter(Boolean);
+    return parts.length === 2;
+  });
+}
+
+function directoryFolderName(files: File[]): string | undefined {
+  const relative = files.find((file) => file.webkitRelativePath)?.webkitRelativePath;
+  if (!relative) {
+    return undefined;
+  }
+  return relative.replace(/\\/g, '/').split('/').filter(Boolean)[0];
 }
 
 /**
@@ -289,12 +315,12 @@ export default defineComponent({
         return metadataFileTypes.map((item) => `.${item}`).join(',');
       }
       if (type === 'video') {
-        return websafeVideoTypes.concat(otherVideoTypes);
+        return websafeVideoTypes.concat(otherVideoTypes).join(',');
       }
       if (type === 'large-image') {
         return getLargeImageFileAccept();
       }
-      return websafeImageTypes.concat(otherImageTypes);
+      return getImageSequenceFileAccept();
     };
 
     /**
@@ -318,6 +344,7 @@ export default defineComponent({
       allFiles: File[],
       suggestedFps?: number, // suggested FPS for large/images
       expectedType?: DatasetType,
+      folderHint?: string,
     ) => {
       const slots = suggestUploadSlots(allFiles);
       // Validate the slotted selection so the media type is server-determined.
@@ -349,7 +376,7 @@ export default defineComponent({
       }
       // Server validation is authoritative for the media/annotation/config roles.
       row.createSubFolders = fansOutToSubFolders(validation);
-      row.name = defaultRowName(validation);
+      row.name = defaultRowName(validation, folderHint);
       row.uploadFiles = acceptedUploadFiles(slotFiles, validation);
       row.ignored = rowIgnoredFiles(row, validation);
       row.type = expectedType === LargeImageType ? LargeImageType : validation.type;
@@ -360,11 +387,18 @@ export default defineComponent({
      * validation, which is what classifies the files.
      */
     const openImport = async (dstype: DatasetType | 'zip') => {
-      const ret = await openFromDisk(dstype);
+      // Image-sequence / large-image match desktop: open a directory, not a multi-file picker.
+      // Directory mode also clears accept so multi-dot frame names are not filtered out.
+      const useDirectory = dstype === ImageSequenceType || dstype === LargeImageType;
+      const ret = await openFromDisk(dstype, useDirectory);
       if (ret.canceled || !ret.fileList || ret.fileList.length === 0) {
         return;
       }
-      const allFiles = ret.fileList;
+      const allFiles = useDirectory ? topLevelDirectoryFiles(ret.fileList) : ret.fileList;
+      if (!allFiles.length) {
+        preUploadErrorMessage.value = 'No files found in the selected folder.';
+        return;
+      }
       preUploadErrorMessage.value = null;
       try {
         if (dstype === 'zip') {
@@ -372,7 +406,12 @@ export default defineComponent({
           addPendingZipUpload(name, allFiles);
         } else {
           const suggestedFps = dstype === 'image-sequence' || dstype === 'large-image' ? 1 : undefined;
-          await addPendingUpload(allFiles, suggestedFps, dstype);
+          await addPendingUpload(
+            allFiles,
+            suggestedFps,
+            dstype,
+            useDirectory ? directoryFolderName(allFiles) : undefined,
+          );
         }
       } catch (err) {
         preUploadErrorMessage.value = err.response?.data?.message || err;

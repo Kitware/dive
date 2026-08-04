@@ -1,9 +1,9 @@
 import { UploadManager, Location } from '@girder/components/src';
 import {
   calibrationFileTypes, metadataFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
-  getLargeImageAllowedExtensions, getLargeImageFileAccept,
-  otherImageTypes, otherVideoTypes, transformFileTypes,
-  websafeImageTypes, websafeVideoTypes, zipFileTypes,
+  getImageSequenceFileAccept, getLargeImageAllowedExtensions, getLargeImageFileAccept,
+  otherVideoTypes, transformFileTypes,
+  websafeVideoTypes, zipFileTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
@@ -51,14 +51,17 @@ async function openFromDisk(
   if (!['calibration', 'annotation', 'config', 'zip', 'metadata'].includes(datasetType)) {
     input.multiple = true;
   }
-  if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
+  if (
+    directory
+    && (datasetType === 'image-sequence' || datasetType === 'video' || datasetType === 'large-image')
+  ) {
+    // Empty accept so multi-dot names (e.g. a.b.c.png) are not hidden by MIME/extension filters.
     input.setAttribute('webkitdirectory', '');
     input.multiple = true;
-  }
-  if (datasetType === 'image-sequence' && !directory) {
-    input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
-  } else if (directory && (datasetType === 'image-sequence' || datasetType === 'video')) {
     input.accept = '';
+  } else if (datasetType === 'image-sequence') {
+    // Extensions + MIME: some Linux pickers miss multi-dot PNGs when only MIME is listed.
+    input.accept = [...baseTypes, getImageSequenceFileAccept()].join(',');
   } else if (datasetType === 'video') {
     input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
   } else if (datasetType === 'large-image') {
