@@ -691,59 +691,73 @@ async function train(
     throw new Error(isValid);
   }
 
-  /* Zip together project info and meta */
-  const infoAndMeta = await Promise.all(
-    runTrainingArgs.datasetIds.map(async (id) => {
-      const projectInfo = await common.getValidatedProjectDir(settings, id);
-      const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
-      return { projectInfo, meta };
-    }),
-  );
-  const jsonConfigList = infoAndMeta.map(({ meta }) => meta);
+  const resumeDir = runTrainingArgs.resumeWorkingDir;
+  let jobWorkDir: string;
+  if (resumeDir) {
+    /* Continue an interrupted run: its input lists, groundtruth files, and
+     * intermediate trainer state are already in the working directory. */
+    if (!fs.existsSync(npath.join(resumeDir, DiveJobManifestName))) {
+      throw new Error(`Cannot resume training: no job manifest found in ${resumeDir}`);
+    }
+    jobWorkDir = resumeDir;
+  } else {
+    /* Zip together project info and meta */
+    const infoAndMeta = await Promise.all(
+      runTrainingArgs.datasetIds.map(async (id) => {
+        const projectInfo = await common.getValidatedProjectDir(settings, id);
+        const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
+        return { projectInfo, meta };
+      }),
+    );
+    const jsonConfigList = infoAndMeta.map(({ meta }) => meta);
 
-  // Working dir for training
-  const jobWorkDir = await createWorkingDirectory(settings, jsonConfigList, runTrainingArgs.pipelineName);
+    // Working dir for training
+    jobWorkDir = await createWorkingDirectory(settings, jsonConfigList, runTrainingArgs.pipelineName);
+
+    const groundtruthFilenames = await Promise.all(
+      infoAndMeta.map(async ({ meta, projectInfo }) => {
+        // Organize data for training
+        const groundTruthFileName = `groundtruth_${meta.id}.csv`;
+        const groundTruthFileStream = fs.createWriteStream(
+          npath.join(jobWorkDir, groundTruthFileName),
+        );
+        const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
+        await serialize(groundTruthFileStream, inputData, meta);
+        groundTruthFileStream.end();
+        return groundTruthFileName;
+      }),
+    );
+
+    // Write groundtruth filenames to list
+    const groundtruthFile = fs.createWriteStream(npath.join(jobWorkDir, 'input_truth_list.txt'));
+    groundtruthFilenames.forEach((name) => groundtruthFile.write(`${name}\n`));
+    groundtruthFile.end();
+
+    // Write input folder paths to list
+    const inputFile = fs.createWriteStream(npath.join(jobWorkDir, 'input_folder_list.txt'));
+    infoAndMeta.forEach(({ projectInfo, meta }) => {
+      if (meta.type === 'video') {
+        let videopath = '';
+        /* If the video has been transcoded, use that video */
+        if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
+          videopath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
+        } else {
+          videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+        }
+        inputFile.write(`${videopath}\n`);
+      } else if (meta.type === 'image-sequence') {
+        inputFile.write(`${npath.join(meta.originalBasePath)}\n`);
+      }
+    });
+    inputFile.end();
+  }
 
   // Argument files for training
   const inputFolderFileList = npath.join(jobWorkDir, 'input_folder_list.txt');
   const groundTruthFileList = npath.join(jobWorkDir, 'input_truth_list.txt');
-
-  const groundtruthFilenames = await Promise.all(
-    infoAndMeta.map(async ({ meta, projectInfo }) => {
-      // Organize data for training
-      const groundTruthFileName = `groundtruth_${meta.id}.csv`;
-      const groundTruthFileStream = fs.createWriteStream(
-        npath.join(jobWorkDir, groundTruthFileName),
-      );
-      const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
-      await serialize(groundTruthFileStream, inputData, meta);
-      groundTruthFileStream.end();
-      return groundTruthFileName;
-    }),
-  );
-
-  // Write groundtruth filenames to list
-  const groundtruthFile = fs.createWriteStream(groundTruthFileList);
-  groundtruthFilenames.forEach((name) => groundtruthFile.write(`${name}\n`));
-  groundtruthFile.end();
-
-  // Write input folder paths to list
-  const inputFile = fs.createWriteStream(inputFolderFileList);
-  infoAndMeta.forEach(({ projectInfo, meta }) => {
-    if (meta.type === 'video') {
-      let videopath = '';
-      /* If the video has been transcoded, use that video */
-      if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
-        videopath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
-      } else {
-        videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-      }
-      inputFile.write(`${videopath}\n`);
-    } else if (meta.type === 'image-sequence') {
-      inputFile.write(`${npath.join(meta.originalBasePath)}\n`);
-    }
-  });
-  inputFile.end();
+  if (resumeDir && !(fs.existsSync(inputFolderFileList) && fs.existsSync(groundTruthFileList))) {
+    throw new Error(`Cannot resume training: input lists are missing from ${resumeDir}`);
+  }
 
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
   const configFilePath = npath.join(settings.viamePath, PipelineRelativeDir, runTrainingArgs.trainingConfig);
@@ -759,18 +773,26 @@ async function train(
     '--no-embedded-pipe',
   ];
 
+  if (resumeDir) {
+    command.push('--continue');
+  }
+
   if (runTrainingArgs.annotatedFramesOnly) {
     command.push('--gt-frames-only');
   }
 
-  if (runTrainingArgs.fineTuneModel && runTrainingArgs.fineTuneModel.path) {
+  // On resume, --continue restores the run's own checkpoint; re-seeding with
+  // the fine-tune weights would override it
+  if (!resumeDir && runTrainingArgs.fineTuneModel && runTrainingArgs.fineTuneModel.path) {
     command.push('--init-weights');
     command.push(runTrainingArgs.fineTuneModel.path);
   }
 
   if (runTrainingArgs.labelText) {
     const labelsPath = `${jobWorkDir}/labels.txt`;
-    fs.writeFileSync(labelsPath, runTrainingArgs.labelText);
+    if (!resumeDir) {
+      fs.writeFileSync(labelsPath, runTrainingArgs.labelText);
+    }
     command.push('--labels');
     command.push(labelsPath);
   }
@@ -819,11 +841,17 @@ async function train(
         });
       }
     }
+    const endTime = new Date();
+    // Record the final status so interrupted runs can be detected as resumable
+    fs.writeFile(
+      npath.join(jobWorkDir, DiveJobManifestName),
+      JSON.stringify({ ...jobBase, exitCode, endTime }, null, 2),
+    );
     updater({
       ...jobBase,
       body: bodyText,
       exitCode,
-      endTime: new Date(),
+      endTime,
     });
   });
   return jobBase;
