@@ -232,6 +232,8 @@ export interface RunTraining extends JobArgs {
     path?: string;
     folderId?: string;
   };
+  // working directory of a prior interrupted run to continue from
+  resumeWorkingDir?: string;
 }
 
 export interface ConversionArgs extends JobArgs {

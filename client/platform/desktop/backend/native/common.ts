@@ -44,7 +44,7 @@ import {
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
   ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType,
+  JobType, DesktopJob,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -69,6 +69,7 @@ const AuxFolderName = 'auxiliary';
 const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
 const JsonMetaFileName = 'meta.json';
+const DiveJobManifestName = 'dive_job_manifest.json';
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
 /**
@@ -1111,6 +1112,66 @@ async function processTrainedPipeline(settings: Settings, args: RunTraining, wor
   return folderContents;
 }
 
+function processIsRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find prior training runs whose intermediate files are still on disk and can
+ * be continued with `viame train --continue`: runs that were interrupted by a
+ * crash, a cancellation, or the app shutting down, or that exited early
+ * without producing a model.
+ */
+async function findResumableTrainingJobs(settings: Settings): Promise<DesktopJob[]> {
+  const jobsDir = npath.join(settings.dataPath, JobsFolderName);
+  if (!fs.existsSync(jobsDir)) {
+    return [];
+  }
+  const results: DesktopJob[] = [];
+  const entries = await fs.readdir(jobsDir);
+  await Promise.all(entries.map(async (entry) => {
+    const workingDir = npath.join(jobsDir, entry);
+    try {
+      const manifest = await fs.readJson(
+        npath.join(workingDir, DiveJobManifestName),
+      ) as DesktopJob;
+      if (manifest.jobType !== 'training') return;
+      if (manifest.exitCode === 0) return;
+      if (manifest.endTime === undefined && processIsRunning(manifest.pid)) return;
+      // The trainer's intermediate state and the original input lists must survive
+      const required = ['deep_training', 'input_folder_list.txt', 'input_truth_list.txt'];
+      if (!required.every((f) => fs.existsSync(npath.join(workingDir, f)))) return;
+      // Manifests predating final-status recording never carry an end time; a
+      // successful run's models were moved out of category_models, leaving it empty
+      if (manifest.endTime === undefined) {
+        const modelsDir = npath.join(workingDir, 'category_models');
+        if (fs.existsSync(modelsDir) && (await fs.readdir(modelsDir)).length === 0) return;
+      }
+      // The jobs folder may have been relocated since the manifest was written
+      results.push({ ...manifest, workingDir });
+    } catch {
+      // not a job directory or unreadable manifest
+    }
+  }));
+  return results.sort(
+    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
+  );
+}
+
+async function discardResumableTraining(settings: Settings, workingDir: string): Promise<void> {
+  const jobsDir = npath.resolve(settings.dataPath, JobsFolderName);
+  const resolved = npath.resolve(workingDir);
+  if (npath.dirname(resolved) !== jobsDir) {
+    throw new Error(`${workingDir} is not a job working directory`);
+  }
+  await fs.remove(resolved);
+}
+
 async function _initializeAppDataDir(settings: Settings) {
   await fs.ensureDir(settings.dataPath);
   await fs.ensureDir(npath.join(settings.dataPath, ProjectsFolderName));
@@ -1916,6 +1977,8 @@ export {
   saveDetections,
   saveMetadata,
   processTrainedPipeline,
+  findResumableTrainingJobs,
+  discardResumableTraining,
   saveAttributes,
   saveAttributeTrackFilters,
   findImagesInFolder,
