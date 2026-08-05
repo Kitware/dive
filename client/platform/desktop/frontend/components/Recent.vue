@@ -165,6 +165,37 @@ export default defineComponent({
       removeRecents(datasetId);
     }
 
+    const selectedRecents = ref([] as JsonConfigCache[]);
+
+    async function confirmDeleteSelected() {
+      const items = selectedRecents.value;
+      if (items.length === 0) {
+        return;
+      }
+      const result = await prompt({
+        title: `Delete ${items.length} dataset${items.length > 1 ? 's' : ''}`,
+        text: ['Do you want to delete the selected datasets?',
+          '1.  Deleting datasets will not remove source media, such as images or video.',
+          '2.  It will not remove annotations files that were imported when the datasets were created.',
+          '3.  This will remove any annotations that have been created in DIVE for these datasets',
+          '4.  Use the Export button for a dataset to create a copy of the last set of annotations'],
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!result) {
+        return;
+      }
+      // Deletions run sequentially so a failure stops before touching the rest
+      // eslint-disable-next-line no-restricted-syntax
+      for (const item of items) {
+        // eslint-disable-next-line no-await-in-loop
+        await request(() => api.deleteDataset(item.id));
+        removeRecents(item.id);
+      }
+      selectedRecents.value = [];
+    }
+
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
     function getTypeIcon(recent: JsonConfigCache) {
@@ -259,6 +290,7 @@ export default defineComponent({
       getTypeIcon,
       importMedia: api.importMedia,
       confirmDeleteDataset,
+      confirmDeleteSelected,
       preloadCheck,
       toDisplayString,
       resetError,
@@ -266,6 +298,7 @@ export default defineComponent({
       multiCamOpenType,
       stereo,
       filteredRecents,
+      selectedRecents,
       pendingImportPayload,
       bulkImport,
       searchText,
@@ -469,6 +502,30 @@ export default defineComponent({
               <div class="text-h4 font-weight-light mb-2">
                 Recent
               </div>
+              <v-tooltip
+                v-if="selectedRecents.length > 0"
+                bottom
+              >
+                <template #activator="{ on }">
+                  <v-btn
+                    class="ml-4 align-self-center"
+                    color="error"
+                    outlined
+                    small
+                    v-on="on"
+                    @click="confirmDeleteSelected"
+                  >
+                    <v-icon
+                      left
+                      small
+                    >
+                      mdi-delete
+                    </v-icon>
+                    Delete ({{ selectedRecents.length }})
+                  </v-btn>
+                </template>
+                <span>Delete all selected datasets</span>
+              </v-tooltip>
               <v-spacer />
               <v-text-field
                 v-model="searchText"
@@ -496,9 +553,12 @@ export default defineComponent({
               Open images or video to get started
             </h2>
             <v-data-table
+              v-model="selectedRecents"
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
               sort-by="accessedAt"
+              show-select
+              item-key="id"
               :footer-props="{ itemsPerPageOptions }"
               :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
