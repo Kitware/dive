@@ -48,6 +48,9 @@ interface FFProbeResults {
     width?: number;
     height?: number;
   }];
+  format?: {
+    duration?: string;
+  };
 }
 
 interface CheckMediaResults {
@@ -55,6 +58,8 @@ interface CheckMediaResults {
   originalFpsString: string;
   originalFps: number;
   videoDimensions: { width: number; height: number };
+  /** Container duration in seconds; absent for still images. */
+  videoDuration?: number;
 }
 
 function frameRateStringFromProbeStream(stream: {
@@ -177,12 +182,14 @@ async function checkMedia(file: string): Promise<CheckMediaResults> {
       height: videoStream[0].height || 0,
     };
     const misAligned = await checkFrameMisalignment(file);
+    const duration = Number.parseFloat(ffprobeJSON.format?.duration ?? '');
 
     return {
       websafe: !!websafe.length && !misAligned,
       originalFps,
       originalFpsString,
       videoDimensions,
+      ...(Number.isFinite(duration) ? { videoDuration: duration } : {}),
     };
   }
   throw Error(`FFProbe did not return a valid value for ${file}`);

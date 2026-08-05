@@ -842,10 +842,16 @@ export default defineComponent({
       alignedView.setSuspended(picking);
     }, { immediate: true });
 
+    // A dataset may define its own frame label set (e.g. presets applied at
+    // import); it takes precedence over the user's global label list.
+    const datasetFrameLabels = ref([] as string[]);
+    const frameLabels = computed(() => (datasetFrameLabels.value.length
+      ? datasetFrameLabels.value
+      : clientSettings.frameLabelSettings.labels));
     const frameLabelMode = useFrameLabelMode({
       cameraStore,
       selectedCamera,
-      labels: computed(() => clientSettings.frameLabelSettings.labels),
+      labels: frameLabels,
       getMaxFrame: () => aggregateController.value.maxFrame.value,
       getFullFrameBounds: () => {
         const bounds = aggregateController.value
@@ -857,7 +863,7 @@ export default defineComponent({
       if (!frameLabelMode.enabled.value || readonlyState.value) {
         return [];
       }
-      const binds = clientSettings.frameLabelSettings.labels.slice(0, 9)
+      const binds = frameLabels.value.slice(0, 9)
         .map((label, index) => ({
           bind: `${index + 1}`,
           handler: () => { frameLabelMode.labelFrame(label, time.frame.value); },
@@ -1687,6 +1693,7 @@ export default defineComponent({
         }
         cameraStore.setCameraOrder(multiCamList.value);
         /* Otherwise, complete loading of the dataset */
+        datasetFrameLabels.value = meta.frameLabels ?? [];
         /**
          * When shared colors are enabled, overlay the cross-dataset styles on
          * top of this dataset's own styling (shared wins on conflicts), and
@@ -2432,6 +2439,8 @@ export default defineComponent({
       frameLabelEnabled: frameLabelMode.enabled,
       frameLabelMousetrap,
       frameLabelActive,
+      frameLabels,
+      datasetFrameLabels,
       groupChartData,
       imageData,
       lineChartData,
@@ -2777,6 +2786,8 @@ export default defineComponent({
           <v-divider />
           <frame-label-panel
             :value="frameLabelEnabled"
+            :labels="frameLabels"
+            :dataset-defined="datasetFrameLabels.length > 0"
             :active-label="frameLabelActive"
             :disabled="readonlyState"
             @input="frameLabelEnabled = $event"

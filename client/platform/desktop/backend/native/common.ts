@@ -1370,6 +1370,9 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     if (args.datasetInfo) {
       existing.datasetInfo = args.datasetInfo;
     }
+    if (args.frameLabels) {
+      existing.frameLabels = args.frameLabels;
+    }
     if (cameraRolesPresent && !cameraName) {
       existing.cameraRoles = args.cameraRoles;
     }

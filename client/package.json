@@ -18,6 +18,7 @@
     "build:web": "vite build",
     "build:electron": "electron-vite build && electron-builder --config electron-builder.json",
     "build:electron:dir": "electron-vite build && electron-builder --config electron-builder.json --dir",
+    "build:cli": "esbuild platform/desktop/backend/cli.ts --bundle --platform=node --target=node18 --format=cjs --external:electron --inject:platform/desktop/backend/importMetaUrlShim.js --define:import.meta.url=import_meta_url --alias:yargs=./node_modules/yargs/index.cjs --alias:vue-media-annotator=./src --alias:platform=./platform --alias:dive-common=./dive-common --outfile=bin/platform/desktop/backend/cli.js",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "eslint --ext .js,.ts,.vue --report-unused-disable-directives src/ dive-common/ platform/",
     "lint:templates": "eslint --ext vue src/ dive-common/ platform/",

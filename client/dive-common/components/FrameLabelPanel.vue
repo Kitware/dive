@@ -1,7 +1,5 @@
 <script lang="ts">
-import {
-  computed, defineComponent, ref, PropType,
-} from 'vue';
+import { defineComponent, ref, PropType } from 'vue';
 import { useTrackStyleManager } from 'vue-media-annotator/provides';
 import { clientSettings } from 'dive-common/store/settings';
 
@@ -10,6 +8,18 @@ export default defineComponent({
 
   props: {
     value: {
+      type: Boolean,
+      default: false,
+    },
+    labels: {
+      type: Array as () => string[],
+      default: () => [],
+    },
+    /**
+     * True when the label set comes from the dataset itself; the list is
+     * fixed and the global-list editing controls are hidden.
+     */
+    datasetDefined: {
       type: Boolean,
       default: false,
     },
@@ -26,25 +36,24 @@ export default defineComponent({
   setup() {
     const { typeStyling } = useTrackStyleManager();
     const newLabel = ref('');
-    const labels = computed(() => clientSettings.frameLabelSettings.labels);
 
     function addLabel() {
       const label = newLabel.value.trim();
-      if (label && !labels.value.includes(label) && labels.value.length < 9) {
-        clientSettings.frameLabelSettings.labels.push(label);
+      const stored = clientSettings.frameLabelSettings.labels;
+      if (label && !stored.includes(label) && stored.length < 9) {
+        stored.push(label);
       }
       newLabel.value = '';
     }
 
     function removeLabel(label: string) {
-      const index = labels.value.indexOf(label);
+      const index = clientSettings.frameLabelSettings.labels.indexOf(label);
       if (index >= 0) {
         clientSettings.frameLabelSettings.labels.splice(index, 1);
       }
     }
 
     return {
-      labels,
       newLabel,
       addLabel,
       removeLabel,
@@ -123,6 +132,7 @@ export default defineComponent({
       </span>
       <v-spacer />
       <v-btn
+        v-if="!datasetDefined"
         icon
         x-small
         :disabled="disabled"
@@ -133,7 +143,14 @@ export default defineComponent({
         </v-icon>
       </v-btn>
     </div>
+    <div
+      v-if="datasetDefined"
+      class="text-caption text--secondary mb-1"
+    >
+      Labels defined by this dataset
+    </div>
     <v-text-field
+      v-else
       v-model="newLabel"
       :disabled="disabled || labels.length >= 9"
       label="Add label"
