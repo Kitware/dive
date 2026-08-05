@@ -20,6 +20,7 @@ function runTrainingsAreEquivalent(a: RunTraining, b: RunTraining) {
     && a.annotatedFramesOnly === b.annotatedFramesOnly
     && a.labelText === b.labelText
     && a.fineTuneModel?.name === b.fineTuneModel?.name
+    && a.resumeWorkingDir === b.resumeWorkingDir
   );
 }
 
