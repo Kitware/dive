@@ -1034,6 +1034,9 @@ describe('native.common', () => {
       type: 'image-sequence',
     });
 
+    expect(payload.metadataFileAbsPath).toBe(shared);
+    expect(payload.jsonConfig.metadataFile).toBeUndefined();
+
     const { meta } = await common.finalizeMediaImport(settings, payload);
     const projectDir = npath.join(settings.dataPath, ProjectsFolderName, meta.id);
     expect(meta.metadataFile).toBe(npath.join(projectDir, 'auxiliary', 'frame_metadata.csv'));

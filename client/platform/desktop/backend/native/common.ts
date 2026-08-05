@@ -2053,8 +2053,9 @@ async function finalizeMediaImport(
   }
 
   // Store any optional metadata file alongside the media (keeping the original
-  // name). Single imports pass it on the response; multicam imports stash the
-  // source path on jsonConfig.metadataFile during beginMultiCamImport.
+  // name). beginMediaImport / beginMultiCamImport put the source path on
+  // metadataFileAbsPath so ImportDialog can show and clear it; jsonConfig.metadataFile
+  // remains a fallback for older callers that still stash the source there.
   const metadataSourcePath = args.metadataFileAbsPath || jsonConfig.metadataFile;
   if (metadataSourcePath) {
     const resolvedMetadataSource = npath.resolve(metadataSourcePath);

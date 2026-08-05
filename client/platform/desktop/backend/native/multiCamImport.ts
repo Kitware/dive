@@ -250,9 +250,6 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
       calibration: args.calibrationFile,
       defaultDisplay: args.defaultDisplay,
     },
-    // Stash the metadata source path; finalizeMediaImport copies it into the
-    // project directory and rewrites this to the stored copy's path.
-    metadataFile: sharedMetadataFile,
     subType: null,
   };
   if (Object.keys(seedHomographies).length || Object.keys(seedCorrespondences).length) {
@@ -367,6 +364,9 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     throw new Error('Transcoding is not supported when an image list is used');
   }
 
+  // Shared attachment travels on the response (like beginMediaImport), not on
+  // jsonConfig: ImportDialog binds metadataFileAbsPath so the user can see and clear it.
+  // finalizeMediaImport still accepts jsonConfig.metadataFile as a fallback for older callers.
   return {
     jsonConfig,
     globPattern: '',
@@ -375,6 +375,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     forceMediaTranscode: false,
     useNativePlayback: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
+    ...(sharedMetadataFile ? { metadataFileAbsPath: sharedMetadataFile } : {}),
     ...(importWarnings.length ? { importWarnings } : {}),
   };
 }

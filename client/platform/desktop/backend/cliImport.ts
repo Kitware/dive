@@ -274,8 +274,8 @@ export async function runCliImport(
   if (args.name) {
     importPayload.jsonConfig.name = args.name;
   }
-  // Single-camera metadata rides on the finalize payload; multicam stashes the
-  // source path on jsonConfig during beginMultiCamImport (same as the wizard).
+  // Metadata rides on metadataFileAbsPath for ImportDialog / finalize. Single-camera
+  // sets it here; multicam beginMultiCamImport already places args.metadataFile there.
   if (args.metadataPath && !args.cameras) {
     importPayload.metadataFileAbsPath = args.metadataPath;
   }
