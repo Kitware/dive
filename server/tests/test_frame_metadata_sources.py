@@ -499,6 +499,7 @@ def test_sources_keep_missing_explicit_attachment_visible_without_reserved_fallb
     folder_cls.return_value.childItems.assert_not_called()
 
 
+@patch('dive_server.crud_dataset.crud.refresh_folder_document')
 @patch('dive_server.crud_dataset.crud.getCloneRoot')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.Item')
@@ -506,6 +507,7 @@ def test_replace_attachment_removes_owned_previous_item_after_record_save(
     item_cls,
     folder_cls,
     get_clone_root,
+    refresh_folder_document,
 ):
     dataset = _dataset_folder()
     dataset['meta'][constants.MetadataFileItemIdMarker] = 'old-id'
@@ -530,10 +532,13 @@ def test_replace_attachment_removes_owned_previous_item_after_record_save(
     item_cls.return_value.remove.assert_called_once_with(old_item)
 
 
+@patch('dive_server.crud_dataset.crud.refresh_folder_document')
 @patch('dive_server.crud_dataset.crud.getCloneRoot')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.Item')
-def test_replace_reserved_name_attachment_keeps_it(item_cls, folder_cls, get_clone_root):
+def test_replace_reserved_name_attachment_keeps_it(
+    item_cls, folder_cls, get_clone_root, refresh_folder_document
+):
     """A reserved-name file is the user's own content: it is shadowed, never deleted."""
     dataset = _dataset_folder()
     get_clone_root.return_value = dataset
@@ -552,10 +557,13 @@ def test_replace_reserved_name_attachment_keeps_it(item_cls, folder_cls, get_clo
     assert dataset['meta'][constants.MetadataFileItemIdMarker] == 'new-id'
 
 
+@patch('dive_server.crud_dataset.crud.refresh_folder_document')
 @patch('dive_server.crud_dataset.crud.getCloneRoot')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.Item')
-def test_replace_marked_reserved_name_attachment_keeps_it(item_cls, folder_cls, get_clone_root):
+def test_replace_marked_reserved_name_attachment_keeps_it(
+    item_cls, folder_cls, get_clone_root, refresh_folder_document
+):
     """The marker cannot vouch for ownership: process_items records what it discovers in it.
 
     A reserved-name file uploaded alongside the media is swept, marked, and left in place.
@@ -575,6 +583,7 @@ def test_replace_marked_reserved_name_attachment_keeps_it(item_cls, folder_cls, 
     assert dataset['meta'][constants.MetadataFileItemIdMarker] == 'new-id'
 
 
+@patch('dive_server.crud_dataset.crud.refresh_folder_document')
 @patch('dive_server.crud_dataset.crud.getCloneRoot')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.Item')
@@ -582,6 +591,7 @@ def test_replace_clone_attachment_does_not_remove_source_item(
     item_cls,
     folder_cls,
     get_clone_root,
+    refresh_folder_document,
 ):
     dataset = _dataset_folder()
     dataset[constants.ForeignMediaIdMarker] = 'source-root-id'
@@ -597,6 +607,7 @@ def test_replace_clone_attachment_does_not_remove_source_item(
     item_cls.return_value.remove.assert_not_called()
 
 
+@patch('dive_server.crud_dataset.crud.refresh_folder_document')
 @patch('dive_server.crud_dataset.crud.getCloneRoot')
 @patch('dive_server.crud_dataset.cherrypy.log')
 @patch('dive_server.crud_dataset.Folder')
@@ -606,6 +617,7 @@ def test_replace_attachment_stays_successful_when_old_item_cleanup_fails(
     folder_cls,
     log,
     get_clone_root,
+    refresh_folder_document,
 ):
     dataset = _dataset_folder()
     dataset['meta'][constants.MetadataFileItemIdMarker] = 'old-id'
@@ -620,6 +632,40 @@ def test_replace_attachment_stays_successful_when_old_item_cleanup_fails(
     assert result['metadataFileItemId'] == 'new-id'
     folder_cls.return_value.save.assert_called_once_with(dataset)
     log.assert_called_once()
+
+
+
+@patch('dive_server.crud_dataset.crud.refresh_folder_document')
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.Item')
+def test_set_metadata_file_keeps_concurrently_written_folder_keys(
+    item_cls,
+    folder_cls,
+    get_clone_root,
+    refresh_folder_document,
+):
+    """Async convert_video may write annotate / originalFps while set_metadata_file runs."""
+    dataset = _dataset_folder()
+    dataset['meta'][constants.MetadataFileItemIdMarker] = 'old-id'
+    get_clone_root.return_value = dataset
+    new_item = {'_id': 'new-id', 'folderId': 'dataset-id', 'name': 'new.csv'}
+    old_item = {'_id': 'old-id', 'folderId': 'dataset-id', 'name': 'old.csv'}
+    item_cls.return_value.load.side_effect = [new_item, old_item]
+
+    def concurrent_job_write(target):
+        target['meta']['annotate'] = True
+        target['meta']['originalFps'] = 30
+
+    refresh_folder_document.side_effect = concurrent_job_write
+
+    crud_dataset.set_metadata_file({'_id': 'user-id'}, dataset, 'new-id')
+
+    refresh_folder_document.assert_called_once_with(dataset)
+    saved = folder_cls.return_value.save.call_args.args[0]
+    assert saved['meta']['annotate'] is True
+    assert saved['meta']['originalFps'] == 30
+    assert saved['meta'][constants.MetadataFileItemIdMarker] == 'new-id'
 
 
 @patch('girder.api.rest.Resource.route')

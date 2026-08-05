@@ -1912,9 +1912,13 @@ def set_metadata_file(
     # resolution -- and process_items records what it discovers in this same marker, so the
     # marker alone cannot tell the two apart. The name can: replacing the attachment shadows
     # a reserved-name file, and deleting it would destroy a file the user uploaded.
+    md_item = _validate_metadata_file_item(user, folder, item_id)
+    # Girder's save is a full-document replace and async jobs (convert_video) write folder
+    # meta while callers hold this document, so refresh first or their keys (annotate,
+    # originalFps, ffprobe_info) are replaced with this stale in-memory copy.
+    crud.refresh_folder_document(folder)
     declared_item_id = folder.get('meta', {}).get(constants.MetadataFileItemIdMarker)
     previous_item_id = str(declared_item_id) if declared_item_id else None
-    md_item = _validate_metadata_file_item(user, folder, item_id)
     previous_item = None
     if previous_item_id and previous_item_id != str(md_item['_id']):
         candidate = Item().load(previous_item_id, level=AccessType.WRITE, user=user)
