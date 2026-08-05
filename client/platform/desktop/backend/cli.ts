@@ -19,10 +19,14 @@ import Track from 'vue-media-annotator/track';
 import { DesktopJobUpdate, RunPipeline, RunTraining } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonConfig } from 'platform/desktop/backend/native/common';
 import { RectBounds } from 'vue-media-annotator/utils';
+import mime from 'mime-types';
+
+import { otherVideoTypes, websafeVideoTypes } from 'dive-common/constants';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
-import { checkMedia } from './native/mediaJobs';
+import { checkMedia, convertMedia } from './native/mediaJobs';
+import { parseFrameLabelPresets, applyFrameLabelPresets } from './native/frameLabels';
 import { parseFile, serialize } from './serializers/viame';
 import { exportNist, loadNistFile } from './serializers/nist';
 import KPF from './serializers/kpf';
@@ -149,6 +153,31 @@ const { argv } = yargs
       type: 'string',
     }).demandOption('file');
   })
+  .command('import [path]', 'Import media as new dataset(s)', () => {
+    settingsArgs();
+    yargs.positional('path', {
+      description: 'Media to import: a video, an image-sequence directory, or (with --bulk) a directory whose videos and subdirectories each become a dataset',
+      type: 'string',
+    }).demandOption('path');
+    yargs.option('bulk', {
+      describe: 'Import every video file and subdirectory inside path as its own dataset',
+      type: 'boolean',
+      default: false,
+    });
+    yargs.option('fps', {
+      describe: 'Annotation frame rate for the new dataset(s)',
+      type: 'number',
+    });
+    yargs.option('frame-label', {
+      describe: 'Frame label preset, repeatable: becomes part of the dataset\'s frame label set shown by the annotator\'s frame label mode',
+      type: 'string',
+    });
+    yargs.array('frame-label');
+    yargs.option('default-frame-label', {
+      describe: 'One of the --frame-label names, applied to the entire dataset as a full-frame track on import',
+      type: 'string',
+    });
+  })
   .command('list-config', 'List viame pipeline configuration', settingsArgs)
   .command('run-pipeline', 'Run a pipeline', () => {
     settingsArgs();
@@ -227,6 +256,78 @@ if (argv._.includes('viame2json')) {
     const out = await checkMedia(argv.file as string);
     // eslint-disable-next-line no-console
     console.log(out);
+  };
+  run();
+} else if (argv._.includes('import')) {
+  const settings = getSettings();
+  const run = async () => {
+    const presets = parseFrameLabelPresets(
+      (argv.frameLabel ?? []) as string[],
+      argv.defaultFrameLabel as string | undefined,
+    );
+    const root = npath.resolve(argv.path as string);
+
+    const targets: string[] = [];
+    if (argv.bulk) {
+      const children = await fs.readdir(root, { withFileTypes: true });
+      children.sort((a, b) => a.name.localeCompare(b.name));
+      children.forEach((child) => {
+        if (child.isDirectory()) {
+          targets.push(npath.join(root, child.name));
+        } else {
+          const mimetype = mime.lookup(child.name);
+          if (mimetype && (websafeVideoTypes.includes(mimetype)
+            || otherVideoTypes.includes(mimetype))) {
+            targets.push(npath.join(root, child.name));
+          }
+        }
+      });
+      if (targets.length === 0) {
+        throw new Error(`No videos or subdirectories to import in ${root}`);
+      }
+    } else {
+      targets.push(root);
+    }
+
+    // Imports run sequentially: concurrent imports can fail behind the scenes.
+    /* eslint-disable no-restricted-syntax, no-await-in-loop */
+    for (const target of targets) {
+      try {
+        const payload = await common.beginMediaImport(target);
+        if (argv.fps) {
+          payload.jsonMeta.fps = argv.fps as number;
+        }
+        const conversionArgs = await common.finalizeMediaImport(settings, payload);
+        const datasetId = conversionArgs.meta.id;
+        await applyFrameLabelPresets(settings, datasetId, presets);
+        if (conversionArgs.mediaList.length > 0) {
+          stdout.write(`Transcoding media for ${conversionArgs.meta.name}...\n`);
+          await new Promise((resolve, reject) => {
+            convertMedia(
+              settings,
+              conversionArgs,
+              updater,
+              (jobKey, meta) => {
+                common.completeConversion(settings, datasetId, jobKey, meta)
+                  .then(resolve, reject);
+              },
+              (_jobKey, meta, errorMessage) => {
+                common.failConversion(settings, datasetId, meta, errorMessage)
+                  .then(() => reject(new Error(errorMessage)), reject);
+              },
+              true,
+            ).catch(reject);
+          });
+        }
+        stdout.write(`Imported ${conversionArgs.meta.name} as ${datasetId}\n`);
+      } catch (err) {
+        stderr.write(`Failed to import ${target}: ${err}\n`);
+        if (!argv.bulk) {
+          process.exitCode = 1;
+        }
+      }
+    }
+    /* eslint-enable no-restricted-syntax, no-await-in-loop */
   };
   run();
 } else if (argv._.includes('list-config')) {
