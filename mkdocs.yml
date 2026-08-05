@@ -91,6 +91,7 @@ nav:
     - Running with Docker Compose: Deployment-Docker-Compose.md
     - Upgrading to Girder 5: Deployment-Girder-5-Upgrade.md
     - Cloud Storage Integration: Deployment-Storage.md
+    - AssetStore Importing and Data Structure: Deployment-AssetStore-Import.md
     - REST API Specification: https://viame.kitware.com/api/v1
   - Scripting: 
     - Introduction: scripting/Scripting.md
