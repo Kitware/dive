@@ -6,6 +6,7 @@ import os from 'os';
 import path from 'path';
 
 import { closeAll as closeChildren } from './backend/native/processManager';
+import { registerRendererSender } from './backend/rendererBridge';
 import { listen, close as closeServer } from './backend/server';
 import ipcListen from './backend/ipcService';
 import {
@@ -394,3 +395,4 @@ export default function sendToRenderer(channel: string, payload?: unknown) {
     win.webContents.send(channel, payload);
   }
 }
+registerRendererSender(sendToRenderer);

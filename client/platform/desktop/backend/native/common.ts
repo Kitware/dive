@@ -860,6 +860,9 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
   if (args.datasetInfo) {
     existing.datasetInfo = args.datasetInfo;
   }
+  if (args.frameLabels) {
+    existing.frameLabels = args.frameLabels;
+  }
 
   // The camera registration (transforms + the points behind them) is
   // persisted as standalone <camera>_to_<reference>_registration.json files
