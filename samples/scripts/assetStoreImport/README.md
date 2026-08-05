@@ -1,6 +1,8 @@
 # Sample Data Generation and MinIO Setup for DIVE
 
-This folder contains scripts to generate sample video and image sequence data, and to host it in a MinIO bucket suitable for importing into DIVE using the AssetStore Importing Tool
+This folder contains scripts to generate sample video and image sequence data, and to host it in a MinIO bucket suitable for importing into DIVE using the AssetStore Importing Tool.
+
+For the product documentation on bucket layout, annotations, and frame-metadata pairing, see [AssetStore Importing and Data Structure](../../../docs/Deployment-AssetStore-Import.md).
 
 Prerequisites
 

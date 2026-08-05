@@ -75,12 +75,16 @@ If you have data in S3 or MinIO, you can mirror it in DIVE for annotation.
 * You should not make changes to folder contents once a folder has been mirrored into DIVE.  Adding or removing images in a particular folder may cause annotation alignment issues.
 * Adding entire new folders is supported, and will require a re-index of your S3 bucket.
 
+For the full bucket layout — videos, image sequences, annotation pairing, and frame-metadata sidecars — see **[AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md)**.
+
 ### S3/MinIO and Annotation Importing
 
-During the importing process annotations that are associated with image-sequences or video files can be automatically imported
+During import, annotations associated with image sequences or videos are discovered automatically. Summary:
 
-* **Video** - For video files the annotation file (CSV or JSON) needs to have the same name as the video with a changed extension. I.E.  video.mp4 will have either video.csv or video.json.  This will automatically import those annotations when the S3/GCP indexing/importing is done
-* **Image Sequence** - Image-Sequences should already be in their own folder.  The annotation file (CSV or JSON) needs to just be in the same file.  It shouldn't matter what the name of the file is during importing.
+* **Video** — annotation file (CSV or JSON) must share the video basename: `video.mp4` → `video.csv` or `video.json`.
+* **Image sequence** — any CSV or JSON in the same folder as the frames is imported as annotations.
+
+Optional **frame metadata** attachments (flight logs and similar) can also be discovered by reserved or video-paired filenames. Details, examples, and post-import behavior are in [AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md).
 
 ### Pub/Sub notifications
 
@@ -108,3 +112,5 @@ If you have your own dive deployment, you can create a bucket mirror yourself th
     1. For **Destination type**, use the folder ID you chose as the mount point above.
 
 The import may take several minutes.  You should begin to see datasets appear inside the mount point folder you chose.
+
+After the index completes, DIVE runs postprocess jobs (transcode if needed, attach annotations and metadata). On self-hosted Compose deployments, ensure **`localworker`** is running. Layout requirements and what to verify after import are covered in [AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md).
