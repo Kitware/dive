@@ -5,9 +5,12 @@ from dive_server import event
 from dive_utils.constants import (
     AnnotationFileFutureProcessMarker,
     FrameMetadataFileMarker,
+    ImageSequenceType,
     MetadataFileItemIdMarker,
     MetadataFileOriginalNameMarker,
     ProcessedMarker,
+    TypeMarker,
+    VideoType,
 )
 from dive_utils.frame_metadata import (
     canonical_frame_metadata_name,
@@ -112,7 +115,11 @@ def test_assetstore_import_relocates_video_paired_metadata(
             return parent_folder
         if query == {'_id': 'video'}:
             return video_folder
-        if query == {'parentId': 'parent', 'name': 'reef'}:
+        if query == {
+            'parentId': 'parent',
+            'name': 'reef',
+            f'meta.{TypeMarker}': VideoType,
+        }:
             return video_folder
         return None
 
@@ -178,7 +185,11 @@ def test_assetstore_import_replaces_existing_frame_metadata_on_reimport(
             return parent_folder
         if query == {'_id': 'video'}:
             return video_folder
-        if query == {'parentId': 'parent', 'name': 'reef'}:
+        if query == {
+            'parentId': 'parent',
+            'name': 'reef',
+            f'meta.{TypeMarker}': VideoType,
+        }:
             return video_folder
         return None
 
@@ -222,6 +233,88 @@ def test_assetstore_import_defers_video_paired_metadata_without_folder(
 
     assert item['meta'][AnnotationFileFutureProcessMarker] is True
     assert item['name'] == 'reef-metadata.json'  # rename waits until the video folder exists
+    item_model.move.assert_not_called()
+    item_model.save.assert_called_once()
+
+
+@patch('dive_server.event.User')
+@patch('dive_server.event.Folder')
+@patch('dive_server.event.Item')
+def test_assetstore_import_paired_metadata_falls_through_on_typed_image_parent(
+    item_cls, folder_cls, user_cls
+):
+    """Paired names beside an already-typed image-sequence folder are not video sidecars.
+
+    A bare return would drop the file; fall through so csv/json still enter the
+    annotation path (same as a late-arriving plain annotation CSV).
+    """
+    item = {'_id': 'i1', 'name': 'sensor_metadata.csv', 'meta': {}, 'folderId': 'parent'}
+    item_model = item_cls.return_value
+    item_model.findOne.return_value = item
+    parent_folder = {
+        '_id': 'parent',
+        'creatorId': _OWNER_ID,
+        'baseParentId': None,
+        'meta': {TypeMarker: ImageSequenceType},
+    }
+    folder_model = folder_cls.return_value
+
+    def find_one(query):
+        if query == {'_id': 'parent'}:
+            return parent_folder
+        return None  # no VideoType child named sensor
+
+    folder_model.findOne.side_effect = find_one
+    user_cls.return_value.findOne.return_value = {'_id': _OWNER_ID}
+
+    event.process_assetstore_import(
+        _event({'type': 'item', 'importPath': '/data/sensor_metadata.csv', 'id': 'i1'}),
+        {},
+    )
+
+    # Typed parent: no FutureProcess defer, no relocate — left for process_items as annotation.
+    assert AnnotationFileFutureProcessMarker not in item['meta']
+    item_model.move.assert_not_called()
+    item_model.save.assert_not_called()
+
+
+@patch('dive_server.event.User')
+@patch('dive_server.event.Folder')
+@patch('dive_server.event.Item')
+def test_assetstore_import_skips_same_named_non_video_folder(item_cls, folder_cls, user_cls):
+    """A same-named image-sequence child must not receive a video-paired sidecar."""
+    item = {'_id': 'i1', 'name': 'reef_metadata.csv', 'meta': {}, 'folderId': 'parent'}
+    item_model = item_cls.return_value
+    item_model.findOne.return_value = item
+    parent_folder = {'_id': 'parent', 'creatorId': _OWNER_ID, 'baseParentId': None, 'meta': {}}
+    image_folder = {'_id': 'images', 'name': 'reef', 'meta': {TypeMarker: ImageSequenceType}}
+    folder_model = folder_cls.return_value
+
+    def find_one(query):
+        if query == {'_id': 'parent'}:
+            return parent_folder
+        if query == {
+            'parentId': 'parent',
+            'name': 'reef',
+            f'meta.{TypeMarker}': VideoType,
+        }:
+            return None
+        if query == {'parentId': 'parent', 'name': 'reef'}:
+            return image_folder
+        if query == {'parentId': 'parent', 'name': 'reef_metadata'}:
+            return None
+        return None
+
+    folder_model.findOne.side_effect = find_one
+    user_cls.return_value.findOne.return_value = {'_id': _OWNER_ID}
+
+    event.process_assetstore_import(
+        _event({'type': 'item', 'importPath': '/data/reef_metadata.csv', 'id': 'i1'}),
+        {},
+    )
+
+    # Untyped parent, no VideoType child: defer rather than placing into the image folder.
+    assert item['meta'][AnnotationFileFutureProcessMarker] is True
     item_model.move.assert_not_called()
     item_model.save.assert_called_once()
 

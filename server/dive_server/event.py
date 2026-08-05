@@ -180,8 +180,14 @@ def process_assetstore_import(event, meta: dict):
             # ``{videoStem}[-_]metadata.{csv|json|txt}`` → video folder as frame_metadata.{ext}
             video_stem, ext = paired
             parentFolder = Folder().findOne({"_id": item["folderId"]})
+            # Same VideoType gate as process_dangling_annotation_files: a same-named
+            # image-sequence child must not receive a video-paired sidecar.
             possible_video_folder = Folder().findOne(
-                {'parentId': parentFolder['_id'], 'name': video_stem}
+                {
+                    'parentId': parentFolder['_id'],
+                    'name': video_stem,
+                    f'meta.{TypeMarker}': VideoType,
+                }
             )
             if possible_video_folder is not None:
                 _place_video_paired_metadata(item, possible_video_folder, ext)
@@ -192,7 +198,11 @@ def process_assetstore_import(event, meta: dict):
                 # Video folder may arrive later in the same import; defer relocate+rename.
                 item['meta'][AnnotationFileFutureProcessMarker] = True
                 Item().save(item)
-            return
+                return
+
+            # Parent is already typed and no VideoType child exists — not a video-paired
+            # layout. Fall through so csv/json can follow the plain annotation path
+            # (process_items / dangling) instead of being silently dropped.
 
         # Plain annotations are json/csv only; .txt that is not frame metadata is ignored.
         if not possibleAnnotationRegex.search(importPath):
