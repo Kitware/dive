@@ -223,9 +223,11 @@ interface DatasetMetaMutable {
   cameraTransformTypes?: CameraTransformTypes;
   /** Producer provenance of the camera registration (see RegistrationSource). */
   cameraRegistrationSource?: RegistrationSource | null;
+  /** Frame label mode label set defined by the dataset, in hotkey order. */
+  frameLabels?: string[];
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
+const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'frameLabels'];
 
 interface DatasetMeta extends DatasetMetaMutable {
   id: Readonly<string>;
