@@ -133,8 +133,9 @@ describe('native.multiCamImport', () => {
       type: 'image-sequence',
     });
 
-    expect(output.jsonConfig.metadataFile)
+    expect(output.metadataFileAbsPath)
       .toBe('/home/user/data/archiveMulticam/metadata/shared.csv');
+    expect(output.jsonConfig.metadataFile).toBeUndefined();
     expect(output.jsonConfig.multiCam?.cameras.left.metadataFile)
       .toBe('/home/user/data/archiveMulticam/left/metadata/local.csv');
     expect(output.jsonConfig.multiCam?.cameras.right.metadataFile).toBeUndefined();
@@ -152,6 +153,7 @@ describe('native.multiCamImport', () => {
       type: 'image-sequence',
     });
 
+    expect(output.metadataFileAbsPath).toBeUndefined();
     expect(output.jsonConfig.metadataFile).toBeUndefined();
     expect(output.jsonConfig.multiCam?.cameras.left.metadataFile).toBeUndefined();
     expect(output.jsonConfig.multiCam?.cameras.right.metadataFile).toBeUndefined();
@@ -207,8 +209,9 @@ describe('native.multiCamImport', () => {
       type: 'image-sequence',
     });
 
-    expect(output.jsonConfig.metadataFile)
+    expect(output.metadataFileAbsPath)
       .toBe('/home/user/data/archiveMulticam/metadata/nested/shared.csv');
+    expect(output.jsonConfig.metadataFile).toBeUndefined();
   });
 
   it('ignores an empty directory beside one archive attachment', async () => {
@@ -223,8 +226,9 @@ describe('native.multiCamImport', () => {
       type: 'image-sequence',
     });
 
-    expect(output.jsonConfig.metadataFile)
+    expect(output.metadataFileAbsPath)
       .toBe('/home/user/data/archiveMulticam/metadata/shared.csv');
+    expect(output.jsonConfig.metadataFile).toBeUndefined();
   });
 
   it('lets an explicit camera pick stand where discovery finds an ambiguous folder', async () => {
@@ -276,10 +280,29 @@ describe('native.multiCamImport', () => {
       type: 'video',
     });
 
-    expect(output.jsonConfig.metadataFile)
+    expect(output.metadataFileAbsPath)
       .toBe('/home/user/data/sharedVideos/frame_metadata.csv');
+    expect(output.jsonConfig.metadataFile).toBeUndefined();
     expect(output.jsonConfig.multiCam?.cameras.left.metadataFile).toBeUndefined();
     expect(output.jsonConfig.multiCam?.cameras.right.metadataFile).toBeUndefined();
+  });
+
+  it('lets ImportDialog clear a discovered shared multicam attachment', async () => {
+    // Shared discovery must land on metadataFileAbsPath (dialog-bound), not jsonConfig,
+    // or clearing the field would still leave finalize attaching the discovered file.
+    const output = await beginMultiCamImport({
+      defaultDisplay: 'left',
+      sourceList: {
+        left: { sourcePath: '/home/user/data/sharedVideos/left.mp4', trackFile: '' },
+        right: { sourcePath: '/home/user/data/sharedVideos/right.mp4', trackFile: '' },
+      },
+      type: 'video',
+    });
+
+    expect(output.metadataFileAbsPath)
+      .toBe('/home/user/data/sharedVideos/frame_metadata.csv');
+    output.metadataFileAbsPath = '';
+    expect(output.jsonConfig.metadataFile).toBeUndefined();
   });
 
   if (multiCamSetup.folderTests) {
