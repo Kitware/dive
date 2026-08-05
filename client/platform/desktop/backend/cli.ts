@@ -168,6 +168,11 @@ const { argv } = yargs
       describe: 'Annotation frame rate for the new dataset(s)',
       type: 'number',
     });
+    yargs.option('native-playback', {
+      describe: 'Skip transcoding; videos play via native frame extraction',
+      type: 'boolean',
+      default: false,
+    });
     yargs.option('frame-label', {
       describe: 'Frame label preset, repeatable: becomes part of the dataset\'s frame label set shown by the annotator\'s frame label mode',
       type: 'string',
@@ -296,6 +301,9 @@ if (argv._.includes('viame2json')) {
         const payload = await common.beginMediaImport(target);
         if (argv.fps) {
           payload.jsonMeta.fps = argv.fps as number;
+        }
+        if (argv.nativePlayback) {
+          payload.useNativePlayback = true;
         }
         const conversionArgs = await common.finalizeMediaImport(settings, payload);
         const datasetId = conversionArgs.meta.id;
