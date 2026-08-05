@@ -7,13 +7,14 @@
 # ///
 import csv
 import datetime
+import json
+import math
+from pathlib import Path
 import random
 import subprocess
-import json
-from pathlib import Path
+
 import click
 from faker import Faker
-import math
 
 fake = Faker()
 
@@ -61,27 +62,33 @@ def _random_track_attributes() -> dict:
         "qa_status": random.choice(["pending", "approved", "flagged"]),
     }
 
+
 def create_random_video(file_path: Path, duration: int):
     """Create a random test video using ffmpeg (MP4 container, H.264 codec)."""
     cmd = [
-        "ffmpeg", "-y",
-        "-f", "lavfi", "-i", "testsrc=size=1280x720:rate=30",
-        "-t", str(duration),
-        "-c:v", "libx264",
-        "-pix_fmt", "yuv420p",
-        str(file_path)
+        "ffmpeg",
+        "-y",
+        "-f",
+        "lavfi",
+        "-i",
+        "testsrc=size=1280x720:rate=30",
+        "-t",
+        str(duration),
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        str(file_path),
     ]
     subprocess.run(cmd, check=True)
+
 
 def extract_frames_from_video(video_path: Path, image_dir: Path):
     """Extract frames from a video and save as sequential JPG files."""
     image_dir.mkdir(parents=True, exist_ok=True)
-    cmd = [
-        "ffmpeg", "-y",
-        "-i", str(video_path),
-        str(image_dir / "frame_%04d.jpg")
-    ]
+    cmd = ["ffmpeg", "-y", "-i", str(video_path), str(image_dir / "frame_%04d.jpg")]
     subprocess.run(cmd, check=True)
+
 
 def generate_star_points(cx, cy, r, spikes=5):
     """Generate points for a star polygon."""
@@ -95,6 +102,7 @@ def generate_star_points(cx, cy, r, spikes=5):
     pts.append(pts[0])  # close polygon
     return pts
 
+
 def generate_diamond_points(cx, cy, r):
     return [
         [cx, cy - r],
@@ -104,14 +112,16 @@ def generate_diamond_points(cx, cy, r):
         [cx, cy - r],
     ]
 
+
 def generate_circle_points(cx, cy, r, segments=12):
     pts = []
-    for i in range(segments+1):
+    for i in range(segments + 1):
         angle = 2 * math.pi * i / segments
         x = cx + math.cos(angle) * r
         y = cy + math.sin(angle) * r
         pts.append([x, y])
     return pts
+
 
 def generate_geometry(shape: str, cx: float, cy: float, size: float):
     """Return GeoJSON polygon of the shape centered at (cx, cy)."""
@@ -124,33 +134,33 @@ def generate_geometry(shape: str, cx: float, cy: float, size: float):
     else:  # rectangle fallback
         half = size
         coords = [
-            [cx-half, cy-half],
-            [cx+half, cy-half],
-            [cx+half, cy+half],
-            [cx-half, cy+half],
-            [cx-half, cy-half]
+            [cx - half, cy - half],
+            [cx + half, cy - half],
+            [cx + half, cy + half],
+            [cx - half, cy + half],
+            [cx - half, cy - half],
         ]
-    return {'geojson': {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type" :"Feature",
-                "geometry": {
-                    "type": "Polygon",
-                    "coordinates": [coords]
-                },
-                "properties": { "key": "" }
-            }
-        ]
-    },
-    'coords': coords
+    return {
+        "geojson": {
+            "type": "FeatureCollection",
+            "features": [
+                {
+                    "type": "Feature",
+                    "geometry": {"type": "Polygon", "coordinates": [coords]},
+                    "properties": {"key": ""},
+                }
+            ],
+        },
+        "coords": coords,
     }
+
 
 def geometry_bounds(coords):
     """Calculate bounding box [x1, y1, x2, y2] from polygon points."""
     xs = [pt[0] for pt in coords]
     ys = [pt[1] for pt in coords]
     return [min(xs), min(ys), max(xs), max(ys)]
+
 
 def build_tracks(num_frames: int):
     """Build track dict keyed by string id (DIVE annotation schema)."""
@@ -184,8 +194,8 @@ def build_tracks(num_frames: int):
             size = base_size * (0.75 + 0.5 * scale)
 
             output_data = generate_geometry(shape_type, x, y, size)
-            geom = output_data['geojson']
-            coords = output_data['coords']
+            geom = output_data["geojson"]
+            coords = output_data["coords"]
             bounds = geometry_bounds(coords)
 
             feature = {
@@ -212,9 +222,9 @@ def build_tracks(num_frames: int):
 
 
 def _viame_timestamp(frame: int, fps: int) -> str:
-    return datetime.datetime.fromtimestamp(
-        frame / fps, datetime.timezone.utc
-    ).strftime(r'%H:%M:%S.%f')
+    return datetime.datetime.fromtimestamp(frame / fps, datetime.timezone.utc).strftime(
+        r"%H:%M:%S.%f"
+    )
 
 
 def _format_viame_metadata_row(metadata: dict) -> list:
@@ -234,10 +244,7 @@ def _append_viame_geometry_columns(columns: list, geometry: dict):
         if geom.get("type") != "Polygon":
             continue
         coordinates = [
-            coord
-            for ring in geom.get("coordinates", [])
-            for point in ring
-            for coord in point
+            coord for ring in geom.get("coordinates", []) for point in ring for coord in point
         ]
         columns.append(f"(poly) {' '.join(str(round(c)) for c in coordinates)}")
 
@@ -261,19 +268,21 @@ def generate_annotation_viame_csv(
 
     with open(output_file, "w", newline="") as f:
         writer = csv.writer(f)
-        writer.writerow([
-            "# 1: Detection or Track-id",
-            "2: Video or Image Identifier",
-            "3: Unique Frame Identifier",
-            "4-7: Img-bbox(TL_x",
-            "TL_y",
-            "BR_x",
-            "BR_y)",
-            "8: Detection or Length Confidence",
-            "9: Target Length (0 or -1 if invalid)",
-            "10-11+: Repeated Species",
-            "Confidence Pairs or Attributes",
-        ])
+        writer.writerow(
+            [
+                "# 1: Detection or Track-id",
+                "2: Video or Image Identifier",
+                "3: Unique Frame Identifier",
+                "4-7: Img-bbox(TL_x",
+                "TL_y",
+                "BR_x",
+                "BR_y)",
+                "8: Detection or Length Confidence",
+                "9: Target Length (0 or -1 if invalid)",
+                "10-11+: Repeated Species",
+                "Confidence Pairs or Attributes",
+            ]
+        )
         writer.writerow(_format_viame_metadata_row(metadata))
 
         for track in tracks.values():
@@ -345,9 +354,7 @@ def generate_annotation_coco_json(
     annotation_id = 1
 
     for track in tracks.values():
-        confidence_pairs = sorted(
-            track["confidencePairs"], key=lambda item: item[1], reverse=True
-        )
+        confidence_pairs = sorted(track["confidencePairs"], key=lambda item: item[1], reverse=True)
         class_name, score = confidence_pairs[0]
         category_id = categories.setdefault(class_name, len(categories) + 1)
 
@@ -396,8 +403,7 @@ def generate_annotation_coco_json(
             annotation_id += 1
 
     categories_doc = [
-        {"id": category_id, "name": class_name}
-        for class_name, category_id in categories.items()
+        {"id": category_id, "name": class_name} for class_name, category_id in categories.items()
     ]
     info = {
         "description": f"Sample COCO export for {dataset_name}",
@@ -451,8 +457,57 @@ def write_annotations(
     else:
         generate_annotation_json(tracks, output_file)
 
+
 def _annotation_extension(annotation_format: str) -> str:
     return ".csv" if annotation_format == "viame-csv" else ".json"
+
+
+def write_frame_metadata_sidecar(
+    destination_dir: Path,
+    frame_count: int,
+    fps: int = VIDEO_FPS,
+    *,
+    paired_stem: str = None,
+):
+    """Write a frame-metadata sidecar for assetstore import testing.
+
+    - Videos: pass ``paired_stem`` so the file is ``{stem}[-_]metadata.{ext}`` (import renames
+      it to ``frame_metadata.{ext}`` inside the video folder).
+    - Image sequences: omit ``paired_stem`` for a reserved ``frame[-_]metadata.{ext}`` name
+      already inside the sequence folder.
+    """
+    sep = random.choice(["_", "-"])
+    ext = random.choice(["csv", "json", "txt"])
+    if paired_stem is not None:
+        out = destination_dir / f"{paired_stem}{sep}metadata.{ext}"
+    else:
+        out = destination_dir / f"frame{sep}metadata.{ext}"
+    # Sparse sample: one row every second (at annotation/media fps).
+    step = max(1, fps)
+    frames = list(range(0, frame_count, step))
+    if ext == "json":
+        payload = {
+            "fps": fps,
+            "frames": [
+                {
+                    "frame": frame,
+                    "depth_m": round(random.uniform(10.0, 200.0), 2),
+                    "heading_deg": round(random.uniform(0.0, 360.0), 1),
+                }
+                for frame in frames
+            ],
+        }
+        out.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        return out
+    # csv and txt share a simple headered table
+    lines = ["frame,depth_m,heading_deg"]
+    for frame in frames:
+        lines.append(
+            f"{frame},{round(random.uniform(10.0, 200.0), 2)},"
+            f"{round(random.uniform(0.0, 360.0), 1)}"
+        )
+    out.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return out
 
 
 def create_video_content(
@@ -469,11 +524,11 @@ def create_video_content(
     metadata match that rate so assetStoreImport can be tested against it.
     Filenames include ``_annfps{N}`` when CSV is used so expected FPS is obvious.
     """
-    if counter['count'] >= total:
+    if counter["count"] >= total:
         return
     num_videos = random.randint(1, max_videos)
     for _ in range(num_videos):
-        if counter['count'] >= total:
+        if counter["count"] >= total:
             break
         duration = random.randint(5, 30)
         annotation_format = random.choice(annotation_formats)
@@ -486,7 +541,7 @@ def create_video_content(
 
         video_path = base_dir / f"{stem}.mp4"
         create_random_video(video_path, duration)
-        counter['count'] += 1
+        counter["count"] += 1
 
         ext = _annotation_extension(annotation_format)
         write_annotations(
@@ -496,6 +551,13 @@ def create_video_content(
             dataset_name=video_path.stem,
             fps=annotation_fps,
         )
+        write_frame_metadata_sidecar(
+            video_path.parent,
+            frame_count=duration * annotation_fps,
+            fps=annotation_fps,
+            paired_stem=video_path.stem,
+        )
+
 
 def create_image_sequence_content(
     base_dir: Path,
@@ -504,7 +566,7 @@ def create_image_sequence_content(
     annotation_formats: tuple,
 ):
     """Create image sequence from a temporary video and generate annotations."""
-    if counter['count'] >= total:
+    if counter["count"] >= total:
         return
     duration = random.randint(5, 30)
     tmp_video = base_dir / (fake.word() + "_tmp.mp4")
@@ -512,7 +574,7 @@ def create_image_sequence_content(
     seq_folder = base_dir / (tmp_video.stem.replace("_tmp", "") + "_frames")
     extract_frames_from_video(tmp_video, seq_folder)
     tmp_video.unlink()
-    counter['count'] += 1
+    counter["count"] += 1
 
     num_frames = duration * VIDEO_FPS
     frame_filenames = [p.name for p in sorted(seq_folder.glob("frame_*.jpg"))]
@@ -526,6 +588,12 @@ def create_image_sequence_content(
         frame_filenames=frame_filenames,
         dataset_name=seq_folder.stem,
     )
+    write_frame_metadata_sidecar(
+        seq_folder,
+        frame_count=num_frames,
+        fps=VIDEO_FPS,
+    )
+
 
 def create_folder_structure(
     base_dir: Path,
@@ -537,7 +605,7 @@ def create_folder_structure(
     annotation_formats: tuple,
 ):
     """Recursively create folders with either videos or image sequences."""
-    if counter['count'] >= total:
+    if counter["count"] >= total:
         return
 
     content_type = random.choice(["video", "images"])
@@ -546,18 +614,24 @@ def create_folder_structure(
     else:
         create_image_sequence_content(base_dir, counter, total, annotation_formats)
 
-    if counter['count'] >= total:
+    if counter["count"] >= total:
         return
 
     num_subfolders = random.randint(0, 3)
     for _ in range(num_subfolders):
-        if counter['count'] >= total:
+        if counter["count"] >= total:
             break
         subfolder = base_dir / fake.word()
         subfolder.mkdir(parents=True, exist_ok=True)
         if depth < max_depth:
             create_folder_structure(
-                subfolder, depth + 1, max_depth, max_videos, counter, total, annotation_formats
+                subfolder,
+                depth + 1,
+                max_depth,
+                max_videos,
+                counter,
+                total,
+                annotation_formats,
             )
         else:
             leaf_type = random.choice(["video", "images"])
@@ -566,20 +640,35 @@ def create_folder_structure(
             else:
                 create_image_sequence_content(subfolder, counter, total, annotation_formats)
 
+
 @click.command()
-@click.option('--output', '-o', default='./sample', show_default=True,
-              type=click.Path(file_okay=False), help="Base output directory")
-@click.option('--folders', '-f', default=3, show_default=True,
-              help="Number of top-level folders to create")
-@click.option('--max-depth', '-d', default=2, show_default=True,
-              help="Maximum subfolder depth")
-@click.option('--videos', '-v', default=2, show_default=True,
-              help="Maximum videos per folder")
-@click.option('--total', '-t', default=10, show_default=True,
-              help="Total number of datasets (videos or image sequences)")
 @click.option(
-    '--annotation-formats',
-    default='coco-json,viame-csv',
+    "--output",
+    "-o",
+    default="./sample",
+    show_default=True,
+    type=click.Path(file_okay=False),
+    help="Base output directory",
+)
+@click.option(
+    "--folders",
+    "-f",
+    default=3,
+    show_default=True,
+    help="Number of top-level folders to create",
+)
+@click.option("--max-depth", "-d", default=2, show_default=True, help="Maximum subfolder depth")
+@click.option("--videos", "-v", default=2, show_default=True, help="Maximum videos per folder")
+@click.option(
+    "--total",
+    "-t",
+    default=10,
+    show_default=True,
+    help="Total number of datasets (videos or image sequences)",
+)
+@click.option(
+    "--annotation-formats",
+    default="coco-json,viame-csv",
     show_default=True,
     help=(
         "Comma-separated annotation formats to randomly choose per dataset: "
@@ -590,11 +679,7 @@ def main(output, folders, max_depth, videos, total, annotation_formats):
     base_path = Path(output)
     base_path.mkdir(parents=True, exist_ok=True)
 
-    format_choices = tuple(
-        fmt.strip()
-        for fmt in annotation_formats.split(',')
-        if fmt.strip()
-    )
+    format_choices = tuple(fmt.strip() for fmt in annotation_formats.split(",") if fmt.strip())
     invalid = [fmt for fmt in format_choices if fmt not in ANNOTATION_FORMATS]
     if invalid:
         raise click.BadParameter(
@@ -604,21 +689,20 @@ def main(output, folders, max_depth, videos, total, annotation_formats):
     if not format_choices:
         raise click.BadParameter("At least one annotation format is required.")
 
-    counter = {'count': 0}
+    counter = {"count": 0}
     click.echo(
         f"Generating up to {total} datasets in {base_path} "
         f"(formats: {', '.join(format_choices)})..."
     )
     for _ in range(folders):
-        if counter['count'] >= total:
+        if counter["count"] >= total:
             break
         folder_path = base_path / fake.word()
         folder_path.mkdir(parents=True, exist_ok=True)
-        create_folder_structure(
-            folder_path, 1, max_depth, videos, counter, total, format_choices
-        )
+        create_folder_structure(folder_path, 1, max_depth, videos, counter, total, format_choices)
 
     click.echo(f"Done! Created {counter['count']} datasets.")
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     main()
