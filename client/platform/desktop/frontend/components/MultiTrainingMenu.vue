@@ -19,6 +19,10 @@ import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants
 import { clientSettings } from 'dive-common/store/settings';
 
 import { useRouter } from 'vue-router/composables';
+import { DesktopJob, RunTraining } from 'platform/desktop/constants';
+import {
+  listResumableTrainingJobs, resumeTraining, discardResumableTraining,
+} from '../api';
 import { datasets } from '../store/dataset';
 
 function joinPath(dir: string, filename: string) {
@@ -55,6 +59,41 @@ export default defineComponent({
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
     });
+
+    const resumableJobs = ref([] as DesktopJob[]);
+
+    async function refreshResumable() {
+      resumableJobs.value = await listResumableTrainingJobs();
+    }
+    onBeforeMount(refreshResumable);
+
+    const resumableItems = computed(() => resumableJobs.value.map((job) => ({
+      job,
+      title: job.title,
+      config: (job.args as RunTraining).trainingConfig,
+      datasetCount: job.datasetIds.length,
+      started: job.startTime ? new Date(job.startTime).toLocaleString() : '',
+    })));
+
+    async function resumeJob(job: DesktopJob) {
+      await resumeTraining(job);
+      router.push({ name: 'jobs' });
+    }
+
+    async function discardJob(job: DesktopJob) {
+      const confirmDiscard = await prompt({
+        title: `Discard "${job.title}" training run`,
+        text: 'Delete this run\'s intermediate training files? This cannot be undone.',
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!confirmDiscard) {
+        return;
+      }
+      await discardResumableTraining(job);
+      await refreshResumable();
+    }
 
     const trainedPipelines = computed(() => {
       if (unsortedPipelines.value.trained) {
@@ -241,6 +280,43 @@ export default defineComponent({
       }
     }
 
+    const resumableHeaders: DataTableHeader[] = [
+      {
+        text: 'Name',
+        value: 'title',
+        sortable: true,
+      },
+      {
+        text: 'Configuration',
+        value: 'config',
+        sortable: true,
+      },
+      {
+        text: 'Datasets',
+        value: 'datasetCount',
+        sortable: false,
+        width: 100,
+      },
+      {
+        text: 'Started',
+        value: 'started',
+        sortable: true,
+        width: 200,
+      },
+      {
+        text: 'Resume',
+        value: 'resume',
+        sortable: false,
+        width: 90,
+      },
+      {
+        text: 'Discard',
+        value: 'discard',
+        sortable: false,
+        width: 90,
+      },
+    ];
+
     return {
       data,
       labelFile,
@@ -251,10 +327,16 @@ export default defineComponent({
       simplifyTrainingName,
       isReadyToTrain,
       runTrainingOnFolder,
+      resumeJob,
+      discardJob,
       nameRules,
       itemsPerPageOptions,
       clientSettings,
       modelNames,
+      resumable: {
+        items: resumableItems,
+        headers: resumableHeaders,
+      },
       models: {
         items: trainedModels,
         headers: trainedHeadersTmpl.concat({
@@ -430,6 +512,47 @@ export default defineComponent({
         />
       </div>
     </div>
+    <div v-if="resumable.items.value.length">
+      <v-card-title class="text-h4">
+        Interrupted training runs
+      </v-card-title>
+      <v-card-text>
+        These runs did not finish, but their intermediate files are still on disk.
+        Resuming continues from the last saved training state.
+      </v-card-text>
+      <v-data-table
+        dense
+        v-bind="{ headers: resumable.headers, items: resumable.items.value }"
+        hide-default-footer
+      >
+        <template #[`item.config`]="{ item }">
+          {{ simplifyTrainingName(item.config || '') }}
+        </template>
+        <template #[`item.resume`]="{ item }">
+          <v-btn
+            color="primary"
+            x-small
+            @click="resumeJob(item.job)"
+          >
+            <v-icon small>
+              mdi-play
+            </v-icon>
+          </v-btn>
+        </template>
+        <template #[`item.discard`]="{ item }">
+          <v-btn
+            color="error"
+            x-small
+            @click="discardJob(item.job)"
+          >
+            <v-icon small>
+              mdi-trash-can
+            </v-icon>
+          </v-btn>
+        </template>
+      </v-data-table>
+    </div>
+
     <div>
       <v-card-title class="text-h4">
         Available for training
