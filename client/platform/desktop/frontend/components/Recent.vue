@@ -565,24 +565,6 @@ export default defineComponent({
                       Run Pipeline
                     </v-btn>
                   </template>
-                  <v-text-field
-                    v-model="searchText"
-                    dense
-                    outlined
-                    clearable
-                    hide-details
-                    placeholder="search"
-                    class="shrink ml-4"
-                    color="grey darken-1"
-                  >
-                    <template #append>
-                      <v-icon
-                        color="grey darken-1"
-                      >
-                        mdi-magnify
-                      </v-icon>
-                    </template>
-                  </v-text-field>
                   <span>Run a pipeline on the selected datasets</span>
                 </v-tooltip>
                 <v-tooltip bottom>
@@ -628,6 +610,24 @@ export default defineComponent({
                   <span>Delete all selected datasets</span>
                 </v-tooltip>
               </template>
+              <v-text-field
+                v-model="searchText"
+                dense
+                outlined
+                clearable
+                hide-details
+                placeholder="search"
+                class="shrink ml-4"
+                color="grey darken-1"
+              >
+                <template #append>
+                  <v-icon
+                    color="grey darken-1"
+                  >
+                    mdi-magnify
+                  </v-icon>
+                </template>
+              </v-text-field>
             </div>
             <h2
               v-else
