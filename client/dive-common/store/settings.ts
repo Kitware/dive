@@ -90,6 +90,10 @@ interface AnnotationSettings {
     loading: boolean;
     loadingMessage: string;
   };
+  frameLabelSettings: {
+    // Track types managed by frame label mode, in hotkey (1-9) order
+    labels: string[];
+  };
 }
 
 const defaultSettings: AnnotationSettings = {
@@ -182,6 +186,9 @@ const defaultSettings: AnnotationSettings = {
     autoComputeOtherCamera: false,
     loading: false,
     loadingMessage: '',
+  },
+  frameLabelSettings: {
+    labels: [],
   },
 };
 const MIN_AUTO_SAVE_DELAY_SECONDS = 10;

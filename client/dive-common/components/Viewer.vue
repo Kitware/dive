@@ -10,6 +10,7 @@ import { cloneDeep, debounce } from 'lodash';
 /* VUE MEDIA ANNOTATOR */
 import {
   useAttributes,
+  useFrameLabelMode,
   useImageEnhancements,
   useLineChart,
   useTimeObserver,
@@ -93,6 +94,7 @@ import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+import FrameLabelPanel from './FrameLabelPanel.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -127,6 +129,7 @@ export default defineComponent({
     ConfidenceSubsection,
     AttributeSubsection,
     AttributeEditor,
+    FrameLabelPanel,
   },
 
   // TODO: remove this in vue 3
@@ -623,6 +626,47 @@ export default defineComponent({
     watch(cameraRegistration.pickingEnabled, (picking) => {
       alignedView.setSuspended(picking);
     }, { immediate: true });
+
+    // A dataset may define its own frame label set (e.g. presets applied at
+    // import); it takes precedence over the user's global label list.
+    const datasetFrameLabels = ref([] as string[]);
+    const frameLabels = computed(() => (datasetFrameLabels.value.length
+      ? datasetFrameLabels.value
+      : clientSettings.frameLabelSettings.labels));
+    const frameLabelMode = useFrameLabelMode({
+      cameraStore,
+      selectedCamera,
+      labels: frameLabels,
+      getMaxFrame: () => aggregateController.value.maxFrame.value,
+      getFullFrameBounds: () => {
+        const bounds = aggregateController.value
+          .getController(selectedCamera.value).originalBounds.value;
+        return [bounds.left, bounds.top, bounds.right, bounds.bottom];
+      },
+    });
+    const frameLabelMousetrap = computed(() => {
+      if (!frameLabelMode.enabled.value || readonlyState.value) {
+        return [];
+      }
+      const binds = frameLabels.value.slice(0, 9)
+        .map((label, index) => ({
+          bind: `${index + 1}`,
+          handler: () => frameLabelMode.labelFrame(label, time.frame.value),
+        }));
+      binds.push({ bind: '0', handler: () => frameLabelMode.endLabel(time.frame.value) });
+      return binds;
+    });
+    const frameLabelActive = computed(() => {
+      if (!frameLabelMode.enabled.value) {
+        return null;
+      }
+      // pendingSaveCount registers annotation edits as a dependency; the
+      // track stores themselves are not deeply reactive
+      if (pendingSaveCount.value < 0) {
+        return null;
+      }
+      return frameLabelMode.labelAtFrame(time.frame.value);
+    });
 
     /**
      * Every camera pane calls updateTime() from its own seek/play/pause, but
@@ -1404,6 +1448,7 @@ export default defineComponent({
           resetMulticamAlignment();
         }
         /* Otherwise, complete loading of the dataset */
+        datasetFrameLabels.value = meta.frameLabels ?? [];
         trackStyleManager.populateTypeStyles(meta.customTypeStyling);
         groupStyleManager.populateTypeStyles(meta.customGroupStyling);
         if (meta.customTypeStyling) {
@@ -1978,6 +2023,11 @@ export default defineComponent({
       editingMode,
       editingDetails,
       eventChartData,
+      frameLabelEnabled: frameLabelMode.enabled,
+      frameLabelMousetrap,
+      frameLabelActive,
+      frameLabels,
+      datasetFrameLabels,
       groupChartData,
       imageData,
       lineChartData,
@@ -2311,6 +2361,15 @@ export default defineComponent({
       >
         <template>
           <v-divider />
+          <frame-label-panel
+            :value="frameLabelEnabled"
+            :labels="frameLabels"
+            :dataset-defined="datasetFrameLabels.length > 0"
+            :active-label="frameLabelActive"
+            :disabled="readonlyState"
+            @input="frameLabelEnabled = $event"
+          />
+          <v-divider />
           <primary-attribute-track-filter
             :toggle="context.toggle"
           />
@@ -2342,6 +2401,7 @@ export default defineComponent({
             { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
+            ...frameLabelMousetrap,
           ]"
           class="d-flex flex-column grow"
         >
@@ -2444,6 +2504,7 @@ export default defineComponent({
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
             { bind: 'a', handler: () => sidebarMode === 'bottom' && toggleBottomRightPanel() },
+            ...frameLabelMousetrap,
           ]"
           class="d-flex flex-column grow"
           style="min-height: 0; min-width: 0;"
