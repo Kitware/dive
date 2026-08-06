@@ -61,7 +61,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 
 The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a **Configuration File** (DIVE JSON, sometimes named `*.meta.json` or `*.config.json`). Neither is required.
 
-Advanced options also include an optional **Metadata File** (`.json`, `.txt`, or `.csv`) — a pipeline sidecar such as a flight log. This is **not** the same as the Configuration File: DIVE does not parse it, and only pipelines that declare `# Metadata File:` receive it at run time. Metadata can be attached on single-camera, stereo, and multicam imports. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
+Advanced options also include an optional **Metadata File** (`.json`, `.txt`, or `.csv`) — a pipeline sidecar such as a flight log. This is **not** the same as the Configuration File. Pipelines that declare `# Metadata File:` receive it at run time; DIVE also shows matching CSV/TXT rows as [Frame Metadata](Frame-Metadata.md) on image-sequence and video datasets. Metadata can be attached on single-camera, stereo, and multicam imports. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
 
 ### Launching from the command line
 
@@ -79,7 +79,7 @@ DIVE-Desktop --import <media> [--annotations <file>] [--metadata <file>] [--name
 | ---- | ----- | ----------- |
 | `--import` | `-i` | Media to open: an image-sequence directory, an image-list `.txt` file (one image path per line), or a video. Same inputs as the import wizard. |
 | `--annotations` | `-a` | Optional annotation file to load (VIAME CSV or DIVE JSON). |
-| `--metadata` | | Optional pipeline metadata sidecar (`.json`, `.txt`, or `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker; only used by pipelines that declare `# Metadata File:`. |
+| `--metadata` | | Optional metadata attachment (`.json`, `.txt`, or `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker; passed to pipelines that declare `# Metadata File:` and, for matching CSV/TXT rows, also shown as [Frame Metadata](Frame-Metadata.md). |
 | `--name` | `-n` | Optional display name; defaults to the media basename. |
 
 Example — review a detector CSV over an image list:
