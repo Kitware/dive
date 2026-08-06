@@ -165,14 +165,9 @@ const { argv } = yargs
       default: false,
     });
     yargs.option('fps', {
-      describe: 'Annotation frame rate for the new dataset(s); capped at the native video rate',
+      describe: 'Annotation frame rate for the new dataset(s), capped at the native video rate; videos default to their native rate',
       type: 'number',
     });
-    yargs.option('native-fps', {
-      describe: 'Annotate videos at their native frame rate with no downsampling',
-      type: 'boolean',
-    });
-    yargs.conflicts('native-fps', 'fps');
     yargs.option('native-playback', {
       describe: 'Skip transcoding; videos play via native frame extraction',
       type: 'boolean',
@@ -306,8 +301,7 @@ if (argv._.includes('viame2json')) {
         const payload = await common.beginMediaImport(target);
         if (argv.fps) {
           payload.jsonMeta.fps = argv.fps as number;
-        }
-        if (argv.nativeFps && payload.jsonMeta.originalFps > 0) {
+        } else if (payload.jsonMeta.type === 'video' && payload.jsonMeta.originalFps > 0) {
           payload.jsonMeta.fps = payload.jsonMeta.originalFps;
         }
         if (argv.nativePlayback) {
