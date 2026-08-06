@@ -545,29 +545,11 @@ export default defineComponent({
                 Recent
               </div>
               <v-spacer />
-              <v-text-field
-                v-model="searchText"
-                dense
-                outlined
-                clearable
-                hide-details
-                placeholder="search"
-                class="shrink"
-                color="grey darken-1"
-              >
-                <template #append>
-                  <v-icon
-                    color="grey darken-1"
-                  >
-                    mdi-magnify
-                  </v-icon>
-                </template>
-              </v-text-field>
               <template v-if="selectedRecents.length > 0">
                 <v-tooltip bottom>
                   <template #activator="{ on }">
                     <v-btn
-                      class="ml-4 align-self-center"
+                      class="align-self-center"
                       color="primary"
                       outlined
                       small
@@ -583,6 +565,24 @@ export default defineComponent({
                       Run Pipeline
                     </v-btn>
                   </template>
+                  <v-text-field
+                    v-model="searchText"
+                    dense
+                    outlined
+                    clearable
+                    hide-details
+                    placeholder="search"
+                    class="shrink ml-4"
+                    color="grey darken-1"
+                  >
+                    <template #append>
+                      <v-icon
+                        color="grey darken-1"
+                      >
+                        mdi-magnify
+                      </v-icon>
+                    </template>
+                  </v-text-field>
                   <span>Run a pipeline on the selected datasets</span>
                 </v-tooltip>
                 <v-tooltip bottom>
