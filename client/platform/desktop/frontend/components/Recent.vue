@@ -147,25 +147,20 @@ export default defineComponent({
       pendingImportPayload.value = [await request(() => api.importMultiCam(args))];
     }
 
-    async function confirmDeleteDataset(datasetId: string, datasetName: string) {
-      const result = await prompt({
-        title: 'Warning Deleting Dataset',
-        text: [`Do you want to delete dataset ${datasetName}?`,
-          '1.  Deleting dataset will not remove source media, such as images or video.',
-          '2.  It will not remove annotations files that were imported when the dataset was created.',
-          '3.  This will remove any annotations that bave been created in DIVE for this dataset',
-          '4.  Use the Export button for the dataset to create a copy of the last set of annotations'],
-        confirm: true,
-      });
-      if (!result) {
-        return;
-      }
-      await request(() => api.deleteDataset(datasetId));
-      //Now we need to update recents by removing the dataset from localStorage
-      removeRecents(datasetId);
+    const selectedRecents = ref([] as JsonConfigCache[]);
+    const selectedIds = computed(() => new Set(selectedRecents.value.map((item) => item.id)));
+
+    function isSelected(item: JsonConfigCache) {
+      return selectedIds.value.has(item.id);
     }
 
-    const selectedRecents = ref([] as JsonConfigCache[]);
+    function toggleSelected(item: JsonConfigCache) {
+      if (isSelected(item)) {
+        selectedRecents.value = selectedRecents.value.filter((v) => v.id !== item.id);
+      } else {
+        selectedRecents.value = selectedRecents.value.concat([item]);
+      }
+    }
 
     async function confirmDeleteSelected() {
       const items = selectedRecents.value;
@@ -198,6 +193,31 @@ export default defineComponent({
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
+    const allSelected = computed(() => filteredRecents.value.length > 0
+      && filteredRecents.value.every((item) => selectedIds.value.has(item.id)));
+    const someSelected = computed(() => filteredRecents.value.some(
+      (item) => selectedIds.value.has(item.id),
+    ));
+
+    function toggleSelectAll() {
+      if (allSelected.value) {
+        selectedRecents.value = [];
+      } else {
+        selectedRecents.value = filteredRecents.value.slice();
+      }
+    }
+
+    function selectedIdsQuery() {
+      return { datasetIds: selectedRecents.value.map((item) => item.id).join(',') };
+    }
+
+    function runPipelineOnSelected() {
+      router.push({ name: 'pipeline', query: selectedIdsQuery() });
+    }
+
+    function runTrainingOnSelected() {
+      router.push({ name: 'training', query: selectedIdsQuery() });
+    }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
         if (recent.subType === 'stereo') {
@@ -268,7 +288,7 @@ export default defineComponent({
       },
       {
         text: '',
-        value: 'delete',
+        value: 'select',
         sortable: false,
         width: 40,
       },
@@ -289,8 +309,12 @@ export default defineComponent({
       openMultiCamDialog,
       getTypeIcon,
       importMedia: api.importMedia,
-      confirmDeleteDataset,
       confirmDeleteSelected,
+      runPipelineOnSelected,
+      runTrainingOnSelected,
+      isSelected,
+      toggleSelected,
+      toggleSelectAll,
       preloadCheck,
       toDisplayString,
       resetError,
@@ -299,6 +323,8 @@ export default defineComponent({
       stereo,
       filteredRecents,
       selectedRecents,
+      allSelected,
+      someSelected,
       pendingImportPayload,
       bulkImport,
       searchText,
@@ -502,30 +528,6 @@ export default defineComponent({
               <div class="text-h4 font-weight-light mb-2">
                 Recent
               </div>
-              <v-tooltip
-                v-if="selectedRecents.length > 0"
-                bottom
-              >
-                <template #activator="{ on }">
-                  <v-btn
-                    class="ml-4 align-self-center"
-                    color="error"
-                    outlined
-                    small
-                    v-on="on"
-                    @click="confirmDeleteSelected"
-                  >
-                    <v-icon
-                      left
-                      small
-                    >
-                      mdi-delete
-                    </v-icon>
-                    Delete ({{ selectedRecents.length }})
-                  </v-btn>
-                </template>
-                <span>Delete all selected datasets</span>
-              </v-tooltip>
               <v-spacer />
               <v-text-field
                 v-model="searchText"
@@ -545,6 +547,71 @@ export default defineComponent({
                   </v-icon>
                 </template>
               </v-text-field>
+              <template v-if="selectedRecents.length > 0">
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-4 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="runPipelineOnSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-play
+                      </v-icon>
+                      Run Pipeline
+                    </v-btn>
+                  </template>
+                  <span>Run a pipeline on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="runTrainingOnSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-brain
+                      </v-icon>
+                      Run Training
+                    </v-btn>
+                  </template>
+                  <span>Train a model on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="error"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="confirmDeleteSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-delete
+                      </v-icon>
+                      Delete ({{ selectedRecents.length }})
+                    </v-btn>
+                  </template>
+                  <span>Delete all selected datasets</span>
+                </v-tooltip>
+              </template>
             </div>
             <h2
               v-else
@@ -553,16 +620,22 @@ export default defineComponent({
               Open images or video to get started
             </h2>
             <v-data-table
-              v-model="selectedRecents"
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
               sort-by="accessedAt"
-              show-select
               item-key="id"
               :footer-props="{ itemsPerPageOptions }"
               :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
             >
+              <template #[`header.select`]>
+                <v-simple-checkbox
+                  :value="allSelected"
+                  :indeterminate="someSelected && !allSelected"
+                  :ripple="false"
+                  @input="toggleSelectAll"
+                />
+              </template>
               <template #[`item.type`]="{ item }">
                 <tooltip-btn
                   :key="item.id"
@@ -648,13 +721,12 @@ export default defineComponent({
                   {{ toDisplayString(item.accessedAt) }}
                 </span>
               </template>
-              <template #[`item.delete`]="{ item }">
-                <tooltip-btn
+              <template #[`item.select`]="{ item }">
+                <v-simple-checkbox
                   :key="item.id"
-                  color="error"
-                  icon="mdi-delete"
-                  :tooltip-text="'Delete'"
-                  @click="confirmDeleteDataset(item.id, item.name)"
+                  :value="isSelected(item)"
+                  :ripple="false"
+                  @input="toggleSelected(item)"
                 />
               </template>
             </v-data-table>
