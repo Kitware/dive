@@ -18,7 +18,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 
-import { useRouter } from 'vue-router/composables';
+import { useRoute, useRouter } from 'vue-router/composables';
 import { datasets } from '../store/dataset';
 
 function joinPath(dir: string, filename: string) {
@@ -33,6 +33,7 @@ export default defineComponent({
     } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
+    const route = useRoute();
 
     const unsortedPipelines = ref({} as Pipelines);
     const labelFile = ref(null as File | null);
@@ -54,6 +55,20 @@ export default defineComponent({
 
     onBeforeMount(async () => {
       unsortedPipelines.value = await getPipelineList();
+    });
+
+    /* Stage dataset ids handed off by another page (e.g. the Library selection). */
+    onBeforeMount(() => {
+      const query = route.query.datasetIds;
+      const values = Array.isArray(query) ? query : [query];
+      values
+        .flatMap((value) => (value || '').split(','))
+        .forEach((id) => {
+          const meta = datasets.value[id];
+          if (meta && meta.subType === null) {
+            set(data.stagedItems, id, meta);
+          }
+        });
     });
 
     const trainedPipelines = computed(() => {
