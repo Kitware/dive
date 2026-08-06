@@ -12,11 +12,33 @@ function accountedNames(slots: ReturnType<typeof suggestUploadSlots>): string[] 
     ...slots.mediaList.map((f) => f.name),
     ...(slots.annotationFile ? [slots.annotationFile.name] : []),
     ...(slots.configFile ? [slots.configFile.name] : []),
+    ...(slots.metadataFile ? [slots.metadataFile.name] : []),
     ...slots.unslotted.map((entry) => entry.name),
   ].sort();
 }
 
 describe('suggestUploadSlots', () => {
+  it('routes a reserved-name attachment to the metadata slot, images to media', () => {
+    const slots = suggestUploadSlots([file('img001.png'), file('img002.png'), file('frame-metadata.csv')]);
+    expect(slots.mediaList.map((f) => f.name)).toEqual(['img001.png', 'img002.png']);
+    expect(slots.metadataFile?.name).toBe('frame-metadata.csv');
+    expect(slots.annotationFile).toBeNull();
+    expect(slots.configFile).toBeNull();
+    expect(slots.unslotted).toEqual([]);
+  });
+
+  it('reports extra reserved-name attachments instead of failing the whole selection', () => {
+    const slots = suggestUploadSlots([
+      file('img001.png'),
+      file('frame-metadata.csv'),
+      file('frame_metadata.json'),
+    ]);
+    expect(slots.metadataFile?.name).toBe('frame-metadata.csv');
+    expect(slots.unslotted).toEqual([
+      { name: 'frame_metadata.json', reason: 'Only one metadata file can be uploaded per dataset' },
+    ]);
+  });
+
   it('suggests a single annotation CSV and keeps it out of the media slot', () => {
     const slots = suggestUploadSlots([file('img001.png'), file('tracks.csv')]);
     expect(slots.mediaList.map((f) => f.name)).toEqual(['img001.png']);
@@ -64,7 +86,7 @@ describe('suggestUploadSlots', () => {
       file('img001.png'), file('img002.png'),
       file('tracks.csv'), file('extra.csv'),
       file('dataset.meta.json'), file('other.json'),
-      file('nav.unknown'),
+      file('frame-metadata.txt'), file('nav.unknown'),
     ];
     const slots = suggestUploadSlots(picked);
     expect(accountedNames(slots)).toEqual(picked.map((f) => f.name).sort());

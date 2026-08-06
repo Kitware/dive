@@ -9,6 +9,41 @@
       }
     },
     "/home/user/data": {
+      "local.csv": "filename,depth\nleft.png,10\n",
+      "sharedVideos": {
+        "left.mp4": "",
+        "right.mp4": "",
+        "frame_metadata.csv": "filename,depth\nleft.mp4,10\nright.mp4,20\n"
+      },
+      "archiveMulticam": {
+        "meta.json": "{\"metadataFile\":\"metadata/shared.csv\",\"metadataOriginalName\":\"shared.csv\"}",
+        "metadata": {
+          "shared.csv": "filename,depth\nleft1.png,20\n"
+        },
+        "left": {
+          "left1.png": "",
+          "meta.json": "{\"metadataFile\":\"metadata/local.csv\",\"metadataOriginalName\":\"local.csv\"}",
+          "metadata": {
+            "local.csv": "filename,depth\nleft1.png,10\n"
+          }
+        },
+        "right": {
+          "right1.png": "",
+          "meta.json": "{}"
+        }
+      },
+      "upstreamArchiveMulticam": {
+        "meta.json": "{\"metadataFileItemId\": \"64b8f0c2e1d3a40001abcdef\", \"metadataFileOriginalName\": \"flight_log.csv\"}",
+        "flight_log.csv": "filename,depth\nleft1.png,10\n",
+        "left": {
+          "left1.png": "",
+          "meta.json": "{\"metadataFileItemId\": \"64b8f0c2e1d3a40001abcdee\"}"
+        },
+        "right": {
+          "right1.png": "",
+          "meta.json": "{}"
+        }
+      },
       "stereoLeftRightCombinedImages": {
         "left1.png": "",
         "left2.png": "",

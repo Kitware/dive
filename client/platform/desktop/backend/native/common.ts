@@ -27,7 +27,15 @@ import {
   Pipe,
   PipeMetadata,
   PipelineParamType,
+  FrameMetadataAttachmentText,
+  FrameMetadataSourcesResponse,
 } from 'dive-common/apispec';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
+import {
+  METADATA_ATTACHMENT_UNAVAILABLE, isFrameMetadataReadableName,
+} from 'dive-common/frameMetadata/readability';
+import { parentDatasetId, parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
@@ -38,7 +46,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
-  MultiType, JsonConfigRegEx, largeImageDesktopTypes,
+  MultiType, JsonConfigRegEx, largeImageDesktopTypes, metadataFileTypes,
 } from 'dive-common/constants';
 import {
   JsonConfig, Settings, JsonConfigCurrentVersion, DesktopConfig,
@@ -51,7 +59,6 @@ import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
-import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
@@ -66,6 +73,8 @@ import { realCalibrationName } from './datasetCalibration';
 import { splitExt } from './utils';
 
 const AuxFolderName = 'auxiliary';
+// Where an export archive stores each dataset scope's metadata attachment.
+const ArchiveMetadataFolderName = 'metadata';
 
 const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
@@ -624,6 +633,331 @@ async function loadDetections(settings: Settings, datasetId: string) {
 }
 
 /**
+ * Frame-metadata read path. Declared frame metadata sidecars are discovered on disk and read here.
+ * Parsing and resolving against media filenames happens in the renderer via the shared TypeScript
+ * resolver (dive-common/frameMetadata). Nothing derived is persisted; the sidecar the user dropped
+ * is the only stored form.
+ */
+interface FrameMetadataSource {
+  originalBasePath: string;
+  originalImageFiles?: string[];
+  imageListPath?: string;
+  originalVideoFile?: string;
+}
+
+// Directories that may hold a camera's sidecars: the media base path, the image-list directory,
+// and any absolute media paths. Deduped, order-preserving.
+function frameMetadataSourceDirectories(source: FrameMetadataSource): string[] {
+  const mediaPaths = [
+    ...(source.originalImageFiles ?? []),
+    ...(source.originalVideoFile ? [source.originalVideoFile] : []),
+  ];
+  const directories = [
+    source.originalBasePath,
+    source.imageListPath ? npath.dirname(source.imageListPath) : '',
+    // Only absolute media entries reveal extra directories; relative names are
+    // resolved against originalBasePath, already covered above.
+    ...mediaPaths
+      .filter((mediaPath) => npath.isAbsolute(mediaPath))
+      .map((mediaPath) => npath.dirname(mediaPath)),
+  ];
+  // uniq keeps first-occurrence order, so folder precedence (base path first) is preserved.
+  return uniq(directories.filter(Boolean).map((directory) => npath.resolve(directory)));
+}
+
+const multipleReservedMetadataAttachments = (
+  'More than one reserved-name metadata attachment is available.'
+);
+
+/**
+ * A missing directory, or a media/image-list FILE path where a directory was expected, simply
+ * holds no attachment. Every other readdir failure -- an unreadable directory, say -- stays an
+ * error: reading it as "nothing here" would report a dataset as having no attachment when its
+ * directory could not be read at all.
+ */
+function noEntriesIfAbsent(err: NodeJS.ErrnoException): never[] {
+  if (err.code === 'ENOENT' || err.code === 'ENOTDIR') {
+    return [];
+  }
+  throw err;
+}
+
+function listNames(directory: string): Promise<string[]> {
+  return fs.readdir(directory).catch(noEntriesIfAbsent);
+}
+
+async function reservedMetadataAttachmentPaths(directory: string): Promise<string[]> {
+  const names = await listNames(directory);
+  const candidates = names
+    .filter(isFrameMetadataSourceName)
+    .map((name) => npath.join(directory, name));
+  const files = await Promise.all(candidates.map(async (candidate) => {
+    try {
+      return (await fs.stat(candidate)).isFile() ? candidate : null;
+    } catch {
+      return null;
+    }
+  }));
+  return files.filter((candidate): candidate is string => candidate !== null);
+}
+
+/**
+ * The one reserved-name attachment in a media directory. Reserved-name discovery is only
+ * consulted when the user made no explicit choice, so an ambiguous directory is an error only
+ * in that case -- matching the server's explicit-then-reserved resolution order.
+ */
+async function reservedMetadataAttachmentPath(directory: string): Promise<string | undefined> {
+  const paths = await reservedMetadataAttachmentPaths(directory);
+  if (paths.length > 1) {
+    throw new Error(
+      `More than one metadata file was found in ${directory}. Keep one and try again.`,
+    );
+  }
+  return paths[0];
+}
+
+async function listArchiveMetadataFiles(directory: string): Promise<string[]> {
+  const entries: fs.Dirent[] = await fs.readdir(directory, { withFileTypes: true })
+    .catch(noEntriesIfAbsent);
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const entryPath = npath.join(directory, entry.name);
+    return entry.isDirectory() ? listArchiveMetadataFiles(entryPath) : [entryPath];
+  }));
+  return nested.flat();
+}
+
+/**
+ * Whether a directory is one scope of an exported dataset. Every export writes a config.json
+ * beside the media, and the server twin is only ever reached through
+ * `_load_exported_dataset_meta`, which requires one -- so the archive contract below is scoped
+ * the same way here. An ordinary media folder that happens to keep its own `metadata/`
+ * subdirectory is not an archive and must import untouched.
+ */
+async function isExportedDatasetDirectory(directory: string): Promise<boolean> {
+  return (await listNames(directory)).some((name) => JsonConfigRegEx.test(name));
+}
+
+/**
+ * The metadata attachment an export archive carries for one dataset directory: the single file
+ * under its `metadata/` subdirectory. config.json's contents are never consulted -- a locator
+ * stored there would be a path from another machine -- so archives written by any DIVE version,
+ * including ones that carry no attachment at all, import the same way. The walk is recursive so
+ * an archive rewritten by a tool that nested the file is still imported.
+ * Mirrors `_archive_metadata_attachment` in server/dive_tasks/utils.py, error strings included.
+ */
+async function archiveMetadataAttachment(directory: string): Promise<string | undefined> {
+  if (!(await isExportedDatasetDirectory(directory))) {
+    return undefined;
+  }
+  const files = await listArchiveMetadataFiles(npath.join(directory, ArchiveMetadataFolderName));
+  if (!files.length) {
+    return undefined;
+  }
+  if (files.length > 1) {
+    throw new Error(
+      'More than one metadata file was found in the archive metadata directory.'
+      + ' Keep one and try again.',
+    );
+  }
+  const [attachment] = files;
+  if (!metadataFileTypes.includes(npath.extname(attachment).slice(1).toLowerCase())) {
+    throw new Error('Archive metadata attachment must be a JSON, TXT, or CSV file');
+  }
+  return attachment;
+}
+
+/**
+ * The attachment a media directory offers on import: an export archive's `metadata/` file
+ * first, then a reserved-name file lying beside the media.
+ */
+async function discoverMetadataAttachment(directory: string): Promise<string | undefined> {
+  const archived = await archiveMetadataAttachment(directory);
+  return archived ?? reservedMetadataAttachmentPath(directory);
+}
+
+/**
+ * Discovery for the single-dataset import, where the answer is only the value the import
+ * dialog's "Metadata File (Optional)" field opens with. That field is the one place the user
+ * can resolve an ambiguous or unreadable directory, and it appears only after this returns, so
+ * a discovery failure is reported as an import warning instead of refusing the whole dataset.
+ * The multicam path keeps the throw: its per-camera picks are already made when it runs.
+ */
+async function suggestMetadataAttachment(
+  directory: string,
+): Promise<{ path?: string; warning?: string }> {
+  try {
+    return { path: await discoverMetadataAttachment(directory) };
+  } catch (err) {
+    return { warning: (err as Error).message };
+  }
+}
+
+async function loadMetadataAttachment(
+  projectBasePath: string,
+  storedPath: string,
+  originalName?: string,
+): Promise<FrameMetadataAttachmentText> {
+  const absolutePath = npath.resolve(projectBasePath, storedPath);
+  const name = originalName || npath.basename(storedPath);
+  try {
+    const stat = await fs.stat(absolutePath);
+    if (!stat.isFile()) {
+      return { name, error: METADATA_ATTACHMENT_UNAVAILABLE };
+    }
+    if (!isFrameMetadataReadableName(name)) {
+      return { name };
+    }
+    return { name, text: await fs.readFile(absolutePath, 'utf-8') };
+  } catch {
+    return { name, error: METADATA_ATTACHMENT_UNAVAILABLE };
+  }
+}
+
+async function reservedMetadataAttachment(
+  directories: string[],
+): Promise<FrameMetadataAttachmentText | undefined> {
+  const resolvedDirectories = uniq(directories.map((directory) => npath.resolve(directory)));
+  async function resolveAt(index: number): Promise<FrameMetadataAttachmentText | undefined> {
+    const resolved = resolvedDirectories[index];
+    if (resolved === undefined) {
+      return undefined;
+    }
+    const paths = await reservedMetadataAttachmentPaths(resolved);
+    if (paths.length > 1) {
+      return {
+        name: 'Metadata File',
+        error: multipleReservedMetadataAttachments,
+      };
+    }
+    if (paths.length === 1) {
+      return loadMetadataAttachment(resolved, paths[0]);
+    }
+    return resolveAt(index + 1);
+  }
+  return resolveAt(0);
+}
+
+async function isExistingDirectory(path: string): Promise<boolean> {
+  try {
+    return (await fs.stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function commonParentDirectory(paths: string[]): string | null {
+  const resolved = paths.filter((item) => item).map((item) => npath.resolve(item));
+  if (!resolved.length) {
+    return null;
+  }
+  const [first, ...rest] = resolved;
+  const firstParts = first.split(npath.sep);
+  let { length } = firstParts;
+  rest.forEach((candidate) => {
+    const parts = candidate.split(npath.sep);
+    length = Math.min(length, parts.length);
+    for (let i = 0; i < length; i += 1) {
+      if (firstParts[i] !== parts[i]) {
+        length = i;
+        break;
+      }
+    }
+  });
+  const prefix = firstParts.slice(0, length).join(npath.sep);
+  // Return null rather than the filesystem root when cameras share no common prefix,
+  // so an unrelated-mount multicam never scans every sidecar at '/'.
+  return prefix || null;
+}
+
+async function loadMulticamFrameMetadata(
+  projectBasePath: string,
+  projectMetaData: JsonConfig,
+): Promise<FrameMetadataSourcesResponse> {
+  const { multiCam } = projectMetaData;
+  if (!multiCam) {
+    return { cameras: {} };
+  }
+
+  const cameraEntries = orderedMultiCamCameraNames({
+    cameras: multiCam.cameras,
+    defaultDisplay: multiCam.defaultDisplay,
+  }).map((cameraName) => [cameraName, multiCam.cameras[cameraName]] as const);
+
+  // originalBasePath is a directory for folder imports but a media/image-list FILE path for
+  // keyword imports, so fall back to the cameras' shared parent unless it is really a directory.
+  const rootDirectory = await isExistingDirectory(projectMetaData.originalBasePath)
+    ? projectMetaData.originalBasePath
+    : commonParentDirectory(cameraEntries.flatMap(([, camera]) => (
+      frameMetadataSourceDirectories(camera)
+    )));
+  const resolvedRoot = rootDirectory ? npath.resolve(rootDirectory) : null;
+  const shared = projectMetaData.metadataFile
+    ? await loadMetadataAttachment(
+      projectBasePath,
+      projectMetaData.metadataFile,
+      projectMetaData.metadataOriginalName,
+    )
+    : await reservedMetadataAttachment(rootDirectory ? [rootDirectory] : []);
+
+  const cameras: FrameMetadataSourcesResponse['cameras'] = {};
+
+  await Promise.all(cameraEntries.map(async ([cameraName, cameraMeta]) => {
+    if (cameraMeta.type !== 'image-sequence' && cameraMeta.type !== 'video') {
+      return;
+    }
+    if (cameraMeta.metadataFile) {
+      cameras[cameraName] = await loadMetadataAttachment(
+        projectBasePath,
+        cameraMeta.metadataFile,
+        cameraMeta.metadataOriginalName,
+      );
+      return;
+    }
+    // A camera-local reserved-name attachment stands on its own: the dataset-level attachment
+    // never suppresses it, however the shared one was declared.
+    const localDirectories = frameMetadataSourceDirectories(cameraMeta)
+      .filter((directory) => resolvedRoot === null || directory !== resolvedRoot);
+    const local = await reservedMetadataAttachment(localDirectories);
+    if (local) {
+      cameras[cameraName] = local;
+    }
+  }));
+
+  return {
+    ...(shared ? { shared } : {}),
+    cameras,
+  };
+}
+
+async function loadFrameMetadata(
+  settings: Settings,
+  datasetId: string,
+): Promise<FrameMetadataSourcesResponse> {
+  const parentId = parentDatasetId(datasetId);
+  const projectDirData = await getValidatedProjectDir(settings, parentId);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
+
+  if (projectMetaData.type === MultiType) {
+    return loadMulticamFrameMetadata(projectDirData.basePath, projectMetaData);
+  }
+  if (projectMetaData.type !== 'image-sequence' && projectMetaData.type !== 'video') {
+    return { cameras: {} };
+  }
+
+  const shared = projectMetaData.metadataFile
+    ? await loadMetadataAttachment(
+      projectDirData.basePath,
+      projectMetaData.metadataFile,
+      projectMetaData.metadataOriginalName,
+    )
+    : await reservedMetadataAttachment(frameMetadataSourceDirectories(projectMetaData));
+  return {
+    ...(shared ? { shared } : {}),
+    cameras: {},
+  };
+}
+
+/**
  * Look through DIVE project path, find subfolders that
  * look like datasets, and return them.
  */
@@ -992,6 +1326,11 @@ async function _ingestFilePath(
   if (fs.statSync(path).size === 0) {
     return null;
   }
+  // Frame-metadata sidecars are read from the media folder, so importing one as annotations would
+  // copy it into the wrong storage path.
+  if (isFrameMetadataSourceName(path)) {
+    throw new Error(`${npath.basename(path)} is a frame metadata file. Place it in the dataset's media folder; it cannot be imported as annotations.`);
+  }
   let warnings: string[] = [];
   // Make a copy of the file in aux
   const projectInfo = getProjectDir(settings, datasetId);
@@ -1024,7 +1363,14 @@ async function _ingestFilePath(
     }
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
-    const data = await viameSerializers.parseFile(path, imageMap);
+    let data: Awaited<ReturnType<typeof viameSerializers.parseFile>>;
+    try {
+      data = await viameSerializers.parseFile(path, imageMap);
+    } catch (e) {
+      // A plain CSV that fails to parse as annotations is often frame metadata. Desktop has no
+      // in-viewer frame metadata import, so the rename convention is the only remedy to offer.
+      throw new Error(`${(e as Error).message} If this file is frame metadata rather than annotations, rename it to frame-metadata.csv and place it in the dataset's media folder.`);
+    }
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;
     meta.fps = data[0].fps;
@@ -1230,7 +1576,10 @@ async function findTrackandMetaFileinFolder(path: string) {
   let { trackFileAbsPath } = results;
   const { configFileAbsPath } = results;
   if (!trackFileAbsPath) {
-    const csvFileCandidates = await _findCSVTrackFiles(path);
+    // Declared frame metadata sidecars stay in place for read-time discovery; the first
+    // remaining CSV is unconditionally the annotation track file.
+    const csvFileCandidates = (await _findCSVTrackFiles(path))
+      .filter((candidate) => !isFrameMetadataSourceName(candidate));
     if (csvFileCandidates.length) {
       [trackFileAbsPath] = csvFileCandidates;
     }
@@ -1547,6 +1896,9 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
 
   const { trackFileAbsPath, configFileAbsPath } = await
   findTrackandMetaFileinFolder(relatedDataSearchPath);
+  // The discovered attachment is a suggestion the import dialog shows and the user can clear or
+  // replace, so it travels on the response rather than on jsonConfig.
+  const metadata = await suggestMetadataAttachment(relatedDataSearchPath);
   return {
     jsonConfig,
     globPattern: '',
@@ -1555,6 +1907,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     forceMediaTranscode: false,
     multiCamTrackFiles: null,
     configFileAbsPath,
+    ...(metadata.path ? { metadataFileAbsPath: metadata.path } : {}),
+    ...(metadata.warning ? { importWarnings: [metadata.warning] } : {}),
   };
 }
 
@@ -1699,22 +2053,52 @@ async function finalizeMediaImport(
   }
 
   // Store any optional metadata file alongside the media (keeping the original
-  // name). Single imports pass it on the response; multicam imports stash the
-  // source path on jsonConfig.metadataFile during beginMultiCamImport.
+  // name). beginMediaImport / beginMultiCamImport put the source path on
+  // metadataFileAbsPath so ImportDialog can show and clear it; jsonConfig.metadataFile
+  // remains a fallback for older callers that still stash the source there.
   const metadataSourcePath = args.metadataFileAbsPath || jsonConfig.metadataFile;
   if (metadataSourcePath) {
     const resolvedMetadataSource = npath.resolve(metadataSourcePath);
+    const metadataOriginalName = npath.basename(resolvedMetadataSource);
+    if (!metadataFileTypes.includes(npath.extname(metadataOriginalName).slice(1).toLowerCase())) {
+      throw new Error('Metadata attachment must be a JSON, TXT, or CSV file');
+    }
+    const metadataDir = npath.join(projectDirAbsPath, AuxFolderName);
+    await fs.ensureDir(metadataDir);
     const metadataDest = npath.join(
-      projectDirAbsPath,
-      npath.basename(resolvedMetadataSource),
+      metadataDir,
+      metadataOriginalName,
     );
-    await fs.copy(resolvedMetadataSource, metadataDest);
-    jsonConfig.metadataOriginalName = npath.basename(resolvedMetadataSource);
+    if (resolvedMetadataSource !== metadataDest) {
+      await fs.copy(resolvedMetadataSource, metadataDest);
+    }
+    jsonConfig.metadataOriginalName = metadataOriginalName;
     jsonConfig.metadataFile = metadataDest;
   } else {
     // Ensure a stale source path never survives when no file was chosen.
     jsonConfig.metadataFile = undefined;
     jsonConfig.metadataOriginalName = undefined;
+  }
+
+  if (datasetType === MultiType && jsonConfig.multiCam?.cameras) {
+    const cameraEntries = Object.entries(jsonConfig.multiCam.cameras);
+    for (let i = 0; i < cameraEntries.length; i += 1) {
+      const [cameraName, camera] = cameraEntries[i];
+      if (camera.metadataFile) {
+        const source = npath.resolve(camera.metadataFile);
+        const originalName = npath.basename(camera.metadataOriginalName || source);
+        const cameraMetadataDir = npath.join(projectDirAbsPath, AuxFolderName, cameraName);
+        // eslint-disable-next-line no-await-in-loop
+        await fs.ensureDir(cameraMetadataDir);
+        const destination = npath.join(cameraMetadataDir, originalName);
+        if (source !== destination) {
+          // eslint-disable-next-line no-await-in-loop
+          await fs.copy(source, destination);
+        }
+        camera.metadataFile = destination;
+        camera.metadataOriginalName = originalName;
+      }
+    }
   }
 
   // Filter all parts of the input based on glob pattern
@@ -1778,6 +2162,10 @@ async function finalizeMediaImport(
       const cameraData = cameraNameAndData[i][1];
 
       const jsonClone = { ...cloneDeep(jsonConfig), ...cameraData };
+      if (!cameraData.metadataFile) {
+        delete jsonClone.metadataFile;
+        delete jsonClone.metadataOriginalName;
+      }
       jsonClone.multiCam = null;
       jsonClone.id = `${jsonConfig.id}/${cameraName}`;
       jsonClone.transcodedVideoFile = cameraData.transcodedVideoFile || '';
@@ -1941,6 +2329,7 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
 export {
   ProjectsFolderName,
   JobsFolderName,
+  ArchiveMetadataFolderName,
   autodiscoverData,
   bulkMediaImport,
   beginMediaImport,
@@ -1961,6 +2350,9 @@ export {
   loadJsonConfig,
   loadAnnotationFile,
   loadDetections,
+  loadFrameMetadata,
+  frameMetadataSourceDirectories,
+  discoverMetadataAttachment,
   openLink,
   openPathInFileManager,
   ingestDataFiles,
@@ -1974,7 +2366,6 @@ export {
   listImmediateSubfolders,
   listParentFolderCameras,
   resolveMulticamCameraSourcePath,
-  findTrackandMetaFileinFolder,
 };
 
 export {

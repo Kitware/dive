@@ -9,6 +9,7 @@ import { ImageSequenceType } from 'dive-common/constants';
 import ImportMultiCamCameraGroup from './ImportMultiCamCameraGroup.vue';
 import ImportMultiCamChooseSource from './ImportMultiCamChooseSource.vue';
 import ImportMultiCamChooseTransform from './ImportMultiCamChooseTransform.vue';
+import ImportMultiCamChooseMetadata from './ImportMultiCamChooseMetadata.vue';
 import ImportMultiCamCameraOrderControls from './ImportMultiCamCameraOrderControls.vue';
 import ImportMultiCamFinalizeStep from './ImportMultiCamFinalizeStep.vue';
 import { importMultiCamContextProp } from './importMultiCamContext';
@@ -19,6 +20,7 @@ export default defineComponent({
     ImportMultiCamCameraGroup,
     ImportMultiCamChooseSource,
     ImportMultiCamChooseTransform,
+    ImportMultiCamChooseMetadata,
     ImportMultiCamCameraOrderControls,
     ImportMultiCamFinalizeStep,
   },
@@ -51,6 +53,8 @@ export default defineComponent({
       showTransformFileField: props.ctx.showTransformFileField,
       openTransformFile: props.ctx.openTransformFile,
       clearTransformFile: props.ctx.clearTransformFile,
+      openCameraMetadataFile: props.ctx.openCameraMetadataFile,
+      clearCameraMetadataFile: props.ctx.clearCameraMetadataFile,
       ImageSequenceType,
     };
   },
@@ -149,6 +153,13 @@ export default defineComponent({
         class="my-3"
         @clear="clearTransformFile(key)"
         @open="openTransformFile(key)"
+      />
+      <ImportMultiCamChooseMetadata
+        v-if="folderList[key] && folderList[key].sourcePath"
+        :metadata-file="folderList[key].metadata && folderList[key].metadata.name"
+        class="my-3"
+        @clear="clearCameraMetadataFile(key)"
+        @open="openCameraMetadataFile(key)"
       />
     </ImportMultiCamCameraGroup>
     <ImportMultiCamFinalizeStep

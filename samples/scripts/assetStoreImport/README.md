@@ -1,6 +1,8 @@
 # Sample Data Generation and MinIO Setup for DIVE
 
-This folder contains scripts to generate sample video and image sequence data, and to host it in a MinIO bucket suitable for importing into DIVE using the AssetStore Importing Tool
+This folder contains scripts to generate sample video and image sequence data, and to host it in a MinIO bucket suitable for importing into DIVE using the AssetStore Importing Tool.
+
+For the product documentation on bucket layout, annotations, and frame-metadata pairing, see [AssetStore Importing and Data Structure](../../../docs/Deployment-AssetStore-Import.md).
 
 Prerequisites
 
@@ -19,6 +21,9 @@ The script generateSampleData.py creates a folder structure containing:
     - Videos: the annotation file has the same basename as the video, with extension `.json` or `.csv`
     - Image Sequences: any `.json` or `.csv` file in the same folder as the frames is imported as annotations
     - **VIAME CSV videos**: annotation FPS is a random even subsample of the video FPS (30 → e.g. 1, 5, 10, 15, 30). The CSV `# metadata` `fps` field and frame count match that rate. Filenames include `_annfps{N}` (e.g. `reef_annfps10.mp4` / `reef_annfps10.csv`) so you can verify import respects CSV FPS.
+- Frame metadata:
+    - Videos: a sibling sidecar named `{videoStem}_metadata.{csv|json|txt}` or `{videoStem}-metadata.{csv|json|txt}`. Assetstore import moves it into the video folder as `frame_metadata.{ext}` and postprocess links it as the dataset metadata file.
+    - Image sequences: a reserved `frame_metadata.{csv|json|txt}` or `frame-metadata.{csv|json|txt}` file inside the sequence folder (already in place for postprocess attachment).
 
 Usage
 ```bash
@@ -99,6 +104,7 @@ Example Output
 10.  Finally you can go to the regular DIVE interface (http://localhost:8010) click on the globe in the breadcrumb bar at the top of your user directory and navigate to your collection
     - You should be able to open DIVE Datasets and they should have random annotations in them.
     - Video datasets with VIAME CSV should keep the annotation FPS from the CSV `# metadata` line (see `_annfps{N}` in the filename). Other videos use video FPS. Image sequences should default to 1FPS.
+    - Video and image-sequence datasets should show an attached frame-metadata file (`frame_metadata` / `frame-metadata` with `.csv`/`.json`/`.txt`). Videos get it via the paired `{stem}_metadata` / `{stem}-metadata` sidecar; image sequences already include the reserved name in-folder.
 
 
 Notes

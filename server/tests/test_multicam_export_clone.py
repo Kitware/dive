@@ -2,6 +2,8 @@ import copy
 import json
 from unittest.mock import MagicMock, patch
 
+from girder.exceptions import AccessException
+
 from dive_server import crud_dataset
 from dive_utils import constants
 
@@ -46,6 +48,14 @@ def _child_folder(folder_id: str, name: str):
             'fps': 5,
         },
     }
+
+
+def _source_item(name: str):
+    return {'_id': f'{name}-id', 'name': name}
+
+
+def _descriptor(name: str):
+    return {'itemId': f'{name}-id', 'name': name}
 
 
 @patch('dive_server.crud_dataset.find_json_calibration_item_id', return_value=None)
@@ -135,8 +145,84 @@ def test_create_multicam_soft_clone_copies_calibration(
     )
 
 
+@patch('dive_server.crud_dataset.find_json_calibration_item_id', return_value=None)
+@patch('dive_server.crud_dataset.find_calibration_item_id', return_value=None)
+@patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset._create_single_camera_soft_clone')
+@patch('dive_server.crud_dataset.Item')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud.Folder')
+def test_multicam_soft_clone_preserves_shared_parent_frame_metadata_source(
+    crud_folder_cls,
+    folder_cls,
+    item_cls,
+    create_soft_clone_mock,
+    _aux,
+    _clone_ann,
+    _find_cal,
+    _find_json_cal,
+):
+    owner = {'login': 'tester'}
+    source = _multi_parent_folder()
+    source['meta'][constants.MetadataFileItemIdMarker] = 'shared-id'
+    source['meta'][constants.MetadataFileOriginalNameMarker] = 'flight-log.csv'
+    parent = {'_id': 'dest-parent'}
+    left = _child_folder('left-id', 'left')
+    right = _child_folder('right-id', 'right')
+    cloned_left = {
+        **copy.deepcopy(left),
+        '_id': 'clone-left-id',
+        constants.ForeignMediaIdMarker: 'left-id',
+    }
+    cloned_right = {
+        **copy.deepcopy(right),
+        '_id': 'clone-right-id',
+        constants.ForeignMediaIdMarker: 'right-id',
+    }
+    cloned_parent = copy.deepcopy(source)
+    cloned_parent['_id'] = 'clone-parent-id'
+
+    folder_model = folder_cls.return_value
+    folder_model.createFolder.return_value = cloned_parent
+    folders_by_id = {
+        'parent-id': source,
+        'left-id': left,
+        'right-id': right,
+        'clone-left-id': cloned_left,
+        'clone-right-id': cloned_right,
+    }
+    folder_model.load.side_effect = lambda folder_id, **kwargs: folders_by_id.get(folder_id)
+    crud_folder_cls.return_value.load.side_effect = lambda folder_id, **kwargs: folders_by_id.get(
+        folder_id
+    )
+    item_cls.return_value.load.return_value = {
+        '_id': 'shared-id',
+        'folderId': 'parent-id',
+        'name': 'stored.csv',
+    }
+    # filters is the server-side sidecar pre-filter; the mock ignores it and returns the
+    # full per-folder list so the is_declared post-filter still decides membership.
+    folder_model.childItems.side_effect = lambda folder, filters=None: {
+        'parent-id': [],
+        'clone-parent-id': [],
+        'left-id': [],
+        'right-id': [],
+        'clone-left-id': [],
+        'clone-right-id': [],
+    }.get(folder['_id'], [])
+    create_soft_clone_mock.side_effect = [cloned_left, cloned_right]
+
+    result = crud_dataset.createSoftClone(owner, source, parent, 'Clone stereo', None)
+    sources = crud_dataset.load_frame_metadata_sources(result, owner)
+
+    assert sources == {
+        'shared': {'itemId': 'shared-id', 'name': 'flight-log.csv'},
+        'cameras': {},
+    }
+
+
 @patch('dive_server.crud_dataset._yield_single_dataset_export')
-@patch('dive_server.crud_dataset._yield_metadata_file')
 @patch('dive_server.crud_dataset._yield_calibration_files')
 @patch('dive_server.crud_dataset.get_multi_cam_media')
 @patch('dive_server.crud_dataset.Folder')
@@ -146,7 +232,6 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
     folder_cls,
     get_multi_cam_media_mock,
     yield_cal_mock,
-    yield_metadata_mock,
     yield_single_mock,
 ):
     parent = _multi_parent_folder()
@@ -166,7 +251,6 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
     zip_gen_cls.return_value = z
     yield_single_mock.return_value = iter([b'camera-chunk'])
     yield_cal_mock.return_value = iter([b'cal-chunk'])
-    yield_metadata_mock.return_value = iter([b'metadata-chunk'])
     get_multi_cam_media_mock.return_value = MagicMock()
 
     stream = crud_dataset.export_datasets_zipstream(
@@ -186,12 +270,17 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
     assert './stereo-dataset/left/' in camera_paths
     assert './stereo-dataset/right/' in camera_paths
     yield_cal_mock.assert_called_once()
-    yield_metadata_mock.assert_called_once_with(z, './stereo-dataset/', parent)
-    assert b'metadata-chunk' in chunks
+    # The parent exports no media of its own, but includeMedia still reaches it so its
+    # shared attachment is emitted by the one owner of that decision.
+    parent_call = next(
+        call for call in yield_single_mock.call_args_list if call.args[1] == './stereo-dataset/'
+    )
+    assert parent_call.args[4] is True
 
 
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
 @patch('dive_server.crud_dataset.Item')
-def test_yield_metadata_file_uses_original_name(item_cls):
+def test_yield_metadata_file_uses_original_name(item_cls, get_clone_root):
     z = MagicMock()
 
     def add_file_side_effect(_maker, path):
@@ -205,22 +294,109 @@ def test_yield_metadata_file_uses_original_name(item_cls):
             constants.MetadataFileOriginalNameMarker: 'flight_log.csv',
         },
     }
-    item_cls.return_value.findOne.return_value = {'_id': 'md-item-id', 'name': 'renamed.csv'}
+    get_clone_root.return_value = folder
+    item_cls.return_value.load.return_value = {
+        '_id': 'md-item-id',
+        'folderId': 'parent-id',
+        'name': 'renamed.csv',
+    }
     item_cls.return_value.fileList.return_value = [('renamed.csv', MagicMock())]
 
-    chunks = list(crud_dataset._yield_metadata_file(z, './stereo-dataset/', folder))
+    chunks = list(
+        crud_dataset._yield_metadata_file(z, './stereo-dataset/', folder, {'login': 'tester'})
+    )
 
     z.addFile.assert_called_once()
-    assert str(z.addFile.call_args.args[1]) == 'stereo-dataset/flight_log.csv'
+    assert str(z.addFile.call_args.args[1]) == 'stereo-dataset/metadata/flight_log.csv'
     assert any(b'flight_log.csv' in chunk for chunk in chunks)
 
 
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
+@patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.Item')
-def test_yield_metadata_file_skips_when_unset(item_cls):
+def test_yield_metadata_file_exports_reserved_name_attachment(
+    item_cls,
+    folder_cls,
+    get_clone_root,
+):
+    """An attachment discovered by reserved name survives an export/re-import round trip."""
     z = MagicMock()
-    chunks = list(crud_dataset._yield_metadata_file(z, './ds/', {'_id': 'id', 'meta': {}}))
+
+    def add_file_side_effect(_maker, path):
+        yield str(path).encode('utf-8')
+
+    z.addFile.side_effect = add_file_side_effect
+    folder = {'_id': 'ds-id', 'meta': {}}
+    get_clone_root.return_value = folder
+    reserved_item = {
+        '_id': 'reserved-id',
+        'folderId': 'ds-id',
+        'name': 'frame_metadata.csv',
+    }
+    folder_cls.return_value.childItems.return_value = [reserved_item]
+    item_cls.return_value.load.return_value = reserved_item
+    item_cls.return_value.fileList.return_value = [('frame_metadata.csv', MagicMock())]
+
+    list(crud_dataset._yield_metadata_file(z, './ds/', folder, {'login': 'tester'}))
+
+    assert str(z.addFile.call_args.args[1]) == 'ds/metadata/frame_metadata.csv'
+
+
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
+@patch('dive_server.crud_dataset.Item')
+def test_yield_metadata_file_exports_attachment_on_an_unreadable_clone_root(
+    item_cls,
+    get_clone_root,
+):
+    """A clone root the exporter cannot read still contributes its attachment.
+
+    getCloneRoot force-loads the source, so an access-checked item load there raises
+    AccessException -- which is not a RestException, so it would escape the guard in
+    export_datasets_zipstream and abort the whole stream instead of listing the dataset in
+    failed_datasets.txt. The export already streams that root's media unchecked.
+    """
+    z = MagicMock()
+
+    def add_file_side_effect(_maker, path):
+        yield str(path).encode('utf-8')
+
+    z.addFile.side_effect = add_file_side_effect
+    folder = {'_id': 'clone-id', 'meta': {}, constants.ForeignMediaIdMarker: 'source-id'}
+    source_root = {
+        '_id': 'source-id',
+        'meta': {
+            constants.MetadataFileItemIdMarker: 'md-item-id',
+            constants.MetadataFileOriginalNameMarker: 'flight_log.csv',
+        },
+    }
+    get_clone_root.return_value = source_root
+
+    def load_item(item_id, level=None, user=None, force=False):
+        if not force:
+            raise AccessException('Read access denied for folder source-id.')
+        return {'_id': 'md-item-id', 'folderId': 'source-id', 'name': 'renamed.csv'}
+
+    item_cls.return_value.load.side_effect = load_item
+    item_cls.return_value.fileList.return_value = [('renamed.csv', MagicMock())]
+
+    list(crud_dataset._yield_metadata_file(z, './ds/', folder, {'login': 'tester'}))
+
+    assert str(z.addFile.call_args.args[1]) == 'ds/metadata/flight_log.csv'
+
+
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.Item')
+def test_yield_metadata_file_skips_when_unset(item_cls, folder_cls, get_clone_root):
+    z = MagicMock()
+    folder = {'_id': 'id', 'meta': {}}
+    get_clone_root.return_value = folder
+    folder_cls.return_value.childItems.return_value = []
+
+    chunks = list(crud_dataset._yield_metadata_file(z, './ds/', folder, {'login': 'tester'}))
+
     assert chunks == []
-    item_cls.return_value.findOne.assert_not_called()
+    item_cls.return_value.load.assert_not_called()
     z.addFile.assert_not_called()
 
 
@@ -246,6 +422,8 @@ def test_export_multicam_integration_zip_paths(
 ):
     """Build a minimal zip and assert multicam layout from export helpers."""
     parent = _multi_parent_folder()
+    parent['meta'][constants.MetadataFileItemIdMarker] = 'metadata-id'
+    parent['meta'][constants.MetadataFileOriginalNameMarker] = 'flight_log.csv'
     left = _child_folder('left-id', 'left')
     right = _child_folder('right-id', 'right')
     user = {'login': 'tester'}
@@ -268,7 +446,12 @@ def test_export_multicam_integration_zip_paths(
     zip_gen_cls.return_value = z
 
     get_dataset_mock.return_value = MagicMock(
-        dict=lambda exclude_none=True: {'id': 'parent-id', 'type': constants.MultiType}
+        dict=lambda exclude_none=True: {
+            'id': 'parent-id',
+            'type': constants.MultiType,
+            constants.MetadataFileItemIdMarker: 'metadata-id',
+            constants.MetadataFileOriginalNameMarker: 'flight_log.csv',
+        }
     )
     get_media_mock.return_value = MagicMock(
         dict=lambda exclude_none=True: {'imageData': [], 'video': None}
@@ -278,12 +461,24 @@ def test_export_multicam_integration_zip_paths(
     get_clone_root_mock.side_effect = lambda _user, folder: folder
     valid_images_mock.return_value = [{'_id': 'img1', 'name': 'left.png'}]
     item_cls.return_value.fileList.return_value = [('left.png', MagicMock())]
+    item_cls.return_value.load.return_value = {
+        '_id': 'metadata-id',
+        'folderId': 'parent-id',
+        'name': 'renamed.csv',
+    }
 
     def load_folder(folder_id, level=None, user=None):
         return {'left-id': left, 'right-id': right}.get(folder_id)
 
     folder_cls.return_value.load.side_effect = load_folder
-    folder_cls.return_value.childItems.return_value = [{'name': 'left.png'}]
+
+    def child_items(folder, filters=None, **kwargs):
+        # The reserved-name query is an $in over basenames; the media walk is a $regex.
+        if '$in' in (filters or {}).get('lowerName', {}):
+            return []
+        return [{'_id': 'img-item', 'name': 'left.png'}]
+
+    folder_cls.return_value.childItems.side_effect = child_items
 
     with patch('dive_server.crud_dataset.get_multi_cam_media') as get_mcm:
         get_mcm.return_value = MagicMock()
@@ -303,6 +498,13 @@ def test_export_multicam_integration_zip_paths(
     assert 'stereo-dataset/right/config.json' in zip_entries
     multi_cam = json.loads(zip_entries['stereo-dataset/multiCam.json'].decode())
     assert multi_cam['defaultDisplay'] == 'left'
+    parent_meta = json.loads(zip_entries['stereo-dataset/config.json'].decode())
+    # The archive carries no attachment locator at all -- neither the server-local item id
+    # nor the name -- because it is discovered at metadata/<originalName>. Same key set the
+    # desktop exporter writes (withoutMetadataAttachment in multicamExport.ts).
+    assert constants.MetadataFileItemIdMarker not in parent_meta
+    assert constants.MetadataFileOriginalNameMarker not in parent_meta
+    assert 'stereo-dataset/metadata/flight_log.csv' in zip_entries
 
 
 @patch('dive_server.crud_dataset.Folder')

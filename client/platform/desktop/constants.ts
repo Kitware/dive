@@ -46,6 +46,10 @@ export interface Camera {
   transcodedVideoFile: string;
   transcodedMisalign?: boolean;
   imageListPath?: string;
+  /** Stored camera-local metadata attachment path. */
+  metadataFile?: string;
+  /** Preserved original name of the camera-local metadata attachment. */
+  metadataOriginalName?: string;
 }
 
 export interface MultiCamDesktop {
@@ -275,6 +279,9 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   /** Absolute path of an optional DIVE Configuration File (JSON) chosen at import. */
   configFileAbsPath?: string;
   /** Absolute path of an optional Metadata File (pipeline sidecar) chosen at import. */
+  // Absolute path of the one optional metadata attachment. Seeded by import-time discovery
+  // (an exported folder's metadata/ directory, or a reserved-name file beside the media) and
+  // shown in the import dialog, where the user can clear or replace it before finalize.
   metadataFileAbsPath?: string;
   // Non-fatal problems found while preparing the import (e.g. a registration
   // file naming cameras this dataset doesn't have), shown in the import dialog.

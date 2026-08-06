@@ -4,7 +4,7 @@ import type {
   DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
-  DatasetCalibrationResult,
+  DatasetCalibrationResult, FrameMetadataSourcesResponse,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
@@ -643,6 +643,10 @@ async function loadDetections(datasetId: string) {
   };
 }
 
+function loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse> {
+  return window.diveDesktop.invoke('load-frame-metadata', { datasetId });
+}
+
 async function saveConfig(id: string, args: DatasetConfigMutable) {
   const client = await getClient();
   return client.post(`dataset/${id}/meta`, args);
@@ -722,6 +726,7 @@ export {
   /* Standard Specification APIs */
   loadConfig,
   loadDetections,
+  loadFrameMetadata,
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,

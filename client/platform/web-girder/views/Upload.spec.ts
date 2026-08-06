@@ -21,6 +21,7 @@ vi.mock('platform/web-girder/api', () => ({
   deleteResources: vi.fn(),
   saveConfig: vi.fn(),
   uploadCalibrationItem: vi.fn(),
+  uploadAndSetMetadataFile: vi.fn(),
   uploadMetadataFileItem: vi.fn(),
   validateUploadGroup: vi.fn(),
   waitForFolderDatasetReady: vi.fn(),
@@ -60,7 +61,7 @@ function file(name: string): File {
 }
 
 const emptyRoles: ValidatedUploadRoleMap = {
-  media: [], annotations: [], datasetConfig: [], ignored: [],
+  media: [], annotations: [], datasetConfig: [], frameMetadata: [], ignored: [],
 };
 
 /** A passing validation response; unnamed roles default to empty. */
@@ -128,6 +129,27 @@ describe('Upload pending rows', () => {
     expect(row.name).toBe('dive.mp4');
     expect(row.uploadFiles.map((f: File) => f.name)).toEqual(['dive.mp4']);
     expect(row.ignored).toEqual([{ name: 'camera.npz', reason: 'Unsupported side file' }]);
+  });
+
+  it('reports, rather than drops, a metadata attachment on a multi-video upload', async () => {
+    pick([file('a.mp4'), file('b.mp4'), file('frame-metadata.csv')]);
+    vi.mocked(validateUploadGroup).mockResolvedValue({
+      data: validation({ roles: { media: ['a.mp4', 'b.mp4'] } }),
+    } as never);
+
+    const wrapper = mountUpload();
+    await wrapper.vm.openImport('video');
+    await nextTick();
+
+    const [row] = wrapper.vm.pendingUploads;
+    expect(row.createSubFolders).toBe(true);
+    expect(row.ignored).toEqual([{
+      name: 'frame-metadata.csv',
+      reason: 'Frame metadata is not supported when multiple videos are uploaded',
+    }]);
+    // The notice renders on a fan-out row, which has no slot editor to hide behind.
+    expect(wrapper.text()).toContain('Ignored (not uploaded):');
+    expect(wrapper.text()).toContain('frame-metadata.csv');
   });
 
   it('creates a row in an error state when validation rejects the selection', async () => {
