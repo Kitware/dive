@@ -425,7 +425,9 @@ export default defineComponent({
               icon="mdi-folder-multiple"
               open-type="bulk"
               class="my-3"
+              :bulk-import="true"
               @open="open($event)"
+              @multi-cam-batch="importMultiCamBatchDialog = true"
             />
             <ImportButton
               name="Open Image Sequence"
@@ -433,10 +435,9 @@ export default defineComponent({
               open-type="image-sequence"
               class="my-3"
               :multi-cam-import="true"
-              :batch-multi-cam-import="true"
+              :large-image-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
-              @multi-cam-batch="importMultiCamBatchDialog = true"
             />
             <ImportButton
               name="Open Video"
@@ -446,14 +447,6 @@ export default defineComponent({
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
-            />
-            <ImportButton
-              name="Open Tiled GeoTIFF / TIFF"
-              icon="mdi-map"
-              open-type="large-image"
-              class="my-3"
-              tooltip="Open a high-resolution geospatial image for tiled viewing. Supported formats: .tif, .tiff, .geotiff. Files should include internal pyramid overviews (COG recommended) for best performance."
-              @open="open($event)"
             />
           </v-col>
         </v-row>
