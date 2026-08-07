@@ -258,6 +258,10 @@ function scanMultiCamBatch(path: string): Promise<MultiCamBatchScanResult> {
   return window.diveDesktop.invoke('scan-multicam-batch', { path });
 }
 
+function scanStereoBatch(path: string): Promise<MultiCamBatchScanResult> {
+  return window.diveDesktop.invoke('scan-stereo-batch', { path });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean | string[]> {
   return window.diveDesktop.invoke('import-annotation', {
@@ -761,6 +765,7 @@ export {
   importAnnotationFile,
   importMultiCam,
   scanMultiCamBatch,
+  scanStereoBatch,
   openLink,
   nvidiaSmi,
   cancelJob,
