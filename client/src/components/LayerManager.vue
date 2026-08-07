@@ -285,7 +285,7 @@ export default defineComponent({
         [
           cameraRegistration.activePair,
           cameraRegistration.pickingEnabled,
-          cameraRegistration.correspondences,
+          cameraRegistration.observations,
           cameraRegistration.pendingPoint,
           cameraRegistration.selectedCorrespondenceId,
           cameraRegistration.homographies,

@@ -138,7 +138,8 @@ export default defineComponent({
     const activeKey = computed(() => registration.activePairKey());
     const correspondences = computed(() => {
       const key = activeKey.value;
-      return key ? (registration.correspondences.value[key] || []) : [];
+      // Pooled across every enabled observation -- the fit input.
+      return key ? registration.enabledPoints(key) : [];
     });
     const transformType = computed<TransformType>(
       () => (activeKey.value
@@ -324,7 +325,7 @@ export default defineComponent({
       const nextFiles = new Map(buildPerCameraRegistrationFiles(
         {
           homographies: registration.homographies.value,
-          correspondences: registration.correspondences.value,
+          observations: registration.observations.value,
           transformTypes: registration.transformTypes.value,
           source: registration.source.value,
         },
@@ -360,7 +361,7 @@ export default defineComponent({
       try {
         await saveConfig(datasetId.value, {
           cameraHomographies: registration.homographies.value,
-          cameraCorrespondences: registration.correspondences.value,
+          cameraCorrespondences: registration.observations.value,
           cameraTransformTypes: registration.transformTypes.value,
           cameraRegistrationSource: registration.source.value,
         });
@@ -408,7 +409,10 @@ export default defineComponent({
             || 'Auto-register could not compute an alignment for this frame.';
           return;
         }
-        registration.applyAutoRegistration(camLeft.value, camRight.value, result.inliers);
+        registration.applyRegistrationResult(camLeft.value, camRight.value, [{
+          source: result.model || 'minima_loftr',
+          points: result.inliers,
+        }]);
         const consensus = result.inlierRatio !== undefined
           ? ` (${Math.round(result.inlierRatio * 100)}% match consensus)` : '';
         autoRegisterSummary.value = `Aligned with ${result.inliers.length} matched `

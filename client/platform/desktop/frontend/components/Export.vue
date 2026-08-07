@@ -104,7 +104,7 @@ export default defineComponent({
       }
       return buildPerCameraRegistrationFiles({
         homographies: meta.cameraHomographies ?? {},
-        correspondences: meta.cameraCorrespondences ?? {},
+        observations: meta.cameraCorrespondences ?? {},
         transformTypes: meta.cameraTransformTypes ?? {},
         source: meta.cameraRegistrationSource ?? null,
       }, referenceCameraName(meta.multiCam));

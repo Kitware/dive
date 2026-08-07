@@ -228,10 +228,27 @@ class AttributeTrackFilter(BaseModel):
     primaryDisplay: Optional[bool]
 
 
-class CameraCorrespondence(BaseModel):
+class CorrespondencePoint(BaseModel):
     id: int
     a: Tuple[float, float]
     b: Tuple[float, float]
+
+
+class CameraObservation(BaseModel):
+    """The correspondence points contributed by one image pair of a camera
+    pair (registration format v2). The image names are the identity; ``frame``
+    is a dataset-local index the client re-resolves from them at load time.
+    ``source`` is the producer id ('manual' for hand-picked, else a matcher
+    id like 'minima_loftr'); ``stats`` are free-form producer quality
+    statistics preserved verbatim."""
+
+    imageA: str
+    imageB: str
+    frame: Optional[int]
+    enabled: bool = True
+    source: str = 'manual'
+    stats: Optional[Dict[str, Any]]
+    points: List[CorrespondencePoint]
 
 
 class PairHomography(BaseModel):
@@ -259,9 +276,11 @@ class MetadataMutable(BaseModel):
     # Per-camera-pair alignment homographies, keyed by directional "left::right".
     # Each value holds the 3x3 AtoB / BtoA matrices.
     cameraHomographies: Optional[Dict[str, PairHomography]]
-    # The picked point correspondences behind those homographies, keyed the same
-    # way. Each entry is a list of {id, a: [x, y], b: [x, y]} pairs.
-    cameraCorrespondences: Optional[Dict[str, List[CameraCorrespondence]]]
+    # The per-image-pair correspondence observations behind those homographies,
+    # keyed the same way. Each entry lists the observations (image-pair
+    # identity, enabled flag, producer source, stats, and points) that pool
+    # into that pair's fit.
+    cameraCorrespondences: Optional[Dict[str, List[CameraObservation]]]
     # The fit model used to compute each pair's homography (translation / rigid /
     # similarity / affine / homography), keyed the same way. Missing entries
     # default to 'similarity' client-side.

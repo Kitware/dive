@@ -576,6 +576,44 @@ export default defineComponent({
       alignedView.setRegistrationProgress(null);
       cameraRegistration.hydrate();
     }
+    // Keep the registration store's current frame in sync so newly picked
+    // points are stamped with the image pair they were picked on.
+    watch(() => aggregateController.value.frame.value, (frameNum) => {
+      cameraRegistration.currentFrame.value = frameNum;
+    }, { immediate: true });
+    /**
+     * Publish the frame/image bridge the registration store resolves
+     * observation identities with: image-sequence cameras resolve to real
+     * file names; video cameras resolve to stable frame://N pseudo-names so
+     * the persisted schema stays uniform across media types. Frames resolve
+     * in each camera's own local frame space.
+     */
+    function publishRegistrationFrameResolver() {
+      cameraRegistration.setFrameResolver({
+        currentImageName: (camera: string) => {
+          let cameraFrame: number;
+          try {
+            cameraFrame = aggregateController.value.getController(camera).frame.value;
+          } catch {
+            cameraFrame = aggregateController.value.frame.value;
+          }
+          return imageData.value[camera]?.[cameraFrame]?.filename
+            ?? `frame://${cameraFrame}`;
+        },
+        frameForImage: (camera: string, imageName: string) => {
+          const pseudo = /^frame:\/\/(\d+)$/.exec(imageName);
+          if (pseudo) {
+            return Number(pseudo[1]);
+          }
+          const images = imageData.value[camera];
+          if (!images || !images.length) {
+            return null;
+          }
+          const index = images.findIndex((image) => image.filename === imageName);
+          return index >= 0 ? index : null;
+        },
+      });
+    }
 
     const alignedResolution = computed(() => {
       if (!isMultiCameraDataset.value) {
@@ -1310,7 +1348,7 @@ export default defineComponent({
       cameraRegistration.maybeFitActivePair();
       await saveConfig(datasetId.value, {
         cameraHomographies: cameraRegistration.homographies.value,
-        cameraCorrespondences: cameraRegistration.correspondences.value,
+        cameraCorrespondences: cameraRegistration.observations.value,
         cameraTransformTypes: cameraRegistration.transformTypes.value,
         cameraRegistrationSource: cameraRegistration.source.value,
       });
@@ -1845,6 +1883,9 @@ export default defineComponent({
             meta.cameraTransformTypes,
             meta.cameraRegistrationSource,
           );
+          // Media is loaded at this point: resolve observation frames from
+          // their image names against this dataset's own frame ordering.
+          publishRegistrationFrameResolver();
           // Reset the aligned-view toggle for the newly loaded dataset (no
           // persistence this phase).
           alignedView.setEnabled(false);
