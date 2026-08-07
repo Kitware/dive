@@ -39,6 +39,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    stereoBatchImport: { // Batch import of stereo (left/right) datasets
+      type: Boolean,
+      default: false,
+    },
     buttonAttrs: {
       type: Object,
       default: () => DefaultButtonAttrs,
@@ -153,6 +157,18 @@ export default defineComponent({
             </v-list-item-icon>
             <v-list-item-content>
               <v-list-item-title>Multi Camera</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <v-list-item
+            v-if="stereoBatchImport"
+            style="align-items':'center"
+            @click="$emit('stereo-batch')"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-binoculars</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>Stereo</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
         </v-list>

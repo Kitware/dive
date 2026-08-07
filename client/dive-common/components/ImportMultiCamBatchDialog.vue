@@ -55,6 +55,20 @@ export default defineComponent({
       type: String,
       default: 'Choose Root Folder',
     },
+    title: {
+      type: String,
+      default: 'Batch Multi Camera Import',
+    },
+    description: {
+      type: String,
+      default: (
+        'Select a top-level folder whose subfolders are collects, each holding the same '
+        + 'camera subfolders (for example EO, IR, UV). One multi camera dataset is created '
+        + 'per collect. Registration .json files next to the camera folders are attached '
+        + 'automatically. Flat collects of *_rgb / *_ir / *_uv images become one dataset '
+        + 'with a camera per modality.'
+      ),
+    },
   },
 
   setup(props) {
@@ -233,16 +247,11 @@ export default defineComponent({
     class="import-card"
   >
     <v-card-title class="text-h5">
-      Batch Multi Camera Import
+      {{ title }}
     </v-card-title>
     <v-card-text>
       <p class="grey--text text--lighten-1">
-        Select a top-level folder whose subfolders are collects, each holding
-        the same camera subfolders (for example EO, IR, UV). One multicam
-        dataset is created per collect. Registration .json files next to the
-        camera folders are attached automatically. Flat collects of
-        *_rgb / *_ir / *_uv images become one dataset with a camera per
-        modality.
+        {{ description }}
       </p>
       <v-row
         no-gutters
