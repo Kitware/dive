@@ -44,7 +44,7 @@ const componentMap: Record<string, ComponentMapItem> = {
     component: GroupSidebar,
   },
   [MultiCamTools.name]: {
-    description: 'Multi Camera Tools',
+    description: 'Multi-Camera Tools',
     component: MultiCamTools,
   },
   [RegistrationTools.name]: {

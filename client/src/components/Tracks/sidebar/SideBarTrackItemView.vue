@@ -255,7 +255,7 @@ export default defineComponent({
         <span v-else>
           <tooltip-btn
             icon="mdi-camera"
-            tooltip-text="Open MultiCamera Tools"
+            tooltip-text="Open Multi-Camera Tools"
             @click="openMultiCamTools"
           />
         </span>

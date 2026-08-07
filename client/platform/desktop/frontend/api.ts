@@ -316,7 +316,7 @@ async function exportMulticamEverything(
 ): Promise<string> {
   const parentId = id.split('/')[0];
   const location = await window.diveDesktop.showSaveDialog({
-    title: 'Export Multicamera Dataset',
+    title: 'Export Multi-Camera Dataset',
     defaultPath: joinPath(
       await window.diveDesktop.getAppPath('home'),
       `${parentId}.zip`,
