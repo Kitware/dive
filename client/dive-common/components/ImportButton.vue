@@ -31,6 +31,14 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    largeImageImport: { // Offer tiled GeoTIFF / TIFF alongside the other sources
+      type: Boolean,
+      default: false,
+    },
+    bulkImport: { // Single/multi camera choice for bulk folder scans
+      type: Boolean,
+      default: false,
+    },
     buttonAttrs: {
       type: Object,
       default: () => DefaultButtonAttrs,
@@ -45,9 +53,11 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const menuWidth = computed(() => (props.batchMultiCamImport ? 240 : 180));
+    const menuWidth = computed(() => (props.batchMultiCamImport || props.largeImageImport ? 240 : 180));
+    const hasDropdown = computed(() => props.multiCamImport || props.bulkImport);
 
     return {
+      hasDropdown,
       menuWidth,
     };
   },
@@ -110,7 +120,7 @@ export default defineComponent({
             </v-icon>
           </div>
           <v-icon
-            v-if="multiCamImport"
+            v-if="hasDropdown"
             class="button-dropdown col-1"
             v-on="on"
           >
@@ -119,7 +129,37 @@ export default defineComponent({
         </v-btn>
       </template>
       <v-card outlined>
-        <v-list dense>
+        <v-list
+          v-if="bulkImport"
+          dense
+        >
+          <v-list-item
+            style="align-items':'center"
+            @click="$emit('open', openType)"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-folder-multiple</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>Single Camera</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <v-list-item
+            style="align-items':'center"
+            @click="$emit('multi-cam-batch')"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-folder-multiple-image</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>Multi-Camera</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+        </v-list>
+        <v-list
+          v-else
+          dense
+        >
           <v-list-item
             v-if="['image-sequence', 'large-image'].includes(openType)"
             style="align-items':'center"
@@ -156,6 +196,32 @@ export default defineComponent({
               <v-list-item-title>Image List</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
+          <v-tooltip
+            v-if="largeImageImport"
+            right
+            max-width="360"
+            open-delay="50"
+          >
+            <template #activator="{ on: tooltipOn }">
+              <v-list-item
+                style="align-items':'center"
+                v-on="tooltipOn"
+                @click="$emit('open', 'large-image')"
+              >
+                <v-list-item-icon>
+                  <v-icon>mdi-map</v-icon>
+                </v-list-item-icon>
+                <v-list-item-content>
+                  <v-list-item-title>Tiled GeoTIFF / TIFF</v-list-item-title>
+                </v-list-item-content>
+              </v-list-item>
+            </template>
+            <span>
+              Open a high-resolution geospatial image for tiled viewing. Supported formats:
+              .tif, .tiff, .geotiff. Files should include internal pyramid overviews
+              (COG recommended) for best performance.
+            </span>
+          </v-tooltip>
           <v-list-item
             style="align-items':'center"
             @click="$emit('multi-cam', { stereo: true, openType })"
