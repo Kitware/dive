@@ -84,6 +84,15 @@ interface PipeMetadata {
 
 interface PipelineRuntimeParams {
   frameRange?: [number, number] | null;
+  /**
+   * Multicam registration subset: camera name -> ordered image identifiers
+   * for exactly the frames the job should process. Row i of one camera's
+   * list pairs with row i of every other's. Identifiers are the camera's
+   * own image names (the platform backend resolves them to real paths) or
+   * `frame://N` pseudo-names for video cameras (the backend extracts those
+   * frames to temp images before the job).
+   */
+  imagePairs?: Record<string, string[]>;
 }
 
 interface PipelineParams {
@@ -637,50 +646,6 @@ export interface TextQueryResponse {
   query?: string;
   /** Whether fallback method was used (no native text support) */
   fallback?: boolean;
-}
-
-export interface AutoRegisterRequest {
-  /** Path to camera A's image for the chosen frame */
-  imagePathA: string;
-  /** Path to camera B's image for the chosen frame */
-  imagePathB: string;
-  options?: {
-    /** RANSAC reprojection threshold in matcher-resolution pixels (default 2.0) */
-    ransacThreshold?: number;
-    /** Minimum raw matches before RANSAC (default 100) */
-    minMatches?: number;
-    /** Minimum RANSAC inliers (default 30) */
-    minInliers?: number;
-    /** Minimum inlier ratio (default 0.15) */
-    minInlierRatio?: number;
-    /** How many spatially-spread inlier correspondences to return (default 24) */
-    topK?: number;
-    /** Matcher coarse confidence threshold (default 0.2) */
-    matchThreshold?: number;
-  };
-}
-
-export interface AutoRegisterResponse {
-  /** Whether alignment succeeded (quality gate passed) */
-  success: boolean;
-  /** Machine-readable failure code:
-   * insufficient_matches | low_confidence | degenerate_homography */
-  code?: string;
-  /** Human-readable error, actionable for the user */
-  error?: string;
-  /** 3x3 homography mapping camera A native pixels -> camera B native pixels */
-  homography?: number[][];
-  /** Spatially-spread inlier correspondences [ax, ay, bx, by][] in native px */
-  inliers?: [number, number, number, number][];
-  numMatches?: number;
-  numInliers?: number;
-  inlierRatio?: number;
-  /** Native [width, height] of each input image */
-  imageSizeA?: [number, number];
-  imageSizeB?: [number, number];
-  /** Matcher identifier (e.g. 'minima_loftr') */
-  model?: string;
-  elapsedMs?: number;
 }
 
 export interface RefineDetectionsRequest {

@@ -358,15 +358,33 @@ export async function importCameraRegistration(
   filePath: string,
   options: { camera?: string } = {},
 ): Promise<{ cameras: string[]; pairCount: number }> {
-  const parentId = datasetId.split('/')[0];
-  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   let data;
   try {
     data = await fs.readJson(filePath);
   } catch {
     throw new Error('File is not valid JSON');
   }
+  return importCameraRegistrationData(
+    settings, datasetId, data, npath.basename(filePath), options,
+  );
+}
+
+/**
+ * Merge parsed registration data into a dataset (see
+ * {@link importCameraRegistration}); also the ingest point for pipeline
+ * outputs, which arrive as already-read JSON.
+ */
+export async function importCameraRegistrationData(
+  settings: Settings,
+  datasetId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any,
+  label: string,
+  options: { camera?: string } = {},
+): Promise<{ cameras: string[]; pairCount: number }> {
+  const parentId = datasetId.split('/')[0];
+  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   if (!data || !Array.isArray(data.pairs)) {
     throw new Error('Not a DIVE camera registration file (expected a "pairs" list)');
   }
@@ -398,7 +416,7 @@ export async function importCameraRegistration(
   const merged = mergeRegistrationValues(
     await loadEffectiveRegistration(projectDirInfo.basePath, meta),
     incoming,
-    npath.basename(filePath),
+    label,
   );
   await saveConfig(settings, parentId, {
     cameraHomographies: merged.homographies,
@@ -407,4 +425,46 @@ export async function importCameraRegistration(
     cameraRegistrationSource: merged.source,
   });
   return summary;
+}
+
+/**
+ * Ingest an align_cameras pipeline output (registration JSON in the job
+ * work dir) into the dataset's saved registration. Frame-subset jobs on
+ * video cameras run over extracted stills named <camera>.frame_<N>.png, so
+ * such observation image names are mapped back to the frame://N
+ * pseudo-identities the client resolves; image-sequence names pass through
+ * (the extracted-or-original basenames are the dataset's own image names).
+ * Merging happens at observation granularity via the shared writers, which
+ * re-group pairs under DIVE's own reference camera -- the pipeline never
+ * needs to know it.
+ */
+export async function ingestPipelineRegistration(
+  settings: Settings,
+  datasetId: string,
+  filePath: string,
+  videoCameras: string[],
+): Promise<{ cameras: string[]; pairCount: number }> {
+  const data = await fs.readJson(filePath);
+  if (data && Array.isArray(data.pairs) && videoCameras.length) {
+    const videoSet = new Set(videoCameras);
+    const remap = (name: unknown, camera: string) => {
+      if (typeof name !== 'string' || !videoSet.has(camera)) {
+        return name;
+      }
+      const match = /\.frame_(\d+)\.\w+$/.exec(name);
+      return match ? `frame://${Number(match[1])}` : name;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data.pairs.forEach((pair: any) => {
+      (pair?.observations ?? []).forEach((obs: Record<string, unknown>) => {
+        // eslint-disable-next-line no-param-reassign
+        obs.imageLeft = remap(obs.imageLeft, pair.left);
+        // eslint-disable-next-line no-param-reassign
+        obs.imageRight = remap(obs.imageRight, pair.right);
+      });
+    });
+  }
+  return importCameraRegistrationData(
+    settings, datasetId, data, npath.basename(filePath),
+  );
 }

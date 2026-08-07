@@ -62,7 +62,7 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
-import { provideAutoRegister } from 'dive-common/use/useAutoRegister';
+import { createAutoRegisterJobService, provideAutoRegisterJob } from 'dive-common/use/useAutoRegisterJob';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -70,7 +70,7 @@ import type {
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
-  useApi, FrameImage, DatasetType, GlobalStyleSettings, AutoRegisterResponse,
+  useApi, FrameImage, DatasetType, GlobalStyleSettings,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
@@ -164,17 +164,6 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    /**
-     * Platform-supplied auto-register runner for the Camera Registration panel:
-     * resolves each camera's image for a frame and computes an alignment via
-     * the interactive service. Desktop-only; when null (web) the panel hides
-     * its Auto Register button.
-     */
-    autoRegisterHandler: {
-      type: Function as PropType<
-        ((cameraA: string, cameraB: string, frameNum: number) => Promise<unknown>) | null>,
-      default: null,
-    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -209,6 +198,7 @@ export default defineComponent({
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
+      getPipelineList, runPipeline,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -730,19 +720,54 @@ export default defineComponent({
     const lassoMode = useLassoMode();
     provide(LassoModeSymbol, lassoMode);
 
-    // Auto-register bridge for the Camera Registration panel: injects the current
-    // frame into the platform handler (mirrors onTextQuerySubmit). Provided
-    // unconditionally; `available` tracks the handler prop, which the desktop
-    // platform sets once its availability probe resolves (never on web).
-    provideAutoRegister({
-      available: computed(() => !!props.autoRegisterHandler),
-      run: (cameraA: string, cameraB: string) => {
-        if (!props.autoRegisterHandler) {
-          return Promise.reject(new Error('Auto-register is not available on this platform'));
+    // Auto-register job bridge for the Camera Registration panel: proposes a
+    // stratified candidate spread, launches the utility_align_cameras pipe
+    // over exactly those frames, and refreshes the registration store when
+    // the merged result lands in the dataset meta. Availability is "is the
+    // align pipe in the pipeline list" -- truthful on both platforms because
+    // the add-on pack installs the pipes together with the matcher weights.
+    const autoRegisterJob = createAutoRegisterJobService({
+      datasetId,
+      cameras: multiCamList,
+      frameCount: (camera: string) => {
+        const images = imageData.value[camera];
+        if (images && images.length) {
+          return images.length;
         }
-        return props.autoRegisterHandler(cameraA, cameraB, aggregateController.value.frame.value) as Promise<AutoRegisterResponse>;
+        try {
+          return aggregateController.value.getController(camera).maxFrame.value + 1;
+        } catch {
+          return 0;
+        }
       },
+      timestampsFor: (camera: string) => {
+        const images = imageData.value[camera];
+        if (!images || !images.length
+          || !images.some((image) => image.timestamp !== undefined)) {
+          return null;
+        }
+        return images.map((image) => image.timestamp);
+      },
+      resolveImagePaths: async (camera: string, frames: number[]) => {
+        const images = imageData.value[camera];
+        return frames.map((frameNum) => images?.[frameNum]?.filename ?? `frame://${frameNum}`);
+      },
+      getPipelineList,
+      runPipeline,
+      loadMetadata: loadConfig,
+      registration: cameraRegistration,
+      confirmReload: () => prompt({
+        title: 'Auto Register Finished',
+        text: 'The auto-register job finished, but this registration has '
+          + 'unsaved edits. Load the job results (replacing the unsaved '
+          + 'edits)?',
+        positiveButton: 'Load results',
+        negativeButton: 'Keep my edits',
+        confirm: true,
+      }),
     });
+    provideAutoRegisterJob(autoRegisterJob);
+    onBeforeUnmount(() => autoRegisterJob.dispose());
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -1884,6 +1909,8 @@ export default defineComponent({
           // Media is loaded at this point: resolve observation frames from
           // their image names against this dataset's own frame ordering.
           publishRegistrationFrameResolver();
+          // Probe for the align_cameras pipes (fire and forget).
+          autoRegisterJob.refreshAvailability();
           // Reset the aligned-view toggle for the newly loaded dataset (no
           // persistence this phase).
           alignedView.setEnabled(false);

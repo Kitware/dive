@@ -30,7 +30,6 @@ import {
   segmentationSam3Installed,
   loadConfig, textQuery,
   runTextQueryPipeline,
-  autoRegister, autoRegisterAvailable,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
@@ -153,7 +152,6 @@ export default defineComponent({
     const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
-    const autoRegisterReady = ref(false);
 
     async function refreshTextQueryAvailability() {
       try {
@@ -164,18 +162,8 @@ export default defineComponent({
       }
     }
 
-    async function refreshAutoRegisterAvailability() {
-      try {
-        const result = await autoRegisterAvailable();
-        autoRegisterReady.value = result.installed;
-      } catch {
-        autoRegisterReady.value = false;
-      }
-    }
-
     watch(() => settings.value?.viamePath, () => {
       refreshTextQueryAvailability();
-      refreshAutoRegisterAvailability();
     });
 
     watch(
@@ -562,7 +550,6 @@ export default defineComponent({
     onMounted(() => {
       initializeSegmentation();
       refreshTextQueryAvailability();
-      refreshAutoRegisterAvailability();
     });
 
     /**
@@ -770,34 +757,6 @@ export default defineComponent({
         console.warn('[Stereo] Failed to set frame:', err);
         return false;
       }
-    }
-
-    /**
-     * Auto-register handler for the Camera Registration panel (passed down through
-     * Viewer's auto-register bridge). Resolves each camera's image path for the
-     * requested frame via the same per-camera getters stereo uses, then asks
-     * the interactive service for a deep-matched homography. The returned
-     * correspondences/homography map camera A native pixels -> camera B.
-     */
-    async function handleAutoRegister(cameraA: string, cameraB: string, frameNum: number) {
-      // Populates stereoImagePathGetters from multicam metadata (no-op when
-      // already loaded). Accepts any multi-camera dataset (stereoscopic or
-      // plain multicam); false means this is a single-camera dataset.
-      const isMulticam = await loadMultiCamMetadata();
-      if (!isMulticam) {
-        throw new Error('Auto-register requires a multi-camera dataset');
-      }
-      const getterA = stereoImagePathGetters.value[cameraA];
-      const getterB = stereoImagePathGetters.value[cameraB];
-      if (!getterA || !getterB) {
-        throw new Error(`Could not resolve media for cameras "${cameraA}" and "${cameraB}"`);
-      }
-      const imagePathA = getterA(frameNum);
-      const imagePathB = getterB(frameNum);
-      if (!imagePathA || !imagePathB) {
-        throw new Error(`No image found for frame ${frameNum} on both cameras`);
-      }
-      return autoRegister({ imagePathA, imagePathB });
     }
 
     // The backend stereo service is needed whenever either stereo feature is on
@@ -2042,8 +2001,6 @@ export default defineComponent({
       handleTextQueryInit,
       handleTextQueryAllFrames,
       textQueryAvailable,
-      autoRegisterReady,
-      handleAutoRegister,
       openLink,
       /* Stereo */
       stereoLoadingDialog,
@@ -2075,7 +2032,6 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
-      :auto-register-handler="autoRegisterReady ? handleAutoRegister : null"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @text-query-submit="handleTextQuerySubmit"
