@@ -15,10 +15,25 @@ const UNSHIFT = [[1, 0, -5], [0, 1, 3], [0, 0, 1]];
 function values(partial: Partial<CameraRegistrationValues>): CameraRegistrationValues {
   return {
     homographies: {},
-    correspondences: {},
+    observations: {},
     transformTypes: {},
     source: null,
     ...partial,
+  };
+}
+
+/** A minimal manual observation with the given points. */
+function observation(points: [number, number, number, number][], extra = {}) {
+  return {
+    imageA: 'a_0000.jpg',
+    imageB: 'b_0000.tif',
+    frame: 0 as number | null,
+    enabled: true,
+    source: 'manual',
+    points: points.map(([ax, ay, bx, by], i) => ({
+      id: i + 1, a: [ax, ay] as [number, number], b: [bx, by] as [number, number],
+    })),
+    ...extra,
   };
 }
 
@@ -36,11 +51,12 @@ describe('buildPerCameraRegistrationFiles', () => {
     expect(files[0].body.pairs).toStrictEqual([{
       left: 'ir',
       right: 'rgb',
-      points: [],
+      observations: [],
       leftToRight: SHIFT,
       rightToLeft: UNSHIFT,
       transformType: 'similarity',
     }]);
+    expect(files[0].body.version).toBe(2);
   });
 
   it('falls back to right-camera grouping without a reference', () => {
@@ -68,14 +84,40 @@ describe('buildPerCameraRegistrationFiles', () => {
     expect('source' in file.body).toBe(false);
   });
 
-  it('serializes correspondences as leftX leftY rightX rightY rows', () => {
+  it('serializes observations with identity, provenance, and flattened point rows', () => {
     const [file] = buildPerCameraRegistrationFiles(values({
-      correspondences: {
-        'rgb::ir': [{ id: 1, a: [10, 20], b: [12, 22] }],
+      observations: {
+        'rgb::ir': [observation([[10, 20, 12, 22]], {
+          imageA: 'rgb_0412.jpg',
+          imageB: 'ir_0412.tif',
+          frame: 412,
+          source: 'minima_loftr',
+          stats: { numInliers: 1 },
+        })],
       },
     }), 'rgb');
-    expect(file.body.pairs[0].points).toStrictEqual([[10, 20, 12, 22]]);
+    const [row] = file.body.pairs[0].observations!;
+    expect(row).toStrictEqual({
+      frame: 412,
+      imageLeft: 'rgb_0412.jpg',
+      imageRight: 'ir_0412.tif',
+      enabled: true,
+      source: 'minima_loftr',
+      points: [[10, 20, 12, 22]],
+      stats: { numInliers: 1 },
+    });
+    // Points live ONLY inside observations: no flattened duplicate.
+    expect('points' in file.body.pairs[0]).toBe(false);
     expect(file.body.pairs[0].leftToRight).toBeNull();
+  });
+
+  it('omits the advisory frame for unresolved observations', () => {
+    const [file] = buildPerCameraRegistrationFiles(values({
+      observations: {
+        'rgb::ir': [observation([[1, 2, 3, 4]], { frame: null })],
+      },
+    }), 'rgb');
+    expect('frame' in file.body.pairs[0].observations![0]).toBe(false);
   });
 });
 
@@ -105,7 +147,7 @@ describe('registrationValuesSummary', () => {
   it('counts distinct pairs and names their cameras', () => {
     const summary = registrationValuesSummary(values({
       homographies: { 'rgb::ir': { AtoB: SHIFT, BtoA: UNSHIFT } },
-      correspondences: { 'rgb::uv': [{ id: 1, a: [1, 2], b: [3, 4] }] },
+      observations: { 'rgb::uv': [observation([[1, 2, 3, 4]])] },
     }));
     expect(summary.pairCount).toBe(2);
     expect(summary.cameras.sort()).toStrictEqual(['ir', 'rgb', 'uv']);
@@ -115,7 +157,7 @@ describe('registrationValuesSummary', () => {
 describe('mergeRegistrationValues', () => {
   const existing = values({
     homographies: { 'rgb::ir': { AtoB: SHIFT, BtoA: UNSHIFT } },
-    correspondences: { 'rgb::ir': [{ id: 1, a: [1, 2], b: [3, 4] }] },
+    observations: { 'rgb::ir': [observation([[1, 2, 3, 4]])] },
     transformTypes: { 'rgb::ir': 'rigid' },
     source: { producer: 'kamera', run: 'fl07' },
   });
@@ -128,13 +170,43 @@ describe('mergeRegistrationValues', () => {
     expect(merged.transformTypes['rgb::ir']).toBe('rigid');
   });
 
-  it('replaces a named pair wholly, dropping stale points and model choice', () => {
+  it('replaces a matrix-only named pair wholly, dropping stale points and model choice', () => {
     const merged = mergeRegistrationValues(existing, values({
       homographies: { 'rgb::ir': { AtoB: IDENTITY, BtoA: IDENTITY } },
     }), 'calibration_ir.json');
     expect(merged.homographies['rgb::ir'].AtoB).toStrictEqual(IDENTITY);
-    expect(merged.correspondences['rgb::ir']).toBeUndefined();
+    expect(merged.observations['rgb::ir']).toBeUndefined();
     expect(merged.transformTypes['rgb::ir']).toBeUndefined();
+  });
+
+  it('merges at observation granularity within a named pair', () => {
+    const base = values({
+      observations: {
+        'rgb::ir': [
+          observation([[1, 2, 3, 4]], { imageA: 'rgb_0001.jpg', imageB: 'ir_0001.tif' }),
+          observation([[5, 6, 7, 8]], {
+            imageA: 'rgb_0002.jpg', imageB: 'ir_0002.tif', source: 'minima_loftr',
+          }),
+        ],
+      },
+    });
+    // A fresh pipeline result for one image pair replaces its own prior
+    // observation and keeps the hand-picked one it doesn't cover.
+    const merged = mergeRegistrationValues(base, values({
+      homographies: { 'rgb::ir': { AtoB: IDENTITY, BtoA: IDENTITY } },
+      observations: {
+        'rgb::ir': [observation([[9, 9, 9, 9], [8, 8, 8, 8]], {
+          imageA: 'rgb_0002.jpg', imageB: 'ir_0002.tif', source: 'minima_loftr',
+        })],
+      },
+    }), 'registration.json');
+    const list = merged.observations['rgb::ir'];
+    expect(list).toHaveLength(2);
+    const manual = list.find((obs) => obs.source === 'manual');
+    expect(manual?.points).toHaveLength(1);
+    const matcher = list.find((obs) => obs.source === 'minima_loftr');
+    expect(matcher?.points).toHaveLength(2);
+    expect(merged.homographies['rgb::ir'].AtoB).toStrictEqual(IDENTITY);
   });
 
   it('keeps the existing stamp when the import carries none', () => {
