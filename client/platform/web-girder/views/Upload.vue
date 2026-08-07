@@ -481,7 +481,7 @@ export default defineComponent({
         const { data: datasetFolder } = await createGirderFolder({
           folderId: props.location._id,
           name: datasetName,
-          description: 'Multicamera dataset',
+          description: 'Multi Camera dataset',
         });
         datasetFolderId = datasetFolder._id;
         const cameras: Record<string, { folderId: string; type?: string }> = {};
@@ -587,7 +587,7 @@ export default defineComponent({
           }
           if (stereo.value && !isAllowedStereoCalibrationFilename(calFile.name)) {
             throw new Error(
-              `Stereoscopic calibration must be ${stereoCalibrationAllowedExtensionsLabel()}.`,
+              `Stereo calibration must be ${stereoCalibrationAllowedExtensionsLabel()}.`,
             );
           }
           calibrationFileId = await uploadCalibrationItem(datasetFolder._id, calFile);
