@@ -483,10 +483,10 @@ function getProjectDir(settings: Settings, datasetId: string) {
  */
 async function getValidatedProjectDir(settings: Settings, datasetId: string) {
   const projectInfo = getProjectDir(settings, datasetId);
-  fs.ensureDirSync(projectInfo.auxDirAbsPath);
   if (!fs.pathExistsSync(projectInfo.basePath)) {
     throw new Error(`missing project directory ${projectInfo.basePath}`);
   }
+  fs.ensureDirSync(projectInfo.auxDirAbsPath);
   if (!fs.pathExistsSync(projectInfo.datasetFileAbsPath)) {
     throw new Error(`missing dataset json file ${projectInfo.datasetFileAbsPath}`);
   }
@@ -1189,12 +1189,26 @@ async function deleteDataset(
   settings: Settings,
   datasetId: string,
 ): Promise<boolean> {
-  // Confirm dataset exists
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
-  await fs.remove(projectDirInfo.basePath);
+  /* Incomplete or corrupt projects must still be removable, so this
+   * deliberately skips getValidatedProjectDir() */
+  const projectDirInfo = getProjectDir(settings, datasetId);
+  const projectsDir = npath.resolve(settings.dataPath, ProjectsFolderName);
+  const basePath = npath.resolve(projectDirInfo.basePath);
+  if (!basePath.startsWith(projectsDir + npath.sep)) {
+    throw new Error(`${datasetId} is not a dataset directory`);
+  }
+  if (!await fs.pathExists(basePath)) {
+    return true;
+  }
+  let projectMetaData: JsonConfig | undefined;
+  try {
+    projectMetaData = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
+  } catch {
+    // unreadable dataset json, delete the project directory anyway
+  }
+  await fs.remove(basePath);
   // If the dataset source is inside DIVE_Jobs_Output, delete that output folder
-  if (projectMetaData.originalBasePath) {
+  if (projectMetaData?.originalBasePath) {
     const jobsOutputPath = npath.resolve(settings.dataPath, JobsOutputFolderName);
     const originalBasePath = npath.resolve(projectMetaData.originalBasePath);
     const isInsideJobsOutput = originalBasePath !== jobsOutputPath
