@@ -149,17 +149,6 @@ export default defineComponent({
             </v-list-item-content>
           </v-list-item>
           <v-list-item
-            style="align-items':'center"
-            @click="$emit('multi-cam-batch')"
-          >
-            <v-list-item-icon>
-              <v-icon>mdi-folder-multiple-image</v-icon>
-            </v-list-item-icon>
-            <v-list-item-content>
-              <v-list-item-title>Multi Camera</v-list-item-title>
-            </v-list-item-content>
-          </v-list-item>
-          <v-list-item
             v-if="stereoBatchImport"
             style="align-items':'center"
             @click="$emit('stereo-batch')"
@@ -169,6 +158,17 @@ export default defineComponent({
             </v-list-item-icon>
             <v-list-item-content>
               <v-list-item-title>Stereo</v-list-item-title>
+            </v-list-item-content>
+          </v-list-item>
+          <v-list-item
+            style="align-items':'center"
+            @click="$emit('multi-cam-batch')"
+          >
+            <v-list-item-icon>
+              <v-icon>mdi-folder-multiple-image</v-icon>
+            </v-list-item-icon>
+            <v-list-item-content>
+              <v-list-item-title>Multi Camera</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
         </v-list>
@@ -197,7 +197,7 @@ export default defineComponent({
               <v-icon>mdi-file-video</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
-              <v-list-item-title>From File</v-list-item-title>
+              <v-list-item-title>Single File</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
           <v-list-item
