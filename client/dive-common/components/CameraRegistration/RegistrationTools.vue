@@ -18,12 +18,14 @@ import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
 import RegistrationFrameList, { FrameRow } from './RegistrationFrameList.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useAutoRegister } from 'dive-common/use/useAutoRegister';
+import { AutoRegisterRunOptions, useAutoRegisterJob } from 'dive-common/use/useAutoRegisterJob';
+import { loopClosureResidual, Matrix3 } from 'vue-media-annotator/alignedView/homography';
+import AutoRegisterDialog from './AutoRegisterDialog.vue';
 
 export default defineComponent({
   name: 'CameraRegistration',
   description: 'Camera Registration',
-  components: { TooltipBtn, RegistrationFrameList },
+  components: { AutoRegisterDialog, TooltipBtn, RegistrationFrameList },
   setup() {
     const cameraStore = useCameraStore();
     const registration = useCameraRegistration();
@@ -479,58 +481,60 @@ export default defineComponent({
     }
 
     /**
-     * Auto Register: ask the platform's deep matcher (interactive service) for
-     * correspondences between the selected pair on the current frame, then
-     * inject them as ordinary point pairs and fit a homography. The service
-     * is null / unavailable on platforms without the capability (web), which
-     * hides the button entirely.
+     * Auto Register Frames: launch the align_cameras pipeline over a
+     * stratified spread of candidate frames (one job registers the whole
+     * rig; a triplet solves up to three pairs at once). The service is
+     * provided by the viewer; availability tracks whether the align pipes
+     * are installed, which hides the button entirely when they aren't.
      */
-    const autoRegisterService = useAutoRegister();
-    const autoRegisterAvailable = computed(() => !!autoRegisterService?.available.value);
-    const autoRegistering = ref(false);
-    const autoRegisterError = ref<string | null>(null);
-    const autoRegisterSummary = ref<string | null>(null);
+    const autoRegisterJob = useAutoRegisterJob();
+    const autoRegisterAvailable = computed(() => !!autoRegisterJob?.available.value);
+    const autoRegistering = computed(() => !!autoRegisterJob?.running.value);
+    const autoRegisterError = computed(() => autoRegisterJob?.error.value ?? null);
+    const autoRegisterStatus = computed(() => autoRegisterJob?.status.value ?? null);
+    const autoRegisterDialog = ref(false);
 
-    async function runAutoRegister() {
-      if (!autoRegisterService || !camLeft.value || !camRight.value) {
-        return;
-      }
-      if (correspondences.value.length > 0 || hasLoadedTransform.value) {
-        const confirmed = await prompt({
-          title: 'Auto Register',
-          text: `This will replace the existing points/transform for ${camLeft.value} → `
-            + `${camRight.value} with automatically matched points. Continue?`,
-          confirm: true,
-        });
-        if (!confirmed) {
-          return;
-        }
-      }
-      autoRegistering.value = true;
-      autoRegisterError.value = null;
-      autoRegisterSummary.value = null;
-      try {
-        const result = await autoRegisterService.run(camLeft.value, camRight.value);
-        if (!result.success || !result.inliers || result.inliers.length === 0) {
-          autoRegisterError.value = result.error
-            || 'Auto-register could not compute an alignment for this frame.';
-          return;
-        }
-        registration.applyRegistrationResult(camLeft.value, camRight.value, [{
-          source: result.model || 'minima_loftr',
-          points: result.inliers,
-        }]);
-        const consensus = result.inlierRatio !== undefined
-          ? ` (${Math.round(result.inlierRatio * 100)}% match consensus)` : '';
-        autoRegisterSummary.value = `Aligned with ${result.inliers.length} matched `
-          + `points${consensus}. Review the points and overlay warp, refine if `
-          + 'needed, then save.';
-      } catch (err) {
-        autoRegisterError.value = err instanceof Error ? err.message : String(err);
-      } finally {
-        autoRegistering.value = false;
-      }
+    function openAutoRegisterDialog() {
+      autoRegisterDialog.value = true;
     }
+    function runAutoRegister(options: AutoRegisterRunOptions) {
+      autoRegisterJob?.run(options);
+    }
+
+    /**
+     * Rig-level consistency readout for a solved triplet: with all three
+     * pairs fitted, compare the direct A->C transform against the A->B->C
+     * route. This is the whole reason to solve the redundant third pair --
+     * three individually plausible fits can still disagree as a rig.
+     * Computed over a nominal camera-1 grid (a relative indicator; the
+     * pipeline logs the exact-native-size figure in the job output).
+     */
+    const loopClosure = computed(() => {
+      const list = cameras.value;
+      if (list.length !== 3) {
+        return null;
+      }
+      const directed = (a: string, b: string): Matrix3 | null => {
+        const forward = registration.homographies.value[registration.pairKey(a, b)];
+        if (forward) {
+          return forward.AtoB;
+        }
+        const reverse = registration.homographies.value[registration.pairKey(b, a)];
+        return reverse ? reverse.BtoA : null;
+      };
+      const h01 = directed(list[0], list[1]);
+      const h12 = directed(list[1], list[2]);
+      const h02 = directed(list[0], list[2]);
+      if (!h01 || !h12 || !h02) {
+        return null;
+      }
+      const residual = loopClosureResidual(h01, h12, h02);
+      return {
+        ...residual,
+        consistent: residual.meanPx <= 5,
+        route: `${list[0]}↔${list[2]} vs ${list[0]}↔${list[1]}↔${list[2]}`,
+      };
+    });
 
     return {
       cameras,
@@ -581,8 +585,11 @@ export default defineComponent({
       autoRegisterAvailable,
       autoRegistering,
       autoRegisterError,
-      autoRegisterSummary,
+      autoRegisterStatus,
+      autoRegisterDialog,
+      openAutoRegisterDialog,
       runAutoRegister,
+      loopClosure,
     };
   },
 });
@@ -667,6 +674,26 @@ export default defineComponent({
           </v-icon>
           {{ cam.name }}{{ cam.status === 'reference' ? ' · reference' : '' }}
         </v-chip>
+      </div>
+      <div
+        v-if="loopClosure"
+        class="d-flex align-center text-caption"
+        :class="loopClosure.consistent ? 'success--text' : 'warning--text'"
+      >
+        <v-icon
+          small
+          :color="loopClosure.consistent ? 'success' : 'warning'"
+          class="mr-1"
+        >
+          {{ loopClosure.consistent ? 'mdi-vector-triangle' : 'mdi-alert' }}
+        </v-icon>
+        <template v-if="loopClosure.consistent">
+          triplet consistent — {{ loopClosure.meanPx.toFixed(1) }} px loop closure
+        </template>
+        <template v-else>
+          {{ loopClosure.meanPx.toFixed(1) }} px loop closure:
+          {{ loopClosure.route }} disagree
+        </template>
       </div>
     </div>
     <v-divider class="my-3" />
@@ -756,11 +783,11 @@ export default defineComponent({
           outlined
           small
           color="primary"
-          :disabled="!camLeft || !camRight || camLeft === camRight || autoRegistering"
+          :disabled="cameras.length < 2 || autoRegistering"
           :loading="autoRegistering"
           class="mt-2"
           v-on="on"
-          @click="runAutoRegister"
+          @click="openAutoRegisterDialog"
         >
           <v-icon
             small
@@ -768,11 +795,20 @@ export default defineComponent({
           >
             mdi-auto-fix
           </v-icon>
-          Auto Register
+          Auto Register Frames…
         </v-btn>
       </template>
-      <span>Automatically match points between the two cameras on the current frame</span>
+      <span>
+        Match many image pairs across the whole sequence in one job and pool
+        a transform per camera pair
+      </span>
     </v-tooltip>
+    <auto-register-dialog
+      v-model="autoRegisterDialog"
+      :camera-count="cameras.length"
+      :running="autoRegistering"
+      @run="runAutoRegister"
+    />
     <span
       v-if="autoRegisterError"
       class="text-caption error--text d-block mt-1"
@@ -780,10 +816,10 @@ export default defineComponent({
       {{ autoRegisterError }}
     </span>
     <span
-      v-else-if="autoRegisterSummary"
+      v-else-if="autoRegisterStatus"
       class="text-caption success--text d-block mt-1"
     >
-      {{ autoRegisterSummary }}
+      {{ autoRegisterStatus }}
     </span>
 
     <v-checkbox

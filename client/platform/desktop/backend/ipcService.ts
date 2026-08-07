@@ -6,7 +6,7 @@ import {
   app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
-import type { AutoRegisterRequest, Pipe, GlobalStyleSettings } from 'dive-common/apispec';
+import type { Pipe, GlobalStyleSettings } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   ExportMulticamEverythingArgs,
@@ -59,15 +59,6 @@ function isSam3Installed(viamePath: string): boolean {
   ));
 }
 
-// Auto-register (Camera Registration panel) needs the MINIMA-LoFTR matcher weights
-// in the VIAME install; without them the button is hidden.
-function isAutoRegisterInstalled(viamePath: string): boolean {
-  if (process.env.VIAME_ALIGNMENT_WEIGHTS
-      && fs.existsSync(process.env.VIAME_ALIGNMENT_WEIGHTS)) {
-    return true;
-  }
-  return fs.existsSync(path.join(viamePath, 'configs', 'pipelines', 'models', 'minima_loftr.ckpt'));
-}
 if (OS.platform() === 'win32') {
   win32.initialize();
 }
@@ -455,22 +446,6 @@ export default function register() {
   ipcMain.handle('segmentation-sam3-installed', () => {
     const currentSettings = settings.get();
     return { installed: isSam3Installed(currentSettings.viamePath) };
-  });
-
-  ipcMain.handle('register-images-available', () => {
-    const currentSettings = settings.get();
-    return { installed: isAutoRegisterInstalled(currentSettings.viamePath) };
-  });
-
-  ipcMain.handle('register-images', async (_, args: AutoRegisterRequest) => {
-    const segService = getInteractiveServiceManager();
-
-    // Auto-register only needs the service process running -- its matcher model
-    // loads lazily inside the register_images request (and stays resident).
-    await segService.ensureStarted(settings.get());
-
-    const response = await segService.autoRegister(args);
-    return response;
   });
 
   ipcMain.handle('segmentation-text-query', async (_, args: {

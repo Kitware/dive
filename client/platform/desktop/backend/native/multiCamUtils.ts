@@ -10,6 +10,63 @@ import { JsonConfig, Settings } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
+import { getBinaryPath, spawnResult } from './utils';
+
+const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+
+/** Frame subset / range inputs for multicam pipeline arg writing. */
+export interface MultiCamRuntimeSubset {
+  /**
+   * Camera name -> ordered image identifiers for exactly the frames a job
+   * should process (registration subset jobs). Entries are the camera's own
+   * image names (resolved against its base path), absolute paths, or
+   * frame://N pseudo-names for video cameras (extracted to temp images).
+   */
+  imagePairs?: Record<string, string[]>;
+  frameRange?: [number, number];
+}
+
+/**
+ * Extract specific frames of a video to still images so a frame-subset job
+ * can consume one uniform image-list input (no vidl_ffmpeg in the pipe, no
+ * video-decode variability in the matcher's input). The frame number is
+ * kept in the file name (<camera>.frame_<N>.png) so job outputs can be
+ * mapped back to frame://N identities on ingest.
+ */
+async function extractVideoFrames(
+  videoPath: string,
+  frames: number[],
+  fps: number,
+  outDir: string,
+  camera: string,
+): Promise<string[]> {
+  await fs.ensureDir(outDir);
+  const results: string[] = [];
+  // eslint-disable-next-line no-restricted-syntax
+  for (const frameNum of frames) {
+    const seconds = fps > 0 ? frameNum / fps : 0;
+    const dest = npath.join(outDir, `${camera}.frame_${frameNum}.png`);
+    // eslint-disable-next-line no-await-in-loop -- a dozen sequential decodes
+    const result = await spawnResult(ffmpegPath, [
+      '-ss', seconds.toFixed(6),
+      '-i', videoPath,
+      '-frames:v', '1',
+      '-y', dest,
+    ]);
+    // eslint-disable-next-line no-await-in-loop
+    if (result.error || !await fs.pathExists(dest)) {
+      throw new Error(`Could not extract frame ${frameNum} from ${videoPath}: ${result.error ?? 'no output'}`);
+    }
+    results.push(dest);
+  }
+  return results;
+}
+
+/** frame://N pseudo-name to frame number, or null for real image names. */
+function pseudoFrameNumber(entry: string): number | null {
+  const match = /^frame:\/\/(\d+)$/.exec(entry);
+  return match ? Number(match[1]) : null;
+}
 
 /**
  * Figure out the destination location
@@ -73,7 +130,14 @@ function getTranscodedMultiCamType(imageListFile: string, jsonConfig: JsonConfig
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonConfig, settings: Settings, utility = false, forceTranscoded = false) {
+async function writeMultiCamStereoPipelineArgs(
+  jobWorkDir: string,
+  meta: JsonConfig,
+  settings: Settings,
+  utility = false,
+  forceTranscoded = false,
+  runtime: MultiCamRuntimeSubset = {},
+) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
@@ -92,10 +156,51 @@ async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonCon
         argFilePair['detector_writer:file_name'] = outputFileName;
         argFilePair['track_writer:file_name'] = outputFileName;
       }
+      const subset = runtime.imagePairs?.[key];
       if (list.type === 'image-sequence') {
         const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
+        let images = list.originalImageFiles.map((image) => npath.join(originalBasePath, image));
+        if (subset) {
+          // A registration subset job: ONLY the selected frames, keeping the
+          // ordering contract (row i of each camera's list pairs with row i
+          // of every other camera's).
+          images = subset.map((entry) => (
+            npath.isAbsolute(entry) ? entry : npath.join(originalBasePath, entry)));
+        } else if (runtime.frameRange) {
+          // The single-camera path filters image lists by frameRange;
+          // multicam silently ignored it (a pre-existing no-op) -- apply it
+          // here now that the list writing is subset-aware.
+          const [startFrame, endFrame] = runtime.frameRange;
+          images = images.slice(Math.max(0, startFrame), endFrame + 1);
+        }
         const inputFile = fs.createWriteStream(inputFileName);
-        list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
+        images.forEach((image) => inputFile.write(`${image}\n`));
+        inputFile.end();
+        argFilePair[inputArg] = inputFileName;
+        if (i === 0) {
+          argFilePair['input:video_filename'] = inputFileName;
+        }
+      } else if (list.originalVideoFile && subset) {
+        // Video multicam with a frame subset: extract the selected frames to
+        // temp images and feed the identical image-list path, so the
+        // register pipes never need vidl_ffmpeg (one input mechanism, both
+        // media types).
+        const vidFile = (list.transcodedVideoFile && forceTranscoded) || list.transcodedMisalign
+          ? list.transcodedVideoFile : list.originalVideoFile;
+        const videoPath = npath.join(originalBasePath, vidFile);
+        const frames = subset.map((entry) => {
+          const frameNum = pseudoFrameNumber(entry);
+          if (frameNum === null) {
+            throw new Error(`Expected frame://N identifiers for video camera "${key}", got "${entry}"`);
+          }
+          return frameNum;
+        });
+        const extracted = await extractVideoFrames(
+          videoPath, frames, meta.fps, npath.join(jobWorkDir, `extracted_${key}`), key,
+        );
+        const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
+        const inputFile = fs.createWriteStream(inputFileName);
+        extracted.forEach((image) => inputFile.write(`${image}\n`));
         inputFile.end();
         argFilePair[inputArg] = inputFileName;
         if (i === 0) {
