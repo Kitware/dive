@@ -14,9 +14,11 @@ import {
   Timeline,
 } from 'vue-media-annotator/components';
 import { clientSettings } from 'dive-common/store/settings';
+import context from 'dive-common/store/context';
 import {
   useHandler,
   useAttributesFilters,
+  useCameraRegistration,
   useCameraStore,
   useSelectedCamera,
   useTime,
@@ -131,6 +133,29 @@ export default defineComponent({
     const {
       volume, setVolume, setSpeed, speed,
     } = aggregateController.value;
+    /**
+     * Registration-frame markers for the Timeline work-area, shown ONLY
+     * while the Camera Registration panel is open (the same signal the
+     * viewer's registrationActive keys off) -- outside that tab the timeline
+     * stays exactly as it is today. Marker frames are the observations'
+     * resolved camA-local indices, which is the Timeline's own (selected
+     * camera local) frame space on positionally aligned rigs.
+     */
+    const cameraRegistration = useCameraRegistration();
+    const registrationMarkers = computed(() => {
+      if (context.state.active !== 'CameraRegistration') {
+        return [];
+      }
+      const key = cameraRegistration.activePairKey();
+      // Touch observations so edits recompute the markers.
+      void cameraRegistration.observations.value;
+      if (!key) {
+        return [];
+      }
+      return cameraRegistration.framesForPair(key)
+        .filter((row) => row.frame !== null)
+        .map((row) => ({ frame: row.frame as number, enabled: row.enabled }));
+    });
     // The timeline charts (line/event charts) are built from trackStores in
     // the selected camera's own local frame space. Under an aligned timeline
     // (SEAL feature 5) the aggregate controller's frame/maxFrame/seek operate
@@ -167,6 +192,7 @@ export default defineComponent({
       ticks,
       hasGroups,
       attributeData,
+      registrationMarkers,
       timelineEnabled,
       activeCountSettings,
       clientSettings,
@@ -466,6 +492,7 @@ export default defineComponent({
       :display="!collapsed"
       :dataset-type="datasetType"
       :bottom-layout="bottomLayout"
+      :markers="registrationMarkers"
       @seek="seek"
     >
       <template

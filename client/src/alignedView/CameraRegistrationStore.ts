@@ -598,6 +598,41 @@ export default class CameraRegistrationStore {
   }
 
   /**
+   * The camA-space frame index of the image pair `key`'s cameras currently
+   * display -- what the panel's frame list highlights and its per-frame
+   * table scopes to. Falls back to {@link currentFrame} without a resolver.
+   */
+  currentFrameForPair(key: string): number | null {
+    const [camA] = key.split('::');
+    const image = this.frameResolver?.currentImageName(camA);
+    if (!image) {
+      return this.currentFrame.value;
+    }
+    return this.resolveFrame(camA, image) ?? this.currentFrame.value;
+  }
+
+  /**
+   * Remove one observation (points and all) by its image-pair identity --
+   * restricted to one producer when `source` is given -- then refit.
+   */
+  removeObservation(key: string, imageA: string, imageB: string, source?: string) {
+    const matches = (obs: CorrespondenceObservation) => obs.imageA === imageA
+      && obs.imageB === imageB && (source === undefined || obs.source === source);
+    const list = this.observationsForPair(key);
+    const removed = list.filter(matches);
+    if (!removed.length) {
+      return;
+    }
+    const removedIds = new Set(removed.flatMap((obs) => obs.points.map((point) => point.id)));
+    if (this.selectedCorrespondenceId.value !== null
+      && removedIds.has(this.selectedCorrespondenceId.value)) {
+      this.selectedCorrespondenceId.value = null;
+    }
+    this.setObservationsForPair(key, list.filter((obs) => !matches(obs)));
+    this.maybeFitPair(key);
+  }
+
+  /**
    * Include or exclude one observation (identified by its image pair) from
    * the pooled fit, then refit. Excluding never deletes points.
    */
@@ -838,7 +873,7 @@ export default class CameraRegistrationStore {
     if (!key) {
       return;
     }
-    const frame = this.currentFrame.value;
+    const frame = this.currentFrameForPair(key);
     const list = this.observationsForPair(key);
     // The most recently added point on this frame is the one with the
     // highest id (ids allocate monotonically).

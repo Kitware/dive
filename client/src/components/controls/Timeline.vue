@@ -33,6 +33,16 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /**
+     * Frames to mark in the work-area (e.g. camera-registration frames while
+     * the Registration panel is open). Frames are in the same local frame
+     * space as the `frame` prop; clicking a marker emits 'seek' with its
+     * frame. Disabled markers render dimmed.
+     */
+    markers: {
+      type: Array as PropType<{ frame: number; enabled: boolean }[]>,
+      default: () => [],
+    },
   },
   emits: ['seek'],
   setup(props, { emit }) {
@@ -96,6 +106,29 @@ export default defineComponent({
           * ((props.frame - startFrame.value) / ((endFrame.value || 1) - startFrame.value)),
       );
     });
+
+    /**
+     * Markers positioned with the exact pixel mapping the playhead uses, so
+     * they stay aligned through zoom/pan; filtered to the visible range.
+     */
+    const visibleMarkers = computed(() => {
+      if (!mounted.value || endFrame.value === startFrame.value) {
+        return [];
+      }
+      return props.markers
+        .filter((marker) => marker.frame >= startFrame.value && marker.frame <= endFrame.value)
+        .map((marker) => ({
+          ...marker,
+          left: Math.round(margin.value + (clientWidth.value - margin.value)
+            * ((marker.frame - startFrame.value) / (endFrame.value - startFrame.value))),
+        }));
+    });
+
+    function markerClick(e: MouseEvent, frame: number) {
+      // Don't let the work-area's drag-seek double-fire on the same click.
+      e.stopPropagation();
+      emit('seek', frame);
+    }
 
     const timeFilterActive = computed(() => trackFilters && trackFilters.timeFilters.value !== null
       && Array.isArray(trackFilters.timeFilters.value));
@@ -567,6 +600,8 @@ export default defineComponent({
       containerMousemove,
       workareaMouseup,
       workareaMousedown,
+      visibleMarkers,
+      markerClick,
       workareaMousemove,
       workareaMouseleave,
       minimapFillMousedown,
@@ -625,6 +660,16 @@ export default defineComponent({
       >
         {{ dragTooltipText }}
       </div>
+      <div
+        v-for="marker in visibleMarkers"
+        :key="`registration-marker-${marker.frame}`"
+        class="registration-marker"
+        :class="{ 'registration-marker--disabled': !marker.enabled }"
+        :style="{ left: `${marker.left}px` }"
+        :title="`Registration frame ${marker.frame}`"
+        @mousedown.stop
+        @click="markerClick($event, marker.frame)"
+      />
       <div
         ref="hand"
         class="hand"
@@ -696,6 +741,51 @@ export default defineComponent({
       z-index: 2;
       cursor: col-resize;
       pointer-events: auto;
+    }
+
+    // Registration-frame markers: between the chart child (z 0) and the
+    // playhead hand (z 10).
+    .registration-marker {
+      position: absolute;
+      top: 0;
+      height: 100%;
+      width: 7px;
+      margin-left: -3px;
+      z-index: 5;
+      cursor: pointer;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 3px;
+        top: 0;
+        bottom: 0;
+        border-left: 1px dashed #26a69a;
+      }
+
+      &::after {
+        content: '';
+        position: absolute;
+        left: 0;
+        top: 0;
+        width: 7px;
+        height: 7px;
+        background: #26a69a;
+        transform: rotate(45deg);
+      }
+
+      &:hover::before {
+        border-left-width: 2px;
+        border-left-style: solid;
+      }
+
+      &--disabled::before {
+        border-left-color: #757575;
+      }
+
+      &--disabled::after {
+        background: #757575;
+      }
     }
 
     .time-filter-tooltip {
