@@ -141,7 +141,7 @@ export default defineComponent({
               <v-icon>mdi-folder-multiple</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
-              <v-list-item-title>Single Camera</v-list-item-title>
+              <v-list-item-title>Single-Camera</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
           <v-list-item
@@ -230,7 +230,7 @@ export default defineComponent({
               <v-icon>mdi-binoculars</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
-              <v-list-item-title>Stereoscopic</v-list-item-title>
+              <v-list-item-title>Stereo</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
           <v-list-item
@@ -241,7 +241,7 @@ export default defineComponent({
               <v-icon>mdi-camera-burst</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
-              <v-list-item-title>MultiCam</v-list-item-title>
+              <v-list-item-title>Multi-Camera</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
           <v-list-item
@@ -253,7 +253,7 @@ export default defineComponent({
               <v-icon>mdi-folder-multiple-image</v-icon>
             </v-list-item-icon>
             <v-list-item-content>
-              <v-list-item-title>MultiCam Batch</v-list-item-title>
+              <v-list-item-title>Multi-Camera Batch</v-list-item-title>
             </v-list-item-content>
           </v-list-item>
         </v-list>

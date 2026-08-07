@@ -1594,7 +1594,7 @@ export default defineComponent({
           });
           context.register({
             component: MultiCamToolsVue,
-            description: 'Multi Camera Tools',
+            description: 'Multi-Camera Tools',
           });
           // Camera registration applies to true multi-camera datasets only;
           // stereo pairs are aligned by their calibration file instead.
@@ -1612,7 +1612,7 @@ export default defineComponent({
         } else {
           context.unregister({
             component: MultiCamToolsVue,
-            description: 'Multi Camera Tools',
+            description: 'Multi-Camera Tools',
           });
           context.unregister({
             component: RegistrationToolsVue,

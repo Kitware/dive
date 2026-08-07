@@ -27,7 +27,7 @@ export function getMultiCamIcon(subType: MultiCamSubType): string {
 }
 
 export function getMultiCamTooltip(subType: MultiCamSubType): string {
-  return subType === 'stereo' ? 'Stereoscopic dataset' : 'Multicamera dataset';
+  return subType === 'stereo' ? 'Stereo dataset' : 'Multi-Camera dataset';
 }
 
 /** Camera names in display order (import / storage order). */

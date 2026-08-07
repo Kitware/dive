@@ -237,7 +237,7 @@ export default defineComponent({
       && stereoPipelineMarker !== pipeline.type)) {
         const cameraNames = props.selectedDatasetIds.map((item) => parentDatasetId(item));
         const result = await prompt({
-          title: `Running Single Camera Pipeline on ${cameraNames[0]}`,
+          title: `Running Single-Camera Pipeline on ${cameraNames[0]}`,
           text: ['Running a single pipeline on multi-camera data can produce conflicting track Ids',
             'Suggest Cancelling and deleting all existing tracks to ensure proper display of the output',
           ],

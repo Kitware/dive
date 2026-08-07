@@ -18,7 +18,7 @@ interface CameraTrackData {
 }
 export default defineComponent({
   name: 'MultiCamTools',
-  description: 'MultiCam Tools',
+  description: 'Multi-Camera Tools',
   components: { TooltipBtn },
   setup() {
     const selectedCamera = useSelectedCamera();
@@ -127,7 +127,7 @@ export default defineComponent({
 <template>
   <div class="mx-4">
     <span class="text-body-2">
-      Multicam Tools for creating tracks, linking and unlinking tracks
+      Multi-Camera Tools for creating tracks, linking and unlinking tracks
     </span>
     <v-divider class="my-3" />
     <v-divider class="my-3" />
