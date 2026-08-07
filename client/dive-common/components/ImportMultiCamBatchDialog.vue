@@ -233,7 +233,7 @@ export default defineComponent({
     class="import-card"
   >
     <v-card-title class="text-h5">
-      Batch Multi-Camera Import
+      Batch Multi Camera Import
     </v-card-title>
     <v-card-text>
       <p class="grey--text text--lighten-1">

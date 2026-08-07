@@ -20,7 +20,7 @@ describe('multicamDisplay', () => {
     expect(getMultiCamIcon('stereo')).toBe('mdi-binoculars');
     expect(getMultiCamIcon('multicam')).toBe('mdi-camera-burst');
     expect(getMultiCamTooltip('stereo')).toBe('Stereo dataset');
-    expect(getMultiCamTooltip('multicam')).toBe('Multi-Camera dataset');
+    expect(getMultiCamTooltip('multicam')).toBe('Multi Camera dataset');
   });
 
   it('orders cameras using cameraOrder when present', () => {
