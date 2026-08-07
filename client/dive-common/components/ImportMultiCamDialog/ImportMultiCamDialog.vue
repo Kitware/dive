@@ -83,7 +83,7 @@ export default defineComponent({
     class="import-card px-3"
   >
     <v-card-title class="text-h5">
-      Import {{ stereo ? 'Stereo' : 'Multi-Camera' }}
+      Import {{ stereo ? 'Stereo' : 'Multi Camera' }}
       {{ dataType === 'image-sequence' ? 'Image Sequence' : 'Videos' }}
     </v-card-title>
     <v-card-text>
