@@ -260,7 +260,7 @@ async function importCameraRegistration(
   store.loadRegistrationText(await file.text());
   let incoming = {
     homographies: store.homographies.value,
-    correspondences: store.correspondences.value,
+    observations: store.observations.value,
     transformTypes: store.transformTypes.value,
     source: store.source.value,
   };
@@ -278,7 +278,7 @@ async function importCameraRegistration(
   const merged = mergeRegistrationValues(
     {
       homographies: current.cameraHomographies ?? {},
-      correspondences: current.cameraCorrespondences ?? {},
+      observations: current.cameraCorrespondences ?? {},
       transformTypes: current.cameraTransformTypes ?? {},
       source: current.cameraRegistrationSource ?? null,
     },
@@ -287,7 +287,7 @@ async function importCameraRegistration(
   );
   await saveConfig(parentId, {
     cameraHomographies: merged.homographies,
-    cameraCorrespondences: merged.correspondences,
+    cameraCorrespondences: merged.observations,
     cameraTransformTypes: merged.transformTypes,
     cameraRegistrationSource: merged.source,
   });

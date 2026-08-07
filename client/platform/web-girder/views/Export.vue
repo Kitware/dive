@@ -264,7 +264,7 @@ export default defineComponent({
       }
       return buildPerCameraRegistrationFiles({
         homographies: ds.cameraHomographies ?? {},
-        correspondences: ds.cameraCorrespondences ?? {},
+        observations: ds.cameraCorrespondences ?? {},
         transformTypes: ds.cameraTransformTypes ?? {},
         source: ds.cameraRegistrationSource ?? null,
       }, referenceCameraName(ds.multiCamMedia));

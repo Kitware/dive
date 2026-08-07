@@ -9,7 +9,7 @@ import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 import type {
-  CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
+  CameraHomographies, CameraObservations, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
@@ -266,7 +266,12 @@ interface DatasetConfigMutable {
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
   datasetInfo?: DatasetInfoFields;
   cameraHomographies?: CameraHomographies;
-  cameraCorrespondences?: CameraCorrespondences;
+  /**
+   * Per-image-pair correspondence observations, keyed by directional
+   * "left::right". Each entry lists the observations (image-pair identity,
+   * enabled flag, producer source, stats, and points) behind that pair's fit.
+   */
+  cameraCorrespondences?: CameraObservations;
   cameraTransformTypes?: CameraTransformTypes;
   /** Producer provenance of the camera registration (see RegistrationSource). */
   cameraRegistrationSource?: RegistrationSource | null;

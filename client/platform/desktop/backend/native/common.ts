@@ -587,7 +587,7 @@ async function loadConfig(
   if (loadedCalibration.found) {
     ({
       homographies: cameraHomographies,
-      correspondences: cameraCorrespondences,
+      observations: cameraCorrespondences,
       transformTypes: cameraTransformTypes,
       source: cameraRegistrationSource,
     } = loadedCalibration);
