@@ -1244,15 +1244,17 @@ describe('native.common', () => {
   it('check Dastset existence', async () => {
     await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing dataset json');
     await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
-    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing dataset json');
+    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing project directory');
+  });
+
+  it('checkDataset does not create directories for missing datasets', async () => {
+    await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow();
+    expect(fs.existsSync('/home/user/viamedata/DIVE_Projects/missingFolder')).toBe(false);
   });
 
   it('delete datasets', async () => {
-    await expect(common.deleteDataset(settings, 'missingFolder')).rejects.toThrow('missing dataset json');
+    await expect(common.deleteDataset(settings, 'missingFolder')).resolves.toBe(true);
     let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
-    expect(exists).toBe(true);
-    await expect(common.deleteDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
-    exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad');
     expect(exists).toBe(true);
     exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid6Delete');
     expect(exists).toBe(true);
@@ -1260,6 +1262,18 @@ describe('native.common', () => {
     expect(deleted).toBe(true);
     exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid6Delete');
     expect(exists).toBe(false);
+  });
+
+  it('delete incomplete datasets', async () => {
+    await expect(common.deleteDataset(settings, 'projectid3Bad')).resolves.toBe(true);
+    expect(fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid3Bad')).toBe(false);
+    await expect(common.deleteDataset(settings, 'projectid5Bad')).resolves.toBe(true);
+    expect(fs.existsSync('/home/user/viamedata/DIVE_Projects/projectid5Bad')).toBe(false);
+  });
+
+  it('delete rejects paths outside the projects folder', async () => {
+    await expect(common.deleteDataset(settings, '../DIVE_Jobs')).rejects.toThrow('not a dataset directory');
+    expect(fs.existsSync('/home/user/viamedata/DIVE_Jobs')).toBe(true);
   });
 
   it('delete stereo dataset', async () => {
