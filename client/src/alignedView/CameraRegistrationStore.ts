@@ -445,6 +445,7 @@ export default class CameraRegistrationStore {
     if (!resolver) {
       return;
     }
+    const wasDirty = this.dirty.value;
     const next: CameraObservations = {};
     let changed = false;
     Object.entries(this.observations.value).forEach(([key, list]) => {
@@ -460,9 +461,11 @@ export default class CameraRegistrationStore {
     });
     if (changed) {
       this.observations.value = next;
-      // Frame resolution is derived state: it must not mark the saved
-      // calibration dirty on its own.
-      this.savedSnapshot.value = this.registrationSnapshot();
+      // Frame resolution is derived state: it must not mark a clean saved
+      // calibration dirty on its own (real unsaved edits stay dirty).
+      if (!wasDirty) {
+        this.savedSnapshot.value = this.registrationSnapshot();
+      }
     }
   }
 
