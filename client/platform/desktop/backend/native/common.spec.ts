@@ -9,7 +9,7 @@ import {
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
-import { CameraCorrespondences, MultiTrackRecord } from 'dive-common/apispec';
+import { MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { getResponseError } from 'vue-media-annotator/utils';
 import * as common from './common';
@@ -210,23 +210,23 @@ beforeEach(() => {
     '/home/user/output': {},
     '/home/user/transformDiscovery': {
       exactName: {
-        'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
-        'calibration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
+        'calibration.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
       },
       otherName: {
         'a-rig-calibration.json': JSON.stringify({ calibrations: {} }),
         'broken.json': '{not json',
-        'z-transforms.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'z-transforms.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
       },
       perCamera: {
-        'uv_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
-        'ir_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'uv_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
+        'ir_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
         'stray.json': JSON.stringify({ some: 'thing' }),
       },
       untypedPerCamera: {
-        'uv_to_eo_registration.json': JSON.stringify({ version: 1, pairs: [] }),
-        'no_pairs_registration.json': JSON.stringify({ version: 1 }),
-        'untyped-other-name.json': JSON.stringify({ version: 1, pairs: [] }),
+        'uv_to_eo_registration.json': JSON.stringify({ version: 2, pairs: [] }),
+        'no_pairs_registration.json': JSON.stringify({ version: 2 }),
+        'untyped-other-name.json': JSON.stringify({ version: 2, pairs: [] }),
       },
       none: {
         'rig.json': JSON.stringify({ some: 'thing' }),
@@ -1932,29 +1932,45 @@ describe('native.common', () => {
         BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
       },
     };
-    const cameraCorrespondences: CameraCorrespondences = {
-      'rgb::ir': [
-        { id: 1, a: [10, 20], b: [12, 22] },
-        { id: 2, a: [30, 40], b: [33, 44] },
-      ],
+    const cameraCorrespondences = {
+      'rgb::ir': [{
+        imageA: 'rgb_0001.png',
+        imageB: 'ir_0001.png',
+        frame: 1,
+        enabled: true,
+        source: 'manual',
+        points: [
+          { id: 1, a: [10, 20], b: [12, 22] },
+          { id: 2, a: [30, 40], b: [33, 44] },
+        ],
+      }],
     };
 
     await common.saveConfig(settings, final.id, { cameraHomographies, cameraCorrespondences });
 
     // Persisted as a standalone per-camera file, named for the mapping it
-    // carries (ir warps onto rgb): pairs labeled left/right, with points
-    // laid out as leftX leftY rightX rightY. Never a single all-pairs file.
+    // carries (ir warps onto rgb): pairs labeled left/right, with each
+    // observation's points laid out as leftX leftY rightX rightY. Never a
+    // single all-pairs file.
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
     const registrationPath = npath.join(projectDir, 'ir_to_rgb_registration.json');
     expect(await fs.pathExists(registrationPath)).toBe(true);
     const registration = await fs.readJSON(registrationPath);
     // Self-identifies so parent-folder discovery recognizes it.
     expect(registration.type).toBe('dive-camera-registration');
+    expect(registration.version).toBe(2);
     expect(registration.pairs).toStrictEqual([
       {
         left: 'rgb',
         right: 'ir',
-        points: [[10, 20, 12, 22], [30, 40, 33, 44]],
+        observations: [{
+          frame: 1,
+          imageLeft: 'rgb_0001.png',
+          imageRight: 'ir_0001.png',
+          enabled: true,
+          source: 'manual',
+          points: [[10, 20, 12, 22], [30, 40, 33, 44]],
+        }],
         leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
         rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
         // No explicit choice was saved, so persistence fills the default model.
@@ -2046,7 +2062,7 @@ describe('native.common', () => {
     const { homographies } = common.fromRegistrationPairs([{
       left: 'eo',
       right: 'ir',
-      points: [],
+      observations: [],
       leftToRight: null,
       rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
     }]);
@@ -2056,15 +2072,24 @@ describe('native.common', () => {
   });
 
   it('fromRegistrationPairs keeps points but skips the matrix for singular input', () => {
-    const { homographies, correspondences } = common.fromRegistrationPairs([{
+    const { homographies, observations } = common.fromRegistrationPairs([{
       left: 'eo',
       right: 'ir',
-      points: [[1, 2, 3, 4]],
+      observations: [{
+        imageLeft: 'eo_0001.jpg',
+        imageRight: 'ir_0001.tif',
+        source: 'kamera-solver',
+        points: [[1, 2, 3, 4]],
+      }],
       leftToRight: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
       rightToLeft: null,
     }]);
     expect(homographies['eo::ir']).toBeUndefined();
-    expect(correspondences['eo::ir']).toHaveLength(1);
+    expect(observations['eo::ir']).toHaveLength(1);
+    expect(observations['eo::ir'][0]).toMatchObject({
+      imageA: 'eo_0001.jpg', imageB: 'ir_0001.tif', enabled: true, source: 'kamera-solver',
+    });
+    expect(observations['eo::ir'][0].points).toHaveLength(1);
   });
 
   it('saveConfig persists the registration source stamp and reloads it', async () => {
@@ -2115,16 +2140,16 @@ describe('native.common', () => {
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
 
     const irPair = {
-      left: 'rgb', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      left: 'rgb', right: 'ir', observations: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
     };
     const uvPair = {
-      left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+      left: 'rgb', right: 'uv', observations: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
     };
     await fs.writeJSON(npath.join(projectDir, 'ir_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [irPair],
+      version: 2, source: { producer: 'kamera', run: 'fl07' }, pairs: [irPair],
     });
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+      version: 2, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
     });
 
     // Both pairs merge; the disagreeing stamps become a mixed composite so
@@ -2141,7 +2166,7 @@ describe('native.common', () => {
 
     // Agreeing stamps stay a single plain stamp.
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [uvPair],
+      version: 2, source: { producer: 'kamera', run: 'fl07' }, pairs: [uvPair],
     });
     const agreeing = await common.loadConfig(settings, final.id, urlMapper);
     expect(agreeing.cameraRegistrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
@@ -2149,7 +2174,7 @@ describe('native.common', () => {
     // A save of the mixed set never stamps the per-camera files with the
     // composite (that would read as a unanimous rig on the next load).
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+      version: 2, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
     });
     const beforeSave = await common.loadConfig(settings, final.id, urlMapper);
     await common.saveConfig(settings, final.id, {
@@ -2216,10 +2241,10 @@ describe('native.common', () => {
     // A per-camera file for a second camera merges in alongside the first.
     await fs.writeJSON('/home/user/output/uv_to_rgb_registration.json', {
       type: 'dive-camera-registration',
-      version: 1,
+      version: 2,
       source: { producer: 'kamera', run: 'fl07' },
       pairs: [{
-        left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+        left: 'rgb', right: 'uv', observations: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
       }],
     });
     const result = await common.importCameraRegistration(settings, final.id, '/home/user/output/uv_to_rgb_registration.json');
@@ -2257,13 +2282,13 @@ describe('native.common', () => {
     // A file holding two pairs, imported scoped to uv: only the uv pair lands.
     await fs.writeJSON('/home/user/output/allpairs.json', {
       type: 'dive-camera-registration',
-      version: 1,
+      version: 2,
       pairs: [
         {
-          left: 'rgb', right: 'ir', points: [], leftToRight: [[2, 0, 0], [0, 2, 0], [0, 0, 1]], rightToLeft: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 1]],
+          left: 'rgb', right: 'ir', observations: [], leftToRight: [[2, 0, 0], [0, 2, 0], [0, 0, 1]], rightToLeft: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 1]],
         },
         {
-          left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+          left: 'rgb', right: 'uv', observations: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
         },
       ],
     });

@@ -714,4 +714,4 @@ export type {
   MediaImportResponse,
 };
 
-export type { PercentileStretch, CameraCorrespondences };
+export type { PercentileStretch, CameraObservations };
