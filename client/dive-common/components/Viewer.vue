@@ -342,25 +342,23 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
-    // When the Camera Registration panel opens, minimize the workspace chrome to
-    // give the picking view more room: collapse the left type-filter sidebar and
-    // the bottom detections graph. This is a soft default -- the normal sidebar
-    // and timeline toggles still work while registering, so the user can bring
-    // either back -- and whatever layout they had before is restored on close.
+    // When the Camera Registration panel opens, minimize the workspace chrome
+    // to give the picking view more room: collapse the left type-filter
+    // sidebar. The bottom controls deliberately stay as they are -- the
+    // timeline hosts the registration-frame marker row, which is most useful
+    // exactly while this panel is open. This is a soft default -- the normal
+    // sidebar toggle still works while registering -- and whatever layout the
+    // user had before is restored on close.
     const registrationActive = computed(() => context.state.active === RegistrationToolsVue.name);
     let preRegistrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
-    let preRegistrationControlsCollapsed = false;
     watch(registrationActive, (active) => {
       if (active) {
         preRegistrationSidebarMode = sidebarMode.value;
-        preRegistrationControlsCollapsed = controlsCollapsed.value;
         if (sidebarMode.value === 'left') {
           sidebarMode.value = 'collapsed';
         }
-        controlsCollapsed.value = true;
       } else if (preRegistrationSidebarMode !== null) {
         sidebarMode.value = preRegistrationSidebarMode;
-        controlsCollapsed.value = preRegistrationControlsCollapsed;
         preRegistrationSidebarMode = null;
       }
     });

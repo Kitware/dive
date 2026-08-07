@@ -7,6 +7,7 @@ import {
   useCameraStore,
   useCameraRegistration,
   useDatasetId,
+  useHandler,
 } from 'vue-media-annotator/provides';
 import {
   TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
@@ -15,13 +16,14 @@ import { unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { useApi } from 'dive-common/apispec';
+import RegistrationFrameList, { FrameRow } from './RegistrationFrameList.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useAutoRegister } from 'dive-common/use/useAutoRegister';
 
 export default defineComponent({
   name: 'CameraRegistration',
   description: 'Camera Registration',
-  components: { TooltipBtn },
+  components: { TooltipBtn, RegistrationFrameList },
   setup() {
     const cameraStore = useCameraStore();
     const registration = useCameraRegistration();
@@ -29,6 +31,7 @@ export default defineComponent({
     const alignedView = useAlignedView();
     const { saveConfig } = useApi();
     const { prompt } = usePrompt();
+    const handler = useHandler();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
     /**
@@ -141,6 +144,106 @@ export default defineComponent({
       // Pooled across every enabled observation -- the fit input.
       return key ? registration.enabledPoints(key) : [];
     });
+    /** Pooled fit quality: per-frame agreement with the pair's consensus. */
+    const pairStats = computed(() => (
+      activeKey.value ? registration.pairFitStats(activeKey.value) : null));
+    /** The camA-space frame the viewer currently displays for this pair. */
+    const currentPairFrame = computed(() => {
+      // Touch currentFrame so scrubbing recomputes the readouts.
+      void registration.currentFrame.value;
+      const key = activeKey.value;
+      return key !== null ? registration.currentFrameForPair(key) : null;
+    });
+    /**
+     * The registration-frames list: the multi-image-pair selector AND the
+     * quality readout, one row per observation with its agreement dot.
+     */
+    const frameRows = computed<FrameRow[]>(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return [];
+      }
+      const stats = registration.pairFitStats(key);
+      const rmsByIdentity = new Map(stats.perObservation.map((obs) => [
+        `${obs.imageA}::${obs.imageB}`, obs.rmsPx,
+      ]));
+      return registration.framesForPair(key).map((row) => ({
+        frame: row.frame,
+        imageA: row.imageA,
+        imageB: row.imageB,
+        enabled: row.enabled,
+        source: row.source,
+        count: row.count,
+        rmsPx: rmsByIdentity.get(`${row.imageA}::${row.imageB}`) ?? null,
+        skipped: (row.stats && typeof row.stats.skipped === 'string')
+          ? row.stats.skipped as string : null,
+        current: row.frame !== null && row.frame === currentPairFrame.value,
+      }));
+    });
+    /** Point pairs picked/matched on the frame currently being viewed. */
+    const frameCorrespondences = computed(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return [];
+      }
+      return registration.correspondencesForFrame(key, currentPairFrame.value);
+    });
+    function toggleFrameRow(row: FrameRow, enabled: boolean) {
+      const key = activeKey.value;
+      if (key) {
+        registration.setObservationEnabled(key, row.imageA, row.imageB, enabled);
+      }
+    }
+    function jumpToFrame(frame: number) {
+      // Observation frames are camA-local; the handler seeks the selected
+      // camera's local space (a passthrough on positionally aligned rigs).
+      handler.seekFrame(frame);
+    }
+    async function removeFrameRow(row: FrameRow) {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      if (row.count > 0) {
+        const confirmed = await prompt({
+          title: 'Remove Registration Frame',
+          text: `Remove the ${row.count} point pair(s) from `
+            + `${row.frame !== null ? `frame ${row.frame}` : 'this frame'}? `
+            + 'To exclude the frame from the fit without deleting its points, '
+            + 'uncheck it instead.',
+          positiveButton: 'Remove',
+          negativeButton: 'Cancel',
+          confirm: true,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
+      registration.removeObservation(key, row.imageA, row.imageB, row.source);
+    }
+    /** Frames carrying registration points, for prev/next navigation. */
+    const markerFrames = computed(() => frameRows.value
+      .map((row) => row.frame)
+      .filter((frameNum): frameNum is number => frameNum !== null)
+      .sort((a, b) => a - b));
+    function seekPrevMarker() {
+      const current = currentPairFrame.value ?? 0;
+      const prev = [...markerFrames.value].reverse().find((frameNum) => frameNum < current);
+      if (prev !== undefined) {
+        handler.seekFrame(prev);
+      }
+    }
+    function seekNextMarker() {
+      const current = currentPairFrame.value ?? 0;
+      const next = markerFrames.value.find((frameNum) => frameNum > current);
+      if (next !== undefined) {
+        handler.seekFrame(next);
+      }
+    }
+    /** One-click way to start contributing the current frame: enable picking. */
+    function addCurrentFrame() {
+      registration.pickingEnabled.value = true;
+    }
     const transformType = computed<TransformType>(
       () => (activeKey.value
         ? registration.transformTypeForPair(activeKey.value)
@@ -204,10 +307,14 @@ export default defineComponent({
         };
       }
       if (canFit.value) {
+        const stats = pairStats.value;
+        const frames = stats ? stats.frameCount : 0;
+        const rms = stats && stats.rmsPx !== null ? ` — rms ${stats.rmsPx.toFixed(1)} px` : '';
         return {
           icon: 'mdi-check-circle',
           color: fitQualityColor.value,
-          text: `Transform fit from ${correspondences.value.length} point pairs`,
+          text: `Transform fit from ${frames} frame${frames === 1 ? '' : 's'} / `
+            + `${correspondences.value.length} point pairs${rms}`,
         };
       }
       return {
@@ -439,6 +546,17 @@ export default defineComponent({
       deleteSelectedCorrespondence,
       cursorReadout,
       correspondences,
+      pairStats,
+      currentPairFrame,
+      frameRows,
+      frameCorrespondences,
+      markerFrames,
+      toggleFrameRow,
+      jumpToFrame,
+      removeFrameRow,
+      seekPrevMarker,
+      seekNextMarker,
+      addCurrentFrame,
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
       minPoints,
@@ -592,6 +710,41 @@ export default defineComponent({
       points is optional: fitting {{ minPoints }} or more pairs replaces it.
     </span>
 
+    <template v-if="camLeft && camRight && camLeft !== camRight">
+      <v-divider class="my-3" />
+      <div class="d-flex align-center">
+        <h4>Registration Frames</h4>
+        <v-spacer />
+        <tooltip-btn
+          icon="mdi-chevron-left"
+          :disabled="!markerFrames.length"
+          tooltip-text="Previous registration frame"
+          @click="seekPrevMarker"
+        />
+        <tooltip-btn
+          icon="mdi-chevron-right"
+          :disabled="!markerFrames.length"
+          tooltip-text="Next registration frame"
+          @click="seekNextMarker"
+        />
+        <tooltip-btn
+          icon="mdi-plus"
+          tooltip-text="Add the current frame: turn on point picking here"
+          @click="addCurrentFrame"
+        />
+      </div>
+      <span class="text-caption grey--text d-block mb-1">
+        The fit pools points from every checked frame. Uncheck a frame to
+        exclude it without deleting its points.
+      </span>
+      <registration-frame-list
+        :rows="frameRows"
+        @toggle="toggleFrameRow"
+        @jump="jumpToFrame"
+        @remove="removeFrameRow"
+      />
+    </template>
+
     <v-tooltip
       v-if="autoRegisterAvailable"
       bottom
@@ -671,7 +824,9 @@ export default defineComponent({
       >
         <v-expansion-panel>
           <v-expansion-panel-header class="px-1">
-            Correspondences ({{ correspondences.length }})
+            Correspondences on frame
+            {{ currentPairFrame !== null ? currentPairFrame : '—' }}
+            ({{ frameCorrespondences.length }})
           </v-expansion-panel-header>
           <v-expansion-panel-content class="px-0">
             <div class="d-flex justify-end mb-1">
@@ -690,7 +845,7 @@ export default defineComponent({
               />
             </div>
             <v-simple-table
-              v-if="correspondences.length"
+              v-if="frameCorrespondences.length"
               dense
               class="mb-2"
             >
@@ -705,7 +860,7 @@ export default defineComponent({
                 </thead>
                 <tbody>
                   <tr
-                    v-for="(c, i) in correspondences"
+                    v-for="(c, i) in frameCorrespondences"
                     :key="c.id"
                     :style="c.id === selectedCorrespondenceId
                       ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
@@ -738,7 +893,9 @@ export default defineComponent({
               v-else
               class="text-caption grey--text"
             >
-              No correspondences yet. At least {{ minPoints }} required for the selected transform.
+              No correspondences on this frame yet
+              ({{ correspondences.length }} total across all frames; at least
+              {{ minPoints }} required for the selected transform).
             </span>
           </v-expansion-panel-content>
         </v-expansion-panel>
