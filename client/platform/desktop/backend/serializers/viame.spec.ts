@@ -182,12 +182,10 @@ const meta = {
 } as JsonConfig;
 const testFiles: Record<string, string> = { };
 testData.forEach((item, index) => {
-  // eslint-disable-next-line prefer-destructuring
   testFiles[`${index}.csv`] = item[0].join('\n');
 });
 const imageOrderFiles: Record<string, string> = { };
 imageFilenameTests.forEach((item, index) => {
-  // eslint-disable-next-line prefer-destructuring
   imageOrderFiles[`${index}.csv`] = item.csv.join('\n');
 });
 
@@ -242,7 +240,6 @@ describe('VIAME Python Compatibility Check', () => {
       // eslint-disable-next-line no-await-in-loop
       const results = await parse(csvStream);
       expect(Object.values(results[0].tracks)).toEqual(trackArray);
-      // eslint-disable-next-line no-await-in-loop
       const attData = processTrackAttributes(Object.values(results[0].tracks));
       expect(testAttributes).toEqual(attData.attributes);
     }

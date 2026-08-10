@@ -1,5 +1,4 @@
 <script lang="ts">
-/* eslint-disable max-len */
 import { computed, defineComponent, ref } from 'vue';
 import { throttle } from 'lodash';
 import { useAttributes, useTrackFilters, useTrackStyleManager } from 'vue-media-annotator/provides';

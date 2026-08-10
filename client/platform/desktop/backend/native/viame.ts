@@ -366,7 +366,6 @@ async function runPipeline(
 
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
-    // eslint-disable-next-line max-len
     const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);

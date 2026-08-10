@@ -1,5 +1,4 @@
 <script lang="ts">
-/* eslint-disable max-len */
 import {
   computed, defineComponent, PropType, ref,
 } from 'vue';

@@ -42,7 +42,6 @@ import * as dive from 'platform/desktop/backend/serializers/dive';
 import * as coco from 'platform/desktop/backend/serializers/coco';
 import kpf from 'platform/desktop/backend/serializers/kpf';
 // TODO:  Check to Refactor this
-// eslint-disable-next-line import/no-cycle
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
@@ -63,7 +62,6 @@ import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 // TODO:  Check to Refactor this
-// eslint-disable-next-line import/no-cycle
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
 import {
   loadRegistrationFiles, referenceCameraName, saveRegistrationToDatasetDir,
@@ -966,7 +964,7 @@ async function autodiscoverData(settings: Settings): Promise<JsonConfig[]> {
   const dspath = npath.join(settings.dataPath, ProjectsFolderName);
   const dsids = await fs.readdir(dspath);
   const metas: JsonConfig[] = [];
-  /* eslint-disable no-await-in-loop,no-continue */
+  /* eslint-disable no-await-in-loop */
   for (let i = 0; i < dsids.length; i += 1) {
     const datasetId = dsids[i];
     try {

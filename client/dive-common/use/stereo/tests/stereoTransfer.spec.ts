@@ -1,7 +1,6 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ref } from 'vue';
-// eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
 import {
   describe, it, expect, vi,
 } from 'vitest';

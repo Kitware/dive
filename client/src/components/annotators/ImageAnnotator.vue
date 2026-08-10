@@ -80,7 +80,6 @@ export default defineComponent({
       externallyDriven,
     } = cameraInitializer(props.camera, 'image-sequence', {
       // allow hoisting for these functions to pass a reference before defining them.
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
     });
     const { playbackCursor } = useAnnotatorImageCursor(

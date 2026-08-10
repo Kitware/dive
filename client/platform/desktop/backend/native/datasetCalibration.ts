@@ -15,7 +15,6 @@ import parseStereoCalibrationJson from 'dive-common/utils/parseStereoCalibration
 import { Settings, LastCalibrationBaseName } from 'platform/desktop/constants';
 
 import { prepareDatasetCalibration } from './calibrationConvert';
-// eslint-disable-next-line import/no-cycle
 import {
   autodiscoverData, getValidatedProjectDir, loadJsonConfig, saveProjectConfig,
 } from './common';

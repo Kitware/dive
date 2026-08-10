@@ -124,7 +124,6 @@ export default defineComponent({
       externallyDriven,
     } = cameraInitializer(props.camera, 'video', {
       // allow hoisting for these functions.
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek,
       pause,
       play,

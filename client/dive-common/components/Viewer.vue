@@ -1662,7 +1662,6 @@ export default defineComponent({
           }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
-          // eslint-disable-next-line no-await-in-loop
           const {
             tracks,
             groups,

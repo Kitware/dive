@@ -457,7 +457,6 @@ export default class SegmentationPointClick implements Recipe {
   update(
     mode: 'in-progress' | 'editing',
     frameNum: number,
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     track: Track,
     data: GeoJSON.Feature<GeoJSON.LineString | GeoJSON.Polygon | GeoJSON.Point>[],
     // eslint-disable-next-line @typescript-eslint/no-unused-vars

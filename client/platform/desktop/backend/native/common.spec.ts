@@ -129,7 +129,6 @@ vi.mock('./mediaJobs', () => ({
   } as DesktopJob)),
 }));
 // https://github.com/tschaub/mock-fs/issues/234
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const console = new Console(process.stdout, process.stderr);
 
 const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
@@ -449,10 +448,8 @@ beforeEach(() => {
       },
     },
     '/home/user/viamedata': {
-    // eslint-disable-next-line @typescript-eslint/naming-convention
       DIVE_Jobs: {
         goodTrainingJob: {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
           category_models: {
             'detector.pipe': '',
             'trained_detector.zip': '',
@@ -462,17 +459,14 @@ beforeEach(() => {
           missingModelFolder: {},
         },
         missingPipeTrainingJob: {
-        // eslint-disable-next-line @typescript-eslint/naming-convention
           category_models: {
             'trained_detector.zip': '',
           },
         },
       },
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       DIVE_Pipelines: {
       /* Empty */
       },
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       DIVE_Projects: {
         projectid1: {
           'meta.json': JSON.stringify({
@@ -817,7 +811,6 @@ beforeEach(() => {
               'bar.png',
             ],
             attributes: {
-            // eslint-disable-next-line @typescript-eslint/naming-convention
               track_attribute1: {
                 belongs: 'track',
                 datatype: 'text',
@@ -825,7 +818,6 @@ beforeEach(() => {
                 name: 'attribute1',
                 key: 'track_attribute1',
               },
-              // eslint-disable-next-line @typescript-eslint/naming-convention
               detection_attribute1: {
                 belongs: 'detection',
                 datatype: 'number',

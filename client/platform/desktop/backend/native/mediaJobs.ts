@@ -15,7 +15,6 @@ import {
   jobFileEchoMiddleware, spawnResult, createWorkingDirectory, getBinaryPath,
 } from './utils';
 // TODO:  Check to Refactor this
-// eslint-disable-next-line import/no-cycle
 import {
   getTranscodedMultiCamType,
 } from './multiCamUtils';
@@ -265,7 +264,6 @@ async function convertMedia(
         endTime: new Date(),
       });
       // Update meta to reflect error
-      // eslint-disable-next-line no-param-reassign
       onFail?.(jobKey, args.meta, `Transcoding job failed with exit code ${code}`);
     } else {
       if (args.meta.type === 'video' || multiType === 'video') {

@@ -354,7 +354,6 @@ apirouter.get('/media', (req, res, next) => {
   }
 
   const range = ranges[0];
-  // eslint-disable-next-line no-param-reassign
   res.status(206);
   res.setHeader('Content-Length', range.end - range.start + 1);
   res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${filestat.size}`);

@@ -1,4 +1,3 @@
-/* eslint-disable class-methods-use-this */
 import geo, { GeoEvent } from 'geojs';
 import { Ref } from 'vue';
 
@@ -326,7 +325,6 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
           .draw();
       }
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn('Annotation layer disable skipped after map/renderer teardown', err);
     }
   }

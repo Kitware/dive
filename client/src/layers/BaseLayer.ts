@@ -6,7 +6,6 @@ import { applyHomography, Matrix3 } from '../alignedView/homography';
 import { StateStyles, TypeStyling } from '../StyleManager';
 import { FrameDataTrack } from './LayerTypes';
 
-// eslint-disable-next-line max-len
 export type StyleFunction<T, D> = T | ((point: [number, number], index: number, data: D) => T | undefined);
 export type ObjectFunction<T, D> = T | ((data: D, index: number) => T | undefined);
 export type PointFunction<T, D> = T | ((data: D) => T | undefined);
@@ -179,7 +178,6 @@ export default abstract class BaseLayer<D> {
       try {
         this.redraw();
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.warn('Annotation layer redraw skipped after map/renderer teardown');
       }
     }

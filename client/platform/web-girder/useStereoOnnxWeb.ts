@@ -91,7 +91,6 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
       try {
         matcher = await StereoOnnxMatcher.create(modelUrl);
       } catch (err) {
-        // eslint-disable-next-line no-console
         console.warn('[StereoOnnx] failed to load model', modelUrl, err);
         matcher = null;
       }
@@ -149,13 +148,11 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
       const fromSession = await rigFromSession();
       if (fromSession) return fromSession;
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn('[StereoOnnx] failed to parse the session calibration', err);
     }
     try {
       return await rigFromDataset();
     } catch (err) {
-      // eslint-disable-next-line no-console
       console.warn('[StereoOnnx] failed to load the dataset calibration', err);
       return null;
     }

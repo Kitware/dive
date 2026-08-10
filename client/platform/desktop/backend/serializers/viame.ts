@@ -1,4 +1,3 @@
-/* eslint-disable max-len */
 /**
  * VIAME CSV parser/serializer copied logically from
  * dive_utils.serializers.viame python module

@@ -102,7 +102,6 @@ beforeEach(() => {
       right: { 'img_right.png': '' },
     },
     '/home/user/viamedata': {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
       DIVE_Projects: {
         multicamExport: {
           'meta.json': JSON.stringify({

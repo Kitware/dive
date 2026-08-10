@@ -7,7 +7,6 @@ import {
 } from 'dive-common/apispec';
 
 import { JsonConfig, Settings } from 'platform/desktop/constants';
-// eslint-disable-next-line import/no-cycle
 import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
@@ -34,7 +33,6 @@ function transcodeMultiCam(
 
         if (cameraData.type === 'image-sequence') {
           if (!cameraData.transcodedImageFiles) {
-          // eslint-disable-next-line no-param-reassign
             cameraData.transcodedImageFiles = [];
           }
           if (cameraData.originalImageFiles.includes(npath.basename(item))) {
@@ -45,7 +43,6 @@ function transcodeMultiCam(
         } else if (cameraData.type === 'video') {
           if (item === npath.join(cameraData.originalBasePath, cameraData.originalVideoFile)) {
             destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
-            // eslint-disable-next-line no-param-reassign
             cameraData.transcodedVideoFile = npath.basename(destLoc);
             break;
           }

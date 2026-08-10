@@ -803,7 +803,6 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * True when a finalized annotation has enough vertices to be a real shape.
    * Guards against degenerate geometry emitted by a programmatic mode change.
    */
-  // eslint-disable-next-line class-methods-use-this
   isValidCompletedGeometry(feature: GeoJSON.Feature): boolean {
     const { geometry } = feature;
     if (!geometry) return false;
