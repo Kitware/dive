@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { defineComponent, ref } from 'vue';
-// eslint-disable-next-line import/no-extraneous-dependencies -- @vue/test-utils is only used in tests
 import { mount } from '@vue/test-utils';
 import { useMediaController } from './useMediaController';
 import type { AlignedFrameResolver } from './mediaControllerType';

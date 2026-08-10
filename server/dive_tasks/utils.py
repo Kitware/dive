@@ -182,7 +182,7 @@ def ffprobe_supports_option_from_file() -> bool:
         combined = f'{completed.stdout or ""}{completed.stderr or ""}'
         # FFmpeg 4.x reports: Failed to set value '...' for option '/headers': Option not found
         return 'Option not found' not in combined and 'Unrecognized option' not in combined
-    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+    except (OSError, subprocess.TimeoutExpired):
         return False
     finally:
         with suppress(OSError):

@@ -1,5 +1,4 @@
 // @vitest-environment jsdom
-/* eslint-disable import/no-extraneous-dependencies */
 import { mount } from '@vue/test-utils';
 import Vue, {
   CreateElement, defineComponent, nextTick, ref,

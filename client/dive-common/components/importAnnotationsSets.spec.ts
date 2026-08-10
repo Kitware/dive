@@ -1,6 +1,5 @@
 // @vitest-environment jsdom
 import { defineComponent, h, ref } from 'vue';
-// eslint-disable-next-line import/no-extraneous-dependencies -- @vue/test-utils is only used in tests
 import { mount } from '@vue/test-utils';
 import { provideAnnotator, dummyState, dummyHandler } from 'vue-media-annotator/provides';
 import { provideApi } from 'dive-common/apispec';

@@ -3,7 +3,6 @@
 import {
   defineComponent, ref, shallowRef, nextTick,
 } from 'vue';
-// eslint-disable-next-line import/no-extraneous-dependencies -- @vue/test-utils is only used in tests
 import { mount } from '@vue/test-utils';
 import { clientSettings } from 'dive-common/store/settings';
 import type { MediaController, AggregateMediaController } from '../annotators/mediaControllerType';
