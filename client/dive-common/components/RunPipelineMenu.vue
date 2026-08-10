@@ -186,6 +186,19 @@ export default defineComponent({
       props.excludePipelineTerms,
     ));
 
+    /* Icon slots are reserved per category so the columns line up across rows. */
+    function categoryPipes(pipeType: string) {
+      return pipelines.value?.[pipeType]?.pipes ?? [];
+    }
+
+    function categoryHasParams(pipeType: string) {
+      return categoryPipes(pipeType).some(pipelineHasParams);
+    }
+
+    function categoryHasCalibrationWarning(pipeType: string) {
+      return categoryPipes(pipeType).some(isPipelineDisabledForCalibration);
+    }
+
     const pipelinesNotRunnable = computed(() => (
       props.selectedDatasetIds.length < 1 || pipelines.value === null
     ));
@@ -307,6 +320,8 @@ export default defineComponent({
       pipelineTooltipDisabled,
       openDiveParamsDialog,
       pipelineHasParams,
+      categoryHasParams,
+      categoryHasCalibrationWarning,
     };
   },
 });
@@ -462,25 +477,35 @@ export default defineComponent({
                           v-on="on"
                           @click="runPipelineOnSelectedItem(pipeline)"
                         >
-                          <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
-                            {{ pipeline.name }}
-                            <span style="display: flex; align-items: center; gap: 8px; margin-left: 20px;">
-                              <PipelineCalibrationWarningIcon
-                                v-if="isPipelineDisabledForCalibration(pipeline)"
-                              />
-                              <!-- The gear is its own hit target: clicking it
-                                configures, clicking anywhere else on the entry
-                                runs with the pipeline's own defaults. -->
-                              <v-btn
-                                v-if="pipelineHasParams(pipeline)"
-                                icon
-                                small
-                                class="pipeline-params-button"
-                                :aria-label="`Configure ${pipeline.name}`"
-                                @click.stop="openDiveParamsDialog(pipeline)"
+                          <v-list-item-title class="font-weight-regular pipeline-item-title">
+                            <span class="pipeline-item-name">{{ pipeline.name }}</span>
+                            <span class="pipeline-item-actions">
+                              <span
+                                v-if="categoryHasCalibrationWarning(pipeType)"
+                                class="pipeline-item-action"
                               >
-                                <v-icon>mdi-cog-outline</v-icon>
-                              </v-btn>
+                                <PipelineCalibrationWarningIcon
+                                  v-if="isPipelineDisabledForCalibration(pipeline)"
+                                />
+                              </span>
+                              <span
+                                v-if="categoryHasParams(pipeType)"
+                                class="pipeline-item-action"
+                              >
+                                <!-- The gear is its own hit target: clicking it
+                                  configures, clicking anywhere else on the entry
+                                  runs with the pipeline's own defaults. -->
+                                <v-btn
+                                  v-if="pipelineHasParams(pipeline)"
+                                  icon
+                                  small
+                                  class="pipeline-params-button"
+                                  :aria-label="`Configure ${pipeline.name}`"
+                                  @click.stop="openDiveParamsDialog(pipeline)"
+                                >
+                                  <v-icon>mdi-cog-outline</v-icon>
+                                </v-btn>
+                              </span>
                             </span>
                           </v-list-item-title>
                         </v-list-item>
@@ -530,12 +555,43 @@ export default defineComponent({
 .pipeline-submenu-list {
   max-height: 60vh;
   overflow-y: auto;
+  overflow-x: hidden;
+  /* Otherwise the scrollbar is carved out of the width the menu already sized
+     itself to, and the widest rows overflow by that much. */
+  scrollbar-gutter: stable;
 }
 
-/* Keep the gear's hit area comfortably clear of the pipeline name, so a click
-   meant for the name does not land on the button. */
-.pipeline-params-button {
-  margin-left: 20px;
+.pipeline-item-title.v-list-item__title {
+  display: flex;
+  align-items: center;
+}
+
+/* Truncates rather than pushing the icons out of their columns. */
+.pipeline-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pipeline-item-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  /* Keep the gear's hit area clear of the name, so a click meant for the name
+     does not land on the button. */
+  margin-left: 16px;
+}
+
+.pipeline-item-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+}
+
+.pipeline-item-action + .pipeline-item-action {
+  margin-left: 8px;
 }
 
 .pipeline-category-col--last {
