@@ -634,7 +634,6 @@ def test_replace_attachment_stays_successful_when_old_item_cleanup_fails(
     log.assert_called_once()
 
 
-
 @patch('dive_server.crud_dataset.crud.refresh_folder_document')
 @patch('dive_server.crud_dataset.crud.getCloneRoot')
 @patch('dive_server.crud_dataset.Folder')
