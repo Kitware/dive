@@ -331,6 +331,10 @@ export default function register() {
     };
     return currentPlatform.train(settings.get(), args, updater);
   });
+  ipcMain.handle('list-resumable-training', async () => common.findResumableTrainingJobs(settings.get()));
+  ipcMain.handle('discard-resumable-training', async (_event, workingDir: string) => {
+    await common.discardResumableTraining(settings.get(), workingDir);
+  });
 
   /**
    * Interactive Segmentation Service

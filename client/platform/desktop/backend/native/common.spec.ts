@@ -12,7 +12,7 @@ import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/di
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import * as common from './common';
-import { createWorkingDirectory } from './utils';
+import { createWorkingDirectory, buildTrainingExitManifest } from './utils';
 
 vi.mock('fs-extra', async () => {
   const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
@@ -1397,6 +1397,147 @@ describe('native.common', () => {
       };
       expect(tracks).toEqual(modifiedSource);
     }
+  });
+});
+
+describe('resumable training jobs', () => {
+  const jobsDir = '/home/user/viamedata/DIVE_Jobs';
+  const baseManifest = {
+    key: 'key',
+    command: 'viame train',
+    jobType: 'training',
+    title: 'fish detector',
+    args: {
+      type: JobType.RunTraining,
+      datasetIds: ['datasetId'],
+      pipelineName: 'fish detector',
+      trainingConfig: 'train.conf',
+      annotatedFramesOnly: false,
+    },
+    datasetIds: ['datasetId'],
+    pid: 999999999,
+    exitCode: null,
+    startTime: new Date('2026-01-01T00:00:00Z'),
+  };
+
+  /* mock-fs cannot intercept writeFileSync on newer node, so job directories
+   * are seeded through the mockfs() config instead of written at runtime */
+  function jobDirConfig(
+    name: string,
+    manifestOverrides: Record<string, unknown>,
+    files = ['deep_training', 'input_folder_list.txt', 'input_truth_list.txt'],
+  ) {
+    const entries: Record<string, string | Record<string, never>> = {};
+    files.forEach((f) => {
+      entries[f] = f.includes('.') ? '' : {};
+    });
+    entries['dive_job_manifest.json'] = JSON.stringify({
+      ...baseManifest,
+      workingDir: npath.join(jobsDir, name),
+      ...manifestOverrides,
+    });
+    return entries;
+  }
+
+  function mockJobsFolder(jobs: Record<string, Record<string, string | Record<string, never>>>) {
+    mockfs({
+      '/home/user/viamedata': {
+        DIVE_Jobs: jobs,
+        DIVE_Projects: {},
+      },
+    });
+  }
+
+  it('finds interrupted runs with intermediate files, newest first', async () => {
+    mockJobsFolder({
+      crashed: jobDirConfig('crashed', { endTime: new Date('2026-01-01T01:00:00Z'), exitCode: 139 }),
+      cancelled: jobDirConfig('cancelled', {
+        startTime: new Date('2026-01-02T00:00:00Z'),
+        endTime: new Date('2026-01-02T01:00:00Z'),
+        exitCode: -1,
+      }),
+    });
+    const found = await common.findResumableTrainingJobs(settings);
+    expect(found.map((j) => j.workingDir)).toEqual([
+      npath.join(jobsDir, 'cancelled'),
+      npath.join(jobsDir, 'crashed'),
+    ]);
+  });
+
+  it('excludes successful, still running, and stateless runs', async () => {
+    mockJobsFolder({
+      succeeded: jobDirConfig('succeeded', { endTime: new Date(), exitCode: 0 }),
+      running: jobDirConfig('running', { pid: process.pid }),
+      noTrainerState: jobDirConfig('noTrainerState', { endTime: new Date(), exitCode: 1 }, ['input_folder_list.txt', 'input_truth_list.txt']),
+      interrupted: jobDirConfig('interrupted', { endTime: new Date(), exitCode: 1 }),
+    });
+    const found = await common.findResumableTrainingJobs(settings);
+    expect(found.map((j) => j.workingDir)).toEqual([npath.join(jobsDir, 'interrupted')]);
+  });
+
+  it('excludes legacy successful runs with an emptied category_models', async () => {
+    mockJobsFolder({
+      legacySuccess: jobDirConfig(
+        'legacySuccess',
+        {},
+        ['deep_training', 'category_models', 'input_folder_list.txt', 'input_truth_list.txt'],
+      ),
+      legacyInterrupted: jobDirConfig('legacyInterrupted', {}),
+    });
+    const found = await common.findResumableTrainingJobs(settings);
+    expect(found.map((j) => j.workingDir)).toEqual([npath.join(jobsDir, 'legacyInterrupted')]);
+  });
+
+  it('discard removes only job working directories', async () => {
+    mockJobsFolder({
+      discardMe: jobDirConfig('discardMe', { endTime: new Date(), exitCode: 1 }),
+    });
+    const dir = npath.join(jobsDir, 'discardMe');
+    await common.discardResumableTraining(settings, dir);
+    expect(fs.existsSync(dir)).toBe(false);
+    await expect(common.discardResumableTraining(settings, '/home/user/viamedata/DIVE_Projects'))
+      .rejects.toThrow('not a job working directory');
+  });
+});
+
+describe('buildTrainingExitManifest', () => {
+  const jobBase: DesktopJob = {
+    key: 'key',
+    command: 'viame train',
+    jobType: 'training',
+    title: 'fish detector',
+    args: {
+      type: JobType.RunTraining,
+      datasetIds: ['datasetId'],
+      pipelineName: 'fish detector',
+      trainingConfig: 'train.conf',
+      annotatedFramesOnly: false,
+    },
+    datasetIds: ['datasetId'],
+    pid: 1234,
+    workingDir: '/jobs/run',
+    exitCode: null,
+    startTime: new Date('2026-01-01T00:00:00Z'),
+  };
+  const endTime = new Date('2026-01-01T02:00:00Z');
+
+  it('preserves cancel status over a null/signal process exit code', () => {
+    const cancelTime = new Date('2026-01-01T01:30:00Z');
+    const result = buildTrainingExitManifest(jobBase, null, endTime, {
+      cancelledJob: true,
+      exitCode: -1,
+      endTime: cancelTime,
+    });
+    expect(result.cancelledJob).toBe(true);
+    expect(result.exitCode).toBe(-1);
+    expect(result.endTime).toEqual(cancelTime);
+  });
+
+  it('records the process exit code when the job was not cancelled', () => {
+    const result = buildTrainingExitManifest(jobBase, 1, endTime, { exitCode: null });
+    expect(result.cancelledJob).toBeUndefined();
+    expect(result.exitCode).toBe(1);
+    expect(result.endTime).toEqual(endTime);
   });
 });
 
