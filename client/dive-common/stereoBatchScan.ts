@@ -255,6 +255,24 @@ function uniqueName(name: string, taken: Set<string>): string {
   return unique;
 }
 
+/** Suffix the collect display name and keep importArgs.datasetName in sync. */
+function withUniqueName(
+  collect: MultiCamBatchCollect,
+  taken: Set<string>,
+): MultiCamBatchCollect {
+  const name = uniqueName(collect.name, taken);
+  if (name === collect.name) {
+    return collect;
+  }
+  return {
+    ...collect,
+    name,
+    importArgs: collect.importArgs
+      ? { ...collect.importArgs, datasetName: name }
+      : null,
+  };
+}
+
 /**
  * Build a stereo batch scan result from a pre-scanned root folder.
  */
@@ -318,7 +336,7 @@ export function scanStereoBatchFromScan(raw: StereoBatchRawScan): MultiCamBatchS
     .filter((collect) => !pairedFolders.has(collect))
     .forEach((collect) => {
       const resolved = resolveCollect(collect, rootCalibrationFile);
-      collects.push({ ...resolved, name: uniqueName(resolved.name, takenNames) });
+      collects.push(withUniqueName(resolved, takenNames));
     });
 
   if (!raw.collects.length && !rootVideos.length) {

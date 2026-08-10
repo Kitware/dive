@@ -185,4 +185,19 @@ describe('scanStereoBatchFromScan', () => {
     expect(result.collects.find((c) => c.name === 'good')?.importArgs).not.toBeNull();
     expect(result.collects.find((c) => c.name === 'bad')?.importArgs).toBeNull();
   });
+
+  it('suffixes collect name and datasetName when a root pair already took the stem', () => {
+    const result = scan({
+      rootVideoFiles: [
+        { name: 'dive01_left.mp4', path: '/survey/dive01_left.mp4' },
+        { name: 'dive01_right.mp4', path: '/survey/dive01_right.mp4' },
+      ],
+      collects: [collect('dive01', [['left', 4], ['right', 4]])],
+    });
+    const names = result.collects.map((c) => c.name);
+    expect(names).toContain('dive01');
+    expect(names).toContain('dive01_2');
+    const suffixed = result.collects.find((c) => c.name === 'dive01_2');
+    expect(suffixed?.importArgs?.datasetName).toBe('dive01_2');
+  });
 });
