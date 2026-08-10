@@ -1,7 +1,7 @@
 # Dataset Info
 
-The **Dataset Info** panel shows properties of the whole dataset and lets you attach
-custom metadata to it. It is one pane of the
+The **Dataset Info** panel shows read-only frame metadata, properties of the
+whole dataset, and custom metadata attached to it. It is one pane of the
 [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web).
 
 Metadata you add travels with the dataset: it is shown while annotating and written into
@@ -13,13 +13,30 @@ re-link annotations to their source records.
 
 ![Dataset Info panel](images/General/DatasetInfo.png){ width=220px align=right }
 
-**Standard information** (read-only): Name, Type, FPS, Original FPS and Subtype (when
+The pane holds three collapsible sections:
+
+**Frame Metadata** (read-only): per-frame metadata for the active frame, such as
+timestamp, latitude, longitude, depth, or altitude. It shows only the source
+fields for that frame, in the order they appear in the source file.
+
+**Dataset Info** (read-only): Name, Type, FPS, Original FPS and Subtype (when
 set), Created date, and ID (the Girder folder id).
 
-**Custom Metadata** — a free-form list of key/value pairs stored on the dataset, for
-example a station id, cruise number, or dive number.
+**Custom Dataset Info** — a free-form list of key/value pairs stored on the dataset,
+for example a station id, cruise number, or dive number.
 
 <div style="clear: both;"/>
+
+## Frame Metadata
+
+The Frame Metadata section shows values for the active frame, updating as the
+playhead moves and following the active camera on multicamera datasets. The
+section header carries an information icon when an attachment supplied the
+values; hover it to see which file they came from. When there are no values to
+show, the section says why in place of the rows.
+
+See [Frame Metadata Sidecars](Frame-Metadata.md) for supported filenames, file
+format, placement, and limits.
 
 ## Where the data is stored
 
