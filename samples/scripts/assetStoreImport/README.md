@@ -15,7 +15,7 @@ The script generateSampleData.py creates a folder structure containing:
 
 - Videos: MP4 format, H.264 codec, random duration (5–30 seconds), 1280x720 resolution.
 - Image Sequences: Extracted frames from temporary videos, stored as sequential JPGs.
-- Annotations: Each video or image sequence is accompanied by a DIVE track JSON (`.json`), VIAME CSV (`.csv`), or COCO JSON file describing moving or scaling geometric shapes (rectangle, star, circle, diamond) per frame. The format is chosen at random per dataset.
+- Annotations: Each video or image sequence is accompanied by a DIVE JSON (`.json`), VIAME CSV (`.csv`), or COCO JSON file describing moving or scaling geometric shapes (rectangle, star, circle, diamond) per frame. The format is chosen at random per dataset.
     - Videos: the annotation file has the same basename as the video, with extension `.json` or `.csv`
     - Image Sequences: any `.json` or `.csv` file in the same folder as the frames is imported as annotations
     - **VIAME CSV videos**: annotation FPS is a random even subsample of the video FPS (30 → e.g. 1, 5, 10, 15, 30). The CSV `# metadata` `fps` field and frame count match that rate. Filenames include `_annfps{N}` (e.g. `reef_annfps10.mp4` / `reef_annfps10.csv`) so you can verify import respects CSV FPS.

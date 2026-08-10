@@ -302,7 +302,7 @@ def generate_annotation_viame_csv(
 
 
 def generate_annotation_json(tracks: dict, output_file: Path):
-    """Write tracks as a DIVE track JSON annotation file."""
+    """Write tracks as a DIVE JSON annotation file."""
     annotation = {
         "tracks": tracks,
         "groups": {},
