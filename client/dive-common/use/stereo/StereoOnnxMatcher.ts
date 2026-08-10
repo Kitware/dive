@@ -19,19 +19,24 @@ export type SearchRange =
   | { minDisparity: number; maxDisparity: number }
   | { minDepth: number; maxDepth: number };
 
-/**
- * Acceptance defaults follow `plugins/onnx/run_epipolar_onnx.py`, the reference
- * host for this same graph. The desktop interactive service instead gates on
- * `template_matching_threshold = 0.5` with no uniqueness test; the lower
- * threshold here is paired with the uniqueness ratio that runner applies.
- */
 export interface WarpOptions {
   range: SearchRange;
-  /** Minimum NCC score to accept a match. Default 0.2. */
+  /** Minimum NCC score to accept a match. Defaults to {@link DEFAULT_THRESHOLD}. */
   threshold?: number;
-  /** Reject if secondScore/score exceeds this (0 disables). Default 0.85. */
+  /** Reject if secondScore/score exceeds this (0 disables). Defaults to {@link DEFAULT_UNIQUENESS_RATIO}. */
   uniquenessRatio?: number;
 }
+
+/**
+ * Acceptance defaults, kept identical to what the desktop interactive stereo
+ * service loads from `configs/pipelines/interactive_stereo_template.conf`
+ * (`template_matching_threshold = 0.5`, no uniqueness test) so both platforms
+ * accept the same matches. Note this is stricter than
+ * `plugins/onnx/run_epipolar_onnx.py`, the other reference host for this graph,
+ * which pairs a 0.2 threshold with a 0.85 uniqueness ratio.
+ */
+export const DEFAULT_THRESHOLD = 0.5;
+export const DEFAULT_UNIQUENESS_RATIO = 0;
 
 export interface WarpResult {
   /** Matched point in the right (target) image. */
@@ -100,8 +105,8 @@ export class StereoOnnxMatcher {
     opts: WarpOptions,
   ): Promise<WarpResult[]> {
     const [minDepth, maxDepth] = resolveDepthRange(rig, opts.range);
-    const threshold = opts.threshold ?? 0.2;
-    const uniqueness = opts.uniquenessRatio ?? 0.85;
+    const threshold = opts.threshold ?? DEFAULT_THRESHOLD;
+    const uniqueness = opts.uniquenessRatio ?? DEFAULT_UNIQUENESS_RATIO;
 
     const pts = new Float32Array(points.length * 2);
     points.forEach(([x, y], i) => { pts[i * 2] = x; pts[i * 2 + 1] = y; });

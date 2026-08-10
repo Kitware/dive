@@ -9,6 +9,10 @@ import { rigFromNpz, baseline } from '../calibration';
 import { rgbaToGray, GrayImage } from '../image';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
+/** The model the app actually serves, so the test validates the shipped artifact. */
+const servedModel = fileURLToPath(
+  new URL('../../../../public/models/stereo_match.onnx', import.meta.url),
+);
 
 function loadGray(name: string): GrayImage {
   const png = PNG.sync.read(readFileSync(fixture(name)));
@@ -57,7 +61,7 @@ describe('StereoOnnxMatcher.warpPoints', () => {
     const rig = await rigFromNpz(readFileSync(fixture('calibration.npz')));
     const left = loadGray('left.png');
     const right = loadGray('right.png');
-    const matcher = await StereoOnnxMatcher.create(fixture('stereo_match.onnx'));
+    const matcher = await StereoOnnxMatcher.create(servedModel);
 
     const pts: [number, number][] = [[330.43, 234.78], [361.74, 234.78]];
     const res = await matcher.warpPoints(pts, left, right, rig, {

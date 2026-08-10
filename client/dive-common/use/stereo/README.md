@@ -61,25 +61,40 @@ ONNX graph uses, since ONNX has no stable SVD operator.
 
 ## Setup (web)
 
-1. Export the model (small; method 1 has no learned weights):
+1. The model is committed at `client/public/models/stereo_match.onnx`, which
+   `vite build` copies into `dist/`. Override the URL via
+   `useStereoOnnxWeb({ modelUrl })`. To regenerate it (small; method 1 has no
+   learned weights):
    ```bash
    python plugins/onnx/export_stereo_mapping.py --model match \
-       --out stereo_match.onnx --num-samples 1500
+       --out client/public/models/stereo_match.onnx \
+       --template-size 13 --num-samples 5000
    ```
-   Fewer `--num-samples` ⇒ faster client inference, slightly coarser depth
-   sampling.
-2. It is served from `client/public/models/stereo_match.onnx`, which `vite build`
-   copies into `dist/`. Override the URL via `useStereoOnnxWeb({ modelUrl })`.
-3. Attach a stereo calibration file (`.npz`/`.json`) to the dataset. The rig is
+   These are not the exporter's own defaults (25 / 5000) — they match the
+   desktop config below. `--num-samples` trades client inference speed against
+   depth-sampling resolution.
+2. Attach a stereo calibration file (`.npz`/`.json`) to the dataset. The rig is
    read from the session's file stash when one was just imported, and otherwise
    downloaded from the dataset's Girder folder, so it survives a page reload.
-4. Enable *Auto-compute location on other camera* and/or *Update lengths when
+3. Enable *Auto-compute location on other camera* and/or *Update lengths when
    modified* under Track Settings → Stereo Settings.
-5. The disparity search range defaults to `{ minDisparity: 2, maxDisparity: 300 }`,
-   matching `epipolar_min_disparity` / `epipolar_max_disparity` in VIAME's
-   `configs/pipelines/interactive_stereo_template.conf` (what the desktop
-   service loads). Tune per rig via `useStereoOnnxWeb({ range })`. Batch
-   measurement pipes ship other values (e.g. 7–724), so this is scene-dependent.
+
+### Matching parameters
+
+Held identical to what the desktop interactive stereo service loads from
+`configs/pipelines/interactive_stereo_template.conf`, so both platforms accept
+the same matches. Hidden config there and here — no UI on either side.
+
+| Config key | Value | Where it lives here |
+| --- | --- | --- |
+| `epipolar_min_disparity` / `epipolar_max_disparity` | 2 / 300 px | `DEFAULT_RANGE` in `useStereoOnnxWeb`, overridable via `{ range }` |
+| `template_matching_threshold` | 0.5 | `DEFAULT_THRESHOLD` in `StereoOnnxMatcher` |
+| uniqueness ratio | 0 (disabled) | `DEFAULT_UNIQUENESS_RATIO`; the desktop service applies no uniqueness test |
+| `template_size` | 13 | baked into the ONNX graph at export |
+| `epipolar_num_samples` | 5000 | baked into the ONNX graph at export |
+
+The disparity range is scene-dependent — VIAME's batch measurement pipes ship
+7–724 for other rigs — so a rig outside 2–300 needs the `range` override.
 
 ## Testing status
 
