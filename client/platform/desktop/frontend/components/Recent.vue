@@ -33,6 +33,7 @@ import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
 import BulkImportDialog from './BulkImportDialog.vue';
 import ImportMultiCamBatchDialog from './ImportMultiCamBatchDialog.vue';
+import ImportStereoBatchDialog from './ImportStereoBatchDialog.vue';
 
 export default defineComponent({
   components: {
@@ -44,6 +45,7 @@ export default defineComponent({
     NavigationBar,
     ImportMultiCamDialog,
     ImportMultiCamBatchDialog,
+    ImportStereoBatchDialog,
     TooltipBtn,
   },
 
@@ -51,6 +53,7 @@ export default defineComponent({
     const router = useRouter();
     const importMultiCamDialog = ref(false);
     const importMultiCamBatchDialog = ref(false);
+    const importStereoBatchDialog = ref(false);
     const pendingImportPayload: Ref<DesktopMediaImportResponse[] | null> = ref(null);
     const bulkImport = ref(false);
     const searchText: Ref<string | null> = ref('');
@@ -354,6 +357,7 @@ export default defineComponent({
       importing,
       importMultiCamDialog,
       importMultiCamBatchDialog,
+      importStereoBatchDialog,
       headers,
       upgradedVersion,
       downgradedVersion,
@@ -406,6 +410,18 @@ export default defineComponent({
       <ImportMultiCamBatchDialog
         v-if="importMultiCamBatchDialog"
         @abort="importMultiCamBatchDialog = false"
+      />
+    </v-dialog>
+    <v-dialog
+      :value="importStereoBatchDialog"
+      persistent
+      overlay-opacity="0.95"
+      max-width="80%"
+      width="1000"
+    >
+      <ImportStereoBatchDialog
+        v-if="importStereoBatchDialog"
+        @abort="importStereoBatchDialog = false"
       />
     </v-dialog>
     <v-dialog
@@ -506,7 +522,11 @@ export default defineComponent({
               icon="mdi-folder-multiple"
               open-type="bulk"
               class="my-3"
+              :bulk-import="true"
+              :stereo-batch-import="true"
               @open="open($event)"
+              @multi-cam-batch="importMultiCamBatchDialog = true"
+              @stereo-batch="importStereoBatchDialog = true"
             />
             <ImportButton
               name="Open Image Sequence"
@@ -514,10 +534,9 @@ export default defineComponent({
               open-type="image-sequence"
               class="my-3"
               :multi-cam-import="true"
-              :batch-multi-cam-import="true"
+              :large-image-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
-              @multi-cam-batch="importMultiCamBatchDialog = true"
             />
             <ImportButton
               name="Open Video"
@@ -527,14 +546,6 @@ export default defineComponent({
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
-            />
-            <ImportButton
-              name="Open Tiled GeoTIFF / TIFF"
-              icon="mdi-map"
-              open-type="large-image"
-              class="my-3"
-              tooltip="Open a high-resolution geospatial image for tiled viewing. Supported formats: .tif, .tiff, .geotiff. Files should include internal pyramid overviews (COG recommended) for best performance."
-              @open="open($event)"
             />
           </v-col>
         </v-row>

@@ -2445,6 +2445,7 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   findImagesInFolder,
+  isVideoFilePath,
   listImmediateSubfolders,
   listParentFolderCameras,
   resolveMulticamCameraSourcePath,
