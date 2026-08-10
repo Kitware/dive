@@ -269,6 +269,12 @@ export default defineComponent({
 
     const headers: DataTableHeader[] = [
       {
+        text: '',
+        value: 'select',
+        sortable: false,
+        width: 40,
+      },
+      {
         text: 'Type',
         value: 'type',
         sortable: false,
@@ -285,12 +291,6 @@ export default defineComponent({
         sortable: true,
         sort: (a: string, b: string) => parseRecentDate(b).valueOf() - parseRecentDate(a).valueOf(),
         width: 140,
-      },
-      {
-        text: '',
-        value: 'select',
-        sortable: false,
-        width: 40,
       },
     ];
     const toDisplayString = (dateString: string) => {
