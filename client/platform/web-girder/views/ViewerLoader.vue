@@ -168,7 +168,7 @@ export default defineComponent({
     }
 
     const {
-      handleStereoAnnotationComplete, handleStereoTrackLinked,
+      handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
     } = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
@@ -190,6 +190,22 @@ export default defineComponent({
 
     function closeStereoError() {
       stereoError.value = '';
+    }
+
+    /**
+     * Import menu "Warp to All": push every detection the imported camera holds
+     * onto the other camera, then save. `resolve` keeps the import spinner up
+     * until the warp finishes.
+     */
+    async function handleStereoWarpImported(sourceCamera: string, resolve?: () => void) {
+      try {
+        const counts = await warpAllFromCamera(sourceCamera);
+        if (counts?.transferred) await viewerRef.value?.save();
+      } catch (err) {
+        stereoError.value = `Failed to warp imported detections. ${(err as Error).message}`;
+      } finally {
+        resolve?.();
+      }
     }
     const { brandData } = useBrand();
     const { pipelinesEnabled } = useConfig();
@@ -425,6 +441,7 @@ export default defineComponent({
       stereoLengthSnackbar,
       stereoLengthMessage,
       closeStereoError,
+      handleStereoWarpImported,
     };
   },
 });
@@ -487,6 +504,7 @@ export default defineComponent({
           :calibration-file="calibrationFile"
           block-on-unsaved
           @calibration-imported="onCalibrationImported"
+          @stereo-warp-imported="handleStereoWarpImported"
         />
         <Export
           v-bind="{ buttonOptions, menuOptions }"
