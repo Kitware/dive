@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+/* eslint-disable vue/one-component-per-file -- harness Host components for mount() */
 import { defineComponent, ref, nextTick } from 'vue';
 // eslint-disable-next-line import/no-extraneous-dependencies -- @vue/test-utils is only used in tests
 import { mount } from '@vue/test-utils';
