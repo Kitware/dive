@@ -51,10 +51,11 @@ export default defineComponent({
       if (controller === undefined) {
         return undefined;
       }
-      if (controller.mediaKind === 'image-sequence') {
-        // ImageAnnotator assigns filenames synchronously in setup(), while `ready` only flips
-        // once the first image has downloaded and decoded. Gating on `ready` here would park
-        // the panel in `pending` for the whole of that download.
+      if (controller.mediaKind === 'image-sequence' || controller.mediaKind === 'large-image') {
+        // Both kinds join on an ordered media list, so they share the image-sequence context.
+        // Image and LargeImage annotators assign filenames synchronously in setup(), while
+        // `ready` only flips once the first image has downloaded and decoded. Gating on `ready`
+        // here would park the panel in `pending` for the whole of that download.
         const mediaNames = controller.filenames.value;
         return mediaNames.length ? { mediaType: 'image-sequence', mediaNames } : undefined;
       }
@@ -105,19 +106,12 @@ export default defineComponent({
         : []
     ));
 
-    const frameMetadataUnsupported = computed(
-      () => (selectedMediaKind.value ?? meta.value?.type) === 'large-image',
-    );
-
     const frameMetadataEmptyState = computed(() => {
       if (frameMetadata.loading.value) {
         return 'Loading frame metadata...';
       }
       if (frameMetadata.error.value) {
         return `Unable to load frame metadata: ${frameMetadata.error.value}`;
-      }
-      if (frameMetadataUnsupported.value) {
-        return 'Frame metadata is available for image-sequence and video datasets only.';
       }
       if (!selectedCameraHasFrame.value) {
         return 'This camera has no frame at the current time.';

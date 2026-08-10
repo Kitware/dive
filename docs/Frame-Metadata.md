@@ -179,5 +179,5 @@ available to pipelines that opt in to it.
 
 An attachment can be stored on a dataset of any media type and passed to opt-in
 pipelines from any of them. Frame metadata values are resolved and displayed for
-image-sequence and video datasets only; on a large-image dataset the attachment
-is kept and handed to pipelines, but no rows are shown.
+image-sequence, large-image, and video datasets. Large image joins on filenames
+exactly as an image sequence does.

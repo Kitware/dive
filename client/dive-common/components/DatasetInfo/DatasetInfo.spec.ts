@@ -249,14 +249,6 @@ describe('DatasetInfo', () => {
       expected: 'No frame metadata source found. Add a TXT or CSV Metadata File when creating the dataset.',
     },
     {
-      name: 'unsupported dataset type',
-      options: {
-        metadata: { ...defaultMetadata, type: 'large-image' },
-        mediaKinds: { port: 'large-image' },
-      },
-      expected: 'Frame metadata is available for image-sequence and video datasets only.',
-    },
-    {
       name: 'unmatched attachment',
       options: {
         frameMetadata: {
@@ -422,6 +414,27 @@ describe('DatasetInfo', () => {
     await settle();
     expect(frameMetadataRows(wrapper)).toEqual([
       { key: 'filename', value: 'port001.png' },
+      { key: 'depth', value: '10' },
+    ]);
+  });
+
+  it('resolves a large-image dataset from its ordered media list', async () => {
+    // Large image joins on filenames exactly as an image sequence does; only the annotator
+    // differs, so the panel takes the same context for both kinds.
+    const { wrapper } = mountDatasetInfo({
+      metadata: { ...defaultMetadata, type: 'large-image' },
+      mediaKinds: { port: 'large-image' },
+      mediaNames: { port: ['tile001.tif', 'tile002.tif'] },
+      frameMetadata: {
+        cameras: {
+          port: { name: 'frame_metadata.csv', text: 'filename,depth\ntile001.tif,10\n' },
+        },
+      },
+    });
+
+    await settle();
+    expect(frameMetadataRows(wrapper)).toEqual([
+      { key: 'filename', value: 'tile001.tif' },
       { key: 'depth', value: '10' },
     ]);
   });
