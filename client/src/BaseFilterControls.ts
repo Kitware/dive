@@ -52,14 +52,17 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
   /* Time filtering values */
   timeFilters: Ref<[number, number] | null>;
 
-  /* The types informed by meta configuration */
-  private defaultTypes: Ref<string[]>;
+  /* The types informed by explicit meta configuration */
+  configuredTypes: Ref<string[]>;
 
   /* Collect all known types from confidence pairs */
   allTypes: Ref<string[]>;
 
   /* Types currently assigned to at least one annotation */
   usedTypes: Ref<string[]>;
+
+  /* Types that should be persisted through type/style configuration */
+  usedPlusConfiguredTypes: Ref<string[]>;
 
   /* Categorical types checked "ON" by the user */
   checkedTypes: Ref<string[]>;
@@ -92,7 +95,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
     this.timeFilters = ref(null);
 
-    this.defaultTypes = ref([]);
+    this.configuredTypes = ref([]);
 
     this.sorted = params.sorted;
 
@@ -106,19 +109,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
     this.disableAnnotationFilters = ref(false);
 
-    this.allTypes = computed(() => {
-      const typeSet = new Set<string>();
-      this.sorted.value.forEach((annotation) => {
-        annotation.confidencePairs.forEach(([name]) => {
-          typeSet.add(name);
-        });
-      });
-      this.defaultTypes.value.forEach((type) => {
-        typeSet.add(type);
-      });
-      return Array.from(typeSet);
-    });
-
     this.usedTypes = computed(() => {
       const typeSet = new Set<string>();
       this.sorted.value.forEach((annotation) => {
@@ -128,6 +118,16 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
       });
       return Array.from(typeSet);
     });
+
+    this.usedPlusConfiguredTypes = computed(() => {
+      const typeSet = new Set(this.usedTypes.value);
+      this.configuredTypes.value.forEach((type) => {
+        typeSet.add(type);
+      });
+      return Array.from(typeSet);
+    });
+
+    this.allTypes = this.usedPlusConfiguredTypes;
 
     this.checkedTypes = ref(Array.from(this.allTypes.value));
 
@@ -165,8 +165,8 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
   importTypes(types: string[], userInteraction = true) {
     types.forEach((type) => {
-      if (!this.defaultTypes.value.includes(type)) {
-        this.defaultTypes.value.push(type);
+      if (!this.configuredTypes.value.includes(type)) {
+        this.configuredTypes.value.push(type);
       }
     });
     if (userInteraction) {
@@ -174,12 +174,17 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     }
   }
 
-  deleteType(type: string) {
-    if (this.defaultTypes.value.includes(type)) {
-      this.defaultTypes.value.splice(this.defaultTypes.value.indexOf(type), 1);
+  protected deleteTypeConfiguration(type: string) {
+    if (this.configuredTypes.value.includes(type)) {
+      this.configuredTypes.value.splice(this.configuredTypes.value.indexOf(type), 1);
     }
     delete this.confidenceFilters.value[type];
+  }
+
+  deleteType(type: string): boolean {
+    this.deleteTypeConfiguration(type);
     this.markChangesPending({ action: 'meta' });
+    return true;
   }
 
   setConfidenceFilters(val?: Record<string, number>) {

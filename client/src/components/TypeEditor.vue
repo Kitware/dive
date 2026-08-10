@@ -1,16 +1,17 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, reactive, toRef, watch,
+  computed, defineComponent, PropType, reactive, toRef, unref, watch,
 } from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { TypeHierarchyError } from 'dive-common/typeHierarchy';
 
 import TrackFilterControls from '../TrackFilterControls';
 import BaseFilterControls from '../BaseFilterControls';
 import type Group from '../Group';
 import type StyleManager from '../StyleManager';
 import type Track from '../track';
-import { useCameraStore, useReadOnlyMode } from '../provides';
+import { useReadOnlyMode } from '../provides';
 
 export default defineComponent({
   name: 'TypeEditor',
@@ -49,7 +50,6 @@ export default defineComponent({
     const isStyleOnly = computed(() => props.styleOnly || !props.filterControls);
     const usedTypesRef = computed(() => trackFilters?.usedTypes.value ?? []);
     const readOnlyMode = useReadOnlyMode();
-    const cameraStore = useCameraStore();
     const { prompt } = usePrompt();
 
     const data = reactive({
@@ -63,9 +63,21 @@ export default defineComponent({
       editingShowLabel: true,
       editingShowConfidence: true,
       valid: true,
+      renameError: '',
     });
 
+    const currentStyleValue = () => ({
+      color: data.editingColor,
+      strokeWidth: data.editingThickness,
+      fill: data.editingFill,
+      opacity: data.editingOpacity,
+      showLabel: data.editingShowLabel,
+      showConfidence: data.editingShowConfidence,
+    });
+    let styleSnapshot = currentStyleValue();
+
     function acceptChanges() {
+      data.renameError = '';
       if (data.editingType !== data.selectedType) {
         if (isStyleOnly.value) {
           props.styleManager.renameTypeStyle(data.selectedType, data.editingType);
@@ -74,23 +86,25 @@ export default defineComponent({
             currentType: data.selectedType,
             newType: data.editingType,
           };
-          trackFilters.updateTypeName(updatedTypeObj);
-          if (trackFilters instanceof TrackFilterControls) {
-            cameraStore.changeTrackTypes(updatedTypeObj);
+          try {
+            trackFilters.updateTypeName(updatedTypeObj);
+          } catch (error) {
+            if (error instanceof TypeHierarchyError) {
+              data.renameError = `Type hierarchy is invalid: ${error.reason}. No types were changed.`;
+              return;
+            }
+            throw error;
           }
         }
       }
-      props.styleManager.updateTypeStyle({
-        type: data.editingType,
-        value: {
-          color: data.editingColor,
-          strokeWidth: data.editingThickness,
-          fill: data.editingFill,
-          opacity: data.editingOpacity,
-          showLabel: data.editingShowLabel,
-          showConfidence: data.editingShowConfidence,
-        },
-      });
+      const styleValue = currentStyleValue();
+      const styleChanged = Object.entries(styleValue).some(
+        ([key, value]) => styleSnapshot[key as keyof typeof styleSnapshot] !== value,
+      );
+      if (styleChanged && trackFilters instanceof TrackFilterControls) {
+        trackFilters.importTypes([data.editingType], false);
+      }
+      props.styleManager.updateTypeStyle({ type: data.editingType, value: styleValue });
       emit('close');
     }
 
@@ -114,8 +128,9 @@ export default defineComponent({
         confirm: true,
       });
       if (result && trackFilters) {
-        trackFilters.deleteType(type);
-        emit('close');
+        if (trackFilters.deleteType(type)) {
+          emit('close');
+        }
       }
     }
 
@@ -129,6 +144,8 @@ export default defineComponent({
       const labelSettings = typeStylingRef.value.labelSettings(props.selectedType);
       data.editingShowConfidence = labelSettings.showConfidence;
       data.editingShowLabel = labelSettings.showLabel;
+      data.renameError = '';
+      styleSnapshot = currentStyleValue();
     }
     watch(toRef(props, 'selectedType'), init);
     init();
@@ -138,11 +155,15 @@ export default defineComponent({
     return {
       data,
       isStyleOnly,
-      usedTypesRef,
       readOnlyMode,
       acceptChanges,
       clickDeleteType,
       thicknessRules,
+      deleteBlocked: computed(() => (
+        unref(usedTypesRef).includes(data.selectedType)
+        || (trackFilters instanceof TrackFilterControls
+          && trackFilters.typeInUseOnAnyCamera(data.selectedType))
+      )),
     };
   },
 });
@@ -177,6 +198,13 @@ export default defineComponent({
         </v-container>
       </v-card-subtitle>
       <v-card-text>
+        <v-alert
+          v-if="data.renameError"
+          type="error"
+          dense
+        >
+          {{ data.renameError }}
+        </v-alert>
         <v-form v-model="data.valid">
           <v-row>
             <v-col clas="py-0">
@@ -264,13 +292,13 @@ export default defineComponent({
           v-if="!group || isStyleOnly"
           open-delay="100"
           bottom
-          :color="(!isStyleOnly && usedTypesRef.includes(data.selectedType)) ? 'error' : ''"
+          :color="(!isStyleOnly && deleteBlocked) ? 'error' : ''"
         >
           <template #activator="{ on }">
             <div v-on="on">
               <v-btn
                 class="hover-show-child"
-                :disabled="!isStyleOnly && usedTypesRef.includes(data.selectedType)"
+                :disabled="!isStyleOnly && deleteBlocked"
                 small
                 color="error"
                 @click="clickDeleteType(data.selectedType)"

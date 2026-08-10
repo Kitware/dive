@@ -299,7 +299,6 @@ const MulticamSharedMutableKeys = [
   'customGroupStyling',
   'attributeTrackFilters',
   'datasetInfo',
-  'typeHierarchy',
 ];
 
 interface DatasetConfig extends DatasetConfigMutable {

@@ -18,6 +18,20 @@ The Type List is used to control visual styles of the different types as well as
 
 <div style="clear: both;"/>
 
+## Hierarchical Types
+
+When a dataset has a type hierarchy, DIVE displays the deepest checked type whose confidence meets its threshold. For example, given `fish` → `shark` → `great white shark`, if `great white shark` falls below its threshold while `shark` passes, the track displays as `shark`. Confidence values do not need to decrease or increase monotonically through the hierarchy; DIVE selects from the qualifying pairs and preserves confidence-pair order between unrelated branches.
+
+Track attribute filters are an exception: they match a track's raw top confidence pair, not the hierarchy-selected pair.
+
+Assigning a type to a track is not hierarchy-aware: setting a type that is not a descendant of the track's retained pairs keeps the ancestor pairs, and the display re-selects among the qualifying pairs, which may not be the newly assigned type.
+
+Hierarchy members remain ordinary flat Type List rows. A parent with no annotations or explicit style configuration is visible when **Show Empty** is enabled. The Type List does not render a tree or offer subtree controls or hierarchy editing.
+
+While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
+
+Renaming a hierarchy member updates exact hierarchy references only after the complete result passes validation. A rename that would create a self-edge, conflicting parent, cycle, or duplicate type pair on one track is rejected without changing types. Deleting an unused type clears only its optional filter and style settings. The hierarchy member, edges, checked state, and any children remain unchanged, so hierarchy-only rows stay available under **Show Empty** and use default styling and thresholds.
+
 ## Type Style Editor
 
 ![Type Editor](images/TypeEditor.png){ align=right loading=lazy width=260 }

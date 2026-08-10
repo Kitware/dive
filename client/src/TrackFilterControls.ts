@@ -4,6 +4,8 @@ import { clientSettings } from 'dive-common/store/settings';
 import {
   compileHierarchy,
   normalizeTypeHierarchy,
+  rewriteHierarchyType,
+  selectPairIndex,
   TypeHierarchy,
   TypeHierarchyError,
   TypeHierarchyIndex,
@@ -18,6 +20,7 @@ interface TrackFilterControlsParams extends FilterControlsParams<Track> {
   lookupGroups: (annotationId: AnnotationId) => Group[];
   getTrack: (annotationId: AnnotationId, camera?: string) => Track;
   groupFilterControls: BaseFilterControls<Group>;
+  getTracks: (annotationId: AnnotationId) => Track[];
 }
 
 export default class TrackFilterControls extends BaseFilterControls<Track> {
@@ -37,23 +40,22 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   hierarchyMembers: Ref<string[]>;
 
-  usedPlusConfiguredTypes: Ref<string[]>;
-
   invalidHierarchyReason: Ref<string | null>;
 
   private hierarchyWarningConsumed = false;
 
   private hierarchyDirty = false;
 
-  private hierarchySavePrepared = false;
+  private checkedTypesSet = computed(() => new Set(this.checkedTypes.value));
 
-  private hierarchySaveRearmCount = ref(0);
+  private getTracks: (annotationId: AnnotationId) => Track[];
 
   constructor(params: TrackFilterControlsParams) {
     super(params);
 
+    this.getTracks = params.getTracks;
+
     const flatAllTypes = this.allTypes;
-    this.usedPlusConfiguredTypes = flatAllTypes;
     this.typeHierarchy = ref(undefined);
     this.hierarchyIndex = ref(undefined);
     this.invalidHierarchyReason = ref(null);
@@ -82,7 +84,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
      * for filtering based on group membership as well
      */
     this.filteredAnnotations = computed(() => {
-      const checkedSet = new Set(this.checkedTypes.value);
+      const checkedSet = this.checkedTypesSet.value;
       const filteredGroupsSet = new Set(params.groupFilterControls.enabledAnnotations.value
         .map((v) => v.annotation.id));
       const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
@@ -104,33 +106,42 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
            */
           enabledInGroupFilters = groups.some((group) => filteredGroupsSet.has(group.id));
         }
-        let confidencePairIndex = annotation.confidencePairs
-          .findIndex(([confkey, confval]) => {
+        let confidencePairIndex: number;
+        if (this.hierarchyActive.value) {
+          confidencePairIndex = this.displayPairIndex(
+            annotation as unknown as Readonly<Track>,
+            -1,
+          );
+        } else {
+          confidencePairIndex = annotation.confidencePairs
+            .findIndex(([confkey, confval]) => {
+              const confidenceThresh = Math.max(
+                confidenceFiltersVal[confkey] || 0,
+                confidenceFiltersVal.default,
+              );
+              return confval >= confidenceThresh && checkedSet.has(confkey);
+            });
+          if (clientSettings.typeSettings.preventCascadeTypes) {
+            const [confkey, confval] = annotation.confidencePairs[0];
             const confidenceThresh = Math.max(
               confidenceFiltersVal[confkey] || 0,
               confidenceFiltersVal.default,
             );
-            return confval >= confidenceThresh && checkedSet.has(confkey);
-          });
-        if (clientSettings.typeSettings.preventCascadeTypes) {
-          const [confkey, confval] = annotation.confidencePairs[0];
-          const confidenceThresh = Math.max(
-            confidenceFiltersVal[confkey] || 0,
-            confidenceFiltersVal.default,
-          );
-          if (checkedSet.has(confkey) && confval > confidenceThresh) {
-            confidencePairIndex = 0;
-          } else {
-            confidencePairIndex = -1;
+            if (checkedSet.has(confkey) && confval > confidenceThresh) {
+              confidencePairIndex = 0;
+            } else {
+              confidencePairIndex = -1;
+            }
           }
-        }
-        if (this.disableAnnotationFilters.value) {
-          confidencePairIndex = 0;
+          if (this.disableAnnotationFilters.value) {
+            confidencePairIndex = 0;
+          }
         }
         /* include annotations where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
         if (
-          (confidencePairIndex >= 0 || annotation.confidencePairs.length === 0)
+          (confidencePairIndex >= 0
+            || (!this.hierarchyActive.value && annotation.confidencePairs.length === 0))
           && enabledInGroupFilters && !resultsIds.has(annotation.id)
         ) {
           let addValue = true;
@@ -159,8 +170,31 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     });
   }
 
+  displayPairIndex(track: Readonly<Track>, flatFallbackIndex: number): number {
+    const index = this.hierarchyIndex.value;
+    if (index === undefined) {
+      return flatFallbackIndex;
+    }
+    if (track.confidencePairs.length === 0) {
+      return -1;
+    }
+    if (this.disableAnnotationFilters.value) {
+      return 0;
+    }
+    const checkedSet = this.checkedTypesSet.value;
+    const confidenceFilters = this.confidenceFilters.value;
+    const passes = track.confidencePairs.map(([confkey, confval]) => {
+      const confidenceThresh = Math.max(
+        confidenceFilters[confkey] || 0,
+        confidenceFilters.default,
+      );
+      return confval >= confidenceThresh && checkedSet.has(confkey);
+    });
+    return selectPairIndex(index, track.confidencePairs, passes);
+  }
+
   private installTypeHierarchy(value: unknown, dirty: boolean) {
-    const previousMembers = new Set(this.hierarchyMembers.value);
+    const previousTypes = new Set(this.allTypes.value);
     let normalized: TypeHierarchy | undefined;
     try {
       normalized = normalizeTypeHierarchy(value === undefined ? null : value);
@@ -189,17 +223,13 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       (name) => baseline.has(name) || nextMembers.has(name),
     );
     nextMembers.forEach((name) => {
-      if (!previousMembers.has(name) && !checked.includes(name)) {
+      if (!previousTypes.has(name) && !checked.includes(name)) {
         checked.push(name);
       }
     });
     this.checkedTypes.value = checked;
 
     this.hierarchyDirty = dirty;
-    this.hierarchySavePrepared = false;
-    if (!dirty) {
-      this.hierarchySaveRearmCount.value = 0;
-    }
   }
 
   /** Install hierarchy state loaded from a dataset or a successful config replacement. */
@@ -208,10 +238,95 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     this.installTypeHierarchy(value, false);
   }
 
-  /** Install a locally edited hierarchy and include it in the next metadata save. */
-  updateTypeHierarchy(value: unknown) {
-    this.installTypeHierarchy(value, true);
+  /** Usage across every camera's stored vector, unlike the lossy merged `usedTypes`. */
+  typeInUseOnAnyCamera(type: string): boolean {
+    return this.sorted.value.some((annotation) => this.getTracks(annotation.id)
+      .some((track) => track.confidencePairs.some(([name]) => name === type)));
+  }
+
+  updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
+    if (!this.hierarchyActive.value) {
+      super.updateTypeName({ currentType, newType });
+      return;
+    }
+    const tracks = this.sorted.value.flatMap((annotation) => this.getTracks(annotation.id));
+    const collision = tracks.find((track) => {
+      const names = new Set(track.confidencePairs.map(([name]) => name));
+      return names.has(currentType) && names.has(newType);
+    });
+    if (collision) {
+      throw new TypeHierarchyError(
+        `track ${collision.id} already contains both "${currentType}" and "${newType}"`,
+        'conflict',
+      );
+    }
+
+    const currentHierarchy = this.typeHierarchy.value as TypeHierarchy;
+    const rewritten = rewriteHierarchyType(currentHierarchy, currentType, newType);
+    const hierarchyChanged = !isEqual(currentHierarchy, rewritten);
+    const currentWasChecked = this.checkedTypes.value.includes(currentType);
+    const newWasChecked = this.checkedTypes.value.includes(newType);
+
+    this.sorted.value.forEach((annotation) => {
+      const storedTracks = this.getTracks(annotation.id);
+      const rewrittenPairs = storedTracks.map((track) => track.confidencePairs.map(
+        ([name, confidence]) => [
+          name === currentType ? newType : name,
+          confidence,
+        ] as [string, number],
+      ));
+      const triggerPair = storedTracks
+        .flatMap((track) => track.confidencePairs)
+        .find(([name]) => name === currentType);
+      if (triggerPair) {
+        this.setType(annotation.id, newType, triggerPair[1], currentType);
+        storedTracks.forEach((track, index) => {
+          // setType emits the existing annotation notification. Restore the exact
+          // preflighted vector because its confidence-1 branch intentionally collapses pairs.
+          // eslint-disable-next-line no-param-reassign
+          track.confidencePairs = rewrittenPairs[index];
+        });
+      }
+    });
+    if (!(newType in this.confidenceFilters.value)
+      && currentType in this.confidenceFilters.value) {
+      this.setConfidenceFilters({
+        ...this.confidenceFilters.value,
+        [newType]: this.confidenceFilters.value[currentType],
+      });
+    }
+    if (this.configuredTypes.value.includes(currentType)
+      && !this.configuredTypes.value.includes(newType)) {
+      this.configuredTypes.value.push(newType);
+    }
+    this.deleteTypeConfiguration(currentType);
+    if (hierarchyChanged) {
+      this.installTypeHierarchy(rewritten, true);
+    }
+
+    const checked = new Set(this.checkedTypes.value);
+    if (!currentWasChecked && !newWasChecked) {
+      checked.delete(newType);
+    } else if (currentWasChecked) {
+      checked.add(newType);
+    }
+    if (!this.allTypes.value.includes(currentType)) {
+      checked.delete(currentType);
+    }
+    this.checkedTypes.value = Array.from(checked);
     this.markChangesPending({ action: 'meta' });
+  }
+
+  deleteType(type: string): boolean {
+    if (!this.hierarchyActive.value) {
+      return super.deleteType(type);
+    }
+    if (this.typeInUseOnAnyCamera(type)) {
+      return false;
+    }
+    this.deleteTypeConfiguration(type);
+    this.markChangesPending({ action: 'meta' });
+    return true;
   }
 
   consumeLoadWarning(): string | null {
@@ -232,28 +347,8 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     return { typeHierarchy: { ...(this.typeHierarchy.value || {}) } };
   }
 
-  /** Re-arm metadata writes for every save attempt while hierarchy state is dirty. */
-  prepareTypeHierarchySavePatch(): { typeHierarchy?: Record<string, string> | null } {
-    const patch = this.typeHierarchySavePatch();
-    if (Object.prototype.hasOwnProperty.call(patch, 'typeHierarchy')) {
-      if (this.hierarchySavePrepared) {
-        this.markChangesPending({ action: 'meta' });
-        this.hierarchySaveRearmCount.value += 1;
-      } else {
-        this.hierarchySavePrepared = true;
-      }
-    }
-    return patch;
-  }
-
-  typeHierarchyPendingCountAdjustment() {
-    return this.hierarchySaveRearmCount.value;
-  }
-
   markTypeHierarchyPersisted() {
     this.hierarchyDirty = false;
-    this.hierarchySavePrepared = false;
-    this.hierarchySaveRearmCount.value = 0;
   }
 
   loadTrackAttributesFilter(trackAttributesFilter: Readonly<AttributeTrackFilter[]>) {

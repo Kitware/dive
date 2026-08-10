@@ -386,7 +386,7 @@ export default defineComponent({
       save: saveToServer,
       markChangesPending,
       discardChanges,
-      pendingSaveCount: rawPendingSaveCount,
+      pendingSaveCount,
       addCamera: addSaveCamera,
       removeCamera: removeSaveCamera,
     } = useSave(datasetId, readonlyState);
@@ -666,14 +666,11 @@ export default defineComponent({
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       lookupGroups: cameraStore.lookupGroups,
       getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
+      getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
       groupFilterControls: groupFilters,
       setType: setTrackType,
       removeTypes,
     });
-    const pendingSaveCount = computed(() => Math.max(
-      0,
-      rawPendingSaveCount.value - trackFilters.typeHierarchyPendingCountAdjustment(),
-    ));
 
     clientSettingsSetup(trackFilters.allTypes);
 
@@ -946,7 +943,7 @@ export default defineComponent({
           confidenceFilters: trackFilters.confidenceFilters.value,
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
-          ...trackFilters.prepareTypeHierarchySavePatch(),
+          ...trackFilters.typeHierarchySavePatch(),
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
         trackFilters.markTypeHierarchyPersisted();
@@ -1502,7 +1499,6 @@ export default defineComponent({
         scheduleGlobalStylePersist.flush();
         // Close and reset sideBar
         context.resetActive();
-        trackFilters.setTypeHierarchy(undefined);
         const meta = await loadConfig(datasetId.value);
         trackFilters.setTypeHierarchy(meta.typeHierarchy);
         const hierarchyWarning = trackFilters.consumeLoadWarning();

@@ -37,7 +37,7 @@ interface TextLayerParams {
  * @param lineHeight - height of each text line
  * @returns value or null.  null indicates that the text should not be displayed.
  */
-function defaultFormatter(
+export function defaultFormatter(
   annotation: FrameDataTrack,
   typeStyling?: TypeStyling,
   showUserCreatedIcon: boolean = true,
@@ -47,11 +47,10 @@ function defaultFormatter(
     const { bounds } = annotation.features;
     let confidencePairs = [annotation.styleType];
     if (annotation.groups.length) {
-      const trackType = annotation.track.getType();
       confidencePairs = annotation.groups.map(({ confidencePairs: cp }) => {
         const [_type, _conf] = cp[0];
         return [
-          `${trackType[0]}::${_type}`, _conf,
+          `${annotation.trackStyleType[0]}::${_type}`, _conf,
         ];
       });
     }

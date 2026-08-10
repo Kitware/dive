@@ -1,7 +1,9 @@
 import {
   computed, Ref, reactive, ref, onBeforeUnmount, toRef,
 } from 'vue';
-import { uniq, flatMapDeep, flattenDeep } from 'lodash';
+import {
+  cloneDeep, uniq, flatMapDeep, flattenDeep,
+} from 'lodash';
 import Track, { Feature, TrackId, TrackSupportedFeature } from 'vue-media-annotator/track';
 import {
   RectBounds,
@@ -523,11 +525,12 @@ export default function useModeManager({
     handleEscapeMode();
     const frame = selectedCameraFrame();
     let trackType = trackSettings.value.newTrackSettings.type;
+    let sourceTrack: Track | undefined;
     if (overrideTrackId !== undefined) {
-      const track = cameraStore.getAnyPossibleTrack(overrideTrackId);
-      if (track !== undefined) {
+      sourceTrack = cameraStore.getAnyPossibleTrack(overrideTrackId);
+      if (sourceTrack !== undefined) {
         // eslint-disable-next-line prefer-destructuring
-        trackType = track.confidencePairs[0][0];
+        trackType = sourceTrack.confidencePairs[0][0];
       }
     } else {
       // eslint-disable-next-line no-param-reassign
@@ -535,15 +538,18 @@ export default function useModeManager({
     }
     const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
     if (trackStore) {
-      const newTrackId = trackStore.add(
+      const newTrack = trackStore.add(
         frame,
         trackType,
         selectedTrackId.value || undefined,
         overrideTrackId,
-      ).id;
-      selectTrack(newTrackId, true);
+      );
+      if (sourceTrack) {
+        newTrack.confidencePairs = cloneDeep(sourceTrack.confidencePairs);
+      }
+      selectTrack(newTrack.id, true);
       creating = true;
-      return newTrackId;
+      return newTrack.id;
     }
     throw Error(`Could not find trackStore for Camera: ${selectedCamera.value}`);
   }
@@ -658,6 +664,7 @@ export default function useModeManager({
           undefined,
           trackId,
         );
+        targetTrack.confidencePairs = cloneDeep(sourceTrack.confidencePairs);
       }
       // setFeature only upserts geometry by (key, type): drop mirrored
       // geometry the source no longer has so deletions propagate too.

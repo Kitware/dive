@@ -369,6 +369,7 @@ function dummyState(): State {
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
     getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
+    getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
     setType: setTrackType,
     removeTypes,
 
