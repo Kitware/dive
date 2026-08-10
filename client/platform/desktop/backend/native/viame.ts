@@ -13,7 +13,7 @@ import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
-import sendToRenderer from 'platform/desktop/background';
+import sendToRenderer from 'platform/desktop/backend/rendererBridge';
 
 import {
   MultiType,

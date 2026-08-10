@@ -245,9 +245,11 @@ interface DatasetConfigMutable {
   cameraTransformTypes?: CameraTransformTypes;
   /** Producer provenance of the camera registration (see RegistrationSource). */
   cameraRegistrationSource?: RegistrationSource | null;
+  /** Frame label mode label set defined by the dataset, in hotkey order. */
+  frameLabels?: string[];
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'frameLabels'];
 /**
  * Mutable keys the multicam/stereo viewer loads from the parent dataset.
  * Camera-targeted imports sync only these onto the parent — not per-camera
