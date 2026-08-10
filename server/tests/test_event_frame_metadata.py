@@ -358,3 +358,42 @@ def test_dangling_relocates_deferred_video_paired_metadata(item_cls, folder_cls,
     assert item['meta'][AnnotationFileFutureProcessMarker] is False
     item_model.move.assert_called_once_with(item, video_folder)
     assert video_folder['meta'][MetadataFileItemIdMarker] == 'i1'
+
+
+@patch('dive_server.event.File')
+@patch('dive_server.event.Folder')
+@patch('dive_server.event.Item')
+def test_dangling_unpaired_metadata_name_takes_the_annotation_path(item_cls, folder_cls, file_cls):
+    """A ``*_metadata.csv`` with no VideoType sibling is an ordinary annotation, not a sidecar."""
+    item = {
+        '_id': 'i1',
+        'name': 'reef_metadata.csv',
+        'meta': {AnnotationFileFutureProcessMarker: True},
+        'folderId': 'parent',
+        'lowerName': 'reef_metadata.csv',
+    }
+    item_model = item_cls.return_value
+    item_model.find.return_value = [item]
+    item_model.save.side_effect = lambda doc: doc
+    parent_folder = {'_id': 'parent', 'meta': {}}
+    # Named for the whole basename, so only the base-name lookup can find it.
+    video_folder = {'_id': 'video', 'name': 'reef_metadata', 'meta': {TypeMarker: VideoType}}
+    folder_model = folder_cls.return_value
+
+    def find_one(query):
+        if query == {'_id': 'parent'}:
+            return parent_folder
+        if query.get('name') == 'reef_metadata':
+            return video_folder
+        return None
+
+    folder_model.findOne.side_effect = find_one
+    folder_model.childFolders.return_value = []
+
+    event.process_dangling_annotation_files({'_id': 'parent'}, {'_id': _OWNER_ID})
+
+    assert item['name'] == 'reef_metadata.csv'
+    assert FrameMetadataFileMarker not in item['meta']
+    assert item['meta'][AnnotationFileFutureProcessMarker] is False
+    item_model.move.assert_called_once_with(item, video_folder)
+    assert MetadataFileItemIdMarker not in video_folder['meta']

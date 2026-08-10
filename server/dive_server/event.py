@@ -284,7 +284,10 @@ def process_dangling_annotation_files(folder, user):
             )
             if video_folder is not None:
                 _place_video_paired_metadata(item, video_folder, ext)
-            continue
+                continue
+
+            # No VideoType sibling named for the stem: not a video-paired layout. Fall through
+            # to the plain annotation path, the same resolution process_assetstore_import uses.
 
         # Check if the corresponding video folder exists
         base_name = os.path.splitext(item['name'])[0]
