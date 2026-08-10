@@ -15,6 +15,7 @@ import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
+import { getResponseError } from 'vue-media-annotator/utils';
 import { DataTableHeader } from 'vuetify';
 
 import { useRouter } from 'vue-router/composables';
@@ -181,14 +182,35 @@ export default defineComponent({
       if (!result) {
         return;
       }
-      // Deletions run sequentially so a failure stops before touching the rest
+      const failures: { id: string; name: string; reason: string }[] = [];
+      // Continue through the full selection so one failure does not skip the rest
       // eslint-disable-next-line no-restricted-syntax
       for (const item of items) {
-        // eslint-disable-next-line no-await-in-loop
-        await request(() => api.deleteDataset(item.id));
-        removeRecents(item.id);
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await api.deleteDataset(item.id);
+          removeRecents(item.id);
+        } catch (err) {
+          failures.push({ id: item.id, name: item.name, reason: getResponseError(err) });
+        }
       }
-      selectedRecents.value = [];
+      const failedIds = new Set(failures.map((failure) => failure.id));
+      selectedRecents.value = items.filter((item) => failedIds.has(item.id));
+      if (failures.length > 0) {
+        const deletedCount = items.length - failures.length;
+        await prompt({
+          title: deletedCount > 0
+            ? 'Some datasets could not be deleted'
+            : 'Failed to delete datasets',
+          text: [
+            deletedCount > 0
+              ? `Deleted ${deletedCount} of ${items.length} datasets. The following could not be deleted:`
+              : 'None of the selected datasets could be deleted:',
+            ...failures.map((failure) => `${failure.name}: ${failure.reason}`),
+          ],
+          positiveButton: 'Okay',
+        });
+      }
     }
 
     const filteredRecents = computed(() => recents.value
