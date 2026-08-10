@@ -219,8 +219,6 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   async function measureAtFrame(trackId: number, frameNum: number): Promise<StereoMeasurement | null> {
     const cams = getMultiCamList();
     if (cams.length < 2) return null;
-    const rig = await getRig();
-    if (!rig) return null;
     const leftCamera = getLeftCameraName();
     const rightCamera = cams.find((c) => c !== leftCamera);
     if (!rightCamera) return null;
@@ -229,10 +227,18 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     const rightTrack = cameraStore.getPossibleTrack(trackId, rightCamera);
     const leftLine = lineEndpoints(leftTrack, frameNum);
     const rightLine = lineEndpoints(rightTrack, frameNum);
+    // Only one camera has a line yet: a normal in-progress state, not a failure.
     if (!leftLine || !rightLine) return null;
 
+    // Past this point the user has done everything needed, so anything missing
+    // is a real problem worth surfacing rather than a silent no-op.
+    const rig = await getRig();
+    if (!rig) throw new Error('No stereo calibration is available for this dataset.');
+
     const measurement = measureLine(rig, leftLine, rightLine);
-    if (!measurement) return null;
+    if (!measurement) {
+      throw new Error('The two lines could not be triangulated; check that the calibration matches these cameras.');
+    }
     config.ensureMeasurementAttributes?.();
     applyMeasurement(leftTrack, frameNum, measurement);
     applyMeasurement(rightTrack, frameNum, measurement);

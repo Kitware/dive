@@ -49,6 +49,19 @@ export interface StereoOnnxWebOptions {
   onChange?: (cameraName: string) => void;
 }
 
+/**
+ * Read a value the Viewer exposed from `setup()`. Vue unwraps refs on the
+ * component instance, so `viewer.multiCamList` is the array itself — the same
+ * way the desktop ViewerLoader reads it. Tolerates a raw ref so this also works
+ * against an unwrapped setup object (e.g. in tests).
+ */
+export function fromViewer<T>(value: T | { value: T } | undefined): T | undefined {
+  if (value && typeof value === 'object' && 'value' in (value as object)) {
+    return (value as { value: T }).value;
+  }
+  return value as T | undefined;
+}
+
 /** Decode an image URL into RGBA pixels, tolerating cross-origin-free same-site media. */
 async function urlToRgba(url: string): Promise<RgbaImage | null> {
   try {
@@ -151,7 +164,9 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   async function getFrame(cameraName: string, frameNum: number): Promise<RgbaImage | null> {
     const viewer = opts.getViewer();
     try {
-      const controller = viewer?.aggregateController?.value?.getController(cameraName);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const aggregate = fromViewer<any>(viewer?.aggregateController);
+      const controller = aggregate?.getController(cameraName);
       // The viewer only holds pixels for the frame on screen.
       if (controller?.frame?.value === frameNum) {
         const geoViewer = controller?.geoViewerRef?.value;
@@ -161,7 +176,9 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     } catch {
       // Fall through to the URL path.
     }
-    const url = viewer?.imageData?.[cameraName]?.[frameNum]?.url;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imageData = fromViewer<any>(viewer?.imageData);
+    const url = imageData?.[cameraName]?.[frameNum]?.url;
     return url ? urlToRgba(url) : null;
   }
 
@@ -175,8 +192,8 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
       if (!viewer?.cameraStore) return null;
       transfer = useStereoOnnxTransfer({
         cameraStore: viewer.cameraStore,
-        getMultiCamList: () => viewer.multiCamList?.value ?? [],
-        getLeftCameraName: () => viewer.multiCamList?.value?.[0],
+        getMultiCamList: () => fromViewer<string[]>(viewer.multiCamList) ?? [],
+        getLeftCameraName: () => (fromViewer<string[]>(viewer.multiCamList) ?? [])[0],
         getRig,
         getMatcher,
         getFrame,
