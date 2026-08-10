@@ -196,6 +196,22 @@ async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
   return window.diveDesktop.invoke('delete-trained-pipeline', pipeline);
 }
 
+async function listResumableTrainingJobs(): Promise<DesktopJob[]> {
+  return window.diveDesktop.invoke('list-resumable-training');
+}
+
+async function resumeTraining(job: DesktopJob): Promise<void> {
+  const args: RunTraining = {
+    ...(job.args as RunTraining),
+    resumeWorkingDir: job.workingDir,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+async function discardResumableTraining(job: DesktopJob): Promise<void> {
+  return window.diveDesktop.invoke('discard-resumable-training', job.workingDir);
+}
+
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
   return window.diveDesktop.invoke('import-media', { path });
 }
@@ -728,6 +744,9 @@ export {
   exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
+  listResumableTrainingJobs,
+  resumeTraining,
+  discardResumableTraining,
   saveConfig,
   saveDetections,
   saveAttributes,
