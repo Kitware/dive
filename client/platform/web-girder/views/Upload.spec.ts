@@ -326,6 +326,27 @@ describe('Upload pending rows', () => {
     ]);
   });
 
+  it('keeps a validated type hierarchy configuration in the upload package', async () => {
+    pick([file('dive.mp4'), file('hierarchy.config.json')]);
+    vi.mocked(validateUploadGroup).mockResolvedValue({
+      data: validation({
+        roles: {
+          media: ['dive.mp4'],
+          datasetConfig: ['hierarchy.config.json'],
+        },
+      }),
+    } as never);
+
+    const wrapper = mountUpload();
+    await wrapper.vm.openImport('video');
+
+    const [row] = wrapper.vm.pendingUploads;
+    expect(row.uploadFiles.map((entry: File) => entry.name)).toEqual([
+      'dive.mp4',
+      'hierarchy.config.json',
+    ]);
+  });
+
   it('starts only one upload when Start upload is clicked twice', async () => {
     pick([file('dive.mp4')]);
     vi.mocked(validateUploadGroup).mockResolvedValue({

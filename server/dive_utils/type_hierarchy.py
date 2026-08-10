@@ -117,3 +117,13 @@ def resolve_type_hierarchy(
     except TypeHierarchyError as error:
         raise _conflict(error.reason) from error
     return {'action': 'set', 'hierarchy': normalized_merged or {}}
+
+
+def apply_hierarchy_write(payload: dict, hierarchy_write: HierarchyWrite) -> dict:
+    """Return ``payload`` with the resolved typeHierarchy applied, leaving it alone on 'none'."""
+    resolved = dict(payload)
+    if hierarchy_write['action'] == 'set':
+        resolved['typeHierarchy'] = hierarchy_write['hierarchy']
+    elif hierarchy_write['action'] == 'delete':
+        resolved['typeHierarchy'] = None
+    return resolved

@@ -1,10 +1,27 @@
 /// <reference types="vitest" />
-import { nextTick } from 'vue';
+import { nextTick, ref } from 'vue';
 import Track, { Feature } from './track';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
+import type { MarkChangesPendingFilter } from './BaseFilterControls';
 import CameraStore from './CameraStore';
 import { AnnotationId } from './BaseAnnotation';
+import useSave from '../dive-common/use/useSave';
+
+const apiMocks = vi.hoisted(() => ({
+  saveConfig: vi.fn(),
+  saveDetections: vi.fn(),
+  saveAttributes: vi.fn(),
+  saveAttributeTrackFilters: vi.fn(),
+}));
+
+vi.mock('dive-common/apispec', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('dive-common/apispec')>();
+  return {
+    ...actual,
+    useApi: () => apiMocks,
+  };
+});
 
 const markChangesPending = () => null;
 
@@ -67,7 +84,7 @@ function makeGroupFilterControls(store: CameraStore) {
   });
 }
 
-function makeTrackFilterControls() {
+function makeTrackFilterControls(markPending: MarkChangesPendingFilter = markChangesPending) {
   const cameraStore = makeCameraStore();
   const groupFilterControls = makeGroupFilterControls(cameraStore);
   const setTrackType = (
@@ -87,7 +104,7 @@ function makeTrackFilterControls() {
   return new TrackFilterControls({
     sorted: cameraStore.sortedTracks,
     remove,
-    markChangesPending,
+    markChangesPending: markPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
     getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
@@ -97,6 +114,136 @@ function makeTrackFilterControls() {
 }
 
 describe('useAnnotationFilters', () => {
+  it('loads absent and valid hierarchy state without creating a save instruction', () => {
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy(undefined);
+    expect(tf.hierarchyActive.value).toBe(false);
+    expect(tf.invalidHierarchyReason.value).toBeNull();
+    expect(tf.consumeLoadWarning()).toBeNull();
+    expect(tf.typeHierarchySavePatch()).toEqual({});
+
+    tf.setTypeHierarchy({ shark: 'fish', 'great white shark': 'shark' });
+    expect(tf.hierarchyActive.value).toBe(true);
+    expect(tf.allTypes.value).toEqual([
+      'foo', 'bar', 'baz', 'great white shark', 'shark', 'fish',
+    ]);
+    expect(tf.checkedTypes.value).toEqual(expect.arrayContaining([
+      'great white shark', 'shark', 'fish',
+    ]));
+    expect(tf.typeHierarchySavePatch()).toEqual({});
+  });
+
+  it('disables an invalid stored hierarchy and emits its load warning once', () => {
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy({ fish: 'fish' });
+
+    expect(tf.hierarchyActive.value).toBe(false);
+    expect(tf.invalidHierarchyReason.value).toBe('self edge "fish -> fish"');
+    expect(tf.typeHierarchySavePatch()).toEqual({});
+    expect(tf.consumeLoadWarning()).toBe(
+      'The saved type hierarchy is invalid: self edge "fish -> fish". '
+      + 'Hierarchical type selection is disabled until the configuration is corrected.',
+    );
+    expect(tf.consumeLoadWarning()).toBeNull();
+  });
+
+  it('re-arms hierarchy load warnings and removes stale hierarchy-only choices on reset', () => {
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy({ shark: 'fish' });
+    expect(tf.checkedTypes.value).toEqual(expect.arrayContaining(['shark', 'fish']));
+
+    tf.setTypeHierarchy(undefined);
+    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+    expect(tf.checkedTypes.value).not.toEqual(expect.arrayContaining(['shark', 'fish']));
+
+    tf.setTypeHierarchy({ fish: 'fish' });
+    expect(tf.consumeLoadWarning()).not.toBeNull();
+  });
+
+  it('retains a hierarchy save patch until persistence succeeds', () => {
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy({ shark: 'fish' });
+    tf.updateTypeHierarchy({ shark: 'fish', tuna: 'fish' });
+
+    const expected = { typeHierarchy: { shark: 'fish', tuna: 'fish' } };
+    expect(tf.typeHierarchySavePatch()).toEqual(expected);
+    expect(tf.typeHierarchySavePatch()).toEqual(expected);
+    tf.markTypeHierarchyPersisted();
+    expect(tf.typeHierarchySavePatch()).toEqual({});
+  });
+
+  it('retries every multicamera hierarchy target after the parent save fails', async () => {
+    const datasetId = 'multicam-dataset';
+    const saveControls = useSave(ref(datasetId), ref(false));
+    saveControls.removeCamera('singleCam');
+    saveControls.addCamera('left');
+    saveControls.addCamera('right');
+    const tf = makeTrackFilterControls(
+      saveControls.markChangesPending as MarkChangesPendingFilter,
+    );
+    tf.setTypeHierarchy({ shark: 'fish' });
+    tf.updateTypeHierarchy({ shark: 'fish', tuna: 'fish' });
+    const expected = { typeHierarchy: { shark: 'fish', tuna: 'fish' } };
+    const visiblePendingCount = () => Math.max(
+      0,
+      saveControls.pendingSaveCount.value - tf.typeHierarchyPendingCountAdjustment(),
+    );
+    expect(saveControls.pendingSaveCount.value).toBe(1);
+    expect(visiblePendingCount()).toBe(1);
+    let rejectParent = true;
+    apiMocks.saveConfig.mockImplementation(async (id: string) => {
+      if (id === datasetId && rejectParent) {
+        rejectParent = false;
+        throw new Error('parent save failed');
+      }
+    });
+
+    const firstPatch = tf.prepareTypeHierarchySavePatch();
+    expect(saveControls.pendingSaveCount.value).toBe(1);
+    expect(tf.typeHierarchyPendingCountAdjustment()).toBe(0);
+    expect(visiblePendingCount()).toBe(1);
+    await expect(saveControls.save(firstPatch)).rejects.toThrow('parent save failed');
+    expect(tf.typeHierarchySavePatch()).toEqual(expected);
+
+    const retryPatch = tf.prepareTypeHierarchySavePatch();
+    expect(retryPatch).toEqual(firstPatch);
+    expect(saveControls.pendingSaveCount.value).toBe(2);
+    expect(tf.typeHierarchyPendingCountAdjustment()).toBe(1);
+    expect(visiblePendingCount()).toBe(1);
+    await saveControls.save(retryPatch);
+    expect(apiMocks.saveConfig.mock.calls).toEqual([
+      [`${datasetId}/left`, expected],
+      [`${datasetId}/right`, expected],
+      [datasetId, expected],
+      [`${datasetId}/left`, expected],
+      [`${datasetId}/right`, expected],
+      [datasetId, expected],
+    ]);
+
+    tf.markTypeHierarchyPersisted();
+    expect(tf.typeHierarchyPendingCountAdjustment()).toBe(0);
+    expect(visiblePendingCount()).toBe(0);
+    expect(tf.prepareTypeHierarchySavePatch()).toEqual({});
+  });
+
+  it('uses an explicit delete patch for a locally cleared hierarchy', () => {
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy({ shark: 'fish' });
+    tf.updateTypeHierarchy(null);
+    expect(tf.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
+  });
+
+  it('accepts corrected replacement and clear loads after invalid storage', () => {
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy({ fish: 'fish' });
+    tf.setTypeHierarchy({ shark: 'fish' });
+    expect(tf.hierarchyActive.value).toBe(true);
+    expect(tf.invalidHierarchyReason.value).toBeNull();
+    tf.setTypeHierarchy({});
+    expect(tf.hierarchyActive.value).toBe(false);
+    expect(tf.typeHierarchySavePatch()).toEqual({});
+  });
+
   it('updateTypeName', async () => {
     const tf = makeTrackFilterControls();
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2, default: 0.1 });

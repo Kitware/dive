@@ -1,6 +1,13 @@
 import { computed, Ref, ref } from 'vue';
 import { cloneDeep } from 'lodash';
 import { clientSettings } from 'dive-common/store/settings';
+import {
+  compileHierarchy,
+  normalizeTypeHierarchy,
+  TypeHierarchy,
+  TypeHierarchyError,
+  TypeHierarchyIndex,
+} from 'dive-common/typeHierarchy';
 import { AnnotationId } from './BaseAnnotation';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';
@@ -22,8 +29,47 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   enabledFilters: Ref<boolean[]>;
 
+  typeHierarchy: Ref<TypeHierarchy | undefined>;
+
+  hierarchyIndex: Ref<TypeHierarchyIndex | undefined>;
+
+  hierarchyActive: Ref<boolean>;
+
+  hierarchyMembers: Ref<string[]>;
+
+  usedPlusConfiguredTypes: Ref<string[]>;
+
+  invalidHierarchyReason: Ref<string | null>;
+
+  private hierarchyWarningConsumed = false;
+
+  private hierarchyDirty = false;
+
+  private hierarchySavePrepared = false;
+
+  private hierarchySaveRearmCount = ref(0);
+
   constructor(params: TrackFilterControlsParams) {
     super(params);
+
+    const flatAllTypes = this.allTypes;
+    this.usedPlusConfiguredTypes = flatAllTypes;
+    this.typeHierarchy = ref(undefined);
+    this.hierarchyIndex = ref(undefined);
+    this.invalidHierarchyReason = ref(null);
+    this.hierarchyMembers = computed(() => {
+      const members = new Set<string>();
+      Object.entries(this.typeHierarchy.value || {}).forEach(([child, parent]) => {
+        members.add(child);
+        members.add(parent);
+      });
+      return Array.from(members);
+    });
+    this.hierarchyActive = computed(() => this.hierarchyIndex.value !== undefined);
+    this.allTypes = computed(() => Array.from(new Set([
+      ...flatAllTypes.value,
+      ...this.hierarchyMembers.value,
+    ])));
 
     this.attributeFilters = ref([]);
 
@@ -111,6 +157,103 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       });
       return resultsArr;
     });
+  }
+
+  private installTypeHierarchy(value: unknown, dirty: boolean) {
+    const previousMembers = new Set(this.hierarchyMembers.value);
+    let normalized: TypeHierarchy | undefined;
+    try {
+      normalized = normalizeTypeHierarchy(value === undefined ? null : value);
+      this.invalidHierarchyReason.value = null;
+    } catch (error) {
+      if (!(error instanceof TypeHierarchyError)) {
+        throw error;
+      }
+      if (dirty) {
+        throw error;
+      }
+      normalized = undefined;
+      this.invalidHierarchyReason.value = error.reason;
+    }
+
+    const current = this.typeHierarchy.value;
+    const changed = !isEqual(current, normalized);
+    this.typeHierarchy.value = normalized;
+    if (changed) {
+      this.hierarchyIndex.value = normalized ? compileHierarchy(normalized) : undefined;
+    }
+
+    const nextMembers = new Set(this.hierarchyMembers.value);
+    const baseline = new Set(this.usedPlusConfiguredTypes.value);
+    const checked = this.checkedTypes.value.filter(
+      (name) => baseline.has(name) || nextMembers.has(name),
+    );
+    nextMembers.forEach((name) => {
+      if (!previousMembers.has(name) && !checked.includes(name)) {
+        checked.push(name);
+      }
+    });
+    this.checkedTypes.value = checked;
+
+    this.hierarchyDirty = dirty;
+    this.hierarchySavePrepared = false;
+    if (!dirty) {
+      this.hierarchySaveRearmCount.value = 0;
+    }
+  }
+
+  /** Install hierarchy state loaded from a dataset or a successful config replacement. */
+  setTypeHierarchy(value: unknown) {
+    this.hierarchyWarningConsumed = false;
+    this.installTypeHierarchy(value, false);
+  }
+
+  /** Install a locally edited hierarchy and include it in the next metadata save. */
+  updateTypeHierarchy(value: unknown) {
+    this.installTypeHierarchy(value, true);
+    this.markChangesPending({ action: 'meta' });
+  }
+
+  consumeLoadWarning(): string | null {
+    if (this.invalidHierarchyReason.value === null || this.hierarchyWarningConsumed) {
+      return null;
+    }
+    this.hierarchyWarningConsumed = true;
+    return `The saved type hierarchy is invalid: ${this.invalidHierarchyReason.value}. Hierarchical type selection is disabled until the configuration is corrected.`;
+  }
+
+  typeHierarchySavePatch(): { typeHierarchy?: Record<string, string> | null } {
+    if (!this.hierarchyDirty) {
+      return {};
+    }
+    if (this.typeHierarchy.value === undefined) {
+      return { typeHierarchy: null };
+    }
+    return { typeHierarchy: { ...(this.typeHierarchy.value || {}) } };
+  }
+
+  /** Re-arm metadata writes for every save attempt while hierarchy state is dirty. */
+  prepareTypeHierarchySavePatch(): { typeHierarchy?: Record<string, string> | null } {
+    const patch = this.typeHierarchySavePatch();
+    if (Object.prototype.hasOwnProperty.call(patch, 'typeHierarchy')) {
+      if (this.hierarchySavePrepared) {
+        this.markChangesPending({ action: 'meta' });
+        this.hierarchySaveRearmCount.value += 1;
+      } else {
+        this.hierarchySavePrepared = true;
+      }
+    }
+    return patch;
+  }
+
+  typeHierarchyPendingCountAdjustment() {
+    return this.hierarchySaveRearmCount.value;
+  }
+
+  markTypeHierarchyPersisted() {
+    this.hierarchyDirty = false;
+    this.hierarchySavePrepared = false;
+    this.hierarchySaveRearmCount.value = 0;
   }
 
   loadTrackAttributesFilter(trackAttributesFilter: Readonly<AttributeTrackFilter[]>) {

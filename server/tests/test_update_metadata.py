@@ -1,10 +1,13 @@
 import json
 from unittest.mock import MagicMock, patch
 
+from girder.exceptions import RestException, ValidationException
 import pytest
 
 from dive_server import crud, crud_dataset
-from dive_server.crud_rpc import process_items, resolve_imported_dataset_info
+from dive_server.crud_rpc import _get_data_by_type, process_items, resolve_imported_dataset_info
+from dive_server.views_dataset import DatasetResource
+from dive_utils import constants, models
 
 
 def _stub_folder_load_and_save(folder_cls, folder):
@@ -81,6 +84,427 @@ def test_update_metadata_sets_time_filters(_verify, folder_cls, crud_folder_cls)
     crud_dataset.update_metadata(folder, {'timeFilters': [10, 50]})
 
     assert folder['meta']['timeFilters'] == [10, 50]
+
+
+@pytest.mark.parametrize('incoming', [None, {}], ids=['null', 'empty'])
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_sets_and_clears_type_hierarchy(
+    _verify, folder_cls, crud_folder_cls, incoming
+):
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {
+            'annotate': True,
+            'type': 'video',
+            'typeHierarchy': {'salmon': 'fish'},
+        },
+    }
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    crud_dataset.update_metadata(folder, {'typeHierarchy': incoming})
+
+    assert 'typeHierarchy' not in folder['meta']
+    folder_cls.return_value.save.assert_called_once()
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_replaces_complete_type_hierarchy(_verify, folder_cls, crud_folder_cls):
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {
+            'annotate': True,
+            'type': 'video',
+            'typeHierarchy': {'salmon': 'fish'},
+        },
+    }
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    crud_dataset.update_metadata(folder, {'typeHierarchy': {'orca': 'mammal'}})
+
+    assert folder['meta']['typeHierarchy'] == {'orca': 'mammal'}
+    folder_cls.return_value.save.assert_called_once()
+
+
+@pytest.mark.parametrize('conflict', [False, True], ids=['merge', 'conflict'])
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_additive_hierarchy_uses_final_refresh(
+    _verify, folder_cls, crud_folder_cls, conflict
+):
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {
+            'annotate': True,
+            'type': 'video',
+            'confidenceFilters': {'default': 0.1},
+            'typeHierarchy': {'salmon': 'fish'},
+        },
+    }
+    fresh = {
+        **folder,
+        'meta': {
+            **folder['meta'],
+            'typeHierarchy': {
+                'salmon': 'fish',
+                'tuna' if conflict else 'shark': 'mammal' if conflict else 'fish',
+            },
+        },
+    }
+    crud_folder_cls.return_value.load.return_value = fresh
+    folder_cls.return_value.save = MagicMock(side_effect=lambda value: value)
+
+    payload = {
+        'confidenceFilters': {'default': 0.9},
+        'typeHierarchy': {'tuna': 'fish'},
+    }
+    if conflict:
+        with pytest.raises(RestException) as error_info:
+            crud_dataset.update_metadata(
+                folder,
+                payload,
+                verify=False,
+                hierarchy_mode='additive',
+            )
+        assert str(error_info.value) == (
+            'Type hierarchy is invalid: conflicting parents for "tuna": '
+            '"mammal" and "fish". No configuration was changed.'
+        )
+        assert folder['meta'] == fresh['meta']
+        folder_cls.return_value.save.assert_not_called()
+    else:
+        crud_dataset.update_metadata(
+            folder,
+            payload,
+            verify=False,
+            hierarchy_mode='additive',
+        )
+        assert folder['meta']['typeHierarchy'] == {
+            'salmon': 'fish',
+            'shark': 'fish',
+            'tuna': 'fish',
+        }
+        assert folder['meta']['confidenceFilters'] == {'default': 0.9}
+        folder_cls.return_value.save.assert_called_once()
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_rejects_invalid_type_hierarchy_without_write(
+    _verify, folder_cls, crud_folder_cls
+):
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {
+            'annotate': True,
+            'type': 'video',
+            'confidenceFilters': {'default': 0.1},
+            'typeHierarchy': {'salmon': 'fish'},
+        },
+    }
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    with pytest.raises(RestException) as error_info:
+        crud_dataset.update_metadata(
+            folder,
+            {
+                'confidenceFilters': {'default': 0.9},
+                'typeHierarchy': {'fish': 'fish'},
+            },
+        )
+
+    assert str(error_info.value) == (
+        'Type hierarchy is invalid: self edge "fish -> fish". ' 'No configuration was changed.'
+    )
+    assert folder['meta'] == {
+        'annotate': True,
+        'type': 'video',
+        'confidenceFilters': {'default': 0.1},
+        'typeHierarchy': {'salmon': 'fish'},
+    }
+    folder_cls.return_value.save.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ('payload', 'expected'),
+    [
+        ({'confidenceFilters': {'default': 0.7}}, {'broken': 5}),
+        ({'typeHierarchy': None}, None),
+        ({'typeHierarchy': {}}, None),
+        ({'typeHierarchy': {'salmon': 'fish'}}, {'salmon': 'fish'}),
+    ],
+    ids=['missing-preserves', 'null-repairs', 'empty-repairs', 'replacement-repairs'],
+)
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_direct_save_matrix_with_invalid_existing_hierarchy(
+    _verify, folder_cls, crud_folder_cls, payload, expected
+):
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {
+            'annotate': True,
+            'type': 'video',
+            'typeHierarchy': {'broken': 5},
+        },
+    }
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    crud_dataset.update_metadata(folder, payload)
+
+    if expected is None:
+        assert 'typeHierarchy' not in folder['meta']
+    else:
+        assert folder['meta']['typeHierarchy'] == expected
+    folder_cls.return_value.save.assert_called_once()
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_invalid_input_does_not_replace_invalid_existing_hierarchy(
+    _verify, folder_cls, crud_folder_cls
+):
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {
+            'annotate': True,
+            'type': 'video',
+            'confidenceFilters': {'default': 0.1},
+            'typeHierarchy': {'broken': 5},
+        },
+    }
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    with pytest.raises(RestException) as error_info:
+        crud_dataset.update_metadata(
+            folder,
+            {
+                'confidenceFilters': {'default': 0.9},
+                'typeHierarchy': ['not', 'a', 'map'],
+            },
+        )
+
+    assert str(error_info.value) == (
+        'Type hierarchy is invalid: expected an object. No configuration was changed.'
+    )
+    assert folder['meta']['confidenceFilters'] == {'default': 0.1}
+    assert folder['meta']['typeHierarchy'] == {'broken': 5}
+    folder_cls.return_value.save.assert_not_called()
+
+
+@pytest.mark.parametrize('hierarchy', [None, {}], ids=['null', 'empty'])
+@patch('dive_server.crud_rpc.File')
+def test_get_data_by_type_classifies_presence_only_type_hierarchy_as_config(file_cls, hierarchy):
+    file = {'_id': 'file-id', 'name': 'config.json', 'exts': ['json']}
+    file_cls.return_value.download.return_value = lambda: [
+        json.dumps({'typeHierarchy': hierarchy}).encode()
+    ]
+
+    result, warnings = _get_data_by_type(file)
+
+    assert warnings is None
+    assert result['type'] == crud.FileType.DIVE_CONF
+    assert result['meta']['typeHierarchy'] is None
+
+
+def test_metadata_mutable_does_not_classify_unrelated_json_as_config():
+    assert models.MetadataMutable.is_dive_configuration({'tracks': {}, 'groups': {}}) is False
+
+
+@pytest.mark.parametrize(
+    'media_type',
+    [
+        constants.VideoType,
+        constants.ImageSequenceType,
+        constants.LargeImageType,
+        constants.MultiType,
+    ],
+)
+@patch('dive_server.crud_dataset.get_multi_cam_media')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_get_dataset_loads_type_hierarchy_for_each_media_type(
+    _verify, get_multi_cam_media, media_type
+):
+    folder = {
+        '_id': 'dataset-id',
+        'name': 'dataset',
+        'created': '2025-01-01T00:00:00',
+        'meta': {
+            'annotate': True,
+            'type': media_type,
+            'fps': 5,
+            'typeHierarchy': {'salmon': 'fish'},
+        },
+    }
+    if media_type == constants.MultiType:
+        folder['meta'].update(
+            {
+                'subType': 'stereo',
+                'multiCam': {
+                    'defaultDisplay': 'left',
+                    'cameras': {},
+                },
+            }
+        )
+        get_multi_cam_media.return_value = models.MultiCamMedia(
+            defaultDisplay='left', cameras={}, cameraOrder=[]
+        )
+
+    loaded = crud_dataset.get_dataset(folder, {'_id': 'user-id'})
+
+    assert loaded.type == media_type
+    assert loaded.typeHierarchy == {'salmon': 'fish'}
+
+
+def _unwrapped_endpoint(endpoint):
+    while hasattr(endpoint, '__wrapped__'):
+        endpoint = endpoint.__wrapped__
+    return endpoint
+
+
+def _configuration_endpoint(resource, folder):
+    return _unwrapped_endpoint(DatasetResource.get_configuration)(resource, folder)
+
+
+@pytest.mark.parametrize(
+    ('stored', 'expected_present'),
+    [
+        ({'salmon': 'fish'}, True),
+        ({}, False),
+        (None, False),
+    ],
+    ids=['non-empty', 'empty', 'absent'],
+)
+@patch('dive_server.views_dataset.setContentDisposition')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_configuration_endpoint_includes_only_nonempty_type_hierarchy(
+    _verify, _set_content_disposition, stored, expected_present
+):
+    folder = {
+        '_id': 'dataset-id',
+        'name': 'dataset',
+        'created': '2025-01-01T00:00:00',
+        'meta': {
+            'annotate': True,
+            'type': constants.VideoType,
+            'fps': 5,
+            **({'typeHierarchy': stored} if stored is not None else {}),
+        },
+    }
+    resource = MagicMock()
+    resource.getCurrentUser.return_value = {'_id': 'user-id'}
+
+    configuration = json.loads(_configuration_endpoint(resource, folder))
+
+    assert ('typeHierarchy' in configuration) is expected_present
+    if expected_present:
+        assert configuration['typeHierarchy'] == {'salmon': 'fish'}
+
+
+@patch('dive_server.views_dataset.setContentDisposition')
+@patch('dive_server.views_dataset.cherrypy.response')
+def test_configuration_endpoint_rejects_invalid_stored_hierarchy_before_serialization(
+    response,
+    _set_content_disposition,
+):
+    folder = {
+        '_id': 'dataset-id',
+        'name': 'dataset',
+        'meta': {
+            'typeHierarchy': {'fish': 'fish'},
+        },
+    }
+    resource = MagicMock()
+    resource.getCurrentUser.return_value = {'_id': 'user-id'}
+
+    result = _configuration_endpoint(resource, folder)
+
+    assert result == (
+        'Type hierarchy is invalid: self edge "fish -> fish". '
+        'No configuration file was exported.'
+    )
+    resource.setRawResponse.assert_called_once_with()
+    assert response.status == 400
+    assert response.headers.__setitem__.call_args.args == ('Content-Type', 'text/plain')
+    _set_content_disposition.assert_not_called()
+
+
+@patch('dive_server.views_dataset.setContentDisposition')
+@patch('dive_server.views_dataset.cherrypy.response')
+@patch('dive_server.views_dataset.crud_dataset.export_datasets_zipstream')
+@patch('dive_server.views_dataset.Folder')
+def test_zip_endpoint_returns_exact_invalid_hierarchy_error_before_download(
+    folder_cls,
+    export_zipstream,
+    response,
+    set_content_disposition,
+):
+    folder_cls.return_value.load.return_value = {'_id': 'dataset-id', 'name': 'dataset'}
+    expected = (
+        'Type hierarchy is invalid: self edge "fish -> fish". '
+        'No configuration file was exported.'
+    )
+    export_zipstream.side_effect = RestException(expected)
+    resource = MagicMock()
+    resource.getCurrentUser.return_value = {'_id': 'user-id'}
+
+    result = _unwrapped_endpoint(DatasetResource.export)(
+        resource,
+        ['dataset-id'],
+        True,
+        True,
+        False,
+        None,
+    )
+
+    assert result == expected
+    resource.setRawResponse.assert_called_once_with()
+    assert response.status == 400
+    assert response.headers.__setitem__.call_args.args == ('Content-Type', 'text/plain')
+    set_content_disposition.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.views_dataset.setContentDisposition')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_configuration_endpoint_export_import_roundtrip(
+    _verify, _set_content_disposition, file_cls
+):
+    folder = {
+        '_id': 'dataset-id',
+        'name': 'dataset',
+        'created': '2025-01-01T00:00:00',
+        'meta': {
+            'annotate': True,
+            'type': constants.VideoType,
+            'fps': 5,
+            'typeHierarchy': {'salmon': 'fish'},
+        },
+    }
+    resource = MagicMock()
+    resource.getCurrentUser.return_value = {'_id': 'user-id'}
+    exported = _configuration_endpoint(resource, folder)
+    file_cls.return_value.download.return_value = lambda: [exported.encode()]
+
+    imported, warnings = _get_data_by_type(
+        {'_id': 'file-id', 'name': 'dataset.config.json', 'exts': ['json']}
+    )
+
+    assert warnings is None
+    assert imported['type'] == crud.FileType.DIVE_CONF
+    assert imported['meta']['typeHierarchy'] == {'salmon': 'fish'}
 
 
 @patch('dive_server.crud.Folder')
@@ -430,6 +854,7 @@ def test_pick_multicam_shared_mutable_keeps_only_shared_keys():
             'version': 1,
             'confidenceFilters': {'default': 0.5},
             'datasetInfo': {'year': '2025'},
+            'typeHierarchy': {'salmon': 'fish'},
             'imageEnhancements': {'brightness': 1.2},
             'cameraHomographies': {'left::right': {'AtoB': [], 'BtoA': []}},
             'cameraCorrespondences': {'left::right': []},
@@ -443,11 +868,102 @@ def test_pick_multicam_shared_mutable_keeps_only_shared_keys():
         'datasetInfo': {'year': '2025'},
         'customTypeStyling': {'fish': {'color': '#0f0'}},
     }
+    assert 'typeHierarchy' not in picked
     assert 'imageEnhancements' not in picked
     assert 'cameraHomographies' not in picked
     assert 'cameraCorrespondences' not in picked
     assert 'cameraTransformTypes' not in picked
     assert 'cameraRegistrationSource' not in picked
+
+
+def test_camera_patch_rejects_invalid_hierarchy_before_any_write(monkeypatch):
+    import inspect
+    from types import SimpleNamespace
+
+    from dive_server.views_dataset import DatasetResource
+
+    camera = {'_id': 'camera', 'meta': {'imageEnhancements': {'brightness': 1}}}
+    parent = {'_id': 'parent', 'meta': {'typeHierarchy': {'salmon': 'fish'}}}
+    update_metadata = MagicMock()
+    monkeypatch.setattr(crud, 'get_multicam_parent_folder', lambda *_args: parent)
+    monkeypatch.setattr(crud_dataset, 'update_metadata', update_metadata)
+    resource = SimpleNamespace(getCurrentUser=lambda: {'_id': 'user'})
+
+    with pytest.raises(RestException, match='self edge "fish -> fish"'):
+        inspect.unwrap(DatasetResource.patch_metadata)(
+            resource,
+            camera,
+            {
+                'imageEnhancements': {'brightness': 2},
+                'typeHierarchy': {'fish': 'fish'},
+            },
+        )
+
+    update_metadata.assert_not_called()
+    assert camera['meta'] == {'imageEnhancements': {'brightness': 1}}
+    assert parent['meta'] == {'typeHierarchy': {'salmon': 'fish'}}
+
+
+def test_camera_patch_rejects_invalid_camera_metadata_before_parent_write(monkeypatch):
+    import inspect
+    from types import SimpleNamespace
+
+    from dive_server.views_dataset import DatasetResource
+
+    camera = {'_id': 'camera', 'meta': {'confidenceFilters': {'default': 0.5}}}
+    parent = {'_id': 'parent', 'meta': {'typeHierarchy': {'salmon': 'fish'}}}
+    writes = []
+
+    def update_metadata(target, data):
+        validated = crud_dataset.MetadataMutableUpdateArgs(**data)
+        target['meta'].update(validated.dict(exclude_none=True))
+        writes.append(target['_id'])
+        return target['meta']
+
+    monkeypatch.setattr(crud, 'get_multicam_parent_folder', lambda *_args: parent)
+    monkeypatch.setattr(crud_dataset, 'update_metadata', update_metadata)
+    resource = SimpleNamespace(getCurrentUser=lambda: {'_id': 'user'})
+
+    with pytest.raises(ValidationException, match='unexpectedField'):
+        inspect.unwrap(DatasetResource.patch_metadata)(
+            resource,
+            camera,
+            {
+                'unexpectedField': True,
+                'typeHierarchy': {'tuna': 'fish'},
+            },
+        )
+
+    assert writes == []
+    assert camera['meta'] == {'confidenceFilters': {'default': 0.5}}
+    assert parent['meta'] == {'typeHierarchy': {'salmon': 'fish'}}
+
+
+def test_camera_patch_rejects_hierarchy_without_parent_write_access(monkeypatch):
+    import inspect
+    from types import SimpleNamespace
+
+    from dive_server.views_dataset import DatasetResource
+
+    camera = {'_id': 'camera', 'meta': {}}
+    parent = {'_id': 'parent', 'meta': {'typeHierarchy': {'salmon': 'fish'}}}
+    update_metadata = MagicMock()
+    monkeypatch.setattr(crud, 'get_multicam_parent_folder', lambda *_args: None)
+    monkeypatch.setattr(crud, 'get_multicam_owner_folder', lambda _folder: parent)
+    monkeypatch.setattr(crud_dataset, 'update_metadata', update_metadata)
+    resource = SimpleNamespace(getCurrentUser=lambda: {'_id': 'user'})
+
+    with pytest.raises(RestException) as error:
+        inspect.unwrap(DatasetResource.patch_metadata)(
+            resource,
+            camera,
+            {'typeHierarchy': {'tuna': 'fish'}},
+        )
+
+    assert error.value.code == 403
+    update_metadata.assert_not_called()
+    assert camera['meta'] == {}
+    assert parent['meta'] == {'typeHierarchy': {'salmon': 'fish'}}
 
 
 @patch('dive_server.crud.Folder')
@@ -469,14 +985,38 @@ def test_get_multicam_parent_folder_returns_parent_for_registered_camera(folder_
         },
     }
     folder_cls.return_value.load.return_value = parent
+    folder_cls.return_value.hasAccess.return_value = True
     user = {'_id': 'user-id'}
 
     assert crud.get_multicam_parent_folder(camera, user) is parent
-    folder_cls.return_value.load.assert_called_once_with(
-        'parent-id',
-        level=AccessType.WRITE,
-        user=user,
-    )
+    # Membership is resolved without an ACL check so that insufficient access degrades to
+    # None instead of raising AccessException past the caller's guards.
+    folder_cls.return_value.load.assert_called_once_with('parent-id', force=True)
+    folder_cls.return_value.hasAccess.assert_called_once_with(parent, user, AccessType.WRITE)
+
+
+@patch('dive_server.crud.Folder')
+def test_get_multicam_parent_folder_returns_none_without_parent_access(folder_cls):
+    from dive_server import crud
+    from dive_utils import constants
+
+    camera = {'_id': 'left-id', 'parentId': 'parent-id', 'meta': {'type': 'image-sequence'}}
+    parent = {
+        '_id': 'parent-id',
+        'meta': {
+            'type': constants.MultiType,
+            'multiCam': {
+                'defaultDisplay': 'left',
+                'cameras': {'left': {'folderId': 'left-id', 'type': 'image-sequence'}},
+            },
+        },
+    }
+    folder_cls.return_value.load.return_value = parent
+    folder_cls.return_value.hasAccess.return_value = False
+
+    assert crud.get_multicam_parent_folder(camera, {'_id': 'user-id'}) is None
+    # The read-only owner lookup still resolves, so export keeps the parent's hierarchy.
+    assert crud.get_multicam_owner_folder(camera) is parent
 
 
 @patch('dive_server.crud.Folder')

@@ -386,7 +386,7 @@ export default defineComponent({
       save: saveToServer,
       markChangesPending,
       discardChanges,
-      pendingSaveCount,
+      pendingSaveCount: rawPendingSaveCount,
       addCamera: addSaveCamera,
       removeCamera: removeSaveCamera,
     } = useSave(datasetId, readonlyState);
@@ -670,6 +670,10 @@ export default defineComponent({
       setType: setTrackType,
       removeTypes,
     });
+    const pendingSaveCount = computed(() => Math.max(
+      0,
+      rawPendingSaveCount.value - trackFilters.typeHierarchyPendingCountAdjustment(),
+    ));
 
     clientSettingsSetup(trackFilters.allTypes);
 
@@ -935,13 +939,17 @@ export default defineComponent({
       }
       try {
         await saveToServer({
-          customTypeStyling: trackStyleManager.getTypeStyles(trackFilters.allTypes),
+          customTypeStyling: trackStyleManager.getTypeStyles(
+            trackFilters.usedPlusConfiguredTypes,
+          ),
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
+          ...trackFilters.prepareTypeHierarchySavePatch(),
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
+        trackFilters.markTypeHierarchyPersisted();
       } catch (err) {
         let text = 'Unable to Save Data';
         const saveErr = err as { response?: { status?: number } };
@@ -1494,7 +1502,17 @@ export default defineComponent({
         scheduleGlobalStylePersist.flush();
         // Close and reset sideBar
         context.resetActive();
+        trackFilters.setTypeHierarchy(undefined);
         const meta = await loadConfig(datasetId.value);
+        trackFilters.setTypeHierarchy(meta.typeHierarchy);
+        const hierarchyWarning = trackFilters.consumeLoadWarning();
+        if (hierarchyWarning) {
+          await prompt({
+            title: 'Invalid Type Hierarchy',
+            text: hierarchyWarning,
+            positiveButton: 'OK',
+          });
+        }
         baseMulticamDatasetId.value = datasetId.value;
         if (meta.multiCamMedia) {
           /* We're loading a multicamera dataset */

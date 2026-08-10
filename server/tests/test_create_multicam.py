@@ -31,6 +31,11 @@ def _dataset_parent():
 def test_create_multicam_links_children(_verify, valid_images_mock, folder_cls, _aux):
     user = {'login': 'tester'}
     dataset_parent = _dataset_parent()
+    dataset_parent['meta'] = {
+        'typeHierarchy': {'salmon': 'fish'},
+        'customTypeStyling': {'salmon': {'color': '#123456'}},
+        'confidenceFilters': {'default': 0.7, 'salmon': 0.85},
+    }
     left = _child_folder('left-id', 'left')
     right = _child_folder('right-id', 'right')
 
@@ -67,6 +72,9 @@ def test_create_multicam_links_children(_verify, valid_images_mock, folder_cls, 
     assert saved_meta[constants.SubTypeMarker] == 'stereo'
     assert saved_meta[constants.MultiCamMarker]['cameraOrder'] == ['left', 'right']
     assert set(saved_meta[constants.MultiCamMarker]['cameras'].keys()) == {'left', 'right'}
+    assert saved_meta['typeHierarchy'] == {'salmon': 'fish'}
+    assert saved_meta['customTypeStyling'] == {'salmon': {'color': '#123456'}}
+    assert saved_meta['confidenceFilters'] == {'default': 0.7, 'salmon': 0.85}
 
 
 @patch('dive_server.crud_dataset.Item')

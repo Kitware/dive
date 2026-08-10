@@ -259,7 +259,14 @@ def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
-def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login: str):
+def extract_zip(
+    self: Task,
+    folderId: str,
+    itemId: str,
+    user_id: str,
+    user_login: str,
+    additive: bool = False,
+):
     """
     Discovery logic:
     * Find all folders that have at least one child file (potential datasets)
@@ -337,32 +344,39 @@ def extract_zip(self: Task, folderId: str, itemId: str, user_id: str, user_login
         ) > 1
         for folderName, folderType in discovered_folders.items():
             subFolderName = folderName if make_subfolders else ''
-            if folderType == 'unstructured':
-                utils.upload_zipped_flat_media_files(
-                    gc,
-                    manager,
-                    folderId,
-                    _working_directory_path / folderName,
-                    subFolderName,
-                )
-            elif folderType == 'multicam':
-                utils.upload_exported_multicam_zipped_dataset(
-                    gc,
-                    manager,
-                    folderId,
-                    _working_directory_path / folderName,
-                    subFolderName,
-                )
-            elif folderType == 'dataset':
-                utils.upload_exported_zipped_dataset(
-                    gc,
-                    manager,
-                    folderId,
-                    _working_directory_path / folderName,
-                    subFolderName,
-                )
-            else:
-                manager.write(f'Ignoring {folderName}\n')
+            try:
+                if folderType == 'unstructured':
+                    utils.upload_zipped_flat_media_files(
+                        gc,
+                        manager,
+                        folderId,
+                        _working_directory_path / folderName,
+                        subFolderName,
+                        additive,
+                    )
+                elif folderType == 'multicam':
+                    utils.upload_exported_multicam_zipped_dataset(
+                        gc,
+                        manager,
+                        folderId,
+                        _working_directory_path / folderName,
+                        subFolderName,
+                        additive,
+                    )
+                elif folderType == 'dataset':
+                    utils.upload_exported_zipped_dataset(
+                        gc,
+                        manager,
+                        folderId,
+                        _working_directory_path / folderName,
+                        subFolderName,
+                        additive,
+                    )
+                else:
+                    manager.write(f'Ignoring {folderName}\n')
+            except utils.MalformedExportedConfigurationError:
+                gc.delete(f'item/{itemId}')
+                raise
 
         if make_subfolders:
             gc.sendRestRequest(

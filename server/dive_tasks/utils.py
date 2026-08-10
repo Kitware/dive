@@ -21,6 +21,11 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_utils import constants, models, multicam_camera_order
+from dive_utils.type_hierarchy import (
+    TypeHierarchyError,
+    apply_hierarchy_write,
+    resolve_type_hierarchy,
+)
 
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
@@ -37,6 +42,10 @@ def make_directory(path: Path):
 
 
 class CanceledError(RuntimeError):
+    pass
+
+
+class MalformedExportedConfigurationError(RuntimeError):
     pass
 
 
@@ -565,6 +574,7 @@ def upload_zipped_flat_media_files(
     folderId: str,
     working_directory: Path,
     create_subfolder=False,
+    additive: bool = False,
 ):
     """
     Takes a flat folder of media files and/or annotation and generates a dataset from it.
@@ -601,7 +611,11 @@ def upload_zipped_flat_media_files(
             {constants.TypeMarker: dataset_type, constants.FPSMarker: default_fps},
         )
         # After uploading the default files we do a the postprocess for video conversion now
-        gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(root_folderId)}")
+        gc.sendRestRequest(
+            "POST",
+            f"/dive_rpc/postprocess/{str(root_folderId)}",
+            parameters={'additive': additive},
+        )
     else:
         manager.write(f"Message: {validation['message']}\n")
         manager.write("Please check the documentation for Zip files at:\
@@ -662,7 +676,7 @@ def create_sibling_dataset_from_media(
     return new_folder_id
 
 
-def _load_exported_dataset_meta(working_directory: Path) -> dict:
+def _exported_dataset_config_path(working_directory: Path) -> Path:
     list_of_names = os.listdir(working_directory)
     potential_meta_files = list(filter(constants.metaRegex.match, list_of_names))
     if len(potential_meta_files) == 0:
@@ -674,7 +688,11 @@ def _load_exported_dataset_meta(working_directory: Path) -> dict:
         or by_lower.get(constants.LegacyConfigFileName)
         or potential_meta_files[0]
     )
-    with open(working_directory / chosen) as f:
+    return working_directory / chosen
+
+
+def _load_exported_dataset_meta(working_directory: Path) -> dict:
+    with open(_exported_dataset_config_path(working_directory)) as f:
         return json.load(f)
 
 
@@ -733,6 +751,8 @@ def _import_exported_dataset_directory(
     manager: JobManager,
     dest_folder_id: str,
     working_directory: Path,
+    additive: bool = False,
+    defer_postprocess: bool = False,
 ) -> None:
     """Import one exported single-camera dataset directory into dest_folder_id."""
     working_directory = Path(working_directory)
@@ -761,19 +781,17 @@ def _import_exported_dataset_directory(
         shutil.rmtree(aux_path)
 
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+    config_path = _exported_dataset_config_path(working_directory)
     for entry in working_directory.iterdir():
         if entry.name == 'metadata':
+            continue
+        if defer_postprocess and entry == config_path:
             continue
         gc.upload(str(entry), dest_folder_id)
     metadata_item_id = _upload_archive_metadata_attachment(gc, dest_folder_id, metadata_attachment)
     all_files = list(gc.listItem(dest_folder_id))
     root_meta = {
         'type': dataset_type,
-        'attributes': meta.get('attributes', None),
-        'customTypeStyling': meta.get('customTypeStyling', None),
-        'customGroupStyling': meta.get('customGroupStyling', None),
-        'confidenceFilters': meta.get('confidenceFilters', None),
-        'imageEnhancements': meta.get('imageEnhancements', None),
         'fps': meta['fps'],
         'version': meta['version'],
     }
@@ -812,7 +830,17 @@ def _import_exported_dataset_directory(
 
     root_meta[constants.DatasetMarker] = True
     gc.addMetadataToFolder(dest_folder_id, root_meta)
-    gc.post(f'dive_rpc/postprocess/{dest_folder_id}', data={'skipJobs': True})
+    if not defer_postprocess:
+        try:
+            gc.post(
+                f'dive_rpc/postprocess/{dest_folder_id}',
+                data={'skipJobs': True, 'additive': additive},
+            )
+        except Exception as error:
+            retained = list(gc.listItem(dest_folder_id, name=config_path.name))
+            if not retained:
+                raise MalformedExportedConfigurationError(str(error)) from error
+            raise
 
 
 def upload_exported_zipped_dataset(
@@ -821,12 +849,13 @@ def upload_exported_zipped_dataset(
     folderId: str,
     working_directory: Path,
     create_subfolder='',
+    additive: bool = False,
 ):
     """Uploads a folder that is generated from the export of a zip file and sets metadata."""
     working_directory = Path(working_directory)
     if (working_directory / constants.MultiCamJsonFileName).is_file():
         upload_exported_multicam_zipped_dataset(
-            gc, manager, folderId, working_directory, create_subfolder
+            gc, manager, folderId, working_directory, create_subfolder, additive
         )
         return
     try:
@@ -838,7 +867,7 @@ def upload_exported_zipped_dataset(
                 reuseExisting=True,
             )
             dest_folder_id = str(sub_folder['_id'])
-        _import_exported_dataset_directory(gc, manager, dest_folder_id, working_directory)
+        _import_exported_dataset_directory(gc, manager, dest_folder_id, working_directory, additive)
     except ValueError as err:
         manager.write(f'{err}\n')
         raise Exception(str(err)) from err
@@ -880,12 +909,29 @@ def _upload_stereo_calibration_files(
     return calibration_item_id
 
 
+def _post_exported_configuration(
+    gc: GirderClient,
+    folder_id: str,
+    configuration: dict,
+    additive: bool,
+) -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        configuration_path = Path(temp_dir) / constants.ConfigFileName
+        configuration_path.write_text(json.dumps(configuration))
+        gc.uploadFileToFolder(folder_id, str(configuration_path))
+        gc.post(
+            f'dive_rpc/postprocess/{folder_id}',
+            data={'skipJobs': True, 'additive': additive},
+        )
+
+
 def upload_exported_multicam_zipped_dataset(
     gc: GirderClient,
     manager: JobManager,
     folderId: str,
     working_directory: Path,
     create_subfolder='',
+    additive: bool = False,
 ):
     """
     Import a multicam dataset produced by dive_dataset export (multiCam.json + per-camera folders).
@@ -934,6 +980,7 @@ def upload_exported_multicam_zipped_dataset(
 
     imported_cameras: dict = {}
     media_type = None
+    camera_directories = {}
     for camera_name in camera_order:
         camera_dir = working_directory / camera_name
         if not camera_dir.is_dir():
@@ -944,11 +991,54 @@ def upload_exported_multicam_zipped_dataset(
             media_type = cam_type
         elif cam_type != media_type:
             raise Exception(f'Camera "{camera_name}" has type {cam_type}, expected {media_type}')
+        camera_directories[camera_name] = camera_dir
+        if 'typeHierarchy' in child_meta:
+            raise MalformedExportedConfigurationError(
+                f'Camera "{camera_name}" config.json contains typeHierarchy; '
+                'multicamera hierarchy must be stored only in the root config.json'
+            )
+
+    existing_hierarchy = (parent_folder.get('meta') or {}).get('typeHierarchy')
+    try:
+        hierarchy_write = resolve_type_hierarchy(
+            existing_hierarchy,
+            'typeHierarchy' in parent_meta,
+            parent_meta.get('typeHierarchy'),
+            'additive' if additive else 'overwrite',
+        )
+    except TypeHierarchyError as error:
+        message = f'Type hierarchy is invalid: {error.reason}. No configuration was changed.'
+        if error.kind == 'malformed':
+            raise MalformedExportedConfigurationError(message) from error
+        raise RuntimeError(message) from error
+
+    for camera_name in camera_order:
+        camera_dir = camera_directories[camera_name]
         manager.write(f'Importing camera "{camera_name}"…\n')
         child_folder = gc.createFolder(parent_folder_id, camera_name, reuseExisting=True)
         child_id = str(child_folder['_id'])
-        _import_exported_dataset_directory(gc, manager, child_id, camera_dir)
+        _import_exported_dataset_directory(
+            gc,
+            manager,
+            child_id,
+            camera_dir,
+            additive,
+            defer_postprocess=True,
+        )
         imported_cameras[camera_name] = {'folderId': child_id}
+
+    # Camera configurations post before multicam registration: with no resolvable
+    # multicam parent yet, shared-mutable keys stay camera-local instead of being
+    # mirrored onto the parent. The parent post below is the sole parent-config writer.
+    for camera_name in camera_order:
+        camera_configuration = _load_exported_dataset_meta(camera_directories[camera_name])
+        camera_configuration.pop('typeHierarchy', None)
+        _post_exported_configuration(
+            gc,
+            imported_cameras[camera_name]['folderId'],
+            camera_configuration,
+            additive,
+        )
 
     calibration_file_id = None
     if sub_type == 'stereo':
@@ -980,3 +1070,9 @@ def upload_exported_multicam_zipped_dataset(
         parameters={'parentFolderId': parent_folder_id},
         json=create_body,
     )
+
+    parent_configuration = apply_hierarchy_write(
+        {key: value for key, value in parent_meta.items() if key != 'typeHierarchy'},
+        hierarchy_write,
+    )
+    _post_exported_configuration(gc, parent_folder_id, parent_configuration, additive)

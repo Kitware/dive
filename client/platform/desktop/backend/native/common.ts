@@ -58,6 +58,12 @@ import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
+import {
+  HierarchyWrite,
+  normalizeTypeHierarchy,
+  resolveTypeHierarchy,
+  TypeHierarchyError,
+} from 'dive-common/typeHierarchy';
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
@@ -90,6 +96,16 @@ const DiveJobManifestName = 'dive_job_manifest.json';
 const PortableConfigFileNameLegacy = 'meta.json';
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
+
+const invalidHierarchyMessage = (reason: string) => (
+  `Type hierarchy is invalid: ${reason}. No configuration was changed.`
+);
+
+const corruptHierarchyExportMessage = (reason: string) => (
+  `Type hierarchy is invalid: ${reason}. No configuration file was exported.`
+);
+
+class DataFileJsonParseError extends Error {}
 
 /**
  * Resolve the project dataset.json path: prefer dataset.json, fall back to
@@ -341,7 +357,7 @@ async function _loadAsJson(abspath: string) {
   try {
     return JSON.parse(rawBuffer);
   } catch (err) {
-    throw new Error(`Unable to parse ${abspath}: ${err}`);
+    throw new DataFileJsonParseError(`Unable to parse ${abspath}: ${err}`);
   }
 }
 
@@ -535,6 +551,15 @@ async function loadConfig(
 ): Promise<DesktopConfig> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  if (cameraName) {
+    const hierarchy = await loadCanonicalHierarchy(settings, parentId);
+    if (hierarchy === null) {
+      delete projectMetaData.typeHierarchy;
+    } else {
+      projectMetaData.typeHierarchy = hierarchy as Record<string, string>;
+    }
+  }
 
   // Load the standalone camera registration (transforms + correspondences)
   // from the per-camera *_registration.json files, if present; the dataset
@@ -1227,51 +1252,76 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     projectDirInfo.basePath,
     'meta',
   );
-  const existing = await loadJsonConfig(
-    resolveDatasetFileAbsPath(projectDirInfo.basePath),
-  );
-  if (args.confidenceFilters) {
-    existing.confidenceFilters = args.confidenceFilters;
-  }
-  if (args.imageEnhancements) {
-    existing.imageEnhancements = args.imageEnhancements;
-  }
-  if (args.customTypeStyling) {
-    existing.customTypeStyling = args.customTypeStyling;
-  }
-  if (args.customGroupStyling) {
-    existing.customGroupStyling = args.customGroupStyling;
-  }
-  if (args.attributes) {
-    existing.attributes = args.attributes;
-  }
-  if (args.timeFilters !== undefined) {
-    existing.timeFilters = args.timeFilters;
-  }
-  if (args.error) {
-    existing.error = args.error;
-  }
-  if (args.datasetInfo) {
-    existing.datasetInfo = args.datasetInfo;
-  }
-
-  // The camera registration (transforms + the points behind them) is
-  // persisted as standalone <camera>_to_<reference>_registration.json files
-  // in the dataset directory rather than embedded in dataset.json, so each
-  // camera's registration is easy to find, hand-edit, and consume as a
-  // self-contained artifact. There is deliberately never a single all-pairs
-  // file.
-  if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
-    || args.cameraRegistrationSource) {
-    await saveRegistrationToDatasetDir(
-      projectDirInfo.basePath,
-      args,
-      referenceCameraName(existing),
+  try {
+    const existing = await loadJsonConfig(
+      resolveDatasetFileAbsPath(projectDirInfo.basePath),
     );
-  }
+    const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+    const hierarchyPresent = Object.prototype.hasOwnProperty.call(args, 'typeHierarchy');
+    if (cameraName) {
+      if (hierarchyPresent) {
+        await saveConfig(settings, parentId, { typeHierarchy: args.typeHierarchy });
+      }
+      delete existing.typeHierarchy;
+    }
+    let hierarchyWrite: HierarchyWrite;
+    try {
+      hierarchyWrite = resolveTypeHierarchy(
+        existing.typeHierarchy,
+        !cameraName && hierarchyPresent,
+        args.typeHierarchy,
+        'save',
+      );
+    } catch (error) {
+      if (error instanceof TypeHierarchyError) {
+        throw new Error(invalidHierarchyMessage(error.reason));
+      }
+      throw error;
+    }
+    if (hierarchyWrite.action === 'set') {
+      existing.typeHierarchy = { ...hierarchyWrite.hierarchy };
+    } else if (hierarchyWrite.action === 'delete') {
+      delete existing.typeHierarchy;
+    }
+    if (args.confidenceFilters) {
+      existing.confidenceFilters = args.confidenceFilters;
+    }
+    if (args.imageEnhancements) {
+      existing.imageEnhancements = args.imageEnhancements;
+    }
+    if (args.customTypeStyling) {
+      existing.customTypeStyling = args.customTypeStyling;
+    }
+    if (args.customGroupStyling) {
+      existing.customGroupStyling = args.customGroupStyling;
+    }
+    if (args.attributes) {
+      existing.attributes = args.attributes;
+    }
+    if (args.timeFilters !== undefined) {
+      existing.timeFilters = args.timeFilters;
+    }
+    if (args.error) {
+      existing.error = args.error;
+    }
+    if (args.datasetInfo) {
+      existing.datasetInfo = args.datasetInfo;
+    }
 
-  await saveProjectConfig(projectDirInfo.basePath, existing);
-  await release();
+    // Registration files remain separate so each camera pair has one persisted owner.
+    if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
+      || args.cameraRegistrationSource) {
+      await saveRegistrationToDatasetDir(
+        projectDirInfo.basePath,
+        args,
+        referenceCameraName(existing),
+      );
+    }
+
+    await saveProjectConfig(projectDirInfo.basePath, existing);
+  } finally {
+    await release();
+  }
 }
 
 async function saveAttributes(settings: Settings, datasetId: string, args: SaveAttributeArgs) {
@@ -1318,12 +1368,14 @@ async function saveAttributeTrackFilters(
 
 async function _ingestFilePath(
   settings: Settings,
-  datasetId: string,
-  path: string,
-  imageMap?: Map<string, number>,
-  additive = false,
-  additivePrepend = '',
-): Promise<[(DatasetConfigMutable & { fps?: number }), string[]] | null> {
+  plan: IngestFilePlan,
+  imageMap: Map<string, number> | undefined,
+): Promise<[
+  (DatasetConfigMutable & { fps?: number }), string[], boolean, string,
+] | null> {
+  const {
+    datasetId, path, additive, additivePrepend, configMeta,
+  } = plan;
   if (!fs.existsSync(path)) {
     return null;
   }
@@ -1344,7 +1396,10 @@ async function _ingestFilePath(
   let annotations = dive.makeEmptyAnnotationFile();
   const meta: DatasetConfigMutable & { fps?: number, execTime?: number } = {};
   let metadataConfig = false;
-  if (JsonFileName.test(path)) {
+  if (configMeta) {
+    Object.assign(meta, configMeta);
+    metadataConfig = true;
+  } else if (JsonFileName.test(path)) {
     const jsonObject = await _loadAsJson(path);
     if (nistSerializers.confirmNistFormat(jsonObject)) {
       // NIST json file
@@ -1352,10 +1407,6 @@ async function _ingestFilePath(
       annotations.tracks = data.tracks;
       annotations.groups = data.groups;
       meta.fps = data.fps;
-    } else if (DatasetConfigMutableKeys.some((key) => key in jsonObject)) {
-      // DIVE Configuration File (attributes, styles, FPS, …)
-      merge(meta, pick(jsonObject, DatasetConfigMutableKeys));
-      metadataConfig = true;
     } else if (coco.isCocoJson(jsonObject)) {
       const [parsedAnnotations, parsedMeta, cocoWarnings] = await coco.parseFile(path);
       annotations = parsedAnnotations;
@@ -1420,7 +1471,153 @@ async function _ingestFilePath(
     await _saveSerialized(settings, datasetId, annotations, true);
   }
 
-  return [meta, warnings];
+  return [meta, warnings, metadataConfig, newPath];
+}
+
+type StagedConfigImport = DatasetConfigMutable & { fps?: number };
+
+interface IngestFilePlan {
+  datasetId: string;
+  path: string;
+  additive: boolean;
+  additivePrepend: string;
+  configMeta?: StagedConfigImport;
+}
+
+async function loadCanonicalHierarchy(settings: Settings, datasetId: string): Promise<unknown> {
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  const canonicalId = cameraName ? parentId : datasetId;
+  const projectDir = getProjectDir(settings, canonicalId);
+  if (!await fs.pathExists(projectDir.datasetFileAbsPath)) {
+    return null;
+  }
+  const config = await loadJsonConfig(projectDir.datasetFileAbsPath);
+  return Object.prototype.hasOwnProperty.call(config, 'typeHierarchy')
+    ? config.typeHierarchy
+    : null;
+}
+
+function mergeImportedConfig(
+  target: DatasetConfigMutable,
+  incoming: DatasetConfigMutable,
+) {
+  const hierarchyPresent = Object.prototype.hasOwnProperty.call(incoming, 'typeHierarchy');
+  const hierarchy = incoming.typeHierarchy;
+  const nonHierarchy = { ...incoming };
+  delete nonHierarchy.typeHierarchy;
+  merge(target, nonHierarchy);
+  if (hierarchyPresent) {
+    if (hierarchy === null) {
+      // eslint-disable-next-line no-param-reassign
+      delete target.typeHierarchy;
+    } else {
+      // eslint-disable-next-line no-param-reassign
+      target.typeHierarchy = hierarchy ? { ...hierarchy } : hierarchy;
+    }
+  }
+}
+
+function mergeStagedImportedConfig(
+  target: DatasetConfigMutable,
+  incoming: DatasetConfigMutable,
+  additive: boolean,
+) {
+  const hierarchyPresent = Object.prototype.hasOwnProperty.call(incoming, 'typeHierarchy');
+  const hierarchy = incoming.typeHierarchy;
+  const nonHierarchy = { ...incoming };
+  delete nonHierarchy.typeHierarchy;
+  const { datasetInfo } = nonHierarchy;
+  delete nonHierarchy.datasetInfo;
+  merge(target, nonHierarchy);
+  if (datasetInfo) {
+    // eslint-disable-next-line no-param-reassign
+    target.datasetInfo = additive
+      ? { ...(target.datasetInfo || {}), ...datasetInfo }
+      : datasetInfo;
+  }
+  if (hierarchyPresent) {
+    // eslint-disable-next-line no-param-reassign
+    target.typeHierarchy = hierarchy === null ? null : { ...hierarchy };
+  }
+}
+
+async function preflightIngestFiles(
+  settings: Settings,
+  datasetId: string,
+  absPaths: string[],
+  multiCamResults: Record<string, string> | undefined,
+  additive: boolean,
+  additivePrepend: string,
+): Promise<IngestFilePlan[]> {
+  let hierarchyCandidate = await loadCanonicalHierarchy(settings, datasetId);
+  const plan: IngestFilePlan[] = [
+    ...absPaths.map((path) => ({
+      datasetId,
+      path,
+      additive,
+      additivePrepend,
+    })),
+    ...Object.entries(multiCamResults || {}).map(([cameraName, path]) => ({
+      datasetId: `${datasetId}/${cameraName}`,
+      path,
+      additive: false,
+      additivePrepend: '',
+    })),
+  ];
+  for (let index = 0; index < plan.length; index += 1) {
+    const entry = plan[index];
+    const { path } = entry;
+    if (fs.existsSync(path) && fs.statSync(path).size > 0 && JsonFileName.test(path)) {
+      // Configuration entries keep their parsed, fully resolved metadata in this
+      // plan so execution cannot re-read the source or repeat hierarchy policy.
+      let jsonObject;
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        jsonObject = await _loadAsJson(path);
+      } catch (error) {
+        if (error instanceof DataFileJsonParseError) {
+          // Defer syntax failures so earlier annotations retain ordered partial writes.
+          jsonObject = undefined;
+        } else {
+          throw error;
+        }
+      }
+      if (jsonObject !== undefined
+        && jsonObject !== null
+        && typeof jsonObject === 'object'
+        && !Array.isArray(jsonObject)
+        && !nistSerializers.confirmNistFormat(jsonObject)
+        && DatasetConfigMutableKeys.some((key) => key in jsonObject)) {
+        try {
+          const configMeta = pick(
+            jsonObject,
+            DatasetConfigMutableKeys,
+          ) as StagedConfigImport;
+          const write = resolveTypeHierarchy(
+            hierarchyCandidate,
+            Object.prototype.hasOwnProperty.call(jsonObject, 'typeHierarchy'),
+            jsonObject.typeHierarchy,
+            additive ? 'additive' : 'overwrite',
+          );
+          delete configMeta.typeHierarchy;
+          if (write.action === 'set') {
+            hierarchyCandidate = write.hierarchy;
+            configMeta.typeHierarchy = { ...write.hierarchy };
+          } else if (write.action === 'delete') {
+            hierarchyCandidate = null;
+            configMeta.typeHierarchy = null;
+          }
+          entry.configMeta = configMeta;
+        } catch (error) {
+          if (error instanceof TypeHierarchyError) {
+            throw new Error(invalidHierarchyMessage(error.reason));
+          }
+          throw error;
+        }
+      }
+    }
+  }
+  return plan;
 }
 
 /**
@@ -1450,35 +1647,39 @@ async function ingestDataFiles(
   warnings: string[];
 }> {
   const processedFiles = []; // which files were processed to generate the detections
-  const meta = {};
+  const meta: DatasetConfigMutable & { fps?: number } = {};
   let outwarnings: string[] = [];
-  for (let i = 0; i < absPaths.length; i += 1) {
-    const path = absPaths[i];
-    // eslint-disable-next-line no-await-in-loop
-    const results = await _ingestFilePath(settings, datasetId, path, imageMap, additive, additivePrepend);
-    if (results !== null) {
-      const [newMeta, warnings] = results;
-      outwarnings = outwarnings.concat(warnings);
-      merge(meta, newMeta);
-      processedFiles.push(path);
-    }
-  }
-  // processing of multiCam results
-  if (multiCamResults) {
-    const cameraAndPath = Object.entries(multiCamResults);
-    for (let i = 0; i < cameraAndPath.length; i += 1) {
-      const cameraName = cameraAndPath[i][0];
-      const path = cameraAndPath[i][1];
-      const cameraDatasetId = `${datasetId}/${cameraName}`;
+  const plan = await preflightIngestFiles(
+    settings,
+    datasetId,
+    absPaths,
+    multiCamResults,
+    additive,
+    additivePrepend,
+  );
+  const importedConfigCopies: string[] = [];
+  try {
+    for (let i = 0; i < plan.length; i += 1) {
+      const entry = plan[i];
       // eslint-disable-next-line no-await-in-loop
-      const results = await _ingestFilePath(settings, cameraDatasetId, path, imageMap);
+      const results = await _ingestFilePath(
+        settings,
+        entry,
+        imageMap,
+      );
       if (results !== null) {
-        const [newMeta, warnings] = results;
+        const [newMeta, warnings, metadataConfig, auxiliaryPath] = results;
         outwarnings = outwarnings.concat(warnings);
-        merge(meta, newMeta);
-        processedFiles.push(path);
+        mergeStagedImportedConfig(meta, newMeta, additive);
+        if (metadataConfig) {
+          importedConfigCopies.push(auxiliaryPath);
+        }
+        processedFiles.push(entry.path);
       }
     }
+  } catch (error) {
+    await Promise.all(importedConfigCopies.map((path) => fs.remove(path)));
+    throw error;
   }
 
   return { processedFiles, meta, warnings: outwarnings };
@@ -2022,7 +2223,13 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
     additive,
     additivePrepend,
   );
-  merge(jsonConfig, result.meta);
+  const { parentId, cameraName } = parseCompositeDatasetId(id);
+  const cameraMeta = { ...result.meta };
+  if (cameraName) {
+    delete cameraMeta.typeHierarchy;
+    delete jsonConfig.typeHierarchy;
+  }
+  mergeImportedConfig(jsonConfig, cameraMeta);
   // Assign datasetInfo explicitly; the deep-merge above would keep keys an Overwrite
   // import meant to drop. Like the server, Overwrite replaces the block wholesale while
   // an additive import merges per-key (imported values win).
@@ -2036,13 +2243,19 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   // loaded by the viewer from the base dataset's metadata, so an import
   // targeted at one camera of a multicam dataset must update the base too.
   // Do not sync per-camera imageEnhancements or camera-registration fields.
-  const { parentId, cameraName } = parseCompositeDatasetId(id);
-  if (cameraName && MulticamSharedMutableKeys.some((key) => key in result.meta)) {
+  const hierarchyPresent = Object.prototype.hasOwnProperty.call(result.meta, 'typeHierarchy');
+  if (cameraName && (
+    hierarchyPresent || MulticamSharedMutableKeys.some((key) => key in result.meta)
+  )) {
     const baseProjectDir = getProjectDir(settings, parentId);
     if (await fs.pathExists(baseProjectDir.datasetFileAbsPath)) {
       const baseMeta = await loadJsonConfig(baseProjectDir.datasetFileAbsPath);
       const existingBaseDatasetInfo = baseMeta.datasetInfo;
-      merge(baseMeta, pick(result.meta, MulticamSharedMutableKeys));
+      const parentMeta = pick(result.meta, MulticamSharedMutableKeys);
+      if (hierarchyPresent) {
+        parentMeta.typeHierarchy = result.meta.typeHierarchy;
+      }
+      mergeImportedConfig(baseMeta, parentMeta);
       if (result.meta.datasetInfo) {
         baseMeta.datasetInfo = additive
           ? { ...(existingBaseDatasetInfo ?? {}), ...result.meta.datasetInfo }
@@ -2395,10 +2608,35 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
 async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
+  const { cameraName } = parseCompositeDatasetId(args.id);
+  if (cameraName) {
+    const hierarchy = await loadCanonicalHierarchy(settings, args.id);
+    if (hierarchy === null) {
+      delete meta.typeHierarchy;
+    } else {
+      meta.typeHierarchy = hierarchy as Record<string, string>;
+    }
+  }
   const output: DatasetConfigMutable & { version: number} = { version: meta.version };
+  let hierarchy;
+  try {
+    hierarchy = Object.prototype.hasOwnProperty.call(meta, 'typeHierarchy')
+      ? normalizeTypeHierarchy(meta.typeHierarchy)
+      : undefined;
+  } catch (error) {
+    if (error instanceof TypeHierarchyError) {
+      throw new Error(corruptHierarchyExportMessage(error.reason));
+    }
+    throw error;
+  }
   if (DatasetConfigMutableKeys.some((key) => key in meta)) {
     // DIVE Configuration File fields (attributes, styles, FPS, …)
     merge(output, pick(meta, DatasetConfigMutableKeys));
+  }
+  if (hierarchy) {
+    output.typeHierarchy = { ...hierarchy };
+  } else {
+    delete output.typeHierarchy;
   }
   await fs.writeJSON(args.path, output);
   return args.path;

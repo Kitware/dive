@@ -180,6 +180,36 @@ This information provides the specification for an individual dataset.  It consi
   * Edited from the [Dataset Info panel](UI-DatasetInfo.md).
   * Included in DIVE Configuration JSON as `datasetInfo`.
   * Included in [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and restored on import.
+* A track type hierarchy is stored in `typeHierarchy` as a child-type to immediate-parent-type map.
+
+For example, this configuration makes `fish` a heading-only parent (it does not need to be an
+explicit configured type or appear in a track):
+
+```json
+{
+  "typeHierarchy": {
+    "shark": "fish",
+    "great white shark": "shark"
+  }
+}
+```
+
+A type hierarchy is a single-parent forest. Child and parent names must be non-empty strings,
+self-edges and cycles are invalid, and each child can have only one immediate parent. Names are
+preserved exactly; whitespace is used only to determine whether a name is empty.
+
+A missing `typeHierarchy` leaves the saved hierarchy unchanged. On overwrite import or direct
+save, `null` and `{}` delete it, while a non-empty map replaces it completely. On additive import,
+`null` and `{}` make no change, while a non-empty map adds edges to the existing hierarchy.
+Identical edges coalesce; a different parent for an existing child or a cycle rejects the whole
+configuration without changing it. Invalid saves and imports report
+`Type hierarchy is invalid: {reason}. No configuration was changed.`
+
+DIVE Configuration JSON exports include a valid non-empty hierarchy and omit an absent or empty
+one. The `config.json` embedded in a dataset zip follows the same rules. Invalid stored hierarchy
+prevents either configuration export and reports
+`Type hierarchy is invalid: {reason}. No configuration file was exported.` Hierarchy is not
+transported by DIVE Annotation JSON, COCO/KWCOCO, VIAME CSV, KPF, NIST, or `labels.txt`.
 
 When importing a DIVE Configuration JSON with `datasetInfo`, **Overwrite** import (the
 default) replaces the existing `datasetInfo` block; an additive import merges it per-key
@@ -191,6 +221,7 @@ The full [DatasetMetaMutable definition can be found here](https://github.com/Ki
 ```typescript
 interface DatasetMetaMutable {
   version: number;
+  typeHierarchy?: Record<string, string> | null;
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;

@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import Dict, List, Optional, Tuple, TypedDict
+from typing import Dict, List, Literal, Optional, Tuple, TypedDict, cast
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -30,6 +30,13 @@ from dive_utils import (
 )
 from dive_utils.constants import TrainingModelExtensions
 from dive_utils.serializers import dive, kpf, kwcoco, viame
+from dive_utils.type_hierarchy import (
+    HierarchyWrite,
+    TypeHierarchyError,
+    apply_hierarchy_write,
+    normalize_type_hierarchy,
+    resolve_type_hierarchy,
+)
 
 
 class RunTrainingArgs(BaseModel):
@@ -599,6 +606,7 @@ def _frame_metadata_kept_warning(name: str) -> str:
 def _get_data_by_type(
     file: types.GirderModel,
     image_map: Optional[Dict[str, int]] = None,
+    configuration_only: bool = False,
 ) -> Tuple[Optional[GetDataReturnType], Optional[List[str]]]:
     """
     Given an arbitrary Girder file model, figure out what kind of file it is and
@@ -620,13 +628,29 @@ def _get_data_by_type(
     if file['exts'][-1] == 'csv':
         as_type = crud.FileType.VIAME_CSV
     elif file['exts'][-1] == 'json':
-        data_dict = json.loads(file_string)
+        try:
+            data_dict = json.loads(file_string)
+        except json.JSONDecodeError:
+            if configuration_only:
+                return None, None
+            raise
         if type(data_dict) is list:
+            if configuration_only:
+                return None, None
             raise RestException('No array-type json objects are supported')
+        if configuration_only and not isinstance(data_dict, dict):
+            return None, None
         if kwcoco.is_coco_json(data_dict):
             as_type = crud.FileType.COCO_JSON
         elif models.MetadataMutable.is_dive_configuration(data_dict):
+            hierarchy_present = 'typeHierarchy' in data_dict
+            normalized_hierarchy = None
+            if hierarchy_present:
+                normalized_hierarchy = normalize_type_hierarchy(data_dict['typeHierarchy'])
             data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
+            if hierarchy_present:
+                # Pydantic drops explicit null; preserve presence for the resolver.
+                data_dict['typeHierarchy'] = normalized_hierarchy
             as_type = crud.FileType.DIVE_CONF
         else:
             as_type = crud.FileType.DIVE_JSON
@@ -634,6 +658,9 @@ def _get_data_by_type(
         as_type = crud.FileType.MEVA_KPF
     else:
         raise RestException('Got file of unknown and unusable type')
+
+    if configuration_only and as_type != crud.FileType.DIVE_CONF:
+        return None, None
 
     # Parse the file as the now known type
     if as_type == crud.FileType.VIAME_CSV:
@@ -726,24 +753,8 @@ def _attach_swept_sidecar(folder: types.GirderModel, item: types.GirderModel):
     Folder().save(folder)
 
 
-def process_items(
-    folder: types.GirderModel,
-    user: types.GirderUserModel,
-    additive=False,
-    additivePrepend='',
-    set='',
-):
-    """
-    Discover unprocessed items in a dataset and process them by type in order of creation
-    """
-    attachment_item_id = crud_dataset.resolve_metadata_attachment_item_id(folder, user)
-
-    def is_declared_sidecar(item: types.GirderModel) -> bool:
-        return str(item['_id']) == attachment_item_id or (
-            frame_metadata.is_frame_metadata_source_name(item['name'])
-        )
-
-    unprocessed_items = list(
+def _unprocessed_data_items(folder: types.GirderModel) -> list:
+    return list(
         Folder().childItems(
             folder,
             filters={
@@ -769,7 +780,274 @@ def process_items(
             sort=[("created", pymongo.ASCENDING)],
         )
     )
-    aggregate_warnings: List[str] = []
+
+
+def _declared_sidecar_predicate(folder: types.GirderModel, user: types.GirderUserModel):
+    """Return the folder's attachment item id and a predicate identifying declared sidecars.
+
+    Configuration staging and the import loop must agree on which items are sidecars, so
+    both resolve the attachment through this one helper.
+    """
+    attachment_item_id = crud_dataset.resolve_metadata_attachment_item_id(folder, user)
+
+    def is_declared_sidecar(item: types.GirderModel) -> bool:
+        return str(item['_id']) == attachment_item_id or (
+            frame_metadata.is_frame_metadata_source_name(item['name'])
+        )
+
+    return attachment_item_id, is_declared_sidecar
+
+
+def _parse_data_item(
+    item: types.GirderModel,
+    file: types.GirderModel,
+    image_map=None,
+    configuration_only=False,
+):
+    try:
+        results, warnings = _get_data_by_type(
+            file,
+            image_map=image_map,
+            configuration_only=configuration_only,
+        )
+    except TypeHierarchyError as error:
+        raise crud.hierarchy_rest_error(error) from error
+    except Exception as error:
+        Item().remove(item)
+        if isinstance(error, ValueError):
+            hint = (
+                ' If this file is frame metadata rather than annotations, upload it '
+                'in the "Metadata File (Optional)" field on the upload page, or rename '
+                'it to frame-metadata.csv and re-upload.'
+                if constants.csvRegex.search(file['name'])
+                else ''
+            )
+            raise RestException(f'Failed to import {file["name"]}: {error}{hint}') from error
+        raise RestException(f'{file["name"]} was not a supported file type: {error}') from error
+    if results is None and not configuration_only:
+        Item().remove(item)
+        raise RestException(f'Unknown file type for {file["name"]}')
+    return results, warnings
+
+
+def _fresh_folder_snapshot(folder: types.GirderModel) -> types.GirderModel:
+    fresh = Folder().load(folder['_id'], force=True)
+    return cast(types.GirderModel, fresh) if isinstance(fresh, dict) else folder
+
+
+def _resolve_configuration_hierarchy(
+    existing: object,
+    instructions: list,
+    additive: bool,
+) -> HierarchyWrite:
+    candidate = existing
+    final_write: HierarchyWrite = {'action': 'none'}
+    for incoming_present, incoming in instructions:
+        next_write = resolve_type_hierarchy(
+            candidate,
+            incoming_present,
+            incoming,
+            'additive' if additive else 'overwrite',
+        )
+        if next_write['action'] == 'set':
+            candidate = next_write['hierarchy']
+            final_write = next_write
+        elif next_write['action'] == 'delete':
+            candidate = None
+            final_write = next_write
+    return final_write
+
+
+def _prepare_configuration_imports(
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+    additive: bool,
+) -> dict:
+    """Resolve and stage every configuration file without changing dataset state."""
+    fresh_folder = _fresh_folder_snapshot(folder)
+    parent = crud.get_multicam_parent_folder(fresh_folder, user)
+    fresh_parent = _fresh_folder_snapshot(parent) if parent is not None else None
+    canonical = fresh_parent if fresh_parent is not None else fresh_folder
+    config_results = []
+    hierarchy_instructions = []
+    parsed_json_items = {}
+    item_files = {}
+
+    _attachment_item_id, is_declared_sidecar = _declared_sidecar_predicate(folder, user)
+    unprocessed_items = _unprocessed_data_items(folder)
+    for item in unprocessed_items:
+        file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
+        if file is None:
+            raise RestException('Item had no associated files')
+        item_files[str(item['_id'])] = file
+        # A declared sidecar is frame metadata, never configuration; parsing it here
+        # would let a frame-metadata.json contribute a typeHierarchy instruction.
+        if is_declared_sidecar(item):
+            continue
+        if not file.get('exts') or file['exts'][-1] != 'json':
+            continue
+        results, warnings = _parse_data_item(item, file, configuration_only=True)
+        if results is None:
+            continue
+        parsed_json_items[str(item['_id'])] = (file, results, warnings)
+        if results['type'] != crud.FileType.DIVE_CONF:
+            continue
+        meta = results['meta'] or {}
+        hierarchy_instructions.append(('typeHierarchy' in meta, meta.get('typeHierarchy')))
+        config_results.append(results)
+
+    if (
+        hierarchy_instructions
+        and parent is None
+        and crud.get_multicam_owner_folder(fresh_folder) is not None
+    ):
+        raise RestException(
+            'Write access to the multicamera parent is required ' 'to change its type hierarchy.',
+            code=403,
+        )
+
+    try:
+        hierarchy_write = _resolve_configuration_hierarchy(
+            fromMeta(canonical, 'typeHierarchy'),
+            hierarchy_instructions,
+            additive,
+        )
+    except TypeHierarchyError as error:
+        raise crud.hierarchy_rest_error(error) from error
+
+    staged_meta = {}
+    staged_parent_meta = {}
+    working_dataset_info = fromMeta(fresh_folder, 'datasetInfo', {})
+    working_parent_dataset_info = (
+        fromMeta(fresh_parent, 'datasetInfo', {}) if fresh_parent is not None else {}
+    )
+    for results in config_results:
+        meta = dict(results['meta'] or {})
+        meta.pop('typeHierarchy', None)
+        meta = resolve_imported_dataset_info(working_dataset_info, meta, additive)
+        if 'datasetInfo' in meta:
+            working_dataset_info = meta['datasetInfo']
+        staged_meta.update(meta)
+        if parent is not None:
+            shared_meta = crud.pick_multicam_shared_mutable(results['meta'] or {})
+            shared_meta.pop('typeHierarchy', None)
+            shared_meta = resolve_imported_dataset_info(
+                working_parent_dataset_info, shared_meta, additive
+            )
+            if 'datasetInfo' in shared_meta:
+                working_parent_dataset_info = shared_meta['datasetInfo']
+            staged_parent_meta.update(shared_meta)
+
+    preflight_meta = apply_hierarchy_write(staged_meta, hierarchy_write)
+    preflight_parent_meta = (
+        apply_hierarchy_write(staged_parent_meta, hierarchy_write) if parent is not None else {}
+    )
+    if preflight_meta:
+        models.MetadataMutable(**preflight_meta)
+    if preflight_parent_meta:
+        models.MetadataMutable(**preflight_parent_meta)
+
+    return {
+        'parent': parent,
+        'unprocessed_items': unprocessed_items,
+        'item_files': item_files,
+        'parsed_json_items': parsed_json_items,
+        'hierarchy_instructions': hierarchy_instructions,
+        'additive': additive,
+        'staged_meta': staged_meta,
+        'staged_parent_meta': staged_parent_meta,
+        'applied': False,
+    }
+
+
+def _apply_configuration_imports(
+    folder: types.GirderModel,
+    configuration_plan: dict,
+) -> HierarchyWrite:
+    if configuration_plan['applied']:
+        return configuration_plan['hierarchy_write']
+    parent = configuration_plan['parent']
+    canonical = parent if parent is not None else folder
+    fresh_canonical = _fresh_folder_snapshot(canonical)
+    promoted_write: HierarchyWrite = {'action': 'none'}
+    existing_hierarchy = fromMeta(fresh_canonical, 'typeHierarchy')
+    if parent is not None:
+        fresh_camera = _fresh_folder_snapshot(folder)
+        camera_hierarchy = fromMeta(fresh_camera, 'typeHierarchy')
+        if camera_hierarchy is not None:
+            try:
+                promoted_write = resolve_type_hierarchy(
+                    existing_hierarchy,
+                    True,
+                    camera_hierarchy,
+                    'additive',
+                )
+            except TypeHierarchyError as error:
+                configuration_plan.setdefault('warnings', []).append(
+                    f'Camera "{folder["name"]}" type hierarchy was skipped: {error.reason}'
+                )
+            else:
+                if promoted_write['action'] == 'set':
+                    existing_hierarchy = promoted_write['hierarchy']
+    try:
+        hierarchy_write = _resolve_configuration_hierarchy(
+            existing_hierarchy,
+            configuration_plan['hierarchy_instructions'],
+            configuration_plan['additive'],
+        )
+    except TypeHierarchyError as error:
+        raise crud.hierarchy_rest_error(error) from error
+    if hierarchy_write['action'] == 'none':
+        hierarchy_write = promoted_write
+
+    additive = configuration_plan['additive']
+    staged_meta = dict(configuration_plan['staged_meta'])
+    staged_parent_meta = (
+        apply_hierarchy_write(configuration_plan['staged_parent_meta'], hierarchy_write)
+        if parent is not None
+        else {}
+    )
+    if parent is None:
+        staged_meta = apply_hierarchy_write(staged_meta, hierarchy_write)
+    hierarchy_mode: Literal['save', 'additive'] = 'additive' if additive else 'save'
+    if staged_meta:
+        crud_dataset.update_metadata(folder, staged_meta, False, hierarchy_mode=hierarchy_mode)
+    if parent is not None:
+        if staged_parent_meta:
+            crud_dataset.update_metadata(
+                parent, staged_parent_meta, False, hierarchy_mode=hierarchy_mode
+            )
+        if crud_dataset.remove_camera_type_hierarchy(folder):
+            configuration_plan.setdefault('warnings', []).append(
+                f'Removed a type hierarchy stored on camera {folder["name"]}; '
+                'the type hierarchy for a multicamera dataset is stored on the parent.'
+            )
+    configuration_plan['hierarchy_write'] = hierarchy_write
+    configuration_plan['applied'] = True
+    return hierarchy_write
+
+
+def process_items(
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+    additive=False,
+    additivePrepend='',
+    set='',
+    configuration_plan=None,
+):
+    """
+    Discover unprocessed items in a dataset and process them by type in order of creation
+    """
+    if configuration_plan is None:
+        configuration_plan = _prepare_configuration_imports(folder, user, additive)
+    _apply_configuration_imports(folder, configuration_plan)
+    unprocessed_items = configuration_plan['unprocessed_items']
+    item_files = configuration_plan['item_files']
+    parent = configuration_plan['parent']
+    parsed_json_items = configuration_plan['parsed_json_items']
+
+    attachment_item_id, is_declared_sidecar = _declared_sidecar_predicate(folder, user)
+    aggregate_warnings: List[str] = list(configuration_plan.get('warnings', []))
 
     # This sweep is also the convergence point for headless writers (assetstore/S3 import),
     # where nobody picked these files and nothing can be corrected pre-upload. Attachment
@@ -818,9 +1096,7 @@ def process_items(
 
     auxiliary = None
     for item in unprocessed_items:
-        file: Optional[types.GirderModel] = next(Item().childFiles(item), None)
-        if file is None:
-            raise RestException('Item had no associated files')
+        file = item_files[str(item['_id'])]
 
         # The single classification point: a declared sidecar is identified by attachment
         # identity or reserved name and never reaches the annotation classifier. Keep it in
@@ -838,26 +1114,15 @@ def process_items(
             aggregate_warnings.append(_frame_metadata_kept_warning(file['name']))
             continue
 
-        try:
-            results, warnings = _get_data_by_type(file, image_map=image_map)
-            if warnings:
-                aggregate_warnings += warnings
-        except Exception as e:
-            Item().remove(item)
-            if isinstance(e, ValueError):
-                hint = (
-                    ' If this file is frame metadata rather than annotations, upload it '
-                    'in the "Metadata File (Optional)" field on the upload page, or rename '
-                    'it to frame-metadata.csv and re-upload.'
-                    if constants.csvRegex.search(file['name'])
-                    else ''
-                )
-                raise RestException(f'Failed to import {file["name"]}: {e}{hint}') from e
-            raise RestException(f'{file["name"]} was not a supported file type: {e}') from e
-
-        if results is None:
-            Item().remove(item)
-            raise RestException(f'Unknown file type for {file["name"]}')
+        # Configuration staging already parsed and validated every JSON item; reuse that
+        # result so an import is not parsed twice and cannot disagree with the plan.
+        cached = parsed_json_items.get(str(item['_id']))
+        if cached is not None:
+            _cached_file, results, warnings = cached
+        else:
+            results, warnings = _parse_data_item(item, file, image_map)
+        if warnings:
+            aggregate_warnings += warnings
 
         if auxiliary is None:
             auxiliary = crud.get_or_create_auxiliary_folder(folder, user)
@@ -881,7 +1146,7 @@ def process_items(
             )
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
-        if results['meta']:
+        if results['meta'] and results['type'] != crud.FileType.DIVE_CONF:
             meta = resolve_imported_dataset_info(
                 fromMeta(folder, 'datasetInfo', {}), results['meta'], additive
             )
@@ -889,11 +1154,14 @@ def process_items(
         # Mutable config (styling, thresholds, attributes, ...) is loaded by the
         # viewer from the multicam parent's metadata, so an import targeted at
         # one camera must update the parent too (mirrors desktop dataFileImport).
-        parent = crud.get_multicam_parent_folder(folder, user)
         if parent is not None:
             if results['attributes']:
                 crud.saveImportAttributes(parent, results['attributes'], user)
-            shared_meta = crud.pick_multicam_shared_mutable(results['meta'] or {})
+            shared_meta = (
+                crud.pick_multicam_shared_mutable(results['meta'] or {})
+                if results['type'] != crud.FileType.DIVE_CONF
+                else {}
+            )
             if shared_meta:
                 parent_meta = resolve_imported_dataset_info(
                     fromMeta(parent, 'datasetInfo', {}), shared_meta, additive
@@ -903,6 +1171,26 @@ def process_items(
 
 
 def postprocess(
+    user: types.GirderUserModel,
+    dsFolder: types.GirderModel,
+    skipJobs: bool,
+    skipTranscoding=False,
+    additive=False,
+    additivePrepend='',
+    set='',
+) -> dict:
+    return _postprocess(
+        user,
+        dsFolder,
+        skipJobs,
+        skipTranscoding,
+        additive,
+        additivePrepend,
+        set,
+    )
+
+
+def _postprocess(
     user: types.GirderUserModel,
     dsFolder: types.GirderModel,
     skipJobs: bool,
@@ -936,18 +1224,12 @@ def postprocess(
     if fromMeta(dsFolder, constants.TypeMarker) is None:
         raise RestException(f'{constants.TypeMarker} missing from metadata')
 
-    # Persist default confidence filter without a full stale meta write. Async
-    # convert_video (esp. skipTranscoding) can finish during CSV import and set
-    # annotate / originalFps / ffprobe_info; a later Folder().save of an old
-    # in-memory doc would wipe those keys.
-    crud.refresh_folder_document(dsFolder)
-    dsFolder.setdefault('meta', {})[constants.ConfidenceFiltersMarker] = {'default': 0.1}
-    Folder().save(dsFolder)
+    configuration_plan = _prepare_configuration_imports(dsFolder, user, additive)
 
+    # Folder-shape validation runs before any configuration write so a rejected
+    # postprocess leaves the dataset untouched.
+    zipItems: list = []
     if not skipJobs and not isClone:
-        token = Token().createToken(user=user, days=2)
-
-        # extract ZIP Files if not already completed
         zipItems = list(
             Folder().childItems(
                 dsFolder,
@@ -956,10 +1238,25 @@ def postprocess(
         )
         if len(zipItems) > 1:
             raise RestException('There are multiple zip files in the folder.')
+        if zipItems and len(list(Folder().childItems(dsFolder))) > 1:
+            raise RestException('There are multiple files besides a zip, cannot continue')
+
+    configuration_hierarchy_write = _apply_configuration_imports(dsFolder, configuration_plan)
+
+    # Persist default confidence filter without a full stale meta write. Async
+    # convert_video (esp. skipTranscoding) can finish during CSV import and set
+    # annotate / originalFps / ffprobe_info; a later Folder().save of an old
+    # in-memory doc would wipe those keys.
+    crud.refresh_folder_document(dsFolder)
+    if constants.ConfidenceFiltersMarker not in dsFolder.setdefault('meta', {}):
+        dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
+        Folder().save(dsFolder)
+
+    if not skipJobs and not isClone:
+        token = Token().createToken(user=user, days=2)
+
+        # extract ZIP Files if not already completed
         for item in zipItems:
-            total_items = len(list((Folder().childItems(dsFolder))))
-            if total_items > 1:
-                raise RestException('There are multiple files besides a zip, cannot continue')
             convert_params = {
                 'user_id': str(user["_id"]),
                 'user_login': str(user["login"]),
@@ -972,6 +1269,7 @@ def postprocess(
                     itemId=str(item["_id"]),
                     user_id=str(user["_id"]),
                     user_login=str(user["login"]),
+                    additive=additive,
                     girder_job_title=(f"Extracting {item['name']} to folder {dsFolder['name']}"),
                     girder_client_token=str(token["_id"]),
                     girder_job_type="private" if job_is_private else "convert",
@@ -987,7 +1285,11 @@ def postprocess(
                 },
             )
             created_job_ids.append(job['_id'])
-            return {'folder': dsFolder, 'job_ids': created_job_ids}
+            return {
+                'folder': dsFolder,
+                'job_ids': created_job_ids,
+                'configurationHierarchyWrite': configuration_hierarchy_write,
+            }
 
         # transcode VIDEO if necessary
         videoItems = Folder().childItems(
@@ -1069,7 +1371,14 @@ def postprocess(
             dsFolder.setdefault('meta', {})[constants.DatasetMarker] = True
             Folder().save(dsFolder)
 
-    aggregate_warnings = process_items(dsFolder, user, additive, additivePrepend, set)
+    aggregate_warnings = process_items(
+        dsFolder,
+        user,
+        additive,
+        additivePrepend,
+        set,
+        configuration_plan=configuration_plan,
+    )
     # Image sequences start at fps=-1 (auto). CSV import may have set a value;
     # otherwise default to 1. convert_images also resolves, but safe-image folders
     # skip that job and need this finalize step.
@@ -1081,7 +1390,12 @@ def postprocess(
         if requested_fps != new_fps:
             dsFolder['meta'][constants.FPSMarker] = new_fps
             Folder().save(dsFolder)
-    return {'folder': dsFolder, 'warnings': aggregate_warnings, 'job_ids': created_job_ids}
+    return {
+        'folder': dsFolder,
+        'warnings': aggregate_warnings,
+        'job_ids': created_job_ids,
+        'configurationHierarchyWrite': configuration_hierarchy_write,
+    }
 
 
 def convert_large_image(

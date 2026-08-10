@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from bson.objectid import ObjectId
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, StrictStr, validator
 from typing_extensions import Literal
 
 from dive_utils import constants, types
@@ -240,6 +240,7 @@ class PairHomography(BaseModel):
 
 
 CameraTransformType = Literal['translation', 'rigid', 'similarity', 'affine', 'homography']
+TypeHierarchy = Dict[StrictStr, StrictStr]
 
 
 class MetadataMutable(BaseModel):
@@ -254,6 +255,7 @@ class MetadataMutable(BaseModel):
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
     datasetInfo: Optional[types.DatasetInfo]
+    typeHierarchy: Optional[TypeHierarchy] = None
     # Per-camera-pair alignment homographies, keyed by directional "left::right".
     # Each value holds the 3x3 AtoB / BtoA matrices.
     cameraHomographies: Optional[Dict[str, PairHomography]]
@@ -282,7 +284,7 @@ class MetadataMutable(BaseModel):
         # the value is actually a configuration object.
         keys.remove("version")
 
-        return any([value.get(key, False) for key in keys])
+        return 'typeHierarchy' in value or any([value.get(key, False) for key in keys])
 
 
 class MediaResource(BaseModel):
@@ -324,6 +326,8 @@ class MultiCamMedia(BaseModel):
 
 
 class GirderMetadataStatic(MetadataMutable):
+    # Reads preserve legacy malformed storage so the viewer can report and repair it.
+    typeHierarchy: Optional[Any] = None
     # Required
     id: str
     name: str
