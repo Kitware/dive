@@ -885,13 +885,18 @@ async function saveProjectConfig(basePath: string, data: unknown) {
 
 async function saveConfig(settings: Settings, datasetId: string, args: DatasetConfigMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  // Lock against the canonical dataset path so migrate-on-save stays stable.
+  // Lock the project directory (same pattern as tracks). Locking dataset.json
+  // directly fails with ENOENT on legacy projects that still only have
+  // meta.json, and migrate-on-save below may remove the legacy file while the
+  // lock is held.
   const release = await _acquireLock(
     projectDirInfo.basePath,
-    npath.join(projectDirInfo.basePath, DatasetFileName),
+    projectDirInfo.basePath,
     'meta',
   );
-  const existing = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
+  const existing = await loadJsonConfig(
+    resolveDatasetFileAbsPath(projectDirInfo.basePath),
+  );
   if (args.confidenceFilters) {
     existing.confidenceFilters = args.confidenceFilters;
   }

@@ -492,6 +492,27 @@ describe('native.common', () => {
     const dir = await common.getValidatedProjectDir(settings, 'projectid1');
     expect(dir.datasetFileAbsPath).toBe(preferred);
   });
+
+  it('saveConfig works on legacy meta.json-only projects and migrates', async () => {
+    // Regression: locking dataset.json before it exists caused ENOENT 500s on
+    // POST /dataset/:id/meta for projects still on meta.json.
+    const basedir = npath.join(settings.dataPath, 'DIVE_Projects/projectid1VideoGood');
+    const legacy = npath.join(basedir, 'meta.json');
+    const preferred = npath.join(basedir, 'dataset.json');
+    expect(await fs.pathExists(legacy)).toBe(true);
+    expect(await fs.pathExists(preferred)).toBe(false);
+
+    await common.saveConfig(settings, 'projectid1VideoGood', {
+      imageEnhancements: {
+        brightness: 1.2, contrast: 1, saturation: 1, sharpen: 0,
+      },
+    });
+
+    expect(await fs.pathExists(preferred)).toBe(true);
+    expect(await fs.pathExists(legacy)).toBe(false);
+    const saved = await fs.readJSON(preferred);
+    expect(saved.imageEnhancements.brightness).toBe(1.2);
+  });
   it('getValidatedProjectDir loads initial track.json', async () => {
     const basedir = 'DIVE_Projects/projectid4Bad';
     const dir = await common.getValidatedProjectDir(settings, 'projectid4Bad');
