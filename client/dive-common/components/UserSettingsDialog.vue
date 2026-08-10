@@ -39,14 +39,6 @@ export default defineComponent({
           persistent-hint
         />
         <v-switch
-          v-model="clientSettings.navigationSettings.rightClickRecenter"
-          color="primary"
-          class="my-0 mt-3"
-          label="Right-click recenters the view"
-          hint="Right-clicking the image centers the view on that point. Off by default; right-click still opens edit actions either way."
-          persistent-hint
-        />
-        <v-switch
           v-model="clientSettings.autoSaveSettings.enabled"
           color="primary"
           class="my-0 mt-3"

@@ -124,9 +124,10 @@ export default function useLayerManagerAlignedView(options: {
       }
     },
     getTransform: () => alignedDisplayTransform.value,
-    // Opt-in, and never while creating/editing geometry, where right-click
-    // already means "remove last point".
-    getRecenterEnabled: () => clientSettings.navigationSettings.rightClickRecenter
+    // Follows the camera-lock toggle, the existing control for "the camera may
+    // recenter itself". Never while creating/editing geometry, where
+    // right-click already means "remove last point".
+    getRecenterEnabled: () => !!clientSettings.annotatorPreferences.lockedCamera.enabled
       && !editingModeRef.value,
   });
 

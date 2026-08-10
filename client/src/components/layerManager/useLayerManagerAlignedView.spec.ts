@@ -238,26 +238,26 @@ describe('right-click recenter', () => {
   const rightClick = { geo: { x: 12, y: 34 }, buttonsDown: { right: true } };
 
   afterEach(() => {
-    clientSettings.navigationSettings.rightClickRecenter = false;
+    clientSettings.annotatorPreferences.lockedCamera.enabled = false;
   });
 
-  it('does not recenter by default', async () => {
+  it('does not recenter while the camera lock is off', async () => {
     const { viewer } = makeHarness();
     await nextTick();
     clickHandler(viewer)(rightClick);
     expect(viewer.center).not.toHaveBeenCalled();
   });
 
-  it('recenters on right-click once the setting is enabled', async () => {
-    clientSettings.navigationSettings.rightClickRecenter = true;
+  it('recenters on right-click once the camera lock is on', async () => {
+    clientSettings.annotatorPreferences.lockedCamera.enabled = true;
     const { viewer } = makeHarness();
     await nextTick();
     clickHandler(viewer)(rightClick);
     expect(viewer.center).toHaveBeenCalledWith({ x: 12, y: 34 });
   });
 
-  it('ignores a left-click even when enabled', async () => {
-    clientSettings.navigationSettings.rightClickRecenter = true;
+  it('ignores a left-click even when the lock is on', async () => {
+    clientSettings.annotatorPreferences.lockedCamera.enabled = true;
     const { viewer } = makeHarness();
     await nextTick();
     clickHandler(viewer)({ geo: { x: 1, y: 2 }, buttonsDown: { left: true } });
