@@ -1,6 +1,7 @@
 import {
   computed, watch, ComputedRef, Ref,
 } from 'vue';
+import { clientSettings } from 'dive-common/store/settings';
 import type { AggregateMediaController, MediaController } from '../annotators/mediaControllerType';
 import type AlignedViewStore from '../../alignedView/AlignedViewStore';
 import AlignedImageLayer from '../../layers/AlignedImageLayer';
@@ -123,9 +124,10 @@ export default function useLayerManagerAlignedView(options: {
       }
     },
     getTransform: () => alignedDisplayTransform.value,
-    // Right-click means "remove last point" while creating/editing
-    // geometry; recenter everywhere else.
-    getRecenterEnabled: () => !editingModeRef.value,
+    // Opt-in, and never while creating/editing geometry, where right-click
+    // already means "remove last point".
+    getRecenterEnabled: () => clientSettings.navigationSettings.rightClickRecenter
+      && !editingModeRef.value,
   });
 
   /**

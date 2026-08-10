@@ -73,6 +73,12 @@ interface AnnotationSettings {
   layoutSettings: {
     sidebarPosition: 'left' | 'bottom';
   };
+  navigationSettings: {
+    // Right-click in the annotator recenters the view on the clicked point.
+    // Off by default: right-click is primarily the context/edit action, and
+    // the view jumping is disruptive when that is what you meant.
+    rightClickRecenter: boolean;
+  };
   autoSaveSettings: {
     enabled: boolean;
     delaySeconds: number;
@@ -170,6 +176,9 @@ const defaultSettings: AnnotationSettings = {
   },
   layoutSettings: {
     sidebarPosition: 'left',
+  },
+  navigationSettings: {
+    rightClickRecenter: false,
   },
   autoSaveSettings: {
     enabled: false, // Disabled by default for backward compatibility

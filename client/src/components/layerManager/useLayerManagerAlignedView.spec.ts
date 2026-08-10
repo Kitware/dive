@@ -2,6 +2,7 @@
 import { defineComponent, ref, nextTick } from 'vue';
 // eslint-disable-next-line import/no-extraneous-dependencies -- @vue/test-utils is only used in tests
 import { mount } from '@vue/test-utils';
+import { clientSettings } from 'dive-common/store/settings';
 import type { MediaController, AggregateMediaController } from '../annotators/mediaControllerType';
 import AlignedViewStore from '../../alignedView/AlignedViewStore';
 import useLayerManagerAlignedView from './useLayerManagerAlignedView';
@@ -55,6 +56,7 @@ function makeHarness() {
   const viewer = {
     createLayer: vi.fn(() => warpLayer),
     geoOn: vi.fn(),
+    center: vi.fn(),
     layers: () => [nativeLayer, warpLayer],
   };
 
@@ -92,7 +94,7 @@ function makeHarness() {
   });
   const wrapper = mount(Host);
   return {
-    wrapper, annotator, nativeFeature, warpFeature, imgA,
+    wrapper, annotator, nativeFeature, warpFeature, imgA, viewer,
   };
 }
 
@@ -223,5 +225,42 @@ describe('useLayerManagerAlignedView large-image native hide', () => {
     expect(lastWarpSource(warpFeature)).toBeTruthy();
     expect(currentOsm.visible).toHaveBeenCalledWith(false);
     expect(nextOsm.visible).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('right-click recenter', () => {
+  /** The mouseclick handler AlignedImageLayer registered on the viewer. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function clickHandler(viewer: any) {
+    const call = viewer.geoOn.mock.calls.find((c: unknown[]) => c[0] === 'geo_mouseclick');
+    return call[1] as (e: unknown) => void;
+  }
+  const rightClick = { geo: { x: 12, y: 34 }, buttonsDown: { right: true } };
+
+  afterEach(() => {
+    clientSettings.navigationSettings.rightClickRecenter = false;
+  });
+
+  it('does not recenter by default', async () => {
+    const { viewer } = makeHarness();
+    await nextTick();
+    clickHandler(viewer)(rightClick);
+    expect(viewer.center).not.toHaveBeenCalled();
+  });
+
+  it('recenters on right-click once the setting is enabled', async () => {
+    clientSettings.navigationSettings.rightClickRecenter = true;
+    const { viewer } = makeHarness();
+    await nextTick();
+    clickHandler(viewer)(rightClick);
+    expect(viewer.center).toHaveBeenCalledWith({ x: 12, y: 34 });
+  });
+
+  it('ignores a left-click even when enabled', async () => {
+    clientSettings.navigationSettings.rightClickRecenter = true;
+    const { viewer } = makeHarness();
+    await nextTick();
+    clickHandler(viewer)({ geo: { x: 1, y: 2 }, buttonsDown: { left: true } });
+    expect(viewer.center).not.toHaveBeenCalled();
   });
 });
