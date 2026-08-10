@@ -227,7 +227,6 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
   );
   if (!isDesktopRuntime()) {
     hydrated.stereoSettings.updateLengthsOnModify = false;
-    hydrated.stereoSettings.autoComputeOtherCamera = false;
   }
   return hydrated;
 }
@@ -235,15 +234,16 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
 const clientSettings = reactive(hydrate(loadStoredSettings()));
 
 /**
- * Interactive stereo requires the desktop VIAME interactive service. The
- * backend service is needed whenever either stereo feature (length update or
- * cross-camera auto-compute) is enabled.
+ * Length measurement needs the desktop VIAME interactive service; cross-camera
+ * auto-compute also runs on web, where the warp is done client-side with the
+ * exported ONNX matcher instead.
  */
 function isStereoInteractiveModeEnabled(): boolean {
-  return isDesktopRuntime() && (
-    clientSettings.stereoSettings.updateLengthsOnModify
-    || clientSettings.stereoSettings.autoComputeOtherCamera
-  );
+  if (!isDesktopRuntime()) {
+    return clientSettings.stereoSettings.autoComputeOtherCamera;
+  }
+  return clientSettings.stereoSettings.updateLengthsOnModify
+    || clientSettings.stereoSettings.autoComputeOtherCamera;
 }
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {

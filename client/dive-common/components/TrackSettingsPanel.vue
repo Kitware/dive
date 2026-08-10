@@ -370,12 +370,13 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-      <template v-if="isStereoDataset && isDesktopRuntime">
+      <template v-if="isStereoDataset">
         <v-divider class="my-2" />
         <div class="subheading">
           Stereo Settings
         </div>
         <v-row
+          v-if="isDesktopRuntime"
           align="end"
           dense
         >
