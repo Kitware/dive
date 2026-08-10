@@ -209,7 +209,7 @@ On web, a full dataset export zip (from **Download → Everything**) can be re-i
 
 On web, use the data browser **Download** menu on a multicam parent dataset:
 
-- **VIAME CSV**, **DIVE TrackJSON**, and **COCO JSON** each download a zip with that format for every camera (plus `multiCam.json` at the dataset root).
+- **VIAME CSV**, **DIVE JSON**, and **COCO JSON** each download a zip with that format for every camera (plus `multiCam.json` at the dataset root).
 - **Everything** downloads all camera media, all camera annotations, calibration (stereo), and metadata in one zip.
 
 Per-camera export from the viewer still exports only the active camera.
