@@ -1114,9 +1114,11 @@ describe('native.common', () => {
     const overwrite = '/home/user/output/hierarchy-overwrite.json';
     const additive = '/home/user/output/hierarchy-additive.json';
     const empty = '/home/user/output/hierarchy-empty.json';
+    const cleared = '/home/user/output/hierarchy-null.json';
     await fs.writeJSON(overwrite, { typeHierarchy: { shark: 'fish' } });
     await fs.writeJSON(additive, { typeHierarchy: { tuna: 'fish' } });
     await fs.writeJSON(empty, { typeHierarchy: {} });
+    await fs.writeJSON(cleared, { typeHierarchy: null });
 
     await common.dataFileImport(settings, 'projectid1', overwrite);
     await common.dataFileImport(settings, 'projectid1', additive, true);
@@ -1126,6 +1128,11 @@ describe('native.common', () => {
     await common.dataFileImport(settings, 'projectid1', empty, true);
     meta = await common.loadConfig(settings, 'projectid1', urlMapper);
     expect(meta.typeHierarchy).toEqual({ shark: 'fish', tuna: 'fish' });
+    await common.dataFileImport(settings, 'projectid1', cleared, true);
+    meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(meta.typeHierarchy).toBeUndefined();
+
+    await common.dataFileImport(settings, 'projectid1', overwrite);
     await common.dataFileImport(settings, 'projectid1', empty);
     meta = await common.loadConfig(settings, 'projectid1', urlMapper);
     expect(meta.typeHierarchy).toBeUndefined();

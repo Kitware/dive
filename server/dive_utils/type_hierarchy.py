@@ -92,7 +92,8 @@ def resolve_type_hierarchy(
 
     normalized_incoming = normalize_type_hierarchy(incoming)
     if normalized_incoming is None:
-        if mode == 'additive':
+        # Additive follows JSON merge semantics: an explicit null deletes, an empty map is a no-op.
+        if mode == 'additive' and incoming is not None:
             return {'action': 'none'}
         return {'action': 'delete'}
     if mode != 'additive':

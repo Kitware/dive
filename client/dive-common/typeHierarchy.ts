@@ -139,7 +139,11 @@ export function resolveTypeHierarchy(
 
   const normalizedIncoming = normalizeTypeHierarchy(incoming);
   if (normalizedIncoming === undefined) {
-    return mode === 'additive' ? { action: 'none' } : { action: 'delete' };
+    // Additive follows JSON merge semantics: an explicit null deletes, an empty map is a no-op.
+    if (mode === 'additive' && incoming !== null) {
+      return { action: 'none' };
+    }
+    return { action: 'delete' };
   }
   if (mode !== 'additive') {
     return { action: 'set', hierarchy: normalizedIncoming };

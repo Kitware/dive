@@ -199,8 +199,9 @@ self-edges and cycles are invalid, and each child can have only one immediate pa
 preserved exactly; whitespace is used only to determine whether a name is empty.
 
 A missing `typeHierarchy` leaves the saved hierarchy unchanged. On overwrite import or direct
-save, `null` and `{}` delete it, while a non-empty map replaces it completely. On additive import,
-`null` and `{}` make no change, while a non-empty map adds edges to the existing hierarchy.
+save, `null` and `{}` delete it, while a non-empty map replaces it completely. Additive import
+follows JSON merge semantics: `null` deletes the hierarchy, `{}` makes no change, and a non-empty
+map adds edges to the existing hierarchy.
 Identical edges coalesce; a different parent for an existing child or a cycle rejects the whole
 configuration without changing it. Invalid saves and imports report
 `Type hierarchy is invalid: {reason}. No configuration was changed.`

@@ -182,12 +182,22 @@
       "errorKind": null
     },
     {
-      "name": "additive explicit null is no instruction",
+      "name": "additive explicit null clears",
       "existing": { "cod": "fish" },
       "incomingPresent": true,
       "incoming": null,
       "mode": "additive",
-      "expectedAction": "none",
+      "expectedAction": "delete",
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "additive explicit null clears invalid existing storage",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": true,
+      "incoming": null,
+      "mode": "additive",
+      "expectedAction": "delete",
       "errorReason": null,
       "errorKind": null
     },
