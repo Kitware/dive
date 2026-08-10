@@ -7,7 +7,7 @@ import {
   watch,
 } from 'vue';
 import { DataTableHeader } from 'vuetify';
-import { useRouter } from 'vue-router/composables';
+import { useRoute, useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
@@ -30,6 +30,16 @@ import { datasets, JsonConfigCache } from '../store/dataset';
 const { getPipelineList, runPipeline, hasCalibrationFile } = useApi();
 const { prompt } = usePrompt();
 const router = useRouter();
+const route = useRoute();
+
+/** Dataset ids handed off by another page (e.g. the Library selection). */
+function preselectedDatasetIds(): string[] {
+  const query = route.query.datasetIds;
+  const values = Array.isArray(query) ? query : [query];
+  return values
+    .flatMap((value) => (value || '').split(','))
+    .filter((id) => id in datasets.value);
+}
 
 const unsortedPipelines = ref({} as Pipelines);
 const selectedPipelineType: Ref<string | null> = ref(null);
@@ -173,8 +183,11 @@ function toggleStaged(item: JsonConfigCache) {
 
 async function runPipelineForDatasets() {
   if (selectedPipeline.value !== null) {
+    // Only the staged datasets compatible with (and displayed for) the
+    // selected pipeline; staged ids can hold datasets other pipelines accept.
+    const runIds = stagedDatasets.value.map((item: JsonConfigCache) => item.id);
     const results = await Promise.allSettled(
-      stagedDatasetIds.value.map((datasetId: string) => {
+      runIds.map((datasetId: string) => {
         if (pipelineCreatesNewDataset(selectedPipeline.value)) {
           const datasetMeta = availableItems.value.find((item: JsonConfigCache) => item.id === datasetId);
           if (!datasetMeta) {
@@ -188,7 +201,7 @@ async function runPipelineForDatasets() {
       }),
     );
     const failed = results
-      .map((result, i) => ({ result, datasetId: stagedDatasetIds.value[i] }))
+      .map((result, i) => ({ result, datasetId: runIds[i] }))
       .filter(({ result }) => result.status === 'rejected');
 
     if (failed.length > 0) {
@@ -204,6 +217,7 @@ async function runPipelineForDatasets() {
 }
 
 onBeforeMount(async () => {
+  stagedDatasetIds.value = preselectedDatasetIds();
   unsortedPipelines.value = await getPipelineList();
   availableItems.value = getAvailableItems();
 });

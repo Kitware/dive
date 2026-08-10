@@ -1,6 +1,7 @@
 import {
   computed, watch, ComputedRef, Ref,
 } from 'vue';
+import { clientSettings } from 'dive-common/store/settings';
 import type { AggregateMediaController, MediaController } from '../annotators/mediaControllerType';
 import type AlignedViewStore from '../../alignedView/AlignedViewStore';
 import AlignedImageLayer from '../../layers/AlignedImageLayer';
@@ -123,9 +124,11 @@ export default function useLayerManagerAlignedView(options: {
       }
     },
     getTransform: () => alignedDisplayTransform.value,
-    // Right-click means "remove last point" while creating/editing
-    // geometry; recenter everywhere else.
-    getRecenterEnabled: () => !editingModeRef.value,
+    // Follows the camera-lock toggle, the existing control for "the camera may
+    // recenter itself". Never while creating/editing geometry, where
+    // right-click already means "remove last point".
+    getRecenterEnabled: () => !!clientSettings.annotatorPreferences.lockedCamera.enabled
+      && !editingModeRef.value,
   });
 
   /**

@@ -15,6 +15,7 @@ import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
+import { getResponseError } from 'vue-media-annotator/utils';
 import { DataTableHeader } from 'vuetify';
 
 import { useRouter } from 'vue-router/composables';
@@ -150,26 +151,98 @@ export default defineComponent({
       pendingImportPayload.value = [await request(() => api.importMultiCam(args))];
     }
 
-    async function confirmDeleteDataset(datasetId: string, datasetName: string) {
+    const selectedRecents = ref([] as JsonConfigCache[]);
+    const selectedIds = computed(() => new Set(selectedRecents.value.map((item) => item.id)));
+
+    function isSelected(item: JsonConfigCache) {
+      return selectedIds.value.has(item.id);
+    }
+
+    function toggleSelected(item: JsonConfigCache) {
+      if (isSelected(item)) {
+        selectedRecents.value = selectedRecents.value.filter((v) => v.id !== item.id);
+      } else {
+        selectedRecents.value = selectedRecents.value.concat([item]);
+      }
+    }
+
+    async function confirmDeleteSelected() {
+      const items = selectedRecents.value;
+      if (items.length === 0) {
+        return;
+      }
       const result = await prompt({
-        title: 'Warning Deleting Dataset',
-        text: [`Do you want to delete dataset ${datasetName}?`,
-          '1.  Deleting dataset will not remove source media, such as images or video.',
-          '2.  It will not remove annotations files that were imported when the dataset was created.',
-          '3.  This will remove any annotations that bave been created in DIVE for this dataset',
-          '4.  Use the Export button for the dataset to create a copy of the last set of annotations'],
+        title: `Delete ${items.length} dataset${items.length > 1 ? 's' : ''}`,
+        text: ['Do you want to delete the selected datasets?',
+          '1.  Deleting datasets will not remove source media, such as images or video.',
+          '2.  It will not remove annotations files that were imported when the datasets were created.',
+          '3.  This will remove any annotations that have been created in DIVE for these datasets',
+          '4.  Use the Export button for a dataset to create a copy of the last set of annotations'],
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
         confirm: true,
       });
       if (!result) {
         return;
       }
-      await request(() => api.deleteDataset(datasetId));
-      //Now we need to update recents by removing the dataset from localStorage
-      removeRecents(datasetId);
+      const failures: { id: string; name: string; reason: string }[] = [];
+      // Continue through the full selection so one failure does not skip the rest
+      // eslint-disable-next-line no-restricted-syntax
+      for (const item of items) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await api.deleteDataset(item.id);
+          removeRecents(item.id);
+        } catch (err) {
+          failures.push({ id: item.id, name: item.name, reason: getResponseError(err) });
+        }
+      }
+      const failedIds = new Set(failures.map((failure) => failure.id));
+      selectedRecents.value = items.filter((item) => failedIds.has(item.id));
+      if (failures.length > 0) {
+        const deletedCount = items.length - failures.length;
+        await prompt({
+          title: deletedCount > 0
+            ? 'Some datasets could not be deleted'
+            : 'Failed to delete datasets',
+          text: [
+            deletedCount > 0
+              ? `Deleted ${deletedCount} of ${items.length} datasets. The following could not be deleted:`
+              : 'None of the selected datasets could be deleted:',
+            ...failures.map((failure) => `${failure.name}: ${failure.reason}`),
+          ],
+          positiveButton: 'Okay',
+        });
+      }
     }
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
+    const allSelected = computed(() => filteredRecents.value.length > 0
+      && filteredRecents.value.every((item) => selectedIds.value.has(item.id)));
+    const someSelected = computed(() => filteredRecents.value.some(
+      (item) => selectedIds.value.has(item.id),
+    ));
+
+    function toggleSelectAll() {
+      if (allSelected.value) {
+        selectedRecents.value = [];
+      } else {
+        selectedRecents.value = filteredRecents.value.slice();
+      }
+    }
+
+    function selectedIdsQuery() {
+      return { datasetIds: selectedRecents.value.map((item) => item.id).join(',') };
+    }
+
+    function runPipelineOnSelected() {
+      router.push({ name: 'pipeline', query: selectedIdsQuery() });
+    }
+
+    function runTrainingOnSelected() {
+      router.push({ name: 'training', query: selectedIdsQuery() });
+    }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
         if (recent.subType === 'stereo') {
@@ -221,6 +294,12 @@ export default defineComponent({
 
     const headers: DataTableHeader[] = [
       {
+        text: '',
+        value: 'select',
+        sortable: false,
+        width: 40,
+      },
+      {
         text: 'Type',
         value: 'type',
         sortable: false,
@@ -237,12 +316,6 @@ export default defineComponent({
         sortable: true,
         sort: (a: string, b: string) => parseRecentDate(b).valueOf() - parseRecentDate(a).valueOf(),
         width: 140,
-      },
-      {
-        text: '',
-        value: 'delete',
-        sortable: false,
-        width: 40,
       },
     ];
     const toDisplayString = (dateString: string) => {
@@ -261,7 +334,12 @@ export default defineComponent({
       openMultiCamDialog,
       getTypeIcon,
       importMedia: api.importMedia,
-      confirmDeleteDataset,
+      confirmDeleteSelected,
+      runPipelineOnSelected,
+      runTrainingOnSelected,
+      isSelected,
+      toggleSelected,
+      toggleSelectAll,
       preloadCheck,
       toDisplayString,
       resetError,
@@ -269,6 +347,9 @@ export default defineComponent({
       multiCamOpenType,
       stereo,
       filteredRecents,
+      selectedRecents,
+      allSelected,
+      someSelected,
       pendingImportPayload,
       bulkImport,
       searchText,
@@ -481,6 +562,71 @@ export default defineComponent({
                 Recent
               </div>
               <v-spacer />
+              <template v-if="selectedRecents.length > 0">
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="runPipelineOnSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-play
+                      </v-icon>
+                      Run Pipeline
+                    </v-btn>
+                  </template>
+                  <span>Run a pipeline on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="runTrainingOnSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-brain
+                      </v-icon>
+                      Run Training
+                    </v-btn>
+                  </template>
+                  <span>Train a model on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="error"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="confirmDeleteSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-delete
+                      </v-icon>
+                      Delete ({{ selectedRecents.length }})
+                    </v-btn>
+                  </template>
+                  <span>Delete all selected datasets</span>
+                </v-tooltip>
+              </template>
               <v-text-field
                 v-model="searchText"
                 dense
@@ -488,7 +634,7 @@ export default defineComponent({
                 clearable
                 hide-details
                 placeholder="search"
-                class="shrink"
+                class="shrink ml-4"
                 color="grey darken-1"
               >
                 <template #append>
@@ -510,10 +656,19 @@ export default defineComponent({
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
               sort-by="accessedAt"
+              item-key="id"
               :footer-props="{ itemsPerPageOptions }"
               :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
             >
+              <template #[`header.select`]>
+                <v-simple-checkbox
+                  :value="allSelected"
+                  :indeterminate="someSelected && !allSelected"
+                  :ripple="false"
+                  @input="toggleSelectAll"
+                />
+              </template>
               <template #[`item.type`]="{ item }">
                 <tooltip-btn
                   :key="item.id"
@@ -599,13 +754,12 @@ export default defineComponent({
                   {{ toDisplayString(item.accessedAt) }}
                 </span>
               </template>
-              <template #[`item.delete`]="{ item }">
-                <tooltip-btn
+              <template #[`item.select`]="{ item }">
+                <v-simple-checkbox
                   :key="item.id"
-                  color="error"
-                  icon="mdi-delete"
-                  :tooltip-text="'Delete'"
-                  @click="confirmDeleteDataset(item.id, item.name)"
+                  :value="isSelected(item)"
+                  :ripple="false"
+                  @input="toggleSelected(item)"
                 />
               </template>
             </v-data-table>

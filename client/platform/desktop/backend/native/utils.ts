@@ -164,6 +164,32 @@ async function updateJobFilesOnCancel(workingDir: string): Promise<void> {
   ]);
 }
 
+/**
+ * Build the final training job manifest after process exit. Cancel writes
+ * cancelledJob to disk before killing the child; the exit handler must not
+ * overwrite that with the raw process code (signal kills often report null).
+ */
+function buildTrainingExitManifest(
+  jobBase: DesktopJob,
+  processExitCode: number | null,
+  endTime: Date,
+  existing: Partial<DesktopJob> | null | undefined,
+): DesktopJob {
+  if (existing?.cancelledJob) {
+    return {
+      ...jobBase,
+      cancelledJob: true,
+      exitCode: existing.exitCode ?? -1,
+      endTime: existing.endTime ? new Date(existing.endTime) : endTime,
+    };
+  }
+  return {
+    ...jobBase,
+    exitCode: processExitCode,
+    endTime,
+  };
+}
+
 export {
   getBinaryPath,
   jobFileEchoMiddleware,
@@ -172,4 +198,5 @@ export {
   spawnResult,
   splitExt,
   updateJobFilesOnCancel,
+  buildTrainingExitManifest,
 };

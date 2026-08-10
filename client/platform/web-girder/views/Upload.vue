@@ -29,6 +29,7 @@ import {
   deleteResources,
   saveConfig,
   uploadCalibrationItem,
+  uploadAndSetMetadataFile,
   uploadMetadataFileItem,
   validateUploadGroup,
   waitForFolderDatasetReady,
@@ -81,14 +82,15 @@ export interface PendingUpload {
   name: string;
   files: InteralFiles[];
   /**
-   * Per-role upload slots. The user declares each file's role by which slot it goes in;
-   * placement is a suggestion the server re-validates at upload.
+   * Per-role upload slots. The user declares each file's role by which slot it goes in.
+   * Media/annotation/config placement is a suggestion the server re-validates at upload;
+   * the metadata attachment is uploaded separately from annotation classification.
    */
   mediaList: File[];
   annotationFile: File | null;
   /** Optional DIVE Configuration File (JSON attributes, styles, FPS, …). */
   configFile: File | null;
-  /** Optional Metadata File handed to pipelines that declare `# Metadata File:`. */
+  /** Optional dataset-level attachment used by pipelines and, for TXT/CSV, frame metadata. */
   metadataFile: File | null;
   /** Media/annotation/config package the server validated for upload (rebuilt at start). */
   uploadFiles: File[];
@@ -141,6 +143,8 @@ function multicamCameraSlotPercent(
   return MULTICAM_PROGRESS_START + (cameraIndex * span) + (subFraction * span);
 }
 
+const MULTI_VIDEO_METADATA_REASON = 'Frame metadata is not supported when multiple videos are uploaded';
+
 /**
  * The server names every file it did not accept, so what to upload is the validated
  * selection minus those names.
@@ -179,16 +183,20 @@ function defaultRowName(validation: ValidationResponse, folderHint?: string): st
 }
 
 /**
- * Every picked file this row will not upload, with the reason: what the server ignored, and
- * what had no slot to go in.
+ * Every picked file this row will not upload, with the reason: what the server ignored, what
+ * had no slot, and — for a fan-out row — the metadata attachment, which cannot be frame-keyed
+ * against several videos at once.
  */
 function rowIgnoredFiles(
-  row: Pick<PendingUpload, 'unslotted'>,
+  row: Pick<PendingUpload, 'unslotted' | 'createSubFolders' | 'metadataFile'>,
   validation: ValidationResponse,
 ): IgnoredUploadFile[] {
   return [
     ...validationIgnoredFiles(validation),
     ...row.unslotted,
+    ...(row.createSubFolders && row.metadataFile
+      ? [{ name: row.metadataFile.name, reason: MULTI_VIDEO_METADATA_REASON }]
+      : []),
   ];
 }
 
@@ -324,7 +332,7 @@ export default defineComponent({
       folderHint?: string,
     ) => {
       const slots = suggestUploadSlots(allFiles);
-      // Validate the slotted selection so the media type is server-determined.
+      // Validate the media/annotation/config selection so the media type is server-determined.
       const row: PendingUpload = {
         createSubFolders: false,
         name: '',
@@ -332,7 +340,7 @@ export default defineComponent({
         mediaList: slots.mediaList,
         annotationFile: slots.annotationFile,
         configFile: slots.configFile,
-        metadataFile: null,
+        metadataFile: slots.metadataFile,
         uploadFiles: [],
         unslotted: slots.unslotted,
         ignored: [...slots.unslotted],
@@ -506,16 +514,30 @@ export default defineComponent({
           if (!folderFiles.length) {
             throw new Error(`No media files found for camera "${cameraName}"`);
           }
+          const cameraMetadataFile = source.metadataFile
+            ? getMetadataFile(source.metadataFile)
+            : undefined;
+          if (source.metadataFile && !cameraMetadataFile) {
+            throw new Error(
+              `Metadata file for camera "${cameraName}" was not found. Choose it again.`,
+            );
+          }
           // Flatten before validation so the names the server validates match the
           // names uploaded to Girder.
           const { files: cameraFiles, replaced } = getCameraPackageFiles(
             folderFiles,
             source.trackFile,
+            source.metadataFile,
           );
           // eslint-disable-next-line no-await-in-loop -- validate then upload each camera sequentially
           const validation = (await validateUploadGroup(cameraFiles.map((f) => f.name))).data;
           if (!validation.ok) {
             throw new Error(validation.message || `Invalid files for camera "${cameraName}"`);
+          }
+          if (cameraMetadataFile && validation.roles.frameMetadata.length) {
+            throw new Error(
+              `Camera "${cameraName}" has more than one metadata file. Choose one file and try again.`,
+            );
           }
           const cameraType = source.type ?? args.type;
           const uploadType = validation.type;
@@ -566,6 +588,10 @@ export default defineComponent({
             requireViewableImages: uploadType === ImageSequenceType,
             requireLargeImageItems: uploadType === LargeImageType,
           }, jobIds);
+          if (cameraMetadataFile) {
+            // eslint-disable-next-line no-await-in-loop
+            await uploadAndSetMetadataFile(folder._id, cameraMetadataFile);
+          }
           setMulticamImportProgress(
             multicamCameraSlotPercent(i + 1, totalCameras, 0),
             totalCameras > 1 && i + 1 < totalCameras
@@ -1088,7 +1114,8 @@ export default defineComponent({
               v-if="!pendingUpload.createSubFolders && pendingUpload.type !== 'zip'"
               class="mt-3"
             >
-              <v-col class="py-0 mx-2">
+              <!-- pb-3 offsets the row's negative bottom margin so the card encloses the hint. -->
+              <v-col class="pt-0 pb-3 mx-2">
                 <v-row>
                   <v-file-input
                     v-model="pendingUpload.mediaList"
@@ -1135,14 +1162,21 @@ export default defineComponent({
                     :accept="filterFileUpload('config')"
                   />
                 </v-row>
-                <v-row>
+                <!--
+                  no-gutters drops the row's negative bottom margin, which would otherwise crop
+                  the persistent hint against the card edge and the upload progress line.
+                -->
+                <v-row
+                  no-gutters
+                  class="mt-3"
+                >
                   <v-file-input
                     v-model="pendingUpload.metadataFile"
                     show-size
                     counter
                     prepend-icon="mdi-file-cog"
                     label="Metadata File (Optional)"
-                    hint="Optional. A .json, .txt, or .csv file passed to pipelines that request it."
+                    hint="Passed to pipelines that request it. CSV and TXT frame rows also appear as Frame Metadata."
                     persistent-hint
                     :disabled="pendingUpload.uploading"
                     :accept="filterFileUpload('metadata')"

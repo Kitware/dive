@@ -75,6 +75,7 @@ nav:
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:
       - Pipeline Import and Export: Pipeline-Import-Export.md
+      - Frame Metadata: Frame-Metadata.md
       - Command Line Tools: Command-Line-Tools.md
       - Large Image Support: Large-Image-Support.md
       - Multicamera and Stereo Data: Multicamera-data.md
@@ -91,6 +92,7 @@ nav:
     - Running with Docker Compose: Deployment-Docker-Compose.md
     - Upgrading to Girder 5: Deployment-Girder-5-Upgrade.md
     - Cloud Storage Integration: Deployment-Storage.md
+    - AssetStore Importing and Data Structure: Deployment-AssetStore-Import.md
     - REST API Specification: https://viame.kitware.com/api/v1
   - Scripting: 
     - Introduction: scripting/Scripting.md

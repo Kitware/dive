@@ -90,6 +90,16 @@ const largeImageTypes = [
   'image/ntf',
 ];
 
+/** Extension-only formats for basic image sequences (aligned with server validImageFormats). */
+const basicImageFileExtensions = [
+  'png',
+  'jpg',
+  'jpeg',
+  'sgi',
+  'bmp',
+  'pgm',
+];
+
 /** Extension-only formats for large-image uploads (aligned with server validLargeImageFormats). */
 const largeImageFileExtensions = [
   'nitf',
@@ -217,8 +227,8 @@ const stereoPipelineMarker = 'measurement';
 const calibrationFileMarker = 'calibrationFile';
 /** Girder item meta key marking the JSON camera-rig used for calibration display. */
 const jsonCalibrationFileMarker = 'jsonCalibrationFile';
-/** Girder item meta key marking the optional per-dataset metadata file upload. */
-const metadataFileMarker = 'metadataFile';
+/** Girder item meta key marking a frame-metadata attachment for Girder UI. */
+const frameMetadataFileMarker = 'frameMetadata';
 /** Legacy common_stereo category key; never shown in the run-pipeline menu. */
 const hiddenPipelineCategories = ['stereo'];
 /** Pipeline name/category substrings hidden from the web run-pipeline menu. */
@@ -253,6 +263,7 @@ export {
   getImageSequenceFileAccept,
   inputAnnotationTypes,
   largeImageTypes,
+  basicImageFileExtensions,
   largeImageFileExtensions,
   largeImageDesktopTypes,
   largeImageWebAccept,
@@ -266,7 +277,7 @@ export {
   stereoPipelineMarker,
   calibrationFileMarker,
   jsonCalibrationFileMarker,
-  metadataFileMarker,
+  frameMetadataFileMarker,
   hiddenPipelineCategories,
   webExcludedPipelineTerms,
   multiCamPipelineMarkers,

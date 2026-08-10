@@ -1,6 +1,8 @@
 import type { Ref } from 'vue';
 import type { CameraImage } from '../../layers/cameraImage';
 
+export type MediaControllerKind = 'image-sequence' | 'video' | 'large-image';
+
 /**
  * Supplied by Viewer.vue when every camera in a multicam dataset has a
  * timestamp on every frame (see dive-common/alignedTimeline.ts). Translates
@@ -89,9 +91,12 @@ export interface AggregateMediaController {
  * functions to control an individual camera
  */
 export interface MediaController extends AggregateMediaController {
+  readonly mediaKind: MediaControllerKind;
+  ready: Readonly<Ref<boolean>>;
   cameraName: Readonly<Ref<string>>;
   duration: Readonly<Ref<number>>;
   filename: Readonly<Ref<string>>;
+  filenames: Readonly<Ref<string[]>>;
   flick: Readonly<Ref<number>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Readonly<Ref<any>>;

@@ -4,7 +4,7 @@ import type {
   DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
-  DatasetCalibrationResult,
+  DatasetCalibrationResult, FrameMetadataSourcesResponse,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
@@ -194,6 +194,22 @@ async function runTraining(
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
   return window.diveDesktop.invoke('delete-trained-pipeline', pipeline);
+}
+
+async function listResumableTrainingJobs(): Promise<DesktopJob[]> {
+  return window.diveDesktop.invoke('list-resumable-training');
+}
+
+async function resumeTraining(job: DesktopJob): Promise<void> {
+  const args: RunTraining = {
+    ...(job.args as RunTraining),
+    resumeWorkingDir: job.workingDir,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+async function discardResumableTraining(job: DesktopJob): Promise<void> {
+  return window.diveDesktop.invoke('discard-resumable-training', job.workingDir);
 }
 
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
@@ -647,6 +663,10 @@ async function loadDetections(datasetId: string) {
   };
 }
 
+function loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse> {
+  return window.diveDesktop.invoke('load-frame-metadata', { datasetId });
+}
+
 async function saveConfig(id: string, args: DatasetConfigMutable) {
   const client = await getClient();
   return client.post(`dataset/${id}/meta`, args);
@@ -726,12 +746,16 @@ export {
   /* Standard Specification APIs */
   loadConfig,
   loadDetections,
+  loadFrameMetadata,
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,
   exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
+  listResumableTrainingJobs,
+  resumeTraining,
+  discardResumableTraining,
   saveConfig,
   saveDetections,
   saveAttributes,
