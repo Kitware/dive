@@ -74,13 +74,29 @@ function clearRecents() {
   window.localStorage.setItem(RecentsKey, JSON.stringify([]));
 }
 
+/**
+ * Sync Recents with project folders on disk.
+ *
+ * Removes cache entries whose project dirs are missing or invalid, adds newly
+ * discovered datasets, and refreshes metadata for existing ones while
+ * preserving each entry's accessedAt timestamp.
+ */
 async function autoDiscover() {
-  clearRecents();
   /* Make sure settings are ready on backend */
   await initializedSettings;
-  /* Nothing came from localStorage, try to populate from autodiscovery */
   const discovered: JsonConfig[] = await window.diveDesktop.invoke('autodiscover-data');
-  discovered.forEach((d) => setRecents(d));
+  const discoveredIds = new Set(discovered.map((d) => d.id));
+
+  Object.keys(datasets.value).forEach((id) => {
+    if (!discoveredIds.has(id)) {
+      removeRecents(id);
+    }
+  });
+
+  discovered.forEach((d) => {
+    const existing = datasets.value[d.id];
+    setRecents(d, existing?.accessedAt);
+  });
 }
 
 /**
@@ -91,7 +107,6 @@ async function autoDiscover() {
  * loadConfig() backend method.
  */
 async function load() {
-  let loaded = [];
   try {
     const arr = window.localStorage.getItem(RecentsKey);
     if (arr) {
@@ -100,15 +115,13 @@ async function load() {
         maybeArr.forEach((meta: JsonConfigCache) => (
           Vue.set(datasets.value, meta.id, hydrateJsonConfigCacheValue(meta))
         ));
-        loaded = maybeArr;
       }
     }
   } catch (err) {
     throw new Error(`could not load meta from localstorage: ${err}`);
   }
-  if (loaded.length === 0) {
-    autoDiscover();
-  }
+  /* Prune missing/dead projects and pick up new ones without wiping access times */
+  await autoDiscover();
 }
 
 function locateDuplicates(meta: JsonConfig) {
