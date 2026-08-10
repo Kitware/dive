@@ -87,6 +87,10 @@ interface AnnotationSettings {
     // Warp an annotation drawn on one camera to the other camera when that
     // camera has no detection for it yet.
     autoComputeOtherCamera: boolean;
+    // Pixel disparity bounds for the client-side correspondence search. Scene
+    // dependent: too wide invites false matches, too narrow misses the target.
+    minDisparity: number;
+    maxDisparity: number;
     loading: boolean;
     loadingMessage: string;
   };
@@ -180,6 +184,8 @@ const defaultSettings: AnnotationSettings = {
     clearLengthOnCameraFileLoad: true,
     updateLengthsOnModify: true,
     autoComputeOtherCamera: false,
+    minDisparity: 2,
+    maxDisparity: 512,
     loading: false,
     loadingMessage: '',
   },
@@ -225,23 +231,17 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
     MIN_AUTO_SAVE_DELAY_SECONDS,
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
   );
-  if (!isDesktopRuntime()) {
-    hydrated.stereoSettings.updateLengthsOnModify = false;
-  }
   return hydrated;
 }
 
 const clientSettings = reactive(hydrate(loadStoredSettings()));
 
 /**
- * Length measurement needs the desktop VIAME interactive service; cross-camera
- * auto-compute also runs on web, where the warp is done client-side with the
- * exported ONNX matcher instead.
+ * Either stereo feature (length update or cross-camera auto-compute) puts the
+ * annotator in interactive stereo mode. Desktop serves both from the VIAME
+ * interactive service; web warps and triangulates client-side instead.
  */
 function isStereoInteractiveModeEnabled(): boolean {
-  if (!isDesktopRuntime()) {
-    return clientSettings.stereoSettings.autoComputeOtherCamera;
-  }
   return clientSettings.stereoSettings.updateLengthsOnModify
     || clientSettings.stereoSettings.autoComputeOtherCamera;
 }

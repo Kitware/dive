@@ -25,6 +25,13 @@ import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter } from 'vue-router/composables';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
+import {
+  STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
+} from 'dive-common/use/stereo/useStereoOnnxTransfer';
+import type { StereoMeasurement } from 'dive-common/use/stereo/triangulate';
+import {
+  STEREO_LENGTH_ATTRIBUTE_NAME, createStereoLengthRendering,
+} from 'dive-common/utils/stereoLengthRendering';
 import JobsTab from './JobsTab.vue';
 import Export from './Export.vue';
 import Clone from './Clone.vue';
@@ -108,12 +115,82 @@ export default defineComponent({
     const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
-    // Client-side stereo transfer: warp a detection to the other camera via the
-    // VIAME "match" ONNX model (no backend). No-ops without a 2-camera dataset,
-    // a loaded calibration file, and a served model asset.
-    const { handleStereoAnnotationComplete } = useStereoOnnxWeb({
+    // Client-side stereo: warp a detection to the other camera via the VIAME
+    // "match" ONNX model and triangulate its length, with no backend. No-ops
+    // without a 2-camera dataset, a calibration file, and a served model asset.
+    const stereoBusyMessage = ref<string | null>(null);
+    const stereoError = ref('');
+    const stereoLengthSnackbar = ref(false);
+    const stereoLengthMessage = ref('');
+
+    /**
+     * Define the stereo measurements as numeric detection attributes so they
+     * show up in the Attributes panel, matching the desktop stereo flow.
+     */
+    function ensureMeasurementAttributes() {
+      const viewer = viewerRef.value;
+      if (!viewer?.handler?.setAttribute) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const existing = (viewer.attributes || []) as any[];
+      STEREO_MEASUREMENT_ATTRS.forEach((name) => {
+        const attr = existing.find((a) => a.name === name && a.belongs === 'detection');
+        const render = name === STEREO_LENGTH_ATTRIBUTE_NAME
+          ? { render: createStereoLengthRendering(name) }
+          : {};
+        if (!attr) {
+          viewer.handler.setAttribute({
+            data: {
+              belongs: 'detection', datatype: 'number', name, key: `detection_${name}`, ...render,
+            },
+          });
+        } else if (name === STEREO_LENGTH_ATTRIBUTE_NAME && !attr.render) {
+          viewer.handler.setAttribute({ data: { ...attr, ...render } });
+        }
+      });
+      if (!existing.find((a) => a.name === STEREO_LENGTH_METHOD_ATTR && a.belongs === 'detection')) {
+        viewer.handler.setAttribute({
+          data: {
+            belongs: 'detection',
+            datatype: 'text',
+            name: STEREO_LENGTH_METHOD_ATTR,
+            key: `detection_${STEREO_LENGTH_METHOD_ATTR}`,
+            values: ['stereo', 'user_set'],
+          },
+        });
+      }
+      if (!existing.find((a) => a.name === 'avg_length' && a.belongs === 'track')) {
+        viewer.handler.setAttribute({
+          data: {
+            belongs: 'track', datatype: 'number', name: 'avg_length', key: 'track_avg_length',
+          },
+        });
+      }
+    }
+
+    const {
+      handleStereoAnnotationComplete, handleStereoTrackLinked,
+    } = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
+      getDatasetId: () => parentDatasetId(props.id),
+      ensureMeasurementAttributes,
+      onStatus: (message) => { stereoBusyMessage.value = message; },
+      onError: (message) => {
+        stereoBusyMessage.value = null;
+        stereoError.value = message;
+      },
+      onMeasurement: (m: StereoMeasurement) => {
+        const round2 = (v: number) => Math.round(v * 100) / 100;
+        stereoLengthMessage.value = [
+          `Stereo length: ${round2(m.length)}`,
+          `range: ${round2(m.midpoint_range)}`,
+        ].join('  •  ');
+        stereoLengthSnackbar.value = true;
+      },
     });
+
+    function closeStereoError() {
+      stereoError.value = '';
+    }
     const { brandData } = useBrand();
     const { pipelinesEnabled } = useConfig();
     const { meta: datasetMeta, loadDataset } = useDataset();
@@ -342,97 +419,169 @@ export default defineComponent({
       changeCamera,
       modifiedId,
       handleStereoAnnotationComplete,
+      handleStereoTrackLinked,
+      stereoBusyMessage,
+      stereoError,
+      stereoLengthSnackbar,
+      stereoLengthMessage,
+      closeStereoError,
     };
   },
 });
 </script>
 
 <template>
-  <Viewer
-    :id="id"
-    :key="id"
-    ref="viewerRef"
-    :revision="revisionNum"
-    :current-set="set"
-    :read-only-mode="!!jobs.getDatasetRunningState(id)"
-    :comparison-sets="comparisonSets"
-    @large-image-warning="largeImageWarning()"
-    @update:set="routeSet"
-    @change-camera="changeCamera"
-    @stereo-annotation-complete="handleStereoAnnotationComplete"
-  >
-    <template #title>
-      <ViewerAlert />
-      <NavigationTitle :name="brandData.name" />
-      <v-tabs
-        icons-and-text
-        hide-slider
-        class="mx-2"
-        style="flex-basis:0; flex-grow:0;"
-      >
-        <v-tab :to="locationRoute">
-          Data
-          <v-icon>mdi-database</v-icon>
-        </v-tab>
-        <JobsTab />
-      </v-tabs>
-    </template>
-    <template #title-right>
-      <RunPipelineMenu
-        v-if="pipelinesEnabled"
-        v-bind="{
-          buttonOptions,
-          menuOptions,
-          typeList,
-          subTypeList,
-          cameraNumbers,
-        }"
-        :selected-dataset-ids="[modifiedId]"
-        :running-pipelines="runningPipelines"
-        :read-only-mode="revisionNum !== undefined"
-        :time-filter="timeFilter"
-        :exclude-pipeline-terms="webExcludedPipelineTerms"
-      />
-      <ImportAnnotations
-        :button-options="buttonOptions"
-        :menu-options="menuOptions"
-        :read-only-mode="!!jobs.getDatasetRunningState(id) || revisionNum !== undefined"
-        :dataset-id="modifiedId"
-        :sub-type="subTypeList[0]"
-        :calibration-file="calibrationFile"
-        block-on-unsaved
-        @calibration-imported="onCalibrationImported"
-      />
-      <Export
-        v-bind="{ buttonOptions, menuOptions }"
-        :dataset-ids="[id]"
-        block-on-unsaved
-      />
-      <Clone
-        v-if="datasetMeta"
-        v-bind="{ buttonOptions, menuOptions }"
-        :dataset-id="id"
-        :revision="revisionNum"
-      />
-    </template>
-    <template #extension-right>
-      <CalibrationMenu
-        v-if="subTypeList[0] === 'stereo'"
-        :dataset-id="id"
-        :calibration-file="calibrationFile"
-        @calibration-deleted="onCalibrationDeleted"
-      />
-    </template>
-    <template #right-sidebar="{ sidebarMode }">
-      <SidebarContext :sidebar-mode="sidebarMode">
-        <template #default="{ name, subCategory }">
-          <component
-            :is="name"
-            :sub-category="subCategory"
-            @update:revision="routeRevision"
-          />
-        </template>
-      </SidebarContext>
-    </template>
-  </Viewer>
+  <div class="viewer-loader-wrapper">
+    <Viewer
+      :id="id"
+      :key="id"
+      ref="viewerRef"
+      :revision="revisionNum"
+      :current-set="set"
+      :read-only-mode="!!jobs.getDatasetRunningState(id)"
+      :comparison-sets="comparisonSets"
+      @large-image-warning="largeImageWarning()"
+      @update:set="routeSet"
+      @change-camera="changeCamera"
+      @stereo-annotation-complete="handleStereoAnnotationComplete"
+      @stereo-track-linked="handleStereoTrackLinked"
+    >
+      <template #title>
+        <ViewerAlert />
+        <NavigationTitle :name="brandData.name" />
+        <v-tabs
+          icons-and-text
+          hide-slider
+          class="mx-2"
+          style="flex-basis:0; flex-grow:0;"
+        >
+          <v-tab :to="locationRoute">
+            Data
+            <v-icon>mdi-database</v-icon>
+          </v-tab>
+          <JobsTab />
+        </v-tabs>
+      </template>
+      <template #title-right>
+        <RunPipelineMenu
+          v-if="pipelinesEnabled"
+          v-bind="{
+            buttonOptions,
+            menuOptions,
+            typeList,
+            subTypeList,
+            cameraNumbers,
+          }"
+          :selected-dataset-ids="[modifiedId]"
+          :running-pipelines="runningPipelines"
+          :read-only-mode="revisionNum !== undefined"
+          :time-filter="timeFilter"
+          :exclude-pipeline-terms="webExcludedPipelineTerms"
+        />
+        <ImportAnnotations
+          :button-options="buttonOptions"
+          :menu-options="menuOptions"
+          :read-only-mode="!!jobs.getDatasetRunningState(id) || revisionNum !== undefined"
+          :dataset-id="modifiedId"
+          :sub-type="subTypeList[0]"
+          :calibration-file="calibrationFile"
+          block-on-unsaved
+          @calibration-imported="onCalibrationImported"
+        />
+        <Export
+          v-bind="{ buttonOptions, menuOptions }"
+          :dataset-ids="[id]"
+          block-on-unsaved
+        />
+        <Clone
+          v-if="datasetMeta"
+          v-bind="{ buttonOptions, menuOptions }"
+          :dataset-id="id"
+          :revision="revisionNum"
+        />
+      </template>
+      <template #extension-right>
+        <CalibrationMenu
+          v-if="subTypeList[0] === 'stereo'"
+          :dataset-id="id"
+          :calibration-file="calibrationFile"
+          @calibration-deleted="onCalibrationDeleted"
+        />
+      </template>
+      <template #right-sidebar="{ sidebarMode }">
+        <SidebarContext :sidebar-mode="sidebarMode">
+          <template #default="{ name, subCategory }">
+            <component
+              :is="name"
+              :sub-category="subCategory"
+              @update:revision="routeRevision"
+            />
+          </template>
+        </SidebarContext>
+      </template>
+    </Viewer>
+    <v-dialog
+      :value="!!stereoBusyMessage || !!stereoError"
+      persistent
+      max-width="560"
+    >
+      <v-card>
+        <v-card-title>{{ stereoError ? 'Stereo Transfer Error' : 'Interactive Stereo' }}</v-card-title>
+        <v-card-text>
+          <div
+            v-if="!stereoError"
+            class="d-flex align-center"
+          >
+            <v-progress-circular
+              indeterminate
+              color="primary"
+              class="mr-3"
+            />
+            {{ stereoBusyMessage }}
+          </div>
+          <v-alert
+            v-else
+            type="warning"
+            dense
+            class="stereo-loading-error"
+          >
+            {{ stereoError }}
+          </v-alert>
+        </v-card-text>
+        <v-card-actions v-if="stereoError">
+          <v-spacer />
+          <v-btn
+            text
+            @click="closeStereoError"
+          >
+            Close
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
+    <v-snackbar
+      v-model="stereoLengthSnackbar"
+      :timeout="4000"
+      bottom
+      right
+    >
+      {{ stereoLengthMessage }}
+    </v-snackbar>
+  </div>
 </template>
+
+<style scoped>
+.viewer-loader-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+}
+
+.stereo-loading-error {
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 320px;
+  overflow-y: auto;
+}
+</style>
