@@ -28,7 +28,10 @@ import {
   pipelineCreatesNewDataset,
 } from 'dive-common/pipelineCreatesDataset';
 import * as common from './common';
-import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
+import {
+  jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory,
+  buildTrainingExitManifest,
+} from './utils';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
@@ -827,9 +830,21 @@ async function train(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.on('exit', async (code) => {
+    const manifestPath = npath.join(jobWorkDir, DiveJobManifestName);
+    // Cancel updates the manifest before killing the child; read that first so
+    // we do not clobber cancelledJob with a null/signal exit code.
+    let existingManifest: DesktopJob | undefined;
+    try {
+      if (await fs.pathExists(manifestPath)) {
+        existingManifest = await fs.readJson(manifestPath) as DesktopJob;
+      }
+    } catch {
+      // fall through and record process exit status
+    }
+
     let exitCode = code;
     const bodyText = [''];
-    if (code === 0) {
+    if (!existingManifest?.cancelledJob && code === 0) {
       try {
         await common.processTrainedPipeline(settings, runTrainingArgs, jobWorkDir);
       } catch (err) {
@@ -842,16 +857,12 @@ async function train(
       }
     }
     const endTime = new Date();
+    const finalJob = buildTrainingExitManifest(jobBase, exitCode, endTime, existingManifest);
     // Record the final status so interrupted runs can be detected as resumable
-    fs.writeFile(
-      npath.join(jobWorkDir, DiveJobManifestName),
-      JSON.stringify({ ...jobBase, exitCode, endTime }, null, 2),
-    );
+    fs.writeFile(manifestPath, JSON.stringify(finalJob, null, 2));
     updater({
-      ...jobBase,
+      ...finalJob,
       body: bodyText,
-      exitCode,
-      endTime,
     });
   });
   return jobBase;

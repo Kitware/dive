@@ -12,7 +12,7 @@ import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/di
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import * as common from './common';
-import { createWorkingDirectory } from './utils';
+import { createWorkingDirectory, buildTrainingExitManifest } from './utils';
 
 vi.mock('fs-extra', async () => {
   const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
@@ -1476,6 +1476,47 @@ describe('resumable training jobs', () => {
     expect(fs.existsSync(dir)).toBe(false);
     await expect(common.discardResumableTraining(settings, '/home/user/viamedata/DIVE_Projects'))
       .rejects.toThrow('not a job working directory');
+  });
+});
+
+describe('buildTrainingExitManifest', () => {
+  const jobBase: DesktopJob = {
+    key: 'key',
+    command: 'viame train',
+    jobType: 'training',
+    title: 'fish detector',
+    args: {
+      type: JobType.RunTraining,
+      datasetIds: ['datasetId'],
+      pipelineName: 'fish detector',
+      trainingConfig: 'train.conf',
+      annotatedFramesOnly: false,
+    },
+    datasetIds: ['datasetId'],
+    pid: 1234,
+    workingDir: '/jobs/run',
+    exitCode: null,
+    startTime: new Date('2026-01-01T00:00:00Z'),
+  };
+  const endTime = new Date('2026-01-01T02:00:00Z');
+
+  it('preserves cancel status over a null/signal process exit code', () => {
+    const cancelTime = new Date('2026-01-01T01:30:00Z');
+    const result = buildTrainingExitManifest(jobBase, null, endTime, {
+      cancelledJob: true,
+      exitCode: -1,
+      endTime: cancelTime,
+    });
+    expect(result.cancelledJob).toBe(true);
+    expect(result.exitCode).toBe(-1);
+    expect(result.endTime).toEqual(cancelTime);
+  });
+
+  it('records the process exit code when the job was not cancelled', () => {
+    const result = buildTrainingExitManifest(jobBase, 1, endTime, { exitCode: null });
+    expect(result.cancelledJob).toBeUndefined();
+    expect(result.exitCode).toBe(1);
+    expect(result.endTime).toEqual(endTime);
   });
 });
 
