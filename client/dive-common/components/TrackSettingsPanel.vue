@@ -40,7 +40,6 @@ export default defineComponent({
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
       stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
-      stereoDisparity: 'Pixel disparity range searched when matching a point between the two cameras. Narrow it to the range your scene actually spans to avoid false matches.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -443,53 +442,6 @@ export default defineComponent({
                 </v-icon>
               </template>
               <span>{{ help.stereoAutoCompute }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-        <v-row
-          v-if="!isDesktopRuntime"
-          align="center"
-          dense
-        >
-          <v-col class="py-1">
-            <v-text-field
-              v-model.number="clientSettings.stereoSettings.minDisparity"
-              type="number"
-              dense
-              hide-details
-              label="Min disparity"
-              class="my-0 ml-1 pt-0"
-            />
-          </v-col>
-          <v-col class="py-1">
-            <v-text-field
-              v-model.number="clientSettings.stereoSettings.maxDisparity"
-              type="number"
-              dense
-              hide-details
-              label="Max disparity"
-              class="my-0 ml-1 pt-0"
-            />
-          </v-col>
-          <v-col
-            cols="2"
-            class="py-1"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.stereoDisparity }}</span>
             </v-tooltip>
           </v-col>
         </v-row>

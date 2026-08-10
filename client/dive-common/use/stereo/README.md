@@ -74,8 +74,12 @@ ONNX graph uses, since ONNX has no stable SVD operator.
    read from the session's file stash when one was just imported, and otherwise
    downloaded from the dataset's Girder folder, so it survives a page reload.
 4. Enable *Auto-compute location on other camera* and/or *Update lengths when
-   modified* under Track Settings → Stereo Settings. The disparity search range
-   is set there too (default 2–512 px).
+   modified* under Track Settings → Stereo Settings.
+5. The disparity search range defaults to `{ minDisparity: 2, maxDisparity: 300 }`,
+   matching `epipolar_min_disparity` / `epipolar_max_disparity` in VIAME's
+   `configs/pipelines/interactive_stereo_template.conf` (what the desktop
+   service loads). Tune per rig via `useStereoOnnxWeb({ range })`. Batch
+   measurement pipes ship other values (e.g. 7–724), so this is scene-dependent.
 
 ## Testing status
 

@@ -19,9 +19,15 @@ export type SearchRange =
   | { minDisparity: number; maxDisparity: number }
   | { minDepth: number; maxDepth: number };
 
+/**
+ * Acceptance defaults follow `plugins/onnx/run_epipolar_onnx.py`, the reference
+ * host for this same graph. The desktop interactive service instead gates on
+ * `template_matching_threshold = 0.5` with no uniqueness test; the lower
+ * threshold here is paired with the uniqueness ratio that runner applies.
+ */
 export interface WarpOptions {
   range: SearchRange;
-  /** Minimum NCC score to accept a match (model default region). Default 0.2. */
+  /** Minimum NCC score to accept a match. Default 0.2. */
   threshold?: number;
   /** Reject if secondScore/score exceeds this (0 disables). Default 0.85. */
   uniquenessRatio?: number;

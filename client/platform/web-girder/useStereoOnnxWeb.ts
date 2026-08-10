@@ -27,6 +27,11 @@ import type { StereoMeasurement } from 'dive-common/use/stereo/triangulate';
 import { getCalibrationFile, getLastCalibration } from './multicamFileRegistry';
 
 const DEFAULT_MODEL_URL = '/models/stereo_match.onnx';
+// Mirrors epipolar_min_disparity / epipolar_max_disparity in VIAME's
+// configs/pipelines/interactive_stereo_template.conf, which is what the desktop
+// interactive stereo service loads. Scene-dependent, and hidden config there
+// too; override per rig via the `range` option.
+const DEFAULT_RANGE: SearchRange = { minDisparity: 2, maxDisparity: 300 };
 
 export interface StereoOnnxWebOptions {
   /** Returns the mounted Viewer instance (exposes cameraStore, multiCamList,
@@ -160,16 +165,6 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return url ? urlToRgba(url) : null;
   }
 
-  function getRange(): SearchRange {
-    if (opts.range) return opts.range;
-    const { minDisparity, maxDisparity } = clientSettings.stereoSettings;
-    if (Number.isFinite(minDisparity) && Number.isFinite(maxDisparity)
-      && maxDisparity > minDisparity && minDisparity > 0) {
-      return { minDisparity, maxDisparity };
-    }
-    return { minDisparity: 2, maxDisparity: 512 };
-  }
-
   // The Viewer mounts after this composable runs, so build the transfer lazily
   // on the first event, once cameraStore is available.
   let transfer: ReturnType<typeof useStereoOnnxTransfer> | null = null;
@@ -185,7 +180,7 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
         getRig,
         getMatcher,
         getFrame,
-        getRange,
+        getRange: () => opts.range ?? DEFAULT_RANGE,
         autoCompute: () => clientSettings.stereoSettings.autoComputeOtherCamera,
         measureLengths: () => clientSettings.stereoSettings.updateLengthsOnModify,
         onChange: (cameraName) => opts.onChange?.(cameraName),

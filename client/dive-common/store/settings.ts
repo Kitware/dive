@@ -87,10 +87,6 @@ interface AnnotationSettings {
     // Warp an annotation drawn on one camera to the other camera when that
     // camera has no detection for it yet.
     autoComputeOtherCamera: boolean;
-    // Pixel disparity bounds for the client-side correspondence search. Scene
-    // dependent: too wide invites false matches, too narrow misses the target.
-    minDisparity: number;
-    maxDisparity: number;
     loading: boolean;
     loadingMessage: string;
   };
@@ -184,8 +180,6 @@ const defaultSettings: AnnotationSettings = {
     clearLengthOnCameraFileLoad: true,
     updateLengthsOnModify: true,
     autoComputeOtherCamera: false,
-    minDisparity: 2,
-    maxDisparity: 512,
     loading: false,
     loadingMessage: '',
   },
