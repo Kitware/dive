@@ -8,7 +8,51 @@ def test_response_shape():
     result = validate_files(['image_0001.jpg', 'tracks.csv'])
 
     assert set(result) == {"ok", "message", "type", "roles", "reasons"}
-    assert set(result["roles"]) == {"media", "annotations", "datasetConfig", "ignored"}
+    assert set(result["roles"]) == {
+        "media",
+        "annotations",
+        "datasetConfig",
+        "frameMetadata",
+        "ignored",
+    }
+
+
+def test_image_sequence_with_annotation_csv_and_frame_metadata_csv():
+    result = validate_files(['image_0001.jpg', 'tracks.csv', 'frame_metadata.csv'])
+
+    assert result['ok'] is True
+    assert result['type'] == constants.ImageSequenceType
+    assert 'tracks.csv' in result['roles']['annotations']
+    assert 'frame_metadata.csv' in result['roles']['frameMetadata']
+    # The annotation CSV is not misclassified as a sidecar, and the sidecar is not an annotation.
+    assert 'frame_metadata.csv' not in result['roles']['annotations']
+    assert 'tracks.csv' not in result['roles']['frameMetadata']
+    assert result['roles']['ignored'] == []
+
+
+def test_image_sequence_rejects_multiple_reserved_metadata_attachments():
+    result = validate_files(
+        [
+            'image_0001.jpg',
+            'frame_metadata.csv',
+            'frame_metadata.txt',
+            'frame-metadata.csv',
+            'frame-metadata.txt',
+        ]
+    )
+
+    assert result['ok'] is False
+    assert result['message'] == (
+        'More than one metadata file was selected. Choose one file and try again.'
+    )
+
+
+def test_image_sequence_classifies_reserved_json_only_as_metadata():
+    result = validate_files(['image_0001.jpg', 'frame_metadata.json'])
+
+    assert result['ok'] is True
+    assert result['roles']['frameMetadata'] == ['frame_metadata.json']
+    assert result['roles']['annotations'] == []
 
 
 def test_image_sequence_with_yaml_annotation():
@@ -63,14 +107,33 @@ def test_annotation_json_and_config_json_are_distinguished():
     assert 'config.json' not in result['roles']['annotations']
 
 
-def test_every_role_is_populated_for_a_full_selection():
-    result = validate_files(['image_0001.jpg', 'tracks.csv', 'meta.json'])
+def test_video_with_frame_metadata_csv_accepts_sidecar():
+    result = validate_files(['movie.mp4', 'frame_metadata.csv'])
 
     assert result['ok'] is True
+    assert result['type'] == constants.VideoType
+    assert result['roles']['frameMetadata'] == ['frame_metadata.csv']
+    assert 'frame_metadata.csv' not in result['roles']['ignored']
+
+
+def test_large_image_with_frame_metadata_csv_accepts_sidecar():
+    # The attachment is stored for every dataset type; read time decides what to do with it.
+    result = validate_files(['mosaic.tif', 'frame_metadata.csv'])
+
+    assert result['ok'] is True
+    assert result['type'] == constants.LargeImageType
+    assert result['roles']['frameMetadata'] == ['frame_metadata.csv']
+    assert result['roles']['ignored'] == []
+
+
+def test_every_role_is_populated_for_a_full_selection():
+    result = validate_files(['image_0001.jpg', 'tracks.csv', 'meta.json', 'frame_metadata.csv'])
+
     assert result['roles'] == {
         'media': ['image_0001.jpg'],
         'annotations': ['tracks.csv'],
         'datasetConfig': ['meta.json'],
+        'frameMetadata': ['frame_metadata.csv'],
         'ignored': [],
     }
     assert result['reasons'] == {}
@@ -112,7 +175,9 @@ def test_multiple_videos_with_config_json_is_rejected():
     result = validate_files(['a.mp4', 'b.mp4', 'config.json'])
 
     assert result['ok'] is False
-    assert result['message'] == "Annotation upload is not supported when multiple videos are uploaded"
+    assert (
+        result['message'] == "Annotation upload is not supported when multiple videos are uploaded"
+    )
 
 
 def test_multiple_videos_without_annotations_is_allowed():
@@ -160,12 +225,13 @@ def test_validate_files_nitf_remains_large_image():
 def test_ignored_is_the_exact_complement_of_the_accepted_roles():
     # The web client uploads the selection minus `ignored`, so a file that is neither given a
     # role nor listed as ignored would silently not upload. Pin the partition over a selection
-    # that reaches every branch: media, annotations, dataset config, and two side files.
+    # that reaches every branch: media, annotations, dataset config, sidecar, and two side files.
     files = [
         'image_0001.jpg',
         'image_0002.jpg',
         'tracks.csv',
         'config.json',
+        'frame_metadata.csv',
         'notes.md',
         'thumbnail.png.bak',
     ]

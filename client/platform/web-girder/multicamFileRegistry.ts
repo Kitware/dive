@@ -18,6 +18,7 @@ const annotationFilesByKey = new Map<string, File>();
 const calibrationFilesByKey = new Map<string, File>();
 const transformFilesByKey = new Map<string, File>();
 const metadataFilesByKey = new Map<string, File>();
+let metadataSelectionCounter = 0;
 
 function commonDirectoryRoot(paths: string[]): string {
   if (!paths.length) {
@@ -148,6 +149,8 @@ function isSameSelection(a: File, b: File): boolean {
  *
  * An explicit pick always wins over a folder file of the same name — the folder copy is
  * dropped, so the user uploads the file they chose and Girder never sees a duplicate name.
+ * The explicitly chosen metadata attachment is dropped from the package entirely: it is
+ * uploaded and declared separately once the camera dataset exists.
  *
  * A dropped folder copy that is not the picked file is a real file leaving the upload, so it
  * is returned in `replaced` rather than vanishing.
@@ -158,9 +161,12 @@ function isSameSelection(a: File, b: File): boolean {
 export function getCameraPackageFiles(
   folderFiles: File[],
   annotationKey?: string,
+  metadataKey?: string,
 ): CameraPackage {
   const annotationFile = annotationKey ? getAnnotationFile(annotationKey) : undefined;
-  const explicitFiles = annotationFile ? [annotationFile] : [];
+  const metadataFile = metadataKey ? getMetadataFile(metadataKey) : undefined;
+  const explicitFiles = [annotationFile, metadataFile]
+    .filter((file): file is File => file !== undefined);
   const explicitNames = new Set(explicitFiles.map((file) => file.name));
   const folderPackage = flattenUploadFiles(
     folderFiles.filter((file) => !explicitNames.has(file.name)),
@@ -221,25 +227,13 @@ export function getCalibrationFile(key: string): File | undefined {
   return [...calibrationFilesByKey.values()].find((file) => file.name === key);
 }
 
-/** Stash the chosen per-dataset metadata File for later upload lookup by path or name. */
+/** Stash a chosen metadata File under its opaque selection key. */
 export function stashMetadataFile(key: string, file: File): void {
-  calibrationLookupKeys(key).forEach((lookupKey) => {
-    metadataFilesByKey.set(lookupKey, file);
-  });
-  metadataFilesByKey.set(file.name, file);
+  metadataFilesByKey.set(key, file);
 }
 
 export function getMetadataFile(key: string): File | undefined {
-  if (!key) {
-    return undefined;
-  }
-  const lookupMatch = calibrationLookupKeys(key)
-    .map((lookupKey) => metadataFilesByKey.get(lookupKey))
-    .find((file) => file !== undefined);
-  if (lookupMatch) {
-    return lookupMatch;
-  }
-  return [...metadataFilesByKey.values()].find((file) => file.name === key);
+  return key ? metadataFilesByKey.get(key) : undefined;
 }
 
 export function clearMulticamFileRegistry(): void {
@@ -248,6 +242,7 @@ export function clearMulticamFileRegistry(): void {
   calibrationFilesByKey.clear();
   transformFilesByKey.clear();
   metadataFilesByKey.clear();
+  metadataSelectionCounter = 0;
 }
 
 export async function openFromDiskWithRegistry(
@@ -263,7 +258,10 @@ export async function openFromDiskWithRegistry(
     } else if (datasetType === 'transform') {
       stashTransformFile(ret.filePaths[0], ret.fileList[0]);
     } else if (datasetType === 'metadata') {
-      stashMetadataFile(ret.filePaths[0], ret.fileList[0]);
+      metadataSelectionCounter += 1;
+      const selectionId = `metadata-selection-${metadataSelectionCounter}`;
+      stashMetadataFile(selectionId, ret.fileList[0]);
+      return { ...ret, selectionId };
     } else {
       stashFileSelection(ret);
     }

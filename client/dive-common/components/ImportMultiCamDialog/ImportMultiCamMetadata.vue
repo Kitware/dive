@@ -1,6 +1,6 @@
 <!--
   Optional per-dataset metadata file picker (e.g. sea-lion flight log). Requires
-  `ctx`; uses metadataFile and open from ctx. Unlike calibration this is not gated
+  `ctx`; uses metadata and open from ctx. Unlike calibration this is not gated
   to stereo datasets.
 -->
 <script lang="ts">
@@ -14,12 +14,12 @@ export default defineComponent({
   },
   setup(props) {
     const {
-      metadataFile,
+      metadata,
       open,
       clearMetadataFile,
     } = props.ctx;
     return {
-      metadataFile,
+      metadata,
       open,
       clearMetadataFile,
     };
@@ -39,12 +39,12 @@ export default defineComponent({
       outlined
       dense
       hide-details
-      :value="metadataFile"
+      :value="metadata && metadata.name"
       hint="A .json, .txt, or .csv file passed to pipelines that request it."
       class="mr-3"
     />
     <v-btn
-      v-if="metadataFile"
+      v-if="metadata"
       icon
       class="mr-2"
       aria-label="Clear metadata file"
