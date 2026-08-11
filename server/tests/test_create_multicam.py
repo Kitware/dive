@@ -77,8 +77,10 @@ def test_create_multicam_links_children(_verify, valid_images_mock, folder_cls, 
 def test_create_multicam_accepts_mismatched_frame_counts(
     _verify, folder_cls, valid_images_mock, _aux, item_cls
 ):
-    """Cameras with differing frame counts are paired downstream by frame alignment,
-    so create_multicam must not reject them."""
+    """
+    Cameras with differing frame counts are paired downstream by frame alignment,
+    so create_multicam must not reject them.
+    """
     user = {'login': 'tester'}
     dataset_parent = _dataset_parent()
     left = _child_folder('left-id', 'left')
@@ -153,8 +155,10 @@ def test_create_multicam_accepts_video_fps_sentinel(_verify, folder_cls, _aux, i
 def test_create_multicam_accepts_image_sequence_fps_sentinel(
     _verify, valid_images_mock, folder_cls, _aux
 ):
-    """Image-sequence children resolve fps -1 → 1 in post-process; create_multicam
-    must accept request fps=-1 (auto) and take the children's rate."""
+    """
+    Image-sequence children resolve fps -1 → 1 in post-process; create_multicam
+    must accept request fps=-1 (auto) and take the children's rate.
+    """
     user = {'login': 'tester'}
     dataset_parent = _dataset_parent()
     left = _child_folder('left-id', 'left', fps=1.0, media_type='image-sequence')
@@ -297,6 +301,7 @@ def test_resolve_stereo_calibration_item_id_from_folder_root(item_cls):
         'name': 'Stereo',
         'type': constants.StereoPipelineMarker,
         'pipe': 'measurement_foo.pipe',
+        'metadata': {'requiresCalibration': True},
     }
     cal_item = {
         '_id': 'cal-id',
@@ -325,6 +330,7 @@ def test_resolve_stereo_calibration_item_id_legacy_multi_cam_id(item_cls):
         'name': 'Stereo',
         'type': constants.StereoPipelineMarker,
         'pipe': 'measurement_foo.pipe',
+        'metadata': {'requiresCalibration': True},
     }
     cal_item = {
         '_id': 'cal-id',

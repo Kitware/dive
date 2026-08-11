@@ -94,3 +94,55 @@ def test_extract_pipe_metadata_requires_calibration(tmp_path: Path):
     assert metadata['description'] == 'stereo measurement'
     assert metadata['inputType'] == 'TRACK'
     assert metadata['outputType'] == 'TRACK'
+    assert metadata.get('calibrationKeys') is None
+
+
+def test_extract_pipe_metadata_calibration_keys(tmp_path: Path):
+    pipe = tmp_path / 'measurement_disparity.pipe'
+    pipe.write_text(
+        '\n'.join(
+            [
+                '# Description: rectified disparity',
+                '# Requires Calibration: True',
+                '# Calibration Keys: depth_map:computer:ocv_stereo_disparity:calibration_file'
+                ' stereo_pairing:cameras_directory',
+            ]
+        )
+    )
+
+    metadata = extract_pipe_metadata(pipe)
+
+    assert metadata['calibrationKeys'] == [
+        'depth_map:computer:ocv_stereo_disparity:calibration_file',
+        'stereo_pairing:cameras_directory',
+    ]
+    # The header must not bleed into the multi-line description.
+    assert metadata['description'] == 'rectified disparity'
+
+
+def test_extract_pipe_metadata_parses_metadata_file_key(tmp_path: Path):
+    pipe = tmp_path / 'detector_stabilize.pipe'
+    pipe.write_text(
+        '\n'.join(
+            [
+                '# Description: stabilized detector',
+                '# Metadata File: stabilizer:flight_log',
+                '# Input: TRACK',
+            ]
+        )
+    )
+
+    metadata = extract_pipe_metadata(pipe)
+
+    # The opt-in header binds the dataset's selected metadata attachment to this KWIVER key.
+    assert metadata['metadataFileKey'] == 'stabilizer:flight_log'
+    assert metadata['description'] == 'stabilized detector'
+    assert metadata['inputType'] == 'TRACK'
+
+
+def test_extract_pipe_metadata_absent_metadata_file_key(tmp_path: Path):
+    pipe = tmp_path / 'detector_plain.pipe'
+    pipe.write_text('# Description: plain detector\n# Input: TRACK\n')
+
+    # A pipe that does not opt in leaves the key unset, so no file is injected.
+    assert 'metadataFileKey' not in extract_pipe_metadata(pipe)

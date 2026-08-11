@@ -26,10 +26,10 @@ function mountMediaController() {
   const Host = defineComponent({
     setup() {
       composable = useMediaController();
-      composable.initialize('A', {
+      composable.initialize('A', 'image-sequence', {
         seek: seekA, play: playA, pause: pauseA, setVolume: noop, setSpeed: noop,
       });
-      composable.initialize('B', {
+      composable.initialize('B', 'image-sequence', {
         seek: seekB, play: playB, pause: pauseB, setVolume: noop, setSpeed: noop,
       });
       return {};
@@ -98,6 +98,18 @@ function makeShiftedResolver(): AlignedFrameResolver {
 }
 
 describe('useMediaController', () => {
+  it('exposes each registered camera kind and the existing readiness ref', () => {
+    const { composable } = mountMediaController();
+    const controller = composable.aggregateController.value.getController('A');
+    const keyA = Object.keys(composable.state)
+      .find((key) => composable.state[key].cameraName === 'A');
+
+    expect(controller.mediaKind).toBe('image-sequence');
+    expect(controller.ready.value).toBe(false);
+    composable.state[keyA as string].ready = true;
+    expect(controller.ready.value).toBe(true);
+  });
+
   it('without a resolver, seek broadcasts the identical frame to every camera', () => {
     const { composable, mocks } = mountMediaController();
     composable.aggregateController.value.seek(5);
@@ -281,7 +293,7 @@ describe('useMediaController', () => {
     // the resolver) self-seeks to its own local frame 0 during init; the
     // roster watcher must re-seek it onto the current slot afterwards.
     const seekC = vi.fn();
-    composable.initialize('C', {
+    composable.initialize('C', 'image-sequence', {
       seek: seekC, play: noop, pause: noop, setVolume: noop, setSpeed: noop,
     });
     await wrapper.vm.$nextTick();

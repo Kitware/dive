@@ -214,7 +214,9 @@ test_tuple: List[Tuple[dict, list, list]] = [
                                     "properties": {"key": ""},
                                     "geometry": {
                                         "type": "Polygon",
-                                        "coordinates": [[[100, 100], [200, 100], [200, 200], [100, 200]]],
+                                        "coordinates": [
+                                            [[100, 100], [200, 100], [200, 200], [100, 200]]
+                                        ],
                                     },
                                 },
                                 {
@@ -222,7 +224,9 @@ test_tuple: List[Tuple[dict, list, list]] = [
                                     "properties": {"key": "1"},
                                     "geometry": {
                                         "type": "Polygon",
-                                        "coordinates": [[[300, 300], [400, 300], [400, 400], [300, 400]]],
+                                        "coordinates": [
+                                            [[300, 300], [400, 300], [400, 400], [300, 400]]
+                                        ],
                                     },
                                 },
                             ],
@@ -535,7 +539,7 @@ def test_dataset_info_absent_when_empty(datasetInfo):
 
 
 def test_dataset_info_restored_on_parse_roundtrip():
-    """datasetInfo exported on the # metadata line round-trips back as the 5th return value."""
+    """Exported datasetInfo on the # metadata line round-trips as the 5th return value."""
     datasetInfo = {"gfishsite_id": "2024TXN012", "cruise": 2403}
     tracks = test_tuple[0][0]
     csv_text = ''.join(
@@ -560,10 +564,34 @@ def test_fps_parsed_case_insensitively_from_metadata():
     csv_text = ''.join(viame.export_tracks_as_csv([], header=True, fps=23.976))
     assert '# metadata' in csv_text and 'fps: 23.976' in csv_text  # exported lowercase
     rows = csv_text.splitlines()
-    _annotations, _attributes, _warnings, fps, _info = viame.load_csv_as_tracks_and_attributes(
-        rows
-    )
+    _annotations, _attributes, _warnings, fps, _info = viame.load_csv_as_tracks_and_attributes(rows)
     assert float(fps) == 23.976
+
+
+def test_filename_like_attribute_values_stay_strings():
+    """Filename-like (atr) values must not be truncated or coerced to numbers.
+
+    Regression for parsers that used ``float()`` / ``parseFloat`` on attribute
+    values: leading digits of ``0123ABC456`` became ``123``, and underscore
+    digit separators (``20240624_120000``) were accepted by Python's ``float()``.
+    Real numbers and booleans still convert as before; inferred datatypes follow.
+    """
+    rows = [
+        "0,1.png,0,10,10,20,20,1,-1,seal,0.9,"
+        "(atr) source_image 0123ABC456,"
+        "(atr) other_file 20240624_120000_C0_0042.jpg,"
+        "(atr) score 12.5,(atr) flag true",
+    ]
+    annotations, attributes, _warnings, _fps, _info = viame.load_csv_as_tracks_and_attributes(rows)
+    attrs = annotations['tracks']['0']['features'][0]['attributes']
+    assert attrs['source_image'] == '0123ABC456'
+    assert attrs['other_file'] == '20240624_120000_C0_0042.jpg'
+    assert attrs['score'] == 12.5
+    assert attrs['flag'] is True
+    assert attributes['detection_source_image']['datatype'] == 'text'
+    assert attributes['detection_other_file']['datatype'] == 'text'
+    assert attributes['detection_score']['datatype'] == 'number'
+    assert attributes['detection_flag']['datatype'] == 'boolean'
 
 
 def test_notes_round_trip_through_csv_export():
@@ -595,9 +623,7 @@ def test_notes_round_trip_through_csv_export():
     assert '(note) occluded by kelp' in csv_text
 
     rows = csv_text.splitlines()
-    annotations, _attributes, _warnings, _fps, _info = viame.load_csv_as_tracks_and_attributes(
-        rows
-    )
+    annotations, _attributes, _warnings, _fps, _info = viame.load_csv_as_tracks_and_attributes(rows)
     assert annotations['tracks']['0']['features'][0]['notes'] == [
         "needs review",
         "occluded by kelp",

@@ -362,7 +362,13 @@ export default defineComponent({
       // (and excluded from counts elsewhere).
       const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       const suppressedIds = trackStore
-        ? getSuppressedTrackIds(trackStore, frame, suppressionType, suppressionThreshold)
+        ? getSuppressedTrackIds(
+          trackStore,
+          frame,
+          suppressionType,
+          suppressionThreshold,
+          { revision: pendingSaveCount.value },
+        )
         : new Set<AnnotationId>();
       currentFrameIds.forEach(
         (trackId: AnnotationId) => {
@@ -482,8 +488,10 @@ export default defineComponent({
       } else {
         // Keep the hidden boxes around as invisible right-click targets so a
         // detection can still be right-clicked into edit mode no matter which
-        // of its displays are turned on
+        // of its displays are turned on. Keep drawingOther in sync with polygon
+        // visibility so nested click targeting still prefers polygon shapes.
         rectAnnotationLayer.setClickTargetsOnly(true);
+        rectAnnotationLayer.setDrawingOther(visibleModes.includes('Polygon'));
         rectAnnotationLayer.changeData(frameData, comparison.value);
       }
       if (visibleModes.includes('Polygon')) {

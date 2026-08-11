@@ -24,7 +24,7 @@ const headers = [
     text: 'Dataset Type',
     align: 'start',
     sortable: false,
-    value: 'jsonMeta.type',
+    value: 'jsonConfig.type',
     width: '150',
   },
   {
@@ -50,7 +50,7 @@ export default defineComponent({
     // Map imports to include generated "id" field, used in rendering.
     const imports = ref(props.importData.map((im) => {
       const cloned = cloneDeep(im);
-      cloned.jsonMeta.id = (Math.random() + 1).toString(36).substring(2);
+      cloned.jsonConfig.id = (Math.random() + 1).toString(36).substring(2);
 
       return cloned;
     }));
@@ -67,7 +67,7 @@ export default defineComponent({
 
     function stripId(item: DesktopMediaImportResponse) {
       const cloned = cloneDeep(item);
-      cloned.jsonMeta.id = '';
+      cloned.jsonConfig.id = '';
       return item;
     }
 
@@ -89,10 +89,10 @@ export default defineComponent({
     }
 
     function formatPath(item: DesktopMediaImportResponse) {
-      let path = item.jsonMeta.originalBasePath;
+      let path = item.jsonConfig.originalBasePath;
 
-      if (item.jsonMeta.originalVideoFile !== '') {
-        path = `${path}/${item.jsonMeta.originalVideoFile}`;
+      if (item.jsonConfig.originalVideoFile !== '') {
+        path = `${path}/${item.jsonConfig.originalVideoFile}`;
       }
 
       return path;
@@ -131,7 +131,7 @@ export default defineComponent({
     <v-data-table
       :value="selectedImports"
       :items="imports"
-      item-key="jsonMeta.id"
+      item-key="jsonConfig.id"
       :headers="headers"
       show-select
       disable-sort
@@ -139,7 +139,7 @@ export default defineComponent({
     >
       <template #item.name="{ item }">
         <div class="text-wrap" style="word-break: break-word;">
-          {{ item.jsonMeta.name }}
+          {{ item.jsonConfig.name }}
         </div>
       </template>
 

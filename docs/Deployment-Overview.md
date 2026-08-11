@@ -80,6 +80,8 @@ AWS S3 | Use as backing storage, import existing data
 MinIO | Use as backing storage, import existing data
 Azure Blob Storage | Limited import support using [MinIO Azure Gateway](https://docs.min.io/docs/minio-gateway-for-azure.html)
 
+See [Cloud Storage Integration](Deployment-Storage.md) for credentials and mirroring setup, and [AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md) for how to organize videos, image sequences, annotations, and metadata in the bucket.
+
 
 
 ## Get Help

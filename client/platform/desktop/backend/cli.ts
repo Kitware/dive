@@ -17,7 +17,7 @@ import fs from 'fs-extra';
 import Track from 'vue-media-annotator/track';
 
 import { DesktopJobUpdate, RunPipeline, RunTraining } from 'platform/desktop/constants';
-import { loadAnnotationFile, loadJsonMetadata } from 'platform/desktop/backend/native/common';
+import { loadAnnotationFile, loadJsonConfig } from 'platform/desktop/backend/native/common';
 import { RectBounds } from 'vue-media-annotator/utils';
 import linux from './native/linux';
 import win32 from './native/windows';
@@ -57,7 +57,7 @@ async function parseViameFile(file: string) {
 async function parseJsonFile(filepath: string, metapath: string) {
   await Promise.all([
     loadAnnotationFile(filepath),
-    loadJsonMetadata(metapath),
+    loadJsonConfig(metapath),
   ]).then(([input, meta]) => serialize(echoStream(), input, meta));
 }
 
@@ -67,7 +67,7 @@ async function parseNistFile(filepath: string, bounds: RectBounds) {
 }
 
 async function convertJSONtoNist(filepath: string, meta: string) {
-  const metaData = await loadJsonMetadata(meta);
+  const metaData = await loadJsonConfig(meta);
   const data = await loadAnnotationFile(filepath);
 
   const videoFile = metaData.originalVideoFile;
@@ -277,7 +277,7 @@ if (argv._.includes('viame2json')) {
     await Promise.all(dsids.map(async (id) => {
       try {
         const proj = await common.getValidatedProjectDir(settings, id);
-        const meta = await common.loadJsonMetadata(proj.metaFileAbsPath);
+        const meta = await common.loadJsonConfig(proj.datasetFileAbsPath);
         const tracks = await common.loadAnnotationFile(proj.trackFileAbsPath);
         const tracklist = Object.values(tracks);
         const hydrated = tracklist.map((t) => Track.fromJSON(t));

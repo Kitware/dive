@@ -111,6 +111,36 @@ export default abstract class BaseLayer<D> {
     }
   }
 
+  /**
+   * geoJS features can outlive their map/renderer briefly during teardown.
+   * Detect that state so redraw callers can no-op instead of throwing.
+   */
+  protected hasRenderableFeatureLayer(): boolean {
+    if (!this.annotator.geoViewerRef?.value || !this.featureLayer) {
+      return false;
+    }
+    try {
+      const parentLayer = this.featureLayer.layer?.();
+      if (!parentLayer) {
+        return false;
+      }
+      const map = parentLayer.map?.();
+      if (!map) {
+        return false;
+      }
+      const renderer = parentLayer.renderer?.();
+      if (!renderer) {
+        return false;
+      }
+      if (typeof renderer.api === 'function' && !renderer.api()) {
+        return false;
+      }
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
     abstract redraw(): void;
 
     /**
@@ -141,16 +171,16 @@ export default abstract class BaseLayer<D> {
 
     changeData(frameData: FrameDataTrack[], comparisons: string[] = []) {
       this.formattedData = this.formatData(frameData, comparisons);
-      if (!this.annotator.geoViewerRef?.value || !this.featureLayer) {
+      if (!this.hasRenderableFeatureLayer()) {
         return;
       }
-      // After WebGL context loss (browser "Too many active WebGL contexts"),
-      // geoJS renderers keep a null gl handle and .draw() throws on `.api`.
+      // Guard above handles normal teardown; this catches races between the
+      // guard and draw on the same tick.
       try {
         this.redraw();
       } catch (err) {
         // eslint-disable-next-line no-console
-        console.warn('Annotation layer redraw skipped after map/renderer teardown', err);
+        console.warn('Annotation layer redraw skipped after map/renderer teardown');
       }
     }
 

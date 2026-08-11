@@ -4,7 +4,7 @@ import parseSync from 'csv-parse/lib/sync';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { Readable } from 'stream';
-import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
+import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
@@ -179,7 +179,7 @@ const meta = {
   },
   multiCam: null,
   subType: null,
-} as JsonMeta;
+} as JsonConfig;
 const testFiles: Record<string, string> = { };
 testData.forEach((item, index) => {
   // eslint-disable-next-line prefer-destructuring
@@ -246,6 +246,29 @@ describe('VIAME Python Compatibility Check', () => {
       const attData = processTrackAttributes(Object.values(results[0].tracks));
       expect(testAttributes).toEqual(attData.attributes);
     }
+  });
+});
+
+describe('Attribute value parsing', () => {
+  it('keeps filename-like attribute values as full strings', async () => {
+    const csv = [
+      '0,1.png,0,10,10,20,20,1,-1,seal,0.9,'
+      + '(atr) source_image 0123ABC456,'
+      + '(atr) other_file 20240624_120000_C0_0042.jpg,'
+      + '(atr) score 12.5,(atr) flag true',
+    ].join('\n');
+    const results = await parse(Readable.from([csv]));
+    const track = Object.values(results[0].tracks)[0];
+    const attrs = track.features[0].attributes || {};
+    expect(attrs.source_image).toBe('0123ABC456');
+    expect(attrs.other_file).toBe('20240624_120000_C0_0042.jpg');
+    expect(attrs.score).toBe(12.5);
+    expect(attrs.flag).toBe(true);
+    const attData = processTrackAttributes(Object.values(results[0].tracks));
+    expect(attData.attributes.detection_source_image.datatype).toBe('text');
+    expect(attData.attributes.detection_other_file.datatype).toBe('text');
+    expect(attData.attributes.detection_score.datatype).toBe('number');
+    expect(attData.attributes.detection_flag.datatype).toBe('boolean');
   });
 });
 
@@ -324,7 +347,7 @@ describe('VIAME datasetInfo passthrough', () => {
   it('writes a populated datasetInfo as one nested JSON entry on the # metadata line', async () => {
     const path = '/home/test.json';
     const stream = fs.createWriteStream(path);
-    await serialize(stream, data, { ...meta, datasetInfo } as JsonMeta, new Set<string>(), {
+    await serialize(stream, data, { ...meta, datasetInfo } as JsonConfig, new Set<string>(), {
       excludeBelowThreshold: false,
       header: true,
     });
@@ -340,7 +363,7 @@ describe('VIAME datasetInfo passthrough', () => {
   it('omits the datasetInfo entry entirely when datasetInfo is empty', async () => {
     const path = '/home/test.json';
     const stream = fs.createWriteStream(path);
-    await serialize(stream, data, { ...meta, datasetInfo: {} } as JsonMeta, new Set<string>(), {
+    await serialize(stream, data, { ...meta, datasetInfo: {} } as JsonConfig, new Set<string>(), {
       excludeBelowThreshold: false,
       header: true,
     });
@@ -353,7 +376,7 @@ describe('VIAME datasetInfo passthrough', () => {
   it('restores datasetInfo from the # metadata line on parse', async () => {
     const path = '/home/test.json';
     const stream = fs.createWriteStream(path);
-    await serialize(stream, data, { ...meta, datasetInfo } as JsonMeta, new Set<string>(), {
+    await serialize(stream, data, { ...meta, datasetInfo } as JsonConfig, new Set<string>(), {
       excludeBelowThreshold: false,
       header: true,
     });

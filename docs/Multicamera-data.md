@@ -35,7 +35,7 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
     * ==:material-folder-multiple-image: MultiCam Batch== — import many multicam datasets at once from a folder of **collect** subfolders (image sequences only). See [Batch multicam import](#batch-multicam-import).
 6. In the import dialog, assign a source folder or video file to each camera. All cameras must use the same media type (all image sequences or all videos). By default, every camera must have the same number of frames (or matching video duration). For **image-sequence** imports with capture timestamps in filenames, enable **Infer frame index from filename** to allow unequal per-camera counts — see [Infer frame index from filename](#infer-frame-index-from-filename).
 7. Optionally attach a per-camera annotation file during import.
-8. Optionally attach a **Metadata File** (`.json`, `.txt`, or `.csv`) — for example a flight log used by registration pipelines. This is **not** stereo-only and is independent of the calibration file. See [Pipe file headers](Pipeline-Import-Export.md#pipe-file-headers).
+8. Optionally attach a **Metadata File** (`.json`, `.txt`, or `.csv`) — for example a flight log used by registration pipelines. This is **not** stereo-only and is independent of the calibration file; matching CSV/TXT rows are also shown as [Frame Metadata](Frame-Metadata.md) for image-sequence and video cameras. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
 9. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
 10. When upload finishes, DIVE opens the new multicam dataset in the annotator.
 
@@ -209,7 +209,7 @@ On web, a full dataset export zip (from **Download → Everything**) can be re-i
 
 On web, use the data browser **Download** menu on a multicam parent dataset:
 
-- **VIAME CSV**, **DIVE TrackJSON**, and **COCO JSON** each download a zip with that format for every camera (plus `multiCam.json` at the dataset root).
+- **VIAME CSV**, **DIVE JSON**, and **COCO JSON** each download a zip with that format for every camera (plus `multiCam.json` at the dataset root).
 - **Everything** downloads all camera media, all camera annotations, calibration (stereo), and metadata in one zip.
 
 Per-camera export from the viewer still exports only the active camera.

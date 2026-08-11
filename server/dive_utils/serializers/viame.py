@@ -85,6 +85,16 @@ def _resolve_detection_length(
     return {**(attributes or {}), 'length': resolved}, resolved
 
 
+# A fully numeric string. float() alone is too permissive for attribute
+# values: it accepts underscore digit separators ('20240624_120000') and
+# inf/nan spellings, which corrupts filename-like values.
+NUMERIC_VALUE_REGEX = re.compile(r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?')
+
+
+def _is_numeric_string(value: Any) -> bool:
+    return bool(NUMERIC_VALUE_REGEX.fullmatch(str(value).strip()))
+
+
 def _deduceType(value: Any) -> Union[bool, float, str, None]:
     if isinstance(value, dict) or isinstance(value, list):
         return None
@@ -95,11 +105,11 @@ def _deduceType(value: Any) -> Union[bool, float, str, None]:
         return True
     if value == "false":
         return False
-    try:
-        number = float(value)
-        return number
-    except ValueError:
-        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if _is_numeric_string(value):
+        return float(value)
+    return value
 
 
 def get_next_polygon_key(features: Dict[str, Any]) -> str:
@@ -108,13 +118,14 @@ def get_next_polygon_key(features: Dict[str, Any]) -> str:
         return ''
     # Count existing polygons to determine the next key
     polygon_count = sum(
-        1 for f in features["geometry"]["features"]
-        if f["geometry"]["type"] == "Polygon"
+        1 for f in features["geometry"]["features"] if f["geometry"]["type"] == "Polygon"
     )
     return str(polygon_count) if polygon_count > 0 else ''
 
 
-def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any], key='', auto_key=False):
+def create_geoJSONFeature(
+    features: Dict[str, Any], type: str, coords: List[Any], key='', auto_key=False
+):
     feature = {}
     if "geometry" not in features:
         features["geometry"] = {"type": "FeatureCollection", "features": []}
@@ -153,10 +164,7 @@ def add_hole_to_polygon(features: Dict[str, Any], coords: List[Any], key=''):
     if "geometry" not in features or not features["geometry"]["features"]:
         return
     for subfeature in features["geometry"]["features"]:
-        if (
-            subfeature["geometry"]["type"] == 'Polygon'
-            and subfeature["properties"]["key"] == key
-        ):
+        if subfeature["geometry"]["type"] == 'Polygon' and subfeature["properties"]["key"] == key:
             # Add hole as additional ring to the polygon coordinates
             subfeature["geometry"]["coordinates"].append(coords)
             break
@@ -206,10 +214,7 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
 
         # (poly) x1 y1 x2 y2 ... - polygon (multiple allowed, auto-keyed internally)
         # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
-        poly_regex = re.match(
-            r"^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)",
-            row[j]
-        )
+        poly_regex = re.match(r"^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
         if poly_regex:
             temp = [float(x) for x in poly_regex.group(1).split()]
             coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
@@ -217,16 +222,17 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
             create_geoJSONFeature(features, 'Polygon', coords, auto_key=True)
 
         # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
-        hole_regex = re.match(
-            r"^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)",
-            row[j]
-        )
+        hole_regex = re.match(r"^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
         if hole_regex:
             temp = [float(x) for x in hole_regex.group(1).split()]
             coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
             # Add hole to the most recent polygon (last one added)
             if "geometry" in features and features["geometry"]["features"]:
-                polygons = [f for f in features["geometry"]["features"] if f["geometry"]["type"] == "Polygon"]
+                polygons = [
+                    f
+                    for f in features["geometry"]["features"]
+                    if f["geometry"]["type"] == "Polygon"
+                ]
                 if polygons:
                     last_poly_key = polygons[-1]["properties"]["key"]
                     add_hole_to_polygon(features, coords, last_poly_key)
@@ -313,11 +319,8 @@ def calculate_attribute_types(
                 if val <= low_count:
                     low_count = val
                 values.append(key)
-                if attribute_type == 'number':
-                    try:
-                        float(key)
-                    except ValueError:
-                        attribute_type = 'boolean'
+                if attribute_type == 'number' and not _is_numeric_string(key):
+                    attribute_type = 'boolean'
                 if attribute_type == 'boolean' and key != 'True' and key != 'False':
                     attribute_type = 'text'
             # If all text values are used 3 or more times they are defined values
@@ -385,7 +388,9 @@ def parse_metadata_row(row: List[str]) -> Dict[str, Any]:
 def load_csv_as_tracks_and_attributes(
     rows: List[str],
     imageMap: Optional[Dict[str, int]] = None,
-) -> Tuple[types.DIVEAnnotationSchema, types.Attributes, types.Warnings, Optional[str], types.DatasetInfo]:
+) -> Tuple[
+    types.DIVEAnnotationSchema, types.Attributes, types.Warnings, Optional[str], types.DatasetInfo
+]:
     """
     Convert VIAME CSV to json tracks
 
@@ -650,11 +655,7 @@ def export_tracks_as_csv(
                                 attr_length = candidate
                         except (TypeError, ValueError):
                             attr_length = None
-                    resolved_length = (
-                        attr_length
-                        if attr_length is not None
-                        else feature.fishLength
-                    )
+                    resolved_length = attr_length if attr_length is not None else feature.fishLength
                     export_length = (
                         resolved_length
                         if resolved_length is not None and resolved_length == resolved_length
@@ -704,7 +705,8 @@ def export_tracks_as_csv(
                                         for item in sublist  # type: ignore
                                     ]
                                     columns.append(
-                                        f"(poly) {' '.join(map(lambda x: str(round(x)), outer_coords))}"
+                                        "(poly) "
+                                        + ' '.join(map(lambda x: str(round(x)), outer_coords))
                                     )
 
                                     # Write holes (additional rings)
@@ -715,7 +717,8 @@ def export_tracks_as_csv(
                                             for item in sublist  # type: ignore
                                         ]
                                         columns.append(
-                                            f"(hole) {' '.join(map(lambda x: str(round(x)), hole_coords))}"
+                                            "(hole) "
+                                            + ' '.join(map(lambda x: str(round(x)), hole_coords))
                                         )
                             if 'Point' == geoJSONFeature.geometry.type:
                                 coordinates = geoJSONFeature.geometry.coordinates  # type: ignore

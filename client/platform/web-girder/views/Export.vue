@@ -14,7 +14,7 @@ import {
   DatasetSourceMedia, getDataset, getDatasetMedia, getUri,
   hasCalibrationFile, downloadCalibration,
 } from 'platform/web-girder/api';
-import { GirderMetadataStatic } from 'platform/web-girder/constants';
+import { GirderConfigStatic } from 'platform/web-girder/constants';
 import {
   ImageSequenceType, LargeImageType, MultiType, VideoType,
 } from 'dive-common/constants';
@@ -98,10 +98,10 @@ export default defineComponent({
     const cameraFileSupported = ref(false);
 
     const singleDataSetId: Ref<string|null> = ref(null);
-    const dataset = shallowRef(null as GirderMetadataStatic | null);
+    const dataset = shallowRef(null as GirderConfigStatic | null);
     const datasetMedia = shallowRef(null as DatasetSourceMedia | null);
     const { request, error } = useRequest();
-    const loadDatasetMeta = () => request(async () => {
+    const loadDatasetConfig = () => request(async () => {
       if (props.datasetIds.length > 1) {
         singleDataSetId.value = null;
         dataset.value = null;
@@ -119,7 +119,7 @@ export default defineComponent({
         cameraFileSupported.value = false;
       }
     });
-    watch([toRef(props, 'datasetIds'), menuOpen], loadDatasetMeta);
+    watch([toRef(props, 'datasetIds'), menuOpen], loadDatasetConfig);
 
     const exportUrls = computed(() => {
       const params = {
@@ -463,12 +463,12 @@ export default defineComponent({
                   :disabled="!exportUrls.exportDetectionsUrl"
                   @click="doExport({
                     url: exportUrls
-                      && exportUrls.exportDetectionsUrlTrackJSON,
+                      && exportUrls.exportDetectionsUrlCocoJSON,
                   })"
                 >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
-                  >DIVE TrackJSON</span>
+                  >COCO JSON</span>
                   <span
                     v-else
                   >detections unavailable</span>
@@ -480,12 +480,12 @@ export default defineComponent({
                   :disabled="!exportUrls.exportDetectionsUrl"
                   @click="doExport({
                     url: exportUrls
-                      && exportUrls.exportDetectionsUrlCocoJSON,
+                      && exportUrls.exportDetectionsUrlTrackJSON,
                   })"
                 >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
-                  >COCO JSON</span>
+                  >DIVE JSON</span>
                   <span
                     v-else
                   >detections unavailable</span>
@@ -591,7 +591,7 @@ export default defineComponent({
             </v-btn>
           </v-card-actions>
           <v-card-text class="pb-0">
-            Export All selected Dataset Detections in VIAME CSV and TrackJSON
+            Export All selected Dataset Detections in VIAME CSV and DIVE JSON
           </v-card-text>
           <v-checkbox
             v-model="excludeBelowThreshold"

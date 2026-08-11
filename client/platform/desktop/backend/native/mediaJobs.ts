@@ -7,7 +7,7 @@ import {
   ConversionArgs,
   DesktopJobUpdater,
   FFProbeFrameResults,
-  JsonMeta,
+  JsonConfig,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
@@ -193,8 +193,8 @@ async function convertMedia(
   settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
-  onComplete?: (jobKey: string, meta: JsonMeta) => void,
-  onFail?: (jobKey: string, meta: JsonMeta, errorMessage: string) => void,
+  onComplete?: (jobKey: string, meta: JsonConfig) => void,
+  onFail?: (jobKey: string, meta: JsonConfig, errorMessage: string) => void,
   setTranscodingKey = false,
   mediaIndex = 0,
   key = '',

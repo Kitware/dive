@@ -2,8 +2,8 @@ import signal
 import time
 from unittest.mock import MagicMock
 
-import pytest
 from girder_worker.utils import JobStatus
+import pytest
 
 from dive_tasks import utils
 from dive_tasks.utils import CanceledError, describe_exit, stream_subprocess

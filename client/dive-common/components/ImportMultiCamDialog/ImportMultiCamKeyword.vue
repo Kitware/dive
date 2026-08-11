@@ -84,7 +84,7 @@ export default defineComponent({
           class="ml-3"
         >
           "{{ globList[key].glob }}" matches {{ filteredImages[key].length }}
-          out of {{ pendingImportPayloads.keyword.jsonMeta.originalImageFiles.length }} images
+          out of {{ pendingImportPayloads.keyword.jsonConfig.originalImageFiles.length }} images
         </v-chip>
       </v-row>
       <ImportMultiCamChooseAnnotation

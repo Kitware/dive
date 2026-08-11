@@ -72,7 +72,8 @@ Example:
 | `# Description:` | Human-readable summary shown in the Run Pipeline UI. May continue on following `#` comment lines until the next named header. |
 | `# Input:` / `# Output:` | Declared media/annotation kinds for the pipe (used when discovering and categorizing static pipelines). |
 | `# Requires Calibration: True` | Restricts the pipe to stereo datasets that have a calibration file attached. Values `true`, `yes`, and `1` are accepted. |
-| `# Metadata File: <block>:<key>` | Opt-in: when the dataset has an attached **Metadata File**, DIVE appends a KWIVER override `-s <block>:<key>=<path>` at run time. Without this header, no metadata file is injected. |
+| `# Calibration Keys: <k> [k…]` | Opt-in: binds the dataset's stereo calibration file to each listed KWIVER config key at run time (one `-s <k>=<cal-path>` per key). Keys may be space- or comma-separated. Use this when the pipe's calibration consumer is not the conventional `measurer:calibration_file` / `calibration_reader:file` pair (those are used when the header is unset). Needed because `$CONFIG{global:…}` indirection cannot receive `-s` overrides (macros expand at parse time; `-s` blocks are appended last). |
+| `# Metadata File: <block>:<key>` | Opt-in: when the dataset has an attached **Metadata File**, DIVE appends a KWIVER override `-s <block>:<key>=<path>` at run time. The same CSV/TXT attachment is also considered for [Frame Metadata](Frame-Metadata.md). Without this header, no metadata file is injected. |
 | `# Image List Keys: <k> [k…]` | Opt-in: binds the run's per-camera input image list(s) to each listed KWIVER key. Keys may be space- or comma-separated. A key containing `{cam}` is expanded once per camera (1-based), e.g. `stabilizer:image_list{cam}` → `image_list1`, `image_list2`, …. A key without `{cam}` receives camera 1's list only. |
 
 ### Metadata File vs Configuration File
@@ -81,10 +82,22 @@ These are different files with different jobs:
 
 | Import field | What it is | Consumed by |
 | ------------ | ---------- | ----------- |
-| **Configuration File** | DIVE JSON (`meta` / attributes, styles, FPS, …) | DIVE itself |
-| **Metadata File** | Opaque sidecar (`.json`, `.txt`, or `.csv`), e.g. a UAV flight log | Only pipelines that declare `# Metadata File:` |
+| **Configuration File** (`config`) | DIVE JSON (`config.json`, or legacy `meta.json` / `*.meta.json` / `*.config.json`: attributes, styles, FPS, …) | DIVE itself |
+| **Metadata File** (`metadata`) | One dataset attachment (`.json`, `.txt`, or `.csv`), e.g. a UAV flight log | Pipelines that declare `# Metadata File:`; CSV/TXT files with matching rows also appear as [Frame Metadata](Frame-Metadata.md) |
 
-DIVE does **not** auto-discover a flight log in the media folder — the user must pick it at import (UI or CLI `--metadata`). The file format is opaque to DIVE; the KWIVER process behind the pipe owns the schema. Metadata is available on **single-camera and multicamera** imports alike; it is not stereo-gated (unlike calibration).
+!!! note "Desktop project store vs Configuration File"
+
+    On DIVE Desktop, each imported dataset also has a `dataset.json` under `DIVE_Projects/` that records media paths and other local project state. That file is not portable and is not the Configuration File described here.
+
+Pick the file at import (UI or CLI `--metadata`), or give it one of the reserved
+frame-metadata names so ingestion paths without an upload field — assetstore, zip
+archive, desktop folder — find it on their own. Any other filename is used only when
+it is selected explicitly. The KWIVER process behind the pipe owns the schema.
+
+DIVE additionally reads a selected CSV/TXT attachment as [Frame Metadata](Frame-Metadata.md)
+for image-sequence and video datasets; if no rows match, it shows no frame values while
+pipelines still receive the file unchanged. Metadata is available on **single-camera and
+multicamera** imports alike; it is not stereo-gated (unlike calibration).
 
 !!! note
 

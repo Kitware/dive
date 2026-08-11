@@ -3,7 +3,7 @@
  *
  * Registration transforms are stored as standalone per-camera
  * *_registration.json files in the dataset directory rather than embedded in
- * meta.json.
+ * dataset.json (or legacy meta.json).
  */
 
 import npath from 'path';
@@ -16,24 +16,24 @@ import {
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
 import { invert3, Matrix3 } from 'vue-media-annotator/alignedView/homography';
-import { DatasetMetaMutable } from 'dive-common/apispec';
+import { DatasetConfigMutable } from 'dive-common/apispec';
 import { referenceCameraName as multicamReferenceCameraName } from 'dive-common/multicamDisplay';
 import {
   RegistrationFileNamePattern,
   compareRegistrationCandidates,
   qualifiesAsRegistrationFile,
 } from 'dive-common/registrationParentFolder';
-import { JsonMeta, Settings } from 'platform/desktop/constants';
+import { JsonConfig, Settings } from 'platform/desktop/constants';
 
 // eslint-disable-next-line import/no-cycle
 import {
-  getValidatedProjectDir, loadJsonMetadata, saveMetadata,
+  getValidatedProjectDir, loadJsonConfig, saveConfig,
 } from './common';
 
-export type CameraHomographies = NonNullable<DatasetMetaMutable['cameraHomographies']>;
-export type CameraCorrespondences = NonNullable<DatasetMetaMutable['cameraCorrespondences']>;
-export type CameraTransformTypes = NonNullable<DatasetMetaMutable['cameraTransformTypes']>;
-export type RegistrationSource = NonNullable<DatasetMetaMutable['cameraRegistrationSource']>;
+export type CameraHomographies = NonNullable<DatasetConfigMutable['cameraHomographies']>;
+export type CameraCorrespondences = NonNullable<DatasetConfigMutable['cameraCorrespondences']>;
+export type CameraTransformTypes = NonNullable<DatasetConfigMutable['cameraTransformTypes']>;
+export type RegistrationSource = NonNullable<DatasetConfigMutable['cameraRegistrationSource']>;
 
 /**
  * Best-effort read of the calibration file's producer provenance stamp: a
@@ -167,18 +167,18 @@ export async function loadRegistrationFiles(basePath: string): Promise<{
  * Reference Camera choice (stored as defaultDisplay), falling back to the
  * first camera in display order.
  */
-export function referenceCameraName(meta: JsonMeta): string | null {
+export function referenceCameraName(meta: JsonConfig): string | null {
   return meta.multiCam ? multicamReferenceCameraName(meta.multiCam) : null;
 }
 
 /**
  * The calibration a dataset currently resolves to, from the same sources
- * loadMetadata uses: the standalone per-camera files, or the import-time
+ * loadConfig uses: the standalone per-camera files, or the import-time
  * seed in the dataset meta when no files have been written yet.
  */
 export async function loadEffectiveRegistration(
   basePath: string,
-  meta: JsonMeta,
+  meta: JsonConfig,
 ): Promise<CameraRegistrationValues> {
   const onDisk = await loadRegistrationFiles(basePath);
   if (onDisk.found) {
@@ -198,7 +198,7 @@ export async function loadEffectiveRegistration(
  */
 export async function saveRegistrationToDatasetDir(
   basePath: string,
-  args: Pick<DatasetMetaMutable,
+  args: Pick<DatasetConfigMutable,
   'cameraHomographies' | 'cameraCorrespondences' | 'cameraTransformTypes' | 'cameraRegistrationSource'>,
   referenceCamera: string | null,
 ): Promise<void> {
@@ -290,7 +290,7 @@ export async function exportCameraRegistration(
   camera: string,
 ): Promise<string> {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId.split('/')[0]);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const calibration = await loadEffectiveRegistration(projectDirInfo.basePath, meta);
   const files = buildPerCameraRegistrationFiles(calibration, referenceCameraName(meta));
   if (!files.length) {
@@ -309,7 +309,7 @@ export async function exportCameraRegistration(
  * pairs over the current set: with options.camera, only the file's
  * pairs naming that camera are taken; each imported pair replaces that pair
  * wholly and other pairs are kept, so per-camera files can be imported one
- * at a time. Persists through saveMetadata, which rewrites the standalone
+ * at a time. Persists through saveConfig, which rewrites the standalone
  * per-camera files.
  */
 export async function importCameraRegistration(
@@ -320,7 +320,7 @@ export async function importCameraRegistration(
 ): Promise<{ cameras: string[]; pairCount: number }> {
   const parentId = datasetId.split('/')[0];
   const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   let data;
   try {
     data = await fs.readJson(filePath);
@@ -353,7 +353,7 @@ export async function importCameraRegistration(
     incoming,
     npath.basename(filePath),
   );
-  await saveMetadata(settings, parentId, {
+  await saveConfig(settings, parentId, {
     cameraHomographies: merged.homographies,
     cameraCorrespondences: merged.correspondences,
     cameraTransformTypes: merged.transformTypes,

@@ -1,7 +1,7 @@
 <script lang="ts">
 import { defineComponent, ref } from 'vue';
 
-import { loadMetadata } from '../api';
+import { loadConfig } from '../api';
 import { settings, initializedSettings } from '../store/settings';
 import { buildDatasetSourceInfo } from '../utils/datasetSourcePaths';
 import type { DatasetSourceInfo as SourceInfo } from '../utils/datasetSourcePaths';
@@ -27,7 +27,7 @@ export default defineComponent({
       try {
         await initializedSettings;
         const parentId = props.datasetId.split('/')[0];
-        const meta = await loadMetadata(parentId);
+        const meta = await loadConfig(parentId);
         info.value = buildDatasetSourceInfo(meta, settings.value);
       } catch (err) {
         error.value = String(err);

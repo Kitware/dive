@@ -2,9 +2,9 @@ import {
   getMultiCamIcon,
   getMultiCamSubType,
   getMultiCamTooltip,
-  isMultiCamDatasetMeta,
+  isMultiCamDatasetConfig,
   isMultiCamTrainingTarget,
-  isStereoscopicDatasetMeta,
+  isStereoscopicDatasetConfig,
   orderedMultiCamCameraNames,
   referenceCameraName,
 } from './multicamDisplay';
@@ -19,8 +19,8 @@ describe('multicamDisplay', () => {
   it('returns icons and tooltips', () => {
     expect(getMultiCamIcon('stereo')).toBe('mdi-binoculars');
     expect(getMultiCamIcon('multicam')).toBe('mdi-camera-burst');
-    expect(getMultiCamTooltip('stereo')).toBe('Stereoscopic dataset');
-    expect(getMultiCamTooltip('multicam')).toBe('Multicamera dataset');
+    expect(getMultiCamTooltip('stereo')).toBe('Stereo dataset');
+    expect(getMultiCamTooltip('multicam')).toBe('Multi Camera dataset');
   });
 
   it('orders cameras using cameraOrder when present', () => {
@@ -46,14 +46,14 @@ describe('multicamDisplay', () => {
   });
 
   it('detects multicam dataset meta for training guards', () => {
-    expect(isMultiCamDatasetMeta({ type: 'multi', subType: 'stereo' })).toBe(true);
-    expect(isMultiCamDatasetMeta({ type: 'video', subType: null })).toBe(false);
+    expect(isMultiCamDatasetConfig({ type: 'multi', subType: 'stereo' })).toBe(true);
+    expect(isMultiCamDatasetConfig({ type: 'video', subType: null })).toBe(false);
   });
 
   it('detects stereoscopic vs plain multicam datasets', () => {
-    expect(isStereoscopicDatasetMeta({ type: 'multi', subType: 'stereo' })).toBe(true);
-    expect(isStereoscopicDatasetMeta({ type: 'multi', subType: 'multicam' })).toBe(false);
-    expect(isStereoscopicDatasetMeta({ type: 'video', subType: 'stereo' })).toBe(false);
+    expect(isStereoscopicDatasetConfig({ type: 'multi', subType: 'stereo' })).toBe(true);
+    expect(isStereoscopicDatasetConfig({ type: 'multi', subType: 'multicam' })).toBe(false);
+    expect(isStereoscopicDatasetConfig({ type: 'video', subType: 'stereo' })).toBe(false);
   });
 
   it('disables training for multicam parent and child camera selection', () => {

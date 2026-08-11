@@ -1,12 +1,12 @@
 import type {
-  DatasetMeta, DatasetMetaMutable, DatasetType,
+  DatasetConfig, DatasetConfigMutable, DatasetType,
   Pipe, SubType, MediaImportResponse, PipelineParams,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 
-export const JsonMetaCurrentVersion = 1;
+export const JsonConfigCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
 export const AnnotationsCurrentVersion = 2;
 export const ProjectsFolderName = 'DIVE_Projects';
@@ -49,6 +49,10 @@ export interface Camera {
   transcodedVideoFile: string;
   transcodedMisalign?: boolean;
   imageListPath?: string;
+  /** Stored camera-local metadata attachment path. */
+  metadataFile?: string;
+  /** Preserved original name of the camera-local metadata attachment. */
+  metadataOriginalName?: string;
 }
 
 export interface MultiCamDesktop {
@@ -69,11 +73,11 @@ export interface MultiCamDesktop {
 }
 
 /**
- * JsonMeta is a SUBSET of DatasetMeta contained within
- * the JsonFileSchema.  The remaining parts of DatasetMeta must
+ * JsonConfig is a SUBSET of DatasetConfig contained within
+ * the JsonFileSchema.  The remaining parts of DatasetConfig must
  * be generated at load time.
  */
-export interface JsonMeta extends DatasetMetaMutable {
+export interface JsonConfig extends DatasetConfigMutable {
   // version used to manage schema migrations
   version: number;
 
@@ -130,10 +134,10 @@ export interface JsonMeta extends DatasetMetaMutable {
 
   error?: string;
 
-  // attributes are not datasetMetaMutable and are stored separate
+  // attributes are not DatasetConfigMutable and are stored separate
   attributes?: Record<string, Attribute>;
 
-  // attributes are not datasetMetaMutable and are stored separate
+  // attributes are not DatasetConfigMutable and are stored separate
   attributeTrackFilters?: Record<string, AttributeTrackFilter>;
 
   // confidence filter threshold for exporting
@@ -159,7 +163,7 @@ export interface JsonMeta extends DatasetMetaMutable {
   execTime?: number
 }
 
-export type DesktopMetadata = DatasetMeta & JsonMeta;
+export type DesktopConfig = DatasetConfig & JsonConfig;
 
 interface NvidiaSmiTextRecord {
   _text: string;
@@ -226,11 +230,13 @@ export interface RunTraining extends JobArgs {
     path?: string;
     folderId?: string;
   };
+  // working directory of a prior interrupted run to continue from
+  resumeWorkingDir?: string;
 }
 
 export interface ConversionArgs extends JobArgs {
   type: JobType.Conversion;
-  meta: JsonMeta;
+  meta: JsonConfig;
   mediaList: [string, string][];
 }
 
@@ -271,12 +277,16 @@ export interface DesktopJob {
 }
 
 export interface DesktopMediaImportResponse extends MediaImportResponse {
-  jsonMeta: JsonMeta;
+  jsonConfig: JsonConfig;
   trackFileAbsPath: string;
   multiCamTrackFiles: null | Record<string, string>;
   forceMediaTranscode: boolean;
-  metaFileAbsPath?: string;
-  // Absolute path of an optional metadata file chosen in the import dialog.
+  /** Absolute path of an optional DIVE Configuration File (JSON) chosen at import. */
+  configFileAbsPath?: string;
+  /** Absolute path of an optional Metadata File (pipeline sidecar) chosen at import. */
+  // Absolute path of the one optional metadata attachment. Seeded by import-time discovery
+  // (an exported folder's metadata/ directory, or a reserved-name file beside the media) and
+  // shown in the import dialog, where the user can clear or replace it before finalize.
   metadataFileAbsPath?: string;
   // Non-fatal problems found while preparing the import (e.g. a registration
   // file naming cameras this dataset doesn't have), shown in the import dialog.

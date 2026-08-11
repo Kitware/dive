@@ -13,8 +13,8 @@ export async function migrate() {
  * Wrap API with hooks to use the store
  */
 export default function wrap(): Api {
-  async function loadMetadata(datasetId: string) {
-    const meta = await api.loadMetadata(datasetId);
+  async function loadConfig(datasetId: string) {
+    const meta = await api.loadConfig(datasetId);
     if (!datasetId.includes('/')) { // Only update if not multiCam
       setRecents(meta, (new Date()).toString());
     }
@@ -28,6 +28,6 @@ export default function wrap(): Api {
   return {
     ...api,
     loadDetections,
-    loadMetadata,
+    loadConfig,
   };
 }

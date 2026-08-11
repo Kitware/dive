@@ -222,6 +222,29 @@ describe('useModeManager polygon clip on box resize', () => {
     });
   });
 
+  it('translates polygons with the box on a pure move (does not clip)', () => {
+    const { cameraStore, modeManager } = makeSingleCamHarness();
+    const trackId = modeManager.handler.trackAdd();
+    // Polygon inset inside the box so a naive clip-on-move would shrink it.
+    const insetPolygon = {
+      type: 'Feature' as const,
+      geometry: {
+        type: 'Polygon' as const,
+        coordinates: [[[5, 5], [25, 5], [25, 25], [5, 25], [5, 5]]],
+      },
+      properties: { key: '' },
+    };
+    modeManager.handler.setTrackFeature(0, [0, 0, 40, 40], [insetPolygon]);
+    modeManager.handler.trackSelect(trackId, true);
+    modeManager.handler.updateRectBounds(0, 0, [10, 5, 50, 45]);
+
+    const poly = cameraStore.getTrack(trackId).features[0]?.geometry?.features[0];
+    expect(poly?.geometry).toEqual({
+      type: 'Polygon',
+      coordinates: [[[15, 10], [35, 10], [35, 30], [15, 30], [15, 10]]],
+    });
+  });
+
   it('does not clip when the detection already has significant stored rotation', () => {
     const { cameraStore, modeManager } = makeSingleCamHarness();
     const trackId = modeManager.handler.trackAdd();

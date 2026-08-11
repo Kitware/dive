@@ -90,6 +90,16 @@ const largeImageTypes = [
   'image/ntf',
 ];
 
+/** Extension-only formats for basic image sequences (aligned with server validImageFormats). */
+const basicImageFileExtensions = [
+  'png',
+  'jpg',
+  'jpeg',
+  'sgi',
+  'bmp',
+  'pgm',
+];
+
 /** Extension-only formats for large-image uploads (aligned with server validLargeImageFormats). */
 const largeImageFileExtensions = [
   'nitf',
@@ -146,6 +156,14 @@ const websafeImageTypes = [
   // 'image/webp',
 ];
 
+/** Dotted extensions for HTML file-input accept (multi-dot names like a.b.c.png need these). */
+const websafeImageFileExtensions = [
+  'gif',
+  'jpg',
+  'jpeg',
+  'png',
+];
+
 const otherImageTypes = [
   'image/avif',
   'image/tiff',
@@ -154,6 +172,25 @@ const otherImageTypes = [
   'image/sgi',
   'image/x-portable-graymap',
 ];
+
+const otherImageFileExtensions = [
+  'avif',
+  'tif',
+  'tiff',
+  'bmp',
+  'sgi',
+  'pgm',
+];
+
+/** MIME types plus dotted extensions for image-sequence file inputs. */
+function getImageSequenceFileAccept(): string {
+  return [
+    ...websafeImageFileExtensions.map((ext) => `.${ext}`),
+    ...otherImageFileExtensions.map((ext) => `.${ext}`),
+    ...websafeImageTypes,
+    ...otherImageTypes,
+  ].join(',');
+}
 
 const inputAnnotationTypes = [
   'application/json',
@@ -190,8 +227,8 @@ const stereoPipelineMarker = 'measurement';
 const calibrationFileMarker = 'calibrationFile';
 /** Girder item meta key marking the JSON camera-rig used for calibration display. */
 const jsonCalibrationFileMarker = 'jsonCalibrationFile';
-/** Girder item meta key marking the optional per-dataset metadata file upload. */
-const metadataFileMarker = 'metadataFile';
+/** Girder item meta key marking a frame-metadata attachment for Girder UI. */
+const frameMetadataFileMarker = 'frameMetadata';
 /** Legacy common_stereo category key; never shown in the run-pipeline menu. */
 const hiddenPipelineCategories = ['stereo'];
 /** Pipeline name/category substrings hidden from the web run-pipeline menu. */
@@ -199,7 +236,7 @@ const webExcludedPipelineTerms = ['seagis'];
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
-const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
+const JsonConfigRegEx = /^.*\.?(meta|config)\.json$/;
 
 function simplifyTrainingName(item: string) {
   return item.replace('.conf', '');
@@ -218,11 +255,15 @@ export {
   metadataFileTypes,
   fileVideoTypes,
   otherImageTypes,
+  otherImageFileExtensions,
   otherVideoTypes,
   websafeImageTypes,
+  websafeImageFileExtensions,
   websafeVideoTypes,
+  getImageSequenceFileAccept,
   inputAnnotationTypes,
   largeImageTypes,
+  basicImageFileExtensions,
   largeImageFileExtensions,
   largeImageDesktopTypes,
   largeImageWebAccept,
@@ -236,11 +277,11 @@ export {
   stereoPipelineMarker,
   calibrationFileMarker,
   jsonCalibrationFileMarker,
-  metadataFileMarker,
+  frameMetadataFileMarker,
   hiddenPipelineCategories,
   webExcludedPipelineTerms,
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
-  JsonMetaRegEx,
+  JsonConfigRegEx,
   simplifyTrainingName,
 };

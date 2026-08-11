@@ -122,10 +122,11 @@ CalibrationConversionErrorMarker = "calibrationConversionError"
 # Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
 CalibrationFileMarker = "calibrationFile"
 # Optional per-dataset metadata file (folder marker points at a Girder item id;
-# the item itself carries MetadataFileMarker). Applies to single and multicam.
+# the owning folder carries the locator). Applies to single and multicam.
 MetadataFileItemIdMarker = "metadataFileItemId"
 MetadataFileOriginalNameMarker = "metadataFileOriginalName"
-MetadataFileMarker = "metadataFile"
+# Girder item meta: marks an item as a frame-metadata attachment for Girder UI.
+FrameMetadataFileMarker = "frameMetadata"
 # Girder item meta: JSON camera-rig used for calibration display
 JsonCalibrationFileMarker = "jsonCalibrationFile"
 AssetstoreSourceMarker = "import_source"
@@ -152,8 +153,9 @@ TrainingOutputFolderName = "VIAME Training Results"
 SourceFolderName = "source"
 # The name of the auxiliary folder
 AuxiliaryFolderName = "auxiliary"
-# the name of the meta file
-MetaFileName = "meta.json"
+# the name of the configuration file (legacy meta.json is still accepted on read)
+ConfigFileName = "config.json"
+LegacyConfigFileName = "meta.json"
 # Exported multicam datasets include this file at the dataset root (see crud_dataset export).
 MultiCamJsonFileName = "multiCam.json"
 

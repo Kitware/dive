@@ -44,6 +44,27 @@ import {
   validateMulticamImageSets,
 } from 'dive-common/components/ImportMultiCamDialog/validateMulticamImageSets';
 
+/**
+ * A chosen metadata attachment. One record replaces the parallel path/name pair the dialog used
+ * to carry: the two were always written and cleared together, and only one of them is ever
+ * shown.
+ */
+interface MetadataSelection {
+  /** What the import receives: an absolute path on desktop, an opaque registry key on web. */
+  value: string;
+  /** What the dialog shows. */
+  name: string;
+}
+
+function metadataSelection(
+  ret: { filePaths: string[]; selectionId?: string },
+): MetadataSelection {
+  // Web hands back a single-file pick, so filePaths[0] is already the basename the dialog
+  // should show; desktop hands back the absolute path, which is what it shows.
+  const [path] = ret.filePaths;
+  return { value: ret.selectionId || path, name: path };
+}
+
 export interface UseImportMultiCamDialogProps {
   stereo?: boolean;
   dataType: typeof VideoType | typeof ImageSequenceType;
@@ -84,6 +105,12 @@ export function useImportMultiCamDialog(
     sourcePath: string;
     trackFile: string;
     transformFile: string;
+    /**
+     * Optional camera-local metadata attachment. `value` is what the import receives (an
+     * absolute path on desktop, an opaque registry key on web); `name` is what the dialog
+     * shows. Absent until the user picks one.
+     */
+    metadata?: MetadataSelection;
     type?: DatasetType;
     /** Filename glob when cameras share one folder (per-modality suffixes). */
     glob?: string;
@@ -98,7 +125,7 @@ export function useImportMultiCamDialog(
   const calibrationAutoDiscoveryFailed = ref(false);
   // Optional per-dataset metadata file (e.g. sea-lion flight log). Not gated to
   // stereo; applies to any multicam import.
-  const metadataFile = ref('');
+  const metadata: Ref<MetadataSelection | null> = ref(null);
   const datasetName = ref('');
   const subfolderOriginalNames: Ref<Record<string, string>> = ref({});
   const cameraOrder: Ref<string[]> = ref([]);
@@ -261,7 +288,7 @@ export function useImportMultiCamDialog(
     const filtered: Record<string, string[]> = {};
     Object.entries(globList.value).forEach(([cameraName, val]) => {
       const payload = pendingImportPayloads.value.keyword;
-      filtered[cameraName] = filterByGlob(val.glob, payload?.jsonMeta.originalImageFiles);
+      filtered[cameraName] = filterByGlob(val.glob, payload?.jsonConfig.originalImageFiles);
     });
     return filtered;
   });
@@ -270,7 +297,7 @@ export function useImportMultiCamDialog(
     const filtered: Record<string, string[]> = {};
     Object.entries(folderList.value).forEach(([cameraName, entry]) => {
       const payload = pendingImportPayloads.value[cameraName];
-      const images = payload?.jsonMeta.originalImageFiles || [];
+      const images = payload?.jsonConfig.originalImageFiles || [];
       filtered[cameraName] = entry.glob ? filterByGlob(entry.glob, images) : images;
     });
     return filtered;
@@ -352,7 +379,7 @@ export function useImportMultiCamDialog(
         // Not importable as a flat image folder; fall back to subfolder handling
         return false;
       }
-      imageNames = sharedPayload.jsonMeta.originalImageFiles || [];
+      imageNames = sharedPayload.jsonConfig.originalImageFiles || [];
     }
     const modalities = detectFolderModalities(imageNames);
     if (!modalities.length) {
@@ -568,6 +595,7 @@ export function useImportMultiCamDialog(
         ? newKey : sourcePath,
       trackFile: entry.trackFile,
       transformFile: entry.transformFile,
+      ...(entry.metadata ? { metadata: entry.metadata } : {}),
       ...(entry.type ? { type: entry.type } : {}),
       ...(entry.glob ? { glob: entry.glob } : {}),
     });
@@ -658,6 +686,17 @@ export function useImportMultiCamDialog(
     folderList.value[folder].transformFile = '';
   }
 
+  async function openCameraMetadataFile(folder: string) {
+    const ret = await openFromDisk('metadata');
+    if (!ret.canceled && ret.filePaths?.length) {
+      Vue.set(folderList.value[folder], 'metadata', metadataSelection(ret));
+    }
+  }
+
+  function clearCameraMetadataFile(folder: string) {
+    Vue.delete(folderList.value[folder], 'metadata');
+  }
+
   async function open(
     dstype: DatasetType | 'calibration' | 'text' | 'metadata',
     folder: string | 'calibration' | 'metadata',
@@ -674,7 +713,7 @@ export function useImportMultiCamDialog(
           saveCalibration(path);
         }
       } else if (folder === 'metadata') {
-        metadataFile.value = path;
+        metadata.value = metadataSelection(ret);
       } else if (importType.value === 'multi') {
         if (ret.root) {
           folderList.value[folder].sourcePath = ret.root;
@@ -743,7 +782,11 @@ export function useImportMultiCamDialog(
 
   const addNewSet = (name: string) => {
     if (importType.value === 'multi') {
-      Vue.set(folderList.value, name, { sourcePath: '', trackFile: '', transformFile: '' });
+      Vue.set(folderList.value, name, {
+        sourcePath: '',
+        trackFile: '',
+        transformFile: '',
+      });
       Vue.set(pendingImportPayloads.value, name, null);
       cameraOrder.value = [...cameraOrder.value, name];
     } else if (importType.value === 'keyword') {
@@ -762,7 +805,7 @@ export function useImportMultiCamDialog(
       orderedCameraKeys.value.forEach((key) => {
         if (folderList.value[key]) {
           const {
-            sourcePath, trackFile, transformFile, type, glob,
+            sourcePath, trackFile, transformFile, metadata: cameraMetadata, type, glob,
           } = folderList.value[key];
           if (type === 'multi') {
             // Sub Cameras shouldn't be multi types
@@ -773,6 +816,7 @@ export function useImportMultiCamDialog(
             trackFile,
             ...(type ? { type } : {}),
             ...(glob ? { glob } : {}),
+            ...(cameraMetadata ? { metadataFile: cameraMetadata.value } : {}),
           };
           // Transforms only apply to cameras after the first (reference) one.
           if (transformFile && showTransformFileField(key)) {
@@ -786,7 +830,7 @@ export function useImportMultiCamDialog(
         cameraOrder: orderedCameraKeys.value,
         sourceList,
         calibrationFile: calibrationFile.value,
-        metadataFile: metadataFile.value || undefined,
+        metadataFile: metadata.value?.value,
         type: props.dataType,
       };
       emit('begin-multicam-import', args);
@@ -796,7 +840,7 @@ export function useImportMultiCamDialog(
         sourcePath: keywordFolder.value,
         globList: globList.value,
         calibrationFile: calibrationFile.value,
-        metadataFile: metadataFile.value || undefined,
+        metadataFile: metadata.value?.value,
         type: 'image-sequence',
       };
       emit('begin-multicam-import', args);
@@ -825,7 +869,7 @@ export function useImportMultiCamDialog(
   }
 
   function clearMetadataFile() {
-    metadataFile.value = '';
+    metadata.value = null;
   }
 
   function applyLastCalibration() {
@@ -961,8 +1005,10 @@ export function useImportMultiCamDialog(
     showTransformFileField,
     openTransformFile,
     clearTransformFile,
+    openCameraMetadataFile,
+    clearCameraMetadataFile,
     clearCalibration,
-    metadataFile,
+    metadata,
     clearMetadataFile,
   };
 }

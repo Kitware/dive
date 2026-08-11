@@ -4,7 +4,7 @@ from enum import Enum
 import functools
 import os
 from pathlib import Path
-from typing import List, Type
+from typing import List, Optional, Type
 
 from girder.constants import AccessType
 from girder.exceptions import RestException, ValidationException
@@ -144,6 +144,17 @@ def get_multicam_parent_folder(folder: GirderModel, user: GirderUserModel):
     if not any(str(cam.get('folderId')) == folder_id for cam in cameras.values()):
         return None
     return parent
+
+
+def get_multicam_camera_name(folder: GirderModel, parent: GirderModel) -> Optional[str]:
+    """Return the camera name for ``folder`` within multicam ``parent``, else None."""
+    multi_cam = fromMeta(parent, constants.MultiCamMarker, default={}) or {}
+    cameras = multi_cam.get('cameras') or {}
+    folder_id = str(folder['_id'])
+    for name, cam in cameras.items():
+        if str(cam.get('folderId')) == folder_id:
+            return name
+    return None
 
 
 def pick_multicam_shared_mutable(meta: dict) -> dict:

@@ -1,10 +1,10 @@
 import axios, { AxiosInstance } from 'axios';
 
 import type {
-  DatasetMetaMutable, DatasetType, MultiCamImportArgs,
+  DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
-  DatasetCalibrationResult, GlobalStyleSettings,
+  DatasetCalibrationResult, GlobalStyleSettings, FrameMetadataSourcesResponse,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
@@ -17,7 +17,7 @@ import {
   metadataFileTypes,
 } from 'dive-common/constants';
 import {
-  DesktopMetadata, NvidiaSmiReply,
+  DesktopConfig, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   ExportMulticamEverythingArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
@@ -48,7 +48,7 @@ function joinPath(dir: string, filename: string) {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'transform' | 'metadata', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'transform' | 'metadata', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -71,6 +71,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'annotation') {
     filters = [
       { name: 'annotation', extensions: inputAnnotationFileTypes },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'config') {
+    filters = [
+      { name: 'configuration', extensions: ['json'] },
       allFiles,
     ];
   }
@@ -103,6 +109,11 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
       (item) => allowed.has(getExtension(item)),
     )) {
       throw Error('File Types did not match JSON or CSV');
+    }
+  }
+  if (datasetType === 'config') {
+    if (!results.filePaths.every((item) => getExtension(item) === 'json')) {
+      throw Error('Configuration File must be JSON');
     }
   }
   if (datasetType === 'large-image') {
@@ -142,6 +153,7 @@ async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: Pipe
     pipeline,
     datasetId: itemId,
     pipelineParams,
+    outputDatasetName: pipelineParams?.outputDatasetName,
   };
   gpuJobQueue.enqueue(args);
 }
@@ -182,6 +194,22 @@ async function runTraining(
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
   return window.diveDesktop.invoke('delete-trained-pipeline', pipeline);
+}
+
+async function listResumableTrainingJobs(): Promise<DesktopJob[]> {
+  return window.diveDesktop.invoke('list-resumable-training');
+}
+
+async function resumeTraining(job: DesktopJob): Promise<void> {
+  const args: RunTraining = {
+    ...(job.args as RunTraining),
+    resumeWorkingDir: job.workingDir,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+async function discardResumableTraining(job: DesktopJob): Promise<void> {
+  return window.diveDesktop.invoke('discard-resumable-training', job.workingDir);
 }
 
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
@@ -242,6 +270,10 @@ function scanMultiCamBatch(path: string): Promise<MultiCamBatchScanResult> {
   return window.diveDesktop.invoke('scan-multicam-batch', { path });
 }
 
+function scanStereoBatch(path: string): Promise<MultiCamBatchScanResult> {
+  return window.diveDesktop.invoke('scan-stereo-batch', { path });
+}
+
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean | string[]> {
   return window.diveDesktop.invoke('import-annotation', {
@@ -250,7 +282,7 @@ function importAnnotationFile(id: string, path: string, _htmlFile = undefined, a
 }
 
 function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArgs> {
-  // Have this return JsonMeta as well as everything needed to start a job?
+  // Have this return JsonConfig as well as everything needed to start a job?
   return window.diveDesktop.invoke('finalize-import', args);
 }
 
@@ -300,7 +332,7 @@ async function exportMulticamEverything(
 ): Promise<string> {
   const parentId = id.split('/')[0];
   const location = await window.diveDesktop.showSaveDialog({
-    title: 'Export Multicamera Dataset',
+    title: 'Export Multi Camera Dataset',
     defaultPath: joinPath(
       await window.diveDesktop.getAppPath('home'),
       `${parentId}.zip`,
@@ -615,9 +647,9 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
   return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
-async function loadMetadata(id: string) {
+async function loadConfig(id: string) {
   const client = await getClient();
-  const { data } = await client.get<DesktopMetadata>(`dataset/${id}/meta`);
+  const { data } = await client.get<DesktopConfig>(`dataset/${id}/meta`);
   return { ...data, calibration: data.multiCam?.calibration ?? null };
 }
 
@@ -631,7 +663,11 @@ async function loadDetections(datasetId: string) {
   };
 }
 
-async function saveMetadata(id: string, args: DatasetMetaMutable) {
+function loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse> {
+  return window.diveDesktop.invoke('load-frame-metadata', { datasetId });
+}
+
+async function saveConfig(id: string, args: DatasetConfigMutable) {
   const client = await getClient();
   return client.post(`dataset/${id}/meta`, args);
 }
@@ -716,15 +752,19 @@ function deleteCalibration(datasetId: string): Promise<void> {
 
 export {
   /* Standard Specification APIs */
-  loadMetadata,
+  loadConfig,
   loadDetections,
+  loadFrameMetadata,
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,
   exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
-  saveMetadata,
+  listResumableTrainingJobs,
+  resumeTraining,
+  discardResumableTraining,
+  saveConfig,
   saveDetections,
   saveAttributes,
   saveAttributeTrackFilters,
@@ -750,6 +790,7 @@ export {
   importAnnotationFile,
   importMultiCam,
   scanMultiCamBatch,
+  scanStereoBatch,
   openLink,
   nvidiaSmi,
   cancelJob,

@@ -1,7 +1,7 @@
 /**
  * Wire-through tests for per-camera transform/registration files in multicam
  * import: they seed the dataset's saved camera registration
- * (jsonMeta.cameraHomographies et al.) from a DIVE registration .json.
+ * (jsonConfig.cameraHomographies et al.) from a DIVE registration .json.
  */
 import os from 'os';
 import npath from 'path';
@@ -73,13 +73,13 @@ describe('multiCamImport transform wire-through', () => {
       sourceList: sourceListWith(registrationJsonPath),
       type: 'image-sequence',
     });
-    expect(output.jsonMeta.cameraHomographies?.['eo::ir'].AtoB).toEqual(
+    expect(output.jsonConfig.cameraHomographies?.['eo::ir'].AtoB).toEqual(
       [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
     );
-    expect(output.jsonMeta.cameraCorrespondences?.['eo::ir']).toHaveLength(2);
-    expect(output.jsonMeta.cameraTransformTypes?.['eo::ir']).toBe('translation');
+    expect(output.jsonConfig.cameraCorrespondences?.['eo::ir']).toHaveLength(2);
+    expect(output.jsonConfig.cameraTransformTypes?.['eo::ir']).toBe('translation');
     // The producer provenance stamp travels with the seed.
-    expect(output.jsonMeta.cameraRegistrationSource).toEqual(
+    expect(output.jsonConfig.cameraRegistrationSource).toEqual(
       { model: 'colmap-2026-07-01', swathe: 'fl07_C' },
     );
   });
@@ -115,7 +115,7 @@ describe('multiCamImport transform wire-through', () => {
       type: 'image-sequence',
     });
     // The seed still imports: pair bodies are authoritative.
-    expect(output.jsonMeta.cameraHomographies?.['uv::rgb']).toBeDefined();
+    expect(output.jsonConfig.cameraHomographies?.['uv::rgb']).toBeDefined();
     expect(output.importWarnings).toHaveLength(1);
     expect(output.importWarnings?.[0]).toContain('uv_to_rgb_registration.json');
     expect(output.importWarnings?.[0]).toContain('rgb, uv');
@@ -128,8 +128,8 @@ describe('multiCamImport transform wire-through', () => {
       sourceList: sourceListWith(),
       type: 'image-sequence',
     });
-    expect(output.jsonMeta.cameraHomographies).toBeUndefined();
-    expect(output.jsonMeta.cameraCorrespondences).toBeUndefined();
+    expect(output.jsonConfig.cameraHomographies).toBeUndefined();
+    expect(output.jsonConfig.cameraCorrespondences).toBeUndefined();
   });
 
   it('fails the import for a .json without a pairs list', async () => {

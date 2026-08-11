@@ -80,7 +80,7 @@ def convert_viame_csv(input: TextIO, output: TextIO, output_attrs: TextIO):
     '--meta',
     type=click.File('rt'),
     default=None,
-    help="Populate image list and fps from meta.json",
+    help="Populate image list and fps from config.json",
 )
 @click.option('--output', type=click.File('wt'), default='annotatiosn.viame.csv')
 @click.option(

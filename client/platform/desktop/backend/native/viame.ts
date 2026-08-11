@@ -6,7 +6,7 @@ import {
   Settings, DesktopJob, RunPipeline, RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
-  JsonMeta,
+  JsonConfig,
   JobsOutputFolderName,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
@@ -19,10 +19,19 @@ import {
   MultiType,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
-  pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
+import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import {
+  isDisparityImagePipeline,
+  isFilterPipeline,
+  isTranscodePipeline,
+  pipelineCreatesNewDataset,
+} from 'dive-common/pipelineCreatesDataset';
 import * as common from './common';
-import { jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory } from './utils';
+import {
+  jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory,
+  buildTrainingExitManifest,
+} from './utils';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
@@ -30,6 +39,11 @@ import {
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
+
+// Calibration consumers every stereo pipe is assumed to have unless it declares
+// its own via a `# Calibration Keys:` header.
+// Keep in sync with server/dive_tasks/multicam_pipeline.py DEFAULT_CALIBRATION_KEYS.
+const DEFAULT_CALIBRATION_KEYS = ['measurer:calibration_file', 'calibration_reader:file'] as const;
 
 /**
  * Filter an image list to only include images within frame range.
@@ -119,7 +133,7 @@ async function importNewMedia(
     return;
   }
   const importPayload = await common.beginMediaImport(sourceName);
-  importPayload.jsonMeta.name = datasetName;
+  importPayload.jsonConfig.name = datasetName;
   const conversionJobArgs = await common.finalizeMediaImport(settings, importPayload);
   if (conversionJobArgs.mediaList.length > 0) {
     // Convert the media, directly in this job
@@ -133,7 +147,7 @@ async function importNewMedia(
       settings,
       conversionJobArgs,
       updater,
-      (_key: string, meta: JsonMeta) => sendToRenderer('filter-complete', meta),
+      (_key: string, meta: JsonConfig) => sendToRenderer('filter-complete', meta),
       undefined,
       false,
       0,
@@ -158,6 +172,15 @@ async function runPipeline(
 ): Promise<DesktopJob> {
   const { datasetId, pipeline } = runPipelineArgs;
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
+  // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
+  // categorized under '2-cam'/'3-cam' rather than by their filename prefix,
+  // so output handling is recognized from the pipe filename as well as the type.
+  const createsNewDataset = pipelineCreatesNewDataset(pipeline);
+  const isFilterPipe = isFilterPipeline(pipeline);
+  const isTranscodePipe = isTranscodePipeline(pipeline);
+  const isDisparityPipe = isDisparityImagePipeline(pipeline);
+  const outputDatasetName = runPipelineArgs.outputDatasetName
+    ?? runPipelineArgs.pipelineParams?.outputDatasetName;
 
   const isValid = await validateViamePath(settings);
   if (isValid !== true) {
@@ -169,13 +192,28 @@ async function runPipeline(
     pipelinePath = pipeline.pipe;
   }
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
-  const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
+  const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
+
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  let cameraLogLine: string | null = null;
+  if (cameraName) {
+    try {
+      const parentInfo = await common.getValidatedProjectDir(settings, parentId);
+      const parentMeta = await common.loadJsonConfig(parentInfo.datasetFileAbsPath);
+      const defaultDisplay = parentMeta.multiCam?.defaultDisplay;
+      if (cameraName !== defaultDisplay) {
+        cameraLogLine = `Running pipeline on camera: ${cameraName}`;
+      }
+    } catch {
+      cameraLogLine = `Running pipeline on camera: ${cameraName}`;
+    }
+  }
 
   const timestamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   const outputDirName = `${runPipelineArgs.pipeline.name}_${runPipelineArgs.datasetId}_${timestamp}`;
   const outputDir = `${npath.join(settings.dataPath, JobsOutputFolderName, outputDirName)}`;
-  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+  if (createsNewDataset) {
     if (outputDir !== jobWorkDir) {
       await fs.mkdir(outputDir, { recursive: true });
     }
@@ -185,7 +223,7 @@ async function runPipeline(
   const trackOutputFileName = 'track_output.csv';
   let trackOutput: string;
   let detectorOutput: string;
-  if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+  if (createsNewDataset) {
     detectorOutput = npath.join(outputDir, detectorOutputFileName);
     trackOutput = npath.join(outputDir, trackOutputFileName);
   } else {
@@ -195,8 +233,12 @@ async function runPipeline(
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
+  // Disparity image pipe is measurement_* but only needs stereo media + calibration.
   let requiresInput = false;
-  if ((/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)) {
+  if (
+    !isDisparityPipe
+    && (/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)
+  ) {
     requiresInput = true;
   }
   let groundTruthFileName;
@@ -244,9 +286,9 @@ async function runPipeline(
       command.push(`-s downsampler:end_frame=${frameRange[1]}`);
       const isNative = !meta.originalFps || meta.fps >= meta.originalFps;
       command.push(`-s downsampler:frame_range_is_native=${isNative}`);
-      // Transcode/filter pipes: output frames renumbered relative to new range
+      // Transcode/filter/disparity pipes: output frames renumbered relative to new range
       // All other pipes: output frames relative to original video
-      const renumber = pipeline.type === 'transcode' || pipeline.type === 'filter';
+      const renumber = isTranscodePipe || isFilterPipe || isDisparityPipe;
       command.push(`-s downsampler:renumber_frames=${renumber}`);
       command.push(`-s downsampler:adjust_timestamps=${renumber}`);
     }
@@ -285,13 +327,27 @@ async function runPipeline(
     }
   }
 
-  if (runPipelineArgs.pipeline.type === 'filter') {
+  if (isFilterPipe) {
     command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
+    // Multicam filter pipes have one writer per camera (image_writer,
+    // image_writer2, image_writer3); extra -s keys for absent processes are
+    // ignored by the runner.
     command.push(`-s image_writer:file_name_prefix="${outputDir}/"`);
+    command.push(`-s image_writer2:file_name_prefix="${outputDir}/"`);
+    command.push(`-s image_writer3:file_name_prefix="${outputDir}/"`);
+  }
+
+  // Disparity pipe writes via process `output` with file_name_template.
+  // Override that key directly: $CONFIG{global:...} expands at parse time and
+  // would ignore a -s on global:output_depths_directory.
+  if (isDisparityPipe) {
+    command.push(
+      `-s output:file_name_template="${outputDir}/depth_map%06d.png"`,
+    );
   }
 
   let transcodedFilename: string;
-  if (runPipelineArgs.pipeline.type === 'transcode') {
+  if (isTranscodePipe) {
     // Note: the output of the pipeline may be HEVC encoded
     transcodedFilename = npath.join(outputDir, `${runPipelineArgs.pipeline.name}_${datasetId}_${timestamp}.mp4`);
     command.push(`-s video_writer:video_filename="${transcodedFilename}"`);
@@ -324,8 +380,14 @@ async function runPipeline(
     trackOutput = npath.join(jobWorkDir, outFiles[meta.multiCam.defaultDisplay]);
 
     if (meta.multiCam.calibration) {
-      command.push(`-s measurer:calibration_file="${meta.multiCam.calibration}"`);
-      command.push(`-s calibration_reader:file="${meta.multiCam.calibration}"`);
+      // A pipe whose calibration consumer is not the conventional
+      // `measurer`/`calibration_reader` names its own keys via `# Calibration Keys:`.
+      const calibrationKeys = runPipelineArgs.pipeline.metadata?.calibrationKeys?.length
+        ? runPipelineArgs.pipeline.metadata.calibrationKeys
+        : DEFAULT_CALIBRATION_KEYS;
+      calibrationKeys.forEach((key) => {
+        command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
+      });
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
@@ -384,9 +446,13 @@ async function runPipeline(
 
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
 
+  if (cameraLogLine) {
+    await fs.appendFile(joblog, `${cameraLogLine}\n`);
+  }
+
   updater({
     ...jobBase,
-    body: [''],
+    body: cameraLogLine ? [cameraLogLine, ''] : [''],
   });
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
@@ -395,7 +461,7 @@ async function runPipeline(
   job.on('exit', async (code) => {
     if (code === 0) {
       try {
-        if (!pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+        if (!createsNewDataset) {
           let finalDetectorOutput = detectorOutput;
           let finalTrackOutput = trackOutput;
 
@@ -411,7 +477,7 @@ async function runPipeline(
           const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
           if (newMeta) {
             meta.attributes = newMeta.attributes;
-            await common.saveMetadata(settings, datasetId, meta);
+            await common.saveConfig(settings, datasetId, meta);
           }
         }
 
@@ -423,21 +489,40 @@ async function runPipeline(
           );
           if (calibrationFile) {
             const calibrationPath = npath.join(jobWorkDir, calibrationFile);
-            const savedPath = await common.saveLastCalibration(settings, calibrationPath);
-            await common.applyCalibrationToUncalibratedStereoDatasets(settings, savedPath, calibrationFile);
+            try {
+              // Apply calibration directly to the dataset that ran the pipeline
+              await common.applyCalibrationToDataset(
+                settings,
+                datasetId,
+                calibrationPath,
+              );
+              // Also save as last calibration for future imports
+              await common.saveLastCalibration(settings, calibrationPath);
+              // Signal UI to refresh calibration info
+              sendToRenderer('calibration-assigned', {
+                datasetId,
+                calibrationFile,
+              });
+            } catch (err) {
+              console.error(`Failed to apply calibration to dataset ${datasetId}:`, err);
+              await fs.appendFile(
+                joblog,
+                `\nError assigning calibration file to dataset: ${(err as Error).message}`,
+              );
+            }
           }
         }
 
         // Check if this is a transcode/filter pipeline and create a new dataset
-        if (pipelineCreatesDatasetMarkers.includes(runPipelineArgs.pipeline.type)) {
+        if (createsNewDataset) {
           updater({
             ...jobBase,
             body: ['Creating dataset from output...'],
             exitCode: code,
             endTime: new Date(),
           });
-          const datasetName = runPipelineArgs.outputDatasetName ? runPipelineArgs.outputDatasetName : outputDir;
-          if (runPipelineArgs.pipeline.type === 'transcode') {
+          const datasetName = outputDatasetName || outputDir;
+          if (isTranscodePipe) {
             fs.readdir(outputDir, async (err, entries) => {
               if (err) {
                 console.error(`Failed to traverse ${outputDir}.`);
@@ -609,59 +694,73 @@ async function train(
     throw new Error(isValid);
   }
 
-  /* Zip together project info and meta */
-  const infoAndMeta = await Promise.all(
-    runTrainingArgs.datasetIds.map(async (id) => {
-      const projectInfo = await common.getValidatedProjectDir(settings, id);
-      const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
-      return { projectInfo, meta };
-    }),
-  );
-  const jsonMetaList = infoAndMeta.map(({ meta }) => meta);
+  const resumeDir = runTrainingArgs.resumeWorkingDir;
+  let jobWorkDir: string;
+  if (resumeDir) {
+    /* Continue an interrupted run: its input lists, groundtruth files, and
+     * intermediate trainer state are already in the working directory. */
+    if (!fs.existsSync(npath.join(resumeDir, DiveJobManifestName))) {
+      throw new Error(`Cannot resume training: no job manifest found in ${resumeDir}`);
+    }
+    jobWorkDir = resumeDir;
+  } else {
+    /* Zip together project info and meta */
+    const infoAndMeta = await Promise.all(
+      runTrainingArgs.datasetIds.map(async (id) => {
+        const projectInfo = await common.getValidatedProjectDir(settings, id);
+        const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
+        return { projectInfo, meta };
+      }),
+    );
+    const jsonConfigList = infoAndMeta.map(({ meta }) => meta);
 
-  // Working dir for training
-  const jobWorkDir = await createWorkingDirectory(settings, jsonMetaList, runTrainingArgs.pipelineName);
+    // Working dir for training
+    jobWorkDir = await createWorkingDirectory(settings, jsonConfigList, runTrainingArgs.pipelineName);
+
+    const groundtruthFilenames = await Promise.all(
+      infoAndMeta.map(async ({ meta, projectInfo }) => {
+        // Organize data for training
+        const groundTruthFileName = `groundtruth_${meta.id}.csv`;
+        const groundTruthFileStream = fs.createWriteStream(
+          npath.join(jobWorkDir, groundTruthFileName),
+        );
+        const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
+        await serialize(groundTruthFileStream, inputData, meta);
+        groundTruthFileStream.end();
+        return groundTruthFileName;
+      }),
+    );
+
+    // Write groundtruth filenames to list
+    const groundtruthFile = fs.createWriteStream(npath.join(jobWorkDir, 'input_truth_list.txt'));
+    groundtruthFilenames.forEach((name) => groundtruthFile.write(`${name}\n`));
+    groundtruthFile.end();
+
+    // Write input folder paths to list
+    const inputFile = fs.createWriteStream(npath.join(jobWorkDir, 'input_folder_list.txt'));
+    infoAndMeta.forEach(({ projectInfo, meta }) => {
+      if (meta.type === 'video') {
+        let videopath = '';
+        /* If the video has been transcoded, use that video */
+        if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
+          videopath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
+        } else {
+          videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+        }
+        inputFile.write(`${videopath}\n`);
+      } else if (meta.type === 'image-sequence') {
+        inputFile.write(`${npath.join(meta.originalBasePath)}\n`);
+      }
+    });
+    inputFile.end();
+  }
 
   // Argument files for training
   const inputFolderFileList = npath.join(jobWorkDir, 'input_folder_list.txt');
   const groundTruthFileList = npath.join(jobWorkDir, 'input_truth_list.txt');
-
-  const groundtruthFilenames = await Promise.all(
-    infoAndMeta.map(async ({ meta, projectInfo }) => {
-      // Organize data for training
-      const groundTruthFileName = `groundtruth_${meta.id}.csv`;
-      const groundTruthFileStream = fs.createWriteStream(
-        npath.join(jobWorkDir, groundTruthFileName),
-      );
-      const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
-      await serialize(groundTruthFileStream, inputData, meta);
-      groundTruthFileStream.end();
-      return groundTruthFileName;
-    }),
-  );
-
-  // Write groundtruth filenames to list
-  const groundtruthFile = fs.createWriteStream(groundTruthFileList);
-  groundtruthFilenames.forEach((name) => groundtruthFile.write(`${name}\n`));
-  groundtruthFile.end();
-
-  // Write input folder paths to list
-  const inputFile = fs.createWriteStream(inputFolderFileList);
-  infoAndMeta.forEach(({ projectInfo, meta }) => {
-    if (meta.type === 'video') {
-      let videopath = '';
-      /* If the video has been transcoded, use that video */
-      if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
-        videopath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
-      } else {
-        videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-      }
-      inputFile.write(`${videopath}\n`);
-    } else if (meta.type === 'image-sequence') {
-      inputFile.write(`${npath.join(meta.originalBasePath)}\n`);
-    }
-  });
-  inputFile.end();
+  if (resumeDir && !(fs.existsSync(inputFolderFileList) && fs.existsSync(groundTruthFileList))) {
+    throw new Error(`Cannot resume training: input lists are missing from ${resumeDir}`);
+  }
 
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
   const configFilePath = npath.join(settings.viamePath, PipelineRelativeDir, runTrainingArgs.trainingConfig);
@@ -677,18 +776,26 @@ async function train(
     '--no-embedded-pipe',
   ];
 
+  if (resumeDir) {
+    command.push('--continue');
+  }
+
   if (runTrainingArgs.annotatedFramesOnly) {
     command.push('--gt-frames-only');
   }
 
-  if (runTrainingArgs.fineTuneModel && runTrainingArgs.fineTuneModel.path) {
+  // On resume, --continue restores the run's own checkpoint; re-seeding with
+  // the fine-tune weights would override it
+  if (!resumeDir && runTrainingArgs.fineTuneModel && runTrainingArgs.fineTuneModel.path) {
     command.push('--init-weights');
     command.push(runTrainingArgs.fineTuneModel.path);
   }
 
   if (runTrainingArgs.labelText) {
     const labelsPath = `${jobWorkDir}/labels.txt`;
-    fs.writeFileSync(labelsPath, runTrainingArgs.labelText);
+    if (!resumeDir) {
+      fs.writeFileSync(labelsPath, runTrainingArgs.labelText);
+    }
     command.push('--labels');
     command.push(labelsPath);
   }
@@ -723,9 +830,21 @@ async function train(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.on('exit', async (code) => {
+    const manifestPath = npath.join(jobWorkDir, DiveJobManifestName);
+    // Cancel updates the manifest before killing the child; read that first so
+    // we do not clobber cancelledJob with a null/signal exit code.
+    let existingManifest: DesktopJob | undefined;
+    try {
+      if (await fs.pathExists(manifestPath)) {
+        existingManifest = await fs.readJson(manifestPath) as DesktopJob;
+      }
+    } catch {
+      // fall through and record process exit status
+    }
+
     let exitCode = code;
     const bodyText = [''];
-    if (code === 0) {
+    if (!existingManifest?.cancelledJob && code === 0) {
       try {
         await common.processTrainedPipeline(settings, runTrainingArgs, jobWorkDir);
       } catch (err) {
@@ -737,11 +856,13 @@ async function train(
         });
       }
     }
+    const endTime = new Date();
+    const finalJob = buildTrainingExitManifest(jobBase, exitCode, endTime, existingManifest);
+    // Record the final status so interrupted runs can be detected as resumable
+    fs.writeFile(manifestPath, JSON.stringify(finalJob, null, 2));
     updater({
-      ...jobBase,
+      ...finalJob,
       body: bodyText,
-      exitCode,
-      endTime: new Date(),
     });
   });
   return jobBase;
@@ -751,4 +872,5 @@ export {
   runPipeline,
   exportTrainedPipeline,
   train,
+  DEFAULT_CALIBRATION_KEYS,
 };

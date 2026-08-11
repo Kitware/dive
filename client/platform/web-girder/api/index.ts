@@ -8,6 +8,7 @@ import { clearCalibrationFolderMetadata, getDatasetCalibration } from './dataset
 export * from './annotation.service';
 export * from './configuration.service';
 export * from './dataset.service';
+export { default as loadFrameMetadata } from './frameMetadata.service';
 export * from './girder.service';
 export * from './multicamResolve';
 export * from './rpc.service';

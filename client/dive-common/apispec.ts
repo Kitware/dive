@@ -70,6 +70,14 @@ interface PipeMetadata {
    * it gets the first camera's list. Parsed from a `# Image List Keys:` header.
    */
   imageListKeys?: string[];
+  /**
+   * KWIVER config keys (e.g. "depth_map:computer:ocv_stereo_disparity:calibration_file")
+   * that the dataset's stereo calibration file is bound to at run time. Parsed from a
+   * `# Calibration Keys: <k> [k...]` header. Pipes whose calibration consumer is not the
+   * conventional `measurer`/`calibration_reader` declare their own keys here; when unset
+   * the two conventional keys are used.
+   */
+  calibrationKeys?: string[];
 }
 
 interface PipelineRuntimeParams {
@@ -79,6 +87,20 @@ interface PipelineRuntimeParams {
 interface PipelineParams {
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
+  /** Filter / transcode / disparity pipelines: name for the newly created dataset. */
+  outputDatasetName?: string;
+  /**
+   * Web only: Girder folder id that should own the newly created dataset.
+   * When omitted, the dataset is created as a sibling of the input folder.
+   */
+  outputParentFolderId?: string;
+}
+
+/** Confirm payload from the filter/transcode/disparity dataset-creation dialog. */
+interface NewDatasetJobConfig {
+  names: Record<string, string>;
+  /** Web only: Girder folder that should own the new dataset(s). */
+  parentFolderId?: string;
 }
 
 interface Pipe {
@@ -147,6 +169,24 @@ interface FrameImage {
   timestamp?: number;
 }
 
+/** One metadata attachment loaded by a platform implementation. */
+interface FrameMetadataAttachmentText {
+  /** Preserved original name, falling back to the resolved item/path basename. */
+  name: string;
+  /** Present for a readable TXT/CSV attachment. */
+  text?: string;
+  /** Present when the selected locator could not be read. */
+  error?: string;
+}
+
+/** Complete normalized attachment response for one dataset. */
+interface FrameMetadataSourcesResponse {
+  /** Single-camera dataset attachment or multicamera parent attachment. */
+  shared?: FrameMetadataAttachmentText;
+  /** Camera-local attachments only, keyed by camera name. */
+  cameras: Record<string, FrameMetadataAttachmentText>;
+}
+
 export interface MultiCamImportFolderArgs {
   datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
@@ -161,6 +201,8 @@ export interface MultiCamImportFolderArgs {
      * dataset's saved camera registration.
      */
     transformFile?: string;
+    /** Optional camera-local metadata attachment. */
+    metadataFile?: string;
     /** Per-camera media type when cameras differ (e.g. EO JPG + IR TIFF on web). */
     type?: 'image-sequence' | 'video' | 'large-image';
     /**
@@ -200,16 +242,20 @@ interface MultiCamMedia {
 }
 
 interface MediaImportResponse {
-  jsonMeta: {
+  jsonConfig: {
     originalImageFiles: string[];
   };
   globPattern: string;
   mediaConvertList: string[];
 }
+
+/** User-editable datasetInfo stored on the dataset's backing metadata object. */
+type DatasetInfoFields = Record<string, unknown>;
+
 /**
- * The parts of metadata a user should be able to modify.
+ * The parts of dataset config a user should be able to modify.
  */
-interface DatasetMetaMutable {
+interface DatasetConfigMutable {
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
@@ -217,7 +263,7 @@ interface DatasetMetaMutable {
   imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
-  datasetInfo?: Record<string, unknown>;
+  datasetInfo?: DatasetInfoFields;
   cameraHomographies?: CameraHomographies;
   cameraCorrespondences?: CameraCorrespondences;
   cameraTransformTypes?: CameraTransformTypes;
@@ -225,7 +271,7 @@ interface DatasetMetaMutable {
   cameraRegistrationSource?: RegistrationSource | null;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
@@ -254,7 +300,7 @@ const MulticamSharedMutableKeys = [
   'datasetInfo',
 ];
 
-interface DatasetMeta extends DatasetMetaMutable {
+interface DatasetConfig extends DatasetConfigMutable {
   id: Readonly<string>;
   imageData: Readonly<FrameImage[]>;
   videoUrl: Readonly<string | undefined>;
@@ -339,17 +385,24 @@ interface Api {
     },
   ): Promise<unknown>;
 
-  loadMetadata(datasetId: string): Promise<DatasetMeta>;
+  loadConfig(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
-  saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
+  saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
-    Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
+    Promise<{
+      canceled?: boolean;
+      filePaths: string[];
+      fileList?: File[];
+      root?: string;
+      selectionId?: string;
+    }>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
   /** Desktop: subfolders or root-level video files under a parent folder (multicam import). */
@@ -608,9 +661,10 @@ export {
 export {
   AnnotationSchema,
   Api,
-  DatasetMeta,
-  DatasetMetaMutable,
-  DatasetMetaMutableKeys,
+  DatasetConfig,
+  DatasetConfigMutable,
+  DatasetConfigMutableKeys,
+  DatasetInfoFields,
   MulticamSharedMutableKeys,
   GlobalStyleSettings,
   DatasetType,
@@ -621,11 +675,14 @@ export {
   SubType,
   PipelineParamType,
   FrameImage,
+  FrameMetadataAttachmentText,
+  FrameMetadataSourcesResponse,
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,
   PipelineParams,
   PipelineRuntimeParams,
+  NewDatasetJobConfig,
   PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,

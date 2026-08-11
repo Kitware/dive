@@ -26,7 +26,7 @@ export default defineComponent({
     const registration = useCameraRegistration();
     const datasetId = useDatasetId();
     const alignedView = useAlignedView();
-    const { saveMetadata } = useApi();
+    const { saveConfig } = useApi();
     const { prompt } = usePrompt();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
@@ -357,7 +357,7 @@ export default defineComponent({
       }
       saving.value = true;
       try {
-        await saveMetadata(datasetId.value, {
+        await saveConfig(datasetId.value, {
           cameraHomographies: registration.homographies.value,
           cameraCorrespondences: registration.correspondences.value,
           cameraTransformTypes: registration.transformTypes.value,

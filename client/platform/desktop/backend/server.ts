@@ -53,14 +53,14 @@ function makeMediaUrl(filepath: string): string {
   return `http://${formatHostForUrl(addr.address)}:${addr.port}/api/media?path=${encodeURIComponent(filepath)}`;
 }
 
-/* LOAD metadata */
+/* LOAD dataset config */
 apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
       id = `${req.params.id}/${req.params.camera}`;
     }
-    const ds = await common.loadMetadata(settings.get(), id, makeMediaUrl);
+    const ds = await common.loadConfig(settings.get(), id, makeMediaUrl);
     res.json(ds);
   } catch (err) {
     err.status = 500;
@@ -68,14 +68,14 @@ apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
   }
 });
 
-/* SAVE metadata */
+/* SAVE dataset config */
 apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
       id = `${req.params.id}/${req.params.camera}`;
     }
-    await common.saveMetadata(settings.get(), id, req.body);
+    await common.saveConfig(settings.get(), id, req.body);
     res.status(200).send('done');
   } catch (err) {
     err.status = 500;

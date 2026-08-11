@@ -24,6 +24,7 @@ import win32 from './native/windows';
 import * as common from './native/common';
 import beginMultiCamImport from './native/multiCamImport';
 import scanMultiCamBatch from './native/multiCollectImport';
+import scanStereoBatch from './native/stereoCollectImport';
 import settings from './state/settings';
 import { listen } from './server';
 import {
@@ -228,6 +229,11 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('load-frame-metadata', async (
+    event,
+    { datasetId }: { datasetId: string },
+  ) => common.loadFrameMetadata(settings.get(), datasetId));
+
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
     const ret = await beginMultiCamImport(args);
@@ -236,6 +242,11 @@ export default function register() {
 
   ipcMain.handle('scan-multicam-batch', async (event, { path: rootPath }: { path: string }) => {
     const ret = await scanMultiCamBatch(rootPath);
+    return ret;
+  });
+
+  ipcMain.handle('scan-stereo-batch', async (event, { path: rootPath }: { path: string }) => {
+    const ret = await scanStereoBatch(rootPath);
     return ret;
   });
 
@@ -338,6 +349,10 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
+  });
+  ipcMain.handle('list-resumable-training', async () => common.findResumableTrainingJobs(settings.get()));
+  ipcMain.handle('discard-resumable-training', async (_event, workingDir: string) => {
+    await common.discardResumableTraining(settings.get(), workingDir);
   });
 
   /**

@@ -18,16 +18,24 @@ import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
-  FrameImage, DatasetMetaMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
+  FrameImage, DatasetConfigMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
   MultiCamMedia,
-  DatasetMetaMutableKeys,
+  DatasetConfigMutableKeys,
   MulticamSharedMutableKeys,
   AnnotationSchema,
   SaveAttributeTrackFilterArgs,
   Pipe,
   PipeMetadata,
   PipelineParamType,
+  FrameMetadataAttachmentText,
+  FrameMetadataSourcesResponse,
 } from 'dive-common/apispec';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
+import {
+  METADATA_ATTACHMENT_UNAVAILABLE, isFrameMetadataReadableName,
+} from 'dive-common/frameMetadata/readability';
+import { parentDatasetId, parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
@@ -38,20 +46,19 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
-  MultiType, JsonMetaRegEx, largeImageDesktopTypes,
+  MultiType, JsonConfigRegEx, largeImageDesktopTypes, metadataFileTypes,
 } from 'dive-common/constants';
 import {
-  JsonMeta, Settings, JsonMetaCurrentVersion, DesktopMetadata,
+  JsonConfig, Settings, JsonConfigCurrentVersion, DesktopConfig,
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
   ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType,
+  JobType, DesktopJob,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
 } from 'platform/desktop/sharedUtils';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
-import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 
 import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
@@ -66,12 +73,42 @@ import { realCalibrationName } from './datasetCalibration';
 import { splitExt } from './utils';
 
 const AuxFolderName = 'auxiliary';
+// Where an export archive stores each dataset scope's metadata attachment.
+const ArchiveMetadataFolderName = 'metadata';
 
 const JsonTrackFileName = /^result(_.*)?\.json$/i;
 const JsonFileName = /^.*\.json$/i;
-const JsonMetaFileName = 'meta.json';
+/**
+ * Canonical desktop project dataset file under DIVE_Projects (media paths, id,
+ * type, multicam layout, …). Distinct from the portable Configuration File
+ * (`config.json`) used on import/export.
+ */
+const DatasetFileName = 'dataset.json';
+/** Legacy project filename; still read, migrated away on save. */
+const DatasetFileNameLegacy = 'meta.json';
+/** Portable Configuration File name used on import/export (not the project store). */
+const PortableConfigFileName = 'config.json';
+const DiveJobManifestName = 'dive_job_manifest.json';
+const PortableConfigFileNameLegacy = 'meta.json';
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
+
+/**
+ * Resolve the project dataset.json path: prefer dataset.json, fall back to
+ * legacy meta.json for existing datasets, else the preferred name for new projects.
+ */
+function resolveDatasetFileAbsPath(basePath: string): string {
+  const preferred = npath.join(basePath, DatasetFileName);
+  const legacy = npath.join(basePath, DatasetFileNameLegacy);
+  if (fs.pathExistsSync(preferred)) {
+    return preferred;
+  }
+  if (fs.pathExistsSync(legacy)) {
+    return legacy;
+  }
+  return preferred;
+}
+
 /**
  * Read a text file into a list of lines
  */
@@ -230,7 +267,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
@@ -271,6 +308,19 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
         const keys = imageListMatch[1].trim().split(/[\s,]+/).filter((k) => k);
         if (keys.length) {
           metadata.imageListKeys = keys;
+        }
+      }
+
+      // `# Calibration Keys: <k> [k...]` binds the dataset's stereo calibration
+      // file to each listed KWIVER key. Needed because `$CONFIG{global:...}`
+      // indirection cannot receive `-s` overrides (macros expand at parse time,
+      // `-s` blocks are appended last), so a pipe must name the consuming process
+      // key directly.
+      const calibrationKeysMatch = line.match(/^#\s*Calibration\s+Keys?:\s*(.+)/i);
+      if (calibrationKeysMatch) {
+        const keys = calibrationKeysMatch[1].trim().split(/[\s,]+/).filter((k) => k);
+        if (keys.length) {
+          metadata.calibrationKeys = keys;
         }
       }
     });
@@ -390,10 +440,10 @@ async function _findCSVTrackFiles(searchPath: string) {
  * @returns object containing trackAbsPath and metaPath if it exists
  */
 async function _findJsonAndMetaTrackFile(basePath: string): Promise<
-  {trackFileAbsPath: string; metaFileAbsPath?: string}> {
+  {trackFileAbsPath: string; configFileAbsPath?: string}> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
-  let metaFileAbsPath: undefined | string;
+  let configFileAbsPath: undefined | string;
   await Promise.all(contents.map(async (name) => {
     const fullPath = npath.join(basePath, name);
     if (JsonTrackFileName.test(name)) {
@@ -401,14 +451,27 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
       if (statResult.isFile()) {
         jsonFileCandidates.push(fullPath);
       }
-    } else if (JsonMetaRegEx.test(name)) {
-      metaFileAbsPath = fullPath;
+    } else if (JsonConfigRegEx.test(name)) {
+      // Prefer exact portable config.json, then legacy meta.json, then other
+      // *.meta/config.json. dataset.json is the desktop project store and is
+      // not matched by JsonConfigRegEx.
+      const lower = name.toLowerCase();
+      const current = configFileAbsPath
+        ? npath.basename(configFileAbsPath).toLowerCase()
+        : '';
+      if (lower === PortableConfigFileName) {
+        configFileAbsPath = fullPath;
+      } else if (lower === PortableConfigFileNameLegacy && current !== PortableConfigFileName) {
+        configFileAbsPath = fullPath;
+      } else if (!configFileAbsPath) {
+        configFileAbsPath = fullPath;
+      }
     }
   }));
   if (jsonFileCandidates.length > 0) {
-    return { trackFileAbsPath: jsonFileCandidates[0], metaFileAbsPath };
+    return { trackFileAbsPath: jsonFileCandidates[0], configFileAbsPath };
   }
-  return { trackFileAbsPath: '', metaFileAbsPath };
+  return { trackFileAbsPath: '', configFileAbsPath };
 }
 
 /**
@@ -417,26 +480,25 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
 function getProjectDir(settings: Settings, datasetId: string) {
   const basePath = npath.join(settings.dataPath, ProjectsFolderName, datasetId);
   const auxDirAbsPath = npath.join(basePath, AuxFolderName);
-  const metaFileAbsPath = npath.join(basePath, JsonMetaFileName);
   return {
     auxDirAbsPath,
     basePath,
-    metaFileAbsPath,
+    datasetFileAbsPath: resolveDatasetFileAbsPath(basePath),
   };
 }
 
 /**
- * REQUIRED members: meta.json, results*.json
+ * REQUIRED members: dataset.json (or legacy meta.json), results*.json
  * OPTIONAL members: aux/ will be created if none exists
  */
 async function getValidatedProjectDir(settings: Settings, datasetId: string) {
   const projectInfo = getProjectDir(settings, datasetId);
-  fs.ensureDirSync(projectInfo.auxDirAbsPath);
   if (!fs.pathExistsSync(projectInfo.basePath)) {
     throw new Error(`missing project directory ${projectInfo.basePath}`);
   }
-  if (!fs.pathExistsSync(projectInfo.metaFileAbsPath)) {
-    throw new Error(`missing metadata json file ${projectInfo.metaFileAbsPath}`);
+  fs.ensureDirSync(projectInfo.auxDirAbsPath);
+  if (!fs.pathExistsSync(projectInfo.datasetFileAbsPath)) {
+    throw new Error(`missing dataset json file ${projectInfo.datasetFileAbsPath}`);
   }
   const { trackFileAbsPath } = await _findJsonAndMetaTrackFile(projectInfo.basePath);
   if (trackFileAbsPath === '') {
@@ -449,14 +511,14 @@ async function getValidatedProjectDir(settings: Settings, datasetId: string) {
 }
 
 /**
- * loadJsonMeta processes dataset information from json
- * @param metaPath a known, existing path
+ * loadJsonConfig processes dataset configuration from JSON
+ * @param configAbsPath a known, existing path
  */
-async function loadJsonMetadata(metaAbsPath: string): Promise<JsonMeta> {
-  const metaJson = await _loadAsJson(metaAbsPath);
+async function loadJsonConfig(configAbsPath: string): Promise<JsonConfig> {
+  const configJson = await _loadAsJson(configAbsPath);
   /* check if this file meets the current schema version */
-  upgrade(metaJson);
-  return metaJson as JsonMeta;
+  upgrade(configJson);
+  return configJson as JsonConfig;
 }
 
 /**
@@ -468,13 +530,13 @@ async function loadAnnotationFile(tracksAbsPath: string): Promise<AnnotationSche
   return dive.migrate(annotationData);
 }
 
-async function loadMetadata(
+async function loadConfig(
   settings: Settings,
   datasetId: string,
   makeMediaUrl: (path: string) => string,
-): Promise<DesktopMetadata> {
+): Promise<DesktopConfig> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
 
   // Load the standalone camera registration (transforms + correspondences)
   // from the per-camera *_registration.json files, if present; the dataset
@@ -572,19 +634,344 @@ async function loadDetections(settings: Settings, datasetId: string) {
 }
 
 /**
+ * Frame-metadata read path. Declared frame metadata sidecars are discovered on disk and read here.
+ * Parsing and resolving against media filenames happens in the renderer via the shared TypeScript
+ * resolver (dive-common/frameMetadata). Nothing derived is persisted; the sidecar the user dropped
+ * is the only stored form.
+ */
+interface FrameMetadataSource {
+  originalBasePath: string;
+  originalImageFiles?: string[];
+  imageListPath?: string;
+  originalVideoFile?: string;
+}
+
+// Directories that may hold a camera's sidecars: the media base path, the image-list directory,
+// and any absolute media paths. Deduped, order-preserving.
+function frameMetadataSourceDirectories(source: FrameMetadataSource): string[] {
+  const mediaPaths = [
+    ...(source.originalImageFiles ?? []),
+    ...(source.originalVideoFile ? [source.originalVideoFile] : []),
+  ];
+  const directories = [
+    source.originalBasePath,
+    source.imageListPath ? npath.dirname(source.imageListPath) : '',
+    // Only absolute media entries reveal extra directories; relative names are
+    // resolved against originalBasePath, already covered above.
+    ...mediaPaths
+      .filter((mediaPath) => npath.isAbsolute(mediaPath))
+      .map((mediaPath) => npath.dirname(mediaPath)),
+  ];
+  // uniq keeps first-occurrence order, so folder precedence (base path first) is preserved.
+  return uniq(directories.filter(Boolean).map((directory) => npath.resolve(directory)));
+}
+
+const multipleReservedMetadataAttachments = (
+  'More than one reserved-name metadata attachment is available.'
+);
+
+/**
+ * A missing directory, or a media/image-list FILE path where a directory was expected, simply
+ * holds no attachment. Every other readdir failure -- an unreadable directory, say -- stays an
+ * error: reading it as "nothing here" would report a dataset as having no attachment when its
+ * directory could not be read at all.
+ */
+function noEntriesIfAbsent(err: NodeJS.ErrnoException): never[] {
+  if (err.code === 'ENOENT' || err.code === 'ENOTDIR') {
+    return [];
+  }
+  throw err;
+}
+
+function listNames(directory: string): Promise<string[]> {
+  return fs.readdir(directory).catch(noEntriesIfAbsent);
+}
+
+async function reservedMetadataAttachmentPaths(directory: string): Promise<string[]> {
+  const names = await listNames(directory);
+  const candidates = names
+    .filter(isFrameMetadataSourceName)
+    .map((name) => npath.join(directory, name));
+  const files = await Promise.all(candidates.map(async (candidate) => {
+    try {
+      return (await fs.stat(candidate)).isFile() ? candidate : null;
+    } catch {
+      return null;
+    }
+  }));
+  return files.filter((candidate): candidate is string => candidate !== null);
+}
+
+/**
+ * The one reserved-name attachment in a media directory. Reserved-name discovery is only
+ * consulted when the user made no explicit choice, so an ambiguous directory is an error only
+ * in that case -- matching the server's explicit-then-reserved resolution order.
+ */
+async function reservedMetadataAttachmentPath(directory: string): Promise<string | undefined> {
+  const paths = await reservedMetadataAttachmentPaths(directory);
+  if (paths.length > 1) {
+    throw new Error(
+      `More than one metadata file was found in ${directory}. Keep one and try again.`,
+    );
+  }
+  return paths[0];
+}
+
+async function listArchiveMetadataFiles(directory: string): Promise<string[]> {
+  const entries: fs.Dirent[] = await fs.readdir(directory, { withFileTypes: true })
+    .catch(noEntriesIfAbsent);
+  const nested = await Promise.all(entries.map(async (entry) => {
+    const entryPath = npath.join(directory, entry.name);
+    return entry.isDirectory() ? listArchiveMetadataFiles(entryPath) : [entryPath];
+  }));
+  return nested.flat();
+}
+
+/**
+ * Whether a directory is one scope of an exported dataset. Every export writes a config.json
+ * beside the media, and the server twin is only ever reached through
+ * `_load_exported_dataset_meta`, which requires one -- so the archive contract below is scoped
+ * the same way here. An ordinary media folder that happens to keep its own `metadata/`
+ * subdirectory is not an archive and must import untouched.
+ */
+async function isExportedDatasetDirectory(directory: string): Promise<boolean> {
+  return (await listNames(directory)).some((name) => JsonConfigRegEx.test(name));
+}
+
+/**
+ * The metadata attachment an export archive carries for one dataset directory: the single file
+ * under its `metadata/` subdirectory. config.json's contents are never consulted -- a locator
+ * stored there would be a path from another machine -- so archives written by any DIVE version,
+ * including ones that carry no attachment at all, import the same way. The walk is recursive so
+ * an archive rewritten by a tool that nested the file is still imported.
+ * Mirrors `_archive_metadata_attachment` in server/dive_tasks/utils.py, error strings included.
+ */
+async function archiveMetadataAttachment(directory: string): Promise<string | undefined> {
+  if (!(await isExportedDatasetDirectory(directory))) {
+    return undefined;
+  }
+  const files = await listArchiveMetadataFiles(npath.join(directory, ArchiveMetadataFolderName));
+  if (!files.length) {
+    return undefined;
+  }
+  if (files.length > 1) {
+    throw new Error(
+      'More than one metadata file was found in the archive metadata directory.'
+      + ' Keep one and try again.',
+    );
+  }
+  const [attachment] = files;
+  if (!metadataFileTypes.includes(npath.extname(attachment).slice(1).toLowerCase())) {
+    throw new Error('Archive metadata attachment must be a JSON, TXT, or CSV file');
+  }
+  return attachment;
+}
+
+/**
+ * The attachment a media directory offers on import: an export archive's `metadata/` file
+ * first, then a reserved-name file lying beside the media.
+ */
+async function discoverMetadataAttachment(directory: string): Promise<string | undefined> {
+  const archived = await archiveMetadataAttachment(directory);
+  return archived ?? reservedMetadataAttachmentPath(directory);
+}
+
+/**
+ * Discovery for the single-dataset import, where the answer is only the value the import
+ * dialog's "Metadata File (Optional)" field opens with. That field is the one place the user
+ * can resolve an ambiguous or unreadable directory, and it appears only after this returns, so
+ * a discovery failure is reported as an import warning instead of refusing the whole dataset.
+ * The multicam path keeps the throw: its per-camera picks are already made when it runs.
+ */
+async function suggestMetadataAttachment(
+  directory: string,
+): Promise<{ path?: string; warning?: string }> {
+  try {
+    return { path: await discoverMetadataAttachment(directory) };
+  } catch (err) {
+    return { warning: (err as Error).message };
+  }
+}
+
+async function loadMetadataAttachment(
+  projectBasePath: string,
+  storedPath: string,
+  originalName?: string,
+): Promise<FrameMetadataAttachmentText> {
+  const absolutePath = npath.resolve(projectBasePath, storedPath);
+  const name = originalName || npath.basename(storedPath);
+  try {
+    const stat = await fs.stat(absolutePath);
+    if (!stat.isFile()) {
+      return { name, error: METADATA_ATTACHMENT_UNAVAILABLE };
+    }
+    if (!isFrameMetadataReadableName(name)) {
+      return { name };
+    }
+    return { name, text: await fs.readFile(absolutePath, 'utf-8') };
+  } catch {
+    return { name, error: METADATA_ATTACHMENT_UNAVAILABLE };
+  }
+}
+
+async function reservedMetadataAttachment(
+  directories: string[],
+): Promise<FrameMetadataAttachmentText | undefined> {
+  const resolvedDirectories = uniq(directories.map((directory) => npath.resolve(directory)));
+  async function resolveAt(index: number): Promise<FrameMetadataAttachmentText | undefined> {
+    const resolved = resolvedDirectories[index];
+    if (resolved === undefined) {
+      return undefined;
+    }
+    const paths = await reservedMetadataAttachmentPaths(resolved);
+    if (paths.length > 1) {
+      return {
+        name: 'Metadata File',
+        error: multipleReservedMetadataAttachments,
+      };
+    }
+    if (paths.length === 1) {
+      return loadMetadataAttachment(resolved, paths[0]);
+    }
+    return resolveAt(index + 1);
+  }
+  return resolveAt(0);
+}
+
+async function isExistingDirectory(path: string): Promise<boolean> {
+  try {
+    return (await fs.stat(path)).isDirectory();
+  } catch {
+    return false;
+  }
+}
+
+function commonParentDirectory(paths: string[]): string | null {
+  const resolved = paths.filter((item) => item).map((item) => npath.resolve(item));
+  if (!resolved.length) {
+    return null;
+  }
+  const [first, ...rest] = resolved;
+  const firstParts = first.split(npath.sep);
+  let { length } = firstParts;
+  rest.forEach((candidate) => {
+    const parts = candidate.split(npath.sep);
+    length = Math.min(length, parts.length);
+    for (let i = 0; i < length; i += 1) {
+      if (firstParts[i] !== parts[i]) {
+        length = i;
+        break;
+      }
+    }
+  });
+  const prefix = firstParts.slice(0, length).join(npath.sep);
+  // Return null rather than the filesystem root when cameras share no common prefix,
+  // so an unrelated-mount multicam never scans every sidecar at '/'.
+  return prefix || null;
+}
+
+async function loadMulticamFrameMetadata(
+  projectBasePath: string,
+  projectMetaData: JsonConfig,
+): Promise<FrameMetadataSourcesResponse> {
+  const { multiCam } = projectMetaData;
+  if (!multiCam) {
+    return { cameras: {} };
+  }
+
+  const cameraEntries = orderedMultiCamCameraNames({
+    cameras: multiCam.cameras,
+    defaultDisplay: multiCam.defaultDisplay,
+  }).map((cameraName) => [cameraName, multiCam.cameras[cameraName]] as const);
+
+  // originalBasePath is a directory for folder imports but a media/image-list FILE path for
+  // keyword imports, so fall back to the cameras' shared parent unless it is really a directory.
+  const rootDirectory = await isExistingDirectory(projectMetaData.originalBasePath)
+    ? projectMetaData.originalBasePath
+    : commonParentDirectory(cameraEntries.flatMap(([, camera]) => (
+      frameMetadataSourceDirectories(camera)
+    )));
+  const resolvedRoot = rootDirectory ? npath.resolve(rootDirectory) : null;
+  const shared = projectMetaData.metadataFile
+    ? await loadMetadataAttachment(
+      projectBasePath,
+      projectMetaData.metadataFile,
+      projectMetaData.metadataOriginalName,
+    )
+    : await reservedMetadataAttachment(rootDirectory ? [rootDirectory] : []);
+
+  const cameras: FrameMetadataSourcesResponse['cameras'] = {};
+
+  await Promise.all(cameraEntries.map(async ([cameraName, cameraMeta]) => {
+    if (cameraMeta.type !== 'image-sequence' && cameraMeta.type !== 'video') {
+      return;
+    }
+    if (cameraMeta.metadataFile) {
+      cameras[cameraName] = await loadMetadataAttachment(
+        projectBasePath,
+        cameraMeta.metadataFile,
+        cameraMeta.metadataOriginalName,
+      );
+      return;
+    }
+    // A camera-local reserved-name attachment stands on its own: the dataset-level attachment
+    // never suppresses it, however the shared one was declared.
+    const localDirectories = frameMetadataSourceDirectories(cameraMeta)
+      .filter((directory) => resolvedRoot === null || directory !== resolvedRoot);
+    const local = await reservedMetadataAttachment(localDirectories);
+    if (local) {
+      cameras[cameraName] = local;
+    }
+  }));
+
+  return {
+    ...(shared ? { shared } : {}),
+    cameras,
+  };
+}
+
+async function loadFrameMetadata(
+  settings: Settings,
+  datasetId: string,
+): Promise<FrameMetadataSourcesResponse> {
+  const parentId = parentDatasetId(datasetId);
+  const projectDirData = await getValidatedProjectDir(settings, parentId);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
+
+  if (projectMetaData.type === MultiType) {
+    return loadMulticamFrameMetadata(projectDirData.basePath, projectMetaData);
+  }
+  if (projectMetaData.type !== 'image-sequence' && projectMetaData.type !== 'video') {
+    return { cameras: {} };
+  }
+
+  const shared = projectMetaData.metadataFile
+    ? await loadMetadataAttachment(
+      projectDirData.basePath,
+      projectMetaData.metadataFile,
+      projectMetaData.metadataOriginalName,
+    )
+    : await reservedMetadataAttachment(frameMetadataSourceDirectories(projectMetaData));
+  return {
+    ...(shared ? { shared } : {}),
+    cameras: {},
+  };
+}
+
+/**
  * Look through DIVE project path, find subfolders that
  * look like datasets, and return them.
  */
-async function autodiscoverData(settings: Settings): Promise<JsonMeta[]> {
+async function autodiscoverData(settings: Settings): Promise<JsonConfig[]> {
   const dspath = npath.join(settings.dataPath, ProjectsFolderName);
   const dsids = await fs.readdir(dspath);
-  const metas: JsonMeta[] = [];
+  const metas: JsonConfig[] = [];
   /* eslint-disable no-await-in-loop,no-continue */
   for (let i = 0; i < dsids.length; i += 1) {
     const datasetId = dsids[i];
     try {
       const projectDirData = await getValidatedProjectDir(settings, datasetId);
-      const metadata = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+      const metadata = await loadJsonConfig(projectDirData.datasetFileAbsPath);
       metas.push(metadata);
     } catch {
       // noop, dataset was invalid
@@ -818,10 +1205,33 @@ async function _saveAsJson(absPath: string, data: unknown) {
   await fs.writeFile(absPath, serialized);
 }
 
-async function saveMetadata(settings: Settings, datasetId: string, args: DatasetMetaMutable) {
+/**
+ * Write the project dataset file as dataset.json and remove a legacy
+ * meta.json if one was present, so there is only one source of truth.
+ */
+async function saveProjectConfig(basePath: string, data: unknown) {
+  const preferred = npath.join(basePath, DatasetFileName);
+  const legacy = npath.join(basePath, DatasetFileNameLegacy);
+  await _saveAsJson(preferred, data);
+  if (await fs.pathExists(legacy)) {
+    await fs.remove(legacy);
+  }
+}
+
+async function saveConfig(settings: Settings, datasetId: string, args: DatasetConfigMutable) {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const release = await _acquireLock(projectDirInfo.basePath, projectDirInfo.metaFileAbsPath, 'meta');
-  const existing = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  // Lock the project directory (same pattern as tracks). Locking dataset.json
+  // directly fails with ENOENT on legacy projects that still only have
+  // meta.json, and migrate-on-save below may remove the legacy file while the
+  // lock is held.
+  const release = await _acquireLock(
+    projectDirInfo.basePath,
+    projectDirInfo.basePath,
+    'meta',
+  );
+  const existing = await loadJsonConfig(
+    resolveDatasetFileAbsPath(projectDirInfo.basePath),
+  );
   if (args.confidenceFilters) {
     existing.confidenceFilters = args.confidenceFilters;
   }
@@ -849,7 +1259,7 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
 
   // The camera registration (transforms + the points behind them) is
   // persisted as standalone <camera>_to_<reference>_registration.json files
-  // in the dataset directory rather than embedded in meta.json, so each
+  // in the dataset directory rather than embedded in dataset.json, so each
   // camera's registration is easy to find, hand-edit, and consume as a
   // self-contained artifact. There is deliberately never a single all-pairs
   // file.
@@ -862,13 +1272,13 @@ async function saveMetadata(settings: Settings, datasetId: string, args: Dataset
     );
   }
 
-  await _saveAsJson(projectDirInfo.metaFileAbsPath, existing);
+  await saveProjectConfig(projectDirInfo.basePath, existing);
   await release();
 }
 
 async function saveAttributes(settings: Settings, datasetId: string, args: SaveAttributeArgs) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   if (!projectMetaData.attributes) {
     projectMetaData.attributes = {};
   }
@@ -882,7 +1292,7 @@ async function saveAttributes(settings: Settings, datasetId: string, args: SaveA
       projectMetaData.attributes[attribute.key] = attribute;
     }
   });
-  await saveMetadata(settings, datasetId, projectMetaData);
+  await saveConfig(settings, datasetId, projectMetaData);
 }
 
 async function saveAttributeTrackFilters(
@@ -891,7 +1301,7 @@ async function saveAttributeTrackFilters(
   args: SaveAttributeTrackFilterArgs,
 ) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   if (!projectMetaData.attributeTrackFilters) {
     projectMetaData.attributeTrackFilters = {};
   }
@@ -905,7 +1315,7 @@ async function saveAttributeTrackFilters(
       projectMetaData.attributeTrackFilters[filter.name] = filter;
     }
   });
-  await saveMetadata(settings, datasetId, projectMetaData);
+  await saveConfig(settings, datasetId, projectMetaData);
 }
 
 async function _ingestFilePath(
@@ -915,12 +1325,17 @@ async function _ingestFilePath(
   imageMap?: Map<string, number>,
   additive = false,
   additivePrepend = '',
-): Promise<[(DatasetMetaMutable & { fps?: number }), string[]] | null> {
+): Promise<[(DatasetConfigMutable & { fps?: number }), string[]] | null> {
   if (!fs.existsSync(path)) {
     return null;
   }
   if (fs.statSync(path).size === 0) {
     return null;
+  }
+  // Frame-metadata sidecars are read from the media folder, so importing one as annotations would
+  // copy it into the wrong storage path.
+  if (isFrameMetadataSourceName(path)) {
+    throw new Error(`${npath.basename(path)} is a frame metadata file. Place it in the dataset's media folder; it cannot be imported as annotations.`);
   }
   let warnings: string[] = [];
   // Make a copy of the file in aux
@@ -929,7 +1344,7 @@ async function _ingestFilePath(
   await fs.copy(path, newPath);
   // Attempt to process the file
   let annotations = dive.makeEmptyAnnotationFile();
-  const meta: DatasetMetaMutable & { fps?: number, execTime?: number } = {};
+  const meta: DatasetConfigMutable & { fps?: number, execTime?: number } = {};
   let metadataConfig = false;
   if (JsonFileName.test(path)) {
     const jsonObject = await _loadAsJson(path);
@@ -939,9 +1354,9 @@ async function _ingestFilePath(
       annotations.tracks = data.tracks;
       annotations.groups = data.groups;
       meta.fps = data.fps;
-    } else if (DatasetMetaMutableKeys.some((key) => key in jsonObject)) {
-      // DIVE Json metadata config file
-      merge(meta, pick(jsonObject, DatasetMetaMutableKeys));
+    } else if (DatasetConfigMutableKeys.some((key) => key in jsonObject)) {
+      // DIVE Configuration File (attributes, styles, FPS, …)
+      merge(meta, pick(jsonObject, DatasetConfigMutableKeys));
       metadataConfig = true;
     } else if (coco.isCocoJson(jsonObject)) {
       const [parsedAnnotations, parsedMeta, cocoWarnings] = await coco.parseFile(path);
@@ -954,7 +1369,14 @@ async function _ingestFilePath(
     }
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File
-    const data = await viameSerializers.parseFile(path, imageMap);
+    let data: Awaited<ReturnType<typeof viameSerializers.parseFile>>;
+    try {
+      data = await viameSerializers.parseFile(path, imageMap);
+    } catch (e) {
+      // A plain CSV that fails to parse as annotations is often frame metadata. Desktop has no
+      // in-viewer frame metadata import, so the rename convention is the only remedy to offer.
+      throw new Error(`${(e as Error).message} If this file is frame metadata rather than annotations, rename it to frame-metadata.csv and place it in the dataset's media folder.`);
+    }
     annotations.tracks = data[0].tracks;
     annotations.groups = data[0].groups;
     meta.fps = data[0].fps;
@@ -1026,7 +1448,7 @@ async function ingestDataFiles(
   additivePrepend = '',
 ): Promise<{
   processedFiles: string[];
-  meta: DatasetMetaMutable & { fps?: number };
+  meta: DatasetConfigMutable & { fps?: number };
   warnings: string[];
 }> {
   const processedFiles = []; // which files were processed to generate the detections
@@ -1098,6 +1520,66 @@ async function processTrainedPipeline(settings: Settings, args: RunTraining, wor
   return folderContents;
 }
 
+function processIsRunning(pid: number): boolean {
+  try {
+    process.kill(pid, 0);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Find prior training runs whose intermediate files are still on disk and can
+ * be continued with `viame train --continue`: runs that were interrupted by a
+ * crash, a cancellation, or the app shutting down, or that exited early
+ * without producing a model.
+ */
+async function findResumableTrainingJobs(settings: Settings): Promise<DesktopJob[]> {
+  const jobsDir = npath.join(settings.dataPath, JobsFolderName);
+  if (!fs.existsSync(jobsDir)) {
+    return [];
+  }
+  const results: DesktopJob[] = [];
+  const entries = await fs.readdir(jobsDir);
+  await Promise.all(entries.map(async (entry) => {
+    const workingDir = npath.join(jobsDir, entry);
+    try {
+      const manifest = await fs.readJson(
+        npath.join(workingDir, DiveJobManifestName),
+      ) as DesktopJob;
+      if (manifest.jobType !== 'training') return;
+      if (manifest.exitCode === 0) return;
+      if (manifest.endTime === undefined && processIsRunning(manifest.pid)) return;
+      // The trainer's intermediate state and the original input lists must survive
+      const required = ['deep_training', 'input_folder_list.txt', 'input_truth_list.txt'];
+      if (!required.every((f) => fs.existsSync(npath.join(workingDir, f)))) return;
+      // Manifests predating final-status recording never carry an end time; a
+      // successful run's models were moved out of category_models, leaving it empty
+      if (manifest.endTime === undefined) {
+        const modelsDir = npath.join(workingDir, 'category_models');
+        if (fs.existsSync(modelsDir) && (await fs.readdir(modelsDir)).length === 0) return;
+      }
+      // The jobs folder may have been relocated since the manifest was written
+      results.push({ ...manifest, workingDir });
+    } catch {
+      // not a job directory or unreadable manifest
+    }
+  }));
+  return results.sort(
+    (a, b) => new Date(b.startTime).getTime() - new Date(a.startTime).getTime(),
+  );
+}
+
+async function discardResumableTraining(settings: Settings, workingDir: string): Promise<void> {
+  const jobsDir = npath.resolve(settings.dataPath, JobsFolderName);
+  const resolved = npath.resolve(workingDir);
+  if (npath.dirname(resolved) !== jobsDir) {
+    throw new Error(`${workingDir} is not a job working directory`);
+  }
+  await fs.remove(resolved);
+}
+
 async function _initializeAppDataDir(settings: Settings) {
   await fs.ensureDir(settings.dataPath);
   await fs.ensureDir(npath.join(settings.dataPath, ProjectsFolderName));
@@ -1108,8 +1590,8 @@ async function _initializeAppDataDir(settings: Settings) {
  * Initialize a new project directory
  * @returns absolute path to new project directory
  */
-async function _initializeProjectDir(settings: Settings, jsonMeta: JsonMeta): Promise<string> {
-  const projectDir = npath.join(settings.dataPath, ProjectsFolderName, jsonMeta.id);
+async function _initializeProjectDir(settings: Settings, jsonConfig: JsonConfig): Promise<string> {
+  const projectDir = npath.join(settings.dataPath, ProjectsFolderName, jsonConfig.id);
   await _initializeAppDataDir(settings);
   await fs.ensureDir(projectDir);
   return projectDir;
@@ -1119,12 +1601,26 @@ async function deleteDataset(
   settings: Settings,
   datasetId: string,
 ): Promise<boolean> {
-  // Confirm dataset exists
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  await fs.remove(projectDirInfo.basePath);
+  /* Incomplete or corrupt projects must still be removable, so this
+   * deliberately skips getValidatedProjectDir() */
+  const projectDirInfo = getProjectDir(settings, datasetId);
+  const projectsDir = npath.resolve(settings.dataPath, ProjectsFolderName);
+  const basePath = npath.resolve(projectDirInfo.basePath);
+  if (!basePath.startsWith(projectsDir + npath.sep)) {
+    throw new Error(`${datasetId} is not a dataset directory`);
+  }
+  if (!await fs.pathExists(basePath)) {
+    return true;
+  }
+  let projectMetaData: JsonConfig | undefined;
+  try {
+    projectMetaData = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
+  } catch {
+    // unreadable dataset json, delete the project directory anyway
+  }
+  await fs.remove(basePath);
   // If the dataset source is inside DIVE_Jobs_Output, delete that output folder
-  if (projectMetaData.originalBasePath) {
+  if (projectMetaData?.originalBasePath) {
     const jobsOutputPath = npath.resolve(settings.dataPath, JobsOutputFolderName);
     const originalBasePath = npath.resolve(projectMetaData.originalBasePath);
     const isInsideJobsOutput = originalBasePath !== jobsOutputPath
@@ -1142,7 +1638,7 @@ async function checkDataset(
   datasetId: string,
 ): Promise<boolean> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
-  const projectMetaData = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+  const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   if (projectMetaData.originalBasePath !== '') {
     const exists = await fs.pathExists(projectMetaData.originalBasePath);
     if (!exists) {
@@ -1158,14 +1654,17 @@ async function checkDataset(
 async function findTrackandMetaFileinFolder(path: string) {
   const results = await _findJsonAndMetaTrackFile(path);
   let { trackFileAbsPath } = results;
-  const { metaFileAbsPath } = results;
+  const { configFileAbsPath } = results;
   if (!trackFileAbsPath) {
-    const csvFileCandidates = await _findCSVTrackFiles(path);
+    // Declared frame metadata sidecars stay in place for read-time discovery; the first
+    // remaining CSV is unconditionally the annotation track file.
+    const csvFileCandidates = (await _findCSVTrackFiles(path))
+      .filter((candidate) => !isFrameMetadataSourceName(candidate));
     if (csvFileCandidates.length) {
       [trackFileAbsPath] = csvFileCandidates;
     }
   }
-  return { trackFileAbsPath, metaFileAbsPath };
+  return { trackFileAbsPath, configFileAbsPath };
 }
 
 /**
@@ -1396,8 +1895,8 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
   const dsName = npath.parse(path).name;
 
   const _defaultFps = datasetType === 'video' ? 5 : 1;
-  const jsonMeta: JsonMeta = {
-    version: JsonMetaCurrentVersion,
+  const jsonConfig: JsonConfig = {
+    version: JsonConfigCurrentVersion,
     type: datasetType,
     id: '', // will be assigned on finalize
     fps: _defaultFps, // adjusted below
@@ -1414,27 +1913,27 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     confidenceFilters: { default: DefaultConfidence },
   };
 
-  /* TODO: Look for an EXISTING meta.json file to override the above */
+  /* TODO: Look for an EXISTING portable config.json to override the above */
 
   if (datasetType === 'video') {
     // get parent folder, since videos reference a file directly
-    jsonMeta.originalBasePath = npath.dirname(path);
+    jsonConfig.originalBasePath = npath.dirname(path);
   }
   if (datasetType === 'large-image') {
-    jsonMeta.originalBasePath = npath.dirname(path);
-    jsonMeta.originalLargeImageFile = npath.basename(path);
+    jsonConfig.originalBasePath = npath.dirname(path);
+    jsonConfig.originalLargeImageFile = npath.basename(path);
   }
 
   /* Path to search for other related data like annotations */
-  let relatedDataSearchPath = jsonMeta.originalBasePath;
+  let relatedDataSearchPath = jsonConfig.originalBasePath;
 
   /* mediaConvertList is a list of absolute paths of media to convert */
   let mediaConvertList: string[] = [];
   /* Extract and validate media from import path */
-  if (jsonMeta.type === 'large-image') {
+  if (jsonConfig.type === 'large-image') {
     // No conversion for large images; tile serving is done on demand via geotiff
-  } else if (jsonMeta.type === 'video') {
-    jsonMeta.originalVideoFile = npath.basename(path);
+  } else if (jsonConfig.type === 'video') {
+    jsonConfig.originalVideoFile = npath.basename(path);
     const mimetype = mime.lookup(path);
     if (mimetype) {
       if (websafeImageTypes.includes(mimetype) || otherImageTypes.includes(mimetype)) {
@@ -1446,10 +1945,10 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
         }
         const newAnnotationFps = (
           // Prevent FPS smaller than 1
-          Math.max(1, Math.min(jsonMeta.fps, checkMediaResult.originalFps))
+          Math.max(1, Math.min(jsonConfig.fps, checkMediaResult.originalFps))
         );
-        jsonMeta.originalFps = checkMediaResult.originalFps;
-        jsonMeta.fps = newAnnotationFps;
+        jsonConfig.originalFps = checkMediaResult.originalFps;
+        jsonConfig.fps = newAnnotationFps;
       } else {
         throw new Error(`unsupported MIME type for video ${mimetype}`);
       }
@@ -1462,12 +1961,12 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
       throw new Error(`no images found in ${path}`);
     }
     if (found.source === 'directory') {
-      jsonMeta.originalImageFiles = found.imageNames;
+      jsonConfig.originalImageFiles = found.imageNames;
     } else if (found.source === 'image-list') {
-      jsonMeta.originalImageFiles = found.imagePaths;
-      jsonMeta.imageListPath = npath.normalize(path);
-      jsonMeta.originalBasePath = '';
-      jsonMeta.name = npath.basename(npath.dirname(path));
+      jsonConfig.originalImageFiles = found.imagePaths;
+      jsonConfig.imageListPath = npath.normalize(path);
+      jsonConfig.originalBasePath = '';
+      jsonConfig.name = npath.basename(npath.dirname(path));
       relatedDataSearchPath = npath.dirname(path);
     }
     mediaConvertList = found.mediaConvertList;
@@ -1475,23 +1974,28 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     throw new Error('only video, image-sequence, and large-image types are supported');
   }
 
-  const { trackFileAbsPath, metaFileAbsPath } = await
+  const { trackFileAbsPath, configFileAbsPath } = await
   findTrackandMetaFileinFolder(relatedDataSearchPath);
+  // The discovered attachment is a suggestion the import dialog shows and the user can clear or
+  // replace, so it travels on the response rather than on jsonConfig.
+  const metadata = await suggestMetadataAttachment(relatedDataSearchPath);
   return {
-    jsonMeta,
+    jsonConfig,
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath,
     forceMediaTranscode: false,
     multiCamTrackFiles: null,
-    metaFileAbsPath,
+    configFileAbsPath,
+    ...(metadata.path ? { metadataFileAbsPath: metadata.path } : {}),
+    ...(metadata.warning ? { importWarnings: [metadata.warning] } : {}),
   };
 }
 
-function validImageNamesMap(jsonMeta: JsonMeta) {
-  if (jsonMeta.originalImageFiles.length > 0) {
+function validImageNamesMap(jsonConfig: JsonConfig) {
+  if (jsonConfig.originalImageFiles.length > 0) {
     const imageMap = new Map<string, number>();
-    jsonMeta.originalImageFiles.forEach((imgPath, i) => {
+    jsonConfig.originalImageFiles.forEach((imgPath, i) => {
       const [imageBaseName] = splitExt(imgPath);
       if (imageMap.get(imageBaseName) !== undefined) {
         throw new Error([
@@ -1509,27 +2013,27 @@ function validImageNamesMap(jsonMeta: JsonMeta) {
 
 async function dataFileImport(settings: Settings, id: string, path: string, additive = false, additivePrepend = '') {
   const projectDirData = await getValidatedProjectDir(settings, id);
-  const jsonMeta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
-  const existingDatasetInfo = jsonMeta.datasetInfo;
+  const jsonConfig = await loadJsonConfig(projectDirData.datasetFileAbsPath);
+  const existingDatasetInfo = jsonConfig.datasetInfo;
   const result = await ingestDataFiles(
     settings,
     id,
     [path],
     undefined,
-    validImageNamesMap(jsonMeta),
+    validImageNamesMap(jsonConfig),
     additive,
     additivePrepend,
   );
-  merge(jsonMeta, result.meta);
+  merge(jsonConfig, result.meta);
   // Assign datasetInfo explicitly; the deep-merge above would keep keys an Overwrite
   // import meant to drop. Like the server, Overwrite replaces the block wholesale while
   // an additive import merges per-key (imported values win).
   if (result.meta.datasetInfo) {
-    jsonMeta.datasetInfo = additive
+    jsonConfig.datasetInfo = additive
       ? { ...(existingDatasetInfo ?? {}), ...result.meta.datasetInfo }
       : result.meta.datasetInfo;
   }
-  await _saveAsJson(npath.join(projectDirData.basePath, JsonMetaFileName), jsonMeta);
+  await saveProjectConfig(projectDirData.basePath, jsonConfig);
   // Shared mutable config (styling, thresholds, attributes, datasetInfo, ...) is
   // loaded by the viewer from the base dataset's metadata, so an import
   // targeted at one camera of a multicam dataset must update the base too.
@@ -1537,8 +2041,8 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   const { parentId, cameraName } = parseCompositeDatasetId(id);
   if (cameraName && MulticamSharedMutableKeys.some((key) => key in result.meta)) {
     const baseProjectDir = getProjectDir(settings, parentId);
-    if (await fs.pathExists(baseProjectDir.metaFileAbsPath)) {
-      const baseMeta = await loadJsonMetadata(baseProjectDir.metaFileAbsPath);
+    if (await fs.pathExists(baseProjectDir.datasetFileAbsPath)) {
+      const baseMeta = await loadJsonConfig(baseProjectDir.datasetFileAbsPath);
       const existingBaseDatasetInfo = baseMeta.datasetInfo;
       merge(baseMeta, pick(result.meta, MulticamSharedMutableKeys));
       if (result.meta.datasetInfo) {
@@ -1546,7 +2050,7 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
           ? { ...(existingBaseDatasetInfo ?? {}), ...result.meta.datasetInfo }
           : result.meta.datasetInfo;
       }
-      await _saveAsJson(baseProjectDir.metaFileAbsPath, baseMeta);
+      await saveProjectConfig(baseProjectDir.basePath, baseMeta);
     }
   }
   return result;
@@ -1556,46 +2060,46 @@ async function _importTrackFile(
   settings: Settings,
   dsId: string,
   projectDirAbsPath: string,
-  jsonMeta: JsonMeta,
+  jsonConfig: JsonConfig,
   userTrackFileAbsPath: string,
 ) {
   /* custom image sort */
-  if (jsonMeta.imageListPath === undefined) {
-    jsonMeta.originalImageFiles.sort(strNumericCompare);
+  if (jsonConfig.imageListPath === undefined) {
+    jsonConfig.originalImageFiles.sort(strNumericCompare);
   }
-  if (jsonMeta.transcodedImageFiles) {
-    jsonMeta.transcodedImageFiles.sort(strNumericCompare);
+  if (jsonConfig.transcodedImageFiles) {
+    jsonConfig.transcodedImageFiles.sort(strNumericCompare);
   }
   if (userTrackFileAbsPath) {
-    const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonMeta));
-    merge(jsonMeta, processed.meta);
+    const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonConfig));
+    merge(jsonConfig, processed.meta);
     if (processed.processedFiles.length === 0) {
       await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
     }
   } else {
     await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
   }
-  await _saveAsJson(npath.join(projectDirAbsPath, JsonMetaFileName), jsonMeta);
-  return jsonMeta;
+  await saveProjectConfig(projectDirAbsPath, jsonConfig);
+  return jsonConfig;
 }
 
 /**
  * After media conversion we need to remove the transcodingKey to signify it is done
  */
-export async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonMeta) {
+export async function completeConversion(settings: Settings, datasetId: string, transcodingJobKey: string, meta: JsonConfig) {
   await getValidatedProjectDir(settings, datasetId);
   if (meta.transcodingJobKey === transcodingJobKey) {
     // eslint-disable-next-line no-param-reassign
     meta.transcodingJobKey = undefined;
-    saveMetadata(settings, datasetId, meta);
+    saveConfig(settings, datasetId, meta);
   }
 }
 
-export async function failConversion(settings: Settings, datasetId: string, meta: JsonMeta, errorMessage: string) {
+export async function failConversion(settings: Settings, datasetId: string, meta: JsonConfig, errorMessage: string) {
   await getValidatedProjectDir(settings, datasetId);
   // eslint-disable-next-line no-param-reassign
   meta.error = errorMessage;
-  saveMetadata(settings, datasetId, meta);
+  saveConfig(settings, datasetId, meta);
 }
 
 /**
@@ -1605,71 +2109,101 @@ async function finalizeMediaImport(
   settings: Settings,
   args: DesktopMediaImportResponse,
 ): Promise<ConversionArgs> {
-  const { jsonMeta, globPattern } = args;
+  const { jsonConfig, globPattern } = args;
   let { mediaConvertList } = args;
-  const { type: datasetType } = jsonMeta;
-  jsonMeta.id = `${cleanString(jsonMeta.name).substr(0, 20)}_${makeid(10)}`;
-  const projectDirAbsPath = await _initializeProjectDir(settings, jsonMeta);
+  const { type: datasetType } = jsonConfig;
+  jsonConfig.id = `${cleanString(jsonConfig.name).substr(0, 20)}_${makeid(10)}`;
+  const projectDirAbsPath = await _initializeProjectDir(settings, jsonConfig);
 
   // Store any stereo calibration / camera file alongside the media and normalize
   // it to the VIAME JSON camera-rig format (keeping the original).
-  if (jsonMeta.multiCam?.calibration) {
-    const calibrationSourcePath = npath.resolve(jsonMeta.multiCam.calibration);
+  if (jsonConfig.multiCam?.calibration) {
+    const calibrationSourcePath = npath.resolve(jsonConfig.multiCam.calibration);
     const preservedOriginalPath = npath.join(
       projectDirAbsPath,
       npath.basename(calibrationSourcePath),
     );
-    jsonMeta.multiCam.calibrationOriginalName = realCalibrationName(calibrationSourcePath);
-    jsonMeta.multiCam.calibration = await prepareDatasetCalibration(
+    jsonConfig.multiCam.calibrationOriginalName = realCalibrationName(calibrationSourcePath);
+    jsonConfig.multiCam.calibration = await prepareDatasetCalibration(
       settings,
       projectDirAbsPath,
       calibrationSourcePath,
     );
-    jsonMeta.multiCam.calibrationSourcePath = preservedOriginalPath;
+    jsonConfig.multiCam.calibrationSourcePath = preservedOriginalPath;
   }
 
   // Store any optional metadata file alongside the media (keeping the original
-  // name). Single imports pass it on the response; multicam imports stash the
-  // source path on jsonMeta.metadataFile during beginMultiCamImport.
-  const metadataSourcePath = args.metadataFileAbsPath || jsonMeta.metadataFile;
+  // name). beginMediaImport / beginMultiCamImport put the source path on
+  // metadataFileAbsPath so ImportDialog can show and clear it; jsonConfig.metadataFile
+  // remains a fallback for older callers that still stash the source there.
+  const metadataSourcePath = args.metadataFileAbsPath || jsonConfig.metadataFile;
   if (metadataSourcePath) {
     const resolvedMetadataSource = npath.resolve(metadataSourcePath);
+    const metadataOriginalName = npath.basename(resolvedMetadataSource);
+    if (!metadataFileTypes.includes(npath.extname(metadataOriginalName).slice(1).toLowerCase())) {
+      throw new Error('Metadata attachment must be a JSON, TXT, or CSV file');
+    }
+    const metadataDir = npath.join(projectDirAbsPath, AuxFolderName);
+    await fs.ensureDir(metadataDir);
     const metadataDest = npath.join(
-      projectDirAbsPath,
-      npath.basename(resolvedMetadataSource),
+      metadataDir,
+      metadataOriginalName,
     );
-    await fs.copy(resolvedMetadataSource, metadataDest);
-    jsonMeta.metadataOriginalName = npath.basename(resolvedMetadataSource);
-    jsonMeta.metadataFile = metadataDest;
+    if (resolvedMetadataSource !== metadataDest) {
+      await fs.copy(resolvedMetadataSource, metadataDest);
+    }
+    jsonConfig.metadataOriginalName = metadataOriginalName;
+    jsonConfig.metadataFile = metadataDest;
   } else {
     // Ensure a stale source path never survives when no file was chosen.
-    jsonMeta.metadataFile = undefined;
-    jsonMeta.metadataOriginalName = undefined;
+    jsonConfig.metadataFile = undefined;
+    jsonConfig.metadataOriginalName = undefined;
+  }
+
+  if (datasetType === MultiType && jsonConfig.multiCam?.cameras) {
+    const cameraEntries = Object.entries(jsonConfig.multiCam.cameras);
+    for (let i = 0; i < cameraEntries.length; i += 1) {
+      const [cameraName, camera] = cameraEntries[i];
+      if (camera.metadataFile) {
+        const source = npath.resolve(camera.metadataFile);
+        const originalName = npath.basename(camera.metadataOriginalName || source);
+        const cameraMetadataDir = npath.join(projectDirAbsPath, AuxFolderName, cameraName);
+        // eslint-disable-next-line no-await-in-loop
+        await fs.ensureDir(cameraMetadataDir);
+        const destination = npath.join(cameraMetadataDir, originalName);
+        if (source !== destination) {
+          // eslint-disable-next-line no-await-in-loop
+          await fs.copy(source, destination);
+        }
+        camera.metadataFile = destination;
+        camera.metadataOriginalName = originalName;
+      }
+    }
   }
 
   // Filter all parts of the input based on glob pattern
-  if (globPattern && jsonMeta.type === 'image-sequence') {
-    const searchPath = jsonMeta.imageListPath || jsonMeta.originalBasePath;
+  if (globPattern && jsonConfig.type === 'image-sequence') {
+    const searchPath = jsonConfig.imageListPath || jsonConfig.originalBasePath;
     const found = await findImagesInFolder(searchPath, globPattern);
     if (found.imageNames.length === 0) {
       throw new Error(`no images in ${searchPath} matched pattern ${globPattern}`);
     }
     if (found.source === 'directory') {
-      jsonMeta.originalImageFiles = found.imageNames;
+      jsonConfig.originalImageFiles = found.imageNames;
     } else if (found.source === 'image-list') {
-      jsonMeta.originalImageFiles = found.imagePaths;
+      jsonConfig.originalImageFiles = found.imagePaths;
     }
     mediaConvertList = found.mediaConvertList;
   }
 
-  if (jsonMeta.type === 'video') {
+  if (jsonConfig.type === 'video') {
     // Verify that the user didn't choose an FPS value higher than originalFPS
     // This shouldn't be possible in the UI, but we should still prevent it here.
-    jsonMeta.fps = (
-      Math.max(1, Math.min(jsonMeta.fps, jsonMeta.originalFps))
+    jsonConfig.fps = (
+      Math.max(1, Math.min(jsonConfig.fps, jsonConfig.originalFps))
     );
     if (args.forceMediaTranscode) {
-      mediaConvertList.push(npath.join(jsonMeta.originalBasePath, jsonMeta.originalVideoFile));
+      mediaConvertList.push(npath.join(jsonConfig.originalBasePath, jsonConfig.originalVideoFile));
     }
   }
 
@@ -1684,16 +2218,16 @@ async function finalizeMediaImport(
       const destLoc = npath.join(projectDirAbsPath, filename);
       //If we have multicam we may need to check more than the base folder
       if (datasetType === MultiType) {
-        destAbsPath = transcodeMultiCam(jsonMeta, absPath, projectDirAbsPath);
+        destAbsPath = transcodeMultiCam(jsonConfig, absPath, projectDirAbsPath);
       } else {
         destAbsPath = destLoc.replace(npath.extname(absPath), extension);
         if (datasetType === 'video') {
-          jsonMeta.transcodedVideoFile = npath.basename(destAbsPath);
+          jsonConfig.transcodedVideoFile = npath.basename(destAbsPath);
         } else if (datasetType === 'image-sequence') {
-          if (!jsonMeta.transcodedImageFiles) {
-            jsonMeta.transcodedImageFiles = [];
+          if (!jsonConfig.transcodedImageFiles) {
+            jsonConfig.transcodedImageFiles = [];
           }
-          jsonMeta.transcodedImageFiles.push(npath.basename(destAbsPath));
+          jsonConfig.transcodedImageFiles.push(npath.basename(destAbsPath));
         }
       }
       srcDstList.push([absPath, destAbsPath]);
@@ -1701,15 +2235,19 @@ async function finalizeMediaImport(
   }
 
   //We need to create datasets for each of the multiCam folders as well
-  if (datasetType === MultiType && jsonMeta.multiCam?.cameras) {
-    const cameraNameAndData = Object.entries(jsonMeta.multiCam.cameras);
+  if (datasetType === MultiType && jsonConfig.multiCam?.cameras) {
+    const cameraNameAndData = Object.entries(jsonConfig.multiCam.cameras);
     for (let i = 0; i < cameraNameAndData.length; i += 1) {
       const cameraName = cameraNameAndData[i][0];
       const cameraData = cameraNameAndData[i][1];
 
-      const jsonClone = { ...cloneDeep(jsonMeta), ...cameraData };
+      const jsonClone = { ...cloneDeep(jsonConfig), ...cameraData };
+      if (!cameraData.metadataFile) {
+        delete jsonClone.metadataFile;
+        delete jsonClone.metadataOriginalName;
+      }
       jsonClone.multiCam = null;
-      jsonClone.id = `${jsonMeta.id}/${cameraName}`;
+      jsonClone.id = `${jsonConfig.id}/${cameraName}`;
       jsonClone.transcodedVideoFile = cameraData.transcodedVideoFile || '';
       jsonClone.transcodedImageFiles = cameraData.transcodedImageFiles || [];
       jsonClone.subType = null;
@@ -1723,13 +2261,13 @@ async function finalizeMediaImport(
       await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone, multiCamTrackFile);
     }
   }
-  const finalJsonMeta = await _importTrackFile(settings, jsonMeta.id, projectDirAbsPath, jsonMeta, args.trackFileAbsPath);
-  if (args.metaFileAbsPath) {
-    await dataFileImport(settings, jsonMeta.id, args.metaFileAbsPath);
+  const finalJsonConfig = await _importTrackFile(settings, jsonConfig.id, projectDirAbsPath, jsonConfig, args.trackFileAbsPath);
+  if (args.configFileAbsPath) {
+    await dataFileImport(settings, jsonConfig.id, args.configFileAbsPath);
   }
   const conversionJobArgs: ConversionArgs = {
     type: JobType.Conversion,
-    meta: finalJsonMeta,
+    meta: finalJsonConfig,
     mediaList: srcDstList,
   };
   return conversionJobArgs;
@@ -1742,7 +2280,7 @@ async function finalizeMediaImport(
 async function getLargeImagePath(settings: Settings, datasetId: string): Promise<string | null> {
   try {
     const projectDirData = await getValidatedProjectDir(settings, datasetId);
-    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    const meta = await loadJsonConfig(projectDirData.datasetFileAbsPath);
     if (meta.type !== 'large-image' || !meta.originalLargeImageFile) {
       console.warn(
         `[tiles] getLargeImagePath: no path for dataset "${datasetId}" (meta.type=${meta.type}, hasOriginalLargeImageFile=${!!meta.originalLargeImageFile})`,
@@ -1774,7 +2312,7 @@ async function getDisplayImagePath(
 ): Promise<string | null> {
   try {
     const projectDirData = await getValidatedProjectDir(settings, datasetId);
-    const meta = await loadJsonMetadata(projectDirData.metaFileAbsPath);
+    const meta = await loadJsonConfig(projectDirData.datasetFileAbsPath);
     const originals = meta.originalImageFiles ?? [];
     if (!Number.isInteger(frame) || frame < 0 || frame >= originals.length) {
       console.warn(
@@ -1837,7 +2375,7 @@ async function openPathInFileManager(targetPath: string): Promise<string> {
 
 async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
   if (args.type === 'json') {
     return dive.serializeFile(args.path, data, meta, args.typeFilter, {
@@ -1858,11 +2396,11 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
 
 async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
-  const meta = await loadJsonMetadata(projectDirInfo.metaFileAbsPath);
-  const output: DatasetMetaMutable & { version: number} = { version: meta.version };
-  if (DatasetMetaMutableKeys.some((key) => key in meta)) {
-    // DIVE Json metadata config file
-    merge(output, pick(meta, DatasetMetaMutableKeys));
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
+  const output: DatasetConfigMutable & { version: number} = { version: meta.version };
+  if (DatasetConfigMutableKeys.some((key) => key in meta)) {
+    // DIVE Configuration File fields (attributes, styles, FPS, …)
+    merge(output, pick(meta, DatasetConfigMutableKeys));
   }
   await fs.writeJSON(args.path, output);
   return args.path;
@@ -1871,6 +2409,7 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
 export {
   ProjectsFolderName,
   JobsFolderName,
+  ArchiveMetadataFolderName,
   autodiscoverData,
   bulkMediaImport,
   beginMediaImport,
@@ -1887,23 +2426,29 @@ export {
   getValidatedProjectDir,
   getLargeImagePath,
   getDisplayImagePath,
-  loadMetadata,
-  loadJsonMetadata,
+  loadConfig,
+  loadJsonConfig,
   loadAnnotationFile,
   loadDetections,
+  loadFrameMetadata,
+  frameMetadataSourceDirectories,
+  discoverMetadataAttachment,
   openLink,
   openPathInFileManager,
   ingestDataFiles,
   saveDetections,
-  saveMetadata,
+  saveConfig,
+  saveProjectConfig,
   processTrainedPipeline,
+  findResumableTrainingJobs,
+  discardResumableTraining,
   saveAttributes,
   saveAttributeTrackFilters,
   findImagesInFolder,
+  isVideoFilePath,
   listImmediateSubfolders,
   listParentFolderCameras,
   resolveMulticamCameraSourcePath,
-  findTrackandMetaFileinFolder,
 };
 
 export {
@@ -1918,6 +2463,7 @@ export {
   getLastCalibrationPath,
   saveLastCalibration,
   applyCalibrationToUncalibratedStereoDatasets,
+  applyCalibrationToDataset,
   datasetHasCalibrationFile,
   getDatasetCalibrationPath,
   getDatasetCalibrationExportPath,

@@ -6,6 +6,8 @@ import {
   ref,
   Ref,
   onBeforeMount,
+  onMounted,
+  onBeforeUnmount,
   watch,
 } from 'vue';
 import {
@@ -14,6 +16,7 @@ import {
   useApi,
   SubType,
   DatasetType,
+  NewDatasetJobConfig,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
@@ -22,13 +25,13 @@ import {
   stereoPipelineMarker,
   multiCamPipelineMarkers,
   LargeImageType,
-  pipelineCreatesDatasetMarkers,
 } from 'dive-common/constants';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { filterPipelinesForDatasets } from 'dive-common/pipelineMenuFilters';
 import {
   pipelineDisabledForMissingCalibration,
 } from 'dive-common/pipelineCalibration';
+import { pipelineCreatesNewDataset } from 'dive-common/pipelineCreatesDataset';
 import { pipelineHasParams, pipelineRequiresParams } from 'dive-common/pipelineParams';
 import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
@@ -166,6 +169,25 @@ export default defineComponent({
       refreshCalibrationStatus();
     }, { immediate: true });
 
+    let removeCalibrationAssignedListener: (() => void) | null = null;
+
+    // Listen for calibration assignment from backend (desktop only)
+    onMounted(() => {
+      if (typeof window !== 'undefined' && window.diveDesktop) {
+        removeCalibrationAssignedListener = window.diveDesktop.on('calibration-assigned', () => {
+          // Refresh calibration status when a pipeline assigns a calibration to a dataset
+          refreshCalibrationStatus();
+        });
+      }
+    });
+
+    onBeforeUnmount(() => {
+      if (removeCalibrationAssignedListener) {
+        removeCalibrationAssignedListener();
+        removeCalibrationAssignedListener = null;
+      }
+    });
+
     function isPipelineDisabledForCalibration(pipeline: Pipe) {
       return pipelineDisabledForMissingCalibration(
         pipeline,
@@ -186,6 +208,19 @@ export default defineComponent({
       props.excludePipelineTerms,
     ));
 
+    /* Icon slots are reserved per category so the columns line up across rows. */
+    function categoryPipes(pipeType: string) {
+      return pipelines.value?.[pipeType]?.pipes ?? [];
+    }
+
+    function categoryHasParams(pipeType: string) {
+      return categoryPipes(pipeType).some(pipelineHasParams);
+    }
+
+    function categoryHasCalibrationWarning(pipeType: string) {
+      return categoryPipes(pipeType).some(isPipelineDisabledForCalibration);
+    }
+
     const pipelinesNotRunnable = computed(() => (
       props.selectedDatasetIds.length < 1 || pipelines.value === null
     ));
@@ -203,7 +238,8 @@ export default defineComponent({
 
     async function _runPipelineOnSelectedItemInner(
       pipeline: Pipe,
-      additionalConfigById?: Record<string, Record<string, string> | undefined>,
+      outputDatasetNameById?: Record<string, string>,
+      outputParentFolderId?: string,
     ) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
@@ -231,13 +267,11 @@ export default defineComponent({
       selectedPipeline.value = pipeline;
       const frameRange = props.timeFilter;
       await _runPipelineRequest(() => Promise.all(
-        datasetIds.map((id) => {
-          const additionalConfig = additionalConfigById ? additionalConfigById[id] : undefined;
-          return runPipeline(id, pipeline, {
-            kwiverParams: additionalConfig,
-            runtimeParams: frameRange ? { frameRange } : undefined,
-          });
-        }),
+        datasetIds.map((id) => runPipeline(id, pipeline, {
+          runtimeParams: frameRange ? { frameRange } : undefined,
+          outputDatasetName: outputDatasetNameById?.[id],
+          outputParentFolderId,
+        })),
       ));
     }
 
@@ -251,12 +285,13 @@ export default defineComponent({
         openDiveParamsDialog(pipeline);
         return;
       }
-      if (!pipelineCreatesDatasetMarkers.includes(pipeline.type)) {
+      if (!pipelineCreatesNewDataset(pipeline)) {
         _runPipelineOnSelectedItemInner(pipeline);
       } else {
         // If a pipeline creates datasets, open the configuration dialog
         // to allow users to name that dataset
         // This is relevant for filter and transcode pipeline types
+        // (including multicam filter_*_N-cam pipes categorized as 2-cam/3-cam)
         selectedPipeline.value = pipeline;
         menuState.value = 'configuring'; // force the dialog open
       }
@@ -265,20 +300,25 @@ export default defineComponent({
     /**
      * Handle a user confirming additional configuration for filter
      * or transcode pipelines, which create new datasets.
-     *
-     * @param outputNameMap Map selected dataset IDs to the name
-     * of the resultant dataset created by the pipeline
      */
-    async function exitPipelineConfig(outputNameMap: Record<string, string>) {
+    async function exitPipelineConfig(config: NewDatasetJobConfig) {
       menuState.value = 'idle'; // close the dialog
-      const additionalConfigById: Record<string, Record<string, string>> = {};
-      Object.keys(outputNameMap).forEach((id: string) => {
-        additionalConfigById[id] = {
-          outputDatasetName: outputNameMap[id],
-        };
-      });
       if (selectedPipeline.value) {
-        _runPipelineOnSelectedItemInner(selectedPipeline.value, additionalConfigById);
+        let nameByDatasetId = config.names;
+        // Multicam/stereo pipes run against the parent dataset id; remap names
+        // keyed by camera composite ids so the chosen name is applied.
+        if (multiCamPipelineMarkers.includes(selectedPipeline.value.type)
+          || stereoPipelineMarker === selectedPipeline.value.type) {
+          nameByDatasetId = {};
+          Object.entries(config.names).forEach(([id, name]) => {
+            nameByDatasetId[parentDatasetId(id)] = name;
+          });
+        }
+        _runPipelineOnSelectedItemInner(
+          selectedPipeline.value,
+          nameByDatasetId,
+          config.parentFolderId,
+        );
       }
       selectedPipeline.value = null; // reset selected pipeline state
     }
@@ -307,6 +347,8 @@ export default defineComponent({
       pipelineTooltipDisabled,
       openDiveParamsDialog,
       pipelineHasParams,
+      categoryHasParams,
+      categoryHasCalibrationWarning,
     };
   },
 });
@@ -462,25 +504,35 @@ export default defineComponent({
                           v-on="on"
                           @click="runPipelineOnSelectedItem(pipeline)"
                         >
-                          <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
-                            {{ pipeline.name }}
-                            <span style="display: flex; align-items: center; gap: 8px; margin-left: 20px;">
-                              <PipelineCalibrationWarningIcon
-                                v-if="isPipelineDisabledForCalibration(pipeline)"
-                              />
-                              <!-- The gear is its own hit target: clicking it
-                                configures, clicking anywhere else on the entry
-                                runs with the pipeline's own defaults. -->
-                              <v-btn
-                                v-if="pipelineHasParams(pipeline)"
-                                icon
-                                small
-                                class="pipeline-params-button"
-                                :aria-label="`Configure ${pipeline.name}`"
-                                @click.stop="openDiveParamsDialog(pipeline)"
+                          <v-list-item-title class="font-weight-regular pipeline-item-title">
+                            <span class="pipeline-item-name">{{ pipeline.name }}</span>
+                            <span class="pipeline-item-actions">
+                              <span
+                                v-if="categoryHasCalibrationWarning(pipeType)"
+                                class="pipeline-item-action"
                               >
-                                <v-icon>mdi-cog-outline</v-icon>
-                              </v-btn>
+                                <PipelineCalibrationWarningIcon
+                                  v-if="isPipelineDisabledForCalibration(pipeline)"
+                                />
+                              </span>
+                              <span
+                                v-if="categoryHasParams(pipeType)"
+                                class="pipeline-item-action"
+                              >
+                                <!-- The gear is its own hit target: clicking it
+                                  configures, clicking anywhere else on the entry
+                                  runs with the pipeline's own defaults. -->
+                                <v-btn
+                                  v-if="pipelineHasParams(pipeline)"
+                                  icon
+                                  small
+                                  class="pipeline-params-button"
+                                  :aria-label="`Configure ${pipeline.name}`"
+                                  @click.stop="openDiveParamsDialog(pipeline)"
+                                >
+                                  <v-icon>mdi-cog-outline</v-icon>
+                                </v-btn>
+                              </span>
                             </span>
                           </v-list-item-title>
                         </v-list-item>
@@ -530,12 +582,43 @@ export default defineComponent({
 .pipeline-submenu-list {
   max-height: 60vh;
   overflow-y: auto;
+  overflow-x: hidden;
+  /* Otherwise the scrollbar is carved out of the width the menu already sized
+     itself to, and the widest rows overflow by that much. */
+  scrollbar-gutter: stable;
 }
 
-/* Keep the gear's hit area comfortably clear of the pipeline name, so a click
-   meant for the name does not land on the button. */
-.pipeline-params-button {
-  margin-left: 20px;
+.pipeline-item-title.v-list-item__title {
+  display: flex;
+  align-items: center;
+}
+
+/* Truncates rather than pushing the icons out of their columns. */
+.pipeline-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pipeline-item-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  /* Keep the gear's hit area clear of the name, so a click meant for the name
+     does not land on the button. */
+  margin-left: 16px;
+}
+
+.pipeline-item-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+}
+
+.pipeline-item-action + .pipeline-item-action {
+  margin-left: 8px;
 }
 
 .pipeline-category-col--last {

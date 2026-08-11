@@ -19,7 +19,12 @@ import {
   featureHasSegmentationPolygon,
   polygonWithinBounds,
   polygonEqualsBounds,
+  translatePolygon,
+  isBoundsTranslation,
   clipPolygonToBounds,
+  pointInPolygon,
+  pointInRing,
+  rectBoundsArea,
 } from './utils';
 import type { RectBounds } from './utils';
 import type { Feature } from './track';
@@ -458,6 +463,31 @@ describe('polygonWithinBounds / clipPolygonToBounds', () => {
   });
 });
 
+describe('translatePolygon / isBoundsTranslation', () => {
+  const poly = (rings: GeoJSON.Position[][]): GeoJSON.Polygon => ({
+    type: 'Polygon',
+    coordinates: rings,
+  });
+
+  it('translatePolygon shifts every vertex including holes', () => {
+    const withHole = poly([
+      [[0, 0], [40, 0], [40, 40], [0, 40], [0, 0]],
+      [[5, 5], [8, 5], [8, 8], [5, 8], [5, 5]],
+    ]);
+    expect(translatePolygon(withHole, 10, -3)).toEqual(poly([
+      [[10, -3], [50, -3], [50, 37], [10, 37], [10, -3]],
+      [[15, 2], [18, 2], [18, 5], [15, 5], [15, 2]],
+    ]));
+  });
+
+  it('isBoundsTranslation is true only for same-size origin shifts', () => {
+    expect(isBoundsTranslation([0, 0, 40, 40], [10, 5, 50, 45])).toBe(true);
+    expect(isBoundsTranslation([0, 0, 40, 40], [0, 0, 40, 40])).toBe(false);
+    expect(isBoundsTranslation([0, 0, 40, 40], [0, 0, 20, 40])).toBe(false);
+    expect(isBoundsTranslation([0, 0, 40, 40], [10, 0, 40, 40])).toBe(false);
+  });
+});
+
 describe('polygonEqualsBounds', () => {
   const poly = (rings: GeoJSON.Position[][]): GeoJSON.Polygon => ({
     type: 'Polygon',
@@ -507,5 +537,36 @@ describe('polygonEqualsBounds', () => {
     expect(polygonEqualsBounds(poly([[
       [0, 0], [40, 0], [40, 40], [0, 40], [0, 0],
     ]]), bounds)).toBe(false);
+  });
+});
+
+describe('pointInRing / pointInPolygon', () => {
+  const square = [
+    { x: 0, y: 0 },
+    { x: 10, y: 0 },
+    { x: 10, y: 10 },
+    { x: 0, y: 10 },
+  ];
+  const hole = [
+    { x: 3, y: 3 },
+    { x: 7, y: 3 },
+    { x: 7, y: 7 },
+    { x: 3, y: 7 },
+  ];
+
+  it('detects points inside and outside a ring', () => {
+    expect(pointInRing({ x: 5, y: 5 }, square)).toBe(true);
+    expect(pointInRing({ x: 15, y: 5 }, square)).toBe(false);
+  });
+
+  it('excludes holes from polygon containment', () => {
+    expect(pointInPolygon({ x: 1, y: 1 }, square, [hole])).toBe(true);
+    expect(pointInPolygon({ x: 5, y: 5 }, square, [hole])).toBe(false);
+    expect(pointInPolygon({ x: 5, y: 5 }, square)).toBe(true);
+  });
+
+  it('computes rect bounds area', () => {
+    expect(rectBoundsArea([0, 0, 10, 5] as RectBounds)).toBe(50);
+    expect(rectBoundsArea([10, 5, 0, 0] as RectBounds)).toBe(50);
   });
 });

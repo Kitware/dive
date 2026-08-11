@@ -9,7 +9,12 @@ import Vue, {
 import { map, over } from 'lodash';
 
 import { use } from '../../provides';
-import type { AggregateMediaController, AlignedFrameResolver, MediaController } from './mediaControllerType';
+import type {
+  AggregateMediaController,
+  AlignedFrameResolver,
+  MediaController,
+  MediaControllerKind,
+} from './mediaControllerType';
 import type { CameraImage } from '../../layers/cameraImage';
 
 const AggregateControllerSymbol = Symbol('aggregate-controller');
@@ -29,6 +34,7 @@ interface MediaControllerReactiveData {
   volume: number;
   speed: number;
   maxFrame: number;
+  filenames: string[];
   syncedFrame: number;
   /** False when an aligned-timeline slot has no frame for this camera; pane should blank. */
   hasFrame: boolean;
@@ -79,7 +85,7 @@ interface CameraInitializerReturn {
   externallyDriven: Readonly<Ref<boolean>>;
 }
 
-type CameraInitializerFunc = (cameraName: string, {
+type CameraInitializerFunc = (cameraName: string, mediaKind: MediaControllerKind, {
   seek, play, pause, setVolume, setSpeed,
 }: {
   seek(frame: number | undefined): void;
@@ -332,7 +338,7 @@ export function useMediaController() {
    * chicken-and-egg problem, allowing the function consumer to use
    * the state above to construct the dependencies for the methods below.
    */
-  function initialize(cameraName: string, {
+  function initialize(cameraName: string, mediaKind: MediaControllerKind, {
     seek: _seek, play: _play, pause: _pause, setVolume: _setVolume, setSpeed: _setSpeed,
   }: {
     seek(frame: number | undefined): void;
@@ -378,6 +384,7 @@ export function useMediaController() {
       volume: 0,
       speed: 1.0,
       maxFrame: 0,
+      filenames: [],
       syncedFrame: 0,
       hasFrame: true,
       imageRevision: 0,
@@ -610,6 +617,8 @@ export function useMediaController() {
     };
 
     const mediaController: MediaController = {
+      mediaKind,
+      ready: toRef(state[camera], 'ready'),
       geoViewerRef: geoViewers[camera],
       cameraName: toRef(state[camera], 'cameraName'),
       cameras: ref([]),
@@ -618,6 +627,7 @@ export function useMediaController() {
       frame: toRef(state[camera], 'frame'),
       flick: toRef(state[camera], 'flick'),
       filename: toRef(state[camera], 'filename'),
+      filenames: toRef(state[camera], 'filenames'),
       duration: toRef(state[camera], 'duration'),
       volume: toRef(state[camera], 'volume'),
       maxFrame: toRef(state[camera], 'maxFrame'),

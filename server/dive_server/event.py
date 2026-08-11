@@ -5,6 +5,7 @@ import os
 from bson.objectid import ObjectId
 import cherrypy
 from girder.api.rest import getApiUrl
+from girder.models.file import File
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.setting import Setting
@@ -16,20 +17,25 @@ from girder_jobs.models.job import Job
 from girder_plugin_worker.utils import getWorkerApiUrl
 
 from dive_tasks.dive_batch_postprocess import DIVEBatchPostprocessTaskParams
-from dive_utils import asbool, fromMeta
+from dive_utils import asbool, frame_metadata, fromMeta
 from dive_utils.constants import (
     AnnotationFileFutureProcessMarker,
     AssetstoreSourceMarker,
     AssetstoreSourcePathMarker,
     DatasetMarker,
     FPSMarker,
+    FrameMetadataFileMarker,
     ImageSequenceType,
     LargeImageType,
     MarkForPostProcess,
+    MetadataFileItemIdMarker,
+    MetadataFileOriginalNameMarker,
+    ProcessedMarker,
     TypeMarker,
     VideoType,
     imageRegex,
     largeImageRegEx,
+    metadataFileRegex,
     possibleAnnotationRegex,
     videoRegex,
 )
@@ -46,6 +52,63 @@ def send_new_user_email(event):
         sendMail(f'Welcome to {brandName}', rendered, [email])
     except Exception:
         logger.exception("Failed to send new user email")
+
+
+def _rename_item_and_files(item, new_name: str):
+    """Rename a Girder item and its child file documents to *new_name*, then save."""
+    if item.get('name') != new_name:
+        item['name'] = new_name
+        item['lowerName'] = new_name.lower()
+    item = Item().save(item)
+    for child_file in Item().childFiles(item):
+        if child_file.get('name') != new_name:
+            child_file['name'] = new_name
+            File().save(child_file)
+    return item
+
+
+def _remove_existing_frame_metadata(video_folder, keep_item_id=None):
+    """Remove reserved-name frame metadata items already in the video dataset folder."""
+    existing = list(
+        Folder().childItems(
+            video_folder,
+            filters=frame_metadata.frame_metadata_source_name_query(),
+        )
+    )
+    keep_id = str(keep_item_id) if keep_item_id is not None else None
+    for old in existing:
+        if keep_id is not None and str(old['_id']) == keep_id:
+            continue
+        Item().remove(old)
+
+
+def _attach_frame_metadata_to_folder(video_folder, item, name: str):
+    """Record *item* as the folder's metadata attachment (reimport-safe without postprocess)."""
+    folder = Folder().findOne({'_id': video_folder['_id']})
+    if folder is None:
+        folder = video_folder
+    folder.setdefault('meta', {})
+    folder['meta'][MetadataFileItemIdMarker] = str(item['_id'])
+    folder['meta'][MetadataFileOriginalNameMarker] = name
+    Folder().save(folder)
+
+
+def _place_video_paired_metadata(item, video_folder, ext: str):
+    """Replace any existing frame metadata with this sidecar in the video folder.
+
+    Renames ``{stem}[-_]metadata.{ext}`` to ``frame_metadata.{ext}``, removes prior reserved-name
+    sidecars in the folder, tags the item, and points the folder attachment markers at it so a
+    reimport works even when MarkForPostProcess does not run again.
+    """
+    new_name = frame_metadata.canonical_frame_metadata_name(ext)
+    _remove_existing_frame_metadata(video_folder, keep_item_id=item['_id'])
+    item['meta'][AnnotationFileFutureProcessMarker] = False
+    item['meta'][FrameMetadataFileMarker] = 'true'
+    item['meta'][ProcessedMarker] = True
+    item = _rename_item_and_files(item, new_name)
+    Item().move(item, video_folder)
+    _attach_frame_metadata_to_folder(video_folder, item, new_name)
+    return item
 
 
 def process_assetstore_import(event, meta: dict):
@@ -105,7 +168,46 @@ def process_assetstore_import(event, meta: dict):
         Item().move(item, dest)
         # Set the dataset to Video Type
         dataset_type = VideoType
-    elif possibleAnnotationRegex.search(importPath):
+    elif metadataFileRegex.search(importPath) or possibleAnnotationRegex.search(importPath):
+        if frame_metadata.is_frame_metadata_source_name(item['name']):
+            # Declared frame metadata sidecars stay in place for read-time discovery.
+            # Tag the item for Girder UI; process_items records the folder locator later.
+            Item().setMetadata(item, {FrameMetadataFileMarker: 'true'})
+            return
+
+        paired = frame_metadata.parse_video_paired_metadata_name(item['name'])
+        if paired is not None:
+            # ``{videoStem}[-_]metadata.{csv|json|txt}`` → video folder as frame_metadata.{ext}
+            video_stem, ext = paired
+            parentFolder = Folder().findOne({"_id": item["folderId"]})
+            # Same VideoType gate as process_dangling_annotation_files: a same-named
+            # image-sequence child must not receive a video-paired sidecar.
+            possible_video_folder = Folder().findOne(
+                {
+                    'parentId': parentFolder['_id'],
+                    'name': video_stem,
+                    f'meta.{TypeMarker}': VideoType,
+                }
+            )
+            if possible_video_folder is not None:
+                _place_video_paired_metadata(item, possible_video_folder, ext)
+                return
+
+            parent_type_marker = parentFolder['meta'].get(TypeMarker, False)
+            if not parent_type_marker:
+                # Video folder may arrive later in the same import; defer relocate+rename.
+                item['meta'][AnnotationFileFutureProcessMarker] = True
+                Item().save(item)
+                return
+
+            # Parent is already typed and no VideoType child exists — not a video-paired
+            # layout. Fall through so csv/json can follow the plain annotation path
+            # (process_items / dangling) instead of being silently dropped.
+
+        # Plain annotations are json/csv only; .txt that is not frame metadata is ignored.
+        if not possibleAnnotationRegex.search(importPath):
+            return
+
         # Look for parent folder with same name
         parentFolder = Folder().findOne({"_id": item["folderId"]})
         userId = parentFolder['creatorId'] or parentFolder['baseParentId']
@@ -169,6 +271,24 @@ def process_dangling_annotation_files(folder, user):
             item['meta'][AnnotationFileFutureProcessMarker] = False
             Item().save(item)
             continue
+
+        paired = frame_metadata.parse_video_paired_metadata_name(item['name'])
+        if paired is not None:
+            video_stem, ext = paired
+            video_folder = Folder().findOne(
+                {
+                    'parentId': parent_folder_id,
+                    'name': video_stem,
+                    f'meta.{TypeMarker}': VideoType,
+                }
+            )
+            if video_folder is not None:
+                _place_video_paired_metadata(item, video_folder, ext)
+                continue
+
+            # No VideoType sibling named for the stem: not a video-paired layout. Fall through
+            # to the plain annotation path, the same resolution process_assetstore_import uses.
+
         # Check if the corresponding video folder exists
         base_name = os.path.splitext(item['name'])[0]
         video_folder = Folder().findOne(
@@ -202,6 +322,7 @@ def convert_video_recursive(folder, user):
         "additive": False,
         "additivePrepend": '',
         "userId": str(user['_id']),
+        "user_login": str(user.get('login', 'unknown')),
         "girderToken": str(token['_id']),
         "girderApiUrl": getWorkerApiUrl(),
     }

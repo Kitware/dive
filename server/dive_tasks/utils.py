@@ -344,14 +344,20 @@ def upload_zipped_flat_media_files(
     working_directory: Path,
     create_subfolder=False,
 ):
-    """Takes a flat folder of media files and/or annotation and generates a dataset from it"""
+    """
+    Takes a flat folder of media files and/or annotation and generates a dataset from it.
+
+    validate_files is a gate on the whole zip here, not a per-file filter: the type and the
+    roles it reports are used, then every extracted file is uploaded, including anything the
+    response gives the ``ignored`` role. Only the interactive browser upload drops those.
+    """
     listOfFileNames = os.listdir(working_directory)
     validation = gc.sendRestRequest('POST', '/dive_dataset/validate_files', json=listOfFileNames)
     root_folderId = folderId
     default_fps = gc.getFolder(root_folderId).get(f"meta.{constants.FPSMarker}", -1)
     if validation.get('ok', False):
-        manager.write(f"Annotations: {validation['annotations']}\n")
-        manager.write(f"Media: {validation['media']}\n")
+        manager.write(f"Annotations: {validation['roles']['annotations']}\n")
+        manager.write(f"Media: {validation['roles']['media']}\n")
         dataset_type = validation['type']
         manager.write(f"Type: {dataset_type}\n")
         if create_subfolder != '':
@@ -381,16 +387,123 @@ def upload_zipped_flat_media_files(
         raise Exception("Could not Validate media Files")
 
 
+def create_sibling_dataset_from_media(
+    gc: GirderClient,
+    manager: JobManager,
+    input_folder_id: str,
+    media_directory: Path,
+    dataset_name: str,
+    dataset_type: str,
+    fps,
+    parent_folder_id: Optional[str] = None,
+) -> str:
+    """
+    Create a Girder folder and import media from media_directory.
+
+    Used by filter / transcode / disparity pipelines that produce a new dataset.
+    Defaults to a sibling of input_folder; pass parent_folder_id to choose another
+    destination (web destination picker).
+    Returns the new folder id.
+    """
+    media_directory = Path(media_directory)
+    name = dataset_name or media_directory.name
+    # Validate media before createFolder so a failed import never leaves an empty folder.
+    media_files = [
+        path
+        for path in sorted(media_directory.iterdir())
+        if path.is_file()
+        and not path.name.startswith('.')
+        and (constants.imageRegex.search(path.name) or constants.videoRegex.search(path.name))
+    ]
+    if not media_files:
+        raise Exception(f'No media files found in {media_directory} to create dataset "{name}"')
+
+    input_folder = gc.getFolder(input_folder_id)
+    parent_id = str(parent_folder_id) if parent_folder_id else str(input_folder['parentId'])
+    new_folder = gc.createFolder(parent_id, name, reuseExisting=False)
+    new_folder_id = str(new_folder['_id'])
+
+    manager.write(f'Creating dataset "{name}" from {len(media_files)} media file(s)\n')
+    manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+    for media_path in media_files:
+        gc.uploadFileToFolder(new_folder_id, str(media_path))
+
+    folder_fps = fps
+    if dataset_type == constants.ImageSequenceType and (folder_fps is None or folder_fps == -1):
+        folder_fps = 1
+    gc.addMetadataToFolder(
+        new_folder_id,
+        {constants.TypeMarker: dataset_type, constants.FPSMarker: folder_fps},
+    )
+    # Convert media for web playback (not skipJobs).
+    gc.sendRestRequest('POST', f'/dive_rpc/postprocess/{new_folder_id}')
+    return new_folder_id
+
+
 def _load_exported_dataset_meta(working_directory: Path) -> dict:
     list_of_names = os.listdir(working_directory)
     potential_meta_files = list(filter(constants.metaRegex.match, list_of_names))
     if len(potential_meta_files) == 0:
         raise ValueError('Could not find meta.json or config.json in exported dataset folder')
-    meta = {}
-    for meta_name in potential_meta_files:
-        with open(working_directory / meta_name) as f:
-            meta = json.load(f)
-    return meta
+    # Prefer config.json, then legacy meta.json, then any other *.meta/config.json match.
+    by_lower = {name.lower(): name for name in potential_meta_files}
+    chosen = (
+        by_lower.get(constants.ConfigFileName)
+        or by_lower.get(constants.LegacyConfigFileName)
+        or potential_meta_files[0]
+    )
+    with open(working_directory / chosen) as f:
+        return json.load(f)
+
+
+def _archive_metadata_attachment(scope_directory: Path) -> Optional[Path]:
+    """
+    The metadata attachment an export wrote for one dataset scope.
+
+    Attachments are discovered by directory alone: the single file anywhere under
+    ``<scope>/metadata/`` (a camera scope is the camera's own directory). meta.json
+    carries no locator, so any metadata key an older export left there is ignored.
+    The walk is recursive so an archive rewritten by a tool that nested the file is
+    still imported, matching ``archiveMetadataAttachment`` in
+    client/platform/desktop/backend/native/common.ts -- same directory rule, same two
+    error strings. Only the scoping differs: this function is reached solely through
+    ``_load_exported_dataset_meta`` callers, so an exported scope is already proven,
+    while the desktop twin runs on any picked folder and proves it itself with
+    ``isExportedDatasetDirectory``. Keep both gates when changing either side, or an
+    ordinary media folder that happens to hold a ``metadata/`` subdirectory starts
+    failing import on one platform only.
+    """
+    metadata_dir = scope_directory / 'metadata'
+    if not metadata_dir.is_dir():
+        return None
+    attachments = sorted(path for path in metadata_dir.rglob('*') if path.is_file())
+    if not attachments:
+        return None
+    if len(attachments) > 1:
+        raise ValueError(
+            'More than one metadata file was found in the archive metadata directory. '
+            'Keep one and try again.'
+        )
+    attachment = attachments[0]
+    if not constants.metadataFileRegex.search(attachment.name):
+        raise ValueError('Archive metadata attachment must be a JSON, TXT, or CSV file')
+    return attachment
+
+
+def _upload_archive_metadata_attachment(
+    gc: GirderClient,
+    dest_folder_id: str,
+    attachment: Optional[Path],
+) -> Optional[str]:
+    if attachment is None:
+        return None
+    gc.upload(str(attachment), dest_folder_id)
+    items = list(gc.listItem(dest_folder_id, name=attachment.name))
+    if len(items) != 1:
+        raise ValueError(f'Could not resolve uploaded metadata attachment {attachment.name}')
+    item_id = str(items[0]['_id'])
+    gc.addMetadataToItem(item_id, {constants.FrameMetadataFileMarker: 'true'})
+    return item_id
 
 
 def _import_exported_dataset_directory(
@@ -403,6 +516,7 @@ def _import_exported_dataset_directory(
     working_directory = Path(working_directory)
     list_of_names = os.listdir(working_directory)
     meta = _load_exported_dataset_meta(working_directory)
+    metadata_attachment = _archive_metadata_attachment(working_directory)
     dataset_type = meta[constants.TypeMarker]
     if dataset_type == constants.MultiType:
         raise ValueError(
@@ -425,7 +539,11 @@ def _import_exported_dataset_directory(
         shutil.rmtree(aux_path)
 
     manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-    gc.upload(f'{working_directory}/*', dest_folder_id)
+    for entry in working_directory.iterdir():
+        if entry.name == 'metadata':
+            continue
+        gc.upload(str(entry), dest_folder_id)
+    metadata_item_id = _upload_archive_metadata_attachment(gc, dest_folder_id, metadata_attachment)
     all_files = list(gc.listItem(dest_folder_id))
     root_meta = {
         'type': dataset_type,
@@ -437,6 +555,9 @@ def _import_exported_dataset_directory(
         'fps': meta['fps'],
         'version': meta['version'],
     }
+    if metadata_item_id and metadata_attachment:
+        root_meta[constants.MetadataFileItemIdMarker] = metadata_item_id
+        root_meta[constants.MetadataFileOriginalNameMarker] = metadata_attachment.name
     if dataset_type == constants.VideoType:
         video = meta['video']
         transcoded_video = list(gc.listItem(dest_folder_id, name=video['filename']))
@@ -557,6 +678,10 @@ def upload_exported_multicam_zipped_dataset(
     with open(multi_cam_path) as f:
         multi_cam = json.load(f)
     parent_meta = _load_exported_dataset_meta(working_directory)
+    # Discovered before anything is created so a bad shared attachment fails the import
+    # without leaving half a dataset behind. Camera attachments live in each camera's own
+    # metadata/ directory and are restored by the per-camera import below.
+    parent_metadata_attachment = _archive_metadata_attachment(working_directory)
 
     default_display = multi_cam.get('defaultDisplay')
     cameras_meta = multi_cam.get('cameras') or {}
@@ -569,7 +694,7 @@ def upload_exported_multicam_zipped_dataset(
     sub_type = parent_meta.get(constants.SubTypeMarker)
     if sub_type not in ('stereo', 'multicam'):
         raise Exception(
-            'Exported multicam dataset is missing subType "stereo" or "multicam" in meta.json'
+            'Exported multicam dataset is missing subType "stereo" or "multicam" in config.json'
         )
 
     parent_folder_id = folderId
@@ -608,6 +733,9 @@ def upload_exported_multicam_zipped_dataset(
         calibration_file_id = _upload_stereo_calibration_files(
             gc, manager, parent_folder_id, working_directory
         )
+    metadata_file_id = _upload_archive_metadata_attachment(
+        gc, parent_folder_id, parent_metadata_attachment
+    )
 
     create_body = {
         'name': dataset_name,
@@ -620,6 +748,8 @@ def upload_exported_multicam_zipped_dataset(
     }
     if calibration_file_id:
         create_body['calibrationFileId'] = calibration_file_id
+    if metadata_file_id:
+        create_body['metadataFileId'] = metadata_file_id
 
     manager.write('Finalizing multicamera dataset…\n')
     gc.sendRestRequest(

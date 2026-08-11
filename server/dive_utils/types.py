@@ -87,6 +87,11 @@ class PipeMetadata(TypedDict):
     # (one single-file list per camera). A `{cam}` placeholder is expanded per
     # camera (1-based); a key without it gets the first camera's list.
     imageListKeys: NotRequired[Optional[list[str]]]
+    # KWIVER config keys the dataset's stereo calibration file is bound to, parsed
+    # from `# Calibration Keys: <k> [k...]`. Pipes whose calibration consumer is
+    # not the conventional `measurer`/`calibration_reader` declare their own keys
+    # here; when unset the two conventional keys are used.
+    calibrationKeys: NotRequired[Optional[list[str]]]
 
 
 class PipelineDescription(TypedDict):
@@ -109,6 +114,10 @@ class PipelineRuntimeParams(TypedDict, total=False):
 class PipelineParams(TypedDict, total=False):
     kwiverParams: Dict[str, str]
     runtimeParams: PipelineRuntimeParams
+    # Name for the newly created dataset (filter / transcode / disparity).
+    outputDatasetName: str
+    # Optional Girder folder that should own the new dataset (else sibling of input).
+    outputParentFolderId: str
 
 
 class MulticamCameraJob(TypedDict):
@@ -138,6 +147,12 @@ class PipelineJob(TypedDict):
     # target declared by the pipe's `# Metadata File:` header.
     metadata_file_item_id: NotRequired[Optional[str]]
     metadata_file_key: NotRequired[Optional[str]]
+    # Set when a single-camera pipeline runs on one camera folder of a multicam parent.
+    camera_name: NotRequired[Optional[str]]
+    # Name for a sibling dataset created from filter/transcode/disparity media output.
+    output_dataset_name: NotRequired[Optional[str]]
+    # Optional parent folder for the new dataset (defaults to input folder's parent).
+    output_parent_folder_id: NotRequired[Optional[str]]
 
 
 class MulticamPipelineJob(PipelineJob, total=False):
