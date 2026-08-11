@@ -2,24 +2,31 @@
 import { defineComponent } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
+import type { GlobalStyleSettings } from 'dive-common/apispec';
+import SavedStylesEditor from './SavedStylesEditor.vue';
 
 export default defineComponent({
   name: 'UserSettingsDialog',
+  components: { SavedStylesEditor },
   props: {
     value: {
       type: Boolean,
       required: true,
     },
   },
-  setup() {
+  setup(_, { emit }) {
     const colorScopeItems = [
       { text: 'Shared across all data', value: 'shared' },
       { text: 'Per dataset', value: 'dataset' },
     ];
+    function onStylesChange(settings: GlobalStyleSettings) {
+      emit('styles-change', settings);
+    }
     return {
       clientSettings,
       colorScopeItems,
       isDesktopRuntime: isDesktopRuntime(),
+      onStylesChange,
     };
   },
 });
@@ -28,7 +35,7 @@ export default defineComponent({
 <template>
   <v-dialog
     :value="value"
-    max-width="500"
+    max-width="520"
     @input="$emit('input', $event)"
   >
     <v-card>
@@ -52,6 +59,16 @@ export default defineComponent({
           dense
           outlined
         />
+
+        <v-divider class="my-4" />
+
+        <SavedStylesEditor
+          :active="value"
+          @change="onStylesChange"
+        />
+
+        <v-divider class="my-4" />
+
         <v-switch
           v-if="isDesktopRuntime"
           v-model="clientSettings.multiCamSettings.showToolbar"

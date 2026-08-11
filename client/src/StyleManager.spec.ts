@@ -37,4 +37,24 @@ describe('StyleManager', () => {
     /** Colors are deterministically generated in order */
     expect(sm.getTypeStyles(ref(['foo']))).toEqual({ foo: { color: '#ffe080' } });
   });
+
+  it('deletes custom styles', () => {
+    const markChangesPending = vi.fn();
+    const onStyleEdit = vi.fn();
+    const sm = new StyleManager({ markChangesPending, vuetify, onStyleEdit });
+    sm.updateTypeStyle({ type: 'bar', value: { color: 'green' } });
+    sm.deleteTypeStyle('bar');
+    expect(sm.customStyles.value.bar).toBeUndefined();
+    expect(onStyleEdit.mock.calls.length).toBe(2);
+  });
+
+  it('renames custom styles', () => {
+    const markChangesPending = vi.fn();
+    const sm = new StyleManager({ markChangesPending, vuetify });
+    sm.updateTypeStyle({ type: 'bar', value: { color: 'green', strokeWidth: 4 } });
+    sm.renameTypeStyle('bar', 'baz');
+    expect(sm.customStyles.value.bar).toBeUndefined();
+    expect(sm.customStyles.value.baz).toEqual({ color: 'green', strokeWidth: 4 });
+    expect(sm.typeStyling.value.color('baz')).toBe('green');
+  });
 });

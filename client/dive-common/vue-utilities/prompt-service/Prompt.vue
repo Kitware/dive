@@ -100,6 +100,7 @@ export default defineComponent({
   <v-dialog
     v-model="show"
     max-width="560"
+    :z-index="1000"
   >
     <v-card>
       <!-- Vuetify's v-card-title defaults to word-break: break-all, which

@@ -67,7 +67,7 @@ import type {
   StereoSegmentationFinalizeParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
-import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import { useApi, FrameImage, DatasetType, GlobalStyleSettings } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
@@ -436,6 +436,9 @@ export default defineComponent({
      */
     const globalTypeStyles: Ref<Record<string, CustomStyle>> = ref({});
     const globalGroupStyles: Ref<Record<string, CustomStyle>> = ref({});
+    /** Dataset-only styles from the last load, used to re-merge after shared-style edits. */
+    const datasetTypeStyles: Ref<Record<string, CustomStyle>> = ref({});
+    const datasetGroupStyles: Ref<Record<string, CustomStyle>> = ref({});
     const sharedColorsEnabled = () => (
       clientSettings.typeSettings.colorScope !== 'dataset' && !!saveGlobalStyleSettings
     );
@@ -470,6 +473,26 @@ export default defineComponent({
     function onStyleEdit() {
       mirrorCurrentStylesToGlobal();
       scheduleGlobalStylePersist();
+    }
+    /**
+     * Apply edits from the Saved Styles manager so the open dataset picks them
+     * up without a reload. Shared scope re-merges dataset + shared; otherwise
+     * only the in-memory shared store is updated for the next shared-scope use.
+     */
+    function onGlobalStylesChange(settings: GlobalStyleSettings) {
+      globalTypeStyles.value = settings.customTypeStyling ?? {};
+      globalGroupStyles.value = settings.customGroupStyling ?? {};
+      if (!sharedColorsEnabled()) {
+        return;
+      }
+      trackStyleManager.populateTypeStyles({
+        ...datasetTypeStyles.value,
+        ...globalTypeStyles.value,
+      });
+      groupStyleManager.populateTypeStyles({
+        ...datasetGroupStyles.value,
+        ...globalGroupStyles.value,
+      });
     }
     trackStyleManager.onStyleEdit = onStyleEdit;
     groupStyleManager.onStyleEdit = onStyleEdit;
@@ -1462,6 +1485,8 @@ export default defineComponent({
          * imported colors propagate to future sequences.
          */
         let loadedGlobalStyles = false;
+        datasetTypeStyles.value = meta.customTypeStyling ?? {};
+        datasetGroupStyles.value = meta.customGroupStyling ?? {};
         if (sharedColorsEnabled() && loadGlobalStyleSettings) {
           try {
             const shared = await loadGlobalStyleSettings();
@@ -2096,6 +2121,7 @@ export default defineComponent({
       progressValue,
       saveInProgress,
       showUserSettingsDialog,
+      onGlobalStylesChange,
       playbackComponent,
       recipes,
       segmentationRecipe,
@@ -2400,6 +2426,7 @@ export default defineComponent({
     <UserSettingsDialog
       :value="showUserSettingsDialog"
       @input="showUserSettingsDialog = $event"
+      @styles-change="onGlobalStylesChange"
     />
 
     <!-- Standard layout (left sidebar visible or hidden) -->

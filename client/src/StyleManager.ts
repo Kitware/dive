@@ -1,7 +1,7 @@
 import type Vuetify from 'vuetify';
 
 import {
-  ref, Ref, computed, set as VueSet,
+  ref, Ref, computed, set as VueSet, del as VueDel,
 } from 'vue';
 import * as d3 from 'd3';
 import { noop, merge } from 'lodash';
@@ -254,6 +254,43 @@ export default class StyleManager {
     const { type, value } = args;
     const oldValue = this.customStyles.value[type] || {};
     VueSet(this.customStyles.value, type, merge(oldValue, value));
+    this.revisionCounter.value += 1;
+    this.markChangesPending();
+    if (this.onStyleEdit) {
+      this.onStyleEdit();
+    }
+  }
+
+  /**
+   * Remove a custom style override. Used by the saved-styles editor;
+   * does not remove annotation types from the type list.
+   */
+  deleteTypeStyle(type: string) {
+    if (!(type in this.customStyles.value)) {
+      return;
+    }
+    VueDel(this.customStyles.value, type);
+    this.revisionCounter.value += 1;
+    this.markChangesPending();
+    if (this.onStyleEdit) {
+      this.onStyleEdit();
+    }
+  }
+
+  /**
+   * Rename a custom style key. Copies the override to the new name and
+   * removes the old key.
+   */
+  renameTypeStyle(oldType: string, newType: string) {
+    if (oldType === newType) {
+      return;
+    }
+    const value = this.customStyles.value[oldType];
+    if (!value) {
+      return;
+    }
+    VueSet(this.customStyles.value, newType, { ...value });
+    VueDel(this.customStyles.value, oldType);
     this.revisionCounter.value += 1;
     this.markChangesPending();
     if (this.onStyleEdit) {
