@@ -8,6 +8,9 @@ import TrackDetailsPanel from './TrackDetailsPanel.vue';
 const state = vi.hoisted(() => ({
   displayPairIndex: vi.fn(() => 1),
   track: null as Track | null,
+  multiSelectList: [] as number[],
+  acceptTrackType: vi.fn(),
+  assignTrackType: vi.fn(),
 }));
 
 vi.mock('vue-media-annotator/provides', () => ({
@@ -26,9 +29,10 @@ vi.mock('vue-media-annotator/provides', () => ({
   useTrackFilters: () => ({
     allTypes: ref(['root', 'leaf']),
     displayPairIndex: state.displayPairIndex,
+    hierarchyIndex: ref(undefined),
   }),
   useAttributes: () => ref([]),
-  useMultiSelectList: () => ref([]),
+  useMultiSelectList: () => ref(state.multiSelectList),
   useTime: () => ({ frame: ref(0) }),
   useReadOnlyMode: () => ref(false),
   useTrackStyleManager: () => ({
@@ -41,7 +45,8 @@ vi.mock('vue-media-annotator/provides', () => ({
     camMap: ref(new Map([['singleCam', { groupStore: undefined }]])),
     getAnyTrack: () => state.track,
     getAnyPossibleTrack: () => state.track,
-    setTrackType: vi.fn(),
+    acceptTrackType: state.acceptTrackType,
+    assignTrackType: state.assignTrackType,
   }),
   useSelectedCamera: () => ref('singleCam'),
 }));
@@ -73,6 +78,9 @@ function mountPanel() {
 describe('TrackDetailsPanel hierarchy summary', () => {
   beforeEach(() => {
     state.displayPairIndex.mockReturnValue(1);
+    state.multiSelectList = [];
+    state.acceptTrackType.mockClear();
+    state.assignTrackType.mockClear();
     state.track = new Track(1, {
       confidencePairs: [['root', 0.9], ['leaf', 0.7]],
       features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
@@ -105,5 +113,22 @@ describe('TrackDetailsPanel hierarchy summary', () => {
     });
     const { wrapper } = mountPanel();
     expect(wrapper.findComponent({ name: 'TrackItem' }).exists()).toBe(false);
+  });
+
+  it('routes Accept Correct Type through the acceptance command', () => {
+    const { vm } = mountPanel();
+    vm.acceptTrackType('leaf');
+    expect(state.acceptTrackType).toHaveBeenCalledWith(1, 'leaf', undefined);
+  });
+
+  it('routes bulk assignment through the same hierarchy-aware command', () => {
+    state.multiSelectList = [1];
+    const { vm } = mountPanel();
+    vm.updateMultiTrackType('new leaf');
+    vm.updateSelectedTracksType();
+    expect(state.assignTrackType).toHaveBeenCalledWith(1, 'new leaf', {
+      hierarchyIndex: undefined,
+      replaceType: 'leaf',
+    });
   });
 });

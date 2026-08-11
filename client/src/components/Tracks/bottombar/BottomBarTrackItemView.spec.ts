@@ -5,13 +5,22 @@ import { shallowMount } from '@vue/test-utils';
 import Track from '../../../track';
 import BottomBarTrackItemView from './BottomBarTrackItemView.vue';
 
-const providerState = vi.hoisted(() => ({ setTrackType: vi.fn() }));
+const providerState = vi.hoisted(() => ({
+  assignTrackType: vi.fn(),
+  setTrackPairConfidence: vi.fn(),
+}));
 
 vi.mock('../../../provides', () => ({
   useHandler: () => ({ trackSeek: vi.fn(), removeTrack: vi.fn(), trackEdit: vi.fn() }),
   useReadOnlyMode: () => ref(false),
-  useTrackFilters: () => ({ allTypes: ref(['root', 'leaf']) }),
-  useCameraStore: () => ({ setTrackType: providerState.setTrackType }),
+  useTrackFilters: () => ({
+    allTypes: ref(['root', 'leaf']),
+    hierarchyIndex: ref(undefined),
+  }),
+  useCameraStore: () => ({
+    assignTrackType: providerState.assignTrackType,
+    setTrackPairConfidence: providerState.setTrackPairConfidence,
+  }),
 }));
 
 function mountItem(displayPairIndex: number) {
@@ -53,6 +62,11 @@ function mountItem(displayPairIndex: number) {
 }
 
 describe('BottomBarTrackItemView hierarchy display', () => {
+  beforeEach(() => {
+    providerState.assignTrackType.mockClear();
+    providerState.setTrackPairConfidence.mockClear();
+  });
+
   it('renders and seeds editing from the selected hierarchy pair', () => {
     const { wrapper, vm } = mountItem(1);
     expect(wrapper.find('.track-type-compact').text()).toBe('leaf');
@@ -65,5 +79,26 @@ describe('BottomBarTrackItemView hierarchy display', () => {
     const { wrapper } = mountItem(0);
     expect(wrapper.find('.track-type-compact').text()).toBe('root');
     expect(wrapper.find('.track-confidence-compact').text()).toBe('0.90');
+  });
+
+  it('routes type assignment through the logical-track command', () => {
+    const { vm, props } = mountItem(1);
+    vm.setEditTypeValue('new leaf');
+    vm.saveType();
+
+    expect(providerState.assignTrackType).toHaveBeenCalledWith(1, 'new leaf', {
+      hierarchyIndex: undefined,
+      replaceType: 'leaf',
+      confidence: 0.7,
+    });
+    expect(props.track.confidencePairs).toEqual([['root', 0.9], ['leaf', 0.7]]);
+  });
+
+  it.each(['0.99', '1.00'])('routes confidence %s as a pair update', (value) => {
+    const { vm } = mountItem(1);
+    vm.setEditConfidenceValue(value);
+    vm.saveConfidence();
+
+    expect(providerState.setTrackPairConfidence).toHaveBeenCalledWith(1, 'leaf', Number(value));
   });
 });

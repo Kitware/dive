@@ -238,8 +238,12 @@ export default defineComponent({
     });
 
     function updateSelectedTracksType() {
-      multiSelectList.value.forEach((trackId: number) => {
-        cameraStore.setTrackType(trackId, multiTrackType.value);
+      selectedTrackList.value.forEach((track) => {
+        const pairIndex = Math.max(trackFilters.displayPairIndex(track, 0), 0);
+        cameraStore.assignTrackType(track.id, multiTrackType.value, {
+          hierarchyIndex: trackFilters.hierarchyIndex.value,
+          replaceType: track.confidencePairs[pairIndex]?.[0],
+        });
       });
     }
 
@@ -254,11 +258,10 @@ export default defineComponent({
       return pairs.sort((a, b) => b[1] - a[1]);
     });
 
-    function setTrackType(type: string) {
+    function acceptTrackType(type: string) {
       const track = selectedTrackList.value[0];
       if (!track) return;
-      const currentType = track.confidencePairs[0]?.[0];
-      cameraStore.setTrackType(track.id, type, 1, currentType);
+      cameraStore.acceptTrackType(track.id, type, trackFilters.hierarchyIndex.value);
     }
 
     const displayRows = computed(() => selectedTrackList.value.map((track) => {
@@ -314,7 +317,7 @@ export default defineComponent({
       toggleMerge,
       unstageFromMerge,
       updateSelectedTracksType,
-      setTrackType,
+      acceptTrackType,
       displayConfidencePairs,
       displayRows,
       trackFilters,
@@ -626,7 +629,7 @@ export default defineComponent({
         :confidence-pairs="displayConfidencePairs"
         :disabled="selectedTrackList.length > 1"
         :user-modified="isUserModified"
-        @set-type="setTrackType($event)"
+        @set-type="acceptTrackType($event)"
       />
       <attribute-subsection
         v-if="!multiSelectInProgress"

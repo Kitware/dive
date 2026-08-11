@@ -70,7 +70,10 @@ export default defineComponent({
     ));
 
     function setTrackType(type: string) {
-      cameraStore.setTrackType(props.track.id, type);
+      cameraStore.assignTrackType(props.track.id, type, {
+        hierarchyIndex: trackFilters.hierarchyIndex.value,
+        replaceType: props.trackType,
+      });
     }
 
     function openMultiCamTools() {
