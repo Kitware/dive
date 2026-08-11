@@ -4,6 +4,7 @@ import { clientSettings } from 'dive-common/store/settings';
 import {
   compileHierarchy,
   normalizeTypeHierarchy,
+  selectFlatPairIndex,
   rewriteHierarchyType,
   selectPairIndex,
   TypeHierarchy,
@@ -22,7 +23,6 @@ export interface TypeHierarchySavePatch {
 
 interface TrackFilterControlsParams extends FilterControlsParams<Track> {
   lookupGroups: (annotationId: AnnotationId) => Group[];
-  getTrack: (annotationId: AnnotationId, camera?: string) => Track;
   groupFilterControls: BaseFilterControls<Group>;
   getTracks: (annotationId: AnnotationId) => Track[];
   renameTrackPair: (
@@ -125,29 +125,12 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
             -1,
           );
         } else {
-          confidencePairIndex = annotation.confidencePairs
-            .findIndex(([confkey, confval]) => {
-              const confidenceThresh = Math.max(
-                confidenceFiltersVal[confkey] || 0,
-                confidenceFiltersVal.default,
-              );
-              return confval >= confidenceThresh && checkedSet.has(confkey);
-            });
-          if (clientSettings.typeSettings.preventCascadeTypes) {
-            const [confkey, confval] = annotation.confidencePairs[0];
-            const confidenceThresh = Math.max(
-              confidenceFiltersVal[confkey] || 0,
-              confidenceFiltersVal.default,
-            );
-            if (checkedSet.has(confkey) && confval > confidenceThresh) {
-              confidencePairIndex = 0;
-            } else {
-              confidencePairIndex = -1;
-            }
-          }
-          if (this.disableAnnotationFilters.value) {
-            confidencePairIndex = 0;
-          }
+          confidencePairIndex = selectFlatPairIndex(annotation.confidencePairs, {
+            checkedSet,
+            confidenceFilters: confidenceFiltersVal,
+            filtersDisabled: this.disableAnnotationFilters.value,
+            preventCascade: clientSettings.typeSettings.preventCascadeTypes ?? false,
+          });
         }
         /* include annotations where at least 1 confidence pair is above
          * the threshold and part of the checked type set */
@@ -157,15 +140,21 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           && enabledInGroupFilters && !resultsIds.has(annotation.id)
         ) {
           let addValue = true;
-          if (!this.disableAnnotationFilters.value && this.attributeFilters.value.length > 0 && params.getTrack !== undefined
+          if (!this.disableAnnotationFilters.value && this.attributeFilters.value.length > 0
             && this.enabledFilters.value.length > 0) {
-            addValue = trackIdPassesFilter(
-              annotation.id,
-              params.getTrack as (trackId: AnnotationId) => Track,
-              this.attributeFilters.value,
-              this.userDefinedValues.value,
-              this.enabledFilters.value,
-            );
+            const [canonicalTrack] = params.getTracks(annotation.id);
+            if (canonicalTrack === undefined) {
+              addValue = false;
+            } else {
+              addValue = trackIdPassesFilter(
+                annotation.id,
+                () => canonicalTrack,
+                this.attributeFilters.value,
+                this.userDefinedValues.value,
+                this.enabledFilters.value,
+                annotation.confidencePairs[confidencePairIndex]?.[0],
+              );
+            }
           }
           if (addValue) {
             resultsIds.add(annotation.id);

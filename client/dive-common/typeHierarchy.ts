@@ -23,6 +23,40 @@ export interface TypeHierarchyIndex {
   ancestors: Readonly<Record<string, readonly string[]>>;
 }
 
+interface FlatPairSelectionOptions {
+  checkedSet: ReadonlySet<string>;
+  confidenceFilters: Readonly<Record<string, number>>;
+  filtersDisabled: boolean;
+  preventCascade: boolean;
+}
+
+/** Select the visible classification pair when no hierarchy is active. */
+export function selectFlatPairIndex(
+  pairs: readonly (readonly [string, number])[],
+  {
+    checkedSet, confidenceFilters, filtersDisabled, preventCascade,
+  }: FlatPairSelectionOptions,
+): number {
+  if (pairs.length === 0) return -1;
+  if (filtersDisabled) return 0;
+  const passes = ([type, confidence]: readonly [string, number]) => {
+    const threshold = Math.max(
+      confidenceFilters[type] || 0,
+      confidenceFilters.default || 0,
+    );
+    return checkedSet.has(type) && confidence >= threshold;
+  };
+  if (preventCascade) {
+    const [type, confidence] = pairs[0];
+    const threshold = Math.max(
+      confidenceFilters[type] || 0,
+      confidenceFilters.default || 0,
+    );
+    return checkedSet.has(type) && confidence > threshold ? 0 : -1;
+  }
+  return pairs.findIndex(passes);
+}
+
 // Python orders strings by code point; JS compares UTF-16 units, which sorts astral
 // names before U+E000-U+FFFF. Compare code points so both platforms agree.
 function codePointCompare(left: string, right: string): number {

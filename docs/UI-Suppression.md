@@ -6,7 +6,9 @@ There are two related mechanisms. Both require a **Suppression Region Type** to 
 
 ## Region suppression
 
-Draw or import annotations whose type matches the configured **Suppression Region Type**. On each frame, any other detection whose geometry lies at least the **Suppression Overlap (%)** under one or more of those regions is treated as region-suppressed:
+Draw or import annotations whose hierarchy-resolved displayed type matches the configured
+**Suppression Region Type**. On each frame, any other detection whose geometry lies at least the
+**Suppression Overlap (%)** under one or more of those regions is treated as region-suppressed:
 
 * It is **hidden** from the annotation canvas.
 * It is **excluded** from type counts and from the track list for that frame.

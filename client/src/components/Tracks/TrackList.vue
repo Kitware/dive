@@ -24,7 +24,7 @@ import {
   usePendingSaveCount,
 } from '../../provides';
 import useVirtualScrollTo from '../../use/useVirtualScrollTo';
-import { getSuppressedTrackIds } from '../../use/suppression';
+import { getSuppressedTrackIds, suppressionTypeResolver } from '../../use/suppression';
 import SideBarTrackListView from './sidebar/SideBarTrackListView.vue';
 import BottomBarTrackListView from './bottombar/BottomBarTrackListView.vue';
 
@@ -112,6 +112,7 @@ export default defineComponent({
       const pairIndex = trackFilters.hierarchyActive.value ? contextIndex : 0;
       return track.confidencePairs[pairIndex]?.[1] ?? 0;
     };
+    const suppressionResolutionRef = computed(() => suppressionTypeResolver(trackFilters));
 
     const filterDetectionsByFrame = ref(clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame);
     watch(
@@ -140,7 +141,7 @@ export default defineComponent({
             frameRef.value,
             suppType,
             clientSettings.typeSettings.suppressionThreshold,
-            { revision: editRevision },
+            { revision: editRevision, resolver: suppressionResolutionRef.value },
           )
           : new Set<number>();
         tracks = tracks.filter((track) => {

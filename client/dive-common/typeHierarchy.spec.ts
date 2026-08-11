@@ -8,6 +8,7 @@ import {
   removePair,
   resolveTypeHierarchy,
   rewriteHierarchyType,
+  selectFlatPairIndex,
   selectPairIndex,
   setPairConfidence,
   TypeHierarchyError,
@@ -246,6 +247,28 @@ describe('type hierarchy index', () => {
       expect(result).not.toBe(pairs);
       result.forEach((pair) => expect(pairs).not.toContain(pair));
     });
+  });
+});
+
+describe('flat pair selection', () => {
+  const pairs: [string, number][] = [['top', 0.5], ['fallback', 0.8]];
+
+  it('uses zero when the default threshold is absent', () => {
+    expect(selectFlatPairIndex(pairs, {
+      checkedSet: new Set(['fallback']),
+      confidenceFilters: {},
+      filtersDisabled: false,
+      preventCascade: false,
+    })).toBe(1);
+  });
+
+  it('keeps the strict Prevent Cascade threshold comparison', () => {
+    expect(selectFlatPairIndex(pairs, {
+      checkedSet: new Set(['top', 'fallback']),
+      confidenceFilters: { top: 0.5, default: 0.1 },
+      filtersDisabled: false,
+      preventCascade: true,
+    })).toBe(-1);
   });
 });
 

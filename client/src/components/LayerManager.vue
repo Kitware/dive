@@ -21,7 +21,9 @@ import TextLayer, { FormatTextRow } from '../layers/AnnotationLayers/TextLayer';
 import AttributeLayer from '../layers/AnnotationLayers/AttributeLayer';
 import AttributeBoxLayer from '../layers/AnnotationLayers/AttributeBoxLayer';
 import type { AnnotationId } from '../BaseAnnotation';
-import { getSuppressedTrackIds, hasSuppressionAttribute } from '../use/suppression';
+import {
+  getSuppressedTrackIds, hasSuppressionAttribute, suppressionTypeResolver,
+} from '../use/suppression';
 import { VisibleAnnotationTypes } from '../layers';
 import UILayer from '../layers/UILayers/UILayer';
 import ToolTipWidget from '../layers/UILayers/ToolTipWidget.vue';
@@ -107,6 +109,7 @@ export default defineComponent({
     }
     const trackFilters = useTrackFilters();
     const enabledTracksRef = trackFilters.enabledAnnotations;
+    const suppressionResolutionRef = computed(() => suppressionTypeResolver(trackFilters));
     const selectedTrackIdRef = useSelectedTrackId();
     const multiSeletListRef = useMultiSelectList();
     const editingModeRef = useEditingMode();
@@ -368,7 +371,7 @@ export default defineComponent({
           frame,
           suppressionType,
           suppressionThreshold,
-          { revision: pendingSaveCount.value },
+          { revision: pendingSaveCount.value, resolver: suppressionResolutionRef.value },
         )
         : new Set<AnnotationId>();
       currentFrameIds.forEach(
@@ -665,6 +668,7 @@ export default defineComponent({
         // re-render when the suppression-region type or threshold is changed
         () => clientSettings.typeSettings.suppressionType,
         () => clientSettings.typeSettings.suppressionThreshold,
+        suppressionResolutionRef,
         // re-render when attributes/geometry change (e.g. suppression attribute toggle)
         pendingSaveCount,
       ],
