@@ -18,6 +18,7 @@ import {
 import {
   Track, Group,
   CameraStore,
+  formatDivergentClassificationWarning,
   CameraRegistrationStore,
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
@@ -1781,6 +1782,22 @@ export default defineComponent({
             removeSaveCamera(key);
           }
         });
+        if (multiCamList.value.length > 1 && props.comparisonSets.length === 0) {
+          const divergenceWarning = formatDivergentClassificationWarning(
+            cameraStore.divergentClassificationTrackIds(),
+          );
+          if (divergenceWarning) {
+            trackFilters.queueLoadWarning(divergenceWarning);
+            const loadWarning = trackFilters.consumeLoadWarning();
+            if (loadWarning) {
+              await prompt({
+                title: 'Divergent Track Classifications',
+                text: loadWarning,
+                positiveButton: 'OK',
+              });
+            }
+          }
+        }
         // Needs to be done after the cameraMap is created
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));

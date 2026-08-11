@@ -27,6 +27,28 @@ interface TrackAssignmentOptions {
   confidence?: number;
 }
 
+function confidencePairsEqual(
+  left: readonly ConfidencePair[],
+  right: readonly ConfidencePair[],
+): boolean {
+  return left.length === right.length
+    && left.every(([type, confidence], index) => (
+      type === right[index][0] && confidence === right[index][1]
+    ));
+}
+
+export function formatDivergentClassificationWarning(
+  trackIds: readonly AnnotationId[],
+): string | null {
+  if (trackIds.length === 0) {
+    return null;
+  }
+  const sortedIds = [...trackIds].sort((a, b) => a - b);
+  const shownIds = sortedIds.slice(0, 10).join(', ');
+  const suffix = sortedIds.length > 10 ? ', …' : '';
+  return `${sortedIds.length} tracks have divergent per-camera classifications (tracks ${shownIds}${suffix})`;
+}
+
 /**
  * CameraStore is a warapper for holding and collating tracks from multiple cameras.
  * If a singleCamera is in operation it uses the root 'singleCam' with a single store.
@@ -137,6 +159,23 @@ export default class CameraStore {
     return trackList;
   }
 
+  divergentClassificationTrackIds(): AnnotationId[] {
+    const vectorsByTrack = new Map<AnnotationId, ConfidencePair[][]>();
+    this.camMap.value.forEach(({ trackStore }) => {
+      trackStore.annotationIds.value.forEach((trackId) => {
+        const track = trackStore.get(trackId);
+        const vectors = vectorsByTrack.get(trackId) || [];
+        vectors.push(track.confidencePairs);
+        vectorsByTrack.set(trackId, vectors);
+      });
+    });
+    return Array.from(vectorsByTrack.entries())
+      .filter(([, vectors]) => vectors.length > 1
+        && vectors.slice(1).some((vector) => !confidencePairsEqual(vectors[0], vector)))
+      .map(([trackId]) => trackId)
+      .sort((a, b) => a - b);
+  }
+
   /**
    * Each entry rebuilds when a replica in any camera changes, when replicas are
    * inserted or removed, or when the camera set or order changes. Between edits,
@@ -176,17 +215,24 @@ export default class CameraStore {
     return projection;
   }
 
+  /**
+   * The sorted list is recomputed on every annotation mutation, so it reads only the
+   * logical range and classification rather than building a full TrackProjection, whose
+   * per-feature deep copies would scale with the whole dataset on each edit. Safe only
+   * once projections take classification from the canonical camera instead of merging.
+   */
   getTrackProjectionForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
-    const track = this.getTrackProjection(trackId);
-    // A projection's vector is read-only; sorted annotations declare a mutable one, so the
-    // caller gets a copy rather than a window onto stored evidence.
-    const confidencePairs = track.confidencePairs
+    const tracks = this.getTrackAll(trackId);
+    if (tracks.length === 0) {
+      throw Error(`TrackId: ${trackId} is not found in any camera`);
+    }
+    const confidencePairs = tracks[0].confidencePairs
       .map(([type, confidence]) => [type, confidence] as ConfidencePair);
     return {
-      id: track.id,
+      id: tracks[0].id,
       confidencePairs,
-      begin: track.begin,
-      end: track.end,
+      begin: Math.min(...tracks.map((track) => track.begin)),
+      end: Math.max(...tracks.map((track) => track.end)),
       getType: (index?: number) => (confidencePairs[index || 0]?.[0] || 'unknown'),
     };
   }

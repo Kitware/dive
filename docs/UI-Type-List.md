@@ -30,6 +30,8 @@ Assigning a type to a track is hierarchy-aware. A type together with its ancesto
 
 Track notes, track attributes, and first-detection attributes edited from a track row are logical-track values. They are written to every linked camera track, using each camera track's own first feature for feature-level values. Keyframe and interpolation controls edit geometry only in the selected camera.
 
+Linked multicamera tracks are expected to store identical confidence-pair vectors. If existing camera replicas differ, DIVE reports one warning when the dataset loads and uses the first camera in configured display order for the read-only track projection; it does not union classifications while merging display geometry. Removing classifications evaluates the complete logical vector and synchronizes the result across replicas.
+
 Hierarchy members remain ordinary flat Type List rows. A parent with no annotations or explicit style configuration is visible when **Show Empty** is enabled. The Type List does not render a tree or offer subtree controls or hierarchy editing.
 
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.

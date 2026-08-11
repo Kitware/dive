@@ -1,6 +1,6 @@
 /// <reference types="vitest" />
 import { compileHierarchy } from 'dive-common/typeHierarchy';
-import CameraStore from './CameraStore';
+import CameraStore, { formatDivergentClassificationWarning } from './CameraStore';
 import Group from './Group';
 import Track, { Feature } from './track';
 
@@ -312,7 +312,7 @@ describe('CameraStore track projections', () => {
     expect(projection.features[2]?.notes).toEqual(['left']);
     expect(projection.features[5]?.notes).toEqual(['right']);
     expect(projection.attributes).toMatchObject({ source: 'left', quality: 'right' });
-    expect(projection.confidencePairs).toEqual([['fish', 0.9], ['bird', 0.2]]);
+    expect(projection.confidencePairs).toEqual([['fish', 0.7]]);
     mutationKeys.forEach((key) => expect(key in projection).toBe(false));
     expect(left.serialize()).toEqual(leftBefore);
     expect(right.serialize()).toEqual(rightBefore);
@@ -390,6 +390,40 @@ describe('CameraStore projection cache', () => {
     const after = store.getTrackProjection(TRACK_ID);
     expect(after).not.toBe(before);
     expect(after.confidencePairs).toEqual(confidencePairs([['rock', 0.95], ['shark', 0.1]]));
+  });
+});
+
+describe('CameraStore classification divergence', () => {
+  it('finds exact vector differences only when an id exists in multiple cameras', () => {
+    const store = new CameraStore({ markChangesPending: vi.fn() });
+    store.removeCamera('singleCam');
+    store.addCamera('left');
+    store.addCamera('right');
+    const insert = (cameraName: string, id: number, pairs: [string, number][]) => {
+      store.camMap.value.get(cameraName)?.trackStore.insert(new Track(id, {
+        confidencePairs: confidencePairs(pairs),
+        features: features(),
+      }), { imported: true });
+    };
+    insert('left', 9, [['fish', 0.8], ['bird', 0.2]]);
+    insert('right', 9, [['fish', 0.8], ['bird', 0.2]]);
+    insert('left', 4, [['fish', 0.8], ['bird', 0.2]]);
+    insert('right', 4, [['bird', 0.2], ['fish', 0.8]]);
+    insert('left', 2, [['fish', 0.8]]);
+    insert('right', 2, [['fish', 0.7]]);
+    insert('left', 1, [['left only', 1]]);
+
+    expect(store.divergentClassificationTrackIds()).toEqual([2, 4]);
+  });
+
+  it('formats one bounded, sorted dataset warning', () => {
+    expect(formatDivergentClassificationWarning([])).toBeNull();
+    expect(formatDivergentClassificationWarning([5, 2])).toBe(
+      '2 tracks have divergent per-camera classifications (tracks 2, 5)',
+    );
+    expect(formatDivergentClassificationWarning([11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1])).toBe(
+      '11 tracks have divergent per-camera classifications (tracks 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, …)',
+    );
   });
 });
 
