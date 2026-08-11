@@ -33,7 +33,27 @@ The type style editor controls the visual appearance of annotations in all other
 * **Border & Fill Opacity** - The opacity of the lines and the fill can be set here.
 * **Color** - The color for the type within the annotations and the timeline views.
 
+Where those colors are reused across datasets depends on **Type color scope** (see below).
+
 <div style="clear: both;"/>
+
+## Type color scope and Saved Styles
+
+Open **User Settings** with ==:material-cog:== in the [navigation bar](UI-Navigation-Editing-Bar.md#navigation-bar).
+
+### Type color scope
+
+* **Shared across all data** (default) — one set of type and group color/style overrides is reused across every dataset.
+  * On **Desktop**, styles are stored once per data directory in `global_style_settings.json` (see [Data Storage Path](Dive-Desktop.md#data-storage-path)).
+  * On **Web**, styles are stored in the current browser for the signed-in session (`localStorage`), not synced across devices.
+  * When you open a dataset, shared styles overlay that dataset's own styling (shared wins on conflicts). Edits you make are mirrored back to the shared store. Colors that arrive with a dataset seed the shared store without overwriting styles you already chose.
+* **Per dataset** — colors and styles are saved only with the dataset they were set on (the original behavior).
+
+Changing the scope takes effect the next time a dataset is opened.
+
+### Saved Styles
+
+The **Saved Styles** panel in User Settings lists the shared type and group styles. You can filter by name or source dataset, add or edit styles, and delete one or many entries. Use this to curate the palette that Shared scope applies across sequences. Group styles follow the same rules; see [Group Manager](UI-Group-Manager.md#group-type-list).
 
 ## Type Settings Menu
 
