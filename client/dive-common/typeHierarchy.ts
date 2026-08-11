@@ -45,6 +45,16 @@ function hasOwn(hierarchy: TypeHierarchy, type: string): boolean {
   return Object.prototype.hasOwnProperty.call(hierarchy, type);
 }
 
+// Python's str.strip() and JS's String.trim() disagree at the edges, and a name blank on one
+// platform must be blank on the other. These are the code points only Python calls blank;
+// trim() already covers the rest, U+FEFF included.
+const PYTHON_ONLY_BLANKS = new Set([0x1c, 0x1d, 0x1e, 0x1f, 0x85]);
+
+function isBlankName(name: string): boolean {
+  return [...name].every((char) => char.trim().length === 0
+    || PYTHON_ONLY_BLANKS.has(char.codePointAt(0) as number));
+}
+
 function cycleReason(hierarchy: TypeHierarchy): string | undefined {
   const completed = new Set<string>();
   const renderedCycles: string[] = [];
@@ -99,14 +109,14 @@ export function normalizeTypeHierarchy(value: unknown): TypeHierarchy | undefine
   }
   const entries: [string, string][] = [];
   keys.forEach((child) => {
-    if (child.trim().length === 0) {
+    if (isBlankName(child)) {
       throw new TypeHierarchyError('empty child');
     }
     const parent = source[child];
     if (typeof parent !== 'string') {
       throw new TypeHierarchyError(`parent for "${child}" must be a string`);
     }
-    if (parent.trim().length === 0) {
+    if (isBlankName(parent)) {
       throw new TypeHierarchyError(`empty parent for "${child}"`);
     }
     if (child === parent) {

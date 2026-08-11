@@ -57,6 +57,24 @@
       "errorKind": "malformed"
     },
     {
+      "name": "child blank only under Python str.strip",
+      "input": {
+        "\u001c\u001d\u001e\u001f\u0085": "fish"
+      },
+      "expected": null,
+      "errorReason": "empty child",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "parent blank only under JS String.trim",
+      "input": {
+        "cod": "\ufeff"
+      },
+      "expected": null,
+      "errorReason": "empty parent for \"cod\"",
+      "errorKind": "malformed"
+    },
+    {
       "name": "non-string parent",
       "input": { "cod": 7 },
       "expected": null,

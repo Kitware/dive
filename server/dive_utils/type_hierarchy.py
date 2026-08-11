@@ -1,6 +1,16 @@
+import re
 from typing import Dict, List, Literal, Optional
 
 from typing_extensions import NotRequired, TypedDict
+
+# Python's str.strip() and JS's String.trim() disagree at the edges: strip() removes
+# U+001C-U+001F and U+0085, trim() removes U+FEFF. A name blank on one platform must be blank
+# on the other, so test against the union both ways.
+_BLANK_NAME = re.compile('[\\s\ufeff]')
+
+
+def _is_blank_name(name: str) -> bool:
+    return not _BLANK_NAME.sub('', name)
 
 
 class TypeHierarchyError(ValueError):
@@ -60,12 +70,12 @@ def normalize_type_hierarchy(value: object) -> Optional[Dict[str, str]]:
 
     normalized: Dict[str, str] = {}
     for child in sorted(value):
-        if not child.strip():
+        if _is_blank_name(child):
             raise TypeHierarchyError('empty child')
         parent = value[child]
         if not isinstance(parent, str):
             raise TypeHierarchyError(f'parent for "{child}" must be a string')
-        if not parent.strip():
+        if _is_blank_name(parent):
             raise TypeHierarchyError(f'empty parent for "{child}"')
         if child == parent:
             raise TypeHierarchyError(f'self edge "{child} -> {parent}"')
