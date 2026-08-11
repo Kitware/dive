@@ -17,9 +17,13 @@ interface StyleListItem {
   name: string;
   color: string;
   kind: StyleKind;
+  sourceDatasetId?: string;
+  sourceDatasetName?: string;
 }
 
 const BUILTIN_STYLE_KEYS = new Set(['no-group']);
+const ALL_DATASETS_FILTER = '';
+const UNKNOWN_DATASET_FILTER = '__unknown__';
 
 function omitBuiltinStyles(
   styles: Record<string, CustomStyle>,
@@ -31,6 +35,26 @@ function omitBuiltinStyles(
     }
   });
   return result;
+}
+
+function styleSourceLabel(item: Pick<StyleListItem, 'sourceDatasetName' | 'sourceDatasetId'>) {
+  if (item.sourceDatasetName) {
+    return item.sourceDatasetName;
+  }
+  if (item.sourceDatasetId) {
+    return item.sourceDatasetId;
+  }
+  return 'Unknown dataset';
+}
+
+function styleSourceKey(item: Pick<StyleListItem, 'sourceDatasetName' | 'sourceDatasetId'>) {
+  if (item.sourceDatasetId) {
+    return item.sourceDatasetId;
+  }
+  if (item.sourceDatasetName) {
+    return `name:${item.sourceDatasetName}`;
+  }
+  return UNKNOWN_DATASET_FILTER;
 }
 
 export default defineComponent({
@@ -64,6 +88,8 @@ export default defineComponent({
     const expanded = ref<number | undefined>(undefined);
     const tab = ref(0);
     const search = ref('');
+    const datasetFilter = ref(ALL_DATASETS_FILTER);
+    const selectedKeys = ref<string[]>([]);
     const showEditor = ref(false);
     const showAdd = ref(false);
     const addName = ref('');
@@ -94,39 +120,57 @@ export default defineComponent({
       editingKind.value === 'group' ? groupStyleManager : typeStyleManager
     ));
 
-    function matchesSearch(name: string) {
+    function itemKey(item: StyleListItem) {
+      return `${item.kind}:${item.name}`;
+    }
+
+    function matchesSearch(item: StyleListItem) {
       const q = search.value.trim().toLowerCase();
       if (!q) {
         return true;
       }
-      return name.toLowerCase().includes(q);
+      const haystack = [
+        item.name,
+        item.sourceDatasetName,
+        item.sourceDatasetId,
+      ].filter(Boolean).join(' ').toLowerCase();
+      return haystack.includes(q);
+    }
+
+    function matchesDataset(item: StyleListItem) {
+      const filter = datasetFilter.value;
+      if (!filter) {
+        return true;
+      }
+      return styleSourceKey(item) === filter;
+    }
+
+    function toListItems(
+      manager: StyleManager,
+      kind: StyleKind,
+    ): StyleListItem[] {
+      const styles = omitBuiltinStyles(manager.customStyles.value);
+      return Object.entries(styles)
+        .map(([name, style]) => ({
+          name,
+          color: manager.typeStyling.value.color(name),
+          kind,
+          sourceDatasetId: style.sourceDatasetId,
+          sourceDatasetName: style.sourceDatasetName,
+        }))
+        .filter(matchesSearch)
+        .filter(matchesDataset)
+        .sort((a, b) => a.name.localeCompare(b.name));
     }
 
     const typeItems = computed((): StyleListItem[] => {
-      // Establish dependency on revision for list refresh after edits.
       if (typeStyleManager.revisionCounter.value) noop();
-      const styles = omitBuiltinStyles(typeStyleManager.customStyles.value);
-      return Object.keys(styles)
-        .filter(matchesSearch)
-        .sort((a, b) => a.localeCompare(b))
-        .map((name) => ({
-          name,
-          color: typeStyleManager.typeStyling.value.color(name),
-          kind: 'type' as const,
-        }));
+      return toListItems(typeStyleManager, 'type');
     });
 
     const groupItems = computed((): StyleListItem[] => {
       if (groupStyleManager.revisionCounter.value) noop();
-      const styles = omitBuiltinStyles(groupStyleManager.customStyles.value);
-      return Object.keys(styles)
-        .filter(matchesSearch)
-        .sort((a, b) => a.localeCompare(b))
-        .map((name) => ({
-          name,
-          color: groupStyleManager.typeStyling.value.color(name),
-          kind: 'group' as const,
-        }));
+      return toListItems(groupStyleManager, 'group');
     });
 
     const typeCount = computed(() => {
@@ -140,6 +184,43 @@ export default defineComponent({
     });
 
     const totalCount = computed(() => typeCount.value + groupCount.value);
+
+    const datasetFilterItems = computed(() => {
+      if (typeStyleManager.revisionCounter.value) noop();
+      if (groupStyleManager.revisionCounter.value) noop();
+      const byKey = new Map<string, string>();
+      const collect = (manager: StyleManager) => {
+        Object.values(omitBuiltinStyles(manager.customStyles.value)).forEach((style) => {
+          const key = styleSourceKey(style);
+          if (!byKey.has(key)) {
+            byKey.set(key, styleSourceLabel(style));
+          }
+        });
+      };
+      collect(typeStyleManager);
+      collect(groupStyleManager);
+      const items = Array.from(byKey.entries())
+        .map(([value, text]) => ({ value, text }))
+        .sort((a, b) => a.text.localeCompare(b.text));
+      return [
+        { value: ALL_DATASETS_FILTER, text: 'All datasets' },
+        ...items,
+      ];
+    });
+
+    const visibleItems = computed(() => (
+      tab.value === 1 ? groupItems.value : typeItems.value
+    ));
+
+    const selectedVisibleCount = computed(() => {
+      const visible = new Set(visibleItems.value.map(itemKey));
+      return selectedKeys.value.filter((k) => visible.has(k)).length;
+    });
+
+    const allVisibleSelected = computed(() => (
+      visibleItems.value.length > 0
+      && selectedVisibleCount.value === visibleItems.value.length
+    ));
 
     function currentSettings(): GlobalStyleSettings {
       return {
@@ -174,6 +255,7 @@ export default defineComponent({
       loading.value = true;
       error.value = null;
       persistSuspended = true;
+      selectedKeys.value = [];
       try {
         const shared = await loadGlobalStyleSettings();
         typeStyleManager.populateTypeStyles(shared.customTypeStyling ?? {});
@@ -245,6 +327,44 @@ export default defineComponent({
       }
       const manager = item.kind === 'group' ? groupStyleManager : typeStyleManager;
       manager.deleteTypeStyle(item.name);
+      selectedKeys.value = selectedKeys.value.filter((k) => k !== itemKey(item));
+    }
+
+    async function deleteSelected() {
+      const visible = visibleItems.value;
+      const selected = new Set(selectedKeys.value);
+      const toDelete = visible.filter((item) => selected.has(itemKey(item)));
+      if (!toDelete.length) {
+        return;
+      }
+      const result = await prompt({
+        title: 'Confirm',
+        text: `Delete ${toDelete.length} selected saved style${toDelete.length === 1 ? '' : 's'}?`,
+        confirm: true,
+      });
+      if (!result) {
+        return;
+      }
+      persistSuspended = true;
+      toDelete.forEach((item) => {
+        const manager = item.kind === 'group' ? groupStyleManager : typeStyleManager;
+        manager.deleteTypeStyle(item.name);
+      });
+      persistSuspended = false;
+      selectedKeys.value = selectedKeys.value.filter(
+        (k) => !toDelete.some((item) => itemKey(item) === k),
+      );
+      await persist();
+    }
+
+    function toggleSelectAllVisible() {
+      const keys = visibleItems.value.map(itemKey);
+      if (allVisibleSelected.value) {
+        const remove = new Set(keys);
+        selectedKeys.value = selectedKeys.value.filter((k) => !remove.has(k));
+      } else {
+        selectedKeys.value = Array.from(new Set([...selectedKeys.value, ...keys]));
+      }
     }
 
     watch(() => props.active, (active) => {
@@ -265,6 +385,9 @@ export default defineComponent({
       expanded,
       tab,
       search,
+      datasetFilter,
+      datasetFilterItems,
+      selectedKeys,
       showEditor,
       showAdd,
       addName,
@@ -279,10 +402,16 @@ export default defineComponent({
       typeStyleManager,
       groupStyleManager,
       activeManager,
+      selectedVisibleCount,
+      allVisibleSelected,
+      itemKey,
+      styleSourceLabel,
       openEdit,
       openAdd,
       confirmAdd,
       deleteStyle,
+      deleteSelected,
+      toggleSelectAllVisible,
       load,
     };
   },
@@ -359,6 +488,33 @@ export default defineComponent({
             </v-btn>
           </div>
 
+          <div class="d-flex align-center mb-2">
+            <v-select
+              v-model="datasetFilter"
+              :items="datasetFilterItems"
+              dense
+              outlined
+              hide-details
+              label="Dataset"
+              class="flex-grow-1 mr-2"
+            />
+            <v-btn
+              small
+              text
+              color="error"
+              :disabled="loading || selectedVisibleCount === 0"
+              @click="deleteSelected"
+            >
+              <v-icon
+                left
+                small
+              >
+                mdi-delete
+              </v-icon>
+              Delete ({{ selectedVisibleCount }})
+            </v-btn>
+          </div>
+
           <v-tabs
             v-model="tab"
             grow
@@ -372,6 +528,24 @@ export default defineComponent({
               Groups ({{ groupCount }})
             </v-tab>
           </v-tabs>
+
+          <div class="d-flex align-center px-1 py-1">
+            <v-checkbox
+              :input-value="allVisibleSelected"
+              :indeterminate="selectedVisibleCount > 0 && !allVisibleSelected"
+              dense
+              hide-details
+              class="mt-0 pt-0 shrink"
+              :disabled="loading || (tab === 1 ? !groupItems.length : !typeItems.length)"
+              @click.prevent="toggleSelectAllVisible"
+            >
+              <template #label>
+                <span class="text-caption grey--text">
+                  Select all
+                </span>
+              </template>
+            </v-checkbox>
+          </div>
 
           <v-tabs-items
             v-model="tab"
@@ -387,16 +561,29 @@ export default defineComponent({
                   :key="`type-${item.name}`"
                   class="px-0"
                 >
+                  <v-list-item-action class="mr-1 my-0">
+                    <v-checkbox
+                      v-model="selectedKeys"
+                      :value="itemKey(item)"
+                      dense
+                      hide-details
+                      class="mt-0 pt-0"
+                    />
+                  </v-list-item-action>
                   <v-list-item-icon class="mr-3 my-2">
                     <div
                       class="color-swatch"
                       :style="{ backgroundColor: item.color }"
+                      :title="styleSourceLabel(item)"
                     />
                   </v-list-item-icon>
                   <v-list-item-content>
                     <v-list-item-title class="text-body-2">
                       {{ item.name }}
                     </v-list-item-title>
+                    <v-list-item-subtitle class="text-caption">
+                      {{ styleSourceLabel(item) }}
+                    </v-list-item-subtitle>
                   </v-list-item-content>
                   <v-list-item-action class="my-0 flex-row">
                     <v-btn
@@ -424,7 +611,9 @@ export default defineComponent({
                   v-if="!typeItems.length && !loading"
                   class="text-caption grey--text text-center py-4"
                 >
-                  {{ search.trim() ? 'No matching type styles.' : 'No saved type styles yet.' }}
+                  {{ search.trim() || datasetFilter
+                    ? 'No matching type styles.'
+                    : 'No saved type styles yet.' }}
                 </div>
               </v-list>
             </v-tab-item>
@@ -438,16 +627,29 @@ export default defineComponent({
                   :key="`group-${item.name}`"
                   class="px-0"
                 >
+                  <v-list-item-action class="mr-1 my-0">
+                    <v-checkbox
+                      v-model="selectedKeys"
+                      :value="itemKey(item)"
+                      dense
+                      hide-details
+                      class="mt-0 pt-0"
+                    />
+                  </v-list-item-action>
                   <v-list-item-icon class="mr-3 my-2">
                     <div
                       class="color-swatch"
                       :style="{ backgroundColor: item.color }"
+                      :title="styleSourceLabel(item)"
                     />
                   </v-list-item-icon>
                   <v-list-item-content>
                     <v-list-item-title class="text-body-2">
                       {{ item.name }}
                     </v-list-item-title>
+                    <v-list-item-subtitle class="text-caption">
+                      {{ styleSourceLabel(item) }}
+                    </v-list-item-subtitle>
                   </v-list-item-content>
                   <v-list-item-action class="my-0 flex-row">
                     <v-btn
@@ -475,7 +677,9 @@ export default defineComponent({
                   v-if="!groupItems.length && !loading"
                   class="text-caption grey--text text-center py-4"
                 >
-                  {{ search.trim() ? 'No matching group styles.' : 'No saved group styles yet.' }}
+                  {{ search.trim() || datasetFilter
+                    ? 'No matching group styles.'
+                    : 'No saved group styles yet.' }}
                 </div>
               </v-list>
             </v-tab-item>
@@ -539,7 +743,7 @@ export default defineComponent({
 
 <style scoped lang="scss">
 .style-list {
-  max-height: 240px;
+  max-height: 280px;
   overflow-y: auto;
 }
 

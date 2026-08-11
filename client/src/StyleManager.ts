@@ -29,6 +29,22 @@ export interface CustomStyle {
   fill?: boolean;
   showLabel?: boolean;
   showConfidence?: boolean;
+  /**
+   * Provenance for shared/global styles (which dataset last contributed
+   * this override). Ignored for rendering; stripped from per-dataset meta saves.
+   */
+  sourceDatasetId?: string;
+  sourceDatasetName?: string;
+}
+
+/** Drop source-dataset provenance before writing into dataset metadata. */
+export function styleForDatasetSave(style: CustomStyle): CustomStyle {
+  const {
+    sourceDatasetId: _id,
+    sourceDatasetName: _name,
+    ...rest
+  } = style;
+  return rest;
 }
 
 export interface TypeStyling {
@@ -40,6 +56,12 @@ export interface TypeStyling {
   annotationSetColor: (set: string) => string;
 }
 
+export type StyleEditChange = {
+  type: string;
+  action: 'update' | 'delete' | 'rename';
+  newType?: string;
+};
+
 interface UseStylingParams {
   markChangesPending: () => void;
   vuetify?: Vuetify;
@@ -48,7 +70,7 @@ interface UseStylingParams {
    * Used to mirror the change into a cross-dataset "shared color" store. Not
    * called on populateTypeStyles (dataset load), only on genuine edits.
    */
-  onStyleEdit?: () => void;
+  onStyleEdit?: (change?: StyleEditChange) => void;
 }
 
 /**
@@ -120,7 +142,7 @@ export default class StyleManager {
 
   markChangesPending: () => void;
 
-  onStyleEdit?: () => void;
+  onStyleEdit?: (change?: StyleEditChange) => void;
 
   constructor({ markChangesPending, vuetify, onStyleEdit }: UseStylingParams) {
     this.revisionCounter = ref(1);
@@ -257,7 +279,7 @@ export default class StyleManager {
     this.revisionCounter.value += 1;
     this.markChangesPending();
     if (this.onStyleEdit) {
-      this.onStyleEdit();
+      this.onStyleEdit({ type, action: 'update' });
     }
   }
 
@@ -273,7 +295,7 @@ export default class StyleManager {
     this.revisionCounter.value += 1;
     this.markChangesPending();
     if (this.onStyleEdit) {
-      this.onStyleEdit();
+      this.onStyleEdit({ type, action: 'delete' });
     }
   }
 
@@ -294,7 +316,7 @@ export default class StyleManager {
     this.revisionCounter.value += 1;
     this.markChangesPending();
     if (this.onStyleEdit) {
-      this.onStyleEdit();
+      this.onStyleEdit({ type: oldType, action: 'rename', newType });
     }
   }
 
@@ -304,7 +326,8 @@ export default class StyleManager {
     const savedTypeStyles = {} as Record<string, CustomStyle>;
     allTypes.value.forEach((name) => {
       if (!savedTypeStyles[name] && this.customStyles.value[name]) {
-        savedTypeStyles[name] = this.customStyles.value[name];
+        // Strip shared-store provenance so it is not written into dataset meta.
+        savedTypeStyles[name] = styleForDatasetSave(this.customStyles.value[name]);
       } else if (!savedTypeStyles[name]) { // Also save ordinal Colors as well
         savedTypeStyles[name] = { color: this.typeStyling.value.color(name) };
       }

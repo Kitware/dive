@@ -35,7 +35,7 @@ export default defineComponent({
 <template>
   <v-dialog
     :value="value"
-    max-width="520"
+    max-width="560"
     @input="$emit('input', $event)"
   >
     <v-card>

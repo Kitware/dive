@@ -38,6 +38,21 @@ describe('StyleManager', () => {
     expect(sm.getTypeStyles(ref(['foo']))).toEqual({ foo: { color: '#ffe080' } });
   });
 
+  it('strips shared-store provenance from dataset style saves', () => {
+    const markChangesPending = vi.fn();
+    const sm = new StyleManager({ markChangesPending, vuetify });
+    sm.updateTypeStyle({
+      type: 'seal',
+      value: {
+        color: 'green',
+        sourceDatasetId: 'ds-1',
+        sourceDatasetName: 'Sequence A',
+      },
+    });
+    expect(sm.getTypeStyles(ref(['seal']))).toEqual({ seal: { color: 'green' } });
+    expect(sm.customStyles.value.seal?.sourceDatasetName).toBe('Sequence A');
+  });
+
   it('deletes custom styles', () => {
     const markChangesPending = vi.fn();
     const onStyleEdit = vi.fn();

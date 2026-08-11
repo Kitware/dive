@@ -231,6 +231,8 @@ const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters'
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
  * On desktop this is one store shared across all sequences; on web it is
  * scoped to the current user/browser.
+ * Entries may include sourceDatasetId / sourceDatasetName provenance on
+ * CustomStyle (ignored for rendering; used by the Saved Styles UI).
  */
 interface GlobalStyleSettings {
   customTypeStyling?: Record<string, CustomStyle>;

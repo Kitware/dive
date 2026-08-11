@@ -447,8 +447,14 @@ export default defineComponent({
      * immediately. Must run at edit time (not inside the debounced write): if
      * we waited until persist fired, a dataset switch could replace
      * customStyles via populateTypeStyles and drop the user's edit.
+     * Optionally retag a single edited key with the current dataset as source.
      */
-    function mirrorCurrentStylesToGlobal() {
+    function mirrorCurrentStylesToGlobal(change?: {
+      type: string;
+      action: 'update' | 'delete' | 'rename';
+      newType?: string;
+      kind?: 'type' | 'group';
+    }) {
       if (!sharedColorsEnabled()) {
         return;
       }
@@ -457,6 +463,26 @@ export default defineComponent({
       };
       globalGroupStyles.value = {
         ...globalGroupStyles.value, ...groupStyleManager.customStyles.value,
+      };
+      if (!change || change.action === 'delete') {
+        return;
+      }
+      const key = change.action === 'rename' ? change.newType : change.type;
+      if (!key) {
+        return;
+      }
+      const store = change.kind === 'group' ? globalGroupStyles : globalTypeStyles;
+      const existing = store.value[key];
+      if (!existing) {
+        return;
+      }
+      store.value = {
+        ...store.value,
+        [key]: {
+          ...existing,
+          sourceDatasetId: datasetId.value,
+          sourceDatasetName: datasetName.value || existing.sourceDatasetName,
+        },
       };
     }
     /** Debounced I/O only — reads the already-mirrored global* refs. */
@@ -470,8 +496,12 @@ export default defineComponent({
       });
     }
     const scheduleGlobalStylePersist = debounce(persistGlobalStyles, 500);
-    function onStyleEdit() {
-      mirrorCurrentStylesToGlobal();
+    function onStyleEdit(change?: {
+      type: string;
+      action: 'update' | 'delete' | 'rename';
+      newType?: string;
+    }, kind: 'type' | 'group' = 'type') {
+      mirrorCurrentStylesToGlobal(change ? { ...change, kind } : undefined);
       scheduleGlobalStylePersist();
     }
     /**
@@ -494,8 +524,8 @@ export default defineComponent({
         ...globalGroupStyles.value,
       });
     }
-    trackStyleManager.onStyleEdit = onStyleEdit;
-    groupStyleManager.onStyleEdit = onStyleEdit;
+    trackStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'type');
+    groupStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'group');
 
     const cameraStore = new CameraStore({ markChangesPending });
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
@@ -1522,18 +1552,51 @@ export default defineComponent({
           // type later appears (track created, or added manually) it picks up
           // the matching shared color automatically.
           // Seed the shared store with dataset styles it doesn't already have,
-          // without overwriting the user's existing shared choices.
-          const seededType = Object.keys(meta.customTypeStyling ?? {})
-            .some((t) => !(t in globalTypeStyles.value));
-          const seededGroup = Object.keys(meta.customGroupStyling ?? {})
-            .some((t) => !(t in globalGroupStyles.value));
-          if (seededType || seededGroup) {
-            globalTypeStyles.value = {
-              ...(meta.customTypeStyling ?? {}), ...globalTypeStyles.value,
-            };
-            globalGroupStyles.value = {
-              ...(meta.customGroupStyling ?? {}), ...globalGroupStyles.value,
-            };
+          // without overwriting the user's existing shared choices. Tag new
+          // entries (and backfill untagged ones) with this dataset so Saved
+          // Styles can show provenance.
+          const sourceId = datasetId.value;
+          const sourceName = meta.name;
+          let seeded = false;
+          const nextTypes = { ...globalTypeStyles.value };
+          Object.entries(meta.customTypeStyling ?? {}).forEach(([name, style]) => {
+            if (!(name in nextTypes)) {
+              nextTypes[name] = {
+                ...style,
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            } else if (!nextTypes[name].sourceDatasetId && !nextTypes[name].sourceDatasetName) {
+              nextTypes[name] = {
+                ...nextTypes[name],
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            }
+          });
+          const nextGroups = { ...globalGroupStyles.value };
+          Object.entries(meta.customGroupStyling ?? {}).forEach(([name, style]) => {
+            if (!(name in nextGroups)) {
+              nextGroups[name] = {
+                ...style,
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            } else if (!nextGroups[name].sourceDatasetId && !nextGroups[name].sourceDatasetName) {
+              nextGroups[name] = {
+                ...nextGroups[name],
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            }
+          });
+          if (seeded) {
+            globalTypeStyles.value = nextTypes;
+            globalGroupStyles.value = nextGroups;
             if (saveGlobalStyleSettings) {
               saveGlobalStyleSettings({
                 customTypeStyling: globalTypeStyles.value,
@@ -1714,6 +1777,60 @@ export default defineComponent({
           imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
         );
         syncPercentileStretchSupported(selectedCamera.value);
+        /**
+         * With shared colors, capture every type/group color present in this
+         * dataset (including ordinal defaults for types that were never
+         * hand-edited) into the shared store — not only the last edited one.
+         * Existing shared overrides win; new keys are tagged with this dataset.
+         */
+        if (loadedGlobalStyles) {
+          const sourceId = datasetId.value;
+          const sourceName = datasetName.value || meta.name;
+          const seedMissing = (
+            into: Record<string, CustomStyle>,
+            from: Record<string, CustomStyle>,
+          ) => {
+            let changed = false;
+            const next = { ...into };
+            Object.entries(from).forEach(([name, style]) => {
+              if (!(name in next)) {
+                next[name] = {
+                  ...style,
+                  sourceDatasetId: sourceId,
+                  sourceDatasetName: sourceName,
+                };
+                changed = true;
+              }
+            });
+            return { next, changed };
+          };
+          const typeSeed = seedMissing(
+            globalTypeStyles.value,
+            trackStyleManager.getTypeStyles(trackFilters.allTypes),
+          );
+          const groupSeed = seedMissing(
+            globalGroupStyles.value,
+            groupStyleManager.getTypeStyles(groupFilters.allTypes),
+          );
+          if (typeSeed.changed || groupSeed.changed) {
+            globalTypeStyles.value = typeSeed.next;
+            globalGroupStyles.value = groupSeed.next;
+            trackStyleManager.populateTypeStyles({
+              ...datasetTypeStyles.value,
+              ...globalTypeStyles.value,
+            });
+            groupStyleManager.populateTypeStyles({
+              ...datasetGroupStyles.value,
+              ...globalGroupStyles.value,
+            });
+            if (saveGlobalStyleSettings) {
+              saveGlobalStyleSettings({
+                customTypeStyling: globalTypeStyles.value,
+                customGroupStyling: globalGroupStyles.value,
+              });
+            }
+          }
+        }
         progress.loaded = true;
         fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
