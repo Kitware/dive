@@ -5,6 +5,7 @@ import { cloneDeep, uniq } from 'lodash';
 import {
   acceptPairAsCorrect,
   compileHierarchy,
+  mergePairs,
   reassignPairs,
   removePair,
   setPairConfidence,
@@ -299,13 +300,7 @@ export default class CameraStore {
   }
 
   removeTracks(id: AnnotationId, cameraName = '') {
-    this.camMap.value.forEach((camera) => {
-      if (camera.trackStore.getPossible(id)) {
-        if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
-          camera.trackStore.remove(id);
-        }
-      }
-    });
+    this.remove(id, cameraName);
   }
 
   removeGroups(id: AnnotationId, cameraName = '') {
@@ -331,13 +326,18 @@ export default class CameraStore {
   private updateTrackConfidencePairs(
     id: AnnotationId,
     update: (pairs: readonly ConfidencePair[]) => ConfidencePair[],
+    mergeReplicaPairs = false,
   ): ConfidencePair[] {
     const tracks = this.getTrackAll(id);
     if (tracks.length === 0) {
       throw new Error(`TrackId ${id} not found in any camera`);
     }
-    const canonicalPairs = tracks[0].confidencePairs
-      .map(([type, confidence]) => [type, confidence] as ConfidencePair);
+    // Merging re-sorts equal-confidence pairs into a canonical order, which would move the
+    // displayed type of a single-replica track that never needed reconciling.
+    const canonicalPairs = mergeReplicaPairs && tracks.length > 1
+      ? mergePairs(tracks.map((track) => track.confidencePairs))
+      : tracks[0].confidencePairs
+        .map(([type, confidence]) => [type, confidence] as ConfidencePair);
     const nextPairs = update(canonicalPairs);
     tracks.forEach((track) => track.setConfidencePairs(nextPairs));
     return nextPairs.map(([type, confidence]) => [type, confidence]);
@@ -384,7 +384,7 @@ export default class CameraStore {
   }
 
   removeTrackPair(id: AnnotationId, type: string): ConfidencePair[] {
-    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type));
+    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type), true);
   }
 
   renameTrackPair(
@@ -473,15 +473,15 @@ export default class CameraStore {
     this.getTrackForCameraEdit(id, cameraName)?.toggleInterpolationForAllGaps(frame);
   }
 
-  removeTypes(id: AnnotationId, types: string[]) {
-    let resultingTypes: ConfidencePair[] = [];
-    this.camMap.value.forEach((camera) => {
-      const track = camera.trackStore.getPossible(id);
-      if (track !== undefined) {
-        resultingTypes = track.removeTypes(types);
-      }
-    });
-    return resultingTypes;
+  removeTypes(id: AnnotationId, types: string[]): ConfidencePair[] {
+    const removedTypes = new Set(types);
+    return this.updateTrackConfidencePairs(
+      id,
+      (pairs) => pairs
+        .filter(([type]) => !removedTypes.has(type))
+        .map(([type, confidence]) => [type, confidence] as ConfidencePair),
+      true,
+    );
   }
 
   getGroupMemebers(id: AnnotationId) {

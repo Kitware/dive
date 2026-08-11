@@ -393,12 +393,16 @@ describe('useAnnotationFilters', () => {
     expect(tf.confidenceFilters.value).toEqual({ baz: 0.1 });
   });
 
-  it('removeTypeTrack', async () => {
-    const tf = makeTrackFilterControls();
-    tf.removeTypeAnnotations(['bar']);
-    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
-    tf.removeTypeAnnotations(['baz']);
-    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+  it('removes annotations by the complete displayed type name', () => {
+    const { cameraStore, filters } = makePairFixture([
+      [['bar', 1]],
+      [['bar', 0.8], ['baz', 0.7]],
+    ]);
+
+    filters.removeTypeAnnotations(['bar']);
+
+    expect(cameraStore.getPossibleTrack(0)).toBeUndefined();
+    expect(cameraStore.getTrack(1).confidencePairs).toEqual([['baz', 0.7]]);
   });
 
   it('returns the caller fallback without recomputing flat pair selection', () => {

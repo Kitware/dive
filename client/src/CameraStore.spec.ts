@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { compileHierarchy } from 'dive-common/typeHierarchy';
 import CameraStore from './CameraStore';
+import Group from './Group';
 import Track, { Feature } from './track';
 
 const HIERARCHY_INDEX = compileHierarchy({
@@ -127,10 +128,75 @@ describe('CameraStore classification commands', () => {
     const result = fixture.store.removeTrackPair(TRACK_ID, 'shark');
 
     expectSynchronizedWrite(fixture, result, [
+      ['rock', 0.95],
       ['fish', 0.9],
       ['great white shark', 0.4],
       ['bird', 0.2],
     ]);
+  });
+
+  it('removes types from the complete logical vector and synchronizes every camera', () => {
+    const fixture = makeTwoCameraStore();
+    const result = fixture.store.removeTypes(TRACK_ID, ['shark', 'bird']);
+
+    expectSynchronizedWrite(fixture, result, [
+      ['rock', 0.95],
+      ['fish', 0.9],
+      ['great white shark', 0.4],
+    ]);
+  });
+
+  it('produces the same removal result for either camera insertion order', () => {
+    const removeFish = (cameraOrder: string[]) => {
+      const store = new CameraStore({ markChangesPending: vi.fn() });
+      store.removeCamera('singleCam');
+      cameraOrder.forEach((cameraName) => store.addCamera(cameraName));
+      const vectors: Record<string, [string, number][]> = {
+        left: [['fish', 0.9]],
+        right: [['rock', 0.8]],
+      };
+      cameraOrder.forEach((cameraName) => {
+        store.camMap.value.get(cameraName)?.trackStore.insert(new Track(TRACK_ID, {
+          confidencePairs: confidencePairs(vectors[cameraName]),
+          features: features(),
+        }), { imported: true });
+      });
+      const result = store.removeTypes(TRACK_ID, ['fish']);
+      expect(store.getTrackAll(TRACK_ID).map((track) => track.confidencePairs))
+        .toEqual(cameraOrder.map(() => [['rock', 0.8]]));
+      return result;
+    };
+
+    expect(removeFish(['left', 'right'])).toEqual([['rock', 0.8]]);
+    expect(removeFish(['right', 'left'])).toEqual([['rock', 0.8]]);
+  });
+
+  it('cleans group membership when an empty classification deletes the logical track', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([['fish', 0.9]]);
+    fixture.right.setConfidencePairs([['rock', 0.9]]);
+    fixture.store.camMap.value.forEach(({ groupStore }) => {
+      groupStore.insert(new Group(3, {
+        members: {
+          [TRACK_ID]: { ranges: [[0, 0]] },
+          99: { ranges: [[0, 0]] },
+        },
+      }), { imported: true });
+    });
+    fixture.markChangesPending.mockClear();
+
+    const result = fixture.store.removeTypes(TRACK_ID, ['fish', 'rock']);
+    expect(result).toEqual([]);
+    expect(fixture.left.confidencePairs).toEqual([]);
+    expect(fixture.right.confidencePairs).toEqual([]);
+
+    fixture.store.removeTracks(TRACK_ID);
+
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      expect(trackStore.getPossible(TRACK_ID)).toBeUndefined();
+      expect(groupStore.get(3).memberIds).toEqual([99]);
+      expect(groupStore.trackMap.get(TRACK_ID)).toEqual(new Set());
+    });
   });
 
   it('renames one pair without applying assignment or acceptance semantics', () => {
