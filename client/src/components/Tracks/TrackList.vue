@@ -7,6 +7,7 @@ import Vue, {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
+import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 
 import { clientSettings } from 'dive-common/store/settings';
 import {
@@ -105,7 +106,7 @@ export default defineComponent({
     const sortDirection = ref<SortDirection>('asc');
 
     const displayConfidence = (
-      track: ReturnType<typeof cameraStore.getTracksMerged>,
+      track: TrackProjection,
       contextIndex: number,
     ) => {
       const pairIndex = trackFilters.hierarchyActive.value ? contextIndex : 0;
@@ -158,7 +159,7 @@ export default defineComponent({
       }
 
       // Helper to get notes from a track's first keyframe
-      function getTrackNotes(track: ReturnType<typeof cameraStore.getTracksMerged>): string {
+      function getTrackNotes(track: TrackProjection): string {
         // Try direct access first (most common case)
         const directFeature = track.features[track.begin];
         if (directFeature && directFeature.notes && directFeature.notes.length > 0) {
@@ -175,7 +176,7 @@ export default defineComponent({
 
       // Helper to get attribute value from a track
       function getTrackAttributeValue(
-        track: ReturnType<typeof cameraStore.getTracksMerged>,
+        track: TrackProjection,
         attrKey: string,
       ): string | number | undefined {
         // Check if it's a track attribute (track_*) or detection attribute (detection_*)
@@ -201,13 +202,21 @@ export default defineComponent({
       const sorted = [...tracks];
       const direction = sortDirection.value === 'asc' ? 1 : -1;
 
-      sorted.sort((a, b) => {
-        let trackA;
-        let trackB;
+      // Projections copy the whole feature history, so build one per track rather than
+      // one per comparison: the comparator runs O(n log n) times over the same n tracks.
+      const projections = new Map<AnnotationId, TrackProjection>();
+      tracks.forEach(({ annotation }) => {
         try {
-          trackA = cameraStore.getTracksMerged(a.annotation.id);
-          trackB = cameraStore.getTracksMerged(b.annotation.id);
+          projections.set(annotation.id, cameraStore.getTrackProjection(annotation.id));
         } catch {
+          // Track vanished between filtering and sorting; comparisons involving it are ties.
+        }
+      });
+
+      sorted.sort((a, b) => {
+        const trackA = projections.get(a.annotation.id);
+        const trackB = projections.get(b.annotation.id);
+        if (!trackA || !trackB) {
           return 0;
         }
 

@@ -3,6 +3,7 @@
 import { defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import Track from 'vue-media-annotator/track';
+import { createTrackProjection } from 'vue-media-annotator/TrackProjection';
 import TrackDetailsPanel from './TrackDetailsPanel.vue';
 
 const state = vi.hoisted(() => ({
@@ -45,6 +46,7 @@ vi.mock('vue-media-annotator/provides', () => ({
     camMap: ref(new Map([['singleCam', { groupStore: undefined }]])),
     getAnyTrack: () => state.track,
     getAnyPossibleTrack: () => state.track,
+    getTrackProjection: () => createTrackProjection([state.track as Track]),
     acceptTrackType: state.acceptTrackType,
     assignTrackType: state.assignTrackType,
   }),

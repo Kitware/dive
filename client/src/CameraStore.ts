@@ -199,7 +199,7 @@ export default class CameraStore {
   }
 
   getTracksMergedForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
-    const track = this.getTracksMerged(trackId);
+    const track = this.getTrackProjection(trackId);
     return {
       id: track.id,
       confidencePairs: track.confidencePairs,

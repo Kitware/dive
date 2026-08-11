@@ -647,7 +647,7 @@ export default defineComponent({
       cameraStore.setTrackType(id, newType, confidenceVal, currentType);
     };
     const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
-    const getTracksMerged = (id: AnnotationId) => cameraStore.getTracksMerged(id);
+    const getTrackProjection = (id: AnnotationId) => cameraStore.getTrackProjection(id);
     const groupFilters = new GroupFilterControls({
       sorted: cameraStore.sortedGroups,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
@@ -784,14 +784,14 @@ export default defineComponent({
       enabledTracks: trackFilters.enabledAnnotations,
       typeStyling: trackStyleManager.typeStyling,
       allTypes: trackFilters.allTypes,
-      getTracksMerged,
+      getTrackProjection,
     });
 
     const { eventChartData } = useEventChart({
       enabledTracks: trackFilters.enabledAnnotations,
       selectedTrackIds: allSelectedIds,
       typeStyling: trackStyleManager.typeStyling,
-      getTracksMerged,
+      getTrackProjection,
     });
 
     const { eventChartData: groupChartData } = useEventChart({
@@ -803,7 +803,7 @@ export default defineComponent({
         }
         return [];
       }),
-      getTracksMerged,
+      getTrackProjection,
     });
 
     async function trackSplit(trackId: AnnotationId | null, frame: number) {

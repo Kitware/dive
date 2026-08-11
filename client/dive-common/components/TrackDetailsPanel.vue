@@ -272,6 +272,9 @@ export default defineComponent({
         track,
         // Re-run when track confidence pairs change (see AttributesSubsection revision pattern)
         revision: track.revision.value,
+        // TrackItem reads a TrackProjection, whose identity changes on every recompute; a live
+        // Track keeps one identity, so the child's computeds would never see the mutation.
+        projection: cameraStore.getTrackProjection(track.id),
         pairIndex,
         pair: track.confidencePairs.length ? track.confidencePairs[pairIndex] : null,
       };
@@ -442,7 +445,9 @@ export default defineComponent({
         class="track-details"
       >
         <v-card
-          v-for="{ track, pair, pairIndex } in displayRows"
+          v-for="{
+            track, projection, pair, pairIndex,
+          } in displayRows"
           :key="track.trackId"
           class="mx-2 mb-2"
           outlined
@@ -453,7 +458,7 @@ export default defineComponent({
               v-if="pair"
               :solo="true"
               :merging="multiSelectInProgress"
-              :track="track"
+              :track="projection"
               :track-type="pair[0]"
               :display-pair-index="pairIndex"
               :selected="selectedTrackIdRef === track.id"
