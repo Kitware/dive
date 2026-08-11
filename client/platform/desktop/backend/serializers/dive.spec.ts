@@ -62,4 +62,35 @@ describe('DIVE JSON filterTracks', () => {
     expect(exported.tracks[4]).toBeUndefined();
     expect(source.tracks[4].confidencePairs).toEqual([['root', 0.2], ['leaf', 0.8]]);
   });
+
+  it('clones kept tracks with threshold- and type-pruned raw confidence pairs', () => {
+    const data: AnnotationSchema = {
+      version: AnnotationsCurrentVersion,
+      groups: {},
+      tracks: {
+        1: {
+          id: 1,
+          begin: 0,
+          end: 0,
+          attributes: {},
+          confidencePairs: [['fish', 0.9], ['shark', 0.2], ['whale', 0.8], ['zero', 0]],
+          features: [{ frame: 0, bounds: [0, 0, 1, 1] }],
+        },
+      },
+    };
+    const original = data.tracks[1].confidencePairs.map(([name, score]) => [name, score]);
+    const meta = {
+      confidenceFilters: { default: 0.1, fish: 0.95, zero: 0 },
+    } as unknown as JsonConfig;
+
+    const filtered = filterTracks(data, meta, new Set(['fish', 'whale', 'zero']), {
+      excludeBelowThreshold: true,
+      header: true,
+    });
+
+    expect(filtered).not.toBe(data);
+    expect(filtered.tracks[1]).not.toBe(data.tracks[1]);
+    expect(filtered.tracks[1].confidencePairs).toEqual([['whale', 0.8], ['zero', 0]]);
+    expect(data.tracks[1].confidencePairs).toEqual(original);
+  });
 });

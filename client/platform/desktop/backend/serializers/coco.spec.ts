@@ -664,15 +664,16 @@ describe('COCO serializer', () => {
     await serializeFile('/output/filtered.json', source, {
       ...imageMeta,
       typeHierarchy: { leaf: 'root' },
-    }, new Set(['leaf']));
+    }, new Set(['root']));
     const out = await fs.readJSON('/output/filtered.json');
-    expect(out.annotations[0].dive_confidence_pairs).toEqual([['leaf', 0.8]]);
-    expect(out.annotations[0].prob).toEqual([0.8, 0]);
+    // Export filters raw stored names even though hierarchy display resolves this track to leaf.
+    expect(out.annotations[0].dive_confidence_pairs).toEqual([['root', 0.2]]);
+    expect(out.annotations[0].prob).toEqual([0.2, 0]);
     expect(source.tracks[4].confidencePairs).toEqual([['root', 0.2], ['leaf', 0.8]]);
 
     await fs.writeJSON('/input/filtered.json', out);
     const [parsed] = await parseFile('/input/filtered.json');
-    expect(parsed.tracks[4].confidencePairs).toEqual([['leaf', 0.8]]);
+    expect(parsed.tracks[4].confidencePairs).toEqual([['root', 0.2]]);
   });
 });
 

@@ -12,7 +12,9 @@ The navigation bar is the row of controls at the very top of the window.
     * overwrite the style and attribute configuration with a config `.json` file.
 * ==:material-download: Download== (Web) or ==:material-application-export: Export== (Desktop) allows for exporting all or part of the current dataset.
     * **Exclude Tracks** - this allows you to remove tracks below a specific confidence threshold when exporting the CSV.  It is how you can export only the higher detections/tracks after running a pipeline.
-    * **Checked Types Only** - allows you to only export the annotations of types that are currently checked in the type list.
+    * **Checked Types Only** - filters stored confidence pairs by their raw type names and removes
+      unchecked pairs from exported tracks. This export boundary intentionally does not substitute
+      the hierarchy-resolved display type.
     * **Web-specific options** are documented in the [web download section](Web-Version.md#download-or-export-data)
 * ==:material-content-copy: Clone== is documented in the [web clone section](Web-Version.md#dataset-clones).
 * ==:material-help-circle: Help== provides mouse/keyboard shortcuts as well as a link to this documentation.

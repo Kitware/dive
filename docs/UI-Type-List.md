@@ -22,7 +22,8 @@ The Type List is used to control visual styles of the different types as well as
 
 When a dataset has a type hierarchy, DIVE displays the deepest checked type whose confidence meets its threshold. For example, given `fish` → `shark` → `great white shark`, if `great white shark` falls below its threshold while `shark` passes, the track displays as `shark`. Confidence values do not need to decrease or increase monotonically through the hierarchy; DIVE selects from the qualifying pairs and preserves confidence-pair order between unrelated branches.
 
-Track attribute filters are an exception: they match a track's raw top confidence pair, not the hierarchy-selected pair.
+Type-specific track and detection attribute filters match this hierarchy-resolved displayed type,
+so the type picker and the filter operate on the same classification identity.
 
 Assigning a type to a track is hierarchy-aware. A type together with its ancestors and descendants is one classification claim, so assigning over any pair in that lineage replaces the whole chain rather than leaving a relative behind for the display to select instead. Stored ancestors of the newly assigned type survive because the assignment still implies them, and pairs on unrelated branches are untouched.
 
@@ -31,6 +32,11 @@ Assigning a type to a track is hierarchy-aware. A type together with its ancesto
 Track notes, track attributes, and first-detection attributes edited from a track row are logical-track values. They are written to every linked camera track, using each camera track's own first feature for feature-level values. Keyframe and interpolation controls edit geometry only in the selected camera.
 
 Linked multicamera tracks are expected to store identical confidence-pair vectors. If existing camera replicas differ, DIVE reports one warning when the dataset loads and uses the first camera in configured display order for the read-only track projection; it does not union classifications while merging display geometry. Removing classifications evaluates the complete logical vector and synchronizes the result across replicas.
+
+The Web Library's dataset-label aggregation is intentionally different: it reports the raw
+highest-confidence pair, keeping the first stored pair when scores tie, because the server does not
+have each viewer's checked types and confidence thresholds. Viewer counts and filtering use the
+hierarchy-resolved displayed type.
 
 Hierarchy members remain ordinary flat Type List rows. A parent with no annotations or explicit style configuration is visible when **Show Empty** is enabled. The Type List does not render a tree or offer subtree controls or hierarchy editing.
 

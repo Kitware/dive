@@ -362,6 +362,8 @@ describe('exceedsThreshold', () => {
     expect(Track.exceedsThreshold([], {})).toEqual([]);
     expect(Track.exceedsThreshold([['foo', 1]], {})).toEqual([['foo', 1]]);
     expect(Track.exceedsThreshold([['foo', 0]], {})).toEqual([['foo', 0]]);
+    expect(Track.exceedsThreshold([['foo', 0]], { default: 0.1, foo: 0 }))
+      .toEqual([['foo', 0]]);
   });
 });
 

@@ -394,7 +394,13 @@ def add_annotations(
 
 
 def get_labels(user: types.GirderUserModel, published=False, shared=False):
-    """Find all the labels in all datasets belonging to the user"""
+    """Find raw highest-score confidence-pair labels in datasets visible to ``user``.
+
+    This aggregation intentionally does not resolve type hierarchies.  Resolved display
+    types depend on each viewer's checked types and confidence thresholds, neither of
+    which the server has.  The aggregation chooses the maximum raw score while keeping
+    the first stored pair when scores tie.
+    """
     accessLevel = AccessType.WRITE
     if published or shared:
         accessLevel = AccessType.READ
@@ -418,10 +424,42 @@ def get_labels(user: types.GirderUserModel, published=False, shared=False):
                     {'$match': {'$expr': {'$eq': [{'$type': "$rev_deleted"}, 'missing']}}},
                     # Select the confidencePairs, which is the only field needed
                     {'$project': {'confidencePairs': 1}},
-                    # Use the first confidence pair in the array, which assumes they are
-                    # sorted in descending order
-                    {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
-                    {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
+                    # Preserve the raw highest-score pair.  Do not resolve hierarchy here:
+                    # resolved display types are viewer-specific (checked types/thresholds).
+                    # A strict comparison keeps the first stored pair when scores tie.
+                    {
+                        '$set': {
+                            'confidencePairs': {
+                                '$reduce': {
+                                    'input': '$confidencePairs',
+                                    'initialValue': [],
+                                    'in': {
+                                        '$cond': [
+                                            {
+                                                '$or': [
+                                                    {'$eq': [{'$size': '$$value'}, 0]},
+                                                    {
+                                                        '$gt': [
+                                                            {'$arrayElemAt': ['$$this', 1]},
+                                                            {'$arrayElemAt': ['$$value', 1]},
+                                                        ]
+                                                    },
+                                                ]
+                                            },
+                                            '$$this',
+                                            '$$value',
+                                        ],
+                                    },
+                                },
+                            }
+                        }
+                    },
+                    # Reduce returns the winning [type, score] pair.  Library labels are
+                    # strings, so project the pair back to its raw type name before grouping.
+                    {'$set': {'confidencePairs': {'$arrayElemAt': ['$confidencePairs', 0]}}},
+                    # Imported empty vectors have no raw label and must not create a null
+                    # Library row.  The public label API guarantees string identifiers.
+                    {'$match': {'$expr': {'$eq': [{'$type': '$confidencePairs'}, 'string']}}},
                 ],
             },
         },
