@@ -338,12 +338,16 @@ export interface CreateMulticamDatasetArgs {
   metadataFileId?: string;
 }
 
+export interface CreateMulticamDatasetResponse extends GirderModel {
+  importWarnings?: string[];
+}
+
 function createMulticamDataset(args: CreateMulticamDatasetArgs) {
   const {
     parentFolderId, name, fps, type, subType, defaultDisplay, cameras, cameraOrder, calibrationFileId,
     metadataFileId,
   } = args;
-  return girderRest.post<GirderModel>(
+  return girderRest.post<CreateMulticamDatasetResponse>(
     'dive_dataset/multicam',
     {
       name,

@@ -1,7 +1,7 @@
 import copy
 import json
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 from bson.objectid import InvalidId, ObjectId
 import cherrypy
@@ -659,6 +659,28 @@ def remove_camera_type_hierarchy(folder: types.GirderModel) -> bool:
     folder['meta'].pop('typeHierarchy', None)
     Folder().save(folder)
     return True
+
+
+def promote_camera_type_hierarchies(
+    parent_folder: types.GirderModel,
+    loaded_children: Dict[str, types.GirderModel],
+    camera_order: List[str],
+) -> Tuple[Optional[Dict[str, str]], List[str]]:
+    """Resolve camera hierarchies into the parent before removing child copies."""
+    promoted = fromMeta(parent_folder, 'typeHierarchy')
+    warnings = []
+    for name in camera_order:
+        child_hierarchy = fromMeta(loaded_children[name], 'typeHierarchy')
+        if child_hierarchy is None:
+            continue
+        try:
+            write = resolve_type_hierarchy(promoted, True, child_hierarchy, 'additive')
+        except TypeHierarchyError as error:
+            warnings.append(f'Camera "{name}" type hierarchy was skipped: {error.reason}')
+            continue
+        if write['action'] == 'set':
+            promoted = write['hierarchy']
+    return promoted, warnings
 
 
 def type_hierarchy_for_export(
@@ -1547,7 +1569,7 @@ def create_multicam(
     user: types.GirderUserModel,
     parent_folder: types.GirderModel,
     data: dict,
-) -> types.GirderModel:
+) -> Union[types.GirderModel, Dict[str, Any]]:
     """Finalize a multicam dataset whose camera folders already live under parent_folder."""
     validated: CreateMulticamArgs = crud.get_validated_model(CreateMulticamArgs, **data)
     if parent_folder['name'] != validated.name:
@@ -1658,12 +1680,14 @@ def create_multicam(
     # Frame alignment pairs frames across cameras downstream, so a per-camera
     # frame-count equality check would reject the primary use case for this feature.
 
+    promoted_hierarchy, hierarchy_warnings = promote_camera_type_hierarchies(
+        parent_folder, loaded_children, camera_order
+    )
     default_child = loaded_children[validated.defaultDisplay]
     parent_folder_doc = parent_folder
     multi_cam_cameras: Dict[str, Dict[str, str]] = {}
     for name in camera_order:
         child = loaded_children[name]
-        remove_camera_type_hierarchy(child)
         if child['name'] != name:
             child['name'] = name
             Folder().save(child)
@@ -1715,6 +1739,7 @@ def create_multicam(
     }
     parent_folder_doc['meta'] = {
         **mutable_meta,
+        **({'typeHierarchy': promoted_hierarchy} if promoted_hierarchy else {}),
         constants.DatasetMarker: True,
         constants.TypeMarker: constants.MultiType,
         constants.SubTypeMarker: validated.subType,
@@ -1755,7 +1780,15 @@ def create_multicam(
         {'default': 0.1},
     )
     Folder().save(parent_folder_doc)
+    # The parent is now the durable canonical owner.  Do not remove the only hierarchy
+    # copies from camera folders until every fallible validation above has succeeded.
+    for child in loaded_children.values():
+        remove_camera_type_hierarchy(child)
     crud.get_or_create_auxiliary_folder(parent_folder_doc, user)
+    if hierarchy_warnings:
+        response: Dict[str, Any] = dict(parent_folder_doc)
+        response['importWarnings'] = hierarchy_warnings
+        return response
     return parent_folder_doc
 
 

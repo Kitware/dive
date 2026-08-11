@@ -316,7 +316,7 @@ def test_get_data_by_type_classifies_presence_only_type_hierarchy_as_config(file
 
     assert warnings is None
     assert result['type'] == crud.FileType.DIVE_CONF
-    assert result['meta']['typeHierarchy'] is None
+    assert result['meta']['typeHierarchy'] == hierarchy
 
 
 def test_metadata_mutable_does_not_classify_unrelated_json_as_config():

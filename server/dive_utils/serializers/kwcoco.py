@@ -44,6 +44,10 @@ SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING = (
     'The COCO file contains duplicate category names, so category hierarchy edges cannot be '
     'mapped to class names. The dataset type hierarchy was left unchanged.'
 )
+SUPERCATEGORY_INVALID_WARNING = (
+    'The category hierarchy in the COCO file could not be applied: {reason}. '
+    'Annotations were imported without changing the dataset type hierarchy.'
+)
 
 
 def _has_duplicate_names(names: List[Optional[str]]) -> bool:
