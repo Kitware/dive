@@ -3,6 +3,7 @@ import mockfs from 'mock-fs';
 import { AnnotationSchema } from 'dive-common/apispec';
 import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import {
+  CATEGORY_MISSING_NAME_WARNING,
   DIVE_CONFIDENCE_PAIRS_INVALID_WARNING,
   PROB_DUPLICATE_CATEGORY_WARNING,
   PROB_LENGTH_MISMATCH_WARNING,
@@ -542,10 +543,14 @@ describe('COCO serializer', () => {
         {
           id: 2, name: 'shark', supercategory: 'fish', parents: ['fish', 'animal'],
         },
+        { id: 3 },
       ],
     });
     expect(result.hierarchy).toEqual({ shark: 'fish' });
-    expect(result.warnings).toEqual([SUPERCATEGORY_MULTI_PARENT_WARNING]);
+    expect(result.warnings).toEqual([
+      SUPERCATEGORY_MULTI_PARENT_WARNING,
+      CATEGORY_MISSING_NAME_WARNING,
+    ]);
 
     expect(typeHierarchyFromCategories({
       images: [], annotations: [], categories: [{ id: 1, name: 'fish' }],
@@ -575,45 +580,44 @@ describe('COCO serializer', () => {
     expect(warnings).toEqual([PROB_DUPLICATE_CATEGORY_WARNING]);
   });
 
-  it('exports deterministic KWCOCO categories, hierarchy, and exact sparse confidence pairs', async () => {
+  it('matches the shared KWCOCO export and round-trip profile', async () => {
+    const profile = kwcocoProfile.exportRoundTrip;
+    const profileTrack = profile.tracks[0] as AnnotationSchema['tracks'][number];
     const source: AnnotationSchema = {
       version: AnnotationsCurrentVersion,
       groups: {},
       tracks: {
-        4: {
-          id: 4,
-          begin: 0,
-          end: 0,
-          confidencePairs: [['root', 0], ['leaf', 0.8]],
-          attributes: {},
-          features: [{ frame: 0, bounds: [0, 0, 4, 4] }],
-        },
+        [profileTrack.id]: profileTrack,
       },
     };
-    const originalPairs = source.tracks[4].confidencePairs.map(([name, score]) => [name, score]);
+    const originalPairs = profileTrack.confidencePairs.map(([name, score]) => [name, score]);
     await serializeFile('/output/kwcoco.json', source, {
       ...imageMeta,
-      typeHierarchy: { leaf: 'root', shark: 'fish' },
+      name: profile.datasetName,
+      originalImageFiles: [profile.imageFilenames['0']],
+      typeHierarchy: profile.typeHierarchy,
     });
     const out = await fs.readJSON('/output/kwcoco.json');
-    expect(out.categories).toEqual([
-      expect.objectContaining({ id: 1, name: 'root' }),
-      expect.objectContaining({ id: 2, name: 'leaf', supercategory: 'root' }),
-      expect.objectContaining({ id: 3, name: 'shark', supercategory: 'fish' }),
-      expect.objectContaining({ id: 4, name: 'fish' }),
-    ]);
+    expect(out.categories.map(({ name }: { name: string }) => name))
+      .toEqual(profile.expectedCategoryNames);
+    expect(Object.fromEntries(out.categories
+      .filter(({ supercategory }: { supercategory?: string }) => supercategory)
+      .map(({ name, supercategory }: { name: string; supercategory: string }) => (
+        [name, supercategory]
+      )))).toEqual(profile.expectedParents);
     expect(out.info.dive_extensions).toContain('dive_confidence_pairs');
     expect(out.annotations[0]).toMatchObject({
       category_id: 2,
-      score: 0.8,
-      prob: [0, 0.8, 0, 0],
-      dive_confidence_pairs: [['root', 0], ['leaf', 0.8]],
+      track_id: profileTrack.id,
+      score: 0.75,
+      prob: profile.expectedProb,
+      dive_confidence_pairs: profile.expectedPairs,
     });
-    expect(source.tracks[4].confidencePairs).toEqual(originalPairs);
+    expect(source.tracks[profileTrack.id].confidencePairs).toEqual(originalPairs);
 
     await fs.writeJSON('/input/kwcoco.json', out);
     const [parsed] = await parseFile('/input/kwcoco.json');
-    expect(parsed.tracks[4].confidencePairs).toEqual([['root', 0], ['leaf', 0.8]]);
+    expect(parsed.tracks[profileTrack.id].confidencePairs).toEqual(profile.expectedPairs);
   });
 
   it('filters the raw exported pair vector without mutating its source track', async () => {

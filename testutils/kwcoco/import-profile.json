@@ -104,5 +104,36 @@
     },
     "trackId": 7,
     "expectedPairs": [["shark", 0.8], ["fish", 0.2]]
+  },
+  "exportRoundTrip": {
+    "datasetName": "shared-roundtrip",
+    "typeHierarchy": {
+      "leaf": "parent",
+      "parent": "root",
+      "unused": "root"
+    },
+    "imageFilenames": {
+      "0": "frame_000000.jpg"
+    },
+    "tracks": [
+      {
+        "id": 42,
+        "begin": 0,
+        "end": 0,
+        "confidencePairs": [["parent", 0], ["leaf", 0.75], ["other", 0.25]],
+        "attributes": {},
+        "features": [
+          { "frame": 0, "bounds": [10, 20, 30, 60] }
+        ]
+      }
+    ],
+    "expectedCategoryNames": ["parent", "leaf", "other", "unused", "root"],
+    "expectedParents": {
+      "leaf": "parent",
+      "parent": "root",
+      "unused": "root"
+    },
+    "expectedProb": [0, 0.75, 0.25, 0, 0],
+    "expectedPairs": [["parent", 0], ["leaf", 0.75], ["other", 0.25]]
   }
 }

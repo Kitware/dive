@@ -210,7 +210,8 @@ DIVE Configuration JSON exports include a valid non-empty hierarchy and omit an 
 one. The `config.json` embedded in a dataset zip follows the same rules. Invalid stored hierarchy
 prevents either configuration export and reports
 `Type hierarchy is invalid: {reason}. No configuration file was exported.` Hierarchy is not
-transported by DIVE Annotation JSON, COCO/KWCOCO, VIAME CSV, KPF, NIST, or `labels.txt`.
+transported by DIVE Annotation JSON, VIAME CSV, KPF, NIST, or `labels.txt`. KWCOCO transports it
+through category `supercategory` fields as described below.
 
 When importing a DIVE Configuration JSON with `datasetInfo`, **Overwrite** import (the
 default) replaces the existing `datasetInfo` block; an additive import merges it per-key
@@ -349,6 +350,35 @@ are also accepted on import.
 * For video datasets, DIVE exports per-frame synthetic names (for example, `frame_000123.jpg`)
   because base COCO does not define a canonical video container field.
 
+### DIVE KWCOCO Classification Profile
+
+DIVE Web and Desktop use the same KWCOCO profile for hierarchy and complete confidence vectors:
+
+* `categories` contains every type in an exported confidence vector and every child or parent in
+  the dataset hierarchy. A child's immediate parent is written as `supercategory`.
+* Every annotation retains standard `category_id` and `score` fields for the highest-confidence
+  exported pair, so readers that ignore KWCOCO extensions still receive a primary category.
+* Every annotation also has a dense `prob` array aligned by position with the document's complete
+  `categories` array.
+* `dive_confidence_pairs` stores the track's ordered sparse vector exactly. This preserves the
+  difference between a missing pair and a pair explicitly scored `0`, which a dense `prob` array
+  cannot express. The extension is listed in `info.dive_extensions` and takes precedence when a
+  DIVE-authored file is imported again. A present but malformed extension produces one import
+  warning and falls back to a valid `prob` vector or the primary category and score.
+
+For an external KWCOCO file without `dive_confidence_pairs`, DIVE maps `prob` by the original
+category-array order, including unnamed positional slots. It accepts finite numeric values, clamps
+them to `[0, 1]`, keeps the ten highest entries above `0.001`, and falls back to `category_id` plus
+`score` when the vector length is wrong or duplicate category names make the mapping ambiguous.
+For a track whose annotations contain different vectors, the annotation at the highest frame index
+wins; the greater annotation ID wins a same-frame tie, independent of file order.
+
+Categories with missing names, duplicate names, multiple parents, invalid edges, or cycles produce
+an import warning. Usable annotations are still imported. In a multicamera import, the first valid
+camera hierarchy in configured camera order becomes the parent dataset hierarchy. Matching later
+hierarchies coalesce; conflicting later hierarchies are skipped with a warning. Camera datasets do
+not retain separate hierarchy copies.
+
 ### DIVE COCO Attribute Extensions
 
 COCO does not define standard fields for arbitrary track or detection attributes
@@ -361,7 +391,7 @@ export/import, DIVE uses extension fields on each COCO `annotation` object:
 
 These extension keys are declared in the COCO `info` object as:
 
-* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes", "dive_notes"]`
+* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes", "dive_notes", "dive_confidence_pairs"]`
 
 ### Dataset-level metadata (`datasetInfo`)
 
@@ -402,7 +432,9 @@ For COCO files produced by DIVE:
 * DIVE writes `dive_detection_attributes` and `dive_track_attributes` on each
   annotation when attributes are present.
 * DIVE writes `dive_notes` on each annotation when that feature has a note.
-* Re-importing that file into DIVE preserves those attributes and notes.
+* DIVE writes category-aligned `prob` plus exact `dive_confidence_pairs` on each annotation.
+* Re-importing that file into DIVE preserves hierarchy edges, track IDs, complete confidence
+  vectors, attributes, and notes.
 
 For COCO files not produced by DIVE:
 
@@ -428,22 +460,25 @@ For COCO files not produced by DIVE:
 {
   "info": {
     "description": "DIVE export for my-dataset",
-    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes", "dive_notes"]
+    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes", "dive_notes", "dive_confidence_pairs"]
   },
   "images": [
     { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
   ],
   "categories": [
     { "id": 1, "name": "fish", "keypoints": ["head", "tail"] },
-    { "id": 2, "name": "crab" }
+    { "id": 2, "name": "shark", "supercategory": "fish" },
+    { "id": 3, "name": "crab" }
   ],
   "annotations": [
     {
       "id": 1,
       "image_id": 1,
-      "category_id": 1,
+      "category_id": 2,
       "bbox": [100, 200, 50, 80],
       "score": 0.97,
+      "prob": [0.03, 0.97, 0],
+      "dive_confidence_pairs": [["shark", 0.97], ["fish", 0.03]],
       "track_id": 42,
       "dive_detection_attributes": {
         "visibility": "poor",
@@ -458,9 +493,11 @@ For COCO files not produced by DIVE:
     {
       "id": 2,
       "image_id": 1,
-      "category_id": 2,
+      "category_id": 3,
       "bbox": [320, 140, 120, 90],
       "score": 0.91,
+      "prob": [0, 0, 0.91],
+      "dive_confidence_pairs": [["crab", 0.91]],
       "track_id": 77,
       "segmentation": [
         [320, 140, 360, 130, 430, 170, 440, 220, 360, 230, 325, 200]

@@ -733,37 +733,32 @@ def test_export_dive_as_coco_single_dataset():
 
 
 def test_export_dive_as_coco_preserves_pairs_and_category_hierarchy_roundtrip():
-    tracks = [
-        {
-            'id': 7,
-            'begin': 0,
-            'end': 0,
-            'confidencePairs': [['great white shark', 0.0], ['shark', 0.8]],
-            'features': [{'frame': 0, 'bounds': [10, 20, 30, 60]}],
-        }
-    ]
-    hierarchy = {'great white shark': 'shark', 'shark': 'fish'}
+    profile = KWCOCO_PROFILE['exportRoundTrip']
     exported = kwcoco.export_dive_as_coco(
-        tracks,
-        {0: 'frame_000000.jpg'},
-        dataset_name='demo',
-        typeHierarchy=hierarchy,
+        profile['tracks'],
+        {int(frame): name for frame, name in profile['imageFilenames'].items()},
+        dataset_name=profile['datasetName'],
+        typeHierarchy=profile['typeHierarchy'],
     )
     categories = {category['name']: category for category in exported['categories']}
-    assert list(categories) == ['great white shark', 'shark', 'fish']
-    assert categories['great white shark']['supercategory'] == 'shark'
-    assert categories['shark']['supercategory'] == 'fish'
+    assert list(categories) == profile['expectedCategoryNames']
+    assert {
+        name: category['supercategory']
+        for name, category in categories.items()
+        if 'supercategory' in category
+    } == profile['expectedParents']
     annotation = exported['annotations'][0]
-    assert annotation['category_id'] == categories['shark']['id']
-    assert annotation['score'] == 0.8
-    assert annotation['prob'] == [0.0, 0.8, 0.0]
-    assert annotation['dive_confidence_pairs'] == [['great white shark', 0.0], ['shark', 0.8]]
+    assert annotation['track_id'] == profile['tracks'][0]['id']
+    assert annotation['category_id'] == categories['leaf']['id']
+    assert annotation['score'] == 0.75
+    assert annotation['prob'] == profile['expectedProb']
+    assert annotation['dive_confidence_pairs'] == profile['expectedPairs']
     assert 'dive_confidence_pairs' in exported['info']['dive_extensions']
 
     converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(exported)
-    assert converted['tracks']['7']['confidencePairs'] == [
-        ('great white shark', 0.0),
-        ('shark', 0.8),
+    track_id = str(profile['tracks'][0]['id'])
+    assert converted['tracks'][track_id]['confidencePairs'] == [
+        tuple(pair) for pair in profile['expectedPairs']
     ]
     assert warnings == []
 
@@ -1131,7 +1126,10 @@ def test_supercategory_extraction_handles_roots_duplicates_and_multiple_parents(
         }
     )
     assert hierarchy == {'leaf': 'root', 'external': 'outside'}
-    assert warnings == [kwcoco.SUPERCATEGORY_MULTI_PARENT_WARNING]
+    assert warnings == [
+        kwcoco.SUPERCATEGORY_MULTI_PARENT_WARNING,
+        kwcoco.CATEGORY_MISSING_NAME_WARNING,
+    ]
 
     hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
         {'categories': [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'fish'}]}

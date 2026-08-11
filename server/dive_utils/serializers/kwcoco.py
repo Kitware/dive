@@ -44,6 +44,10 @@ SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING = (
     'The COCO file contains duplicate category names, so category hierarchy edges cannot be '
     'mapped to class names. The dataset type hierarchy was left unchanged.'
 )
+CATEGORY_MISSING_NAME_WARNING = (
+    'Some COCO categories have no non-empty string name. Those positional category slots were '
+    'ignored when importing classifications and hierarchy edges.'
+)
 SUPERCATEGORY_INVALID_WARNING = (
     'The category hierarchy in the COCO file could not be applied: {reason}. '
     'Annotations were imported without changing the dataset type hierarchy.'
@@ -114,6 +118,8 @@ def type_hierarchy_from_categories(
         warnings.append(SUPERCATEGORY_MULTI_PARENT_WARNING)
 
     names = [category.get('name') for category in categories]
+    if any(not isinstance(name, str) or not name for name in names):
+        warnings.append(CATEGORY_MISSING_NAME_WARNING)
     if _has_duplicate_names(names):
         warnings.append(SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING)
         return None, warnings
