@@ -368,6 +368,10 @@ class CocoMetadata(BaseModel):
     images: Dict[int, dict]
     videos: Dict[int, dict]
     datasetInfo: types.DatasetInfo = {}
+    # KWCOCO ``prob`` arrays align positionally with the document's categories array,
+    # rather than the id-keyed category lookup above.  Keep unnamed slots so that
+    # vector length validation remains meaningful.
+    ordered_category_names: List[Optional[str]] = Field(default_factory=list)
 
 
 class BrandData(BaseModel):

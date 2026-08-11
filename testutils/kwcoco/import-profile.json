@@ -1,0 +1,108 @@
+{
+  "highestFrameExact": {
+    "document": {
+      "info": {
+        "dive_extensions": ["dive_confidence_pairs"]
+      },
+      "images": [
+        { "id": 20, "file_name": "frame_000009.jpg", "frame_index": 9 },
+        { "id": 10, "file_name": "frame_000002.jpg", "frame_index": 2 }
+      ],
+      "annotations": [
+        {
+          "id": 100,
+          "image_id": 20,
+          "category_id": 7,
+          "track_id": 17,
+          "bbox": [10, 20, 30, 40],
+          "score": 0.8,
+          "prob": [0, 0.8, 0.2],
+          "dive_confidence_pairs": [["shark", 0.8], ["fish", 0], ["rock", 0.2]]
+        },
+        {
+          "id": 101,
+          "image_id": 10,
+          "category_id": 5,
+          "track_id": 17,
+          "bbox": [11, 21, 30, 40],
+          "score": 0.9,
+          "prob": [0.9, 0.1, 0],
+          "dive_confidence_pairs": [["fish", 0.9], ["shark", 0.1]]
+        }
+      ],
+      "categories": [
+        { "id": 5, "name": "fish" },
+        { "id": 7, "name": "shark", "supercategory": "fish" },
+        { "id": 11, "name": "rock" }
+      ]
+    },
+    "trackId": 17,
+    "expectedPairs": [["shark", 0.8], ["fish", 0], ["rock", 0.2]],
+    "expectedHierarchy": { "shark": "fish" }
+  },
+  "missingFrameIndexExact": {
+    "document": {
+      "info": {
+        "dive_extensions": ["dive_confidence_pairs"]
+      },
+      "images": [
+        { "id": 1, "file_name": "Z1.jpg" },
+        { "id": 2, "file_name": "a10.jpg" }
+      ],
+      "annotations": [
+        {
+          "id": 1,
+          "image_id": 1,
+          "category_id": 1,
+          "track_id": 9,
+          "bbox": [0, 0, 10, 10],
+          "score": 0.4,
+          "dive_confidence_pairs": [["early", 0.4], ["explicit-zero", 0]]
+        },
+        {
+          "id": 2,
+          "image_id": 2,
+          "category_id": 2,
+          "track_id": 9,
+          "bbox": [1, 1, 10, 10],
+          "score": 0.8,
+          "dive_confidence_pairs": [["late", 0.8]]
+        }
+      ],
+      "categories": [
+        { "id": 1, "name": "early" },
+        { "id": 2, "name": "late" }
+      ]
+    },
+    "trackId": 9,
+    "expectedPairs": [["late", 0.8]]
+  },
+  "emptyDiveConfidencePairs": {
+    "document": {
+      "info": {
+        "dive_extensions": ["dive_confidence_pairs"]
+      },
+      "images": [
+        { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
+      ],
+      "annotations": [
+        {
+          "id": 1,
+          "image_id": 1,
+          "category_id": 1,
+          "track_id": 7,
+          "bbox": [0, 0, 10, 10],
+          "score": 0.3,
+          "prob": [0.2, 0.8],
+          "dive_confidence_pairs": []
+        }
+      ],
+      "categories": [
+        { "id": 1, "name": "fish" },
+        { "id": 2, "name": "shark" }
+      ]
+    },
+    "trackId": 7,
+    "expectedPairs": [["shark", 0.8], ["fish", 0.2]]
+  }
+}
