@@ -764,16 +764,29 @@ def _filtered_annotation_tracks(
     annotations = crud_annotation.get_annotations(dsFolder, revision=revision)
     tracks = annotations['tracks']
     thresholds = fromMeta(dsFolder, "confidenceFilters", {}) if excludeBelowThreshold else {}
+    default_threshold = thresholds.get('default', 0)
     updated_tracks = {}
     for track_id in tracks:
         track = models.Track(**tracks[track_id])
-        if excludeBelowThreshold and not track.exceeds_thresholds(thresholds):
-            continue
+        confidence_pairs = track.confidencePairs
+        if excludeBelowThreshold:
+            confidence_pairs = [
+                pair
+                for pair in confidence_pairs
+                if pair[1] >= thresholds.get(pair[0], default_threshold)
+            ]
         if typeFilter:
-            confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
-            if not confidence_pairs:
-                continue
-        updated_tracks[track_id] = tracks[track_id]
+            confidence_pairs = [pair for pair in confidence_pairs if pair[0] in typeFilter]
+        if not confidence_pairs:
+            continue
+        if excludeBelowThreshold or typeFilter:
+            # Filters select raw stored evidence.  Copy before pruning so an export
+            # never mutates the stored track or leaks removed pairs into its output.
+            exported_track = dict(tracks[track_id])
+            exported_track['confidencePairs'] = [list(pair) for pair in confidence_pairs]
+            updated_tracks[track_id] = exported_track
+        else:
+            updated_tracks[track_id] = tracks[track_id]
     return updated_tracks
 
 
@@ -816,6 +829,7 @@ def _coco_json_export_text(
         image_filenames=image_filenames,
         dataset_name=dsFolder['name'],
         datasetInfo=fromMeta(dsFolder, "datasetInfo", {}),
+        typeHierarchy=type_hierarchy_for_export(dsFolder, user),
     )
     return json.dumps(coco)
 
@@ -832,10 +846,23 @@ def export_multicam_annotations_zipstream(
     if format not in ('viame_csv', 'dive_json', 'coco_json'):
         raise RestException(f'Format {format} is not a valid option.')
 
+    if format == 'coco_json':
+        type_hierarchy_for_export(dsFolder, user)
+    multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
+    children = {}
+    for cam_name in _multicam_camera_order(multi_cam):
+        cam_info = multi_cam['cameras'][cam_name]
+        child = Folder().load(cam_info['folderId'], level=AccessType.READ, user=user)
+        if child is None:
+            raise RestException(
+                f'Camera folder for "{cam_name}" was not found',
+                code=404,
+            )
+        children[cam_name] = child
+
     def stream():
         z = ziputil.ZipGenerator()
         zip_path = f"./{dsFolder['name']}/"
-        multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
 
         def makeMultiCamJson():
             yield json.dumps(multi_cam, indent=2).encode('utf-8')
@@ -845,13 +872,7 @@ def export_multicam_annotations_zipstream(
 
         nested_type_filter = typeFilter if typeFilter is not None else set()
         for cam_name in _multicam_camera_order(multi_cam):
-            cam_info = multi_cam['cameras'][cam_name]
-            child = Folder().load(cam_info['folderId'], level=AccessType.READ, user=user)
-            if child is None:
-                raise RestException(
-                    f'Camera folder for "{cam_name}" was not found',
-                    code=404,
-                )
+            child = children[cam_name]
             child_path = f'{zip_path}{cam_name}/'
             if format == 'viame_csv':
                 _, gen = crud_annotation.get_annotation_csv_generator(
@@ -1001,25 +1022,9 @@ def _yield_single_dataset_export(
     def makeDiveJson():
         """Include DIVE JSON output annotation file"""
         annotations = crud_annotation.get_annotations(dsFolder)
-        tracks = annotations['tracks']
-        thresholds = None
-        if excludeBelowThreshold:
-            thresholds = fromMeta(dsFolder, "confidenceFilters", {})
-        if thresholds is None:
-            thresholds = {}
-
-        updated_tracks = {}
-        for t in tracks:
-            track = models.Track(**tracks[t])
-            if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
-                if typeFilter:
-                    confidence_pairs = [
-                        item for item in track.confidencePairs if item[0] in typeFilter
-                    ]
-                    if not confidence_pairs:
-                        continue
-                updated_tracks[t] = tracks[t]
-        annotations['tracks'] = updated_tracks
+        annotations['tracks'] = _filtered_annotation_tracks(
+            dsFolder, None, excludeBelowThreshold, typeFilter
+        )
         yield json.dumps(annotations)
 
     for data in z.addFile(makeMetajson, Path(f'{zip_path}{constants.ConfigFileName}')):

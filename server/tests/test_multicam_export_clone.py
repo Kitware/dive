@@ -725,3 +725,28 @@ def test_export_multicam_annotations_zip_csv(zip_gen_cls, csv_gen_mock, folder_c
     assert 'stereo-dataset/left/annotations.viame.csv' in paths
     assert 'stereo-dataset/right/annotations.viame.csv' in paths
     assert csv_gen_mock.call_count == 2
+
+
+@patch('dive_server.crud_dataset.ziputil.ZipGenerator')
+def test_export_multicam_annotations_preflights_invalid_coco_hierarchy(zip_gen_cls, monkeypatch):
+    parent = _multi_parent_folder()
+    hierarchy_error = RestException(
+        'Type hierarchy is invalid: cycle detected. No configuration file was exported.'
+    )
+    monkeypatch.setattr(
+        crud_dataset,
+        'type_hierarchy_for_export',
+        MagicMock(side_effect=hierarchy_error),
+    )
+
+    with pytest.raises(RestException, match='cycle detected'):
+        crud_dataset.export_multicam_annotations_zipstream(
+            parent,
+            {'login': 'tester'},
+            'coco_json',
+            False,
+            None,
+            None,
+        )
+
+    zip_gen_cls.assert_not_called()

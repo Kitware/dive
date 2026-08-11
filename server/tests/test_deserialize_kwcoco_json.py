@@ -732,6 +732,42 @@ def test_export_dive_as_coco_single_dataset():
     assert "dive_notes" in coco["info"]["dive_extensions"]
 
 
+def test_export_dive_as_coco_preserves_pairs_and_category_hierarchy_roundtrip():
+    tracks = [
+        {
+            'id': 7,
+            'begin': 0,
+            'end': 0,
+            'confidencePairs': [['great white shark', 0.0], ['shark', 0.8]],
+            'features': [{'frame': 0, 'bounds': [10, 20, 30, 60]}],
+        }
+    ]
+    hierarchy = {'great white shark': 'shark', 'shark': 'fish'}
+    exported = kwcoco.export_dive_as_coco(
+        tracks,
+        {0: 'frame_000000.jpg'},
+        dataset_name='demo',
+        typeHierarchy=hierarchy,
+    )
+    categories = {category['name']: category for category in exported['categories']}
+    assert list(categories) == ['great white shark', 'shark', 'fish']
+    assert categories['great white shark']['supercategory'] == 'shark'
+    assert categories['shark']['supercategory'] == 'fish'
+    annotation = exported['annotations'][0]
+    assert annotation['category_id'] == categories['shark']['id']
+    assert annotation['score'] == 0.8
+    assert annotation['prob'] == [0.0, 0.8, 0.0]
+    assert annotation['dive_confidence_pairs'] == [['great white shark', 0.0], ['shark', 0.8]]
+    assert 'dive_confidence_pairs' in exported['info']['dive_extensions']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(exported)
+    assert converted['tracks']['7']['confidencePairs'] == [
+        ('great white shark', 0.0),
+        ('shark', 0.8),
+    ]
+    assert warnings == []
+
+
 # --- datasetInfo passthrough ---
 
 DATASET_INFO = {

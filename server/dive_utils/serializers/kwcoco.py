@@ -547,6 +547,7 @@ def export_dive_as_coco(
     image_filenames: Dict[int, str],
     dataset_name: str,
     datasetInfo: Optional[types.DatasetInfo] = None,
+    typeHierarchy: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     Export DIVE tracks to a single-dataset COCO JSON document.
@@ -558,14 +559,30 @@ def export_dive_as_coco(
         datasetInfo: per-dataset station metadata; when present, written under
             ``info.dive_dataset_info`` and advertised in ``info.dive_extensions``.
             Omitted entirely when empty.
+        typeHierarchy: DIVE child-to-parent category hierarchy, emitted through
+            KWCOCO's ``categories[].supercategory`` field.
     """
-    categories: Dict[str, int] = {}
+    parsed_tracks = [Track(**track_doc) for track_doc in tracks]
+    category_names: List[str] = []
+
+    def add_category_name(name: str) -> None:
+        if name not in category_names:
+            category_names.append(name)
+
+    for track in parsed_tracks:
+        for name, _confidence in track.confidencePairs:
+            add_category_name(name)
+    for name in sorted((typeHierarchy or {}).keys()):
+        add_category_name(name)
+    for name in sorted(set((typeHierarchy or {}).values())):
+        add_category_name(name)
+
+    categories = {name: index + 1 for index, name in enumerate(category_names)}
     coco_annotations: List[dict] = []
     images: Dict[int, dict] = {}
     annotation_id = 1
 
-    for track_doc in tracks:
-        track = Track(**track_doc)
+    for track in parsed_tracks:
         for feature in track.features:
             if feature.frame not in image_filenames:
                 continue
@@ -574,7 +591,7 @@ def export_dive_as_coco(
             if not track.confidencePairs:
                 continue
             class_name, score = max(track.confidencePairs, key=lambda x: x[1])
-            category_id = categories.setdefault(class_name, len(categories) + 1)
+            category_id = categories[class_name]
             x1, y1, x2, y2 = feature.bounds
             width = max(0, x2 - x1)
             height = max(0, y2 - y1)
@@ -598,6 +615,11 @@ def export_dive_as_coco(
                 # Single-instance polygon export; DIVE does not emit crowd RLE (iscrowd: 1).
                 'iscrowd': 0,
                 'score': score,
+                # KWCOCO probability vectors align with document category order.
+                'prob': [dict(track.confidencePairs).get(name, 0.0) for name in category_names],
+                # Preserve sparse membership and explicit zero confidence without
+                # requiring consumers to infer it from a dense probability vector.
+                'dive_confidence_pairs': [list(pair) for pair in track.confidencePairs],
             }
             # Keep a stable object identity across frames when track data exists.
             annotation['track_id'] = track.id
@@ -618,6 +640,9 @@ def export_dive_as_coco(
     categories_doc: List[dict] = []
     for class_name, category_id in categories.items():
         category: Dict[str, Any] = {'id': category_id, 'name': class_name}
+        parent = (typeHierarchy or {}).get(class_name)
+        if parent is not None:
+            category['supercategory'] = parent
         # When keypoints are exported, publish the category labels explicitly.
         category['keypoints'] = ['head', 'tail']
         categories_doc.append(category)
@@ -628,6 +653,7 @@ def export_dive_as_coco(
             'dive_detection_attributes',
             'dive_track_attributes',
             'dive_notes',
+            'dive_confidence_pairs',
         ],
     }
     if datasetInfo:
