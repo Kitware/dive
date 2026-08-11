@@ -648,13 +648,24 @@ export default defineComponent({
       cameraStore.setTrackType(id, newType, confidenceVal, currentType);
     };
     const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
+    const setGroupType = (
+      id: AnnotationId,
+      newType: string,
+      confidenceVal?: number,
+      currentType?: string,
+    ) => {
+      cameraStore.setGroupType(id, newType, confidenceVal, currentType);
+    };
+    const removeGroupTypes = (id: AnnotationId, types: string[]) => (
+      cameraStore.removeGroupTypes(id, types)
+    );
     const getTrackProjection = (id: AnnotationId) => cameraStore.getTrackProjection(id);
     const groupFilters = new GroupFilterControls({
       sorted: cameraStore.sortedGroups,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       remove: removeGroups,
-      setType: setTrackType,
-      removeTypes,
+      setType: setGroupType,
+      removeTypes: removeGroupTypes,
     });
 
     // This context for removal

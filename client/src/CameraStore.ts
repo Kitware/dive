@@ -120,27 +120,14 @@ export default class CameraStore {
   }
 
   getAnyPossibleTrack(trackId: Readonly<AnnotationId>) {
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (tempTrack) {
-        track = tempTrack;
-      }
-    });
-    if (track) {
-      return track;
-    }
-    return undefined;
+    // Map iteration order defines the canonical camera for logical-track reads.
+    return Array.from(this.camMap.value.values())
+      .map((camera) => camera.trackStore.getPossible(trackId))
+      .find((track): track is Track => track !== undefined);
   }
 
   getAnyTrack(trackId: Readonly<AnnotationId>) {
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (tempTrack) {
-        track = tempTrack;
-      }
-    });
+    const track = this.getAnyPossibleTrack(trackId);
     if (track) {
       return track;
     }
@@ -369,10 +356,20 @@ export default class CameraStore {
     });
   }
 
+  setGroupType(id: AnnotationId, newType: string, confidenceVal?: number, currentType?: string) {
+    this.camMap.value.forEach((camera) => {
+      const group = camera.groupStore.getPossible(id);
+      if (group !== undefined) {
+        group.setType(newType, confidenceVal, currentType);
+      }
+    });
+  }
+
   private updateTrackConfidencePairs(
     id: AnnotationId,
     update: (pairs: readonly ConfidencePair[]) => ConfidencePair[],
     mergeReplicaPairs = false,
+    deleteWhenEmpty = false,
   ): ConfidencePair[] {
     const tracks = this.getTrackAll(id);
     if (tracks.length === 0) {
@@ -385,7 +382,15 @@ export default class CameraStore {
       : tracks[0].confidencePairs
         .map(([type, confidence]) => [type, confidence] as ConfidencePair);
     const nextPairs = update(canonicalPairs);
-    tracks.forEach((track) => track.setConfidencePairs(nextPairs));
+    if (deleteWhenEmpty && nextPairs.length === 0) {
+      this.remove(id);
+      return [];
+    }
+    tracks.forEach((track) => {
+      if (!confidencePairsEqual(track.confidencePairs, nextPairs)) {
+        track.setConfidencePairs(nextPairs);
+      }
+    });
     return nextPairs.map(([type, confidence]) => [type, confidence]);
   }
 
@@ -430,7 +435,7 @@ export default class CameraStore {
   }
 
   removeTrackPair(id: AnnotationId, type: string): ConfidencePair[] {
-    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type), true);
+    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type), true, true);
   }
 
   renameTrackPair(
@@ -527,7 +532,25 @@ export default class CameraStore {
         .filter(([type]) => !removedTypes.has(type))
         .map(([type, confidence]) => [type, confidence] as ConfidencePair),
       true,
+      true,
     );
+  }
+
+  removeGroupTypes(id: AnnotationId, types: string[]): ConfidencePair[] {
+    let result: ConfidencePair[] | undefined;
+    this.camMap.value.forEach((camera) => {
+      const group = camera.groupStore.getPossible(id);
+      if (group !== undefined) {
+        const pairs = group.removeTypes(types);
+        if (result === undefined) {
+          result = pairs.map(([type, confidence]) => [type, confidence] as ConfidencePair);
+        }
+      }
+    });
+    if (result === undefined) {
+      throw new Error(`GroupId ${id} not found in any camera`);
+    }
+    return result;
   }
 
   getGroupMemebers(id: AnnotationId) {

@@ -218,7 +218,12 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
   }
 
   removeTypeAnnotations(types: string[]) {
+    const processedIds = new Set<AnnotationId>();
     this.filteredAnnotations.value.forEach((filtered) => {
+      if (processedIds.has(filtered.annotation.id)) {
+        return;
+      }
+      processedIds.add(filtered.annotation.id);
       const filteredType = filtered.annotation.getType(filtered.context.confidencePairIndex);
       if (filteredType && types.includes(filteredType)) {
         //Remove the type from the annotation if multiple types exist

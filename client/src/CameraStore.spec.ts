@@ -187,16 +187,79 @@ describe('CameraStore classification commands', () => {
 
     const result = fixture.store.removeTypes(TRACK_ID, ['fish', 'rock']);
     expect(result).toEqual([]);
-    expect(fixture.left.confidencePairs).toEqual([]);
-    expect(fixture.right.confidencePairs).toEqual([]);
-
-    fixture.store.removeTracks(TRACK_ID);
 
     fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
       expect(trackStore.getPossible(TRACK_ID)).toBeUndefined();
       expect(groupStore.get(3).memberIds).toEqual([99]);
       expect(groupStore.trackMap.get(TRACK_ID)).toEqual(new Set());
     });
+    expect(fixture.markChangesPending.mock.calls.filter(([change]) => change.action === 'delete'))
+      .toHaveLength(2);
+  });
+
+  it('deletes a final pair through the single-pair command', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([['fish', 0.9]]);
+    fixture.right.setConfidencePairs([['fish', 0.9]]);
+    fixture.markChangesPending.mockClear();
+
+    expect(fixture.store.removeTrackPair(TRACK_ID, 'fish')).toEqual([]);
+    expect(fixture.store.getTrackAll(TRACK_ID)).toEqual([]);
+    expect(fixture.markChangesPending.mock.calls.map(([change]) => change.action))
+      .toEqual(['delete', 'delete']);
+  });
+
+  it('does not notify replicas for a no-op classification command', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.right.setConfidencePairs(fixture.left.confidencePairs);
+    fixture.markChangesPending.mockClear();
+
+    expect(fixture.store.removeTrackPair(TRACK_ID, 'not-present')).toEqual([
+      ['fish', 0.9],
+      ['shark', 0.7],
+      ['great white shark', 0.4],
+      ['bird', 0.2],
+    ]);
+    expect(fixture.markChangesPending).not.toHaveBeenCalled();
+  });
+
+  it('keeps group commands separate from colliding track ids across cameras', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      trackStore.insert(new Track(3, {
+        confidencePairs: [['track-type', 1]],
+        features: features(),
+      }), { imported: true });
+      groupStore.insert(new Group(3, {
+        confidencePairs: [['group-type', 0.5]],
+        members: {},
+      }), { imported: true });
+    });
+    fixture.markChangesPending.mockClear();
+
+    fixture.store.setGroupType(3, 'renamed-group', 0.7, 'group-type');
+    expect(fixture.store.removeGroupTypes(3, ['renamed-group'])).toEqual([]);
+
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      expect(trackStore.get(3).confidencePairs).toEqual([['track-type', 1]]);
+      expect(groupStore.get(3).confidencePairs).toEqual([]);
+    });
+    expect(fixture.markChangesPending).toHaveBeenCalledTimes(4);
+  });
+
+  it('uses the first configured camera for any-track reads', () => {
+    const fixture = makeTwoCameraStore();
+
+    expect(fixture.store.getAnyTrack(TRACK_ID)).toBe(fixture.left);
+    expect(fixture.store.getAnyPossibleTrack(TRACK_ID)).toBe(fixture.left);
+  });
+
+  it('returns unknown when an imported track has no confidence pairs', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([]);
+    fixture.right.setConfidencePairs([]);
+
+    expect(fixture.store.getTrackProjectionForSorted(TRACK_ID).getType()).toBe('unknown');
   });
 
   it('renames one pair without applying assignment or acceptance semantics', () => {
