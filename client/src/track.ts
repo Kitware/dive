@@ -1,3 +1,4 @@
+import { mergePairs } from 'dive-common/typeHierarchy';
 import { RectBounds, polygonEqualsBounds } from './utils';
 import {
   binarySearch,
@@ -179,7 +180,8 @@ export default class Track extends BaseAnnotation {
         begin: this.begin,
         end: this.getPreviousKeyframe(frame - 1) || this.begin,
         features: this.features.slice(this.begin, frame),
-        confidencePairs: this.confidencePairs,
+        confidencePairs: this.confidencePairs
+          .map(([type, confidence]) => [type, confidence] as [string, number]),
         attributes: this.attributes,
       }),
       Track.fromJSON({
@@ -188,7 +190,8 @@ export default class Track extends BaseAnnotation {
         begin: this.getNextKeyframe(frame) || this.end,
         end: this.end,
         features: this.features.slice(frame),
-        confidencePairs: this.confidencePairs,
+        confidencePairs: this.confidencePairs
+          .map(([type, confidence]) => [type, confidence] as [string, number]),
         attributes: this.attributes,
       }),
     ];
@@ -199,14 +202,20 @@ export default class Track extends BaseAnnotation {
    * self if there are conflicts
    */
   merge(others: Track[]) {
+    const previousPairs = this.confidencePairs;
+    const mergedPairs = mergePairs([
+      this.confidencePairs,
+      ...others.map((other) => other.confidencePairs),
+    ]);
+    const pairsChanged = mergedPairs.length !== previousPairs.length
+      || mergedPairs.some(([type, confidence], index) => (
+        previousPairs[index]?.[0] !== type || previousPairs[index]?.[1] !== confidence
+      ));
+    if (pairsChanged) {
+      this.confidencePairs = mergedPairs;
+      this.notify('confidencePairs', previousPairs);
+    }
     others.forEach((other) => {
-      other.confidencePairs.forEach((pair) => {
-        const match = this.confidencePairs.find(([name]) => name === pair[0]);
-        // Only set confidence if greater
-        if (match === undefined || match[1] < pair[1]) {
-          this.setType(...pair);
-        }
-      });
       other.features.forEach((f) => {
         if (this.getFeature(f.frame)[0] === null) {
           this.setFeature(f, f.geometry?.features);

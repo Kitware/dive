@@ -1,7 +1,7 @@
 import {
   ComputedRef, Ref, computed, shallowRef, triggerRef,
 } from 'vue';
-import { uniq } from 'lodash';
+import { cloneDeep, uniq } from 'lodash';
 import {
   acceptPairAsCorrect,
   compileHierarchy,
@@ -10,7 +10,7 @@ import {
   setPairConfidence,
   TypeHierarchyIndex,
 } from 'dive-common/typeHierarchy';
-import type Track from './track';
+import Track from './track';
 import type Group from './Group';
 import { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
@@ -234,6 +234,49 @@ export default class CameraStore {
       }
     });
     this.projectionCache.delete(trackId);
+  }
+
+  mergeTracks(targetId: AnnotationId, sourceIds: AnnotationId[]) {
+    const replicas: Array<{
+      trackStore: TrackStore;
+      target?: Track;
+      sources: Track[];
+    }> = [];
+    const vectors: ConfidencePair[][] = [];
+
+    this.camMap.value.forEach(({ trackStore }) => {
+      const target = trackStore.getPossible(targetId);
+      const sources = sourceIds
+        .map((sourceId) => trackStore.getPossible(sourceId))
+        .filter((source): source is Track => source !== undefined);
+      if (target || sources.length) {
+        replicas.push({ trackStore, target, sources });
+        if (target) {
+          vectors.push(target.confidencePairs);
+        }
+        sources.forEach((source) => vectors.push(source.confidencePairs));
+      }
+    });
+
+    const canonicalPairs = mergePairs(vectors);
+    replicas.forEach((replica) => {
+      let { target } = replica;
+      if (!target) {
+        const source = replica.sources[0];
+        target = Track.fromJSON({
+          id: targetId,
+          begin: source.begin,
+          end: source.end,
+          confidencePairs: cloneDeep(source.confidencePairs),
+          attributes: cloneDeep(source.attributes),
+          features: cloneDeep(source.features.filter((feature) => feature !== undefined)),
+          meta: cloneDeep(source.meta),
+        }, source.set);
+        replica.trackStore.insert(target);
+      }
+      target.merge(replica.sources);
+      target.setConfidencePairs(canonicalPairs);
+    });
   }
 
   getNewTrackId() {

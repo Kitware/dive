@@ -1334,14 +1334,12 @@ export default function useModeManager({
    */
   function handleCommitMerge() {
     if (multiSelectList.value.length >= 2) {
-      const track = cameraStore.getTrack(multiSelectList.value[0], selectedCamera.value);
+      const targetTrackId = multiSelectList.value[0];
       const otherTrackIds = multiSelectList.value.slice(1);
-      track.merge(otherTrackIds.map(
-        (trackId) => cameraStore.getTrack(trackId, selectedCamera.value),
-      ));
+      cameraStore.mergeTracks(targetTrackId, otherTrackIds);
       handleRemoveTrack(otherTrackIds, true);
       handleToggleMerge();
-      handleSelectTrack(track.id, false);
+      handleSelectTrack(targetTrackId, false);
     }
   }
 
