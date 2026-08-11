@@ -254,6 +254,28 @@ describe('CameraStore classification commands', () => {
     expect(fixture.store.getAnyPossibleTrack(TRACK_ID)).toBe(fixture.left);
   });
 
+  it('resets canonical camera order when a new dataset reverses existing cameras', () => {
+    const fixture = makeTwoCameraStore();
+    expect(fixture.store.getAnyTrack(TRACK_ID)).toBe(fixture.left);
+
+    fixture.store.clearAll();
+    fixture.store.setCameraOrder(['right', 'left']);
+    const reloadedRight = new Track(TRACK_ID, {
+      confidencePairs: [['new-right', 1]],
+      features: features(),
+    });
+    const reloadedLeft = new Track(TRACK_ID, {
+      confidencePairs: [['new-left', 1]],
+      features: features(),
+    });
+    fixture.store.camMap.value.get('right')?.trackStore.insert(reloadedRight, { imported: true });
+    fixture.store.camMap.value.get('left')?.trackStore.insert(reloadedLeft, { imported: true });
+
+    expect(Array.from(fixture.store.camMap.value.keys())).toEqual(['right', 'left']);
+    expect(fixture.store.getAnyTrack(TRACK_ID)).toBe(reloadedRight);
+    expect(fixture.store.getTrackProjection(TRACK_ID).confidencePairs).toEqual([['new-right', 1]]);
+  });
+
   it('returns unknown when an imported track has no confidence pairs', () => {
     const fixture = makeTwoCameraStore();
     fixture.left.setConfidencePairs([]);
@@ -450,6 +472,15 @@ describe('CameraStore projection cache', () => {
     const { store } = makeTwoCameraStore();
     const before = store.getTrackProjection(TRACK_ID);
     store.removeCamera('left');
+    const after = store.getTrackProjection(TRACK_ID);
+    expect(after).not.toBe(before);
+    expect(after.confidencePairs).toEqual(confidencePairs([['rock', 0.95], ['shark', 0.1]]));
+  });
+
+  it('re-projects from the new canonical camera after a reorder', () => {
+    const { store } = makeTwoCameraStore();
+    const before = store.getTrackProjection(TRACK_ID);
+    store.setCameraOrder(['right', 'left']);
     const after = store.getTrackProjection(TRACK_ID);
     expect(after).not.toBe(before);
     expect(after.confidencePairs).toEqual(confidencePairs([['rock', 0.95], ['shark', 0.1]]));

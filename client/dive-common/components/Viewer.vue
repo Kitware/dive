@@ -1545,6 +1545,7 @@ export default defineComponent({
           multiCamList.value = ['singleCam'];
           resetMulticamAlignment();
         }
+        cameraStore.setCameraOrder(multiCamList.value);
         /* Otherwise, complete loading of the dataset */
         /**
          * When shared colors are enabled, overlay the cross-dataset styles on

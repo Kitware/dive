@@ -235,6 +235,23 @@ export default class CameraStore {
     }
   }
 
+  setCameraOrder(cameraNames: readonly string[]) {
+    cameraNames.forEach((cameraName) => this.addCamera(cameraName));
+    const reordered = new Map<string, { trackStore: TrackStore; groupStore: GroupStore }>();
+    cameraNames.forEach((cameraName) => {
+      const camera = this.camMap.value.get(cameraName);
+      if (camera !== undefined) {
+        reordered.set(cameraName, camera);
+      }
+    });
+    this.camMap.value.forEach((camera, cameraName) => {
+      if (!reordered.has(cameraName)) {
+        reordered.set(cameraName, camera);
+      }
+    });
+    this.camMap.value = reordered;
+  }
+
   removeCamera(cameraName: string) {
     if (this.camMap.value.get(cameraName) !== undefined) {
       this.camMap.value.delete(cameraName);
