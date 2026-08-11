@@ -480,12 +480,19 @@ async function serializeFile(
     excludeBelowThreshold: false,
   },
 ) {
-  const categories = new Map<string, number>();
   const images = new Map<number, CocoImage>();
   const annotations: CocoAnnotation[] = [];
   let annotationId = 1;
   const thresholds = meta.confidenceFilters || {};
   const defaultThreshold = thresholds.default ?? 0;
+  const pairsByTrack = new Map<number, [string, number][]>();
+  const categoryNames: string[] = [];
+  const addCategoryName = (name: string) => {
+    if (!categoryNames.includes(name)) {
+      categoryNames.push(name);
+    }
+  };
+  const hierarchy = meta.typeHierarchy || {};
 
   Object.values(data.tracks).forEach((track) => {
     const filteredPairs = track.confidencePairs.filter(([name, score]) => {
@@ -494,9 +501,22 @@ async function serializeFile(
       return keepType && keepThreshold;
     });
     if (!filteredPairs.length) return;
-    const [className, score] = [...filteredPairs].sort((a, b) => b[1] - a[1])[0];
-    const categoryId = categories.get(className) || (categories.size + 1);
-    categories.set(className, categoryId);
+    const pairs = filteredPairs.map(([name, score]) => [name, score] as [string, number]);
+    pairsByTrack.set(track.id, pairs);
+    pairs.forEach(([name]) => addCategoryName(name));
+  });
+
+  Object.keys(hierarchy).sort().forEach(addCategoryName);
+  Array.from(new Set(Object.values(hierarchy))).sort().forEach(addCategoryName);
+  const categories = new Map(categoryNames.map((name, index) => [name, index + 1]));
+
+  Object.values(data.tracks).forEach((track) => {
+    const pairs = pairsByTrack.get(track.id);
+    if (!pairs) return;
+    const [className, score] = [...pairs].sort((a, b) => b[1] - a[1])[0];
+    const categoryId = categories.get(className) as number;
+    const probabilityByName = new Map(pairs);
+    const prob = categoryNames.map((name) => probabilityByName.get(name) || 0);
 
     track.features.forEach((feature) => {
       if (!feature.bounds) return;
@@ -516,6 +536,8 @@ async function serializeFile(
         track_id: track.id,
         bbox: [x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1)],
         score,
+        prob,
+        dive_confidence_pairs: pairs.map(([name, confidence]) => [name, confidence]),
         ...(feature.attributes ? { dive_detection_attributes: feature.attributes } : {}),
         ...(track.attributes ? { dive_track_attributes: track.attributes } : {}),
         ...(feature.notes && feature.notes.length > 0 ? { dive_notes: feature.notes } : {}),
@@ -528,6 +550,7 @@ async function serializeFile(
     id,
     name,
     keypoints: ['head', 'tail'],
+    ...(hierarchy[name] ? { supercategory: hierarchy[name] } : {}),
   }));
   // datasetInfo rides in the `info` block + dive_extensions; omitted entirely when empty.
   const datasetInfo = meta.datasetInfo && !isEmpty(meta.datasetInfo) ? meta.datasetInfo : undefined;
@@ -537,6 +560,7 @@ async function serializeFile(
       'dive_detection_attributes',
       'dive_track_attributes',
       'dive_notes',
+      'dive_confidence_pairs',
       ...(datasetInfo ? ['dive_dataset_info'] : []),
     ],
     ...(datasetInfo ? { dive_dataset_info: datasetInfo } : {}),

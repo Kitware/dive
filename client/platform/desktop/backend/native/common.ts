@@ -101,9 +101,25 @@ const invalidHierarchyMessage = (reason: string) => (
   `Type hierarchy is invalid: ${reason}. No configuration was changed.`
 );
 
-const corruptHierarchyExportMessage = (reason: string) => (
-  `Type hierarchy is invalid: ${reason}. No configuration file was exported.`
+const corruptHierarchyExportMessage = (reason: string, artifact = 'configuration file') => (
+  `Type hierarchy is invalid: ${reason}. No ${artifact} was exported.`
 );
+
+function normalizedHierarchyForExport(
+  meta: { typeHierarchy?: unknown },
+  artifact?: string,
+) {
+  try {
+    return Object.prototype.hasOwnProperty.call(meta, 'typeHierarchy')
+      ? normalizeTypeHierarchy(meta.typeHierarchy)
+      : undefined;
+  } catch (error) {
+    if (error instanceof TypeHierarchyError) {
+      throw new Error(corruptHierarchyExportMessage(error.reason, artifact));
+    }
+    throw error;
+  }
+}
 
 class DataFileJsonParseError extends Error {}
 
@@ -2690,6 +2706,15 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+  const { cameraName } = parseCompositeDatasetId(args.id);
+  if (cameraName) {
+    const hierarchy = await loadCanonicalHierarchy(settings, args.id);
+    if (hierarchy === null) {
+      delete meta.typeHierarchy;
+    } else {
+      meta.typeHierarchy = hierarchy as Record<string, string>;
+    }
+  }
   if (args.type === 'json') {
     return dive.serializeFile(args.path, data, meta, args.typeFilter, {
       excludeBelowThreshold: args.exclude,
@@ -2697,6 +2722,12 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
     });
   }
   if (args.type === 'coco') {
+    const hierarchy = normalizedHierarchyForExport(meta, 'COCO file');
+    if (hierarchy) {
+      meta.typeHierarchy = { ...hierarchy };
+    } else {
+      delete meta.typeHierarchy;
+    }
     return coco.serializeFile(args.path, data, meta, args.typeFilter, {
       excludeBelowThreshold: args.exclude,
     });
@@ -2720,17 +2751,7 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
     }
   }
   const output: DatasetConfigMutable & { version: number} = { version: meta.version };
-  let hierarchy;
-  try {
-    hierarchy = Object.prototype.hasOwnProperty.call(meta, 'typeHierarchy')
-      ? normalizeTypeHierarchy(meta.typeHierarchy)
-      : undefined;
-  } catch (error) {
-    if (error instanceof TypeHierarchyError) {
-      throw new Error(corruptHierarchyExportMessage(error.reason));
-    }
-    throw error;
-  }
+  const hierarchy = normalizedHierarchyForExport(meta);
   if (DatasetConfigMutableKeys.some((key) => key in meta)) {
     // DIVE Configuration File fields (attributes, styles, FPS, …)
     merge(output, pick(meta, DatasetConfigMutableKeys));

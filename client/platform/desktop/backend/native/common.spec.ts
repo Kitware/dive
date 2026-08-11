@@ -1406,6 +1406,70 @@ describe('native.common', () => {
     expect(await fs.pathExists(output)).toBe(false);
   });
 
+  it('uses the parent hierarchy when exporting COCO from a selected multicam camera', async () => {
+    const parentId = 'coco-export-parent';
+    const parentDir = common.getProjectDir(settings, parentId);
+    const cameraDir = common.getProjectDir(settings, `${parentId}/left`);
+    const seed = await common.loadJsonConfig(
+      common.getProjectDir(settings, 'projectid1').datasetFileAbsPath,
+    );
+    await fs.ensureDir(cameraDir.basePath);
+    await fs.writeJSON(parentDir.datasetFileAbsPath, {
+      ...seed,
+      id: parentId,
+      typeHierarchy: { shark: 'fish' },
+    });
+    await fs.writeJSON(cameraDir.datasetFileAbsPath, {
+      ...seed,
+      id: `${parentId}/left`,
+      typeHierarchy: { shark: 'animal' },
+    });
+    await fs.writeJSON(npath.join(cameraDir.basePath, 'result.json'), {
+      version: AnnotationsCurrentVersion,
+      groups: {},
+      tracks: {
+        1: {
+          id: 1,
+          begin: 0,
+          end: 0,
+          attributes: {},
+          confidencePairs: [['shark', 0.9]],
+          features: [{ frame: 0, bounds: [0, 0, 1, 1] }],
+        },
+      },
+    });
+
+    const output = '/home/user/output/selected-camera.coco.json';
+    await common.exportDataset(settings, {
+      id: `${parentId}/left`,
+      path: output,
+      type: 'coco',
+      exclude: false,
+      typeFilter: new Set(),
+    });
+
+    const exported = await fs.readJSON(output);
+    expect(exported.categories).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'shark', supercategory: 'fish' }),
+    ]));
+
+    const corruptParent = await fs.readJSON(parentDir.datasetFileAbsPath);
+    corruptParent.typeHierarchy = { fish: 'fish' };
+    await fs.writeJSON(parentDir.datasetFileAbsPath, corruptParent);
+    await fs.remove(output);
+    await expect(common.exportDataset(settings, {
+      id: `${parentId}/left`,
+      path: output,
+      type: 'coco',
+      exclude: false,
+      typeFilter: new Set(),
+    })).rejects.toThrow(
+      'Type hierarchy is invalid: self edge "fish -> fish". '
+      + 'No COCO file was exported.',
+    );
+    expect(await fs.pathExists(output)).toBe(false);
+  });
+
   it('loadJsonConfig parses per-camera frame timestamps for multicam datasets', async () => {
     const data = await common.loadConfig(settings, 'stereoDataset', urlMapper);
     expect(data.multiCamMedia).not.toBeNull();

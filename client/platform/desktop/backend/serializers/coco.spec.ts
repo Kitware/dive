@@ -258,6 +258,7 @@ describe('COCO serializer', () => {
       'dive_detection_attributes',
       'dive_track_attributes',
       'dive_notes',
+      'dive_confidence_pairs',
     ]);
     expect(out.annotations).toHaveLength(1);
     expect(out.annotations[0].dive_detection_attributes).toEqual({ visibility: 'poor' });
@@ -572,6 +573,76 @@ describe('COCO serializer', () => {
     const [parsed, , warnings] = await parseFile('/input/duplicate-prob.json');
     expect(parsed.tracks[9].confidencePairs).toEqual([['fish', 1]]);
     expect(warnings).toEqual([PROB_DUPLICATE_CATEGORY_WARNING]);
+  });
+
+  it('exports deterministic KWCOCO categories, hierarchy, and exact sparse confidence pairs', async () => {
+    const source: AnnotationSchema = {
+      version: AnnotationsCurrentVersion,
+      groups: {},
+      tracks: {
+        4: {
+          id: 4,
+          begin: 0,
+          end: 0,
+          confidencePairs: [['root', 0], ['leaf', 0.8]],
+          attributes: {},
+          features: [{ frame: 0, bounds: [0, 0, 4, 4] }],
+        },
+      },
+    };
+    const originalPairs = source.tracks[4].confidencePairs.map(([name, score]) => [name, score]);
+    await serializeFile('/output/kwcoco.json', source, {
+      ...imageMeta,
+      typeHierarchy: { leaf: 'root', shark: 'fish' },
+    });
+    const out = await fs.readJSON('/output/kwcoco.json');
+    expect(out.categories).toEqual([
+      expect.objectContaining({ id: 1, name: 'root' }),
+      expect.objectContaining({ id: 2, name: 'leaf', supercategory: 'root' }),
+      expect.objectContaining({ id: 3, name: 'shark', supercategory: 'fish' }),
+      expect.objectContaining({ id: 4, name: 'fish' }),
+    ]);
+    expect(out.info.dive_extensions).toContain('dive_confidence_pairs');
+    expect(out.annotations[0]).toMatchObject({
+      category_id: 2,
+      score: 0.8,
+      prob: [0, 0.8, 0, 0],
+      dive_confidence_pairs: [['root', 0], ['leaf', 0.8]],
+    });
+    expect(source.tracks[4].confidencePairs).toEqual(originalPairs);
+
+    await fs.writeJSON('/input/kwcoco.json', out);
+    const [parsed] = await parseFile('/input/kwcoco.json');
+    expect(parsed.tracks[4].confidencePairs).toEqual([['root', 0], ['leaf', 0.8]]);
+  });
+
+  it('filters the raw exported pair vector without mutating its source track', async () => {
+    const source: AnnotationSchema = {
+      version: AnnotationsCurrentVersion,
+      groups: {},
+      tracks: {
+        4: {
+          id: 4,
+          begin: 0,
+          end: 0,
+          confidencePairs: [['root', 0.2], ['leaf', 0.8]],
+          attributes: {},
+          features: [{ frame: 0, bounds: [0, 0, 4, 4] }],
+        },
+      },
+    };
+    await serializeFile('/output/filtered.json', source, {
+      ...imageMeta,
+      typeHierarchy: { leaf: 'root' },
+    }, new Set(['leaf']));
+    const out = await fs.readJSON('/output/filtered.json');
+    expect(out.annotations[0].dive_confidence_pairs).toEqual([['leaf', 0.8]]);
+    expect(out.annotations[0].prob).toEqual([0.8, 0]);
+    expect(source.tracks[4].confidencePairs).toEqual([['root', 0.2], ['leaf', 0.8]]);
+
+    await fs.writeJSON('/input/filtered.json', out);
+    const [parsed] = await parseFile('/input/filtered.json');
+    expect(parsed.tracks[4].confidencePairs).toEqual([['leaf', 0.8]]);
   });
 });
 
