@@ -439,26 +439,40 @@ export default defineComponent({
     const sharedColorsEnabled = () => (
       clientSettings.typeSettings.colorScope !== 'dataset' && !!saveGlobalStyleSettings
     );
-    function persistGlobalStyles() {
-      if (!sharedColorsEnabled() || !saveGlobalStyleSettings) {
+    /**
+     * Mirror the managers' current overrides into the in-memory shared store
+     * immediately. Must run at edit time (not inside the debounced write): if
+     * we waited until persist fired, a dataset switch could replace
+     * customStyles via populateTypeStyles and drop the user's edit.
+     */
+    function mirrorCurrentStylesToGlobal() {
+      if (!sharedColorsEnabled()) {
         return;
       }
-      // Merge current explicit overrides into the shared store so choices made
-      // here extend rather than replace styles set on other sequences.
       globalTypeStyles.value = {
         ...globalTypeStyles.value, ...trackStyleManager.customStyles.value,
       };
       globalGroupStyles.value = {
         ...globalGroupStyles.value, ...groupStyleManager.customStyles.value,
       };
+    }
+    /** Debounced I/O only — reads the already-mirrored global* refs. */
+    function persistGlobalStyles() {
+      if (!sharedColorsEnabled() || !saveGlobalStyleSettings) {
+        return;
+      }
       saveGlobalStyleSettings({
         customTypeStyling: globalTypeStyles.value,
         customGroupStyling: globalGroupStyles.value,
       });
     }
     const scheduleGlobalStylePersist = debounce(persistGlobalStyles, 500);
-    trackStyleManager.onStyleEdit = scheduleGlobalStylePersist;
-    groupStyleManager.onStyleEdit = scheduleGlobalStylePersist;
+    function onStyleEdit() {
+      mirrorCurrentStylesToGlobal();
+      scheduleGlobalStylePersist();
+    }
+    trackStyleManager.onStyleEdit = onStyleEdit;
+    groupStyleManager.onStyleEdit = onStyleEdit;
 
     const cameraStore = new CameraStore({ markChangesPending });
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
@@ -1420,6 +1434,9 @@ export default defineComponent({
     /** Trigger data load */
     const loadData = async () => {
       try {
+        // Flush any pending shared-style write before this load replaces the
+        // in-memory global* refs / manager customStyles (see onStyleEdit).
+        scheduleGlobalStylePersist.flush();
         // Close and reset sideBar
         context.resetActive();
         const meta = await loadMetadata(datasetId.value);
@@ -1474,8 +1491,11 @@ export default defineComponent({
           groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
         }
         if (loadedGlobalStyles) {
-          trackFilters.importTypes(Object.keys(globalTypeStyles.value), false);
-          groupFilters.importTypes(Object.keys(globalGroupStyles.value), false);
+          // Do not importTypes() for shared keys: that would list every
+          // historically colored type as an empty type in this dataset.
+          // Shared styles are already in the StyleManagers above, so when a
+          // type later appears (track created, or added manually) it picks up
+          // the matching shared color automatically.
           // Seed the shared store with dataset styles it doesn't already have,
           // without overwriting the user's existing shared choices.
           const seededType = Object.keys(meta.customTypeStyling ?? {})
@@ -1777,6 +1797,7 @@ export default defineComponent({
       Object.values(debouncedApplyUrlsByCam).forEach((fn) => fn.cancel());
       debouncedFetchHistogram.cancel();
       Object.values(debouncedSaves).forEach((fn) => fn.flush());
+      scheduleGlobalStylePersist.flush();
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
