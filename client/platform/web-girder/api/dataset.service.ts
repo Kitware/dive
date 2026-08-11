@@ -5,7 +5,8 @@ import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  DatasetConfigMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  DatasetConfigMutable, DatasetType, FrameImage, GlobalStyleSettings,
+  SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import {
   calibrationFileMarker, frameMetadataFileMarker, jsonCalibrationFileMarker,
@@ -213,6 +214,32 @@ async function saveAttributeTrackFilters(
 async function saveConfig(datasetId: string, config: DatasetConfigMutable) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}`, config);
+}
+
+// Cross-dataset "shared" color/style overrides. Persisted in localStorage,
+// consistent with how the web client already stores user preferences
+// (clientSettings). This scopes shared colors to the current user/browser.
+const GlobalStyleSettingsKey = 'DIVE.globalStyleSettings';
+
+function loadGlobalStyleSettings(): Promise<GlobalStyleSettings> {
+  try {
+    const raw = window.localStorage.getItem(GlobalStyleSettingsKey);
+    const data = raw ? JSON.parse(raw) : {};
+    return Promise.resolve({
+      customTypeStyling: data.customTypeStyling ?? {},
+      customGroupStyling: data.customGroupStyling ?? {},
+    });
+  } catch {
+    return Promise.resolve({});
+  }
+}
+
+function saveGlobalStyleSettings(settings: GlobalStyleSettings): Promise<unknown> {
+  window.localStorage.setItem(GlobalStyleSettingsKey, JSON.stringify({
+    customTypeStyling: settings.customTypeStyling ?? {},
+    customGroupStyling: settings.customGroupStyling ?? {},
+  }));
+  return Promise.resolve();
 }
 
 /**
@@ -477,6 +504,8 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   saveConfig,
+  loadGlobalStyleSettings,
+  saveGlobalStyleSettings,
   uploadCalibrationItem,
   uploadAndSetMetadataFile,
   uploadMetadataFileItem,

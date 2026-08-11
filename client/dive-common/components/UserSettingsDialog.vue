@@ -2,19 +2,31 @@
 import { defineComponent } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
+import type { GlobalStyleSettings } from 'dive-common/apispec';
+import SavedStylesEditor from './SavedStylesEditor.vue';
 
 export default defineComponent({
   name: 'UserSettingsDialog',
+  components: { SavedStylesEditor },
   props: {
     value: {
       type: Boolean,
       required: true,
     },
   },
-  setup() {
+  setup(_, { emit }) {
+    const colorScopeItems = [
+      { text: 'Shared across all data', value: 'shared' },
+      { text: 'Per dataset', value: 'dataset' },
+    ];
+    function onStylesChange(settings: GlobalStyleSettings) {
+      emit('styles-change', settings);
+    }
     return {
       clientSettings,
+      colorScopeItems,
       isDesktopRuntime: isDesktopRuntime(),
+      onStylesChange,
     };
   },
 });
@@ -23,17 +35,45 @@ export default defineComponent({
 <template>
   <v-dialog
     :value="value"
-    max-width="500"
+    max-width="560"
     @input="$emit('input', $event)"
   >
     <v-card>
       <v-card-title>User Settings</v-card-title>
       <v-card-text>
+        <v-select
+          v-model="clientSettings.typeSettings.colorScope"
+          :items="colorScopeItems"
+          color="primary"
+          item-color="primary"
+          class="my-0"
+          label="Type color scope"
+          :hint="isDesktopRuntime
+            ? 'Shared: reuse the same type/track colors across every sequence. '
+              + 'Per dataset: colors are saved only with the dataset they were set on. '
+              + 'Applies when a dataset is opened.'
+            : 'Shared: reuse your type/track colors across every dataset. '
+              + 'Per dataset: colors are saved only with the dataset they were set on. '
+              + 'Applies when a dataset is opened.'"
+          persistent-hint
+          dense
+          outlined
+        />
+
+        <v-divider class="my-4" />
+
+        <SavedStylesEditor
+          :active="value"
+          @change="onStylesChange"
+        />
+
+        <v-divider class="my-4" />
+
         <v-switch
           v-if="isDesktopRuntime"
           v-model="clientSettings.multiCamSettings.showToolbar"
           color="primary"
-          class="my-0"
+          class="my-0 mt-3"
           label="Show multi-camera toolbar"
           hint="Show multi-camera tools in the top toolbar when a track is selected."
           persistent-hint

@@ -4,7 +4,7 @@ import type {
   DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
-  DatasetCalibrationResult, FrameMetadataSourcesResponse,
+  DatasetCalibrationResult, GlobalStyleSettings, FrameMetadataSourcesResponse,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
@@ -691,6 +691,14 @@ function getLastCalibration(): Promise<string | null> {
   return window.diveDesktop.invoke('get-last-calibration');
 }
 
+function loadGlobalStyleSettings(): Promise<GlobalStyleSettings> {
+  return window.diveDesktop.invoke('load-global-style-settings');
+}
+
+function saveGlobalStyleSettings(settings: GlobalStyleSettings): Promise<unknown> {
+  return window.diveDesktop.invoke('save-global-style-settings', settings);
+}
+
 function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
   return window.diveDesktop.invoke('save-calibration', { path });
 }
@@ -788,6 +796,8 @@ export {
   cancelJob,
   getLastCalibration,
   saveCalibration,
+  loadGlobalStyleSettings,
+  saveGlobalStyleSettings,
   importCalibrationFile,
   exportCalibrationFile,
   exportCameraRegistration,

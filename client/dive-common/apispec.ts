@@ -273,6 +273,18 @@ interface DatasetConfigMutable {
 }
 const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
 /**
+ * Cross-dataset color/style overrides, reused across every dataset when the
+ * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
+ * On desktop this is one store shared across all sequences; on web it is
+ * scoped to the current user/browser.
+ * Entries may include sourceDatasetId / sourceDatasetName provenance on
+ * CustomStyle (ignored for rendering; used by the Saved Styles UI).
+ */
+interface GlobalStyleSettings {
+  customTypeStyling?: Record<string, CustomStyle>;
+  customGroupStyling?: Record<string, CustomStyle>;
+}
+/**
  * Mutable keys the multicam/stereo viewer loads from the parent dataset.
  * Camera-targeted imports sync only these onto the parent — not per-camera
  * imageEnhancements, and not camera registration (homographies / correspondences /
@@ -450,6 +462,14 @@ interface Api {
   downloadCalibration?(datasetId: string): Promise<void>;
   /** Remove the calibration file currently associated with the dataset. */
   deleteCalibration?(datasetId: string): Promise<void>;
+  /**
+   * Load the cross-dataset "shared" color/style overrides. Desktop reads one
+   * store shared across all sequences; web reads the current user/browser's
+   * store. Absent on platforms that don't support shared colors.
+   */
+  loadGlobalStyleSettings?(): Promise<GlobalStyleSettings>;
+  /** Persist the cross-dataset "shared" color/style overrides. */
+  saveGlobalStyleSettings?(settings: GlobalStyleSettings): Promise<unknown>;
 }
 const ApiSymbol = Symbol('api');
 
@@ -646,6 +666,7 @@ export {
   DatasetConfigMutableKeys,
   DatasetInfoFields,
   MulticamSharedMutableKeys,
+  GlobalStyleSettings,
   DatasetType,
   DiveParam,
   CameraCalibration,

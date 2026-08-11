@@ -22,6 +22,7 @@ import {
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
+import type { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
@@ -66,7 +67,9 @@ import type {
   StereoSegmentationFinalizeParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
-import { useApi, FrameImage, DatasetType } from 'dive-common/apispec';
+import {
+  useApi, FrameImage, DatasetType, GlobalStyleSettings,
+} from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
@@ -192,6 +195,7 @@ export default defineComponent({
     const videoUrl: Ref<Record<string, string>> = ref({});
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
+      loadGlobalStyleSettings, saveGlobalStyleSettings,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -425,6 +429,105 @@ export default defineComponent({
     const vuetify = inject('vuetify') as Vuetify;
     const trackStyleManager = new StyleManager({ markChangesPending, vuetify });
     const groupStyleManager = new StyleManager({ markChangesPending, vuetify });
+
+    /**
+     * Shared (cross-dataset) color/style overrides. When the "shared" color
+     * scope is enabled, these are loaded for every dataset and overlaid on top
+     * of the dataset's own styling, and any style the user edits is mirrored
+     * back so the same colors follow them to every sequence.
+     */
+    const globalTypeStyles: Ref<Record<string, CustomStyle>> = ref({});
+    const globalGroupStyles: Ref<Record<string, CustomStyle>> = ref({});
+    /** Dataset-only styles from the last load, used to re-merge after shared-style edits. */
+    const datasetTypeStyles: Ref<Record<string, CustomStyle>> = ref({});
+    const datasetGroupStyles: Ref<Record<string, CustomStyle>> = ref({});
+    const sharedColorsEnabled = () => (
+      clientSettings.typeSettings.colorScope !== 'dataset' && !!saveGlobalStyleSettings
+    );
+    /**
+     * Mirror the managers' current overrides into the in-memory shared store
+     * immediately. Must run at edit time (not inside the debounced write): if
+     * we waited until persist fired, a dataset switch could replace
+     * customStyles via populateTypeStyles and drop the user's edit.
+     * Optionally retag a single edited key with the current dataset as source.
+     */
+    function mirrorCurrentStylesToGlobal(change?: {
+      type: string;
+      action: 'update' | 'delete' | 'rename';
+      newType?: string;
+      kind?: 'type' | 'group';
+    }) {
+      if (!sharedColorsEnabled()) {
+        return;
+      }
+      globalTypeStyles.value = {
+        ...globalTypeStyles.value, ...trackStyleManager.customStyles.value,
+      };
+      globalGroupStyles.value = {
+        ...globalGroupStyles.value, ...groupStyleManager.customStyles.value,
+      };
+      if (!change || change.action === 'delete') {
+        return;
+      }
+      const key = change.action === 'rename' ? change.newType : change.type;
+      if (!key) {
+        return;
+      }
+      const store = change.kind === 'group' ? globalGroupStyles : globalTypeStyles;
+      const existing = store.value[key];
+      if (!existing) {
+        return;
+      }
+      store.value = {
+        ...store.value,
+        [key]: {
+          ...existing,
+          sourceDatasetId: datasetId.value,
+          sourceDatasetName: datasetName.value || existing.sourceDatasetName,
+        },
+      };
+    }
+    /** Debounced I/O only — reads the already-mirrored global* refs. */
+    function persistGlobalStyles() {
+      if (!sharedColorsEnabled() || !saveGlobalStyleSettings) {
+        return;
+      }
+      saveGlobalStyleSettings({
+        customTypeStyling: globalTypeStyles.value,
+        customGroupStyling: globalGroupStyles.value,
+      });
+    }
+    const scheduleGlobalStylePersist = debounce(persistGlobalStyles, 500);
+    function onStyleEdit(change?: {
+      type: string;
+      action: 'update' | 'delete' | 'rename';
+      newType?: string;
+    }, kind: 'type' | 'group' = 'type') {
+      mirrorCurrentStylesToGlobal(change ? { ...change, kind } : undefined);
+      scheduleGlobalStylePersist();
+    }
+    /**
+     * Apply edits from the Saved Styles manager so the open dataset picks them
+     * up without a reload. Shared scope re-merges dataset + shared; otherwise
+     * only the in-memory shared store is updated for the next shared-scope use.
+     */
+    function onGlobalStylesChange(settings: GlobalStyleSettings) {
+      globalTypeStyles.value = settings.customTypeStyling ?? {};
+      globalGroupStyles.value = settings.customGroupStyling ?? {};
+      if (!sharedColorsEnabled()) {
+        return;
+      }
+      trackStyleManager.populateTypeStyles({
+        ...datasetTypeStyles.value,
+        ...globalTypeStyles.value,
+      });
+      groupStyleManager.populateTypeStyles({
+        ...datasetGroupStyles.value,
+        ...globalGroupStyles.value,
+      });
+    }
+    trackStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'type');
+    groupStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'group');
 
     const cameraStore = new CameraStore({ markChangesPending });
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
@@ -1386,6 +1489,9 @@ export default defineComponent({
     /** Trigger data load */
     const loadData = async () => {
       try {
+        // Flush any pending shared-style write before this load replaces the
+        // in-memory global* refs / manager customStyles (see onStyleEdit).
+        scheduleGlobalStylePersist.flush();
         // Close and reset sideBar
         context.resetActive();
         const meta = await loadConfig(datasetId.value);
@@ -1404,13 +1510,102 @@ export default defineComponent({
           resetMulticamAlignment();
         }
         /* Otherwise, complete loading of the dataset */
-        trackStyleManager.populateTypeStyles(meta.customTypeStyling);
-        groupStyleManager.populateTypeStyles(meta.customGroupStyling);
+        /**
+         * When shared colors are enabled, overlay the cross-dataset styles on
+         * top of this dataset's own styling (shared wins on conflicts), and
+         * seed the shared store with any dataset styles it doesn't yet know so
+         * imported colors propagate to future sequences.
+         */
+        let loadedGlobalStyles = false;
+        datasetTypeStyles.value = meta.customTypeStyling ?? {};
+        datasetGroupStyles.value = meta.customGroupStyling ?? {};
+        if (sharedColorsEnabled() && loadGlobalStyleSettings) {
+          try {
+            const shared = await loadGlobalStyleSettings();
+            globalTypeStyles.value = shared.customTypeStyling ?? {};
+            globalGroupStyles.value = shared.customGroupStyling ?? {};
+            loadedGlobalStyles = true;
+          } catch (err) {
+            // Non-fatal: fall back to dataset-only styling.
+            globalTypeStyles.value = {};
+            globalGroupStyles.value = {};
+          }
+        }
+        trackStyleManager.populateTypeStyles(
+          loadedGlobalStyles
+            ? { ...(meta.customTypeStyling ?? {}), ...globalTypeStyles.value }
+            : meta.customTypeStyling,
+        );
+        groupStyleManager.populateTypeStyles(
+          loadedGlobalStyles
+            ? { ...(meta.customGroupStyling ?? {}), ...globalGroupStyles.value }
+            : meta.customGroupStyling,
+        );
         if (meta.customTypeStyling) {
           trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
         }
         if (meta.customGroupStyling) {
           groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
+        }
+        if (loadedGlobalStyles) {
+          // Do not importTypes() for shared keys: that would list every
+          // historically colored type as an empty type in this dataset.
+          // Shared styles are already in the StyleManagers above, so when a
+          // type later appears (track created, or added manually) it picks up
+          // the matching shared color automatically.
+          // Seed the shared store with dataset styles it doesn't already have,
+          // without overwriting the user's existing shared choices. Tag new
+          // entries (and backfill untagged ones) with this dataset so Saved
+          // Styles can show provenance.
+          const sourceId = datasetId.value;
+          const sourceName = meta.name;
+          let seeded = false;
+          const nextTypes = { ...globalTypeStyles.value };
+          Object.entries(meta.customTypeStyling ?? {}).forEach(([name, style]) => {
+            if (!(name in nextTypes)) {
+              nextTypes[name] = {
+                ...style,
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            } else if (!nextTypes[name].sourceDatasetId && !nextTypes[name].sourceDatasetName) {
+              nextTypes[name] = {
+                ...nextTypes[name],
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            }
+          });
+          const nextGroups = { ...globalGroupStyles.value };
+          Object.entries(meta.customGroupStyling ?? {}).forEach(([name, style]) => {
+            if (!(name in nextGroups)) {
+              nextGroups[name] = {
+                ...style,
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            } else if (!nextGroups[name].sourceDatasetId && !nextGroups[name].sourceDatasetName) {
+              nextGroups[name] = {
+                ...nextGroups[name],
+                sourceDatasetId: sourceId,
+                sourceDatasetName: sourceName,
+              };
+              seeded = true;
+            }
+          });
+          if (seeded) {
+            globalTypeStyles.value = nextTypes;
+            globalGroupStyles.value = nextGroups;
+            if (saveGlobalStyleSettings) {
+              saveGlobalStyleSettings({
+                customTypeStyling: globalTypeStyles.value,
+                customGroupStyling: globalGroupStyles.value,
+              });
+            }
+          }
         }
         if (meta.attributes) {
           loadAttributes(meta.attributes, { enableStereoLengthRender: meta.subType === 'stereo' });
@@ -1584,6 +1779,60 @@ export default defineComponent({
           imageEnhancementsByCamera.value[selectedCamera.value] ?? { ...defaultImageEnhancements },
         );
         syncPercentileStretchSupported(selectedCamera.value);
+        /**
+         * With shared colors, capture every type/group color present in this
+         * dataset (including ordinal defaults for types that were never
+         * hand-edited) into the shared store — not only the last edited one.
+         * Existing shared overrides win; new keys are tagged with this dataset.
+         */
+        if (loadedGlobalStyles) {
+          const sourceId = datasetId.value;
+          const sourceName = datasetName.value || meta.name;
+          const seedMissing = (
+            into: Record<string, CustomStyle>,
+            from: Record<string, CustomStyle>,
+          ) => {
+            let changed = false;
+            const next = { ...into };
+            Object.entries(from).forEach(([name, style]) => {
+              if (!(name in next)) {
+                next[name] = {
+                  ...style,
+                  sourceDatasetId: sourceId,
+                  sourceDatasetName: sourceName,
+                };
+                changed = true;
+              }
+            });
+            return { next, changed };
+          };
+          const typeSeed = seedMissing(
+            globalTypeStyles.value,
+            trackStyleManager.getTypeStyles(trackFilters.allTypes),
+          );
+          const groupSeed = seedMissing(
+            globalGroupStyles.value,
+            groupStyleManager.getTypeStyles(groupFilters.allTypes),
+          );
+          if (typeSeed.changed || groupSeed.changed) {
+            globalTypeStyles.value = typeSeed.next;
+            globalGroupStyles.value = groupSeed.next;
+            trackStyleManager.populateTypeStyles({
+              ...datasetTypeStyles.value,
+              ...globalTypeStyles.value,
+            });
+            groupStyleManager.populateTypeStyles({
+              ...datasetGroupStyles.value,
+              ...globalGroupStyles.value,
+            });
+            if (saveGlobalStyleSettings) {
+              saveGlobalStyleSettings({
+                customTypeStyling: globalTypeStyles.value,
+                customGroupStyling: globalGroupStyles.value,
+              });
+            }
+          }
+        }
         progress.loaded = true;
         fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
@@ -1692,6 +1941,7 @@ export default defineComponent({
       Object.values(debouncedApplyUrlsByCam).forEach((fn) => fn.cancel());
       debouncedFetchHistogram.cancel();
       Object.values(debouncedSaves).forEach((fn) => fn.flush());
+      scheduleGlobalStylePersist.flush();
       if (controlsRef.value) observer.unobserve(controlsRef.value.$el);
     });
 
@@ -1990,6 +2240,7 @@ export default defineComponent({
       progressValue,
       saveInProgress,
       showUserSettingsDialog,
+      onGlobalStylesChange,
       playbackComponent,
       recipes,
       segmentationRecipe,
@@ -2294,6 +2545,7 @@ export default defineComponent({
     <UserSettingsDialog
       :value="showUserSettingsDialog"
       @input="showUserSettingsDialog = $event"
+      @styles-change="onGlobalStylesChange"
     />
 
     <!-- Standard layout (left sidebar visible or hidden) -->

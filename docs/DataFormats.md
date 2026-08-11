@@ -172,6 +172,8 @@ This is a relatively simple example, and many optional fields are not included.
 This information provides the specification for an individual dataset.  It consists of the following.
 
 * Allowed types (or labels) and their appearances are defined by `customTypeStyling` and `customGroupStyling`.
+  * These fields are **per-dataset** styles in the portable Configuration File.
+  * Separately, when [Type color scope](UI-Type-List.md#type-color-scope-and-saved-styles) is **Shared**, DIVE also keeps a cross-dataset style store (Desktop: `global_style_settings.json` in the [data storage path](Dive-Desktop.md#data-storage-path); Web: browser `localStorage`). That shared store is not part of this Configuration JSON export format.
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
 * Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object.

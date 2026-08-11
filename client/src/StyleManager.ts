@@ -1,7 +1,7 @@
 import type Vuetify from 'vuetify';
 
 import {
-  ref, Ref, computed, set as VueSet,
+  ref, Ref, computed, set as VueSet, del as VueDel,
 } from 'vue';
 import * as d3 from 'd3';
 import { noop, merge } from 'lodash';
@@ -29,6 +29,20 @@ export interface CustomStyle {
   fill?: boolean;
   showLabel?: boolean;
   showConfidence?: boolean;
+  /**
+   * Provenance for shared/global styles (which dataset last contributed
+   * this override). Ignored for rendering; stripped from per-dataset meta saves.
+   */
+  sourceDatasetId?: string;
+  sourceDatasetName?: string;
+}
+
+/** Drop source-dataset provenance before writing into dataset metadata. */
+export function styleForDatasetSave(style: CustomStyle): CustomStyle {
+  const rest = { ...style };
+  delete rest.sourceDatasetId;
+  delete rest.sourceDatasetName;
+  return rest;
 }
 
 export interface TypeStyling {
@@ -40,9 +54,21 @@ export interface TypeStyling {
   annotationSetColor: (set: string) => string;
 }
 
+export type StyleEditChange = {
+  type: string;
+  action: 'update' | 'delete' | 'rename';
+  newType?: string;
+};
+
 interface UseStylingParams {
   markChangesPending: () => void;
   vuetify?: Vuetify;
+  /**
+   * Invoked after a user (or programmatic) style edit through updateTypeStyle.
+   * Used to mirror the change into a cross-dataset "shared color" store. Not
+   * called on populateTypeStyles (dataset load), only on genuine edits.
+   */
+  onStyleEdit?: (change?: StyleEditChange) => void;
 }
 
 /**
@@ -114,7 +140,9 @@ export default class StyleManager {
 
   markChangesPending: () => void;
 
-  constructor({ markChangesPending, vuetify }: UseStylingParams) {
+  onStyleEdit?: (change?: StyleEditChange) => void;
+
+  constructor({ markChangesPending, vuetify, onStyleEdit }: UseStylingParams) {
     this.revisionCounter = ref(1);
     this.customStyles = ref({} as Record<string, CustomStyle>);
     this.annotationSetStyles = ref({} as Record<string, CustomStyle>);
@@ -144,6 +172,7 @@ export default class StyleManager {
     this.stateStyles = { standard, selected, disabled };
     this.typeColors = d3.scaleOrdinal<string>().range(generateColors(10));
     this.markChangesPending = markChangesPending;
+    this.onStyleEdit = onStyleEdit;
     this.typeStyling = computed(() => {
       // establish dependency on revision counter
       if (this.revisionCounter.value) noop();
@@ -247,6 +276,46 @@ export default class StyleManager {
     VueSet(this.customStyles.value, type, merge(oldValue, value));
     this.revisionCounter.value += 1;
     this.markChangesPending();
+    if (this.onStyleEdit) {
+      this.onStyleEdit({ type, action: 'update' });
+    }
+  }
+
+  /**
+   * Remove a custom style override. Used by the saved-styles editor;
+   * does not remove annotation types from the type list.
+   */
+  deleteTypeStyle(type: string) {
+    if (!(type in this.customStyles.value)) {
+      return;
+    }
+    VueDel(this.customStyles.value, type);
+    this.revisionCounter.value += 1;
+    this.markChangesPending();
+    if (this.onStyleEdit) {
+      this.onStyleEdit({ type, action: 'delete' });
+    }
+  }
+
+  /**
+   * Rename a custom style key. Copies the override to the new name and
+   * removes the old key.
+   */
+  renameTypeStyle(oldType: string, newType: string) {
+    if (oldType === newType) {
+      return;
+    }
+    const value = this.customStyles.value[oldType];
+    if (!value) {
+      return;
+    }
+    VueSet(this.customStyles.value, newType, { ...value });
+    VueDel(this.customStyles.value, oldType);
+    this.revisionCounter.value += 1;
+    this.markChangesPending();
+    if (this.onStyleEdit) {
+      this.onStyleEdit({ type: oldType, action: 'rename', newType });
+    }
   }
 
   getTypeStyles(allTypes: Ref<readonly string[]>) {
@@ -255,7 +324,8 @@ export default class StyleManager {
     const savedTypeStyles = {} as Record<string, CustomStyle>;
     allTypes.value.forEach((name) => {
       if (!savedTypeStyles[name] && this.customStyles.value[name]) {
-        savedTypeStyles[name] = this.customStyles.value[name];
+        // Strip shared-store provenance so it is not written into dataset meta.
+        savedTypeStyles[name] = styleForDatasetSave(this.customStyles.value[name]);
       } else if (!savedTypeStyles[name]) { // Also save ordinal Colors as well
         savedTypeStyles[name] = { color: this.typeStyling.value.color(name) };
       }

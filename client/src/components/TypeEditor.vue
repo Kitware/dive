@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, PropType, reactive, toRef, watch,
+  computed, defineComponent, PropType, reactive, toRef, watch,
 } from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -20,9 +20,13 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    /**
+     * When omitted, the editor only updates StyleManager (rename/delete style
+     * keys) and does not touch annotation type lists. Used by SavedStylesEditor.
+     */
     filterControls: {
       type: Object as PropType<BaseFilterControls<Track | Group>>,
-      required: true,
+      default: undefined,
     },
     styleManager: {
       type: Object as PropType<StyleManager>,
@@ -32,12 +36,18 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** When true, Delete removes the style override rather than an empty type. */
+    styleOnly: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
     const typeStylingRef = props.styleManager.typeStyling;
     const trackFilters = props.filterControls;
-    const usedTypesRef = trackFilters.usedTypes;
+    const isStyleOnly = computed(() => props.styleOnly || !props.filterControls);
+    const usedTypesRef = computed(() => trackFilters?.usedTypes.value ?? []);
     const readOnlyMode = useReadOnlyMode();
     const cameraStore = useCameraStore();
     const { prompt } = usePrompt();
@@ -57,13 +67,17 @@ export default defineComponent({
 
     function acceptChanges() {
       if (data.editingType !== data.selectedType) {
-        const updatedTypeObj = {
-          currentType: data.selectedType,
-          newType: data.editingType,
-        };
-        trackFilters.updateTypeName(updatedTypeObj);
-        if (trackFilters instanceof TrackFilterControls) {
-          cameraStore.changeTrackTypes(updatedTypeObj);
+        if (isStyleOnly.value) {
+          props.styleManager.renameTypeStyle(data.selectedType, data.editingType);
+        } else if (trackFilters) {
+          const updatedTypeObj = {
+            currentType: data.selectedType,
+            newType: data.editingType,
+          };
+          trackFilters.updateTypeName(updatedTypeObj);
+          if (trackFilters instanceof TrackFilterControls) {
+            cameraStore.changeTrackTypes(updatedTypeObj);
+          }
         }
       }
       props.styleManager.updateTypeStyle({
@@ -81,13 +95,25 @@ export default defineComponent({
     }
 
     async function clickDeleteType(type: string) {
+      if (isStyleOnly.value) {
+        const result = await prompt({
+          title: 'Confirm',
+          text: `Do you want to delete the saved style for "${type}"?`,
+          confirm: true,
+        });
+        if (result) {
+          props.styleManager.deleteTypeStyle(type);
+          emit('close');
+        }
+        return;
+      }
       const text = `Do you want to delete this empty Type: ${type}`;
       const result = await prompt({
         title: 'Confirm',
         text,
         confirm: true,
       });
-      if (result) {
+      if (result && trackFilters) {
         trackFilters.deleteType(type);
         emit('close');
       }
@@ -109,6 +135,7 @@ export default defineComponent({
 
     return {
       data,
+      isStyleOnly,
       usedTypesRef,
       readOnlyMode,
       acceptChanges,
@@ -124,7 +151,7 @@ export default defineComponent({
   >
     <v-card>
       <v-card-title>
-        Editing Type
+        {{ isStyleOnly ? 'Editing Style' : 'Editing Type' }}
         <v-spacer />
         <v-btn
           icon
@@ -153,7 +180,9 @@ export default defineComponent({
               <v-text-field
                 v-model="data.editingType"
                 :disabled="readOnlyMode"
-                :label="readOnlyMode ? 'Type Name (disabled in ReadOnly Mode)' : 'Type Name'"
+                :label="readOnlyMode
+                  ? 'Type Name (disabled in ReadOnly Mode)'
+                  : (isStyleOnly ? 'Style Name' : 'Type Name')"
                 hide-details
               />
             </v-col>
@@ -231,28 +260,30 @@ export default defineComponent({
       </v-card-text>
       <v-card-actions class="">
         <v-tooltip
-          v-if="!group"
+          v-if="!group || isStyleOnly"
           open-delay="100"
           bottom
-          :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"
+          :color="(!isStyleOnly && usedTypesRef.includes(data.selectedType)) ? 'error' : ''"
         >
           <template #activator="{ on }">
             <div v-on="on">
               <v-btn
                 class="hover-show-child"
-                :disabled="usedTypesRef.includes(data.selectedType)"
+                :disabled="!isStyleOnly && usedTypesRef.includes(data.selectedType)"
                 small
                 color="error"
                 @click="clickDeleteType(data.selectedType)"
               >
-                Delete Type
+                {{ isStyleOnly ? 'Delete Style' : 'Delete Type' }}
               </v-btn>
             </div>
           </template>
           <span
             class="ma-0 pa-1"
           >
-            Only types without any annotations can be deleted.
+            {{ isStyleOnly
+              ? 'Remove this saved style override.'
+              : 'Only types without any annotations can be deleted.' }}
           </span>
         </v-tooltip>
         <v-spacer />

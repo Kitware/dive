@@ -16,7 +16,12 @@ The navigation bar is the row of controls at the very top of the window.
     * **Web-specific options** are documented in the [web download section](Web-Version.md#download-or-export-data)
 * ==:material-content-copy: Clone== is documented in the [web clone section](Web-Version.md#dataset-clones).
 * ==:material-help-circle: Help== provides mouse/keyboard shortcuts as well as a link to this documentation.
-* ==:material-content-save:== is used to save outstanding annotation changes and any custom styles applied to the different types.  Changes are not immediately committed and will instead update the save icon with a number badge indicating how many changes are outstanding.  Clicking this button will commit your changes and reset the count to zero.
+* ==:material-cog:== opens **User Settings**:
+    * **Type color scope** — reuse type/group colors across all datasets (**Shared**, the default) or keep them **Per dataset**. See [Type color scope and Saved Styles](UI-Type-List.md#type-color-scope-and-saved-styles).
+    * **Saved Styles** — browse, add, edit, and delete the shared type and group style overrides used when scope is Shared.
+    * **Auto-save annotations** — optionally save annotation changes after a delay.
+    * **Show multi-camera toolbar** (Desktop) — show multi-camera tools in the top toolbar when a track is selected.
+* ==:material-content-save:== is used to save outstanding annotation changes and any custom styles applied to the different types.  Changes are not immediately committed and will instead update the save icon with a number badge indicating how many changes are outstanding.  Clicking this button will commit your changes and reset the count to zero.  When type color scope is **Shared**, style edits are also mirrored to the shared style store (separately from this dataset save).
 
 ## Editing Bar
 
