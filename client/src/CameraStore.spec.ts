@@ -129,6 +129,18 @@ describe('CameraStore classification commands', () => {
     ]);
   });
 
+  it('renames one pair without applying assignment or acceptance semantics', () => {
+    const fixture = makeTwoCameraStore();
+    const result = fixture.store.renameTrackPair(TRACK_ID, 'shark', 'selachimorpha');
+
+    expectSynchronizedWrite(fixture, result, [
+      ['fish', 0.9],
+      ['selachimorpha', 0.7],
+      ['great white shark', 0.4],
+      ['bird', 0.2],
+    ]);
+  });
+
   it('rejects a classification command for a missing logical track', () => {
     const fixture = makeTwoCameraStore();
     expect(() => fixture.store.setTrackPairConfidence(99, 'fish', 1.0))

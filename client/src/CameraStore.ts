@@ -2,12 +2,6 @@ import {
   Ref, computed, shallowRef, triggerRef,
 } from 'vue';
 import { cloneDeep, uniq } from 'lodash';
-import type Track from './track';
-import type Group from './Group';
-import { AnnotationId, ConfidencePair } from './BaseAnnotation';
-import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
-import GroupStore from './GroupStore';
-import TrackStore from './TrackStore';
 import {
   acceptPairAsCorrect,
   compileHierarchy,
@@ -16,6 +10,12 @@ import {
   setPairConfidence,
   TypeHierarchyIndex,
 } from 'dive-common/typeHierarchy';
+import type Track from './track';
+import type Group from './Group';
+import { AnnotationId, ConfidencePair } from './BaseAnnotation';
+import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
+import GroupStore from './GroupStore';
+import TrackStore from './TrackStore';
 
 const FLAT_HIERARCHY_INDEX = compileHierarchy({});
 
@@ -316,6 +316,20 @@ export default class CameraStore {
 
   removeTrackPair(id: AnnotationId, type: string): ConfidencePair[] {
     return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type));
+  }
+
+  renameTrackPair(
+    id: AnnotationId,
+    currentType: string,
+    newType: string,
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(id, (pairs) => {
+      const current = pairs.find(([type]) => type === currentType);
+      if (!current) {
+        return pairs.map(([type, confidence]) => [type, confidence]);
+      }
+      return setPairConfidence(removePair(pairs, currentType), newType, current[1]);
+    });
   }
 
   removeTypes(id: AnnotationId, types: string[]) {

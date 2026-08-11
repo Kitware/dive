@@ -263,6 +263,9 @@ function makeMultiCamFixture(
     lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTrack: (id: AnnotationId, camera = 'left') => cameraStore.getTrack(id, camera),
     getTracks: (id: AnnotationId) => cameraStore.getTrackAll(id),
+    renameTrackPair: (id, currentType, newType) => (
+      cameraStore.renameTrackPair(id, currentType, newType)
+    ),
     groupFilterControls,
     setType: () => undefined,
     removeTypes: () => [],

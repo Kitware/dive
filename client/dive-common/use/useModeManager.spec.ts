@@ -60,6 +60,9 @@ function makeHarness() {
     lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTrack: (id: AnnotationId, camera = 'singleCam') => cameraStore.getTrack(id, camera),
     getTracks: (id: AnnotationId) => cameraStore.getTrackAll(id),
+    renameTrackPair: (id, currentType, newType) => (
+      cameraStore.renameTrackPair(id, currentType, newType)
+    ),
     groupFilterControls,
     setType: () => undefined,
     removeTypes: () => [],
@@ -197,6 +200,9 @@ function makeSingleCamHarness() {
     lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTrack: (id: AnnotationId, camera = 'singleCam') => cameraStore.getTrack(id, camera),
     getTracks: (id: AnnotationId) => cameraStore.getTrackAll(id),
+    renameTrackPair: (id, currentType, newType) => (
+      cameraStore.renameTrackPair(id, currentType, newType)
+    ),
     groupFilterControls,
     setType: () => undefined,
     removeTypes: () => [],

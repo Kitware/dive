@@ -111,6 +111,9 @@ function makeTrackFilterControls(markPending: MarkChangesPendingFilter = markCha
     lookupGroups: cameraStore.lookupGroups,
     getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
     getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
+    renameTrackPair: (id, currentType, newType) => (
+      cameraStore.renameTrackPair(id, currentType, newType)
+    ),
     setType: setTrackType,
     removeTypes,
   });
@@ -135,6 +138,9 @@ function makePairFixture(
     lookupGroups: cameraStore.lookupGroups,
     getTrack: (id, camera = 'singleCam') => cameraStore.getTrack(id, camera),
     getTracks: (id) => cameraStore.getTrackAll(id),
+    renameTrackPair: (id, currentType, newType) => (
+      cameraStore.renameTrackPair(id, currentType, newType)
+    ),
     setType: (id, type, confidence, current) => (
       cameraStore.setTrackType(id, type, confidence, current)
     ),
@@ -555,6 +561,16 @@ describe('useAnnotationFilters', () => {
     expect(groupFilters.configuredTypes.value).not.toContain('renamed group');
   });
 
+  it('renames a flat confidence-1 pair without collapsing the vector', () => {
+    const { cameraStore, filters } = makePairFixture([
+      [['leaf', 1], ['other', 0.4]],
+    ]);
+    filters.updateTypeName({ currentType: 'leaf', newType: 'fin' });
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([
+      ['fin', 1], ['other', 0.4],
+    ]);
+  });
+
   it('rewrites hierarchy, annotations, configured types, filters, and checks on rename', () => {
     const markPending = vi.fn();
     const { cameraStore, filters } = makePairFixture([[['leaf', 0.8], ['root', 0.7]]], markPending);
@@ -591,7 +607,7 @@ describe('useAnnotationFilters', () => {
     ]);
   });
 
-  it('preserves each camera confidence vector while renaming exact occurrences', () => {
+  it('renames from the canonical vector and synchronizes every camera', () => {
     const { cameraStore, filters } = makePairFixture([
       [['leaf', 1], ['root', 0.8]],
     ]);
@@ -606,8 +622,10 @@ describe('useAnnotationFilters', () => {
       ['fin', 1], ['root', 0.8],
     ]);
     expect(cameraStore.getTrack(0, 'right').confidencePairs).toEqual([
-      ['other', 0.6], ['fin', 0.4],
+      ['fin', 1], ['root', 0.8],
     ]);
+    expect(cameraStore.getTrack(0, 'singleCam').confidencePairs)
+      .not.toBe(cameraStore.getTrack(0, 'right').confidencePairs);
   });
 
   it('rejects invalid hierarchy renames before any mutation or pending event', () => {

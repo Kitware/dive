@@ -667,6 +667,9 @@ export default defineComponent({
       lookupGroups: cameraStore.lookupGroups,
       getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
       getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
+      renameTrackPair: (id, currentType, newType) => (
+        cameraStore.renameTrackPair(id, currentType, newType)
+      ),
       groupFilterControls: groupFilters,
       setType: setTrackType,
       removeTypes,
