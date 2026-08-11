@@ -444,5 +444,191 @@
       "passes": [false, true],
       "expectedIndex": 1
     }
+  ],
+  "reassignmentCases": [
+    {
+      "name": "unrelated type replaces the whole lineage",
+      "hierarchy": { "great white shark": "shark", "shark": "fish" },
+      "pairs": [["fish", 0.9], ["shark", 0.7], ["great white shark", 0.4], ["bird", 0.2]],
+      "replaceType": "shark",
+      "newType": "tuna",
+      "confidence": 0.7,
+      "expected": [["tuna", 0.7], ["bird", 0.2]]
+    },
+    {
+      "name": "descendant assignment keeps stored ancestors",
+      "hierarchy": { "great white shark": "shark", "shark": "fish" },
+      "pairs": [["fish", 0.9], ["shark", 0.7], ["great white shark", 0.4]],
+      "replaceType": "shark",
+      "newType": "great white shark",
+      "confidence": 0.7,
+      "expected": [["fish", 0.9], ["shark", 0.7], ["great white shark", 0.7]]
+    },
+    {
+      "name": "ancestor assignment drops deeper claims",
+      "hierarchy": { "great white shark": "shark", "shark": "fish" },
+      "pairs": [["fish", 0.9], ["shark", 0.7], ["great white shark", 0.4]],
+      "replaceType": "shark",
+      "newType": "fish",
+      "confidence": 0.7,
+      "expected": [["fish", 0.7]]
+    },
+    {
+      "name": "other branches survive in-branch assignment",
+      "hierarchy": { "cod": "fish", "shark": "fish", "tern": "bird" },
+      "pairs": [["cod", 0.8], ["shark", 0.6], ["tern", 0.3]],
+      "replaceType": "cod",
+      "newType": "shark",
+      "confidence": 0.8,
+      "expected": [["shark", 0.8], ["tern", 0.3]]
+    },
+    {
+      "name": "flat assignment replaces only the named pair",
+      "hierarchy": {},
+      "pairs": [["cod", 0.8], ["bird", 0.3]],
+      "replaceType": "cod",
+      "newType": "tuna",
+      "confidence": 0.8,
+      "expected": [["tuna", 0.8], ["bird", 0.3]]
+    },
+    {
+      "name": "absent replacement adds the new pair",
+      "hierarchy": { "great white shark": "shark", "shark": "fish" },
+      "pairs": [["bird", 0.5]],
+      "replaceType": "shark",
+      "newType": "tuna",
+      "confidence": 0.5,
+      "expected": [["bird", 0.5], ["tuna", 0.5]]
+    },
+    {
+      "name": "assignment confidence one retains unrelated claims",
+      "hierarchy": { "cod": "fish", "tern": "bird" },
+      "pairs": [["cod", 0.8], ["fish", 0.7], ["tern", 0.6]],
+      "replaceType": "cod",
+      "newType": "tuna",
+      "confidence": 1.0,
+      "expected": [["tuna", 1.0], ["tern", 0.6]]
+    }
+  ],
+  "acceptanceCases": [
+    {
+      "name": "accept leaf keeps stored ancestors",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish", "tern": "bird" },
+      "pairs": [["cod", 0.9], ["fish", 0.8], ["juvenile cod", 0.7], ["tern", 0.6]],
+      "acceptedType": "juvenile cod",
+      "expected": [["juvenile cod", 1.0], ["cod", 0.9], ["fish", 0.8]]
+    },
+    {
+      "name": "accept intermediate keeps ancestors and descendants",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish", "tern": "bird" },
+      "pairs": [["tern", 0.95], ["fish", 0.9], ["cod", 0.8], ["juvenile cod", 0.7]],
+      "acceptedType": "cod",
+      "expected": [["cod", 1.0], ["fish", 0.9], ["juvenile cod", 0.7]]
+    },
+    {
+      "name": "accept root keeps independently scored descendants",
+      "hierarchy": { "cod": "fish", "tuna": "fish", "tern": "bird" },
+      "pairs": [["tern", 0.95], ["cod", 0.9], ["tuna", 0.8], ["fish", 0.6]],
+      "acceptedType": "fish",
+      "expected": [["fish", 1.0], ["cod", 0.9], ["tuna", 0.8]]
+    },
+    {
+      "name": "accept does not synthesize missing ancestors",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["cod", 0.7], ["juvenile cod", 0.6], ["bird", 0.5]],
+      "acceptedType": "cod",
+      "expected": [["cod", 1.0], ["juvenile cod", 0.6]]
+    },
+    {
+      "name": "accept upserts an absent accepted node without ancestors",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["fish", 0.8], ["juvenile cod", 0.7], ["bird", 0.6]],
+      "acceptedType": "cod",
+      "expected": [["cod", 1.0], ["fish", 0.8], ["juvenile cod", 0.7]]
+    },
+    {
+      "name": "accept preserves non-monotone lineage scores",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["juvenile cod", 0.95], ["fish", 0.9], ["cod", 0.2]],
+      "acceptedType": "cod",
+      "expected": [["cod", 1.0], ["juvenile cod", 0.95], ["fish", 0.9]]
+    },
+    {
+      "name": "flat acceptance keeps only the accepted pair",
+      "hierarchy": {},
+      "pairs": [["cod", 0.8], ["bird", 0.7]],
+      "acceptedType": "cod",
+      "expected": [["cod", 1.0]]
+    }
+  ],
+  "pairConfidenceCases": [
+    {
+      "name": "confidence below one updates only one pair",
+      "pairs": [["cod", 0.8], ["fish", 0.7]],
+      "type": "cod",
+      "confidence": 0.99,
+      "expected": [["cod", 0.99], ["fish", 0.7]]
+    },
+    {
+      "name": "confidence one updates only one pair",
+      "pairs": [["cod", 0.8], ["fish", 0.7]],
+      "type": "cod",
+      "confidence": 1.0,
+      "expected": [["cod", 1.0], ["fish", 0.7]]
+    },
+    {
+      "name": "confidence upsert inserts a missing pair",
+      "pairs": [["fish", 0.7]],
+      "type": "cod",
+      "confidence": 0.8,
+      "expected": [["cod", 0.8], ["fish", 0.7]]
+    },
+    {
+      "name": "confidence update reorders by score",
+      "pairs": [["cod", 0.8], ["fish", 0.7]],
+      "type": "cod",
+      "confidence": 0.6,
+      "expected": [["fish", 0.7], ["cod", 0.6]]
+    },
+    {
+      "name": "equal confidence retains existing pair order before upsert",
+      "pairs": [["bird", 0.8], ["fish", 0.8]],
+      "type": "cod",
+      "confidence": 0.8,
+      "expected": [["bird", 0.8], ["fish", 0.8], ["cod", 0.8]]
+    },
+    {
+      "name": "confidence upsert coalesces duplicate names",
+      "pairs": [["cod", 0.8], ["fish", 0.7], ["cod", 0.6]],
+      "type": "cod",
+      "confidence": 0.5,
+      "expected": [["fish", 0.7], ["cod", 0.5]]
+    }
+  ],
+  "pairRemovalCases": [
+    {
+      "name": "exact removal leaves relatives and unrelated pairs",
+      "pairs": [["juvenile cod", 0.9], ["cod", 0.8], ["fish", 0.7], ["bird", 0.6]],
+      "type": "cod",
+      "expected": [["juvenile cod", 0.9], ["fish", 0.7], ["bird", 0.6]]
+    },
+    {
+      "name": "absent removal leaves values unchanged",
+      "pairs": [["cod", 0.8], ["fish", 0.7]],
+      "type": "bird",
+      "expected": [["cod", 0.8], ["fish", 0.7]]
+    },
+    {
+      "name": "removal deletes every duplicate exact pair",
+      "pairs": [["cod", 0.8], ["fish", 0.7], ["cod", 0.6]],
+      "type": "cod",
+      "expected": [["fish", 0.7]]
+    },
+    {
+      "name": "removing the only pair returns empty",
+      "pairs": [["cod", 1.0]],
+      "type": "cod",
+      "expected": []
+    }
   ]
 }

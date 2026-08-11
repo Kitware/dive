@@ -224,6 +224,20 @@ function ancestorsOf(index: TypeHierarchyIndex, type: string): readonly string[]
     : [];
 }
 
+function sortPairsByConfidence(
+  pairs: readonly (readonly [string, number])[],
+): [string, number][] {
+  return pairs
+    .map(([type, confidence]) => [type, confidence] as [string, number])
+    .sort((left, right) => right[1] - left[1]);
+}
+
+function inLineage(index: TypeHierarchyIndex, type: string, lineageType: string): boolean {
+  return type === lineageType
+    || ancestorsOf(index, lineageType).includes(type)
+    || ancestorsOf(index, type).includes(lineageType);
+}
+
 export function rewriteHierarchyType(
   hierarchy: TypeHierarchy,
   currentType: string,
@@ -262,6 +276,55 @@ export function rewriteHierarchyType(
     }
     throw error;
   }
+}
+
+// Assignment replaces the selected claim's lineage while retaining unrelated claims and the
+// stored ancestors still implied by the new type. No missing hierarchy members are synthesized.
+export function reassignPairs(
+  index: TypeHierarchyIndex,
+  pairs: readonly (readonly [string, number])[],
+  replaceType: string,
+  newType: string,
+  confidence: number,
+): [string, number][] {
+  const newAncestors = ancestorsOf(index, newType);
+  const retained = pairs.filter(([type]) => type !== newType
+    && (newAncestors.includes(type) || !inLineage(index, type, replaceType)));
+  return sortPairsByConfidence([...retained, [newType, confidence]]);
+}
+
+// Acceptance is deliberately distinct from assignment: it keeps only the accepted lineage and
+// changes only the accepted node's score. The accepted node itself is upserted, but absent
+// ancestors and descendants remain absent.
+export function acceptPairAsCorrect(
+  index: TypeHierarchyIndex,
+  pairs: readonly (readonly [string, number])[],
+  acceptedType: string,
+): [string, number][] {
+  return setPairConfidence(pairs, acceptedType, 1.0)
+    .filter(([type]) => inLineage(index, type, acceptedType));
+}
+
+// Confidence is data, not an instruction. In particular, 1.0 has no destructive behavior.
+export function setPairConfidence(
+  pairs: readonly (readonly [string, number])[],
+  type: string,
+  confidence: number,
+): [string, number][] {
+  return sortPairsByConfidence([
+    ...pairs.filter(([pairType]) => pairType !== type),
+    [type, confidence],
+  ]);
+}
+
+// Pair removal is exact; lineage, subtree, and hierarchy-node removal are separate operations.
+export function removePair(
+  pairs: readonly (readonly [string, number])[],
+  type: string,
+): [string, number][] {
+  return pairs
+    .filter(([pairType]) => pairType !== type)
+    .map(([pairType, confidence]) => [pairType, confidence]);
 }
 
 export function selectPairIndex(
