@@ -934,8 +934,9 @@ export default defineComponent({
           });
         }
       }
+      const typeHierarchyPatch = trackFilters.typeHierarchySavePatch();
       try {
-        await saveToServer({
+        const { canonicalConfigPersisted } = await saveToServer({
           customTypeStyling: trackStyleManager.getTypeStyles(
             trackFilters.usedPlusConfiguredTypes,
           ),
@@ -943,11 +944,17 @@ export default defineComponent({
           confidenceFilters: trackFilters.confidenceFilters.value,
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
-          ...trackFilters.typeHierarchySavePatch(),
+          ...typeHierarchyPatch,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
-        trackFilters.markTypeHierarchyPersisted();
+        if (canonicalConfigPersisted) {
+          trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+        }
       } catch (err) {
+        const saveResult = err as { canonicalConfigPersisted?: boolean };
+        if (saveResult.canonicalConfigPersisted) {
+          trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+        }
         let text = 'Unable to Save Data';
         const saveErr = err as { response?: { status?: number } };
         if (saveErr.response && saveErr.response.status === 403) {

@@ -66,7 +66,10 @@ export default function useSave(
     if (readonlyMode.value) {
       throw new Error('attempted to save in read only mode');
     }
+    const pendingSaveSnapshot = pendingSaveCount.value;
     const promiseList: Promise<unknown>[] = [];
+    let canonicalConfigScheduled = false;
+    let canonicalConfigPersisted = false;
     Object.entries(pendingChangeMaps).forEach(([camera, pendingChangeMap]) => {
       const saveId = camera === 'singleCam' ? datasetId.value : `${datasetId.value}/${camera}`;
       if (
@@ -90,15 +93,22 @@ export default function useSave(
           pendingChangeMap.delete.clear();
         }));
       }
-      if (datasetMeta && pendingChangeMap.meta > 0) {
+      const metadataSnapshot = pendingChangeMap.meta;
+      if (datasetMeta && metadataSnapshot > 0) {
         const cameraMeta = saveId === datasetId.value
           ? datasetMeta
           : Object.fromEntries(
             Object.entries(datasetMeta).filter(([key]) => key !== 'typeHierarchy'),
           );
+        if (saveId === datasetId.value) {
+          canonicalConfigScheduled = true;
+        }
         promiseList.push(saveConfig(saveId, cameraMeta).then(() => {
+          if (saveId === datasetId.value) {
+            canonicalConfigPersisted = true;
+          }
           // eslint-disable-next-line no-param-reassign
-          pendingChangeMap.meta = 0;
+          pendingChangeMap.meta = Math.max(0, pendingChangeMap.meta - metadataSnapshot);
         }));
       }
       if (pendingChangeMap.attributeUpsert.size || pendingChangeMap.attributeDelete.size) {
@@ -121,13 +131,26 @@ export default function useSave(
         }));
       }
     });
-    if (globalMetadataPending > 0 && datasetMeta) {
+    const globalMetadataSnapshot = globalMetadataPending;
+    if (globalMetadataSnapshot > 0 && datasetMeta) {
+      canonicalConfigScheduled = true;
       promiseList.push(saveConfig(datasetId.value, datasetMeta).then(() => {
-        globalMetadataPending = 0;
+        canonicalConfigPersisted = true;
+        globalMetadataPending = Math.max(0, globalMetadataPending - globalMetadataSnapshot);
       }));
     }
-    await Promise.all(promiseList);
-    pendingSaveCount.value = 0;
+    const results = await Promise.allSettled(promiseList);
+    const failed = results.find((result) => result.status === 'rejected') as
+      PromiseRejectedResult | undefined;
+    if (failed) {
+      const error = failed.reason instanceof Error
+        ? failed.reason
+        : new Error(String(failed.reason));
+      Object.assign(error, { canonicalConfigPersisted });
+      throw error;
+    }
+    pendingSaveCount.value = Math.max(0, pendingSaveCount.value - pendingSaveSnapshot);
+    return { canonicalConfigPersisted: canonicalConfigScheduled && canonicalConfigPersisted };
   }
 
   function markChangesPending(

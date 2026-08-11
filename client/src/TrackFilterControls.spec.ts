@@ -144,6 +144,14 @@ function makePairFixture(
 }
 
 describe('useAnnotationFilters', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    apiMocks.saveConfig.mockResolvedValue(undefined);
+    apiMocks.saveDetections.mockResolvedValue(undefined);
+    apiMocks.saveAttributes.mockResolvedValue(undefined);
+    apiMocks.saveAttributeTrackFilters.mockResolvedValue(undefined);
+  });
+
   afterEach(() => {
     clientSettings.typeSettings.preventCascadeTypes = false;
   });
@@ -202,7 +210,105 @@ describe('useAnnotationFilters', () => {
     const expected = { typeHierarchy: { foo: 'heading' } };
     expect(tf.typeHierarchySavePatch()).toEqual(expected);
     expect(tf.typeHierarchySavePatch()).toEqual(expected);
-    tf.markTypeHierarchyPersisted();
+    tf.markTypeHierarchyPersisted(expected);
+    expect(tf.typeHierarchySavePatch()).toEqual({});
+  });
+
+  it('keeps a hierarchy edit made while an earlier save was in flight', () => {
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy({ foo: 'root' });
+    tf.updateTypeName({ currentType: 'root', newType: 'heading' });
+
+    const inFlight = tf.typeHierarchySavePatch();
+    tf.updateTypeName({ currentType: 'heading', newType: 'later' });
+    tf.markTypeHierarchyPersisted(inFlight);
+
+    expect(tf.typeHierarchySavePatch()).toEqual({ typeHierarchy: { foo: 'later' } });
+  });
+
+  it('keeps a mid-flight hierarchy edit pending for the next config save', async () => {
+    const saveControls = useSave(ref('single-dataset'), ref(false));
+    const tf = makeTrackFilterControls(
+      saveControls.markChangesPending as MarkChangesPendingFilter,
+    );
+    tf.setTypeHierarchy({ foo: 'root' });
+    tf.updateTypeName({ currentType: 'root', newType: 'heading' });
+
+    let resolveFirstSave = () => {};
+    apiMocks.saveConfig
+      .mockImplementationOnce(() => new Promise<void>((resolve) => {
+        resolveFirstSave = resolve;
+      }))
+      .mockResolvedValue(undefined);
+    const firstPatch = tf.typeHierarchySavePatch();
+    const firstSave = saveControls.save(firstPatch);
+
+    tf.updateTypeName({ currentType: 'heading', newType: 'later' });
+    resolveFirstSave();
+    const firstResult = await firstSave;
+    if (firstResult.canonicalConfigPersisted) {
+      tf.markTypeHierarchyPersisted(firstPatch);
+    }
+
+    const secondPatch = { typeHierarchy: { foo: 'later' } };
+    expect(tf.typeHierarchySavePatch()).toEqual(secondPatch);
+    expect(saveControls.pendingSaveCount.value).toBe(1);
+    const hasUnsavedChanges = saveControls.pendingSaveCount.value > 0;
+    expect(hasUnsavedChanges).toBe(true);
+
+    const secondResult = await saveControls.save(tf.typeHierarchySavePatch());
+    if (secondResult.canonicalConfigPersisted) {
+      tf.markTypeHierarchyPersisted(secondPatch);
+    }
+    expect(apiMocks.saveConfig.mock.calls).toEqual([
+      ['single-dataset', firstPatch],
+      ['single-dataset', secondPatch],
+    ]);
+    expect(saveControls.pendingSaveCount.value).toBe(0);
+    expect(tf.typeHierarchySavePatch()).toEqual({});
+  });
+
+  it('does not acknowledge a dirty hierarchy during a detections-only save', async () => {
+    const saveControls = useSave(ref('single-dataset'), ref(false));
+    const tf = makeTrackFilterControls();
+    tf.setTypeHierarchy({ foo: 'root' });
+    tf.updateTypeName({ currentType: 'root', newType: 'heading' });
+    const patch = tf.typeHierarchySavePatch();
+    saveControls.markChangesPending({
+      action: 'upsert',
+      track: new Track(99, { confidencePairs: [['foo', 1]], features }),
+    });
+
+    const result = await saveControls.save(patch);
+    if (result.canonicalConfigPersisted) {
+      tf.markTypeHierarchyPersisted(patch);
+    }
+
+    expect(result.canonicalConfigPersisted).toBe(false);
+    expect(apiMocks.saveConfig).not.toHaveBeenCalled();
+    expect(tf.typeHierarchySavePatch()).toEqual(patch);
+  });
+
+  it('reports a completed hierarchy write when a parallel detection save fails', async () => {
+    const saveControls = useSave(ref('single-dataset'), ref(false));
+    const tf = makeTrackFilterControls(
+      saveControls.markChangesPending as MarkChangesPendingFilter,
+    );
+    tf.setTypeHierarchy({ foo: 'root' });
+    tf.updateTypeName({ currentType: 'root', newType: 'heading' });
+    const patch = tf.typeHierarchySavePatch();
+    saveControls.markChangesPending({
+      action: 'upsert',
+      track: new Track(99, { confidencePairs: [['foo', 1]], features }),
+    });
+    apiMocks.saveDetections.mockRejectedValueOnce(new Error('detection save failed'));
+
+    const error = await saveControls.save(patch).catch((reason) => reason);
+    if (error.canonicalConfigPersisted) {
+      tf.markTypeHierarchyPersisted(patch);
+    }
+
+    expect(error.canonicalConfigPersisted).toBe(true);
     expect(tf.typeHierarchySavePatch()).toEqual({});
   });
 
@@ -243,7 +349,7 @@ describe('useAnnotationFilters', () => {
       [datasetId, expected],
     ]);
 
-    tf.markTypeHierarchyPersisted();
+    tf.markTypeHierarchyPersisted(retryPatch);
     expect(saveControls.pendingSaveCount.value).toBe(0);
     expect(tf.typeHierarchySavePatch()).toEqual({});
   });

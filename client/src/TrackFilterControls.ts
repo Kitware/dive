@@ -1,5 +1,5 @@
 import { computed, Ref, ref } from 'vue';
-import { cloneDeep } from 'lodash';
+import { cloneDeep, isEqual } from 'lodash';
 import { clientSettings } from 'dive-common/store/settings';
 import {
   compileHierarchy,
@@ -15,6 +15,10 @@ import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from 
 import type Group from './Group';
 import type Track from './track';
 import { AttributeTrackFilter, trackIdPassesFilter, userDefinedVals } from './AttributeTrackFilterControls';
+
+export interface TypeHierarchySavePatch {
+  typeHierarchy?: Record<string, string> | null;
+}
 
 interface TrackFilterControlsParams extends FilterControlsParams<Track> {
   lookupGroups: (annotationId: AnnotationId) => Group[];
@@ -247,6 +251,16 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
   updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     if (!this.hierarchyActive.value) {
       super.updateTypeName({ currentType, newType });
+      // The base pass walks the merged view, whose confidence vector can hide a type that an
+      // individual camera still carries. Rename those per-camera tracks too.
+      this.sorted.value.forEach((annotation) => {
+        this.getTracks(annotation.id).forEach((track) => {
+          const pair = track.confidencePairs.find(([name]) => name === currentType);
+          if (pair) {
+            track.setType(newType, pair[1], currentType);
+          }
+        });
+      });
       return;
     }
     const tracks = this.sorted.value.flatMap((annotation) => this.getTracks(annotation.id));
@@ -337,7 +351,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     return `The saved type hierarchy is invalid: ${this.invalidHierarchyReason.value}. Hierarchical type selection is disabled until the configuration is corrected.`;
   }
 
-  typeHierarchySavePatch(): { typeHierarchy?: Record<string, string> | null } {
+  typeHierarchySavePatch(): TypeHierarchySavePatch {
     if (!this.hierarchyDirty) {
       return {};
     }
@@ -347,8 +361,12 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     return { typeHierarchy: { ...(this.typeHierarchy.value || {}) } };
   }
 
-  markTypeHierarchyPersisted() {
-    this.hierarchyDirty = false;
+  // A save is asynchronous, so the hierarchy can be edited again while one is in flight. Only
+  // the state that was actually sent may be acknowledged; anything newer stays dirty.
+  markTypeHierarchyPersisted(persisted: TypeHierarchySavePatch) {
+    if (isEqual(this.typeHierarchySavePatch(), persisted)) {
+      this.hierarchyDirty = false;
+    }
   }
 
   loadTrackAttributesFilter(trackAttributesFilter: Readonly<AttributeTrackFilter[]>) {
