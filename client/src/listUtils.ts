@@ -15,7 +15,7 @@
  *                                              a positive number of a is greater than b.
  */
 function binarySearch(
-  arr: number[],
+  arr: readonly number[],
   el: number,
 ) {
   let m = 0;
@@ -74,7 +74,7 @@ function listRemove(
  * such that return[0] <= position and return[1] > position
  */
 function getSurroundingElements(
-  arr: number[],
+  arr: readonly number[],
   position: number,
 ): [number, number] | null {
   let starti = position;

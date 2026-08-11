@@ -1,5 +1,5 @@
 import {
-  Ref, computed, shallowRef, triggerRef,
+  ComputedRef, Ref, computed, shallowRef, triggerRef,
 } from 'vue';
 import { cloneDeep, uniq } from 'lodash';
 import {
@@ -16,6 +16,7 @@ import { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
 import GroupStore from './GroupStore';
 import TrackStore from './TrackStore';
+import { createTrackProjection, TrackProjection } from './TrackProjection';
 
 const FLAT_HIERARCHY_INDEX = compileHierarchy({});
 
@@ -42,10 +43,13 @@ export default class CameraStore {
 
   defaultGroup: [string, number];
 
+  private projectionCache: Map<AnnotationId, ComputedRef<TrackProjection | null>>;
+
   constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
     this.markChangesPending = markChangesPending;
     const cameraName = 'singleCam';
     this.defaultGroup = ['no-group', 1.0];
+    this.projectionCache = new Map();
     this.camMap = shallowRef(new Map([[cameraName, {
       trackStore: new TrackStore({ markChangesPending, cameraName }),
       groupStore: new GroupStore({ markChangesPending, cameraName }),
@@ -155,6 +159,45 @@ export default class CameraStore {
     return track;
   }
 
+  /**
+   * Each entry rebuilds when a replica in any camera changes, when replicas are
+   * inserted or removed, or when the camera set or order changes. Between edits,
+   * callers receive the same projection object, so it is a stable identity.
+   */
+  private cachedProjection(trackId: Readonly<AnnotationId>): ComputedRef<TrackProjection | null> {
+    const cached = this.projectionCache.get(trackId);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const entry = computed(() => {
+      const replicas: Track[] = [];
+      this.camMap.value.forEach(({ trackStore }) => {
+        if (trackStore.annotationIds.value.includes(trackId)) {
+          const track = trackStore.getPossible(trackId);
+          if (track) {
+            replicas.push(track);
+          }
+        }
+      });
+      if (replicas.length === 0) {
+        return null;
+      }
+      // An edit to any replica, not only the canonical one, invalidates this entry.
+      replicas.forEach((track) => track.revision.value);
+      return createTrackProjection(replicas);
+    });
+    this.projectionCache.set(trackId, entry);
+    return entry;
+  }
+
+  getTrackProjection(trackId: Readonly<AnnotationId>): TrackProjection {
+    const projection = this.cachedProjection(trackId).value;
+    if (projection === null) {
+      throw Error(`TrackId: ${trackId} is not found in any camera`);
+    }
+    return projection;
+  }
+
   getTracksMergedForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
     const track = this.getTracksMerged(trackId);
     return {
@@ -209,6 +252,7 @@ export default class CameraStore {
         }
       }
     });
+    this.projectionCache.delete(trackId);
   }
 
   getNewTrackId() {
@@ -227,6 +271,7 @@ export default class CameraStore {
       camera.trackStore.clearAll();
       camera.groupStore.clearAll();
     });
+    this.projectionCache.clear();
   }
 
   removeTracks(id: AnnotationId, cameraName = '') {
