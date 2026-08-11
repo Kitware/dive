@@ -20,6 +20,7 @@ export interface TrackProjection {
   readonly set?: string;
   getType(index?: number): Readonly<ConfidencePair>;
   getFeature(frame: number): readonly [Feature | null, Feature | null, Feature | null];
+  canSplit(frame: number): boolean;
   canInterpolate(frame: number): {
     features: InterpolateFeatures;
     interpolate: boolean;
@@ -101,6 +102,9 @@ export function createTrackProjection(tracks: readonly Track[]): TrackProjection
     },
     getFeature(frame) {
       return clonedFeatureResult(Track.getFeatureFrom(features, featureIndex, begin, end, frame));
+    },
+    canSplit(frame) {
+      return frame > begin && frame <= end;
     },
     canInterpolate(frame) {
       const result = clonedFeatureResult(

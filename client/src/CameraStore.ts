@@ -1,7 +1,7 @@
 import {
   ComputedRef, Ref, computed, shallowRef, triggerRef,
 } from 'vue';
-import { cloneDeep, uniq } from 'lodash';
+import { uniq } from 'lodash';
 import {
   acceptPairAsCorrect,
   compileHierarchy,
@@ -65,7 +65,7 @@ export default class CameraStore {
          * This allows the full range begin/end for the track across multiple cameras to
          * be displayed.
          */
-      return uniq(idList).map((id) => this.getTracksMergedForSorted(id));
+      return uniq(idList).map((id) => this.getTrackProjectionForSorted(id));
     });
     this.sortedGroups = computed(() => {
       let list: SortedAnnotation<Group>[] = [];
@@ -136,29 +136,6 @@ export default class CameraStore {
     return trackList;
   }
 
-  getTracksMerged(
-    trackId: Readonly<AnnotationId>,
-  ): Track {
-    if (this.camMap.value.size === 1) {
-      return this.getTrack(trackId);
-    }
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (!track && tempTrack) {
-        track = cloneDeep(tempTrack);
-      } else if (track && tempTrack) {
-        // Merge track bounds and data together
-        // We don't care about feature data just that features are at X frame
-        track.merge([tempTrack], true);
-      }
-    });
-    if (!track) {
-      throw Error(`TrackId: ${trackId} is not found in any camera`);
-    }
-    return track;
-  }
-
   /**
    * Each entry rebuilds when a replica in any camera changes, when replicas are
    * inserted or removed, or when the camera set or order changes. Between edits,
@@ -198,14 +175,18 @@ export default class CameraStore {
     return projection;
   }
 
-  getTracksMergedForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
+  getTrackProjectionForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
     const track = this.getTrackProjection(trackId);
+    // A projection's vector is read-only; sorted annotations declare a mutable one, so the
+    // caller gets a copy rather than a window onto stored evidence.
+    const confidencePairs = track.confidencePairs
+      .map(([type, confidence]) => [type, confidence] as ConfidencePair);
     return {
       id: track.id,
-      confidencePairs: track.confidencePairs,
+      confidencePairs,
       begin: track.begin,
       end: track.end,
-      getType: (index?: number) => (track.confidencePairs[index || 0][0] || 'unknown'),
+      getType: (index?: number) => (confidencePairs[index || 0]?.[0] || 'unknown'),
     };
   }
 
@@ -375,6 +356,78 @@ export default class CameraStore {
       }
       return setPairConfidence(removePair(pairs, currentType), newType, current[1]);
     });
+  }
+
+  setTrackNotes(id: AnnotationId, notes: string): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setFeatureNotes(track.begin, notes));
+  }
+
+  setTrackAttribute(
+    id: AnnotationId,
+    key: string,
+    value: unknown,
+    user: null | string = null,
+  ): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setAttribute(key, value, user));
+  }
+
+  setTrackFeatureAttribute(
+    id: AnnotationId,
+    frame: number,
+    key: string,
+    value: unknown,
+    user: null | string = null,
+  ): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setFeatureAttribute(frame, key, value, user));
+  }
+
+  setTrackFirstFeatureAttribute(
+    id: AnnotationId,
+    key: string,
+    value: unknown,
+    user: null | string = null,
+  ): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setFeatureAttribute(track.begin, key, value, user));
+  }
+
+  /**
+   * Keyframe and interpolation edits are camera-local geometry, but the row that triggers them
+   * comes from the all-camera projection, so the selected camera need not hold a replica.
+   */
+  private getTrackForCameraEdit(id: AnnotationId, cameraName: string): Track | undefined {
+    return this.getPossibleTrack(id, cameraName) ?? this.getAnyPossibleTrack(id);
+  }
+
+  toggleTrackKeyframe(id: AnnotationId, frame: number, cameraName: string): void {
+    this.getTrackForCameraEdit(id, cameraName)?.toggleKeyframe(frame);
+  }
+
+  toggleTrackInterpolation(id: AnnotationId, frame: number, cameraName: string): void {
+    this.getTrackForCameraEdit(id, cameraName)?.toggleInterpolation(frame);
+  }
+
+  toggleTrackInterpolationForAllGaps(
+    id: AnnotationId,
+    frame: number,
+    cameraName: string,
+  ): void {
+    this.getTrackForCameraEdit(id, cameraName)?.toggleInterpolationForAllGaps(frame);
   }
 
   removeTypes(id: AnnotationId, types: string[]) {

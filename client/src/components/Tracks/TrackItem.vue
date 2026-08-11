@@ -5,8 +5,8 @@ import {
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
 import SideBarTrackItemView from './sidebar/SideBarTrackItemView.vue';
 import BottomBarTrackItemView from './bottombar/BottomBarTrackItemView.vue';
-import { useTime } from '../../provides';
-import Track from '../../track';
+import { useCameraStore, useSelectedCamera, useTime } from '../../provides';
+import type { TrackProjection } from '../../TrackProjection';
 import useVuetify from '../../use/useVuetify';
 
 export default defineComponent({
@@ -28,7 +28,7 @@ export default defineComponent({
       required: true,
     },
     track: {
-      type: Object as PropType<Track>,
+      type: Object as PropType<TrackProjection>,
       required: true,
     },
     inputValue: {
@@ -80,32 +80,24 @@ export default defineComponent({
   setup(props, { emit }) {
     const vuetify = useVuetify();
     const { frame: frameRef } = useTime();
+    const cameraStore = useCameraStore();
+    const selectedCamera = useSelectedCamera();
 
     /**
-     * Use of revision is safe because it will only create a
-     * dependency when track is selected.  DO NOT use this computed
-     * value except inside if (props.selected === true) blocks!
+     * Recomputes when the track prop is rebuilt, which TrackList does whenever the annotation
+     * store notifies. DO NOT use this computed value except inside if (props.selected === true)
+     * blocks!
      */
     const feature = computed(() => {
-      if (props.track.revision.value) {
-        const { features, interpolate } = props.track.canInterpolate(frameRef.value);
-        const [real, lower, upper] = features;
-        return {
-          real,
-          lower,
-          upper,
-          shouldInterpolate: interpolate,
-          targetKeyframe: real?.keyframe ? real : (lower || upper),
-          isKeyframe: real?.keyframe,
-        };
-      }
+      const { features, interpolate } = props.track.canInterpolate(frameRef.value);
+      const [real, lower, upper] = features;
       return {
-        real: null,
-        lower: null,
-        upper: null,
-        targetKeyframe: null,
-        shouldInterpolate: false,
-        isKeyframe: false,
+        real,
+        lower,
+        upper,
+        shouldInterpolate: interpolate,
+        targetKeyframe: real?.keyframe ? real : (lower || upper),
+        isKeyframe: real?.keyframe,
       };
     });
 
@@ -133,16 +125,28 @@ export default defineComponent({
 
     function toggleKeyframe() {
       if (!keyframeDisabled.value) {
-        props.track.toggleKeyframe(frameRef.value);
+        cameraStore.toggleTrackKeyframe(
+          props.track.id,
+          frameRef.value,
+          selectedCamera.value,
+        );
       }
     }
 
     function toggleInterpolation() {
-      props.track.toggleInterpolation(frameRef.value);
+      cameraStore.toggleTrackInterpolation(
+        props.track.id,
+        frameRef.value,
+        selectedCamera.value,
+      );
     }
 
     function toggleAllInterpolation() {
-      props.track.toggleInterpolationForAllGaps(frameRef.value);
+      cameraStore.toggleTrackInterpolationForAllGaps(
+        props.track.id,
+        frameRef.value,
+        selectedCamera.value,
+      );
     }
 
     function clickToggleInterpolation(event: MouseEvent) {

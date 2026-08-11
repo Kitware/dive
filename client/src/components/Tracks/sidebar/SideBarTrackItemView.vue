@@ -3,7 +3,7 @@ import {
   computed, defineComponent, PropType, ref,
 } from 'vue';
 import context from 'dive-common/store/context';
-import Track from '../../../track';
+import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 import TooltipBtn from '../../TooltipButton.vue';
 import TypePicker from '../../TypePicker.vue';
 import {
@@ -24,7 +24,7 @@ export default defineComponent({
     trackType: { type: String, required: true },
     itemStyle: { type: Object, required: true },
     color: { type: String, required: true },
-    track: { type: Object as PropType<Track>, required: true },
+    track: { type: Object as PropType<TrackProjection>, required: true },
     inputValue: { type: Boolean, required: true },
     disabled: { type: Boolean, default: false },
     isTrack: { type: Boolean, required: true },
@@ -52,10 +52,6 @@ export default defineComponent({
     const editNotesValue = ref('');
 
     const currentNotes = computed(() => {
-      // Depend on revision so UI updates when notes change
-      if (props.track.revision.value === undefined) {
-        return '';
-      }
       const feature = props.track.features[props.track.begin];
       if (feature && feature.notes && feature.notes.length > 0) {
         return feature.notes.join(', ');
@@ -95,7 +91,7 @@ export default defineComponent({
 
     function saveNotes() {
       if (readOnlyMode.value) return;
-      props.track.setFeatureNotes(props.track.begin, editNotesValue.value.trim());
+      cameraStore.setTrackNotes(props.track.id, editNotesValue.value.trim());
       notesDialog.value = false;
     }
 

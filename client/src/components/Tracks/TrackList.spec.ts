@@ -9,7 +9,6 @@ import TrackList from './TrackList.vue';
 
 interface MockCameraStore {
   camMap: Ref<Map<string, { trackStore: undefined }>>;
-  getTracksMerged: (id: number) => Track | undefined;
   getTrackProjection: (id: number) => Track | undefined;
   getAnyPossibleTrack: (id: number) => Track | undefined;
 }
@@ -87,7 +86,6 @@ function mountList(
   };
   state.cameraStore = {
     camMap: ref(new Map([['singleCam', { trackStore: undefined }]])),
-    getTracksMerged: (id: number) => byId.get(id),
     getTrackProjection: (id: number) => byId.get(id),
     getAnyPossibleTrack: (id: number) => byId.get(id),
   };

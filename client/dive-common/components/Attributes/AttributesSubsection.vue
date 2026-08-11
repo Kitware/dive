@@ -111,22 +111,24 @@ export default defineComponent({
       attribute: Attribute,
     ) {
       if (selectedTrackIdRef.value !== null) {
-        // Tracks across all cameras get the same attributes set if they are linked
-        const tracks = cameraStore.getTrackAll(selectedTrackIdRef.value);
         let user: null | string = null;
         if (attribute && attribute.user) {
           user = props.user || null;
         }
-        if (tracks.length) {
-          let updatedValue = value;
-          if (attribute.datatype === 'number' && value !== undefined) {
-            updatedValue = parseFloat(value as string);
-          }
-          if (props.mode === 'Track') {
-            tracks.forEach((track) => track.setAttribute(name, updatedValue, user));
-          } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
-            tracks.forEach((track) => track.setFeatureAttribute(frameRef.value, name, updatedValue, user));
-          }
+        let updatedValue = value;
+        if (attribute.datatype === 'number' && value !== undefined) {
+          updatedValue = parseFloat(value as string);
+        }
+        if (props.mode === 'Track') {
+          cameraStore.setTrackAttribute(selectedTrackIdRef.value, name, updatedValue, user);
+        } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
+          cameraStore.setTrackFeatureAttribute(
+            selectedTrackIdRef.value,
+            frameRef.value,
+            name,
+            updatedValue,
+            user,
+          );
         }
       }
     }

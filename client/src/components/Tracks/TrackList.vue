@@ -332,7 +332,7 @@ export default defineComponent({
       );
       const trackType = confidencePair;
       const selected = item.selectedTrackId === item.filteredTrack.annotation.id;
-      const track = cameraStore.getTracksMerged(item.filteredTrack.annotation.id);
+      const track = cameraStore.getTrackProjection(item.filteredTrack.annotation.id);
       return {
         trackType,
         track,

@@ -31,6 +31,8 @@ function makeTwoCameraStore() {
   store.addCamera('right');
 
   const left = new Track(TRACK_ID, {
+    begin: 0,
+    end: 0,
     confidencePairs: confidencePairs([
       ['fish', 0.9],
       ['shark', 0.7],
@@ -40,6 +42,8 @@ function makeTwoCameraStore() {
     features: features(),
   });
   const right = new Track(TRACK_ID, {
+    begin: 0,
+    end: 0,
     confidencePairs: confidencePairs([
       ['rock', 0.95],
       ['shark', 0.1],
@@ -179,6 +183,27 @@ describe('CameraStore track projections', () => {
     expect(markChangesPending).not.toHaveBeenCalled();
   });
 
+  it('answers canSplit over the merged logical range', () => {
+    const markChangesPending = vi.fn();
+    const store = new CameraStore({ markChangesPending });
+    const trackFeatures = features();
+    trackFeatures[4] = { frame: 4, keyframe: true, bounds: [0, 0, 1, 1] };
+    const track = new Track(TRACK_ID, {
+      begin: 0,
+      end: 4,
+      confidencePairs: [['fish', 0.8]],
+      features: trackFeatures,
+    });
+    store.camMap.value.get('singleCam')?.trackStore.insert(track, { imported: true });
+
+    const projection = store.getTrackProjection(TRACK_ID);
+
+    [0, 1, 4, 5].forEach((frame) => {
+      expect(projection.canSplit(frame)).toBe(track.canSplit(frame));
+    });
+    expect(markChangesPending).not.toHaveBeenCalled();
+  });
+
   it('merges display data without mutating or notifying source tracks', () => {
     const markChangesPending = vi.fn();
     const store = new CameraStore({ markChangesPending });
@@ -299,5 +324,46 @@ describe('CameraStore projection cache', () => {
     const after = store.getTrackProjection(TRACK_ID);
     expect(after).not.toBe(before);
     expect(after.confidencePairs).toEqual(confidencePairs([['rock', 0.95], ['shark', 0.1]]));
+  });
+});
+
+describe('CameraStore track editor commands', () => {
+  it('writes notes and attributes to every replica through canonical tracks', () => {
+    const fixture = makeTwoCameraStore();
+
+    fixture.store.setTrackNotes(TRACK_ID, 'reviewed');
+    fixture.store.setTrackAttribute(TRACK_ID, 'quality', 'high');
+    fixture.store.setTrackFirstFeatureAttribute(TRACK_ID, 'occluded', true);
+
+    [fixture.left, fixture.right].forEach((track) => {
+      expect(track.features[track.begin].notes).toEqual(['reviewed']);
+      expect(track.attributes.quality).toBe('high');
+      expect(track.features[track.begin].attributes?.occluded).toBe(true);
+    });
+    expect(fixture.markChangesPending).toHaveBeenCalledTimes(6);
+    expect(fixture.markChangesPending.mock.calls.map(([change]) => change.cameraName))
+      .toEqual(['left', 'right', 'left', 'right', 'left', 'right']);
+  });
+
+  it('writes frame attributes to every replica at the declared frame', () => {
+    const fixture = makeTwoCameraStore();
+
+    fixture.store.setTrackFeatureAttribute(TRACK_ID, 0, 'reviewed', true);
+
+    expect(fixture.left.features[0].attributes?.reviewed).toBe(true);
+    expect(fixture.right.features[0].attributes?.reviewed).toBe(true);
+    expect(fixture.markChangesPending.mock.calls.map(([change]) => change.cameraName))
+      .toEqual(['left', 'right']);
+  });
+
+  it('targets geometry commands to one named camera', () => {
+    const fixture = makeTwoCameraStore();
+
+    fixture.store.toggleTrackInterpolation(TRACK_ID, 0, 'right');
+
+    expect(fixture.left.features[0].interpolate).toBeUndefined();
+    expect(fixture.right.features[0].interpolate).toBe(true);
+    expect(fixture.markChangesPending.mock.calls.map(([change]) => change.cameraName))
+      .toEqual(['right']);
   });
 });

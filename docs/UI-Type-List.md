@@ -28,6 +28,8 @@ Assigning a type to a track is hierarchy-aware. A type together with its ancesto
 
 **Accept as correct** is a separate command: it sets the accepted pair to `1.0`, keeps stored ancestors and descendants at their existing scores, and removes unrelated pairs. Editing a confidence value to `1.0` does not accept the type or remove any other pair.
 
+Track notes, track attributes, and first-detection attributes edited from a track row are logical-track values. They are written to every linked camera track, using each camera track's own first feature for feature-level values. Keyframe and interpolation controls edit geometry only in the selected camera.
+
 Hierarchy members remain ordinary flat Type List rows. A parent with no annotations or explicit style configuration is visible when **Show Empty** is enabled. The Type List does not render a tree or offer subtree controls or hierarchy editing.
 
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.

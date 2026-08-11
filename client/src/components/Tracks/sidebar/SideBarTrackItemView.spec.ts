@@ -5,7 +5,10 @@ import { shallowMount } from '@vue/test-utils';
 import Track from '../../../track';
 import SideBarTrackItemView from './SideBarTrackItemView.vue';
 
-const state = vi.hoisted(() => ({ assignTrackType: vi.fn() }));
+const state = vi.hoisted(() => ({
+  assignTrackType: vi.fn(),
+  setTrackNotes: vi.fn(),
+}));
 
 vi.mock('../../../provides', () => ({
   useHandler: () => ({ trackSeek: vi.fn(), removeTrack: vi.fn() }),
@@ -18,6 +21,7 @@ vi.mock('../../../provides', () => ({
   useCameraStore: () => ({
     camMap: ref(new Map([['singleCam', {}]])),
     assignTrackType: state.assignTrackType,
+    setTrackNotes: state.setTrackNotes,
   }),
   useTrackStyleManager: () => ({ typeStyling: ref({}) }),
 }));
@@ -47,7 +51,7 @@ function mountRow(props: Record<string, unknown>) {
 }
 
 describe('SideBarTrackItemView classification editing', () => {
-  beforeEach(() => state.assignTrackType.mockClear());
+  beforeEach(() => vi.clearAllMocks());
 
   it('routes assignment through the logical-track command', () => {
     const track = new Track(1, {
@@ -79,5 +83,37 @@ describe('SideBarTrackItemView classification editing', () => {
       hierarchyIndex: undefined,
       replaceType: 'leaf',
     });
+  });
+
+  it('routes notes through the logical-track command', () => {
+    const track = new Track(1, {
+      begin: 0,
+      end: 0,
+      confidencePairs: [['root', 0.9]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
+    });
+    const { vm } = mountRow({
+      selected: true,
+      trackType: 'root',
+      itemStyle: {},
+      color: '#fff',
+      track,
+      inputValue: true,
+      isTrack: false,
+      feature: {},
+      keyframeDisabled: true,
+      frame: 0,
+      toggleKeyframe: vi.fn(),
+      clickToggleInterpolation: vi.fn(),
+      toggleInterpolation: vi.fn(),
+      toggleAllInterpolation: vi.fn(),
+      gotoPrevious: vi.fn(),
+      gotoNext: vi.fn(),
+      editing: false,
+    });
+    vm.editNotesValue = ' reviewed ';
+    vm.saveNotes();
+
+    expect(state.setTrackNotes).toHaveBeenCalledWith(1, 'reviewed');
   });
 });
