@@ -89,7 +89,8 @@ export default defineComponent({
     const tab = ref(0);
     const search = ref('');
     const datasetFilter = ref(ALL_DATASETS_FILTER);
-    const selectedKeys = ref<string[]>([]);
+    /** Selection keyed as `${kind}:${name}`. Set avoids O(N²) checkbox array sync. */
+    const selectedKeys = ref(new Set<string>());
     const showEditor = ref(false);
     const showAdd = ref(false);
     const addName = ref('');
@@ -212,15 +213,32 @@ export default defineComponent({
       tab.value === 1 ? groupItems.value : typeItems.value
     ));
 
-    const selectedVisibleCount = computed(() => {
-      const visible = new Set(visibleItems.value.map(itemKey));
-      return selectedKeys.value.filter((k) => visible.has(k)).length;
-    });
+    const selectedVisibleCount = computed(() => (
+      visibleItems.value.reduce(
+        (count, item) => count + (selectedKeys.value.has(itemKey(item)) ? 1 : 0),
+        0,
+      )
+    ));
 
     const allVisibleSelected = computed(() => (
       visibleItems.value.length > 0
       && selectedVisibleCount.value === visibleItems.value.length
     ));
+
+    function isSelected(item: StyleListItem) {
+      return selectedKeys.value.has(itemKey(item));
+    }
+
+    function toggleSelected(item: StyleListItem) {
+      const key = itemKey(item);
+      const next = new Set(selectedKeys.value);
+      if (next.has(key)) {
+        next.delete(key);
+      } else {
+        next.add(key);
+      }
+      selectedKeys.value = next;
+    }
 
     function currentSettings(): GlobalStyleSettings {
       return {
@@ -255,7 +273,7 @@ export default defineComponent({
       loading.value = true;
       error.value = null;
       persistSuspended = true;
-      selectedKeys.value = [];
+      selectedKeys.value = new Set();
       try {
         const shared = await loadGlobalStyleSettings();
         typeStyleManager.populateTypeStyles(shared.customTypeStyling ?? {});
@@ -327,13 +345,13 @@ export default defineComponent({
       }
       const manager = item.kind === 'group' ? groupStyleManager : typeStyleManager;
       manager.deleteTypeStyle(item.name);
-      selectedKeys.value = selectedKeys.value.filter((k) => k !== itemKey(item));
+      const next = new Set(selectedKeys.value);
+      next.delete(itemKey(item));
+      selectedKeys.value = next;
     }
 
     async function deleteSelected() {
-      const visible = visibleItems.value;
-      const selected = new Set(selectedKeys.value);
-      const toDelete = visible.filter((item) => selected.has(itemKey(item)));
+      const toDelete = visibleItems.value.filter((item) => selectedKeys.value.has(itemKey(item)));
       if (!toDelete.length) {
         return;
       }
@@ -351,20 +369,20 @@ export default defineComponent({
         manager.deleteTypeStyle(item.name);
       });
       persistSuspended = false;
-      selectedKeys.value = selectedKeys.value.filter(
-        (k) => !toDelete.some((item) => itemKey(item) === k),
-      );
+      const next = new Set(selectedKeys.value);
+      toDelete.forEach((item) => next.delete(itemKey(item)));
+      selectedKeys.value = next;
       await persist();
     }
 
     function toggleSelectAllVisible() {
-      const keys = visibleItems.value.map(itemKey);
+      const next = new Set(selectedKeys.value);
       if (allVisibleSelected.value) {
-        const remove = new Set(keys);
-        selectedKeys.value = selectedKeys.value.filter((k) => !remove.has(k));
+        visibleItems.value.forEach((item) => next.delete(itemKey(item)));
       } else {
-        selectedKeys.value = Array.from(new Set([...selectedKeys.value, ...keys]));
+        visibleItems.value.forEach((item) => next.add(itemKey(item)));
       }
+      selectedKeys.value = next;
     }
 
     watch(() => props.active, (active) => {
@@ -404,6 +422,8 @@ export default defineComponent({
       activeManager,
       selectedVisibleCount,
       allVisibleSelected,
+      isSelected,
+      toggleSelected,
       itemKey,
       styleSourceLabel,
       openEdit,
@@ -530,21 +550,17 @@ export default defineComponent({
           </v-tabs>
 
           <div class="d-flex align-center px-1 py-1">
-            <v-checkbox
-              :input-value="allVisibleSelected"
+            <v-simple-checkbox
+              :value="allVisibleSelected"
               :indeterminate="selectedVisibleCount > 0 && !allVisibleSelected"
-              dense
-              hide-details
-              class="mt-0 pt-0 shrink"
+              :ripple="false"
+              class="mt-0 pt-0"
               :disabled="loading || (tab === 1 ? !groupItems.length : !typeItems.length)"
-              @click.prevent="toggleSelectAllVisible"
-            >
-              <template #label>
-                <span class="text-caption grey--text">
-                  Select all
-                </span>
-              </template>
-            </v-checkbox>
+              @input="toggleSelectAllVisible"
+            />
+            <span class="text-caption grey--text ml-1">
+              Select all
+            </span>
           </div>
 
           <v-tabs-items
@@ -559,18 +575,16 @@ export default defineComponent({
                 <v-list-item
                   v-for="item in typeItems"
                   :key="`type-${item.name}`"
-                  class="px-0"
+                  class="px-0 style-list-item"
                 >
-                  <v-list-item-action class="mr-1 my-0">
-                    <v-checkbox
-                      v-model="selectedKeys"
-                      :value="itemKey(item)"
-                      dense
-                      hide-details
-                      class="mt-0 pt-0"
+                  <v-list-item-action class="mr-1 style-list-action">
+                    <v-simple-checkbox
+                      :value="isSelected(item)"
+                      :ripple="false"
+                      @input="toggleSelected(item)"
                     />
                   </v-list-item-action>
-                  <v-list-item-icon class="mr-3 my-2">
+                  <v-list-item-icon class="mr-3 style-list-icon">
                     <div
                       class="color-swatch"
                       :style="{ backgroundColor: item.color }"
@@ -585,7 +599,7 @@ export default defineComponent({
                       {{ styleSourceLabel(item) }}
                     </v-list-item-subtitle>
                   </v-list-item-content>
-                  <v-list-item-action class="my-0 flex-row">
+                  <v-list-item-action class="style-list-action style-list-buttons">
                     <v-btn
                       icon
                       small
@@ -625,18 +639,16 @@ export default defineComponent({
                 <v-list-item
                   v-for="item in groupItems"
                   :key="`group-${item.name}`"
-                  class="px-0"
+                  class="px-0 style-list-item"
                 >
-                  <v-list-item-action class="mr-1 my-0">
-                    <v-checkbox
-                      v-model="selectedKeys"
-                      :value="itemKey(item)"
-                      dense
-                      hide-details
-                      class="mt-0 pt-0"
+                  <v-list-item-action class="mr-1 style-list-action">
+                    <v-simple-checkbox
+                      :value="isSelected(item)"
+                      :ripple="false"
+                      @input="toggleSelected(item)"
                     />
                   </v-list-item-action>
-                  <v-list-item-icon class="mr-3 my-2">
+                  <v-list-item-icon class="mr-3 style-list-icon">
                     <div
                       class="color-swatch"
                       :style="{ backgroundColor: item.color }"
@@ -651,7 +663,7 @@ export default defineComponent({
                       {{ styleSourceLabel(item) }}
                     </v-list-item-subtitle>
                   </v-list-item-content>
-                  <v-list-item-action class="my-0 flex-row">
+                  <v-list-item-action class="style-list-action style-list-buttons">
                     <v-btn
                       icon
                       small
@@ -745,6 +757,27 @@ export default defineComponent({
 .style-list {
   max-height: 280px;
   overflow-y: auto;
+}
+
+.style-list-item {
+  align-items: center;
+
+  ::v-deep .v-list-item__action,
+  ::v-deep .v-list-item__icon {
+    align-self: center;
+    margin-top: 0;
+    margin-bottom: 0;
+    height: auto;
+  }
+
+  ::v-deep .v-list-item__action {
+    display: flex;
+    align-items: center;
+  }
+
+  ::v-deep .style-list-buttons {
+    flex-direction: row;
+  }
 }
 
 .color-swatch {

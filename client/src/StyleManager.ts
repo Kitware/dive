@@ -39,11 +39,9 @@ export interface CustomStyle {
 
 /** Drop source-dataset provenance before writing into dataset metadata. */
 export function styleForDatasetSave(style: CustomStyle): CustomStyle {
-  const {
-    sourceDatasetId: _id,
-    sourceDatasetName: _name,
-    ...rest
-  } = style;
+  const rest = { ...style };
+  delete rest.sourceDatasetId;
+  delete rest.sourceDatasetName;
   return rest;
 }
 
