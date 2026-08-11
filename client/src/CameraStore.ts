@@ -275,13 +275,14 @@ export default class CameraStore {
 
   remove(trackId: AnnotationId, cameraName = '') {
     this.camMap.value.forEach((camera) => {
-      if (camera.trackStore.getPossible(trackId)) {
-        if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
-          camera.trackStore.remove(trackId);
-        }
-        if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
-          camera.groupStore.trackRemove(trackId);
-        }
+      if (
+        camera.trackStore.getPossible(trackId)
+        && (cameraName === '' || camera.trackStore.cameraName === cameraName)
+      ) {
+        camera.trackStore.remove(trackId);
+      }
+      if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
+        camera.groupStore.trackRemove(trackId);
       }
     });
     this.projectionCache.delete(trackId);

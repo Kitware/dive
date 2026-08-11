@@ -197,6 +197,31 @@ describe('CameraStore classification commands', () => {
       .toHaveLength(2);
   });
 
+  it('cleans stale group membership in a camera without a track replica', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([['fish', 0.9]]);
+    fixture.store.camMap.value.forEach(({ groupStore }) => {
+      groupStore.insert(new Group(3, {
+        members: {
+          [TRACK_ID]: { ranges: [[0, 0]] },
+          99: { ranges: [[0, 0]] },
+        },
+      }), { imported: true });
+    });
+    fixture.store.camMap.value.get('right')?.trackStore.remove(TRACK_ID, true);
+    fixture.markChangesPending.mockClear();
+
+    expect(fixture.store.removeTrackPair(TRACK_ID, 'fish')).toEqual([]);
+
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      expect(trackStore.getPossible(TRACK_ID)).toBeUndefined();
+      expect(groupStore.get(3).memberIds).toEqual([99]);
+      expect(groupStore.trackMap.get(TRACK_ID)).toEqual(new Set());
+    });
+    expect(fixture.markChangesPending.mock.calls.filter(([change]) => change.action === 'delete'))
+      .toHaveLength(1);
+  });
+
   it('deletes a final pair through the single-pair command', () => {
     const fixture = makeTwoCameraStore();
     fixture.left.setConfidencePairs([['fish', 0.9]]);
