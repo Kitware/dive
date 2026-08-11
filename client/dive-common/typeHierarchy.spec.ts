@@ -2,6 +2,7 @@ import fs from 'fs-extra';
 import {
   acceptPairAsCorrect,
   compileHierarchy,
+  mergePairs,
   normalizeTypeHierarchy,
   reassignPairs,
   removePair,
@@ -244,6 +245,51 @@ describe('type hierarchy index', () => {
     results.forEach((result) => {
       expect(result).not.toBe(pairs);
       result.forEach((pair) => expect(pairs).not.toContain(pair));
+    });
+  });
+});
+
+describe('pair merging', () => {
+  const cases: [Array<[string, number][]>, [string, number][]][] = [
+    [
+      [[['fish', 0.7], ['shark', 1.0]], [['fish', 0.9], ['bird', 0.4]]],
+      [['shark', 1.0], ['fish', 0.9], ['bird', 0.4]],
+    ],
+    [
+      [[['bird', 0.4], ['fish', 0.9]], [['shark', 1.0], ['fish', 0.7]]],
+      [['shark', 1.0], ['fish', 0.9], ['bird', 0.4]],
+    ],
+  ];
+
+  it.each(cases)(
+    'unions names and keeps the maximum duplicate score independent of input order',
+    (inputs, expected) => {
+      expect(mergePairs(inputs)).toEqual(expected);
+    },
+  );
+
+  it('uses deterministic type order for equal scores', () => {
+    expect(mergePairs([
+      [['tern', 0.8]],
+      [['cod', 0.8]],
+    ])).toEqual([
+      ['cod', 0.8],
+      ['tern', 0.8],
+    ]);
+  });
+
+  it('returns independent arrays and tuples without changing its inputs', () => {
+    const first: [string, number][] = [['fish', 0.7]];
+    const second: [string, number][] = [['shark', 1.0]];
+    const before = [first.map((pair) => [...pair]), second.map((pair) => [...pair])];
+
+    const result = mergePairs([first, second]);
+
+    expect([first, second]).toEqual(before);
+    expect(result).not.toBe(first);
+    result.forEach((pair) => {
+      expect(first).not.toContain(pair);
+      expect(second).not.toContain(pair);
     });
   });
 });

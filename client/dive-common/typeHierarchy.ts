@@ -327,6 +327,24 @@ export function removePair(
     .map(([pairType, confidence]) => [pairType, confidence]);
 }
 
+// Track merge combines stored evidence without invoking assignment or acceptance behavior.
+// Ties use code-point order so the result does not depend on track or camera iteration order.
+export function mergePairs(
+  pairLists: readonly (readonly (readonly [string, number])[])[],
+): [string, number][] {
+  const confidenceByType = new Map<string, number>();
+  pairLists.forEach((pairs) => {
+    pairs.forEach(([type, confidence]) => {
+      const current = confidenceByType.get(type);
+      if (current === undefined || confidence > current) {
+        confidenceByType.set(type, confidence);
+      }
+    });
+  });
+  return Array.from(confidenceByType.entries())
+    .sort((left, right) => (right[1] - left[1]) || codePointCompare(left[0], right[0]));
+}
+
 export function selectPairIndex(
   index: TypeHierarchyIndex,
   pairs: readonly (readonly [string, number])[],
