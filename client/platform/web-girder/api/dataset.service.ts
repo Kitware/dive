@@ -5,9 +5,12 @@ import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  DatasetConfigMutable, DatasetType, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  DatasetConfigMutable, DatasetType, FrameImage, GlobalStyleSettings,
+  SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
-import { calibrationFileMarker, jsonCalibrationFileMarker, metadataFileMarker } from 'dive-common/constants';
+import {
+  calibrationFileMarker, frameMetadataFileMarker, jsonCalibrationFileMarker,
+} from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
@@ -15,10 +18,6 @@ import { GirderConfigStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
-
-interface HTMLFile extends File {
-  webkitRelativePath?: string;
-}
 
 async function getDataset(datasetId: string) {
   const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
@@ -135,7 +134,35 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(datasetId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
+/**
+ * Girder's two-request upload to a folder: initialize the file, then push its single chunk.
+ * Resolves with the completed file document (which carries `itemId`, the id of the item
+ * Girder created for it) or null if either request did not succeed.
+ */
+async function uploadFileToFolder(parentId: string, file: File): Promise<{ itemId: string } | null> {
+  const resp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'folder',
+      parentId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type,
+    },
+  });
+  if (resp.status !== 200) {
+    return null;
+  }
+  const uploadResponse = await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: resp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  return uploadResponse.status === 200 ? uploadResponse.data : null;
+}
+
+async function importAnnotationFile(datasetId: string, path: string, file?: File, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
   if (file === undefined) {
     return false;
   }
@@ -143,34 +170,28 @@ async function importAnnotationFile(datasetId: string, path: string, file?: HTML
   // annotations land on the active camera; mutable config is synced to the
   // parent by server process_items (same behavior as desktop dataFileImport).
   const { folderId } = await resolveDatasetFolderId(datasetId);
-  const resp = await girderRest.post('/file', null, {
-    params: {
-      parentType: 'folder',
-      parentId: folderId,
-      name: file.name,
-      size: file.size,
-      mimeType: file.type,
-    },
-  });
-  if (resp.status === 200) {
-    const uploadResponse = await girderRest.post('file/chunk', file, {
-      params: {
-        uploadId: resp.data._id,
-        offset: 0,
-      },
-      headers: { 'Content-Type': 'application/octet-stream' },
-    });
-    if (uploadResponse.status === 200) {
-      const final = await postProcess(folderId, true, false, additive, additivePrepend, set);
-      if (final.data.warnings !== undefined) {
-        const { warnings } = final.data;
-        return warnings;
-      }
-
-      return final.status === 200;
-    }
+  const uploaded = await uploadFileToFolder(folderId, file);
+  if (uploaded === null) {
+    return false;
   }
-  return false;
+  const final = await postProcess(folderId, true, false, additive, additivePrepend, set);
+  if (final.data.warnings !== undefined) {
+    const { warnings } = final.data;
+    return warnings;
+  }
+  return final.status === 200;
+}
+
+/** Upload a metadata file into the dataset folder and declare it as the attachment. */
+async function uploadAndSetMetadataFile(
+  datasetId: string,
+  file: File,
+): Promise<void> {
+  const folderId = parentDatasetId(datasetId);
+  const itemId = await uploadMetadataFileItem(folderId, file);
+  await girderRest.post(`dive_dataset/${folderId}/metadata_file`, null, {
+    params: { itemId },
+  });
 }
 
 async function saveAttributes(datasetId: string, args: SaveAttributeArgs) {
@@ -189,6 +210,32 @@ async function saveAttributeTrackFilters(
 async function saveConfig(datasetId: string, config: DatasetConfigMutable) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}`, config);
+}
+
+// Cross-dataset "shared" color/style overrides. Persisted in localStorage,
+// consistent with how the web client already stores user preferences
+// (clientSettings). This scopes shared colors to the current user/browser.
+const GlobalStyleSettingsKey = 'DIVE.globalStyleSettings';
+
+function loadGlobalStyleSettings(): Promise<GlobalStyleSettings> {
+  try {
+    const raw = window.localStorage.getItem(GlobalStyleSettingsKey);
+    const data = raw ? JSON.parse(raw) : {};
+    return Promise.resolve({
+      customTypeStyling: data.customTypeStyling ?? {},
+      customGroupStyling: data.customGroupStyling ?? {},
+    });
+  } catch {
+    return Promise.resolve({});
+  }
+}
+
+function saveGlobalStyleSettings(settings: GlobalStyleSettings): Promise<unknown> {
+  window.localStorage.setItem(GlobalStyleSettingsKey, JSON.stringify({
+    customTypeStyling: settings.customTypeStyling ?? {},
+    customGroupStyling: settings.customGroupStyling ?? {},
+  }));
+  return Promise.resolve();
 }
 
 /**
@@ -247,7 +294,7 @@ async function importCameraRegistration(
   return summary;
 }
 
-export type UploadRole = 'media' | 'annotations' | 'datasetConfig' | 'ignored';
+export type UploadRole = 'media' | 'annotations' | 'datasetConfig' | 'frameMetadata' | 'ignored';
 
 /** Every validated filename under exactly one role. `ignored` is the files not accepted. */
 export type ValidatedUploadRoleMap = Record<UploadRole, string[]>;
@@ -350,16 +397,15 @@ async function uploadCalibrationItem(parentFolderId: string, file: File): Promis
 }
 
 /**
- * Upload an optional per-dataset metadata file as a marked Girder item in the
- * dataset (parent) folder and return its item id.
+ * Upload an optional per-dataset metadata file and return its item id.
  */
 async function uploadMetadataFileItem(parentFolderId: string, file: File): Promise<string> {
-  const metadataMeta = { [metadataFileMarker]: 'true' };
+  const frameMetadataMeta = { [frameMetadataFileMarker]: 'true' };
   const itemResp = await girderRest.post<GirderModel>('/item', null, {
     params: {
       folderId: parentFolderId,
       name: file.name,
-      metadata: JSON.stringify(metadataMeta),
+      metadata: JSON.stringify(frameMetadataMeta),
     },
   });
   const itemId = itemResp.data._id;
@@ -380,15 +426,8 @@ async function uploadMetadataFileItem(parentFolderId: string, file: File): Promi
     headers: { 'Content-Type': 'application/octet-stream' },
   });
   // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
-  await girderRest.put(`item/${itemId}/metadata`, metadataMeta);
+  await girderRest.put(`item/${itemId}/metadata`, frameMetadataMeta);
   return itemId;
-}
-
-/** Mark an already-uploaded metadata item as the dataset's metadata file. */
-function setDatasetMetadataFile(folderId: string, itemId: string) {
-  return girderRest.post(`dive_dataset/${folderId}/metadata_file`, null, {
-    params: { itemId },
-  });
 }
 
 function calibrationMarkerTruthy(meta: Record<string, unknown> | undefined, key: string): boolean {
@@ -461,8 +500,10 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   saveConfig,
+  loadGlobalStyleSettings,
+  saveGlobalStyleSettings,
   uploadCalibrationItem,
+  uploadAndSetMetadataFile,
   uploadMetadataFileItem,
-  setDatasetMetadataFile,
   validateUploadGroup,
 };

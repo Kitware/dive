@@ -281,6 +281,7 @@ class RpcResource(Resource):
         )
     )
     def convert_large_image(self, folder):
+        worker_capabilities.require_jobs_enabled()
         return crud_rpc.convert_large_image(self.getCurrentUser(), folder)
 
     @access.user

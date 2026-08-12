@@ -208,7 +208,11 @@ export default defineComponent({
       }
     }
     const { brandData } = useBrand();
-    const { pipelinesEnabled } = useConfig();
+    const {
+      pipelinesEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
+    } = useConfig();
     const { meta: datasetMeta, loadDataset } = useDataset();
     const jobs = useJobs();
     const { locationRoute } = useLocation();
@@ -224,7 +228,10 @@ export default defineComponent({
       return t ? [t as DatasetType] : [];
     });
     const subTypeList = computed((): SubType[] => [datasetMeta.value?.subType ?? null]);
-    const cameraNumbers = computed(() => [getMultiCamCameraCount(datasetMeta.value)]);
+    const cameraNumbers = computed(() => [getMultiCamCameraCount(datasetMeta.value ? {
+      type: datasetMeta.value.type,
+      multiCamMedia: datasetMeta.value.multiCamMedia ?? undefined,
+    } : undefined)]);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     // Track the active camera so single-camera pipelines target that folder
     // (parentId/cameraName), matching desktop ViewerLoader behavior.
@@ -428,6 +435,8 @@ export default defineComponent({
       cameraNumbers,
       timeFilter,
       pipelinesEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
       webExcludedPipelineTerms,
       calibrationFile,
       onCalibrationImported,
@@ -494,6 +503,8 @@ export default defineComponent({
           :read-only-mode="revisionNum !== undefined"
           :time-filter="timeFilter"
           :exclude-pipeline-terms="webExcludedPipelineTerms"
+          :jobs-disabled="jobsDisabled"
+          :jobs-disabled-message="jobsDisabledMessage"
         />
         <ImportAnnotations
           :button-options="buttonOptions"

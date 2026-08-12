@@ -137,12 +137,13 @@ export default function useAlignedNavigation(
     const matrix = alignedView.cameraTransform(camera);
     let bounds = native;
     if (matrix) {
-      const corners: Point[] = [
+      const nativeCorners: Point[] = [
         [native.left, native.top],
         [native.right, native.top],
         [native.right, native.bottom],
         [native.left, native.bottom],
-      ].map((corner) => applyHomography(matrix, corner));
+      ];
+      const corners = nativeCorners.map((corner) => applyHomography(matrix, corner));
       bounds = {
         left: Math.min(...corners.map((c) => c[0])),
         top: Math.min(...corners.map((c) => c[1])),

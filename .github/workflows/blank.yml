@@ -36,6 +36,10 @@ jobs:
       if: ${{ matrix.target == 'web' }}
       run: npm run lint:templates
     -
+      name: Typecheck
+      if: ${{ matrix.target == 'web' }}
+      run: npm run typecheck
+    -
       name: Run tests
       if: ${{ matrix.target == 'web' }}
       run: npm test -- --coverage

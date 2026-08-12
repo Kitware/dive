@@ -20,6 +20,13 @@ type DestinationLocation = {
   meta?: { annotate?: boolean | string };
 };
 
+type RootPathCrumb = {
+  object?: { _modelType?: string; login?: string; name?: string };
+  _modelType?: string;
+  login?: string;
+  name?: string;
+};
+
 export default defineComponent({
   components: { GirderFileManager },
   props: {
@@ -91,7 +98,7 @@ export default defineComponent({
           const { data: rootpath } = await girderRest.get(
             `folder/${loc._id}/rootpath_or_relative`,
           );
-          (rootpath || []).forEach((crumb) => {
+          (rootpath || []).forEach((crumb: RootPathCrumb) => {
             const obj = crumb.object || crumb;
             if (obj._modelType === 'user') {
               parts.push(obj.login || obj.name || 'User');
@@ -218,6 +225,8 @@ export default defineComponent({
       emit('cancel');
     }
 
+    const requiredRule = (v: string) => !!v || 'Each output dataset must have a name';
+
     function submitPipelines() {
       const payload: NewDatasetJobConfig = {
         names: outputDatasetNames.value,
@@ -231,6 +240,7 @@ export default defineComponent({
     return {
       formValid,
       canSubmit,
+      requiredRule,
       outputDatasetNames,
       showDestinationPicker,
       location,
@@ -285,7 +295,7 @@ export default defineComponent({
                     v-model="outputDatasetNames[datasetId]"
                     class="ml-2"
                     label="Output dataset name"
-                    :rules="[v => !!v || 'Each output dataset must have a name']"
+                    :rules="[requiredRule]"
                     hide-details
                   />
                 </v-col>

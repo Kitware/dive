@@ -1,10 +1,11 @@
 import axios, { AxiosInstance } from 'axios';
 
 import type {
+  AnnotationSchema,
   DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
-  DatasetCalibrationResult,
+  DatasetCalibrationResult, GlobalStyleSettings, FrameMetadataSourcesResponse,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
@@ -42,6 +43,20 @@ function getExtension(filePath: string) {
 function joinPath(dir: string, filename: string) {
   const separator = dir.includes('\\') ? '\\' : '/';
   return `${dir.replace(/[\\/]+$/, '')}${separator}${filename}`;
+}
+
+/**
+ * window.diveDesktop.invoke is typed as Promise<unknown> because it is a generic
+ * ipcRenderer.invoke wrapper. Each channel's actual return shape is defined by its
+ * handler in platform/desktop/backend; callers below narrow to that shape.
+ */
+function invoke<T>(channel: string, ...args: unknown[]): Promise<T> {
+  return window.diveDesktop.invoke(channel, ...args) as Promise<T>;
+}
+
+interface ServerInfo {
+  address: string;
+  port: number;
 }
 
 /**
@@ -132,19 +147,19 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
  */
 
 function nvidiaSmi(): Promise<NvidiaSmiReply> {
-  return window.diveDesktop.invoke('nvidia-smi');
+  return invoke<NvidiaSmiReply>('nvidia-smi');
 }
 
 function openLink(url: string): Promise<void> {
-  return window.diveDesktop.invoke('open-link-in-browser', url);
+  return invoke<void>('open-link-in-browser', url);
 }
 
 async function getPipelineList(): Promise<Pipelines> {
-  return window.diveDesktop.invoke('get-pipeline-list');
+  return invoke<Pipelines>('get-pipeline-list');
 }
 
 async function getTrainingConfigurations(): Promise<TrainingConfigs> {
-  return window.diveDesktop.invoke('get-training-configs');
+  return invoke<TrainingConfigs>('get-training-configs');
 }
 
 async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<void> {
@@ -193,77 +208,97 @@ async function runTraining(
 }
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
-  return window.diveDesktop.invoke('delete-trained-pipeline', pipeline);
+  return invoke<void>('delete-trained-pipeline', pipeline);
+}
+
+async function listResumableTrainingJobs(): Promise<DesktopJob[]> {
+  return invoke<DesktopJob[]>('list-resumable-training');
+}
+
+async function resumeTraining(job: DesktopJob): Promise<void> {
+  const args: RunTraining = {
+    ...(job.args as RunTraining),
+    resumeWorkingDir: job.workingDir,
+  };
+  gpuJobQueue.enqueue(args);
+}
+
+async function discardResumableTraining(job: DesktopJob): Promise<void> {
+  return invoke<void>('discard-resumable-training', job.workingDir);
 }
 
 function importMedia(path: string): Promise<DesktopMediaImportResponse> {
-  return window.diveDesktop.invoke('import-media', { path });
+  return invoke<DesktopMediaImportResponse>('import-media', { path });
 }
 
 function listImmediateSubfolders(parentPath: string): Promise<string[]> {
-  return window.diveDesktop.invoke('list-immediate-subfolders', { path: parentPath });
+  return invoke<string[]>('list-immediate-subfolders', { path: parentPath });
 }
 
 function listParentFolderCameras(
   parentPath: string,
   mediaType: 'image-sequence' | 'video',
 ): Promise<{ name: string; sourcePath: string }[]> {
-  return window.diveDesktop.invoke('list-parent-folder-cameras', { path: parentPath, mediaType });
+  return invoke<{ name: string; sourcePath: string }[]>('list-parent-folder-cameras', { path: parentPath, mediaType });
 }
 
 function resolveMulticamCameraSourcePath(
   subfolderPath: string,
   mediaType: 'image-sequence' | 'video',
 ): Promise<string> {
-  return window.diveDesktop.invoke('resolve-multicam-camera-source-path', {
+  return invoke<string>('resolve-multicam-camera-source-path', {
     path: subfolderPath,
     mediaType,
   });
 }
 
 function findParentFolderCalibrationFile(parentPath: string): Promise<string | null> {
-  return window.diveDesktop.invoke('find-parent-folder-calibration-file', { path: parentPath });
+  return invoke<string | null>('find-parent-folder-calibration-file', { path: parentPath });
 }
 
 function findParentFolderTransformFiles(parentPath: string): Promise<string[]> {
-  return window.diveDesktop.invoke('find-parent-folder-transform-files', { path: parentPath });
+  return invoke<string[]>('find-parent-folder-transform-files', { path: parentPath });
 }
 
 function hasCalibrationFile(datasetId: string): Promise<boolean> {
-  return window.diveDesktop.invoke('dataset-has-calibration-file', { datasetId });
+  return invoke<boolean>('dataset-has-calibration-file', { datasetId });
 }
 
 function bulkImportMedia(path: string): Promise<DesktopMediaImportResponse[]> {
-  return window.diveDesktop.invoke('bulk-import-media', { path });
+  return invoke<DesktopMediaImportResponse[]>('bulk-import-media', { path });
 }
 
 function deleteDataset(datasetId: string): Promise<boolean> {
-  return window.diveDesktop.invoke('delete-dataset', { datasetId });
+  return invoke<boolean>('delete-dataset', { datasetId });
 }
 
 function checkDataset(datasetId: string): Promise<boolean> {
-  return window.diveDesktop.invoke('check-dataset', { datasetId });
+  return invoke<boolean>('check-dataset', { datasetId });
 }
 
 function importMultiCam(args: MultiCamImportArgs):
    Promise<DesktopMediaImportResponse> {
-  return window.diveDesktop.invoke('import-multicam-media', { args });
+  return invoke<DesktopMediaImportResponse>('import-multicam-media', { args });
 }
 
 function scanMultiCamBatch(path: string): Promise<MultiCamBatchScanResult> {
-  return window.diveDesktop.invoke('scan-multicam-batch', { path });
+  return invoke<MultiCamBatchScanResult>('scan-multicam-batch', { path });
+}
+
+function scanStereoBatch(path: string): Promise<MultiCamBatchScanResult> {
+  return invoke<MultiCamBatchScanResult>('scan-stereo-batch', { path });
 }
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function importAnnotationFile(id: string, path: string, _htmlFile = undefined, additive = false, additivePrepend = ''): Promise<boolean | string[]> {
-  return window.diveDesktop.invoke('import-annotation', {
+  return invoke<boolean | string[]>('import-annotation', {
     id, path, additive, additivePrepend,
   });
 }
 
 function finalizeImport(args: DesktopMediaImportResponse): Promise<ConversionArgs> {
   // Have this return JsonConfig as well as everything needed to start a job?
-  return window.diveDesktop.invoke('finalize-import', args);
+  return invoke<ConversionArgs>('finalize-import', args);
 }
 
 async function convert(args: ConversionArgs): Promise<void> {
@@ -288,7 +323,7 @@ async function exportDataset(id: string, exclude: boolean, typeFilter: readonly 
     const args: ExportDatasetArgs = {
       id, exclude, path: location.filePath, typeFilter: new Set(typeFilter), type,
     };
-    return window.diveDesktop.invoke('export-dataset', args);
+    return invoke<string>('export-dataset', args);
   }
   return '';
 }
@@ -300,7 +335,7 @@ async function exportConfiguration(id: string): Promise<string> {
   });
   if (!location.canceled && location.filePath) {
     const args: ExportConfigurationArgs = { id, path: location.filePath };
-    return window.diveDesktop.invoke('export-configuration', args);
+    return invoke<string>('export-configuration', args);
   }
   return '';
 }
@@ -312,7 +347,7 @@ async function exportMulticamEverything(
 ): Promise<string> {
   const parentId = id.split('/')[0];
   const location = await window.diveDesktop.showSaveDialog({
-    title: 'Export Multicamera Dataset',
+    title: 'Export Multi Camera Dataset',
     defaultPath: joinPath(
       await window.diveDesktop.getAppPath('home'),
       `${parentId}.zip`,
@@ -326,13 +361,13 @@ async function exportMulticamEverything(
       path: location.filePath,
       typeFilter: new Set(typeFilter),
     };
-    return window.diveDesktop.invoke('export-multicam-everything', args);
+    return invoke<string>('export-multicam-everything', args);
   }
   return '';
 }
 
 async function cancelJob(job: DesktopJob): Promise<void> {
-  return window.diveDesktop.invoke('cancel-job', job);
+  return invoke<void>('cancel-job', job);
 }
 
 /**
@@ -340,43 +375,43 @@ async function cancelJob(job: DesktopJob): Promise<void> {
  */
 
 async function segmentationInitialize(): Promise<{ success: boolean; noSamInstalled?: boolean }> {
-  return window.diveDesktop.invoke('segmentation-initialize');
+  return invoke<{ success: boolean; noSamInstalled?: boolean }>('segmentation-initialize');
 }
 
 // Start the interactive service process without warming the point-segmentation
 // model (used by text query, which loads its own model lazily).
 async function segmentationEnsureStarted(): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('segmentation-ensure-started');
+  return invoke<{ success: boolean }>('segmentation-ensure-started');
 }
 
 async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
-  return window.diveDesktop.invoke('segmentation-predict', request);
+  return invoke<SegmentationPredictResponse>('segmentation-predict', request);
 }
 
 async function segmentationStereoSegment(
   request: SegmentationStereoSegmentRequest,
 ): Promise<SegmentationStereoSegmentResponse> {
-  return window.diveDesktop.invoke('segmentation-stereo-segment', request);
+  return invoke<SegmentationStereoSegmentResponse>('segmentation-stereo-segment', request);
 }
 
 async function segmentationSetImage(imagePath: string): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('segmentation-set-image', imagePath);
+  return invoke<{ success: boolean }>('segmentation-set-image', imagePath);
 }
 
 async function segmentationClearImage(): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('segmentation-clear-image');
+  return invoke<{ success: boolean }>('segmentation-clear-image');
 }
 
 async function segmentationShutdown(): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('segmentation-shutdown');
+  return invoke<{ success: boolean }>('segmentation-shutdown');
 }
 
 async function segmentationIsReady(): Promise<SegmentationStatusResponse> {
-  return window.diveDesktop.invoke('segmentation-is-ready');
+  return invoke<SegmentationStatusResponse>('segmentation-is-ready');
 }
 
 async function segmentationSam3Installed(): Promise<{ installed: boolean }> {
-  return window.diveDesktop.invoke('segmentation-sam3-installed');
+  return invoke<{ installed: boolean }>('segmentation-sam3-installed');
 }
 
 /**
@@ -385,11 +420,11 @@ async function segmentationSam3Installed(): Promise<{ installed: boolean }> {
  */
 
 async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> {
-  return window.diveDesktop.invoke('segmentation-text-query', request);
+  return invoke<TextQueryResponse>('segmentation-text-query', request);
 }
 
 async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
-  return window.diveDesktop.invoke('segmentation-refine', request);
+  return invoke<RefineDetectionsResponse>('segmentation-refine', request);
 }
 
 /**
@@ -444,6 +479,8 @@ interface StereoCalibration {
 interface StereoSetFrameRequest {
   leftImagePath: string;
   rightImagePath: string;
+  /** Time in seconds when paths are video files */
+  frameTime?: number;
 }
 
 interface StereoSetFrameResponse {
@@ -536,43 +573,43 @@ async function stereoEnable(
   calibration?: StereoCalibration,
   calibrationFile?: string,
 ): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
-  return window.diveDesktop.invoke('stereo-enable', { calibration, calibrationFile });
+  return invoke<{ success: boolean; error?: string; launchFailed?: boolean }>('stereo-enable', { calibration, calibrationFile });
 }
 
 async function stereoDisable(): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('stereo-disable');
+  return invoke<{ success: boolean }>('stereo-disable');
 }
 
 async function stereoSetFrame(request: StereoSetFrameRequest): Promise<StereoSetFrameResponse> {
-  return window.diveDesktop.invoke('stereo-set-frame', request);
+  return invoke<StereoSetFrameResponse>('stereo-set-frame', request);
 }
 
 async function stereoGetStatus(): Promise<StereoStatusResponse> {
-  return window.diveDesktop.invoke('stereo-get-status');
+  return invoke<StereoStatusResponse>('stereo-get-status');
 }
 
 async function stereoTransferLine(request: StereoTransferLineRequest): Promise<StereoTransferLineResponse> {
-  return window.diveDesktop.invoke('stereo-transfer-line', request);
+  return invoke<StereoTransferLineResponse>('stereo-transfer-line', request);
 }
 
 async function stereoTransferPoints(request: StereoTransferPointsRequest): Promise<StereoTransferPointsResponse> {
-  return window.diveDesktop.invoke('stereo-transfer-points', request);
+  return invoke<StereoTransferPointsResponse>('stereo-transfer-points', request);
 }
 
 async function stereoMeasureLine(request: StereoMeasureLineRequest): Promise<StereoMeasureLineResponse> {
-  return window.diveDesktop.invoke('stereo-measure-line', request);
+  return invoke<StereoMeasureLineResponse>('stereo-measure-line', request);
 }
 
 async function stereoAggregateLengths(request: StereoAggregateLengthsRequest): Promise<StereoAggregateLengthsResponse> {
-  return window.diveDesktop.invoke('stereo-aggregate-lengths', request);
+  return invoke<StereoAggregateLengthsResponse>('stereo-aggregate-lengths', request);
 }
 
 async function stereoSetCalibration(calibration: StereoCalibration): Promise<{ success: boolean }> {
-  return window.diveDesktop.invoke('stereo-set-calibration', { calibration });
+  return invoke<{ success: boolean }>('stereo-set-calibration', { calibration });
 }
 
 async function stereoIsEnabled(): Promise<{ enabled: boolean }> {
-  return window.diveDesktop.invoke('stereo-is-enabled');
+  return invoke<{ enabled: boolean }>('stereo-is-enabled');
 }
 
 function onStereoDisparityReady(callback: (data: unknown) => void): () => void {
@@ -603,7 +640,7 @@ function formatHostForUrl(host: string) {
 
 async function getClient(): Promise<AxiosInstance> {
   if (_axiosClient === undefined) {
-    const addr = await window.diveDesktop.invoke('server-info');
+    const addr = await invoke<ServerInfo>('server-info');
     _baseURL = `http://${formatHostForUrl(addr.address)}:${addr.port}/api`;
     _axiosClient = axios.create({ baseURL: _baseURL });
   }
@@ -634,13 +671,17 @@ async function loadConfig(id: string) {
 }
 
 async function loadDetections(datasetId: string) {
-  const annotations = await window.diveDesktop.invoke('load-detections', { datasetId });
+  const annotations = await invoke<AnnotationSchema>('load-detections', { datasetId });
   return {
     version: annotations.version,
     tracks: Object.values(annotations.tracks),
     groups: Object.values(annotations.groups),
     sets: [],
   };
+}
+
+function loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse> {
+  return invoke<FrameMetadataSourcesResponse>('load-frame-metadata', { datasetId });
 }
 
 async function saveConfig(id: string, args: DatasetConfigMutable) {
@@ -664,19 +705,27 @@ async function saveAttributeTrackFilters(id: string, args: SaveAttributeTrackFil
 }
 
 function getLastCalibration(): Promise<string | null> {
-  return window.diveDesktop.invoke('get-last-calibration');
+  return invoke<string | null>('get-last-calibration');
+}
+
+function loadGlobalStyleSettings(): Promise<GlobalStyleSettings> {
+  return invoke<GlobalStyleSettings>('load-global-style-settings');
+}
+
+function saveGlobalStyleSettings(settings: GlobalStyleSettings): Promise<unknown> {
+  return window.diveDesktop.invoke('save-global-style-settings', settings);
 }
 
 function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
-  return window.diveDesktop.invoke('save-calibration', { path });
+  return invoke<{ savedPath: string; updatedDatasetIds: string[] }>('save-calibration', { path });
 }
 
 function importCalibrationFile(datasetId: string, path: string): Promise<{ calibration: string }> {
-  return window.diveDesktop.invoke('import-calibration', { id: datasetId, path });
+  return invoke<{ calibration: string }>('import-calibration', { id: datasetId, path });
 }
 
 function exportCalibrationFile(datasetId: string, destPath: string): Promise<{ exportedPath: string }> {
-  return window.diveDesktop.invoke('export-calibration', { id: datasetId, destPath });
+  return invoke<{ exportedPath: string }>('export-calibration', { id: datasetId, destPath });
 }
 
 /** Export one camera's *_registration.json file to destPath. */
@@ -685,7 +734,7 @@ function exportCameraRegistration(
   destPath: string,
   camera: string,
 ): Promise<{ exportedPath: string }> {
-  return window.diveDesktop.invoke('export-camera-registration', { id: datasetId, destPath, camera });
+  return invoke<{ exportedPath: string }>('export-camera-registration', { id: datasetId, destPath, camera });
 }
 
 /** Merge a DIVE registration .json into the dataset's camera registration. */
@@ -695,11 +744,11 @@ function importCameraRegistration(
   _file?: File,
   options?: { camera?: string },
 ): Promise<{ cameras: string[]; pairCount: number }> {
-  return window.diveDesktop.invoke('import-camera-registration', { id: datasetId, path, options });
+  return invoke<{ cameras: string[]; pairCount: number }>('import-camera-registration', { id: datasetId, path, options });
 }
 
 function getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null> {
-  return window.diveDesktop.invoke('get-dataset-calibration', { datasetId });
+  return invoke<DatasetCalibrationResult | null>('get-dataset-calibration', { datasetId });
 }
 
 async function downloadCalibration(datasetId: string): Promise<void> {
@@ -715,19 +764,23 @@ async function downloadCalibration(datasetId: string): Promise<void> {
 }
 
 function deleteCalibration(datasetId: string): Promise<void> {
-  return window.diveDesktop.invoke('delete-calibration', { datasetId });
+  return invoke<void>('delete-calibration', { datasetId });
 }
 
 export {
   /* Standard Specification APIs */
   loadConfig,
   loadDetections,
+  loadFrameMetadata,
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,
   exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
+  listResumableTrainingJobs,
+  resumeTraining,
+  discardResumableTraining,
   saveConfig,
   saveDetections,
   saveAttributes,
@@ -754,11 +807,14 @@ export {
   importAnnotationFile,
   importMultiCam,
   scanMultiCamBatch,
+  scanStereoBatch,
   openLink,
   nvidiaSmi,
   cancelJob,
   getLastCalibration,
   saveCalibration,
+  loadGlobalStyleSettings,
+  saveGlobalStyleSettings,
   importCalibrationFile,
   exportCalibrationFile,
   exportCameraRegistration,

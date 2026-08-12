@@ -8,7 +8,7 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
-import {
+import type {
   CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
@@ -169,6 +169,24 @@ interface FrameImage {
   timestamp?: number;
 }
 
+/** One metadata attachment loaded by a platform implementation. */
+interface FrameMetadataAttachmentText {
+  /** Preserved original name, falling back to the resolved item/path basename. */
+  name: string;
+  /** Present for a readable TXT/CSV attachment. */
+  text?: string;
+  /** Present when the selected locator could not be read. */
+  error?: string;
+}
+
+/** Complete normalized attachment response for one dataset. */
+interface FrameMetadataSourcesResponse {
+  /** Single-camera dataset attachment or multicamera parent attachment. */
+  shared?: FrameMetadataAttachmentText;
+  /** Camera-local attachments only, keyed by camera name. */
+  cameras: Record<string, FrameMetadataAttachmentText>;
+}
+
 export interface MultiCamImportFolderArgs {
   datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
@@ -183,6 +201,8 @@ export interface MultiCamImportFolderArgs {
      * dataset's saved camera registration.
      */
     transformFile?: string;
+    /** Optional camera-local metadata attachment. */
+    metadataFile?: string;
     /** Per-camera media type when cameras differ (e.g. EO JPG + IR TIFF on web). */
     type?: 'image-sequence' | 'video' | 'large-image';
     /**
@@ -228,6 +248,10 @@ interface MediaImportResponse {
   globPattern: string;
   mediaConvertList: string[];
 }
+
+/** User-editable datasetInfo stored on the dataset's backing metadata object. */
+type DatasetInfoFields = Record<string, unknown>;
+
 /**
  * The parts of dataset config a user should be able to modify.
  */
@@ -239,7 +263,7 @@ interface DatasetConfigMutable {
   imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
-  datasetInfo?: Record<string, unknown>;
+  datasetInfo?: DatasetInfoFields;
   cameraHomographies?: CameraHomographies;
   cameraCorrespondences?: CameraCorrespondences;
   cameraTransformTypes?: CameraTransformTypes;
@@ -248,6 +272,18 @@ interface DatasetConfigMutable {
   error?: string;
 }
 const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource'];
+/**
+ * Cross-dataset color/style overrides, reused across every dataset when the
+ * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
+ * On desktop this is one store shared across all sequences; on web it is
+ * scoped to the current user/browser.
+ * Entries may include sourceDatasetId / sourceDatasetName provenance on
+ * CustomStyle (ignored for rendering; used by the Saved Styles UI).
+ */
+interface GlobalStyleSettings {
+  customTypeStyling?: Record<string, CustomStyle>;
+  customGroupStyling?: Record<string, CustomStyle>;
+}
 /**
  * Mutable keys the multicam/stereo viewer loads from the parent dataset.
  * Camera-targeted imports sync only these onto the parent — not per-camera
@@ -351,6 +387,7 @@ interface Api {
 
   loadConfig(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
@@ -359,7 +396,13 @@ interface Api {
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
   openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
-    Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
+    Promise<{
+      canceled?: boolean;
+      filePaths: string[];
+      fileList?: File[];
+      root?: string;
+      selectionId?: string;
+    }>;
   /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
   listImmediateSubfolders?(parentPath: string): Promise<string[]>;
   /** Desktop: subfolders or root-level video files under a parent folder (multicam import). */
@@ -419,6 +462,14 @@ interface Api {
   downloadCalibration?(datasetId: string): Promise<void>;
   /** Remove the calibration file currently associated with the dataset. */
   deleteCalibration?(datasetId: string): Promise<void>;
+  /**
+   * Load the cross-dataset "shared" color/style overrides. Desktop reads one
+   * store shared across all sequences; web reads the current user/browser's
+   * store. Absent on platforms that don't support shared colors.
+   */
+  loadGlobalStyleSettings?(): Promise<GlobalStyleSettings>;
+  /** Persist the cross-dataset "shared" color/style overrides. */
+  saveGlobalStyleSettings?(settings: GlobalStyleSettings): Promise<unknown>;
 }
 const ApiSymbol = Symbol('api');
 
@@ -608,12 +659,17 @@ export {
 };
 
 export {
+  DatasetConfigMutableKeys,
+  MulticamSharedMutableKeys,
+};
+
+export type {
   AnnotationSchema,
   Api,
   DatasetConfig,
   DatasetConfigMutable,
-  DatasetConfigMutableKeys,
-  MulticamSharedMutableKeys,
+  DatasetInfoFields,
+  GlobalStyleSettings,
   DatasetType,
   DiveParam,
   CameraCalibration,
@@ -622,6 +678,8 @@ export {
   SubType,
   PipelineParamType,
   FrameImage,
+  FrameMetadataAttachmentText,
+  FrameMetadataSourcesResponse,
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,
@@ -639,4 +697,4 @@ export {
   MediaImportResponse,
 };
 
-export type { PercentileStretch };
+export type { PercentileStretch, CameraCorrespondences };

@@ -152,7 +152,7 @@ export default defineComponent({
               :style="{
                 backgroundColor: val,
               }"
-              @click="setEditingColor(key)"
+              @click="setEditingColor(key.toString())"
             />
           </div>
         </v-col>

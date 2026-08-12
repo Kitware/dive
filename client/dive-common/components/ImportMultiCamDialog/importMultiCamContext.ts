@@ -21,6 +21,6 @@ export type ImportMultiCamContext = ReturnType<typeof useImportMultiCamDialog>;
 export const importMultiCamContextProp = {
   ctx: {
     type: Object as PropType<ImportMultiCamContext>,
-    required: true,
+    required: true as const,
   },
 };

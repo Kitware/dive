@@ -118,7 +118,7 @@ type CocoAnnotation = {
    */
   iscrowd?: number;
   keypoints?: number[];
-  segmentation?: number[][] | Record<string, unknown>;
+  segmentation?: number[] | number[][] | Record<string, unknown>;
   dive_detection_attributes?: Record<string, unknown>;
   dive_track_attributes?: Record<string, unknown>;
   dive_notes?: string[];

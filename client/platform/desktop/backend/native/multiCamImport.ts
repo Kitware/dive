@@ -8,7 +8,8 @@ import {
   MultiCamImportArgs,
 } from 'dive-common/apispec';
 import {
-  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, MultiType,
+  websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, metadataFileTypes,
+  MultiType,
 } from 'dive-common/constants';
 import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
 import {
@@ -21,7 +22,7 @@ import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView
 import {
   mergeRegistrationSources, unknownCameraWarning,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
-import { findImagesInFolder } from './common';
+import { discoverMetadataAttachment, findImagesInFolder } from './common';
 import {
   CameraCorrespondences,
   CameraHomographies,
@@ -81,19 +82,52 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     if (!(args.defaultDisplay in args.sourceList)) {
       throw new Error(`${args.defaultDisplay} is not a camera name`);
     }
-    Object.entries(args.sourceList).forEach(([key, item]) => {
+    if (args.type === 'large-image') {
+      throw new Error('large-image is not supported for multi-camera import');
+    }
+    const cameraType = args.type;
+    const sourceDirectories = Object.fromEntries(
+      Object.entries(args.sourceList).map(([key, item]) => [
+        key,
+        args.type === 'video' ? npath.dirname(item.sourcePath) : item.sourcePath,
+      ]),
+    );
+    const sourceDirectoryCounts = Object.values(sourceDirectories).reduce(
+      (counts, directory) => counts.set(directory, (counts.get(directory) || 0) + 1),
+      new Map<string, number>(),
+    );
+    await asyncForEach(Object.entries(args.sourceList), async ([key, item]) => {
       const pathExists = fs.existsSync(item.sourcePath);
       if (!pathExists) {
         throw new Error(`file or directory for ${key} not found: ${item.sourcePath}`);
       }
       cameras[key] = {
-        type: args.type,
+        type: cameraType,
         originalBasePath: item.sourcePath,
         originalImageFiles: [],
         originalVideoFile: '',
         transcodedImageFiles: [],
         transcodedVideoFile: '',
       };
+      // Discovery runs only when the user picked nothing for this camera, and only when the
+      // camera owns its directory: a directory shared by several cameras is resolved once at
+      // the dataset scope below.
+      const sourceDirectory = sourceDirectories[key];
+      const discoverable = !item.metadataFile
+        && sourceDirectoryCounts.get(sourceDirectory) === 1;
+      const cameraMetadataFile = item.metadataFile
+        || (discoverable ? await discoverMetadataAttachment(sourceDirectory) : undefined);
+      if (cameraMetadataFile) {
+        if (!fs.existsSync(cameraMetadataFile) || !fs.statSync(cameraMetadataFile).isFile()) {
+          throw new Error(`metadata file for ${key} not found: ${cameraMetadataFile}`);
+        }
+        const extension = npath.extname(cameraMetadataFile).slice(1).toLowerCase();
+        if (!metadataFileTypes.includes(extension)) {
+          throw new Error(`Camera "${key}" metadata must be a JSON, TXT, or CSV file`);
+        }
+        cameras[key].metadataFile = cameraMetadataFile;
+        cameras[key].metadataOriginalName = npath.basename(cameraMetadataFile);
+      }
       if (args.type === 'video') {
         // Reset the base path to a folder for videos
         cameras[key].originalBasePath = npath.dirname(cameras[key].originalBasePath);
@@ -178,6 +212,27 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     });
   }
 
+  let sharedMetadataFile: string | undefined;
+  if (isFolderArgs(args)) {
+    const cameraDirectories = Object.values(args.sourceList).map((item) => (
+      args.type === 'video' ? npath.dirname(item.sourcePath) : item.sourcePath
+    ));
+    const uniqueCameraDirectories = [...new Set(cameraDirectories)];
+    const parentCandidates = [...new Set(
+      uniqueCameraDirectories.map((path) => npath.dirname(path)),
+    )];
+    let sharedDirectory: string | undefined;
+    if (uniqueCameraDirectories.length === 1) {
+      [sharedDirectory] = uniqueCameraDirectories;
+    } else if (parentCandidates.length === 1) {
+      [sharedDirectory] = parentCandidates;
+    }
+    sharedMetadataFile = args.metadataFile
+      || (sharedDirectory ? await discoverMetadataAttachment(sharedDirectory) : undefined);
+  } else {
+    sharedMetadataFile = args.metadataFile || undefined;
+  }
+
   const jsonConfig: JsonConfig = {
     version: JsonConfigCurrentVersion,
     type: datasetType,
@@ -199,9 +254,6 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
       calibration: args.calibrationFile,
       defaultDisplay: args.defaultDisplay,
     },
-    // Stash the metadata source path; finalizeMediaImport copies it into the
-    // project directory and rewrites this to the stored copy's path.
-    metadataFile: args.metadataFile || undefined,
     subType: null,
   };
   if (Object.keys(seedHomographies).length || Object.keys(seedCorrespondences).length) {
@@ -316,14 +368,17 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     throw new Error('Transcoding is not supported when an image list is used');
   }
 
+  // Shared attachment travels on the response (like beginMediaImport), not on
+  // jsonConfig: ImportDialog binds metadataFileAbsPath so the user can see and clear it.
+  // finalizeMediaImport still accepts jsonConfig.metadataFile as a fallback for older callers.
   return {
     jsonConfig,
     globPattern: '',
     mediaConvertList,
     trackFileAbsPath: '',
     forceMediaTranscode: false,
-    useNativePlayback: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
+    ...(sharedMetadataFile ? { metadataFileAbsPath: sharedMetadataFile } : {}),
     ...(importWarnings.length ? { importWarnings } : {}),
   };
 }

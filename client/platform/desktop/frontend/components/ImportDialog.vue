@@ -268,8 +268,8 @@ export default defineComponent({
           class="mt-3"
           prepend-inner-icon="mdi-file-cog"
           label="Metadata File (Optional)"
-          hint="Optional. A .json, .txt, or .csv file passed to pipelines that request it
-            (e.g. a sea-lion flight log)."
+          hint="Passed to pipelines that request it. CSV and TXT frame rows also appear as
+            Frame Metadata (e.g. a sea-lion flight log)."
           persistent-hint
           @input="argCopy.metadataFileAbsPath = $event"
           @click="openUpload('metadata')"

@@ -88,6 +88,15 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /* When true, gray out the Run button and show jobsDisabledMessage as tooltip */
+    jobsDisabled: {
+      type: Boolean,
+      default: false,
+    },
+    jobsDisabledMessage: {
+      type: String,
+      default: '',
+    },
     /* Time filter range from the viewer - [startFrame, endFrame] or null */
     timeFilter: {
       type: Array as unknown as PropType<[number, number] | null>,
@@ -131,12 +140,12 @@ export default defineComponent({
     }
 
     async function confirmPipelineExecution(updatedParams: Record<string, string>) {
-      const configById: Record<string, Record<string, string>> = {};
+      const kwiverParamsById: Record<string, Record<string, string>> = {};
       props.selectedDatasetIds.forEach((id) => {
-        configById[id] = updatedParams;
+        kwiverParamsById[id] = updatedParams;
       });
       showParamsDialog.value = false;
-      await _runPipelineOnSelectedItemInner(selectedPipeline.value!, configById);
+      await _runPipelineOnSelectedItemInner(selectedPipeline.value!, undefined, undefined, kwiverParamsById);
     }
 
     const includesLargeImage = computed(() => props.typeList.includes(LargeImageType));
@@ -208,13 +217,38 @@ export default defineComponent({
       props.excludePipelineTerms,
     ));
 
+    /* Icon slots are reserved per category so the columns line up across rows. */
+    function categoryPipes(pipeType: string) {
+      return pipelines.value?.[pipeType]?.pipes ?? [];
+    }
+
+    function categoryHasParams(pipeType: string) {
+      return categoryPipes(pipeType).some(pipelineHasParams);
+    }
+
+    function categoryHasCalibrationWarning(pipeType: string) {
+      return categoryPipes(pipeType).some(isPipelineDisabledForCalibration);
+    }
+
     const pipelinesNotRunnable = computed(() => (
-      props.selectedDatasetIds.length < 1 || pipelines.value === null
+      props.selectedDatasetIds.length < 1
+      || pipelines.value === null
+      || props.jobsDisabled
     ));
 
     const pipelinesCurrentlyRunning = computed(
       () => props.selectedDatasetIds.reduce((acc, item) => acc || props.runningPipelines.includes(item), false),
     );
+
+    const runPipelineTooltip = computed(() => {
+      if (props.jobsDisabled) {
+        return props.jobsDisabledMessage || 'Jobs are temporarily disabled';
+      }
+      if (pipelinesCurrentlyRunning.value) {
+        return 'Pipeline is Currently running';
+      }
+      return 'Run CV algorithm pipelines on this data';
+    });
 
     const singlePipelineValue = computed(() => {
       if (props.selectedDatasetIds.length === 1) {
@@ -227,6 +261,7 @@ export default defineComponent({
       pipeline: Pipe,
       outputDatasetNameById?: Record<string, string>,
       outputParentFolderId?: string,
+      kwiverParamsById?: Record<string, Record<string, string>>,
     ) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
@@ -258,6 +293,7 @@ export default defineComponent({
           runtimeParams: frameRange ? { frameRange } : undefined,
           outputDatasetName: outputDatasetNameById?.[id],
           outputParentFolderId,
+          kwiverParams: kwiverParamsById?.[id],
         })),
       ));
     }
@@ -320,6 +356,7 @@ export default defineComponent({
       pipeTypeDisplay: pipelineTypeDisplay,
       runPipelineOnSelectedItem,
       pipelinesCurrentlyRunning,
+      runPipelineTooltip,
       singlePipelineValue,
       selectedPipeline,
       selectedPipelineName,
@@ -334,6 +371,8 @@ export default defineComponent({
       pipelineTooltipDisabled,
       openDiveParamsDialog,
       pipelineHasParams,
+      categoryHasParams,
+      categoryHasCalibrationWarning,
     };
   },
 });
@@ -347,34 +386,41 @@ export default defineComponent({
       content-class="pipeline-menu-content"
       v-bind="menuOptions"
       :close-on-content-click="false"
+      :disabled="jobsDisabled"
     >
       <template #activator="{ on: menuOn }">
         <v-tooltip
           bottom
-          :disabled="menuOptions.offsetX"
+          :disabled="menuOptions.offsetX && !jobsDisabled"
         >
           <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="buttonOptions"
-              :disabled="pipelinesNotRunnable || buttonOptions.disabled"
-              :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
-              v-on="{ ...tooltipOn, ...menuOn }"
+            <!-- Wrapper keeps tooltip working when the button is disabled -->
+            <span
+              class="d-inline-block"
+              style="width: 100%"
+              v-on="tooltipOn"
             >
-              <v-icon> mdi-pipe </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
+              <v-btn
+                v-bind="buttonOptions"
+                :disabled="pipelinesNotRunnable || buttonOptions.disabled"
+                :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
+                v-on="jobsDisabled ? {} : menuOn"
               >
-                Run pipeline
-              </span>
-              <v-spacer />
-              <v-icon v-if="menuOptions.right">
-                mdi-chevron-right
-              </v-icon>
-            </v-btn>
+                <v-icon> mdi-pipe </v-icon>
+                <span
+                  v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Run pipeline
+                </span>
+                <v-spacer />
+                <v-icon v-if="menuOptions.right">
+                  mdi-chevron-right
+                </v-icon>
+              </v-btn>
+            </span>
           </template>
-          <span v-if="!pipelinesCurrentlyRunning">Run CV algorithm pipelines on this data</span>
-          <span v-else>Pipeline is Currently running </span>
+          <span>{{ runPipelineTooltip }}</span>
         </v-tooltip>
       </template>
 
@@ -489,25 +535,35 @@ export default defineComponent({
                           v-on="on"
                           @click="runPipelineOnSelectedItem(pipeline)"
                         >
-                          <v-list-item-title class="font-weight-regular" style="display: flex; justify-content: space-between; align-items: center;">
-                            {{ pipeline.name }}
-                            <span style="display: flex; align-items: center; gap: 8px; margin-left: 20px;">
-                              <PipelineCalibrationWarningIcon
-                                v-if="isPipelineDisabledForCalibration(pipeline)"
-                              />
-                              <!-- The gear is its own hit target: clicking it
-                                configures, clicking anywhere else on the entry
-                                runs with the pipeline's own defaults. -->
-                              <v-btn
-                                v-if="pipelineHasParams(pipeline)"
-                                icon
-                                small
-                                class="pipeline-params-button"
-                                :aria-label="`Configure ${pipeline.name}`"
-                                @click.stop="openDiveParamsDialog(pipeline)"
+                          <v-list-item-title class="font-weight-regular pipeline-item-title">
+                            <span class="pipeline-item-name">{{ pipeline.name }}</span>
+                            <span class="pipeline-item-actions">
+                              <span
+                                v-if="categoryHasCalibrationWarning(pipeType)"
+                                class="pipeline-item-action"
                               >
-                                <v-icon>mdi-cog-outline</v-icon>
-                              </v-btn>
+                                <PipelineCalibrationWarningIcon
+                                  v-if="isPipelineDisabledForCalibration(pipeline)"
+                                />
+                              </span>
+                              <span
+                                v-if="categoryHasParams(pipeType)"
+                                class="pipeline-item-action"
+                              >
+                                <!-- The gear is its own hit target: clicking it
+                                  configures, clicking anywhere else on the entry
+                                  runs with the pipeline's own defaults. -->
+                                <v-btn
+                                  v-if="pipelineHasParams(pipeline)"
+                                  icon
+                                  small
+                                  class="pipeline-params-button"
+                                  :aria-label="`Configure ${pipeline.name}`"
+                                  @click.stop="openDiveParamsDialog(pipeline)"
+                                >
+                                  <v-icon>mdi-cog-outline</v-icon>
+                                </v-btn>
+                              </span>
                             </span>
                           </v-list-item-title>
                         </v-list-item>
@@ -525,7 +581,7 @@ export default defineComponent({
     <JobLaunchDialog
       :value="jobState.count > 0"
       :loading="jobState.loading"
-      :error="jobState.error"
+      :error="jobState.error ?? undefined"
       :message="successMessage"
       @close="dismissLaunchDialog"
     />
@@ -557,12 +613,43 @@ export default defineComponent({
 .pipeline-submenu-list {
   max-height: 60vh;
   overflow-y: auto;
+  overflow-x: hidden;
+  /* Otherwise the scrollbar is carved out of the width the menu already sized
+     itself to, and the widest rows overflow by that much. */
+  scrollbar-gutter: stable;
 }
 
-/* Keep the gear's hit area comfortably clear of the pipeline name, so a click
-   meant for the name does not land on the button. */
-.pipeline-params-button {
-  margin-left: 20px;
+.pipeline-item-title.v-list-item__title {
+  display: flex;
+  align-items: center;
+}
+
+/* Truncates rather than pushing the icons out of their columns. */
+.pipeline-item-name {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pipeline-item-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  /* Keep the gear's hit area clear of the name, so a click meant for the name
+     does not land on the button. */
+  margin-left: 16px;
+}
+
+.pipeline-item-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+}
+
+.pipeline-item-action + .pipeline-item-action {
+  margin-left: 8px;
 }
 
 .pipeline-category-col--last {

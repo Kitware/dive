@@ -283,7 +283,7 @@ export function getSuppressedTrackIds(
   }
 
   const result = new Set<AnnotationId>();
-  const ids = trackStore.intervalTree.search([frame, frame])
+  const ids = (trackStore.intervalTree.search([frame, frame]) as string[])
     .map((s: string) => parseInt(s, 10));
   if (ids.length === 0) {
     cacheEntry?.byFrame.set(frame, result);

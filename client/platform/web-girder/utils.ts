@@ -7,15 +7,19 @@ import {
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
-import { Route } from 'vue-router';
 import { AxiosInstance } from 'axios';
 
 /**
  * If the current route is representable by a LocationType, return it.
  * _modelType comes from the router spec and must be converted into LocationType
  */
-function getLocationFromRoute(route: Route): LocationType | null {
+function getLocationFromRoute(
+  route: { params: { routeType?: string; routeId?: string } },
+): LocationType | null {
   const { params } = route;
+  if (params.routeType === undefined) {
+    return null;
+  }
   if (['root', 'collections', 'users'].indexOf(params.routeType) >= 0) {
     return { type: params.routeType } as LocationType;
   }

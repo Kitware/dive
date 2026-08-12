@@ -162,18 +162,25 @@ export default defineComponent({
       context.openClose('AttributesSideBar', true, 'Timeline');
     }
 
-    function getAttributeValue(attribute: Attribute) {
+    function toAttributeValue(val: unknown): string | number | boolean | undefined {
+      if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+        return val;
+      }
+      return undefined;
+    }
+
+    function getAttributeValue(attribute: Attribute): string | number | boolean | undefined {
       if (selectedAttributes.value && selectedAttributes.value.attributes) {
         if (!attribute.user) {
-          return selectedAttributes.value.attributes[attribute.name];
+          return toAttributeValue(selectedAttributes.value.attributes[attribute.name]);
         }
         const user = props.user || null;
         if (user && selectedAttributes.value.attributes?.userAttributes !== undefined
         && selectedAttributes.value.attributes.userAttributes[user]) {
-          if ((selectedAttributes.value.attributes
-            .userAttributes[user] as StringKeyObject)[attribute.name]) {
-            return ((selectedAttributes.value.attributes
-              .userAttributes[user] as StringKeyObject)[attribute.name]);
+          const userAttrs = selectedAttributes.value.attributes
+            .userAttributes[user] as StringKeyObject;
+          if (userAttrs[attribute.name]) {
+            return toAttributeValue(userAttrs[attribute.name]);
           }
         }
       }
@@ -310,7 +317,8 @@ export default defineComponent({
           <v-row
             v-if="
               activeSettings
-                || selectedAttributes.attributes[attribute.name] !== undefined
+                || (selectedAttributes.attributes
+                  && selectedAttributes.attributes[attribute.name] !== undefined)
             "
             class="ma-0"
             dense
@@ -330,7 +338,7 @@ export default defineComponent({
                 :datatype="attribute.datatype"
                 :name="attribute.name"
                 :disabled="readOnlyMode"
-                :values="attribute.values ? attribute.values : null"
+                :values="attribute.values ? attribute.values : undefined"
                 :value="getAttributeValue(attribute)"
                 :type-settings="attribute.editor || null"
                 @change="
@@ -349,7 +357,7 @@ export default defineComponent({
                     :datatype="attribute.datatype"
                     :name="attribute.name"
                     :disabled="readOnlyMode"
-                    :values="attribute.values ? attribute.values : null"
+                    :values="attribute.values ? attribute.values : undefined"
                     :value="getAttributeValue(attribute)"
                     :type-settings="attribute.editor || null"
                     focus

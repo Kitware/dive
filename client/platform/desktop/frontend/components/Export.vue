@@ -351,17 +351,17 @@ export default defineComponent({
                 depressed
                 block
                 class="my-1"
-                @click="doExport({ type: 'trackJSON' })"
+                @click="doExport({ type: 'coco' })"
               >
-                <span>TRACK JSON</span>
+                <span>COCO JSON</span>
               </v-btn>
               <v-btn
                 depressed
                 block
                 class="my-1"
-                @click="doExport({ type: 'coco' })"
+                @click="doExport({ type: 'trackJSON' })"
               >
-                <span>COCO JSON</span>
+                <span>DIVE JSON</span>
               </v-btn>
             </v-col>
           </v-row>

@@ -181,10 +181,20 @@ export default defineComponent({
       editing.typeFilter.splice(editing.typeFilter.findIndex((data) => data === item));
     };
 
+    const nameRules = computed(() => [
+      (v: string) => !!v || 'Name is required',
+      (v: string) => (!existingNames.value.includes(v) || editingFilter.value !== filters.value.length) || 'Name needs to be unique',
+    ]);
+    const attributeRules = [(v: string) => !!v || 'Attribute is required'];
+    const operatorRules = [(v: string) => !!v || 'Operator is required'];
+
     return {
       trackFilters,
       filters,
       editingFilter,
+      nameRules,
+      attributeRules,
+      operatorRules,
       attributeTypes,
       types,
       //defaults
@@ -252,7 +262,7 @@ export default defineComponent({
               <v-text-field
                 v-model="editing.name"
                 label="Filter Name"
-                :rules="[v => !!v || 'Name is required', (v) => (!existingNames.includes(v) || editingFilter !== filters.length) || 'Name needs to be unique']"
+                :rules="nameRules"
                 required
               />
             </v-row>
@@ -303,7 +313,7 @@ export default defineComponent({
 
               <v-select
                 v-model="editing.atrKey"
-                :rules="[v => !!v || 'Attribute is required']"
+                :rules="attributeRules"
                 required
                 :items="attributeList"
                 label="Attribute"
@@ -379,7 +389,7 @@ export default defineComponent({
                 v-model="editing.atrOp"
                 :items="editingOps"
                 label="Operator"
-                :rules="[v => !!v || 'Operator is required']"
+                :rules="operatorRules"
                 required
                 @change="changeAttributeType"
               />

@@ -65,6 +65,16 @@ export default defineComponent({
       return getMultiCamSubType(item.meta);
     }
 
+    function multiCamIcon(item: GirderModel) {
+      const subType = multiCamSubType(item);
+      return subType ? getMultiCamIcon(subType) : '';
+    }
+
+    function multiCamTooltip(item: GirderModel) {
+      const subType = multiCamSubType(item);
+      return subType ? getMultiCamTooltip(subType) : '';
+    }
+
     watch(tableOptions, updateOptions, {
       deep: true,
     });
@@ -74,8 +84,8 @@ export default defineComponent({
     return {
       isAnnotationFolder,
       multiCamSubType,
-      getMultiCamIcon,
-      getMultiCamTooltip,
+      multiCamIcon,
+      multiCamTooltip,
       dataList,
       updateOptions,
       total,
@@ -124,10 +134,10 @@ export default defineComponent({
               v-bind="attrs"
               v-on="on"
             >
-              {{ getMultiCamIcon(multiCamSubType(item)) }}
+              {{ multiCamIcon(item) }}
             </v-icon>
           </template>
-          <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
+          <span>{{ multiCamTooltip(item) }}</span>
         </v-tooltip>
         <v-icon class="mr-1">
           mdi-folder{{ item.public ? '' : '-key' }}

@@ -3,6 +3,10 @@ import re
 SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
 BRAND_DATA_CONFIG = 'brand_data_config'
 INSTALLED_ADDONS_CONFIGS = 'installed_addons'
+JOBS_DISABLED_CONFIG = 'jobs_disabled_config'
+DEFAULT_JOBS_DISABLED_MESSAGE = (
+    'Updates will be happening soon, we are disabling jobs until after the updates'
+)
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
@@ -122,10 +126,11 @@ CalibrationConversionErrorMarker = "calibrationConversionError"
 # Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
 CalibrationFileMarker = "calibrationFile"
 # Optional per-dataset metadata file (folder marker points at a Girder item id;
-# the item itself carries MetadataFileMarker). Applies to single and multicam.
+# the owning folder carries the locator). Applies to single and multicam.
 MetadataFileItemIdMarker = "metadataFileItemId"
 MetadataFileOriginalNameMarker = "metadataFileOriginalName"
-MetadataFileMarker = "metadataFile"
+# Girder item meta: marks an item as a frame-metadata attachment for Girder UI.
+FrameMetadataFileMarker = "frameMetadata"
 # Girder item meta: JSON camera-rig used for calibration display
 JsonCalibrationFileMarker = "jsonCalibrationFile"
 AssetstoreSourceMarker = "import_source"

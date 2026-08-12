@@ -4,7 +4,7 @@
  * track on one camera while the aligned view is active re-projects the
  * geometry onto every other aligned camera under the same track id.
  */
-import { ref } from 'vue';
+import { ref, shallowRef } from 'vue';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import AlignedViewStore from 'vue-media-annotator/alignedView/AlignedViewStore';
 import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
@@ -38,7 +38,7 @@ function makeHarness() {
     left: { frame: ref(0), hasFrame: ref(true) },
     right: { frame: ref(0), hasFrame: ref(true) },
   };
-  const aggregateController = ref({
+  const aggregateController = shallowRef({
     frame: ref(0),
     nextFrame: () => undefined,
     seekCameraFrame: () => undefined,
@@ -163,7 +163,7 @@ describe('useModeManager aligned-view track mirroring', () => {
 
 function makeSingleCamHarness() {
   const cameraStore = new CameraStore({ markChangesPending: () => undefined });
-  const aggregateController = ref({
+  const aggregateController = shallowRef({
     frame: ref(0),
     nextFrame: () => undefined,
     seekCameraFrame: () => undefined,

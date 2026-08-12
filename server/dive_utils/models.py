@@ -379,6 +379,14 @@ class BrandData(BaseModel):
         extra = 'forbid'
 
 
+class JobsDisabledConfig(BaseModel):
+    disabled: bool = False
+    message: Optional[str] = None
+
+    class Config:
+        extra = 'forbid'
+
+
 # interpolate all features [a, b)
 def interpolate(a: Feature, b: Feature) -> List[Feature]:
     if a.interpolate is False:

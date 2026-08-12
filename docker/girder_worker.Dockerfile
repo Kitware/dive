@@ -1,8 +1,29 @@
+# ====================
+# == FFMPEG FETCHER ==
+# ====================
+# BtbN FFmpeg 7.1 release-branch builds (not git master). Supports -/headers so
+# Girder tokens need not appear in ffprobe argv. See:
+# https://github.com/BtbN/FFmpeg-Builds/releases/latest
+FROM python:3.11-bookworm AS ffmpeg-builder
+ARG TARGETARCH
+RUN apt-get update && apt-get install -qy --no-install-recommends wget ca-certificates xz-utils \
+  && rm -rf /var/lib/apt/lists/*
+RUN case "${TARGETARCH}" in \
+      amd64) FFARCH=linux64 ;; \
+      arm64) FFARCH=linuxarm64 ;; \
+      *) echo "Unsupported TARGETARCH=${TARGETARCH}" >&2; exit 1 ;; \
+    esac \
+  && wget -O /tmp/ffmpeg.tar.xz \
+    "https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-${FFARCH}-gpl-7.1.tar.xz" \
+  && mkdir /tmp/ffextracted \
+  && tar -xvf /tmp/ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1 \
+  && rm /tmp/ffmpeg.tar.xz
+
 FROM python:3.11-bookworm AS worker
 
-# install architecture-compatible tini and ffmpeg
+# install architecture-compatible tini (ffmpeg comes from BtbN stage above)
 RUN apt-get update && \
-  apt-get install -qy tini ffmpeg git && \
+  apt-get install -qy tini git && \
   apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # use distro-provided tini binary for current architecture
@@ -40,11 +61,9 @@ RUN chown -R dive /opt/dive/local/
 USER dive
 RUN uv sync --frozen --no-dev
 
-# Copy the built python installation
-# Copy ffmpeg
-RUN install -d /opt/dive/local/ffmpeg && \
-  ln -sf /usr/bin/ffmpeg /opt/dive/local/ffmpeg/ffmpeg && \
-  ln -sf /usr/bin/ffprobe /opt/dive/local/ffmpeg/ffprobe
+# Copy BtbN ffmpeg/ffprobe into the path used by entrypoint_worker.sh
+RUN install -d /opt/dive/local/ffmpeg
+COPY --from=ffmpeg-builder /tmp/ffextracted/bin/ffmpeg /tmp/ffextracted/bin/ffprobe /opt/dive/local/ffmpeg/
 # Copy provision scripts
 COPY --chown=dive:dive docker/entrypoint_worker.sh /
 

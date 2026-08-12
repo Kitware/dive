@@ -8,10 +8,12 @@ import {
   getCalibrationFile,
   getCameraPackageFiles,
   getLastCalibration,
+  getMetadataFile,
   mediaFileNamesForImport,
   saveCalibration,
   stashAnnotationFile,
   stashCalibrationFile,
+  stashMetadataFile,
 } from './multicamFileRegistry';
 
 /** Fixed lastModified so "did the user pick this very file?" is deterministic in tests. */
@@ -85,7 +87,7 @@ describe('multicam camera package construction', () => {
   it('reports only media filenames for multicam pre-import validation', () => {
     const files = [
       fileWithPath('img001.png', 'cam1/img001.png'),
-      fileWithPath('nav.csv', 'cam1/nav.csv'),
+      fileWithPath('frame_metadata.csv', 'cam1/frame_metadata.csv'),
       fileWithPath('tracks.csv', 'cam1/tracks.csv'),
     ];
     expect(mediaFileNamesForImport(files, 'image-sequence')).toEqual(['img001.png']);
@@ -139,12 +141,51 @@ describe('multicam camera package construction', () => {
     expect(replaced).toEqual([folderTrack]);
   });
 
-  it('keeps camera-folder annotations and config in the package, not just media', () => {
-    // tracks.csv and config.json are auto-detected in the camera folder, and both belong to
-    // the camera: the package is everything the server validates, not only the media.
-    const folderFiles = [file('img001.png'), file('tracks.csv'), file('config.json')];
+  it('keeps same-named camera metadata selections under distinct keys', () => {
+    const left = new File(['left'], 'frame_metadata.csv', { type: 'text/csv' });
+    const right = new File(['right'], 'frame_metadata.csv', { type: 'text/csv' });
+    stashMetadataFile('metadata-selection-left', left);
+    stashMetadataFile('metadata-selection-right', right);
+
+    expect(getMetadataFile('metadata-selection-left')).toBe(left);
+    expect(getMetadataFile('metadata-selection-right')).toBe(right);
+    expect(getMetadataFile('frame_metadata.csv')).toBeUndefined();
+  });
+
+  it('removes an explicitly selected in-folder attachment before flattening', () => {
+    const selected = file('frame_metadata.csv');
+    stashMetadataFile('metadata-selection-left', selected);
+    const { files: cameraFiles, replaced } = getCameraPackageFiles([
+      fileWithPath('img001.png', 'left/img001.png'),
+      fileWithPath('frame_metadata.csv', 'left/frame_metadata.csv'),
+    ], undefined, 'metadata-selection-left');
+
+    expect(cameraFiles.map((entry) => entry.name)).toEqual(['img001.png']);
+    // The attachment is uploaded separately, so re-picking it drops nothing.
+    expect(replaced).toEqual([]);
+  });
+
+  it('reports a camera-folder sidecar displaced by a same-named metadata pick', () => {
+    // The metadata attachment is never added back to the package, so a distinct folder file
+    // of the same name would otherwise leave the upload with no message at all.
+    const picked = file('nav.csv', 'chosen from another directory');
+    stashMetadataFile('metadata-selection-left', picked);
+    const folderSidecar = fileWithPath('nav.csv', 'left/nav.csv', 'the camera folder sidecar');
+    const { files: cameraFiles, replaced } = getCameraPackageFiles([
+      fileWithPath('img001.png', 'left/img001.png'),
+      folderSidecar,
+    ], undefined, 'metadata-selection-left');
+
+    expect(cameraFiles.map((entry) => entry.name)).toEqual(['img001.png']);
+    expect(replaced).toEqual([folderSidecar]);
+  });
+
+  it('keeps camera-folder annotations and sidecars in the package, not just media', () => {
+    // tracks.csv and frame_metadata.csv are auto-detected in the camera folder; both
+    // must ride along with the camera, not just the media.
+    const folderFiles = [file('img001.png'), file('tracks.csv'), file('frame_metadata.csv')];
     expect(getCameraPackageFiles(folderFiles).files.map((f) => f.name)).toEqual([
-      'img001.png', 'tracks.csv', 'config.json',
+      'img001.png', 'tracks.csv', 'frame_metadata.csv',
     ]);
   });
 });

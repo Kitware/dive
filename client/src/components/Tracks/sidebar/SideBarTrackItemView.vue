@@ -1,6 +1,9 @@
 <script lang="ts">
-import { computed, defineComponent, ref } from 'vue';
+import {
+  computed, defineComponent, PropType, ref,
+} from 'vue';
 import context from 'dive-common/store/context';
+import Track from '../../../track';
 import TooltipBtn from '../../TooltipButton.vue';
 import TypePicker from '../../TypePicker.vue';
 import {
@@ -21,7 +24,7 @@ export default defineComponent({
     trackType: { type: String, required: true },
     itemStyle: { type: Object, required: true },
     color: { type: String, required: true },
-    track: { type: Object, required: true },
+    track: { type: Object as PropType<Track>, required: true },
     inputValue: { type: Boolean, required: true },
     disabled: { type: Boolean, default: false },
     isTrack: { type: Boolean, required: true },
@@ -29,12 +32,12 @@ export default defineComponent({
     keyframeDisabled: { type: Boolean, required: true },
     frame: { type: Number, required: true },
     merging: { type: Boolean, default: false },
-    toggleKeyframe: { type: Function, required: true },
-    clickToggleInterpolation: { type: Function, required: true },
-    toggleInterpolation: { type: Function, required: true },
-    toggleAllInterpolation: { type: Function, required: true },
-    gotoPrevious: { type: Function, required: true },
-    gotoNext: { type: Function, required: true },
+    toggleKeyframe: { type: Function as PropType<() => void>, required: true },
+    clickToggleInterpolation: { type: Function as PropType<(event: MouseEvent) => void>, required: true },
+    toggleInterpolation: { type: Function as PropType<() => void>, required: true },
+    toggleAllInterpolation: { type: Function as PropType<() => void>, required: true },
+    gotoPrevious: { type: Function as PropType<() => void>, required: true },
+    gotoNext: { type: Function as PropType<() => void>, required: true },
     editing: { type: Boolean, required: true },
   },
   setup(props) {
@@ -255,7 +258,7 @@ export default defineComponent({
         <span v-else>
           <tooltip-btn
             icon="mdi-camera"
-            tooltip-text="Open MultiCamera Tools"
+            tooltip-text="Open Multi Camera Tools"
             @click="openMultiCamTools"
           />
         </span>

@@ -16,6 +16,9 @@ export const PipelinesFolderName = 'DIVE_Pipelines';
 // Basename (without extension) of the saved "most recently used" calibration.
 // The stored file keeps the source file's real extension (e.g. last_calibration.npz).
 export const LastCalibrationBaseName = 'last_calibration';
+// Cross-dataset "shared" color/style overrides, stored once per data directory
+// and reused across every sequence when the shared color scope is enabled.
+export const GlobalStyleSettingsFileName = 'global_style_settings.json';
 
 export interface Settings {
   // version a schema version
@@ -46,6 +49,10 @@ export interface Camera {
   transcodedVideoFile: string;
   transcodedMisalign?: boolean;
   imageListPath?: string;
+  /** Stored camera-local metadata attachment path. */
+  metadataFile?: string;
+  /** Preserved original name of the camera-local metadata attachment. */
+  metadataOriginalName?: string;
 }
 
 export interface MultiCamDesktop {
@@ -223,6 +230,8 @@ export interface RunTraining extends JobArgs {
     path?: string;
     folderId?: string;
   };
+  // working directory of a prior interrupted run to continue from
+  resumeWorkingDir?: string;
 }
 
 export interface ConversionArgs extends JobArgs {
@@ -275,6 +284,9 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   /** Absolute path of an optional DIVE Configuration File (JSON) chosen at import. */
   configFileAbsPath?: string;
   /** Absolute path of an optional Metadata File (pipeline sidecar) chosen at import. */
+  // Absolute path of the one optional metadata attachment. Seeded by import-time discovery
+  // (an exported folder's metadata/ directory, or a reserved-name file beside the media) and
+  // shown in the import dialog, where the user can clear or replace it before finalize.
   metadataFileAbsPath?: string;
   // Non-fatal problems found while preparing the import (e.g. a registration
   // file naming cameras this dataset doesn't have), shown in the import dialog.

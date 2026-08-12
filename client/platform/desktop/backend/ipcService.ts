@@ -6,7 +6,7 @@ import {
   app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
-import type { Pipe } from 'dive-common/apispec';
+import type { Pipe, GlobalStyleSettings } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   ExportMulticamEverythingArgs,
@@ -24,6 +24,7 @@ import win32 from './native/windows';
 import * as common from './native/common';
 import beginMultiCamImport from './native/multiCamImport';
 import scanMultiCamBatch from './native/multiCollectImport';
+import scanStereoBatch from './native/stereoCollectImport';
 import settings from './state/settings';
 import { listen } from './server';
 import {
@@ -123,7 +124,7 @@ export default function register() {
     // eslint-disable-next-line no-param-reassign -- ipcMain event.returnValue API
     event.returnValue = getDiveVersion();
   });
-  ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));
+  ipcMain.handle('desktop:get-app-path', (_, name: Parameters<typeof app.getPath>[0]) => app.getPath(name));
   ipcMain.handle('desktop:open-path', async (_, targetPath: string) => (
     common.openPathInFileManager(targetPath)
   ));
@@ -228,6 +229,11 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('load-frame-metadata', async (
+    event,
+    { datasetId }: { datasetId: string },
+  ) => common.loadFrameMetadata(settings.get(), datasetId));
+
   ipcMain.handle('import-multicam-media', async (event, { args }:
     { args: MultiCamImportArgs }) => {
     const ret = await beginMultiCamImport(args);
@@ -236,6 +242,11 @@ export default function register() {
 
   ipcMain.handle('scan-multicam-batch', async (event, { path: rootPath }: { path: string }) => {
     const ret = await scanMultiCamBatch(rootPath);
+    return ret;
+  });
+
+  ipcMain.handle('scan-stereo-batch', async (event, { path: rootPath }: { path: string }) => {
+    const ret = await scanStereoBatch(rootPath);
     return ret;
   });
 
@@ -248,6 +259,14 @@ export default function register() {
   });
 
   ipcMain.handle('get-last-calibration', async () => common.getLastCalibrationPath(settings.get()));
+
+  ipcMain.handle('load-global-style-settings', async () => (
+    common.loadGlobalStyleSettings(settings.get())
+  ));
+
+  ipcMain.handle('save-global-style-settings', async (_, styleSettings: GlobalStyleSettings) => {
+    await common.saveGlobalStyleSettings(settings.get(), styleSettings);
+  });
 
   ipcMain.handle('save-calibration', async (_, { path: sourcePath }: { path: string }) => {
     const savedPath = await common.saveLastCalibration(settings.get(), sourcePath);
@@ -330,6 +349,10 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
+  });
+  ipcMain.handle('list-resumable-training', async () => common.findResumableTrainingJobs(settings.get()));
+  ipcMain.handle('discard-resumable-training', async (_event, workingDir: string) => {
+    await common.discardResumableTraining(settings.get(), workingDir);
   });
 
   /**

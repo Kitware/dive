@@ -61,7 +61,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 
 The import routine will look for `.csv` and `.json` files in the same directory as the source media, and you will be prompted to manually select an annotation file and a **Configuration File** (DIVE JSON, sometimes named `*.meta.json` or `*.config.json`). Neither is required.
 
-Advanced options also include an optional **Metadata File** (`.json`, `.txt`, or `.csv`) — a pipeline sidecar such as a flight log. This is **not** the same as the Configuration File: DIVE does not parse it, and only pipelines that declare `# Metadata File:` receive it at run time. Metadata can be attached on single-camera, stereo, and multicam imports. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
+Advanced options also include an optional **Metadata File** (`.json`, `.txt`, or `.csv`) — a pipeline sidecar such as a flight log. This is **not** the same as the Configuration File. Pipelines that declare `# Metadata File:` receive it at run time; DIVE also shows matching CSV/TXT rows as [Frame Metadata](Frame-Metadata.md) on image-sequence and video datasets. Metadata can be attached on single-camera, stereo, and multicam imports. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
 
 ### Launching from the command line
 
@@ -79,7 +79,7 @@ DIVE-Desktop --import <media> [--annotations <file>] [--metadata <file>] [--name
 | ---- | ----- | ----------- |
 | `--import` | `-i` | Media to open: an image-sequence directory, an image-list `.txt` file (one image path per line), or a video. Same inputs as the import wizard. |
 | `--annotations` | `-a` | Optional annotation file to load (VIAME CSV or DIVE JSON). |
-| `--metadata` | | Optional pipeline metadata sidecar (`.json`, `.txt`, or `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker; only used by pipelines that declare `# Metadata File:`. |
+| `--metadata` | | Optional metadata attachment (`.json`, `.txt`, or `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker; passed to pipelines that declare `# Metadata File:` and, for matching CSV/TXT rows, also shown as [Frame Metadata](Frame-Metadata.md). |
 | `--name` | `-n` | Optional display name; defaults to the media basename. |
 
 Example — review a detector CSV over an image list:
@@ -153,11 +153,12 @@ DIVE Desktop requires a local installation of the VIAME toolkit to run ML pipeli
 
 The data storage path is not at all related to "project folders" in VIAME.  It's just a place for DIVE Desktop to keep and structure all the data it needs to run.
 
-A typical data storage directory has 3 subfolders:
+A typical data storage directory has 3 subfolders plus an optional shared-styles file at the root:
 
 * `DIVE_Jobs` - Each job run has a working directory, kept here.
 * `DIVE_Projects` - Each dataset you import into desktop has metadata and annotation data (with revision history) kept here.
 * `DIVE_Pipelines` - Training runs produce models that get copied into here.
+* `global_style_settings.json` - Cross-dataset type and group color/style overrides used when [Type color scope](UI-Type-List.md#type-color-scope-and-saved-styles) is **Shared across all data**. Created when shared styles are first saved; absent on a fresh install.
 
 Here's an example of structure you might find in the storage path.
 
@@ -181,20 +182,21 @@ VIAME_DATA
 │  └── Quadcam_Fish_Detector_SVM
 │     ├── detector.pipe
 │     └── fish.svm
-└── DIVE_Projects
-   ├── fish_training_data_c_jp7hq88vfv
-   │  ├── auxiliary
-   │  │  └── result_06-01-2021_10-55-38.627.json
-   │  ├── dataset.json
-   │  └── result_06-01-2021_04-53-38.050.json
-   └── scallop_2_jrgdq760gu
-      ├── auxiliary
-      │  └── result_06-01-2021_10-54-56.034.json
-      ├── dataset.json
-      └── result_06-01-2021_11-02-35.857.json
+├── DIVE_Projects
+│  ├── fish_training_data_c_jp7hq88vfv
+│  │  ├── auxiliary
+│  │  │  └── result_06-01-2021_10-55-38.627.json
+│  │  ├── dataset.json
+│  │  └── result_06-01-2021_04-53-38.050.json
+│  └── scallop_2_jrgdq760gu
+│     ├── auxiliary
+│     │  └── result_06-01-2021_10-54-56.034.json
+│     ├── dataset.json
+│     └── result_06-01-2021_11-02-35.857.json
+└── global_style_settings.json
 ```
 
-Each project folder stores a `dataset.json` with desktop-specific dataset state (media paths, ids, transcodes, multicam layout, …). This is separate from the portable **Configuration File** (`config.json`) used on import/export for attributes, styles, FPS, and related settings.
+Each project folder stores a `dataset.json` with desktop-specific dataset state (media paths, ids, transcodes, multicam layout, …). This is separate from the portable **Configuration File** (`config.json`) used on import/export for attributes, styles, FPS, and related settings. Shared type/group colors in `global_style_settings.json` are also separate from that portable configuration file.
 
 Existing datasets that still have `meta.json` in the project folder are read normally; the next save migrates them to `dataset.json` and removes the legacy file.
 ### Configuration with env

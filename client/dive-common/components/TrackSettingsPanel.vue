@@ -333,7 +333,7 @@ export default defineComponent({
       </v-row>
       <v-divider class="my-2" />
       <div class="subheading">
-        Multi-Camera Settings
+        Multi Camera Settings
       </div>
       <v-row
         align="end"

@@ -1,7 +1,11 @@
 // @vitest-environment jsdom
-import { defineComponent, ref, nextTick } from 'vue';
+/* eslint-disable vue/one-component-per-file -- harness Host components for mount() */
+import {
+  defineComponent, ref, shallowRef, nextTick,
+} from 'vue';
 // eslint-disable-next-line import/no-extraneous-dependencies -- @vue/test-utils is only used in tests
 import { mount } from '@vue/test-utils';
+import { clientSettings } from 'dive-common/store/settings';
 import type { MediaController, AggregateMediaController } from '../annotators/mediaControllerType';
 import AlignedViewStore from '../../alignedView/AlignedViewStore';
 import useLayerManagerAlignedView from './useLayerManagerAlignedView';
@@ -55,17 +59,19 @@ function makeHarness() {
   const viewer = {
     createLayer: vi.fn(() => warpLayer),
     geoOn: vi.fn(),
+    center: vi.fn(),
     layers: () => [nativeLayer, warpLayer],
   };
 
+  const imageRevision = ref(0);
   const annotator = {
     cameraName: ref('rgb'),
     geoViewerRef: ref(viewer),
     frame: ref(0),
-    imageRevision: ref(0),
+    imageRevision,
     frameTexture: ref(null),
   } as unknown as MediaController;
-  const aggregateController = ref({
+  const aggregateController = shallowRef({
     getController: () => annotator,
   } as unknown as AggregateMediaController);
 
@@ -92,7 +98,7 @@ function makeHarness() {
   });
   const wrapper = mount(Host);
   return {
-    wrapper, annotator, nativeFeature, warpFeature, imgA,
+    wrapper, annotator, nativeFeature, warpFeature, imgA, viewer, imageRevision,
   };
 }
 
@@ -112,30 +118,34 @@ describe('useLayerManagerAlignedView warp refresh', () => {
   });
 
   it('re-renders the warp when imageRevision bumps with a swapped element', async () => {
-    const { annotator, nativeFeature, warpFeature } = makeHarness();
+    const {
+      nativeFeature, warpFeature, imageRevision,
+    } = makeHarness();
     await nextTick();
     // The annotator swaps its displayed <img> (e.g. the percentile-stretch
     // URL remap finishing its load) and bumps imageRevision -- the warp must
     // re-render from the new element with no other trigger.
     const imgB = { naturalWidth: 100, naturalHeight: 50 } as HTMLImageElement;
     nativeFeature.data([{ image: imgB }]);
-    annotator.imageRevision.value += 1;
+    imageRevision.value += 1;
     await nextTick();
     expect(lastWarpSource(warpFeature)).toBe(imgB);
   });
 
   it('clears the warp instead of rendering while the swapped element is unloaded', async () => {
-    const { annotator, nativeFeature, warpFeature } = makeHarness();
+    const {
+      nativeFeature, warpFeature, imageRevision,
+    } = makeHarness();
     await nextTick();
     const pending = { naturalWidth: 0, naturalHeight: 0 } as HTMLImageElement;
     nativeFeature.data([{ image: pending }]);
-    annotator.imageRevision.value += 1;
+    imageRevision.value += 1;
     await nextTick();
     expect(lastWarpSource(warpFeature)).toBeNull();
     // ...and renders it once the load lands and bumps again.
     const loaded = { naturalWidth: 100, naturalHeight: 50 } as HTMLImageElement;
     nativeFeature.data([{ image: loaded }]);
-    annotator.imageRevision.value += 1;
+    imageRevision.value += 1;
     await nextTick();
     expect(lastWarpSource(warpFeature)).toBe(loaded);
   });
@@ -183,7 +193,7 @@ function makeLargeImageHarness() {
     imageRevision: ref(0),
     frameTexture: ref(texture),
   } as unknown as MediaController;
-  const aggregateController = ref({
+  const aggregateController = shallowRef({
     getController: () => annotator,
   } as unknown as AggregateMediaController);
 
@@ -223,5 +233,42 @@ describe('useLayerManagerAlignedView large-image native hide', () => {
     expect(lastWarpSource(warpFeature)).toBeTruthy();
     expect(currentOsm.visible).toHaveBeenCalledWith(false);
     expect(nextOsm.visible).toHaveBeenCalledWith(false);
+  });
+});
+
+describe('right-click recenter', () => {
+  /** The mouseclick handler AlignedImageLayer registered on the viewer. */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function clickHandler(viewer: any) {
+    const call = viewer.geoOn.mock.calls.find((c: unknown[]) => c[0] === 'geo_mouseclick');
+    return call[1] as (e: unknown) => void;
+  }
+  const rightClick = { geo: { x: 12, y: 34 }, buttonsDown: { right: true } };
+
+  afterEach(() => {
+    clientSettings.annotatorPreferences.lockedCamera.enabled = false;
+  });
+
+  it('does not recenter while the camera lock is off', async () => {
+    const { viewer } = makeHarness();
+    await nextTick();
+    clickHandler(viewer)(rightClick);
+    expect(viewer.center).not.toHaveBeenCalled();
+  });
+
+  it('recenters on right-click once the camera lock is on', async () => {
+    clientSettings.annotatorPreferences.lockedCamera.enabled = true;
+    const { viewer } = makeHarness();
+    await nextTick();
+    clickHandler(viewer)(rightClick);
+    expect(viewer.center).toHaveBeenCalledWith({ x: 12, y: 34 });
+  });
+
+  it('ignores a left-click even when the lock is on', async () => {
+    clientSettings.annotatorPreferences.lockedCamera.enabled = true;
+    const { viewer } = makeHarness();
+    await nextTick();
+    clickHandler(viewer)({ geo: { x: 1, y: 2 }, buttonsDown: { left: true } });
+    expect(viewer.center).not.toHaveBeenCalled();
   });
 });

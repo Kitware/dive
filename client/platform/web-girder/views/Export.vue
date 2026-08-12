@@ -225,7 +225,7 @@ export default defineComponent({
     const isMulticamDataset = computed(() => dataset.value?.type === MultiType);
 
     const mediaType = computed(() => {
-      if (dataset.value === null || isMulticamDataset.value) return null;
+      if (dataset.value === null || dataset.value.type === MultiType) return null;
       const { type } = dataset.value;
       return {
         [ImageSequenceType]: 'Image Sequence',
@@ -463,12 +463,12 @@ export default defineComponent({
                   :disabled="!exportUrls.exportDetectionsUrl"
                   @click="doExport({
                     url: exportUrls
-                      && exportUrls.exportDetectionsUrlTrackJSON,
+                      && exportUrls.exportDetectionsUrlCocoJSON,
                   })"
                 >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
-                  >DIVE TrackJSON</span>
+                  >COCO JSON</span>
                   <span
                     v-else
                   >detections unavailable</span>
@@ -480,12 +480,12 @@ export default defineComponent({
                   :disabled="!exportUrls.exportDetectionsUrl"
                   @click="doExport({
                     url: exportUrls
-                      && exportUrls.exportDetectionsUrlCocoJSON,
+                      && exportUrls.exportDetectionsUrlTrackJSON,
                   })"
                 >
                   <span
                     v-if="exportUrls.exportDetectionsUrl"
-                  >COCO JSON</span>
+                  >DIVE JSON</span>
                   <span
                     v-else
                   >detections unavailable</span>
@@ -591,7 +591,7 @@ export default defineComponent({
             </v-btn>
           </v-card-actions>
           <v-card-text class="pb-0">
-            Export All selected Dataset Detections in VIAME CSV and TrackJSON
+            Export All selected Dataset Detections in VIAME CSV and DIVE JSON
           </v-card-text>
           <v-checkbox
             v-model="excludeBelowThreshold"

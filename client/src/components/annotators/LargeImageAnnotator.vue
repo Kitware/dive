@@ -2,7 +2,7 @@
 import {
   defineComponent, ref, onUnmounted, PropType, toRef, watch, computed, markRaw,
 } from 'vue';
-import { debounce } from 'lodash';
+import { debounce, map } from 'lodash';
 import geo from 'geojs';
 import {
   ImageEnhancementOutputs,
@@ -136,7 +136,7 @@ export default defineComponent({
       container,
       initializeViewer,
       mediaController,
-    } = cameraInitializer(props.camera, {
+    } = cameraInitializer(props.camera, 'large-image', {
       // allow hoisting for these functions to pass a reference before defining them.
       // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
@@ -203,6 +203,7 @@ export default defineComponent({
     };
     let projection: string | undefined;
     data.maxFrame = props.imageData.length - 1;
+    data.filenames = map(props.imageData, 'filename');
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
       playCache: 1, // seconds required to be fully cached before playback
@@ -236,7 +237,8 @@ export default defineComponent({
       params: Record<string, any>,
       proj?: string,
     ) {
-      const updatedParams = { ...params, encoding: 'PNG' };
+      // Spreading a Record into a literal drops its index signature, so restate the param's type.
+      const updatedParams: typeof params = { ...params, encoding: 'PNG' };
       if (proj) {
         updatedParams.projection = proj;
       }
@@ -532,6 +534,7 @@ export default defineComponent({
       tileLoadError.value = '';
       copiedConversionCommand.value = false;
       data.maxFrame = props.imageData.length - 1;
+      data.filenames = map(props.imageData, 'filename');
       // Below are configuration settings we can set until we decide on good numbers to utilize.
       local = {
         playCache: 1, // seconds required to be fully cached before playback
@@ -688,6 +691,7 @@ export default defineComponent({
         return;
       }
       data.maxFrame = props.imageData.length - 1;
+      data.filenames = map(props.imageData, 'filename');
       if (!props.imageData[data.frame]) {
         await seek(Math.min(data.frame, Math.max(0, data.maxFrame)));
         return;
