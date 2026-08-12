@@ -182,18 +182,22 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return url ? urlToRgba(url) : null;
   }
 
-  // The Viewer mounts after this composable runs, so build the transfer lazily
-  // on the first event, once cameraStore is available.
+  // ViewerLoader is reused across /viewer/:id navigations while <Viewer :key="id">
+  // remounts, so never close over a specific Viewer — rebuild when cameraStore
+  // identity changes, and resolve multiCamList via getViewer() each call.
   let transfer: ReturnType<typeof useStereoOnnxTransfer> | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let transferCameraStore: any = null;
 
   function getTransfer() {
-    if (!transfer) {
-      const viewer = opts.getViewer();
-      if (!viewer?.cameraStore) return null;
+    const viewer = opts.getViewer();
+    if (!viewer?.cameraStore) return null;
+    if (!transfer || transferCameraStore !== viewer.cameraStore) {
+      transferCameraStore = viewer.cameraStore;
       transfer = useStereoOnnxTransfer({
         cameraStore: viewer.cameraStore,
-        getMultiCamList: () => fromViewer<string[]>(viewer.multiCamList) ?? [],
-        getLeftCameraName: () => (fromViewer<string[]>(viewer.multiCamList) ?? [])[0],
+        getMultiCamList: () => fromViewer<string[]>(opts.getViewer()?.multiCamList) ?? [],
+        getLeftCameraName: () => (fromViewer<string[]>(opts.getViewer()?.multiCamList) ?? [])[0],
         getRig,
         getMatcher,
         getFrame,

@@ -1,13 +1,14 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ref } from 'vue';
+// eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
 import {
   describe, it, expect, vi,
 } from 'vitest';
 import { rigFromNpz, StereoRig } from '../calibration';
 import { project } from '../triangulate';
 import useStereoOnnxTransfer, { STEREO_USER_LINE_ATTR } from '../useStereoOnnxTransfer';
-import { fromViewer } from '../../../../platform/web-girder/useStereoOnnxWeb';
+import useStereoOnnxWeb, { fromViewer } from '../../../../platform/web-girder/useStereoOnnxWeb';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const loadRig = () => rigFromNpz(readFileSync(fixture('calibration.npz')));
@@ -29,6 +30,44 @@ describe('fromViewer', () => {
   });
   it('passes undefined through', () => {
     expect(fromViewer<string[]>(undefined)).toBeUndefined();
+  });
+});
+
+/**
+ * ViewerLoader is reused across /viewer/:id while <Viewer :key="id"> remounts.
+ * The web glue must not keep writing into the destroyed Viewer's cameraStore.
+ */
+describe('useStereoOnnxWeb viewer rebinding', () => {
+  it('rebuilds transfer when the Viewer cameraStore identity changes', async () => {
+    const forEachA = vi.fn();
+    const forEachB = vi.fn();
+    const storeA = {
+      getPossibleTrack: vi.fn(),
+      camMap: ref(new Map([
+        ['left', { trackStore: { annotationMap: { forEach: forEachA } } }],
+      ])),
+    };
+    const storeB = {
+      getPossibleTrack: vi.fn(),
+      camMap: ref(new Map([
+        ['left', { trackStore: { annotationMap: { forEach: forEachB } } }],
+      ])),
+    };
+    let viewer: { cameraStore: typeof storeA; multiCamList: string[] } = {
+      cameraStore: storeA, multiCamList: ['left', 'right'],
+    };
+    const stereo = useStereoOnnxWeb({
+      getViewer: () => viewer,
+      getDatasetId: () => 'dataset-a',
+    });
+
+    await stereo.warpAllFromCamera('left');
+    expect(forEachA).toHaveBeenCalled();
+    expect(forEachB).not.toHaveBeenCalled();
+
+    viewer = { cameraStore: storeB, multiCamList: ['left', 'right'] };
+    await stereo.warpAllFromCamera('left');
+    expect(forEachB).toHaveBeenCalled();
   });
 });
 

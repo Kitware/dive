@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
+// eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
 import {
   describe, it, expect,
 } from 'vitest';

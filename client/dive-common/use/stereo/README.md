@@ -98,7 +98,7 @@ The disparity range is scene-dependent — VIAME's batch measurement pipes ship
 
 ## Testing status
 
-- **Tested** (`__tests__/`, runs under `npm test`): `.npz` calibration parsing,
+- **Tested** (`tests/`, runs under `npm test`): `.npz` calibration parsing,
   grayscale conversion, and `StereoOnnxMatcher` warping points, validated against
   the VIAME C++/Python reference (matches to ~0.25 px) using `onnxruntime-web` in
   Node; plus triangulation and measurement, validated by projecting known 3D
