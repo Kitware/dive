@@ -232,7 +232,7 @@ def test_is_frame_misaligned_accepts_url_and_headers():
 
 def _run_convert_video(task, **kwargs):
     """Invoke convert_video's underlying function with an explicit bound self."""
-    from dive_tasks.tasks import convert_video
+    from dive_tasks.convert_video import convert_video
 
     # PromiseProxy.__wrapped__ is a bound method; call the unbound function.
     return convert_video.__wrapped__.__func__(task, **kwargs)
@@ -264,10 +264,10 @@ def test_convert_video_skip_path_avoids_download():
     task.job_manager = MagicMock()
 
     with (
-        patch('dive_tasks.tasks.patch_manager') as patch_mgr,
-        patch('dive_tasks.tasks.utils.ffprobe_format_and_streams', return_value=probe),
-        patch('dive_tasks.tasks.is_frame_misaligned', return_value=False),
-        patch('dive_tasks.tasks.resolve_annotation_fps', return_value=30.0),
+        patch('dive_tasks.convert_video.patch_manager') as patch_mgr,
+        patch('dive_tasks.convert_video.utils.ffprobe_format_and_streams', return_value=probe),
+        patch('dive_tasks.convert_video.is_frame_misaligned', return_value=False),
+        patch('dive_tasks.convert_video.resolve_annotation_fps', return_value=30.0),
     ):
         patch_mgr.return_value = MagicMock()
         _run_convert_video(
@@ -315,15 +315,15 @@ def test_convert_video_downloads_when_transcode_required():
     task.job_manager = MagicMock()
 
     with (
-        patch('dive_tasks.tasks.patch_manager') as patch_mgr,
-        patch('dive_tasks.tasks.utils.ffprobe_format_and_streams', return_value=probe),
-        patch('dive_tasks.tasks.is_frame_misaligned', return_value=False),
-        patch('dive_tasks.tasks.utils.stream_subprocess'),
+        patch('dive_tasks.convert_video.patch_manager') as patch_mgr,
+        patch('dive_tasks.convert_video.utils.ffprobe_format_and_streams', return_value=probe),
+        patch('dive_tasks.convert_video.is_frame_misaligned', return_value=False),
+        patch('dive_tasks.convert_video.utils.stream_subprocess'),
         patch(
-            'dive_tasks.tasks.check_and_fix_frame_alignment',
+            'dive_tasks.convert_video.check_and_fix_frame_alignment',
             side_effect=lambda task, path, context, manager: path,
         ),
-        patch('dive_tasks.tasks.resolve_annotation_fps', return_value=25.0),
+        patch('dive_tasks.convert_video.resolve_annotation_fps', return_value=25.0),
     ):
         patch_mgr.return_value = MagicMock()
         _run_convert_video(
@@ -352,9 +352,9 @@ def test_convert_video_cancel_during_remote_probe_does_not_download():
     task.job_manager = MagicMock()
 
     with (
-        patch('dive_tasks.tasks.patch_manager') as patch_mgr,
+        patch('dive_tasks.convert_video.patch_manager') as patch_mgr,
         patch(
-            'dive_tasks.tasks.utils.ffprobe_format_and_streams',
+            'dive_tasks.convert_video.utils.ffprobe_format_and_streams',
             side_effect=CanceledError('Job was canceled'),
         ),
     ):
@@ -398,10 +398,10 @@ def test_convert_video_cancel_during_remote_alignment_does_not_download():
     task.job_manager = MagicMock()
 
     with (
-        patch('dive_tasks.tasks.patch_manager') as patch_mgr,
-        patch('dive_tasks.tasks.utils.ffprobe_format_and_streams', return_value=probe),
+        patch('dive_tasks.convert_video.patch_manager') as patch_mgr,
+        patch('dive_tasks.convert_video.utils.ffprobe_format_and_streams', return_value=probe),
         patch(
-            'dive_tasks.tasks.is_frame_misaligned',
+            'dive_tasks.convert_video.is_frame_misaligned',
             side_effect=CanceledError('Job was canceled'),
         ),
     ):

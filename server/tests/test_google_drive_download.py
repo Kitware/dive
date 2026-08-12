@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from dive_tasks.tasks import (
+from dive_tasks.upgrade_pipelines import (
     _addon_zip_path_for_url,
     download_google_drive_zip,
     is_google_drive_addon_url,
@@ -44,7 +44,7 @@ def test_addon_zip_path_keeps_http_path_naming(tmp_path: Path):
 def test_download_google_drive_zip_uses_gdown(tmp_path: Path):
     dest = tmp_path / 'addon.zip'
     url = 'https://www.drive.google.com/file/d/abc123XYZ/view?usp=sharing'
-    with patch('dive_tasks.tasks.gdown.download') as mock_download:
+    with patch('dive_tasks.upgrade_pipelines.gdown.download') as mock_download:
         download_google_drive_zip(url, dest)
     mock_download.assert_called_once_with(
         url='https://drive.google.com/file/d/abc123XYZ/view?usp=sharing',
