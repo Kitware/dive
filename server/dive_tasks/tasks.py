@@ -1,5 +1,4 @@
 from contextlib import suppress
-import json
 import logging
 import os
 from pathlib import Path
@@ -1160,6 +1159,21 @@ def resolve_annotation_fps(
     )
 
 
+def _download_video_item(
+    gc: GirderClient,
+    manager: JobManager,
+    item_id: str,
+    item_name: str,
+    dest_dir: Path,
+) -> str:
+    """Download a Girder video item to *dest_dir*; return the local file path."""
+    file_name = str(dest_dir / item_name)
+    manager.updateStatus(JobStatus.FETCHING_INPUT)
+    manager.write(f'Fetching input from {item_id} to {file_name}...\n')
+    gc.downloadItem(item_id, dest_dir, name=item_name)
+    return file_name
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def convert_video(
     self: Task, folderId: str, itemId: str, user_id: str, user_login: str, skip_transcoding=False
@@ -1174,27 +1188,51 @@ def convert_video(
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
         item: GirderModel = gc.getItem(itemId)
-        file_name = str(_working_directory_path / item['name'])
-        output_file_path = (_working_directory_path / item['name']).with_suffix('.transcoded.mp4')
-        manager.updateStatus(JobStatus.FETCHING_INPUT)
-        manager.write(f'Fetching input from {itemId} to {file_name}...\n')
-        gc.downloadItem(itemId, _working_directory_path, name=item.get('name'))
-        manager.updateStatus(JobStatus.RUNNING)
+        item_name = item['name']
+        output_file_path = (_working_directory_path / item_name).with_suffix('.transcoded.mp4')
 
-        command = [
-            "ffprobe",
-            "-print_format",
-            "json",
-            "-v",
-            "quiet",
-            "-show_format",
-            "-show_streams",
-            file_name,
-        ]
-        stdout = utils.stream_subprocess(
-            self, context, manager, {'args': command}, keep_stdout=True
-        )
-        jsoninfo = json.loads(stdout)
+        # When skip_transcoding is requested, probe via authenticated HTTP Range
+        # requests first so web-ready S3/filesystem videos never need a full download.
+        # Fall back to downloading the whole object if remote probe/alignment fails.
+        jsoninfo = None
+        file_name: Optional[str] = None
+        auth_headers: Optional[str] = None
+        remote_url: Optional[str] = None
+
+        if skip_transcoding:
+            try:
+                remote_url = utils.item_primary_file_download_url(gc, itemId)
+            except Exception as exc:
+                manager.write(
+                    f'Could not resolve file download URL ({exc}); '
+                    'falling back to full download\n'
+                )
+                remote_url = None
+            if remote_url is not None:
+                auth_headers = utils.girder_auth_headers(gc.token)
+                manager.updateStatus(JobStatus.RUNNING)
+                manager.write(f'Probing video via HTTP Range requests: {remote_url}\n')
+                try:
+                    jsoninfo = utils.ffprobe_format_and_streams(
+                        self, context, manager, remote_url, headers=auth_headers
+                    )
+                except utils.CanceledError:
+                    raise
+                except Exception as exc:
+                    manager.write(
+                        f'Remote ffprobe failed ({exc}); falling back to full download\n'
+                    )
+                    jsoninfo = None
+                    auth_headers = None
+                    remote_url = None
+
+        if jsoninfo is None:
+            file_name = _download_video_item(
+                gc, manager, itemId, item_name, _working_directory_path
+            )
+            manager.updateStatus(JobStatus.RUNNING)
+            jsoninfo = utils.ffprobe_format_and_streams(self, context, manager, file_name)
+
         videostream = list(filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"]))
         if len(videostream) != 1:
             print('Expected 1 video stream, found {}'.format(len(videostream)))
@@ -1208,21 +1246,55 @@ def convert_video(
 
         source_misaligned = False
         if skip_transcoding:
-            source_misaligned = is_frame_misaligned(self, Path(file_name), context, manager)
+            alignment_source: Optional[str] = file_name or remote_url
+            alignment_headers = auth_headers if file_name is None else None
+            try:
+                source_misaligned = is_frame_misaligned(
+                    self,
+                    alignment_source,
+                    context,
+                    manager,
+                    headers=alignment_headers,
+                )
+            except utils.CanceledError:
+                raise
+            except Exception as exc:
+                if file_name is None:
+                    manager.write(
+                        f'Remote frame-alignment check failed ({exc}); '
+                        'falling back to full download\n'
+                    )
+                    file_name = _download_video_item(
+                        gc, manager, itemId, item_name, _working_directory_path
+                    )
+                    manager.updateStatus(JobStatus.RUNNING)
+                    # Re-probe locally so metadata matches the file we will encode.
+                    jsoninfo = utils.ffprobe_format_and_streams(self, context, manager, file_name)
+                    videostream = list(
+                        filter(lambda x: x["codec_type"] == "video", jsoninfo["streams"])
+                    )
+                    format_info = jsoninfo.get('format') or {}
+                    format_name = format_info.get('format_name') or ''
+                    originalFpsString, originalFps = utils.fps_from_ffprobe_stream(videostream[0])
+                    source_misaligned = is_frame_misaligned(self, Path(file_name), context, manager)
+                else:
+                    raise
 
         # Skip remux/transcode only for browser-safe sources, matching desktop checks.
-        can_skip_transcode = (
-            skip_transcoding
-            and videostream[0]['codec_name'] == 'h264'
-            and videostream[0].get('sample_aspect_ratio') == '1:1'
-            and utils.container_allows_skip_transcoding(format_name)
-            and not source_misaligned
+        can_skip_transcode = utils.can_skip_video_transcoding(
+            skip_transcoding=skip_transcoding,
+            codec_name=videostream[0]['codec_name'],
+            sample_aspect_ratio=videostream[0].get('sample_aspect_ratio'),
+            format_name=format_name,
+            source_misaligned=source_misaligned,
         )
 
         # lets determine if we don't need to transcode this file
         if can_skip_transcode:
             # Now we can update the meta data and push the values
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            if file_name is None:
+                manager.write('Skip transcode: no full download required\n')
             newAnnotationFps = resolve_annotation_fps(gc, folderId, native_fps=originalFps)
             gc.addMetadataToItem(
                 itemId,
@@ -1260,6 +1332,12 @@ def convert_video(
                 print('Container is not web-safe (e.g. mpegts); file will be transcoded')
             elif source_misaligned:
                 print('Frame timestamps are misaligned; file will be transcoded')
+
+        if file_name is None:
+            file_name = _download_video_item(
+                gc, manager, itemId, item_name, _working_directory_path
+            )
+            manager.updateStatus(JobStatus.RUNNING)
 
         command = [
             "ffmpeg",
