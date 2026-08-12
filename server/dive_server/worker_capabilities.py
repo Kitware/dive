@@ -3,9 +3,10 @@ from typing import Any, Dict
 from urllib.parse import quote, urljoin
 
 from girder.exceptions import RestException
+from girder.models.setting import Setting
 import requests
 
-from dive_utils import asbool
+from dive_utils import asbool, constants
 
 
 def _queue_has_consumers(session: requests.Session, base_url: str, vhost: str, queue: str) -> bool:
@@ -60,7 +61,23 @@ def get_worker_capabilities() -> Dict[str, bool]:
     return capabilities
 
 
+def get_jobs_disabled_config() -> Dict[str, Any]:
+    stored = Setting().get(constants.JOBS_DISABLED_CONFIG) or {}
+    message = stored.get('message') or constants.DEFAULT_JOBS_DISABLED_MESSAGE
+    return {
+        'disabled': bool(stored.get('disabled', False)),
+        'message': message,
+    }
+
+
+def require_jobs_enabled():
+    config = get_jobs_disabled_config()
+    if config['disabled']:
+        raise RestException(config['message'], code=503)
+
+
 def require_pipeline_worker():
+    require_jobs_enabled()
     if not get_worker_capabilities()['pipelinesEnabled']:
         raise RestException(
             'Pipeline execution is unavailable because no pipeline workers are connected.',
@@ -69,6 +86,7 @@ def require_pipeline_worker():
 
 
 def require_training_worker():
+    require_jobs_enabled()
     if not get_worker_capabilities()['trainingEnabled']:
         raise RestException(
             'Training is unavailable because no training workers are connected.',

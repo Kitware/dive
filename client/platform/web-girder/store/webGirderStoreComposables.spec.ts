@@ -44,6 +44,8 @@ function resetAllStoreState() {
     distributedWorkerEnabled: false,
     pipelinesEnabled: false,
     trainingEnabled: false,
+    jobsDisabled: false,
+    jobsDisabledMessage: 'Updates will be happening soon we are disabling jobs until after the updates',
   });
 
   const dataset = useDataset();
@@ -114,12 +116,16 @@ describe('web-girder store composables', () => {
           distributedWorker: true,
           pipelinesEnabled: true,
           trainingEnabled: false,
+          jobsDisabled: true,
+          jobsDisabledMessage: 'Maintenance in progress',
         },
       } as never);
       await useConfig().loadConfig();
       expect(useConfig().getDistributedWorkerEnabled()).toBe(true);
       expect(useConfig().getPipelinesEnabled()).toBe(true);
       expect(useConfig().getTrainingEnabled()).toBe(false);
+      expect(useConfig().getJobsDisabled()).toBe(true);
+      expect(useConfig().getJobsDisabledMessage()).toBe('Maintenance in progress');
     });
   });
 

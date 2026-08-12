@@ -88,6 +88,15 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /* When true, gray out the Run button and show jobsDisabledMessage as tooltip */
+    jobsDisabled: {
+      type: Boolean,
+      default: false,
+    },
+    jobsDisabledMessage: {
+      type: String,
+      default: '',
+    },
     /* Time filter range from the viewer - [startFrame, endFrame] or null */
     timeFilter: {
       type: Array as unknown as PropType<[number, number] | null>,
@@ -222,12 +231,24 @@ export default defineComponent({
     }
 
     const pipelinesNotRunnable = computed(() => (
-      props.selectedDatasetIds.length < 1 || pipelines.value === null
+      props.selectedDatasetIds.length < 1
+      || pipelines.value === null
+      || props.jobsDisabled
     ));
 
     const pipelinesCurrentlyRunning = computed(
       () => props.selectedDatasetIds.reduce((acc, item) => acc || props.runningPipelines.includes(item), false),
     );
+
+    const runPipelineTooltip = computed(() => {
+      if (props.jobsDisabled) {
+        return props.jobsDisabledMessage || 'Jobs are temporarily disabled';
+      }
+      if (pipelinesCurrentlyRunning.value) {
+        return 'Pipeline is Currently running';
+      }
+      return 'Run CV algorithm pipelines on this data';
+    });
 
     const singlePipelineValue = computed(() => {
       if (props.selectedDatasetIds.length === 1) {
@@ -333,6 +354,7 @@ export default defineComponent({
       pipeTypeDisplay: pipelineTypeDisplay,
       runPipelineOnSelectedItem,
       pipelinesCurrentlyRunning,
+      runPipelineTooltip,
       singlePipelineValue,
       selectedPipeline,
       selectedPipelineName,
@@ -362,34 +384,41 @@ export default defineComponent({
       content-class="pipeline-menu-content"
       v-bind="menuOptions"
       :close-on-content-click="false"
+      :disabled="jobsDisabled"
     >
       <template #activator="{ on: menuOn }">
         <v-tooltip
           bottom
-          :disabled="menuOptions.offsetX"
+          :disabled="menuOptions.offsetX && !jobsDisabled"
         >
           <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="buttonOptions"
-              :disabled="pipelinesNotRunnable || buttonOptions.disabled"
-              :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
-              v-on="{ ...tooltipOn, ...menuOn }"
+            <!-- Wrapper keeps tooltip working when the button is disabled -->
+            <span
+              class="d-inline-block"
+              style="width: 100%"
+              v-on="tooltipOn"
             >
-              <v-icon> mdi-pipe </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
+              <v-btn
+                v-bind="buttonOptions"
+                :disabled="pipelinesNotRunnable || buttonOptions.disabled"
+                :color="pipelinesCurrentlyRunning ? 'warning' : buttonOptions.color"
+                v-on="jobsDisabled ? {} : menuOn"
               >
-                Run pipeline
-              </span>
-              <v-spacer />
-              <v-icon v-if="menuOptions.right">
-                mdi-chevron-right
-              </v-icon>
-            </v-btn>
+                <v-icon> mdi-pipe </v-icon>
+                <span
+                  v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Run pipeline
+                </span>
+                <v-spacer />
+                <v-icon v-if="menuOptions.right">
+                  mdi-chevron-right
+                </v-icon>
+              </v-btn>
+            </span>
           </template>
-          <span v-if="!pipelinesCurrentlyRunning">Run CV algorithm pipelines on this data</span>
-          <span v-else>Pipeline is Currently running </span>
+          <span>{{ runPipelineTooltip }}</span>
         </v-tooltip>
       </template>
 

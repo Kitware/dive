@@ -62,7 +62,12 @@ export default defineComponent({
     const {
       location, selected, locationIsViameFolder, setSelected,
     } = useLocation();
-    const { pipelinesEnabled, trainingEnabled } = useConfig();
+    const {
+      pipelinesEnabled,
+      trainingEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
+    } = useConfig();
     const jobs = useJobs();
 
     const clearSelected = () => {
@@ -149,6 +154,8 @@ export default defineComponent({
       locationIsViameFolder,
       pipelinesEnabled,
       trainingEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
       runningPipelines,
       selectedViameFolderIds,
       selectedViameFolderNames,
@@ -248,6 +255,8 @@ export default defineComponent({
                   :selected-dataset-name="locationInputNames"
                   :running-pipelines="runningPipelines"
                   :exclude-pipeline-terms="webExcludedPipelineTerms"
+                  :jobs-disabled="jobsDisabled"
+                  :jobs-disabled-message="jobsDisabledMessage"
                 />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"

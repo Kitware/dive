@@ -1,13 +1,38 @@
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
-import { updateContainers } from 'platform/web-girder/api/configuration.service';
+import {
+  defineComponent, onBeforeMount, ref,
+} from 'vue';
+import {
+  DEFAULT_JOBS_DISABLED_MESSAGE,
+  putJobsDisabled,
+  updateContainers,
+} from 'platform/web-girder/api/configuration.service';
+import { useConfig } from 'platform/web-girder/store/useConfig';
 
 export default defineComponent({
   name: 'AdminUpdate',
   setup() {
+    const {
+      jobsDisabled: configJobsDisabled,
+      jobsDisabledMessage: configJobsDisabledMessage,
+      loadConfig,
+      setJobsDisabled,
+      setJobsDisabledMessage,
+    } = useConfig();
+
     const loading = ref(false);
     const complete = ref('');
     const reloadTime = ref(0);
+    const savingJobsDisabled = ref(false);
+    const jobsDisabled = ref(false);
+    const jobsDisabledMessage = ref(DEFAULT_JOBS_DISABLED_MESSAGE);
+    const jobsDisabledSaved = ref(false);
+
+    onBeforeMount(async () => {
+      await loadConfig();
+      jobsDisabled.value = configJobsDisabled.value;
+      jobsDisabledMessage.value = configJobsDisabledMessage.value || DEFAULT_JOBS_DISABLED_MESSAGE;
+    });
 
     const update = async () => {
       loading.value = true;
@@ -31,11 +56,37 @@ export default defineComponent({
         }
       }
     };
+
+    const saveJobsDisabled = async () => {
+      savingJobsDisabled.value = true;
+      jobsDisabledSaved.value = false;
+      try {
+        const message = jobsDisabledMessage.value.trim() || DEFAULT_JOBS_DISABLED_MESSAGE;
+        const { data } = await putJobsDisabled({
+          disabled: jobsDisabled.value,
+          message,
+        });
+        jobsDisabled.value = data.disabled;
+        jobsDisabledMessage.value = data.message || DEFAULT_JOBS_DISABLED_MESSAGE;
+        setJobsDisabled(data.disabled);
+        setJobsDisabledMessage(data.message);
+        jobsDisabledSaved.value = true;
+      } finally {
+        savingJobsDisabled.value = false;
+      }
+    };
+
     return {
       update,
       loading,
       complete,
       reloadTime,
+      jobsDisabled,
+      jobsDisabledMessage,
+      savingJobsDisabled,
+      jobsDisabledSaved,
+      saveJobsDisabled,
+      DEFAULT_JOBS_DISABLED_MESSAGE,
     };
   },
 });
@@ -43,6 +94,54 @@ export default defineComponent({
 
 <template>
   <v-container>
+    <v-card class="mb-4">
+      <v-card-title> Disable Jobs </v-card-title>
+      <v-card-text>
+        <p>
+          Temporarily prevent users from launching new pipeline and training jobs
+          while updates are performed. Disabled job buttons are grayed out and show
+          the message below as a tooltip.
+        </p>
+        <v-switch
+          v-model="jobsDisabled"
+          label="Disable running jobs"
+          color="warning"
+          hide-details
+          class="mb-4"
+        />
+        <v-textarea
+          v-model="jobsDisabledMessage"
+          label="Disabled jobs message"
+          :placeholder="DEFAULT_JOBS_DISABLED_MESSAGE"
+          rows="2"
+          auto-grow
+          outlined
+          clearable
+          hint="Shown as a tooltip on disabled Run Pipeline and Run Training buttons"
+          persistent-hint
+        />
+        <v-alert
+          v-if="jobsDisabledSaved"
+          type="success"
+          dense
+          class="mt-4"
+        >
+          Job disable settings saved.
+        </v-alert>
+      </v-card-text>
+      <v-card-actions>
+        <v-spacer />
+        <v-btn
+          color="warning"
+          class="ml-2"
+          :loading="savingJobsDisabled"
+          @click="saveJobsDisabled"
+        >
+          Save Job Settings
+        </v-btn>
+      </v-card-actions>
+    </v-card>
+
     <v-card>
       <v-card-title> Update </v-card-title>
       <v-card-text>
@@ -74,7 +173,7 @@ export default defineComponent({
         <v-btn
           color="primary"
           class="ml-2"
-          :disable="complete"
+          :disabled="!!complete"
           @click="update"
         >
           <v-icon>

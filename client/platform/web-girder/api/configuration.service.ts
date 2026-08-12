@@ -50,7 +50,17 @@ export interface DiveConfiguration {
   distributedWorker?: string;
   pipelinesEnabled?: boolean;
   trainingEnabled?: boolean;
+  jobsDisabled?: boolean;
+  jobsDisabledMessage?: string;
 }
+
+export interface JobsDisabledConfig {
+  disabled: boolean;
+  message: string;
+}
+
+export const DEFAULT_JOBS_DISABLED_MESSAGE =
+  'Updates will be happening soon we are disabling jobs until after the updates';
 
 function getConfig() {
   return girderRest.get<DiveConfiguration>('dive_configuration');
@@ -62,6 +72,10 @@ function getBrandData() {
 
 function putBrandData(brandData: BrandData) {
   return girderRest.put('dive_configuration/brand_data', brandData);
+}
+
+function putJobsDisabled(config: JobsDisabledConfig) {
+  return girderRest.put<JobsDisabledConfig>('dive_configuration/jobs_disabled', config);
 }
 
 function getPipelineList() {
@@ -99,6 +113,7 @@ export {
   getBrandData,
   getConfig,
   putBrandData,
+  putJobsDisabled,
   getPipelineList,
   getTrainingConfigurations,
   getAddons,
