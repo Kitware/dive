@@ -48,6 +48,13 @@ def validateInstalledAddons(doc):
         assert isinstance(val['downloaded'], list), 'downloaded key is not a list'
 
 
+@setting_utilities.validator({constants.JOBS_DISABLED_CONFIG})
+def validateJobsDisabledConfig(doc):
+    val = doc['value']
+    if val is not None:
+        crud.get_validated_model(models.JobsDisabledConfig, **val)
+
+
 class ConfigurationResource(Resource):
     """Configuration resource handles get/set of global configuration"""
 
@@ -64,6 +71,7 @@ class ConfigurationResource(Resource):
         self.route("PUT", ("brand_data",), self.update_brand_data)
         self.route("PUT", ("static_pipeline_configs",), self.update_static_pipeline_configs)
         self.route("PUT", ("installed_addons",), self.update_installed_addons)
+        self.route("PUT", ("jobs_disabled",), self.update_jobs_disabled)
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("update_containers",), self.update_containers)
         self.route("GET", ("stats",), self.get_dataset_stats)
@@ -74,9 +82,12 @@ class ConfigurationResource(Resource):
         env = os.environ.copy()
         distributed_worker = env.get("RABBITMQ_DISTRIBUTED_WORKER")
         capabilities = worker_capabilities.get_worker_capabilities()
+        jobs_disabled = worker_capabilities.get_jobs_disabled_config()
         return {
             'distributedWorker': distributed_worker,
             **capabilities,
+            'jobsDisabled': jobs_disabled['disabled'],
+            'jobsDisabledMessage': jobs_disabled['message'],
         }
 
     @access.public
@@ -141,6 +152,24 @@ class ConfigurationResource(Resource):
     )
     def update_installed_addons(self, addons: Dict):
         Setting().set(constants.INSTALLED_ADDONS_CONFIGS, addons)
+
+    @access.admin
+    @autoDescribeRoute(
+        Description("Enable or disable job launching with an optional message").jsonParam(
+            "data",
+            "Jobs disabled configuration",
+            paramType='body',
+            requireObject=True,
+            required=True,
+        )
+    )
+    def update_jobs_disabled(self, data):
+        validated = crud.get_validated_model(models.JobsDisabledConfig, **data)
+        payload = validated.dict()
+        if not payload.get('message'):
+            payload['message'] = constants.DEFAULT_JOBS_DISABLED_MESSAGE
+        Setting().set(constants.JOBS_DISABLED_CONFIG, payload)
+        return worker_capabilities.get_jobs_disabled_config()
 
     # https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv - CSV URL
     @access.admin

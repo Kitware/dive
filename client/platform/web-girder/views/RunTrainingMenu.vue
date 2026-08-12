@@ -9,6 +9,7 @@ import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
 import { simplifyTrainingName } from 'dive-common/constants';
 import { useBrand } from 'platform/web-girder/store/useBrand';
+import { useConfig } from 'platform/web-girder/store/useConfig';
 
 export default defineComponent({
   name: 'RunTrainingMenu',
@@ -33,6 +34,7 @@ export default defineComponent({
   setup(props) {
     const { brandData } = useBrand();
     const { getTrainingConfigurations, runTraining } = useApi();
+    const { jobsDisabled, jobsDisabledMessage } = useConfig();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
@@ -75,7 +77,14 @@ export default defineComponent({
       selectedTrainingConfig.value = resp.training.default;
     });
 
-    const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
+    const trainingDisabled = computed(() => (
+      props.selectedDatasetIds.length === 0 || jobsDisabled.value
+    ));
+    const trainingTooltip = computed(() => (
+      jobsDisabled.value
+        ? (jobsDisabledMessage.value || 'Jobs are temporarily disabled')
+        : 'Train a detector model on this data'
+    ));
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
     const labelText = ref<string>('');
@@ -83,7 +92,7 @@ export default defineComponent({
 
     async function runTrainingOnFolder() {
       const outputPipelineName = trainingOutputName.value;
-      if (trainingDisabled.value || !outputPipelineName) {
+      if (trainingDisabled.value || !outputPipelineName || jobsDisabled.value) {
         return;
       }
       await _runTrainingRequest(() => {
@@ -135,6 +144,8 @@ export default defineComponent({
       trainingOutputName,
       menuOpen,
       trainingDisabled,
+      trainingTooltip,
+      jobsDisabled,
       jobState,
       successMessage,
       dismissJobDialog,
@@ -158,33 +169,41 @@ export default defineComponent({
       max-width="500"
       v-bind="menuOptions"
       :close-on-content-click="false"
+      :disabled="jobsDisabled"
     >
       <template #activator="{ on: menuOn }">
         <v-tooltip
           bottom
           :open-delay="250"
-          :disabled="menuOptions.offsetX"
+          :disabled="menuOptions.offsetX && !jobsDisabled"
         >
           <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="buttonOptions"
-              :disabled="trainingDisabled || buttonOptions.disabled"
-              v-on="{ ...tooltipOn, ...menuOn }"
+            <!-- Wrapper keeps tooltip working when the button is disabled -->
+            <span
+              class="d-inline-block"
+              style="width: 100%"
+              v-on="tooltipOn"
             >
-              <v-icon>
-                mdi-brain
-              </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
+              <v-btn
+                v-bind="buttonOptions"
+                :disabled="trainingDisabled || buttonOptions.disabled"
+                v-on="jobsDisabled ? {} : menuOn"
               >
-                Run Training
-              </span>
-              <v-spacer />
-              <v-icon>mdi-chevron-right</v-icon>
-            </v-btn>
+                <v-icon>
+                  mdi-brain
+                </v-icon>
+                <span
+                  v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Run Training
+                </span>
+                <v-spacer />
+                <v-icon>mdi-chevron-right</v-icon>
+              </v-btn>
+            </span>
           </template>
-          <span>Train a detector model on this data</span>
+          <span>{{ trainingTooltip }}</span>
         </v-tooltip>
       </template>
 

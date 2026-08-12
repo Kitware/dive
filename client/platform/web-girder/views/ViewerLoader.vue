@@ -108,7 +108,11 @@ export default defineComponent({
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
     const { brandData } = useBrand();
-    const { pipelinesEnabled } = useConfig();
+    const {
+      pipelinesEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
+    } = useConfig();
     const { meta: datasetMeta, loadDataset } = useDataset();
     const jobs = useJobs();
     const { locationRoute } = useLocation();
@@ -328,6 +332,8 @@ export default defineComponent({
       cameraNumbers,
       timeFilter,
       pipelinesEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
       webExcludedPipelineTerms,
       calibrationFile,
       onCalibrationImported,
@@ -383,6 +389,8 @@ export default defineComponent({
         :read-only-mode="revisionNum !== undefined"
         :time-filter="timeFilter"
         :exclude-pipeline-terms="webExcludedPipelineTerms"
+        :jobs-disabled="jobsDisabled"
+        :jobs-disabled-message="jobsDisabledMessage"
       />
       <ImportAnnotations
         :button-options="buttonOptions"
