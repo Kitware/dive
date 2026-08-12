@@ -1,4 +1,6 @@
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
@@ -10,7 +12,7 @@ from subprocess import Popen
 import tempfile
 import threading
 import time
-from typing import List, Optional, Tuple, Union
+from typing import Iterator, List, Optional, Tuple, Union
 from urllib import request
 from urllib.parse import urlencode, urljoin
 
@@ -148,13 +150,108 @@ def parse_ffmpeg_http_bytes_read(stderr: str) -> Optional[int]:
 
 
 def girder_auth_headers(token: str) -> str:
-    """Header block for ffprobe/ffmpeg HTTP requests (requires CRLF line endings)."""
+    """
+    Header block for ffprobe/ffmpeg HTTP requests (requires CRLF line endings).
+
+    Prefer passing this through :func:`ffprobe_header_args` so modern ffprobe
+    loads the value from a temp file via ``-/headers`` (token not in process argv).
+    Older ffprobe falls back to inline ``-headers``; job logs still redact that value.
+    """
     return f'Girder-Token: {token}\r\n'
 
 
-def item_download_url(gc: GirderClient, item_id: str) -> str:
-    """Absolute Girder item download URL (supports HTTP Range when the store does)."""
-    return urljoin(gc.urlBase, f'item/{item_id}/download')
+@lru_cache(maxsize=1)
+def ffprobe_supports_option_from_file() -> bool:
+    """
+    True if this ffprobe accepts ``-/option file`` value loading (FFmpeg 5+).
+
+    Worker images ship BtbN FFmpeg 7.1, which supports it. Cached after one probe
+    so local/dev hosts with older distro ffprobe can still fall back to ``-headers``.
+    """
+    fd, path = tempfile.mkstemp(prefix='ffprobe-headers-probe-', suffix='.txt')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as header_file:
+            header_file.write('X-DIVE-Probe: 1\r\n')
+        completed = subprocess.run(
+            ['ffprobe', '-hide_banner', '-/headers', path, '-version'],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        combined = f'{completed.stdout or ""}{completed.stderr or ""}'
+        # FFmpeg 4.x reports: Failed to set value '...' for option '/headers': Option not found
+        return 'Option not found' not in combined and 'Unrecognized option' not in combined
+    except (FileNotFoundError, OSError, subprocess.TimeoutExpired):
+        return False
+    finally:
+        with suppress(OSError):
+            os.unlink(path)
+
+
+@contextmanager
+def ffprobe_header_args(headers: str) -> Iterator[List[str]]:
+    """
+    Yield ffprobe argv fragments that supply *headers* without leaking the token
+    into process argv when ``-/headers`` is supported.
+
+    Modern ffprobe (worker images): ``['-/headers', temp_path]``.
+    Older ffprobe: ``['-headers', headers]`` (token visible in ``ps``; job logs redact).
+    """
+    if not ffprobe_supports_option_from_file():
+        yield ['-headers', headers]
+        return
+
+    fd, path = tempfile.mkstemp(prefix='ffprobe-headers-', suffix='.txt')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as header_file:
+            header_file.write(headers)
+        yield ['-/headers', path]
+    finally:
+        with suppress(OSError):
+            os.unlink(path)
+
+
+def sanitize_subprocess_args_for_log(args: List[str]) -> List[str]:
+    """
+    Copy *args* for job logs, redacting values that may contain secrets.
+
+    Inline ``-headers`` values (Girder tokens) are replaced with ``<redacted>``.
+    ``-/headers`` paths are left as-is (token lives in the file, not argv).
+    """
+    sanitized: List[str] = []
+    skip_next = False
+    for i, arg in enumerate(args):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == '-headers' and i + 1 < len(args):
+            sanitized.extend(['-headers', '<redacted>'])
+            skip_next = True
+            continue
+        sanitized.append(arg)
+    return sanitized
+
+
+def file_download_url(gc: GirderClient, file_id: str) -> str:
+    """Absolute Girder file download URL (parses HTTP Range; see Girder file API)."""
+    return urljoin(gc.urlBase, f'file/{file_id}/download')
+
+
+def item_primary_file_download_url(gc: GirderClient, item_id: str) -> str:
+    """
+    Download URL for the first file on an item, suitable for remote ffprobe.
+
+    Uses ``/file/:id/download`` rather than ``/item/:id/download``. Girder's item
+    download endpoint only honors an ``offset`` query param and ignores the HTTP
+    ``Range`` header, so ffprobe cannot seek to a trailing MP4 ``moov`` atom and
+    fails with ``moov atom not found``. The file endpoint supports Range (and
+    assetstore adapters pass it through for filesystem/S3).
+    """
+    files = list(gc.listFile(item_id, limit=2))
+    if not files:
+        raise Exception(f'Item {item_id} has no files to probe')
+    return file_download_url(gc, str(files[0]['_id']))
 
 
 def can_skip_video_transcoding(
@@ -188,31 +285,35 @@ def ffprobe_format_and_streams(
 
     When *headers* is set (e.g. Girder-Token), ffprobe can issue authenticated
     Range requests against Girder/S3 instead of requiring a full local download.
-    HTTP probes use ``-v info`` so libavformat Statistics lines are available and
-    the job log reports how many bytes were read.
+    Auth headers prefer ``-/headers`` (temp file) so the token is not in process
+    argv on modern ffprobe. HTTP probes use ``-v info`` so libavformat Statistics
+    lines are available and the job log reports how many bytes were read.
     """
-    command = ['ffprobe']
-    if headers:
-        command.extend(['-headers', headers])
+
+    def _run(command: List[str]):
+        if headers:
+            stdout, stderr = stream_subprocess(
+                task, context, manager, {'args': command}, keep_stdout=True, keep_stderr=True
+            )
+            log_ffprobe_http_bytes(manager, stderr, label='ffprobe format/streams')
+            return stdout
+        return stream_subprocess(task, context, manager, {'args': command}, keep_stdout=True)
+
     # Quiet for local files; info for HTTP so Statistics: N bytes read is emitted.
-    command.extend(
-        [
-            '-print_format',
-            'json',
-            '-v',
-            'info' if headers else 'quiet',
-            '-show_format',
-            '-show_streams',
-            input_source,
-        ]
-    )
+    probe_tail = [
+        '-print_format',
+        'json',
+        '-v',
+        'info' if headers else 'quiet',
+        '-show_format',
+        '-show_streams',
+        input_source,
+    ]
     if headers:
-        stdout, stderr = stream_subprocess(
-            task, context, manager, {'args': command}, keep_stdout=True, keep_stderr=True
-        )
-        log_ffprobe_http_bytes(manager, stderr, label='ffprobe format/streams')
+        with ffprobe_header_args(headers) as header_args:
+            stdout = _run(['ffprobe', *header_args, *probe_tail])
     else:
-        stdout = stream_subprocess(task, context, manager, {'args': command}, keep_stdout=True)
+        stdout = _run(['ffprobe', *probe_tail])
     return json.loads(stdout)
 
 
@@ -336,7 +437,8 @@ def stream_subprocess(
                 return
 
     with tempfile.TemporaryFile() as stderr_file:
-        manager.write(f"Running command: {str(launch_kwargs['args'])}\n", forceFlush=True)
+        logged_args = sanitize_subprocess_args_for_log(list(launch_kwargs['args']))
+        manager.write(f"Running command: {str(logged_args)}\n", forceFlush=True)
         process = Popen(
             **launch_kwargs,
             stdout=subprocess.PIPE,

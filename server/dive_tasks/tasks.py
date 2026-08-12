@@ -1200,19 +1200,31 @@ def convert_video(
         remote_url: Optional[str] = None
 
         if skip_transcoding:
-            remote_url = utils.item_download_url(gc, itemId)
-            auth_headers = utils.girder_auth_headers(gc.token)
-            manager.updateStatus(JobStatus.RUNNING)
-            manager.write(f'Probing video via HTTP Range requests: {remote_url}\n')
             try:
-                jsoninfo = utils.ffprobe_format_and_streams(
-                    self, context, manager, remote_url, headers=auth_headers
-                )
+                remote_url = utils.item_primary_file_download_url(gc, itemId)
             except Exception as exc:
-                manager.write(f'Remote ffprobe failed ({exc}); falling back to full download\n')
-                jsoninfo = None
-                auth_headers = None
+                manager.write(
+                    f'Could not resolve file download URL ({exc}); '
+                    'falling back to full download\n'
+                )
                 remote_url = None
+            if remote_url is not None:
+                auth_headers = utils.girder_auth_headers(gc.token)
+                manager.updateStatus(JobStatus.RUNNING)
+                manager.write(f'Probing video via HTTP Range requests: {remote_url}\n')
+                try:
+                    jsoninfo = utils.ffprobe_format_and_streams(
+                        self, context, manager, remote_url, headers=auth_headers
+                    )
+                except utils.CanceledError:
+                    raise
+                except Exception as exc:
+                    manager.write(
+                        f'Remote ffprobe failed ({exc}); falling back to full download\n'
+                    )
+                    jsoninfo = None
+                    auth_headers = None
+                    remote_url = None
 
         if jsoninfo is None:
             file_name = _download_video_item(
@@ -1244,6 +1256,8 @@ def convert_video(
                     manager,
                     headers=alignment_headers,
                 )
+            except utils.CanceledError:
+                raise
             except Exception as exc:
                 if file_name is None:
                     manager.write(
