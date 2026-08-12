@@ -138,7 +138,7 @@ export default defineComponent({
       (v: string) => !isReservedAttributeName(v, baseSettings.belongs)
         || `Reserved name. ${RESERVED_ATTRIBUTES[baseSettings.belongs].join(', ')} are not allowed.`,
     ]);
-    const isValidNumberString = (v: string) => !Number.isNaN(parseFloat(v));
+    const isValidNumberString = (v: string) => !Number.isNaN(parseFloat(v)) || 'Number is required';
     const rangeMinRules = computed(() => [
       isValidNumberString,
       (v: string) => (baseSettings.editor
