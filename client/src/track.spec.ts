@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import Track, { TrackData } from './track';
+import Track, { TrackData, TrackSupportedFeature } from './track';
 import { RectBounds } from './utils';
 import { ConfidencePair } from './BaseAnnotation';
 
@@ -324,7 +324,7 @@ describe('fromJSON full-box polygon cleanup', () => {
     meta: {},
     id: 7,
   };
-  const boxPoly: GeoJSON.Feature = {
+  const boxPoly: GeoJSON.Feature<TrackSupportedFeature> = {
     type: 'Feature',
     geometry: {
       type: 'Polygon',
@@ -332,7 +332,7 @@ describe('fromJSON full-box polygon cleanup', () => {
     },
     properties: { key: '' },
   };
-  const realPoly: GeoJSON.Feature = {
+  const realPoly: GeoJSON.Feature<TrackSupportedFeature> = {
     type: 'Feature',
     geometry: {
       type: 'Polygon',
@@ -370,7 +370,7 @@ describe('fromJSON full-box polygon cleanup', () => {
   });
 
   it('keeps other geometry while dropping the full-box polygon', () => {
-    const head: GeoJSON.Feature = {
+    const head: GeoJSON.Feature<TrackSupportedFeature> = {
       type: 'Feature',
       geometry: { type: 'Point', coordinates: [1, 1] },
       properties: { key: 'head' },

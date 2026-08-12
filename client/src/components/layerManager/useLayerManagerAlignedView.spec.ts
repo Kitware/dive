@@ -1,6 +1,8 @@
 // @vitest-environment jsdom
 /* eslint-disable vue/one-component-per-file -- harness Host components for mount() */
-import { defineComponent, ref, nextTick } from 'vue';
+import {
+  defineComponent, ref, shallowRef, nextTick,
+} from 'vue';
 // eslint-disable-next-line import/no-extraneous-dependencies -- @vue/test-utils is only used in tests
 import { mount } from '@vue/test-utils';
 import { clientSettings } from 'dive-common/store/settings';
@@ -61,14 +63,15 @@ function makeHarness() {
     layers: () => [nativeLayer, warpLayer],
   };
 
+  const imageRevision = ref(0);
   const annotator = {
     cameraName: ref('rgb'),
     geoViewerRef: ref(viewer),
     frame: ref(0),
-    imageRevision: ref(0),
+    imageRevision,
     frameTexture: ref(null),
   } as unknown as MediaController;
-  const aggregateController = ref({
+  const aggregateController = shallowRef({
     getController: () => annotator,
   } as unknown as AggregateMediaController);
 
@@ -95,7 +98,7 @@ function makeHarness() {
   });
   const wrapper = mount(Host);
   return {
-    wrapper, annotator, nativeFeature, warpFeature, imgA, viewer,
+    wrapper, annotator, nativeFeature, warpFeature, imgA, viewer, imageRevision,
   };
 }
 
@@ -115,30 +118,34 @@ describe('useLayerManagerAlignedView warp refresh', () => {
   });
 
   it('re-renders the warp when imageRevision bumps with a swapped element', async () => {
-    const { annotator, nativeFeature, warpFeature } = makeHarness();
+    const {
+      nativeFeature, warpFeature, imageRevision,
+    } = makeHarness();
     await nextTick();
     // The annotator swaps its displayed <img> (e.g. the percentile-stretch
     // URL remap finishing its load) and bumps imageRevision -- the warp must
     // re-render from the new element with no other trigger.
     const imgB = { naturalWidth: 100, naturalHeight: 50 } as HTMLImageElement;
     nativeFeature.data([{ image: imgB }]);
-    annotator.imageRevision.value += 1;
+    imageRevision.value += 1;
     await nextTick();
     expect(lastWarpSource(warpFeature)).toBe(imgB);
   });
 
   it('clears the warp instead of rendering while the swapped element is unloaded', async () => {
-    const { annotator, nativeFeature, warpFeature } = makeHarness();
+    const {
+      nativeFeature, warpFeature, imageRevision,
+    } = makeHarness();
     await nextTick();
     const pending = { naturalWidth: 0, naturalHeight: 0 } as HTMLImageElement;
     nativeFeature.data([{ image: pending }]);
-    annotator.imageRevision.value += 1;
+    imageRevision.value += 1;
     await nextTick();
     expect(lastWarpSource(warpFeature)).toBeNull();
     // ...and renders it once the load lands and bumps again.
     const loaded = { naturalWidth: 100, naturalHeight: 50 } as HTMLImageElement;
     nativeFeature.data([{ image: loaded }]);
-    annotator.imageRevision.value += 1;
+    imageRevision.value += 1;
     await nextTick();
     expect(lastWarpSource(warpFeature)).toBe(loaded);
   });
@@ -186,7 +193,7 @@ function makeLargeImageHarness() {
     imageRevision: ref(0),
     frameTexture: ref(texture),
   } as unknown as MediaController;
-  const aggregateController = ref({
+  const aggregateController = shallowRef({
     getController: () => annotator,
   } as unknown as AggregateMediaController);
 

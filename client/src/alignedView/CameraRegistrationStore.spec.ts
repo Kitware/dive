@@ -1,5 +1,5 @@
 /// <reference types="vitest" />
-import CameraRegistrationStore from './CameraRegistrationStore';
+import CameraRegistrationStore, { CameraCorrespondences } from './CameraRegistrationStore';
 import { buildPerCameraRegistrationFiles } from './cameraRegistrationFiles';
 
 /**
@@ -310,7 +310,7 @@ describe('CameraRegistrationStore', () => {
 
   it('hydrates correspondences and resumes id allocation', () => {
     const store = new CameraRegistrationStore();
-    const correspondences = {
+    const correspondences: CameraCorrespondences = {
       'rgb::ir': [
         { id: 1, a: [1, 2], b: [3, 4] },
         { id: 2, a: [5, 6], b: [7, 8] },

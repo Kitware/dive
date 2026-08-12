@@ -12,6 +12,8 @@ import {
   Point, Matrix3, solveLinearSystem, solveHomography,
 } from './homography';
 
+export type { Point };
+
 export type TransformType = 'translation' | 'rigid' | 'similarity' | 'affine' | 'homography';
 
 /** UI-friendly ordered list of transform types, for dropdowns. */

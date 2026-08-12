@@ -68,11 +68,11 @@ export default defineComponent({
       }
     }
 
-    function blurType(e: KeyboardEvent) {
+    function blurType(e: Event) {
       (e.target as HTMLInputElement).blur();
     }
 
-    function onBlur(e: KeyboardEvent) {
+    function onBlur(e: Event) {
       if (props.updateOnInput) {
         return;
       }

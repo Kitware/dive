@@ -21,7 +21,8 @@
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
     "lint": "eslint --ext .js,.ts,.vue src/ dive-common/ platform/",
     "lint:templates": "eslint --ext vue src/ dive-common/ platform/",
-    "test": "vitest run src/ dive-common/ platform/"
+    "test": "vitest run src/ dive-common/ platform/",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.typecheck.json"
   },
   "files": [
     "/src",
@@ -105,10 +106,11 @@
     "sass": "^1.101.0",
     "tsc-alias": "^1.2.0",
     "tslib": "^2.6.2",
-    "typescript": "~4.3.5",
+    "typescript": "~5.6.3",
     "vite": "^6.4.3",
     "vitest": "^4.1.10",
     "vue-template-compiler": "^2.7.16",
+    "vue-tsc": "~2.1.10",
     "webpack": "^5.95.0",
     "wslink": "^2.0.0",
     "xml-js": "^1.6.11",

@@ -27,9 +27,10 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    function _updateConfidence(event: InputEvent & {target: {value: string}}) {
-      if (event.target) {
-        emit('update:confidence', Number.parseFloat(event.target.value));
+    function _updateConfidence(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      if (target) {
+        emit('update:confidence', Number.parseFloat(target.value));
       }
     }
     function _emitEnd() {

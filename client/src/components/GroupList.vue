@@ -82,7 +82,7 @@ export default defineComponent({
       const confidencePair = item.filteredGroup.annotation.getType();
       const members = cameraStore.getGroupMemebers(item.filteredGroup.annotation.id);
       return {
-        group: item.filteredGroup.annotation,
+        group: getAnnotation(item.filteredGroup.annotation.id),
         color: typeStylingRef.value.color(confidencePair[0]),
         selected: item.filteredGroup.annotation.id === selectedId.value,
         selectedTrackId: selectedTrack.value,

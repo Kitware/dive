@@ -6,6 +6,7 @@ import Vue, {
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
 
 import { clientSettings } from 'dive-common/store/settings';
 import {
@@ -111,7 +112,7 @@ export default defineComponent({
       },
     );
 
-    const finalFilteredTracks = computed(() => {
+    const finalFilteredTracks = computed<TrackWithContext[]>(() => {
       let tracks = filteredTracksRef.value;
       if (filterDetectionsByFrame.value && !isPlaying.value) {
         // Depend on the edit counter so moving a suppression region re-runs the

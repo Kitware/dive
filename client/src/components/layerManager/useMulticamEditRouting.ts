@@ -3,7 +3,7 @@ import type { AnnotationId } from '../../BaseAnnotation';
 import type CameraStore from '../../CameraStore';
 import type { Handler } from '../../provides';
 import type { EditAnnotationTypes } from '../../layers/EditAnnotationLayer';
-import type TrackStore from '../../trackStore';
+import type TrackStore from '../../TrackStore';
 import { cameraAwaitingGeometry, isCreatingNewDetection } from './multicamCreation';
 
 /**

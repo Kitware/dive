@@ -1,4 +1,4 @@
-import Vue, { ref, watch, Ref } from 'vue';
+import Vue, { shallowRef, watch, Ref } from 'vue';
 
 import type Group from '../Group';
 import type Track from '../track';
@@ -20,7 +20,7 @@ export default function useVirtualScrollTo({
   multiSelectList: Ref<Readonly<AnnotationId[]>>;
   selectNext?: (delta: number) => void;
 }) {
-  const virtualList = ref(null as null | Vue);
+  const virtualList = shallowRef(null as null | Vue);
 
   function scrollTo(id: AnnotationId | null): void {
     if (id !== null && virtualList.value !== null) {

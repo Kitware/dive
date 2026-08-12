@@ -133,6 +133,8 @@ export default defineComponent({
     watch(toRef(props, 'selectedType'), init);
     init();
 
+    const thicknessRules = [(val: number) => val >= 0 || 'Must be >= 0'];
+
     return {
       data,
       isStyleOnly,
@@ -140,6 +142,7 @@ export default defineComponent({
       readOnlyMode,
       acceptChanges,
       clickDeleteType,
+      thicknessRules,
     };
   },
 });
@@ -211,9 +214,7 @@ export default defineComponent({
               <v-text-field
                 v-model="data.editingThickness"
                 type="number"
-                :rules="[
-                  val => val >= 0 || 'Must be >= 0',
-                ]"
+                :rules="thicknessRules"
                 required
                 hide-details
                 label="Box Border Thickness"
