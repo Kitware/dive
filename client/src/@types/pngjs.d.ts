@@ -1,5 +1,5 @@
 declare module 'pngjs' {
-  export default class PNG {
+  export class PNG {
     width: number;
 
     height: number;
@@ -9,7 +9,10 @@ declare module 'pngjs' {
     constructor(options?: { width?: number; height?: number });
 
     static sync: {
+      read(buffer: Buffer, options?: object): PNG;
       write(png: PNG, options?: object): Buffer;
     };
   }
+
+  export default PNG;
 }
