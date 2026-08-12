@@ -5,7 +5,7 @@ BRAND_DATA_CONFIG = 'brand_data_config'
 INSTALLED_ADDONS_CONFIGS = 'installed_addons'
 JOBS_DISABLED_CONFIG = 'jobs_disabled_config'
 DEFAULT_JOBS_DISABLED_MESSAGE = (
-    'Updates will be happening soon we are disabling jobs until after the updates'
+    'Updates will be happening soon, we are disabling jobs until after the updates'
 )
 
 ImageSequenceType = "image-sequence"

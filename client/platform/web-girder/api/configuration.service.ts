@@ -59,8 +59,7 @@ export interface JobsDisabledConfig {
   message: string;
 }
 
-export const DEFAULT_JOBS_DISABLED_MESSAGE =
-  'Updates will be happening soon we are disabling jobs until after the updates';
+export const DEFAULT_JOBS_DISABLED_MESSAGE = 'Updates will be happening soon, we are disabling jobs until after the updates';
 
 function getConfig() {
   return girderRest.get<DiveConfiguration>('dive_configuration');

@@ -45,7 +45,7 @@ function resetAllStoreState() {
     pipelinesEnabled: false,
     trainingEnabled: false,
     jobsDisabled: false,
-    jobsDisabledMessage: 'Updates will be happening soon we are disabling jobs until after the updates',
+    jobsDisabledMessage: 'Updates will be happening soon, we are disabling jobs until after the updates',
   });
 
   const dataset = useDataset();
