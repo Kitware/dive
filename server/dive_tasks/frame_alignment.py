@@ -1,11 +1,13 @@
 import json
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Optional, Union
 
 from girder_worker.task import Task
 from girder_worker.utils import JobManager
 
-from dive_tasks.utils import stream_subprocess
+from dive_tasks.utils import log_ffprobe_http_bytes, stream_subprocess
+
+MediaSource = Union[Path, str]
 
 
 def check_and_fix_frame_alignment(
@@ -26,19 +28,45 @@ def check_and_fix_frame_alignment(
     return file_path
 
 
-def is_frame_misaligned(task: Task, file_path: Path, context: Dict, manager: JobManager) -> bool:
-    command = [
-        "ffprobe",
-        str(file_path),
-        "-hide_banner",
-        "-read_intervals",
-        "%+5",
-        "-show_entries",
-        "frame=best_effort_timestamp_time",
-        "-print_format",
-        "json",
-    ]
-    stdout = stream_subprocess(task, context, manager, {'args': command}, keep_stdout=True)
+def is_frame_misaligned(
+    task: Task,
+    input_source: MediaSource,
+    context: Dict,
+    manager: JobManager,
+    *,
+    headers: Optional[str] = None,
+) -> bool:
+    """
+    Return True if the first ~5s of frames contain duplicate timestamps.
+
+    *input_source* may be a local Path or an HTTP(S) URL. Pass *headers* (e.g.
+    ``girder_auth_headers(token)``) when probing a Girder download URL so ffprobe
+    can authenticate and use Range requests.
+    """
+    command = ['ffprobe']
+    if headers:
+        command.extend(['-headers', headers])
+        # Emit HTTP Statistics so the job log can report bytes read.
+        command.extend(['-v', 'info'])
+    command.extend(
+        [
+            str(input_source),
+            '-hide_banner',
+            '-read_intervals',
+            '%+5',
+            '-show_entries',
+            'frame=best_effort_timestamp_time',
+            '-print_format',
+            'json',
+        ]
+    )
+    if headers:
+        stdout, stderr = stream_subprocess(
+            task, context, manager, {'args': command}, keep_stdout=True, keep_stderr=True
+        )
+        log_ffprobe_http_bytes(manager, stderr, label='ffprobe frame-alignment')
+    else:
+        stdout = stream_subprocess(task, context, manager, {'args': command}, keep_stdout=True)
     framejsoninfo = json.loads(stdout)
     if 'frames' not in framejsoninfo:
         raise Exception('Could not read ffprobe frames')

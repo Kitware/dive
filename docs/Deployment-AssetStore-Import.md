@@ -15,7 +15,7 @@ When you run **Begin Import** on an S3/GCP (or filesystem) assetstore, Girder in
 1. Detect media (video, image sequence, or large image) and mark parent folders as DIVE datasets.
 2. Pair annotation files (`.json` / `.csv`) with the correct dataset folder.
 3. Pair or discover **frame metadata** attachments (`.json` / `.csv` / `.txt`).
-4. After the index finishes, resolve any sidecars that arrived before their video folders, then queue **batch postprocess** (transcode if needed, attach annotations/metadata, finalize FPS).
+4. After the index finishes, resolve any sidecars that arrived before their video folders, then queue **batch postprocess** (probe via HTTP Range when possible, transcode only if needed, attach annotations/metadata, finalize FPS). For already web-safe H.264 MP4/WebM, convert jobs avoid downloading the full object from the assetstore.
 
 Self-hosted deployments need the Compose **`localworker`** service running. Postprocess jobs for assetstore import are routed to the `local` queue. See [Running with Docker Compose](Deployment-Docker-Compose.md).
 

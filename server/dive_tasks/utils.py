@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
@@ -9,7 +10,7 @@ from subprocess import Popen
 import tempfile
 import threading
 import time
-from typing import List, Optional, Tuple
+from typing import List, Optional, Tuple, Union
 from urllib import request
 from urllib.parse import urlencode, urljoin
 
@@ -116,6 +117,105 @@ def container_allows_skip_transcoding(format_name: str) -> bool:
     return bool(parts & _WEBSAFE_SKIP_TRANSCODE_FORMAT_FRAGMENTS)
 
 
+def format_byte_count(num_bytes: int) -> str:
+    """Human-readable byte count for job logs (binary units)."""
+    units = ('B', 'KiB', 'MiB', 'GiB', 'TiB')
+    value = float(num_bytes)
+    for unit in units:
+        if value < 1024.0 or unit == units[-1]:
+            if unit == 'B':
+                return f'{int(value)} {unit}'
+            return f'{value:.2f} {unit}'
+        value /= 1024.0
+    return f'{num_bytes} B'
+
+
+def parse_ffmpeg_http_bytes_read(stderr: str) -> Optional[int]:
+    """
+    Sum ``Statistics: N bytes read`` lines from ffmpeg/ffprobe HTTP stderr.
+
+    When probing a remote URL, libavformat logs one Statistics line per HTTP
+    context as it closes. Multiple lines are common with Range seeks.
+    """
+    if not stderr:
+        return None
+    total = 0
+    found = False
+    for match in re.finditer(r'Statistics:\s+(\d+)\s+bytes read', stderr):
+        total += int(match.group(1))
+        found = True
+    return total if found else None
+
+
+def girder_auth_headers(token: str) -> str:
+    """Header block for ffprobe/ffmpeg HTTP requests (requires CRLF line endings)."""
+    return f'Girder-Token: {token}\r\n'
+
+
+def item_download_url(gc: GirderClient, item_id: str) -> str:
+    """Absolute Girder item download URL (supports HTTP Range when the store does)."""
+    return urljoin(gc.urlBase, f'item/{item_id}/download')
+
+
+def can_skip_video_transcoding(
+    *,
+    skip_transcoding: bool,
+    codec_name: str,
+    sample_aspect_ratio,
+    format_name: str,
+    source_misaligned: bool,
+) -> bool:
+    """True when convert_video may tag the source as playable without remux/encode."""
+    return (
+        skip_transcoding
+        and codec_name == 'h264'
+        and sample_aspect_ratio == '1:1'
+        and container_allows_skip_transcoding(format_name)
+        and not source_misaligned
+    )
+
+
+def ffprobe_format_and_streams(
+    task: Task,
+    context: dict,
+    manager: JobManager,
+    input_source: str,
+    *,
+    headers: Optional[str] = None,
+) -> dict:
+    """
+    Run ffprobe -show_format -show_streams on a local path or HTTP URL.
+
+    When *headers* is set (e.g. Girder-Token), ffprobe can issue authenticated
+    Range requests against Girder/S3 instead of requiring a full local download.
+    HTTP probes use ``-v info`` so libavformat Statistics lines are available and
+    the job log reports how many bytes were read.
+    """
+    command = ['ffprobe']
+    if headers:
+        command.extend(['-headers', headers])
+    # Quiet for local files; info for HTTP so Statistics: N bytes read is emitted.
+    command.extend(
+        [
+            '-print_format',
+            'json',
+            '-v',
+            'info' if headers else 'quiet',
+            '-show_format',
+            '-show_streams',
+            input_source,
+        ]
+    )
+    if headers:
+        stdout, stderr = stream_subprocess(
+            task, context, manager, {'args': command}, keep_stdout=True, keep_stderr=True
+        )
+        log_ffprobe_http_bytes(manager, stderr, label='ffprobe format/streams')
+    else:
+        stdout = stream_subprocess(task, context, manager, {'args': command}, keep_stdout=True)
+    return json.loads(stdout)
+
+
 def authenticate_urllib(gc: GirderClient):
     """Enable authenticated requests to girder backend using normal urllib"""
     opener = request.build_opener()
@@ -193,7 +293,8 @@ def stream_subprocess(
     manager: JobManager,
     popen_kwargs: dict,
     keep_stdout: bool = False,
-) -> str:
+    keep_stderr: bool = False,
+) -> Union[str, Tuple[str, str]]:
     """
     Stream live results from process to job manager
 
@@ -201,6 +302,7 @@ def stream_subprocess(
     :param manager: job manager
     :param popen_kwargs: a dict to pass as kwargs to popen.  Must include 'args'
     :param keep_stdout: will return stdout as a string if needed
+    :param keep_stderr: when True, return ``(stdout, stderr)`` instead of stdout
     """
     start_time = datetime.now()
     stdout = ""
@@ -288,19 +390,32 @@ def stream_subprocess(
             manager.updateStatus(JobStatus.CANCELED)
             raise CanceledError('Job was canceled')
 
+        stderr_file.seek(0)
+        stderr = stderr_file.read().decode('utf-8', errors='replace')
+
         # Popen reports death by signal as a negative return code, so anything other
         # than 0 is a failure.  Treating only code > 0 as failure let a SIGKILLed
         # pipeline (-9, typically the OOM killer) report success, and callers then
         # ingested whatever partial or empty output file it left behind.
         if code != 0:
-            stderr_file.seek(0)
-            stderr = stderr_file.read().decode('utf-8', errors='replace')
             raise RuntimeError(f'Pipeline {describe_exit(code)}: {stderr}')
         else:
             end_time = datetime.now()
             manager.write(f"\nProcess completed in {str((end_time - start_time))}\n")
 
+        if keep_stderr:
+            return stdout, stderr
         return stdout
+
+
+def log_ffprobe_http_bytes(manager: JobManager, stderr: str, *, label: str) -> Optional[int]:
+    """Write HTTP bytes-read stats from ffprobe stderr to the job log."""
+    nbytes = parse_ffmpeg_http_bytes_read(stderr)
+    if nbytes is None:
+        manager.write(f'{label}: HTTP bytes read unknown (no Statistics line in stderr)\n')
+    else:
+        manager.write(f'{label}: HTTP bytes read {nbytes} ({format_byte_count(nbytes)})\n')
+    return nbytes
 
 
 def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path: Path):
