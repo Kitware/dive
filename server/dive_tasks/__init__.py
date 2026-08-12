@@ -15,6 +15,11 @@ class DIVEPlugin(GirderWorkerPluginABC):
         # worker_girder_events first: bind Girder handlers before any task module loads.
         return [
             'dive_tasks.worker_girder_events',
+            'dive_tasks.upgrade_pipelines',
+            'dive_tasks.run_pipeline',
+            'dive_tasks.run_training',
+            'dive_tasks.convert_video',
+            'dive_tasks.convert_images',
             'dive_tasks.tasks',
             'dive_tasks.local_tasks',
         ]

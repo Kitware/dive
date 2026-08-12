@@ -7,7 +7,7 @@ inside. These tests pin that both shapes bind a real file to the KWIVER setting.
 
 from pathlib import Path
 
-from dive_tasks.tasks import _inject_dataset_metadata_file
+from dive_tasks.run_pipeline import _inject_dataset_metadata_file
 
 
 class FakeGirderClient:
