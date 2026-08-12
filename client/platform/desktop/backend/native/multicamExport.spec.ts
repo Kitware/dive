@@ -47,9 +47,9 @@ async function snapshot(dir: string, prefix = ''): Promise<Record<string, string
 zipMock.snapshot = (dir: string) => snapshot(dir);
 
 vi.mock('fs-extra', async () => {
-  const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
+  const actual = await vi.importActual<typeof import('fs-extra') & { default: typeof import('fs-extra') }>('fs-extra');
   const fsNode = await import('node:fs');
-  const existsByStat = (targetPath: fsNode.PathLike) => {
+  const existsByStat = (targetPath: Parameters<typeof fsNode.statSync>[0]) => {
     try {
       fsNode.statSync(targetPath);
       return true;

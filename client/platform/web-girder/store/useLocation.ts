@@ -91,7 +91,7 @@ export function useLocation() {
   }
 
   async function setLocationFromRoute(route: Route): Promise<void> {
-    const newLocation = getLocationFromRoute(route) || getLocationFromRoute(defaultRoute.value as Route);
+    const newLocation = getLocationFromRoute(route) || getLocationFromRoute(defaultRoute.value);
     if (newLocation === null) {
       throw new Error('Unexpected null default route');
     }

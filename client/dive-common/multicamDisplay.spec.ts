@@ -47,7 +47,7 @@ describe('multicamDisplay', () => {
 
   it('detects multicam dataset meta for training guards', () => {
     expect(isMultiCamDatasetConfig({ type: 'multi', subType: 'stereo' })).toBe(true);
-    expect(isMultiCamDatasetConfig({ type: 'video', subType: null })).toBe(false);
+    expect(isMultiCamDatasetConfig({ type: 'video', subType: undefined })).toBe(false);
   });
 
   it('detects stereoscopic vs plain multicam datasets', () => {

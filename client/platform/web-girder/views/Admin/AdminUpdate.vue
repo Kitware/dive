@@ -2,6 +2,7 @@
 import {
   defineComponent, onBeforeMount, ref,
 } from 'vue';
+import { isAxiosError } from 'axios';
 import {
   DEFAULT_JOBS_DISABLED_MESSAGE,
   putJobsDisabled,
@@ -43,7 +44,7 @@ export default defineComponent({
       } catch (error) {
         // When it is good the container restarts resulting a badgateway 502 error
         // We should wait like 20 seconds after the error and reload the page to show the update
-        if (error.response && error.response.status === 502) {
+        if (isAxiosError(error) && error.response && error.response.status === 502) {
           complete.value = 'Reload';
           reloadTime.value = 20;
           setInterval(() => {

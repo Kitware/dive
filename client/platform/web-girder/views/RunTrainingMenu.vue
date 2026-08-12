@@ -333,7 +333,7 @@ export default defineComponent({
     <JobLaunchDialog
       :value="jobState.count > 0"
       :loading="jobState.loading"
-      :error="jobState.error"
+      :error="jobState.error ?? undefined"
       :message="successMessage"
       @close="dismissJobDialog"
     />

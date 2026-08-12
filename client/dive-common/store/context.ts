@@ -29,40 +29,44 @@ const state: ContextState = reactive({
   subCategory: null,
 });
 
-const componentMap: Record<string, ComponentMapItem> = {
-  [DatasetInfo.name]: {
+const componentMapEntries: ComponentMapItem[] = [
+  {
     description: 'Dataset Info',
     component: DatasetInfo,
   },
-  [TypeThreshold.name]: {
+  {
     description: 'Threshold Controls',
     component: TypeThreshold,
   },
-  [ImageEnhancements.name]: {
+  {
     description: 'Image Enhancements',
     component: ImageEnhancements,
   },
-  [GroupSidebar.name]: {
+  {
     description: 'Group Manager',
     component: GroupSidebar,
   },
-  [MultiCamTools.name]: {
+  {
     description: 'Multi Camera Tools',
     component: MultiCamTools,
   },
-  [RegistrationTools.name]: {
+  {
     description: 'Camera Registration',
     component: RegistrationTools,
   },
-  [AttributesSideBar.name]: {
+  {
     description: 'Attribute Details',
     component: AttributesSideBar,
   },
-  [AttributeTrackFilters.name]: {
+  {
     description: 'Attribute Track Filters',
     component: AttributeTrackFilters,
   },
-};
+];
+
+const componentMap: Record<string, ComponentMapItem> = Object.fromEntries(
+  componentMapEntries.map((item) => [item.component.name || 'default', item]),
+);
 
 function register(item: ComponentMapItem) {
   componentMap[item.component.name || 'default'] = item;

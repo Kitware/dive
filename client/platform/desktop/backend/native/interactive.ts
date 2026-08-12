@@ -410,7 +410,7 @@ export class InteractiveServiceManager extends EventEmitter {
     }, 'Segmentation stereo_segment');
     return {
       id: r.id,
-      success: r.success,
+      success: r.success ?? false,
       error: r.error,
       polygon: r.polygon,
       bounds: r.bounds,
@@ -579,7 +579,7 @@ export class InteractiveServiceManager extends EventEmitter {
     }, 'set_frame');
     return {
       id: r.id,
-      success: r.success,
+      success: r.success ?? false,
       error: r.error,
       disparityReady: r.disparity_ready || false,
       message: r.message,
@@ -595,7 +595,7 @@ export class InteractiveServiceManager extends EventEmitter {
     const r = await this.sendRequest({ command: 'get_status' }, 'get_status');
     return {
       id: r.id,
-      success: r.success,
+      success: r.success ?? false,
       enabled: r.enabled || false,
       disparityReady: r.disparity_ready || false,
       computing: r.computing,
@@ -612,7 +612,7 @@ export class InteractiveServiceManager extends EventEmitter {
     const r = await this.sendRequest({ command: 'transfer_line', line: request.line }, 'transfer_line');
     return {
       id: r.id,
-      success: r.success,
+      success: r.success ?? false,
       error: r.error,
       transferredLine: r.transferred_line,
       originalLine: r.original_line,
@@ -634,7 +634,7 @@ export class InteractiveServiceManager extends EventEmitter {
     const r = await this.sendRequest({ command: 'transfer_points', points: request.points }, 'transfer_points');
     return {
       id: r.id,
-      success: r.success,
+      success: r.success ?? false,
       error: r.error,
       transferredPoints: r.transferred_points,
       originalPoints: r.original_points,
@@ -652,7 +652,7 @@ export class InteractiveServiceManager extends EventEmitter {
       right_line: request.rightLine,
     }, 'measure_line');
     return {
-      id: r.id, success: r.success, error: r.error, length: r.length, measurement: r.measurement,
+      id: r.id, success: r.success ?? false, error: r.error, length: r.length, measurement: r.measurement,
     };
   }
 
@@ -666,7 +666,7 @@ export class InteractiveServiceManager extends EventEmitter {
       method: request.method || 'average',
     }, 'aggregate_lengths');
     return {
-      id: r.id, success: r.success, error: r.error, avgLength: r.avg_length,
+      id: r.id, success: r.success ?? false, error: r.error, avgLength: r.avg_length,
     };
   }
 

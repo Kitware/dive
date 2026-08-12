@@ -19,10 +19,6 @@ import girderRest from 'platform/web-girder/plugins/girder';
 import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
 
-interface HTMLFile extends File {
-  webkitRelativePath?: string;
-}
-
 async function getDataset(datasetId: string) {
   const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
   const response = await girderRest.get<GirderConfigStatic>(`dive_dataset/${folderId}`);
@@ -166,7 +162,7 @@ async function uploadFileToFolder(parentId: string, file: File): Promise<{ itemI
   return uploadResponse.status === 200 ? uploadResponse.data : null;
 }
 
-async function importAnnotationFile(datasetId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
+async function importAnnotationFile(datasetId: string, path: string, file?: File, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
   if (file === undefined) {
     return false;
   }
@@ -189,7 +185,7 @@ async function importAnnotationFile(datasetId: string, path: string, file?: HTML
 /** Upload a metadata file into the dataset folder and declare it as the attachment. */
 async function uploadAndSetMetadataFile(
   datasetId: string,
-  file: HTMLFile,
+  file: File,
 ): Promise<void> {
   const folderId = parentDatasetId(datasetId);
   const itemId = await uploadMetadataFileItem(folderId, file);

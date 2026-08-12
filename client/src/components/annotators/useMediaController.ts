@@ -654,6 +654,9 @@ export function useMediaController() {
       toggleSynchronizeCameras,
       cameraSync: synchronizeCameras,
       resizeTrigger,
+      resizing,
+      alignedGapSlots,
+      seekCameraFrame: aggregateSeekCameraFrame,
     };
 
     subControllers.push(mediaController);

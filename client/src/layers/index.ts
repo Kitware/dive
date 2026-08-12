@@ -25,7 +25,10 @@ export {
   UILayer,
   UILayerTypes,
   /* Other */
-  VisibleAnnotationTypes,
   EditAnnotationLayer,
+};
+
+export type {
+  VisibleAnnotationTypes,
   EditAnnotationTypes,
 };

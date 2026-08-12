@@ -183,7 +183,7 @@ export default defineComponent({
       try {
         await setAttribute({ data, oldAttribute });
       } catch (err) {
-        editingError.value = err.message;
+        editingError.value = err instanceof Error ? err.message : String(err);
       }
       if (!editingError.value && close) {
         closeEditor();
@@ -194,7 +194,7 @@ export default defineComponent({
       try {
         await deleteAttribute({ data });
       } catch (err) {
-        editingError.value = err.message;
+        editingError.value = err instanceof Error ? err.message : String(err);
       }
       if (!editingError.value) {
         closeEditor();
@@ -356,7 +356,7 @@ export default defineComponent({
           <span class="trackNumber">{{ editingGroup.id }}</span>
           <v-spacer />
           <TypePicker
-            :value="editingGroup.getType()"
+            :value="editingGroup.getType()[0]"
             :all-types="allGroupTypesRef"
             :read-only-mode="readOnlyMode"
             data-list-source="allGroupTypesOptions"
@@ -639,7 +639,7 @@ export default defineComponent({
       <attribute-editor
         v-if="editingAttribute != null"
         :selected-attribute="editingAttribute"
-        :error="editingError"
+        :error="editingError ?? undefined"
         @close="closeEditor"
         @save="saveAttributeHandler"
         @delete="deleteAttributeHandler"

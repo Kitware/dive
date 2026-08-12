@@ -1,6 +1,7 @@
 /** Stash browser File selections for multicam import (paths are not filesystem paths on web). */
 
 import { Location } from '@girder/components/src';
+import type { AxiosInstance } from 'axios';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
   ImageSequenceType,
@@ -306,7 +307,7 @@ export async function importCalibrationFile(
   // so a top-level import breaks node-environment unit tests that import this module.
   const { default: girderRest } = await import('platform/web-girder/plugins/girder');
   const manager = new GirderUploadManager(file, {
-    $rest: girderRest,
+    $rest: girderRest as unknown as AxiosInstance,
     parent: { _id: parentFolderId, _modelType: 'folder' } as Location,
   });
   const uploaded = await manager.start() as { _id: string };

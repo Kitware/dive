@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { computed, defineComponent } from 'vue';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
 export default defineComponent({
@@ -35,7 +35,7 @@ export default defineComponent({
       default: false,
     },
   },
-  setup(_, { emit }) {
+  setup(props, { emit }) {
     function updateBegin(input: string) {
       const num = parseInt(input, 10);
       emit('update:begin', num);
@@ -44,9 +44,19 @@ export default defineComponent({
       const num = parseInt(input, 10);
       emit('update:end', num);
     }
+    const beginRules = computed(() => [
+      (v: number) => v <= Math.min(props.end, props.max) || 'Begin must be less than end and max',
+      (v: number) => v >= props.min || 'Begin must be >= min',
+    ]);
+    const endRules = computed(() => [
+      (v: number) => v >= Math.max(props.begin, props.min) || 'End must be >= begin and min',
+      (v: number) => v <= props.max || 'End must be <= max',
+    ]);
     return {
       updateBegin,
       updateEnd,
+      beginRules,
+      endRules,
     };
   },
 });
@@ -75,10 +85,7 @@ export default defineComponent({
         hide-details
         :min="min"
         :max="Math.min(end, max)"
-        :rules="[
-          (v) => v <= Math.min(end, max) || 'Begin must be less than end and max',
-          (v) => v >= min || 'Begin must be >= min',
-        ]"
+        :rules="beginRules"
         @input="updateBegin"
       >
         <template
@@ -107,10 +114,7 @@ export default defineComponent({
         label="End frame"
         :min="Math.max(begin, min)"
         :max="max"
-        :rules="[
-          (v) => v >= Math.max(begin, min) || 'End must be >= begin and min',
-          (v) => v <= max || 'End must be <= max',
-        ]"
+        :rules="endRules"
         @input="updateEnd"
       >
         <template

@@ -3,13 +3,15 @@
   add-new. Naming rules match ImportMultiCamDialog/multicamSubfolderLayout isValidCameraName.
 -->
 <script lang="ts">
-import { defineComponent, ref } from 'vue';
+import {
+  defineComponent, PropType, computed, ref,
+} from 'vue';
 
 export default defineComponent({
   name: 'ImportMultiCamAddType',
   props: {
     nameList: {
-      type: Array,
+      type: Array as PropType<string[]>,
       required: true,
     },
   },
@@ -23,10 +25,16 @@ export default defineComponent({
       newSetName.value = '';
       enabled.value = false;
     };
+    const nameRules = computed(() => [
+      (v: string) => !!v || 'Name is required',
+      (v: string) => alphaNumeric.test(v) || 'Letters, numbers, and underscores only',
+      (v: string) => !v.includes(' ') || 'No spaces',
+      (v: string) => !props.nameList.includes(v) || 'No duplicate Names',
+    ]);
     return {
       enabled,
       newSetName,
-      alphaNumeric,
+      nameRules,
       addNewSet,
     };
   },
@@ -53,11 +61,7 @@ export default defineComponent({
     <template v-if="enabled">
       <v-text-field
         v-model="newSetName"
-        :rules="[
-          v => !!v || 'Name is required',
-          v => alphaNumeric.test(v) || 'Letters, numbers, and underscores only',
-          v => !v.includes(' ') || 'No spaces',
-          v => !nameList.includes(v) || 'No duplicate Names']"
+        :rules="nameRules"
         label="name"
         placeholder="Choose a Camera Name"
         outlined

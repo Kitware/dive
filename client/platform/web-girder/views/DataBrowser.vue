@@ -62,6 +62,16 @@ export default defineComponent({
       return getMultiCamSubType(item.meta);
     }
 
+    function multiCamIcon(item: GirderModel) {
+      const subType = multiCamSubType(item);
+      return subType ? getMultiCamIcon(subType) : '';
+    }
+
+    function multiCamTooltip(item: GirderModel) {
+      const subType = multiCamSubType(item);
+      return subType ? getMultiCamTooltip(subType) : '';
+    }
+
     const shouldShowUpload = computed(() => (
       location.value
       && !locationIsViameFolder.value
@@ -88,8 +98,8 @@ export default defineComponent({
       /* methods */
       isAnnotationFolder,
       multiCamSubType,
-      getMultiCamIcon,
-      getMultiCamTooltip,
+      multiCamIcon,
+      multiCamTooltip,
       handleNotification,
       setLocation,
       updateUploading,
@@ -135,6 +145,7 @@ export default defineComponent({
           </v-btn>
         </template>
         <Upload
+          v-if="location"
           :location="location"
           @update:uploading="updateUploading"
           @close="uploaderDialog = false"
@@ -154,10 +165,10 @@ export default defineComponent({
               v-bind="attrs"
               v-on="on"
             >
-              {{ getMultiCamIcon(multiCamSubType(item)) }}
+              {{ multiCamIcon(item) }}
             </v-icon>
           </template>
-          <span>{{ getMultiCamTooltip(multiCamSubType(item)) }}</span>
+          <span>{{ multiCamTooltip(item) }}</span>
         </v-tooltip>
         <span>{{ item.name }}</span>
         <v-icon

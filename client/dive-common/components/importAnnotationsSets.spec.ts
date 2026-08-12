@@ -41,6 +41,8 @@ function mountImportAnnotations({
     fileList: fileName === undefined ? [] : [new File(['a'], fileName)],
   }));
 
+  let child: InstanceType<typeof ImportAnnotations> | undefined;
+
   const Parent = defineComponent({
     setup() {
       provideApi({
@@ -54,11 +56,18 @@ function mountImportAnnotations({
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         {} as any,
       );
-      return () => h(ImportAnnotations, { props: { datasetId: 'dataset-1' } });
+      return () => h(ImportAnnotations, {
+        props: { datasetId: 'dataset-1' },
+        ref: (instance) => {
+          if (instance && !(instance instanceof Element)) {
+            child = instance as InstanceType<typeof ImportAnnotations>;
+          }
+        },
+      });
     },
   });
 
-  const wrapper = mount(Parent, {
+  mount(Parent, {
     stubs: {
       'v-menu': true,
       'v-tooltip': true,
@@ -68,38 +77,41 @@ function mountImportAnnotations({
     },
     mocks: { $vuetify: { breakpoint: { mdAndDown: false } } },
   });
-  return { vm: wrapper.findComponent(ImportAnnotations), state, importAnnotationFile };
+  if (!child) {
+    throw new Error('ImportAnnotations did not mount');
+  }
+  return { vm: child, state, importAnnotationFile };
 }
 
 describe('ImportAnnotations annotation sets', () => {
   it('exposes sets without requiring a render pass', () => {
     const { vm } = mountImportAnnotations({ annotationSets: ['setA', 'setB'] });
     // Reading from outside render is what regressed: it must not throw.
-    expect(() => vm.vm.sets).not.toThrow();
-    expect(vm.vm.sets).toEqual(['setA', 'setB', 'default']);
+    expect(() => vm.sets).not.toThrow();
+    expect(vm.sets).toEqual(['setA', 'setB', 'default']);
   });
 
   it('always offers the default set when none are defined', () => {
     const { vm } = mountImportAnnotations();
-    expect(vm.vm.sets).toEqual(['default']);
+    expect(vm.sets).toEqual(['default']);
   });
 
   it('does not mutate the provided annotation sets', () => {
     const provided = ['only'];
     const { vm } = mountImportAnnotations({ annotationSets: provided });
-    expect(vm.vm.sets).toEqual(['only', 'default']);
+    expect(vm.sets).toEqual(['only', 'default']);
     expect(provided).toEqual(['only']);
   });
 
   it('seeds currentSet from the provided annotation set, falling back to default', () => {
-    expect(mountImportAnnotations().vm.vm.currentSet).toBe('default');
-    expect(mountImportAnnotations({ annotationSets: ['a'], annotationSet: 'a' }).vm.vm.currentSet)
+    expect(mountImportAnnotations().vm.currentSet).toBe('default');
+    expect(mountImportAnnotations({ annotationSets: ['a'], annotationSet: 'a' }).vm.currentSet)
       .toBe('a');
   });
 
   it('does not alias the injected annotationSet ref', () => {
     const { vm, state } = mountImportAnnotations({ annotationSets: ['a'], annotationSet: 'a' });
-    vm.vm.currentSet = 'other';
+    vm.currentSet = 'other';
     expect(state.annotationSet.value).toBe('a');
   });
 });
@@ -128,7 +140,7 @@ describe('ImportAnnotations frame metadata reject', () => {
   ])('never imports %s as annotations', async (fileName) => {
     const { vm, importAnnotationFile } = mountImportAnnotations({ fileName });
 
-    await vm.vm.openUpload();
+    await vm.openUpload();
 
     expect(importAnnotationFile).not.toHaveBeenCalled();
     expect(promptMock).toHaveBeenCalledWith(expect.objectContaining({
@@ -139,7 +151,7 @@ describe('ImportAnnotations frame metadata reject', () => {
   it('names a remedy that exists on this platform', async () => {
     const { vm } = mountImportAnnotations({ fileName: 'frame-metadata.csv' });
 
-    await vm.vm.openUpload();
+    await vm.openUpload();
 
     const { text } = promptMock.mock.calls[0][0];
     // The creation-time picker is the one surface that accepts an attachment.
@@ -151,7 +163,7 @@ describe('ImportAnnotations frame metadata reject', () => {
   it('still imports a normally named annotation file', async () => {
     const { vm, importAnnotationFile } = mountImportAnnotations({ fileName: 'tracks.csv' });
 
-    await vm.vm.openUpload();
+    await vm.openUpload();
 
     expect(importAnnotationFile).toHaveBeenCalled();
     expect(promptMock).not.toHaveBeenCalled();

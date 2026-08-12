@@ -124,7 +124,7 @@ export default function register() {
     // eslint-disable-next-line no-param-reassign -- ipcMain event.returnValue API
     event.returnValue = getDiveVersion();
   });
-  ipcMain.handle('desktop:get-app-path', (_, name: Electron.Name) => app.getPath(name));
+  ipcMain.handle('desktop:get-app-path', (_, name: Parameters<typeof app.getPath>[0]) => app.getPath(name));
   ipcMain.handle('desktop:open-path', async (_, targetPath: string) => (
     common.openPathInFileManager(targetPath)
   ));

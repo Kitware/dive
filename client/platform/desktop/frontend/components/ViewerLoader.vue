@@ -23,6 +23,7 @@ import {
   STEREO_LENGTH_ATTRIBUTE_NAME,
 } from 'dive-common/utils/stereoLengthRendering';
 import type { RectBounds } from 'vue-media-annotator/utils';
+import type Track from 'vue-media-annotator/track';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
   segmentationEnsureStarted,
@@ -330,6 +331,8 @@ export default defineComponent({
       originalImageFiles: string[];
       type: string;
       originalVideoFile?: string;
+      fps?: number;
+      originalFps?: number;
     } | null = null;
 
     // Frame -> media-path / frame-time resolvers built by initializeSegmentation.
@@ -348,14 +351,14 @@ export default defineComponent({
       const { originalBasePath, originalImageFiles, type } = cachedMeta;
       if (type === 'video') {
         // Video datasets require frame extraction - not yet supported
-        return npath.join(originalBasePath, cachedMeta.originalVideoFile || '');
+        return joinPath(originalBasePath, cachedMeta.originalVideoFile || '');
       }
       if (originalImageFiles && originalImageFiles[frameNum]) {
         const imagePath = originalImageFiles[frameNum];
-        if (npath.isAbsolute(imagePath)) {
+        if (isAbsolutePath(imagePath)) {
           return imagePath;
         }
-        return npath.join(originalBasePath, imagePath);
+        return joinPath(originalBasePath, imagePath);
       }
       return '';
     }
@@ -441,7 +444,7 @@ export default defineComponent({
         // frames' annotations are left untouched.
         if (replaceExisting && cameraStore && trackStore) {
           const removeIds: number[] = [];
-          trackStore.annotationMap.forEach((track) => {
+          trackStore.annotationMap.forEach((track: Track) => {
             if (frameNum < track.begin || frameNum > track.end) {
               return;
             }
@@ -646,7 +649,8 @@ export default defineComponent({
         const meta = await loadConfig(props.id);
         // Plain multicam and single-camera datasets have no stereo pair: report
         // no stereo so the caller does not load the stereo service.
-        if (!meta.multiCamMedia || !isStereoscopicDatasetConfig(meta)) return false;
+        if (!meta.multiCamMedia
+          || !isStereoscopicDatasetConfig({ type: meta.type, subType: meta.subType ?? undefined })) return false;
 
         // Extract calibration file path from multiCam metadata
         stereoCalibrationFile = meta.multiCam?.calibration || undefined;

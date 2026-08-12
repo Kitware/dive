@@ -1,7 +1,7 @@
 import type { GirderModel } from '@girder/components/src';
 import girderRest from 'platform/web-girder/plugins/girder';
 
-function deleteResources(resources: Array<GirderModel>) {
+function deleteResources(resources: Array<Pick<GirderModel, '_id' | '_modelType'>>) {
   const formData = new FormData();
   formData.set(
     'resources',

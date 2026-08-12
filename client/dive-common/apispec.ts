@@ -8,7 +8,7 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
-import {
+import type {
   CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
@@ -659,13 +659,16 @@ export {
 };
 
 export {
+  DatasetConfigMutableKeys,
+  MulticamSharedMutableKeys,
+};
+
+export type {
   AnnotationSchema,
   Api,
   DatasetConfig,
   DatasetConfigMutable,
-  DatasetConfigMutableKeys,
   DatasetInfoFields,
-  MulticamSharedMutableKeys,
   GlobalStyleSettings,
   DatasetType,
   DiveParam,
@@ -694,4 +697,4 @@ export {
   MediaImportResponse,
 };
 
-export type { PercentileStretch };
+export type { PercentileStretch, CameraCorrespondences };

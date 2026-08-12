@@ -38,6 +38,9 @@ const fileSuffixRegex = /\.[^.]*$/;
 
 export {
   fileSuffixRegex,
+};
+
+export type {
   GirderConfigStatic,
   GirderConfig,
 };

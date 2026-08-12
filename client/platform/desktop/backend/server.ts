@@ -63,7 +63,7 @@ apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
     const ds = await common.loadConfig(settings.get(), id, makeMediaUrl);
     res.json(ds);
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
 });
@@ -78,7 +78,7 @@ apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
     await common.saveConfig(settings.get(), id, req.body);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
 });
@@ -94,7 +94,7 @@ apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
     await common.saveAttributes(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
   return null;
@@ -110,7 +110,7 @@ apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res,
     await common.saveAttributeTrackFilters(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
   return null;
@@ -127,7 +127,7 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
     await common.saveDetections(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
   return null;

@@ -237,7 +237,8 @@ export default defineComponent({
       params: Record<string, any>,
       proj?: string,
     ) {
-      const updatedParams = { ...params, encoding: 'PNG' };
+      // Spreading a Record into a literal drops its index signature, so restate the param's type.
+      const updatedParams: typeof params = { ...params, encoding: 'PNG' };
       if (proj) {
         updatedParams.projection = proj;
       }

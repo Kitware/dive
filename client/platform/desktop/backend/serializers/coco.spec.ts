@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { AnnotationSchema } from 'dive-common/apispec';

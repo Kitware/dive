@@ -23,7 +23,7 @@ import { DesktopJob, RunTraining } from 'platform/desktop/constants';
 import {
   listResumableTrainingJobs, resumeTraining, discardResumableTraining,
 } from '../api';
-import { datasets } from '../store/dataset';
+import { datasets, JsonConfigCache } from '../store/dataset';
 
 function joinPath(dir: string, filename: string) {
   const separator = dir.includes('\\') ? '\\' : '/';
@@ -202,6 +202,10 @@ export default defineComponent({
 
     const stagedItems = computed(() => Object.values(data.stagedItems));
 
+    function getAvailableItemClass({ included }: JsonConfigCache & { included: boolean }) {
+      return included ? 'disabled-row' : '';
+    }
+
     const isReadyToTrain = computed(() => (
       stagedItems.value.length > 0
         && data.selectedTrainingConfig
@@ -223,7 +227,8 @@ export default defineComponent({
           unsortedPipelines.value = await getPipelineList();
         } catch (err) {
           let text = 'Unable to delete model';
-          if (err.response?.status === 403) text = 'You do not have permission to delete the selected resource(s).';
+          const deleteErr = err as { response?: { status?: number } };
+          if (deleteErr.response?.status === 403) text = 'You do not have permission to delete the selected resource(s).';
           prompt({
             title: 'Delete Failed',
             text,
@@ -254,8 +259,9 @@ export default defineComponent({
         }
       } catch (err) {
         const errorTemplate = 'Unable to export model';
+        const exportErr = err as { response?: { status?: number } };
         let text = `${errorTemplate}: ${err}`;
-        if (err.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
+        if (exportErr.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
         prompt({
           title: 'Export Failed',
           text,
@@ -283,7 +289,8 @@ export default defineComponent({
         router.push({ name: 'jobs' });
       } catch (err) {
         let text = 'Unable to run training';
-        if (err.response && err.response.status === 403) {
+        const trainingErr = err as { response?: { status?: number } };
+        if (trainingErr.response && trainingErr.response.status === 403) {
           text = 'You do not have permission to run training on the selected resource(s).';
         }
         prompt({
@@ -336,6 +343,7 @@ export default defineComponent({
       labelFile,
       clearLabelText,
       toggleStaged,
+      getAvailableItemClass,
       deleteModel,
       exportModel,
       simplifyTrainingName,
@@ -579,7 +587,7 @@ export default defineComponent({
         v-bind="{ headers: available.headers, items: available.items.value }"
         :footer-props="{ itemsPerPageOptions }"
         :items-per-page.sync="clientSettings.rowsPerPage"
-        :item-class="({ included }) => included ? 'disabled-row' : ''"
+        :item-class="getAvailableItemClass"
         no-data-text="No data meets criteria for chosen configuration"
       >
         <template #[`item.action`]="{ item }">

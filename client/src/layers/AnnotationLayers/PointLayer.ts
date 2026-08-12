@@ -16,7 +16,9 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
     const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['point'],
     });
-    this.featureLayer = layer.createFeature('point');
+    this.featureLayer = layer
+      .createFeature('point')
+      .position((data: PointGeoJSData) => this.transformXY(data));
     super.initialize();
   }
 
@@ -54,7 +56,6 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
   createStyle(): LayerStyle<PointGeoJSData> {
     return {
       ...super.createStyle(),
-      position: (data: PointGeoJSData) => this.transformXY(data),
       fill: (data: PointGeoJSData) => data.feature === 'head',
       fillColor: (data: PointGeoJSData) => {
         if (data.styleType) {

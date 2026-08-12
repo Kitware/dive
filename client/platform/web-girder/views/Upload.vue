@@ -219,7 +219,7 @@ export default defineComponent({
     /** True from the moment Start upload is clicked until its upload settles. */
     const preparing = ref(false);
     const stereo = ref(false);
-    const multiCamOpenType = ref('image-sequence');
+    const multiCamOpenType = ref<'image-sequence' | 'video'>('image-sequence');
     const importMultiCamDialog = ref(false);
     const importMultiCamBatchDialog = ref(false);
     const batchImportFiles: Ref<File[]> = ref([]);
@@ -315,7 +315,9 @@ export default defineComponent({
      * files the user has to re-pick to clear the error.
      */
     const mediaSlotAccept = (pendingUpload: PendingUpload) => (
-      pendingUpload.error ? undefined : filterFileUpload(pendingUpload.type)
+      pendingUpload.error || pendingUpload.type === 'zip'
+        ? undefined
+        : filterFileUpload(pendingUpload.type)
     );
 
     // Every slot file the server validates, in a single list.
@@ -388,7 +390,7 @@ export default defineComponent({
           await addPendingUpload(ret.fileList, suggestedFps, dstype);
         }
       } catch (err) {
-        preUploadErrorMessage.value = err.response?.data?.message || err;
+        preUploadErrorMessage.value = getResponseError(err);
       }
     };
     const openMultiCamDialog = (args: { stereo: boolean; openType: 'image-sequence' | 'video' }) => {
@@ -396,7 +398,7 @@ export default defineComponent({
       multiCamOpenType.value = args.openType;
       importMultiCamDialog.value = true;
     };
-    const multiCamImportCheck = (sourcePath: string): MediaImportResponse => {
+    const multiCamImportCheck = async (sourcePath: string): Promise<MediaImportResponse> => {
       const files = getFilesForSourceKey(sourcePath) ?? [];
       const mediaType = multiCamOpenType.value === VideoType ? VideoType : ImageSequenceType;
       return {
@@ -492,7 +494,7 @@ export default defineComponent({
           description: 'Multi Camera dataset',
         });
         datasetFolderId = datasetFolder._id;
-        const cameras: Record<string, { folderId: string; type?: string }> = {};
+        const cameras: Record<string, { folderId: string; type?: Exclude<DatasetType, 'multi'> }> = {};
         const cameraOrder = args.cameraOrder?.length
           ? args.cameraOrder
           : Object.keys(args.sourceList);
@@ -541,8 +543,8 @@ export default defineComponent({
           }
           const cameraType = source.type ?? args.type;
           const uploadType = validation.type;
-          const compatibleTypes = new Set([cameraType, args.type, 'large-image', 'image-sequence']);
-          if (!compatibleTypes.has(uploadType)) {
+          const compatibleTypes = new Set<DatasetType>([cameraType, args.type, 'large-image', 'image-sequence']);
+          if (uploadType === 'multi' || !compatibleTypes.has(uploadType)) {
             throw new Error(`Camera "${cameraName}" must use ${cameraType} media`);
           }
           // Server validation is the authority: upload exactly what it accepted,
@@ -705,7 +707,7 @@ export default defineComponent({
           }
         }
         if (showProgressOverlay) {
-          preUploadErrorMessage.value = err.response?.data?.message || err.message || String(err);
+          preUploadErrorMessage.value = getResponseError(err);
           await errorHandler({ err, name: 'Multicam import' });
         }
         throw err;
@@ -861,11 +863,17 @@ export default defineComponent({
         }
         await uploadFn();
       } catch (err) {
-        preUploadErrorMessage.value = err.response?.data?.message || err.message || String(err);
+        preUploadErrorMessage.value = getResponseError(err);
       } finally {
         preparing.value = false;
       }
     };
+    const requiredRule = (val: string | null) => (
+      (val || '').length > 0 || 'This field is required'
+    );
+    const mediaFilesRequiredRule = (val: File[] | null) => (
+      (val || []).length > 0 || 'Media Files are required'
+    );
     const remove = (pendingUpload: PendingUpload) => {
       // Identity, not index: a row retired twice must never take a different row with it.
       pendingUploads.value = pendingUploads.value.filter((row) => row !== pendingUpload);
@@ -944,6 +952,8 @@ export default defineComponent({
       getFilenameInputStateHint,
       filterFileUpload,
       mediaSlotAccept,
+      requiredRule,
+      mediaFilesRequiredRule,
       prepAndUpload,
       remove,
       abort,
@@ -1054,7 +1064,7 @@ export default defineComponent({
                 <v-text-field
                   :value="getFilenameInputValue(pendingUpload)"
                   class="upload-name"
-                  :rules="[val => (val || '').length > 0 || 'This field is required']"
+                  :rules="[requiredRule]"
                   required
                   :label="getFilenameInputStateLabel(pendingUpload)"
                   :disabled="getFilenameInputStateDisabled(pendingUpload)"
@@ -1135,7 +1145,7 @@ export default defineComponent({
                           ? 'Video file'
                           : 'Tiled Image files'
                     "
-                    :rules="[val => (val || '').length > 0 || 'Media Files are required']"
+                    :rules="[mediaFilesRequiredRule]"
                     :accept="mediaSlotAccept(pendingUpload)"
                   />
                 </v-row>

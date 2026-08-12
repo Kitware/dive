@@ -73,69 +73,71 @@ export default defineComponent({
       Column Visibility
     </div>
 
-    <!-- Core columns -->
-    <div class="text-caption grey--text mb-1">
-      Core Columns
-    </div>
-    <v-checkbox
-      v-model="columnVisibility.type"
-      dense
-      hide-details
-      label="Type"
-      class="my-0 py-0"
-    />
-    <v-checkbox
-      v-model="columnVisibility.confidence"
-      dense
-      hide-details
-      label="Confidence"
-      class="my-0 py-0"
-    />
+    <template v-if="columnVisibility">
+      <!-- Core columns -->
+      <div class="text-caption grey--text mb-1">
+        Core Columns
+      </div>
+      <v-checkbox
+        v-model="columnVisibility.type"
+        dense
+        hide-details
+        label="Type"
+        class="my-0 py-0"
+      />
+      <v-checkbox
+        v-model="columnVisibility.confidence"
+        dense
+        hide-details
+        label="Confidence"
+        class="my-0 py-0"
+      />
 
-    <!-- Frame columns -->
-    <div class="text-caption grey--text mt-2 mb-1">
-      Frame Columns
-    </div>
-    <v-checkbox
-      v-model="columnVisibility.startFrame"
-      dense
-      hide-details
-      label="Start Frame"
-      class="my-0 py-0"
-    />
-    <v-checkbox
-      v-model="columnVisibility.endFrame"
-      dense
-      hide-details
-      label="End Frame"
-      class="my-0 py-0"
-    />
+      <!-- Frame columns -->
+      <div class="text-caption grey--text mt-2 mb-1">
+        Frame Columns
+      </div>
+      <v-checkbox
+        v-model="columnVisibility.startFrame"
+        dense
+        hide-details
+        label="Start Frame"
+        class="my-0 py-0"
+      />
+      <v-checkbox
+        v-model="columnVisibility.endFrame"
+        dense
+        hide-details
+        label="End Frame"
+        class="my-0 py-0"
+      />
 
-    <div class="text-caption grey--text mt-2 mb-1">
-      Timestamp Columns
-    </div>
-    <v-checkbox
-      v-model="columnVisibility.startTimestamp"
-      dense
-      hide-details
-      label="Start Timestamp"
-      class="my-0 py-0"
-      :disabled="!fps"
-    />
-    <v-checkbox
-      v-model="columnVisibility.endTimestamp"
-      dense
-      hide-details
-      label="End Timestamp"
-      class="my-0 py-0"
-      :disabled="!fps"
-    />
-    <div
-      v-if="!fps"
-      class="text-caption orange--text ml-6"
-    >
-      Timestamps require FPS metadata
-    </div>
+      <div class="text-caption grey--text mt-2 mb-1">
+        Timestamp Columns
+      </div>
+      <v-checkbox
+        v-model="columnVisibility.startTimestamp"
+        dense
+        hide-details
+        label="Start Timestamp"
+        class="my-0 py-0"
+        :disabled="!fps"
+      />
+      <v-checkbox
+        v-model="columnVisibility.endTimestamp"
+        dense
+        hide-details
+        label="End Timestamp"
+        class="my-0 py-0"
+        :disabled="!fps"
+      />
+      <div
+        v-if="!fps"
+        class="text-caption orange--text ml-6"
+      >
+        Timestamps require FPS metadata
+      </div>
+    </template>
 
     <!-- Attribute columns -->
     <template v-if="trackAttributes.length > 0">
@@ -204,6 +206,7 @@ export default defineComponent({
       Other Columns
     </div>
     <v-checkbox
+      v-if="columnVisibility"
       v-model="columnVisibility.notes"
       dense
       hide-details
