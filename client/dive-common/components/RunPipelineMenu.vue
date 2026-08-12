@@ -140,12 +140,12 @@ export default defineComponent({
     }
 
     async function confirmPipelineExecution(updatedParams: Record<string, string>) {
-      const configById: Record<string, Record<string, string>> = {};
+      const kwiverParamsById: Record<string, Record<string, string>> = {};
       props.selectedDatasetIds.forEach((id) => {
-        configById[id] = updatedParams;
+        kwiverParamsById[id] = updatedParams;
       });
       showParamsDialog.value = false;
-      await _runPipelineOnSelectedItemInner(selectedPipeline.value!, configById);
+      await _runPipelineOnSelectedItemInner(selectedPipeline.value!, undefined, undefined, kwiverParamsById);
     }
 
     const includesLargeImage = computed(() => props.typeList.includes(LargeImageType));
@@ -261,6 +261,7 @@ export default defineComponent({
       pipeline: Pipe,
       outputDatasetNameById?: Record<string, string>,
       outputParentFolderId?: string,
+      kwiverParamsById?: Record<string, Record<string, string>>,
     ) {
       if (props.selectedDatasetIds.length === 0) {
         throw new Error('No selected datasets to run on');
@@ -292,6 +293,7 @@ export default defineComponent({
           runtimeParams: frameRange ? { frameRange } : undefined,
           outputDatasetName: outputDatasetNameById?.[id],
           outputParentFolderId,
+          kwiverParams: kwiverParamsById?.[id],
         })),
       ));
     }
@@ -579,7 +581,7 @@ export default defineComponent({
     <JobLaunchDialog
       :value="jobState.count > 0"
       :loading="jobState.loading"
-      :error="jobState.error"
+      :error="jobState.error ?? undefined"
       :message="successMessage"
       @close="dismissLaunchDialog"
     />

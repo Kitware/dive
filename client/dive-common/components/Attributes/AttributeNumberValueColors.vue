@@ -1,7 +1,7 @@
 <!-- eslint-disable max-len -->
 <script lang="ts">
 import {
-  defineComponent, ref, PropType, Ref, watch, onMounted,
+  computed, defineComponent, ref, PropType, Ref, watch, onMounted,
 } from 'vue';
 import * as d3 from 'd3';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
@@ -130,6 +130,12 @@ export default defineComponent({
       }
     };
     const validForm = ref(false);
+    const keyRules = computed(() => [
+      (val: number | string) => Number(val) >= 0 || 'Must be >= 0',
+      (val: number | string) => attributeColors.value
+        .findIndex((item) => item.key.toString() === val.toString()) === -1
+        || 'Values need to be unique',
+    ]);
     return {
       attributeColors,
       editingColor,
@@ -138,6 +144,7 @@ export default defineComponent({
       currentEditKey,
       gradientSVG,
       validForm,
+      keyRules,
       setEditingColor,
       saveEditingColor,
       addColor,
@@ -247,11 +254,7 @@ export default defineComponent({
             <v-row dense>
               <v-text-field
                 v-model="currentEditKey"
-                :rules="[
-                  val => val >= 0 || 'Must be >= 0',
-                  val => attributeColors.findIndex((item) => item.key.toString() === val) === -1 || 'Values need to be unique',
-                ]"
-
+                :rules="keyRules"
                 type="number"
                 label="Value"
               />

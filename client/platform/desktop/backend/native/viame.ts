@@ -430,6 +430,9 @@ async function runPipeline(
     shell: viameConstants.shell,
     cwd: jobWorkDir,
   }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to spawn pipeline process');
+  }
 
   const jobBase: DesktopJob = {
     key: `pipeline_${job.pid}_${jobWorkDir}`,
@@ -631,6 +634,9 @@ async function exportTrainedPipeline(
     shell: viameConstants.shell,
     cwd: jobWorkDir,
   }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to spawn export process');
+  }
 
   const jobBase: DesktopJob = {
     key: `pipeline_${job.pid}_${jobWorkDir}`,
@@ -804,6 +810,9 @@ async function train(
     shell: viameConstants.shell,
     cwd: jobWorkDir,
   }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to spawn training process');
+  }
 
   const cleanPipelineName = cleanString(runTrainingArgs.pipelineName);
 

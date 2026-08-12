@@ -84,7 +84,7 @@ function clearRecents() {
 async function autoDiscover() {
   /* Make sure settings are ready on backend */
   await initializedSettings;
-  const discovered: JsonConfig[] = await window.diveDesktop.invoke('autodiscover-data');
+  const discovered = await window.diveDesktop.invoke<JsonConfig[]>('autodiscover-data');
   const discoveredIds = new Set(discovered.map((d) => d.id));
 
   Object.keys(datasets.value).forEach((id) => {

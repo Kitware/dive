@@ -128,7 +128,10 @@ export default defineComponent({
       return t ? [t as DatasetType] : [];
     });
     const subTypeList = computed((): SubType[] => [datasetMeta.value?.subType ?? null]);
-    const cameraNumbers = computed(() => [getMultiCamCameraCount(datasetMeta.value)]);
+    const cameraNumbers = computed(() => [getMultiCamCameraCount(datasetMeta.value ? {
+      type: datasetMeta.value.type,
+      multiCamMedia: datasetMeta.value.multiCamMedia ?? undefined,
+    } : undefined)]);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     // Track the active camera so single-camera pipelines target that folder
     // (parentId/cameraName), matching desktop ViewerLoader behavior.

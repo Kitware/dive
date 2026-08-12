@@ -265,6 +265,9 @@ watch(clientSettings, saveSettings, { deep: true });
 export {
   clientSettings,
   isStereoInteractiveModeEnabled,
+};
+
+export type {
   AnnotationSettings,
   ColumnVisibilitySettings,
 };

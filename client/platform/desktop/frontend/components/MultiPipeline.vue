@@ -182,22 +182,23 @@ function toggleStaged(item: JsonConfigCache) {
 }
 
 async function runPipelineForDatasets() {
-  if (selectedPipeline.value !== null) {
+  const pipeline = selectedPipeline.value;
+  if (pipeline !== null) {
     // Only the staged datasets compatible with (and displayed for) the
     // selected pipeline; staged ids can hold datasets other pipelines accept.
     const runIds = stagedDatasets.value.map((item: JsonConfigCache) => item.id);
     const results = await Promise.allSettled(
       runIds.map((datasetId: string) => {
-        if (pipelineCreatesNewDataset(selectedPipeline.value)) {
+        if (pipelineCreatesNewDataset(pipeline)) {
           const datasetMeta = availableItems.value.find((item: JsonConfigCache) => item.id === datasetId);
           if (!datasetMeta) {
             throw new Error(`Attempted to run pipeline on nonexistant dataset ${datasetId}`);
           }
-          return runPipeline(datasetId, selectedPipeline.value!, {
+          return runPipeline(datasetId, pipeline, {
             outputDatasetName: computeOutputDatasetName(datasetMeta),
           });
         }
-        return runPipeline(datasetId, selectedPipeline.value!);
+        return runPipeline(datasetId, pipeline);
       }),
     );
     const failed = results

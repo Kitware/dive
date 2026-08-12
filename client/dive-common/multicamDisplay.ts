@@ -68,7 +68,7 @@ export type DatasetConfigLike = {
 
 export type FolderMetaLike = {
   meta?: DatasetConfigLike;
-  parentId?: string;
+  parentId?: string | null;
   _id?: string;
 };
 

@@ -6,12 +6,17 @@
     "types": [
       "vitest/globals",
       "node"
-    ]
+    ],
+    "isolatedModules": true
   },
   "vueCompilerOptions": {
     "target": 2.7
   },
   "include": [
+    "dive-common/**/*.ts",
+    "dive-common/**/*.vue",
+    "platform/**/*.ts",
+    "platform/**/*.vue",
     "src/**/*.ts",
     "src/**/*.vue"
   ]

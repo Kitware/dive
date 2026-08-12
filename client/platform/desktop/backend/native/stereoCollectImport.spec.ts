@@ -6,7 +6,7 @@ import { Console } from 'console';
 const console = new Console(process.stdout, process.stderr);
 
 vi.mock('fs-extra', async () => {
-  const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
+  const actual = await vi.importActual<typeof import('fs-extra') & { default: typeof import('fs-extra') }>('fs-extra');
   const fsNode = await import('node:fs');
   const existsByStat = (targetPath: import('node:fs').PathLike) => {
     try {

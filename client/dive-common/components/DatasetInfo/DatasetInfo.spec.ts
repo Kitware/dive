@@ -117,11 +117,13 @@ function mountDatasetInfo({
   metadata?: DatasetConfig;
 } = {}) {
   const state = dummyState();
+  const selectedCameraRef = ref(selectedCamera);
+  const frameRef = ref(frame);
   state.datasetId = ref('dataset-id');
-  state.selectedCamera = ref(selectedCamera);
+  state.selectedCamera = selectedCameraRef;
   state.time = {
     ...state.time,
-    frame: ref(frame),
+    frame: frameRef,
   };
   state.readOnlyMode = ref(readOnlyMode);
 
@@ -167,6 +169,8 @@ function mountDatasetInfo({
       },
     }),
     state,
+    selectedCameraRef,
+    frameRef,
     loadFrameMetadata: api.loadFrameMetadata,
   };
 }
@@ -242,7 +246,11 @@ describe('DatasetInfo', () => {
     expect(wrapper.find('.custom-dataset-info-section').find('v-btn').exists()).toBe(true);
   });
 
-  it.each([
+  it.each<{
+    name: string;
+    options: Partial<Parameters<typeof mountDatasetInfo>[0]>;
+    expected: string;
+  }>([
     {
       name: 'no attachment',
       options: {},
@@ -333,7 +341,7 @@ describe('DatasetInfo', () => {
   });
 
   it('resolves literal DIVE frame rows for a ready video controller', async () => {
-    const { wrapper, state } = mountDatasetInfo({
+    const { wrapper, frameRef } = mountDatasetInfo({
       metadata: { ...defaultMetadata, type: 'video' },
       mediaNames: { singleCam: [] },
       mediaKinds: { singleCam: 'video' },
@@ -354,7 +362,7 @@ describe('DatasetInfo', () => {
       { key: 'depth', value: '10' },
     ]);
 
-    state.time.frame.value = 2;
+    frameRef.value = 2;
     await settle();
     expect(frameMetadataRows(wrapper)).toEqual([
       { key: 'frame', value: '2' },
@@ -480,7 +488,7 @@ describe('DatasetInfo', () => {
   });
 
   it('follows the selected camera', async () => {
-    const { wrapper, state, loadFrameMetadata } = mountDatasetInfo({
+    const { wrapper, selectedCameraRef, loadFrameMetadata } = mountDatasetInfo({
       frameMetadata: {
         cameras: {
           port: {
@@ -498,7 +506,7 @@ describe('DatasetInfo', () => {
     await settle();
     expect(wrapper.find('.frame-metadata-section').text()).toContain('58.10');
 
-    state.selectedCamera.value = 'starboard';
+    selectedCameraRef.value = 'starboard';
     await settle();
 
     const section = wrapper.find('.frame-metadata-section');

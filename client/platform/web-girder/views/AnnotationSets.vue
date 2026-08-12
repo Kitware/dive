@@ -61,11 +61,17 @@ export default defineComponent({
       setChange(newSet.value);
     };
 
+    const newSetRules = [
+      (v: string) => !sets.value.includes(v) || 'Using a reserved set',
+      (v: string) => !!v || 'requires at least one character',
+    ];
+
     return {
       currentSet,
       selectSet,
       sets,
       newSet,
+      newSetRules,
       addSet,
       validForm,
       computedSets,
@@ -157,10 +163,7 @@ export default defineComponent({
             <v-text-field
               v-model="newSet"
               label="Set"
-              :rules="[
-                v => !sets.includes(v) || 'Using a reserved set',
-                v => !!v || 'requires at least one character',
-              ]"
+              :rules="newSetRules"
             />
             <v-btn
               :disabled="!validForm"

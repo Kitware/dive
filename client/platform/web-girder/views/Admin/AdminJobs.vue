@@ -298,7 +298,7 @@ export default defineComponent({
             {{ item.type }}
           </template>
           <template #item.status="{ item }">
-            <JobProgress :formatted-job="formatStatus(item.status)" />
+            <JobProgress :formatted-job="formatStatus(item.status, item.updated)" />
           </template>
           <template #item.params="{ item }">
             <div v-if="item.type === 'training' && item.params.dataset_input_list">

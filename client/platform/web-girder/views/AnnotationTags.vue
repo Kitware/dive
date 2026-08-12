@@ -54,11 +54,18 @@ export default defineComponent({
     const selectForComparison = (set: string) => {
       compareChecks.value = sets.value.map((item) => ({ name: item, checked: set === item }));
     };
+
+    const newSetRules = [
+      (v: string) => !sets.value.includes(v) || 'Using a reserved set',
+      (v: string) => !!v || 'Need to have some set name to add',
+    ];
+
     return {
       currentSet,
       selectSet,
       sets,
       newSet,
+      newSetRules,
       addSet,
       validForm,
       typeStyling,
@@ -90,7 +97,7 @@ export default defineComponent({
         </v-row>
       </v-list-item>
       <v-list-item
-        v-for="(set, index) in set"
+        v-for="(set, index) in sets"
         :key="set"
         :class="{ border: (set === currentSet || (!currentSet && set === 'default')) }"
       >
@@ -145,10 +152,7 @@ export default defineComponent({
             <v-text-field
               v-model="newSet"
               label="Set"
-              :rules="[
-                v => !sets.includes(v) || 'Using a reserved set',
-                v => !!v || 'Need to have some set name to add',
-              ]"
+              :rules="newSetRules"
             />
             <v-btn
               :disabled="!validForm"

@@ -18,9 +18,9 @@ const console = new Console(process.stdout, process.stderr);
 const multiCamSetup = fs.readJSONSync('../testutils/multicam.spec.json');
 
 vi.mock('fs-extra', async () => {
-  const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
+  const actual = await vi.importActual<typeof import('fs-extra') & { default: typeof import('fs-extra') }>('fs-extra');
   const fsNode = await import('node:fs');
-  const existsByStat = (targetPath: fsNode.PathLike) => {
+  const existsByStat = (targetPath: Parameters<typeof fsNode.statSync>[0]) => {
     try {
       fsNode.statSync(targetPath);
       return true;

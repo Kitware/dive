@@ -513,7 +513,7 @@ export default defineComponent({
           :start-frame="startFrame"
           :end-frame="endFrame"
           :max-frame="endFrame"
-          :data="attributeData.data"
+          :data="attributeData ? attributeData.data : []"
           :client-width="clientWidth"
           :client-height="clientHeight"
           :margin="margin"

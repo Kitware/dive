@@ -131,6 +131,38 @@ export default defineComponent({
       }
       baseSettings.datatype = type;
     };
+    const nameRules = computed(() => [
+      (v: string) => !!v || 'Name is required',
+      (v: string) => !v.includes(' ') || 'No spaces',
+      (v: string) => v !== 'userAttributes' || 'Reserved Name',
+      (v: string) => !isReservedAttributeName(v, baseSettings.belongs)
+        || `Reserved name. ${RESERVED_ATTRIBUTES[baseSettings.belongs].join(', ')} are not allowed.`,
+    ]);
+    const isValidNumberString = (v: string) => !Number.isNaN(parseFloat(v));
+    const rangeMinRules = computed(() => [
+      isValidNumberString,
+      (v: string) => (baseSettings.editor
+        && baseSettings.editor.type === 'slider'
+        && baseSettings.editor.range
+        && parseFloat(v) < baseSettings.editor.range[1])
+        || 'Min needs to be smaller than the Max',
+    ]);
+    const rangeMaxRules = computed(() => [
+      isValidNumberString,
+      (v: string) => (baseSettings.editor
+        && baseSettings.editor.type === 'slider'
+        && baseSettings.editor.range
+        && parseFloat(v) > baseSettings.editor.range[0])
+        || 'Max needs to be larger than the Min',
+    ]);
+    const stepsRules = computed(() => [
+      isValidNumberString,
+      (v: string) => (baseSettings.editor
+        && baseSettings.editor.type === 'slider'
+        && baseSettings.editor.range
+        && parseFloat(v) < (baseSettings.editor.range[1] - baseSettings.editor.range[0]))
+        || 'Steps should be smaller than the range',
+    ]);
     const numericChange = (type: 'combo' | 'slider') => {
       if (type === 'combo') {
         baseSettings.editor = {
@@ -210,6 +242,10 @@ export default defineComponent({
       typeChange,
       numericChange,
       launchColorEditor,
+      nameRules,
+      rangeMinRules,
+      rangeMaxRules,
+      stepsRules,
       //utils
       isReservedAttributeName,
       RESERVED_ATTRIBUTES,
@@ -253,13 +289,7 @@ export default defineComponent({
               <v-text-field
                 v-model="baseSettings.name"
                 label="Name"
-                :rules="[
-                  v => !!v || 'Name is required',
-                  v => !v.includes(' ') || 'No spaces',
-                  v => v !== 'userAttributes' || 'Reserved Name',
-                  v => !isReservedAttributeName(v, baseSettings.belongs)
-                    || `Reserved name. ${RESERVED_ATTRIBUTES[baseSettings.belongs].join(', ')} are not allowed.`,
-                ]"
+                :rules="nameRules"
                 required
               />
               <v-select
@@ -289,15 +319,6 @@ export default defineComponent({
                   />
                 </v-radio-group>
               </div>
-              <!-- Hide this functionality for now -->
-              <div v-if="false">
-                <v-checkbox
-                  v-model="user"
-                  label="User Attribute"
-                  hint="Attribute data is saved per user instead of globally."
-                  persistent-hint
-                />
-              </div>
               <div
                 v-if="baseSettings.datatype === 'number'
                   && baseSettings.editor && baseSettings.editor.type === 'slider'"
@@ -313,13 +334,7 @@ export default defineComponent({
                     :step="baseSettings.editor.range[0] > 1 ? 1 : 0.01"
                     type="number"
                     label="Min"
-                    :rules="[
-                      v => !isNaN(parseFloat(v)) || 'Number is required',
-                      v => baseSettings.editor
-                        && baseSettings.editor.type === 'slider'
-                        && baseSettings.editor.range
-                        && v < baseSettings.editor.range[1]
-                        || 'Min needs to be smaller than the Max']"
+                    :rules="rangeMinRules"
                     :max="baseSettings.editor.range[1]"
                     hint="Min limit for slider"
                     persistent-hint
@@ -331,13 +346,7 @@ export default defineComponent({
                     :step="baseSettings.editor.range[1] > 1 ? 1 : 0.01"
                     type="number"
                     label="Max"
-                    :rules="[
-                      v => !isNaN(parseFloat(v)) || 'Number is required',
-                      v => baseSettings.editor
-                        && baseSettings.editor.type === 'slider'
-                        && baseSettings.editor.range
-                        && v > baseSettings.editor.range[0]
-                        || 'Max needs to be larger than the Min']"
+                    :rules="rangeMaxRules"
                     :min="baseSettings.editor.range[0]"
                     hint="Max limit for slider"
                     persistent-hint
@@ -351,13 +360,7 @@ export default defineComponent({
                     :step="baseSettings.editor
                       && baseSettings.editor.steps && baseSettings.editor.steps > 1 ? 1 : 0.01"
                     type="number"
-                    :rules="[
-                      v => !isNaN(parseFloat(v)) || 'Number is required',
-                      v => baseSettings.editor
-                        && baseSettings.editor.type === 'slider'
-                        && baseSettings.editor.range
-                        && v < (baseSettings.editor.range[1] - baseSettings.editor.range[0])
-                        || 'Steps should be smaller than the range']"
+                    :rules="stepsRules"
                     label="Slider Step Interval"
                     min="0"
                     hint="Each movement will move X amount"

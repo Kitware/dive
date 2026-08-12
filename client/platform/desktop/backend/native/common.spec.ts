@@ -9,16 +9,16 @@ import {
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
-import { MultiTrackRecord } from 'dive-common/apispec';
+import { CameraCorrespondences, MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import * as common from './common';
 import { createWorkingDirectory, buildTrainingExitManifest } from './utils';
 import beginMultiCamImport from './multiCamImport';
 
 vi.mock('fs-extra', async () => {
-  const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
+  const actual = await vi.importActual<typeof import('fs-extra') & { default: typeof import('fs-extra') }>('fs-extra');
   const fsNode = await import('node:fs');
-  const existsByStat = (targetPath: fsNode.PathLike) => {
+  const existsByStat = (targetPath: Parameters<typeof fsNode.statSync>[0]) => {
     try {
       fsNode.statSync(targetPath);
       return true;
@@ -1284,7 +1284,7 @@ describe('native.common', () => {
         BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
       },
     };
-    const cameraCorrespondences = {
+    const cameraCorrespondences: CameraCorrespondences = {
       'rgb::ir': [
         { id: 1, a: [10, 20], b: [12, 22] },
         { id: 2, a: [30, 40], b: [33, 44] },

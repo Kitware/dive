@@ -82,6 +82,10 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     if (!(args.defaultDisplay in args.sourceList)) {
       throw new Error(`${args.defaultDisplay} is not a camera name`);
     }
+    if (args.type === 'large-image') {
+      throw new Error('large-image is not supported for multi-camera import');
+    }
+    const cameraType = args.type;
     const sourceDirectories = Object.fromEntries(
       Object.entries(args.sourceList).map(([key, item]) => [
         key,
@@ -98,7 +102,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         throw new Error(`file or directory for ${key} not found: ${item.sourcePath}`);
       }
       cameras[key] = {
-        type: args.type,
+        type: cameraType,
         originalBasePath: item.sourcePath,
         originalImageFiles: [],
         originalVideoFile: '',
@@ -373,7 +377,6 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     mediaConvertList,
     trackFileAbsPath: '',
     forceMediaTranscode: false,
-    useNativePlayback: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
     ...(sharedMetadataFile ? { metadataFileAbsPath: sharedMetadataFile } : {}),
     ...(importWarnings.length ? { importWarnings } : {}),

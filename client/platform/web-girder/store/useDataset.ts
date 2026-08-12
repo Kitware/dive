@@ -1,4 +1,5 @@
 /* eslint-disable import/prefer-default-export -- singleton composable store */
+import type { GirderModelType } from '@girder/components/src';
 import type { GirderConfig } from 'platform/web-girder/constants';
 import { ref } from 'vue';
 import {
@@ -64,7 +65,7 @@ export function useDataset() {
     if (browseParentId && browseParentCollection) {
       await useLocation().hydrate({
         _id: browseParentId,
-        _modelType: browseParentCollection,
+        _modelType: browseParentCollection as GirderModelType,
       });
     } else {
       throw new Error(`dataset ${datasetId} was not a valid girder folder`);

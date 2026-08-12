@@ -16,7 +16,6 @@ import { bindWebGirderRouter } from './store/useLocation';
 import { useBrand } from './store/useBrand';
 import { useConfig } from './store/useConfig';
 import { useUser } from './store/useUser';
-import type { UserState } from './store/types';
 import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 bindWebGirderRouter(router);
@@ -47,7 +46,15 @@ Promise.all([
   useConfig().loadConfig(),
   girderRest.fetchUser(),
 ]).then(() => {
-  useUser().setUser(girderRest.user as UserState['user']);
+  const { user } = girderRest;
+  useUser().setUser(user ? {
+    admin: user.admin,
+    email: user.email,
+    firstName: user.firstName,
+    login: user.login,
+    lastName: user.lastName,
+    status: user.status,
+  } : null);
   const vuetify = getVuetify(useBrand().getBrandData()?.vuetify);
   Vue.use(promptService(vuetify));
   new Vue({

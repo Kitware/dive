@@ -28,9 +28,9 @@ export default class AsyncGpuJobQueue extends AsyncJobQueue<RunPipeline | RunTra
   async beginJob(spec: RunPipeline | RunTraining) {
     let newJob: DesktopJob;
     if (spec.type === JobType.RunPipeline) {
-      newJob = await this.ipcRenderer.invoke('run-pipeline', spec);
+      newJob = await this.ipcRenderer.invoke<DesktopJob>('run-pipeline', spec);
     } else if (spec.type === JobType.RunTraining) {
-      newJob = await this.ipcRenderer.invoke('run-training', spec);
+      newJob = await this.ipcRenderer.invoke<DesktopJob>('run-training', spec);
     } else {
       throw new Error('Unsupported job arguments provided to beginJob.');
     }

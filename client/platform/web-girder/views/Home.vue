@@ -4,6 +4,7 @@ import {
   ref,
   computed,
 } from 'vue';
+import { isAxiosError } from 'axios';
 import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
@@ -75,18 +76,12 @@ export default defineComponent({
     };
 
     const runningPipelines = computed(() => {
-      const results = [];
       const inputs = locationIsViameFolder.value && location.value
         ? [(location.value as { _id: string })._id]
         : selected.value.filter(
           ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
         ).map(({ _id }) => _id);
-      inputs.forEach((item) => {
-        if (jobs.getDatasetRunningState(item)) {
-          results.push(item);
-        }
-      });
-      return results;
+      return inputs.filter((item) => jobs.getDatasetRunningState(item));
     });
 
     const selectedViameFolders = computed(() => selected.value.filter(
@@ -98,7 +93,7 @@ export default defineComponent({
     const selectedViameFolderNames = computed(() => selectedViameFolders.value.map(({ name }) => name));
 
     const pipelineTargetFolders = computed(() => (
-      locationIsViameFolder.value && location.value
+      locationIsViameFolder.value && location.value && isGirderModel(location.value)
         ? [location.value]
         : selectedViameFolders.value
     ));
@@ -192,7 +187,7 @@ export default defineComponent({
         this.clearSelected();
       } catch (err) {
         let text = 'Unable to delete resource(s)';
-        if (err.response && err.response.status === 403) {
+        if (isAxiosError(err) && err.response?.status === 403) {
           text = 'You do not have permission to delete selected resource(s).';
         }
         this.prompt({

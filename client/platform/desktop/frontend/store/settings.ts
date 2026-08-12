@@ -39,14 +39,14 @@ const downgradedVersion = computed(() => {
 });
 
 function getDefaultSettings(): Promise<Settings> {
-  return window.diveDesktop.invoke('default-settings');
+  return window.diveDesktop.invoke<Settings>('default-settings');
 }
 
 function validateSettings(s: Settings | null): Promise<string | boolean> {
   if (s === null) {
     return Promise.resolve(false);
   }
-  return window.diveDesktop.invoke('validate-settings', s);
+  return window.diveDesktop.invoke<string | boolean>('validate-settings', s);
 }
 
 // Type Guard https://www.typescriptlang.org/docs/handbook/advanced-types.html

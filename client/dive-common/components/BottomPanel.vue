@@ -10,6 +10,12 @@ import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import ConfidenceSubsection from 'dive-common/components/ConfidenceSubsection.vue';
 import AttributeSubsection from 'dive-common/components/Attributes/AttributesSubsection.vue';
 import context from 'dive-common/store/context';
+import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
+import type Track from 'vue-media-annotator/track';
+import type StyleManager from 'vue-media-annotator/StyleManager';
+import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
+import type { AnnotationSettings } from 'dive-common/store/settings';
+import type { DatasetType } from 'dive-common/apispec';
 
 export default defineComponent({
   name: 'BottomPanel',
@@ -31,29 +37,38 @@ export default defineComponent({
     lineChartData: { type: Array as PropType<unknown[]>, required: true },
     eventChartData: { type: Object as PropType<Record<string, unknown>>, required: true },
     groupChartData: { type: Object as PropType<Record<string, unknown>>, required: true },
-    datasetType: { type: String, required: true },
+    datasetType: { type: String as PropType<DatasetType>, required: true },
     isDefaultImage: { type: Boolean, required: true },
-    clientSettings: { type: Object, required: true },
-    trackFilters: { type: Object, required: true },
-    attributes: { type: Array, required: true },
+    clientSettings: { type: Object as PropType<AnnotationSettings>, required: true },
+    trackFilters: { type: Object as PropType<TrackFilterControls>, required: true },
+    attributes: { type: Array as PropType<Attribute[]>, required: true },
     frameRate: { type: Number, required: true },
     readonlyState: { type: Boolean, required: true },
     disableAnnotationFilters: { type: Boolean, required: true },
-    promptVisible: { type: Function, required: true },
-    confidenceFilters: { type: Object, required: true },
-    aggregateSeek: { type: Function, required: true },
-    trackStyleManager: { type: Object, required: true },
+    promptVisible: { type: Function as PropType<() => boolean>, required: true },
+    confidenceFilters: { type: Object as PropType<Record<string, number>>, required: true },
+    aggregateSeek: { type: Function as PropType<(frame: number) => void>, required: true },
+    trackStyleManager: { type: Object as PropType<StyleManager>, required: true },
     bottomRightPanelView: { type: String, required: true },
-    toggleBottomRightPanel: { type: Function, required: true },
-    selectedTrackForDetails: { type: Object as PropType<object | null>, default: null },
+    toggleBottomRightPanel: { type: Function as PropType<() => void>, required: true },
+    selectedTrackForDetails: { type: Object as PropType<Track | null>, default: null },
     showConfidenceFirst: { type: Boolean, required: true },
     showTrackAttributesFirst: { type: Boolean, required: true },
-    editIndividual: { type: Object as PropType<object | null>, default: null },
-    setEditIndividual: { type: Function, required: true },
-    resetEditIndividual: { type: Function, required: true },
-    addAttribute: { type: Function, required: true },
-    editAttribute: { type: Function, required: true },
-    saveThreshold: { type: Function, required: true },
+    editIndividual: { type: Object as PropType<Attribute | null>, default: null },
+    setEditIndividual: {
+      type: Function as PropType<(attribute: Attribute | null) => void>,
+      required: true,
+    },
+    resetEditIndividual: {
+      type: Function as PropType<(event: MouseEvent) => void>,
+      required: true,
+    },
+    addAttribute: {
+      type: Function as PropType<(mode: 'Track' | 'Detection') => void>,
+      required: true,
+    },
+    editAttribute: { type: Function as PropType<(attribute: Attribute) => void>, required: true },
+    saveThreshold: { type: Function as PropType<() => void>, required: true },
     isStereoDataset: { type: Boolean, default: false },
   },
   setup() {

@@ -52,7 +52,8 @@ export default function parseStereoCalibrationJson(
       right: parseCameraCalibration(data, 'right'),
     },
   };
-  const optionalFields: [string, keyof DatasetStereoCalibration][] = [
+  type NumericField = 'gridHeight' | 'gridWidth' | 'imageHeight' | 'imageWidth' | 'squareSize' | 'rmsError';
+  const optionalFields: [string, NumericField][] = [
     ['grid_height', 'gridHeight'],
     ['grid_width', 'gridWidth'],
     ['image_height', 'imageHeight'],
@@ -66,7 +67,7 @@ export default function parseStereoCalibrationJson(
       const parsed = (field.startsWith('grid') || field.startsWith('image'))
         ? Math.trunc(value)
         : value;
-      (result as Record<string, unknown>)[field] = parsed;
+      result[field] = parsed;
     }
   });
   return result;

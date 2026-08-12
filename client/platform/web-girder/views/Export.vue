@@ -225,7 +225,7 @@ export default defineComponent({
     const isMulticamDataset = computed(() => dataset.value?.type === MultiType);
 
     const mediaType = computed(() => {
-      if (dataset.value === null || isMulticamDataset.value) return null;
+      if (dataset.value === null || dataset.value.type === MultiType) return null;
       const { type } = dataset.value;
       return {
         [ImageSequenceType]: 'Image Sequence',
