@@ -231,25 +231,19 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
     MIN_AUTO_SAVE_DELAY_SECONDS,
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
   );
-  if (!isDesktopRuntime()) {
-    hydrated.stereoSettings.updateLengthsOnModify = false;
-    hydrated.stereoSettings.autoComputeOtherCamera = false;
-  }
   return hydrated;
 }
 
 const clientSettings = reactive(hydrate(loadStoredSettings()));
 
 /**
- * Interactive stereo requires the desktop VIAME interactive service. The
- * backend service is needed whenever either stereo feature (length update or
- * cross-camera auto-compute) is enabled.
+ * Either stereo feature (length update or cross-camera auto-compute) puts the
+ * annotator in interactive stereo mode. Desktop serves both from the VIAME
+ * interactive service; web warps and triangulates client-side instead.
  */
 function isStereoInteractiveModeEnabled(): boolean {
-  return isDesktopRuntime() && (
-    clientSettings.stereoSettings.updateLengthsOnModify
-    || clientSettings.stereoSettings.autoComputeOtherCamera
-  );
+  return clientSettings.stereoSettings.updateLengthsOnModify
+    || clientSettings.stereoSettings.autoComputeOtherCamera;
 }
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {

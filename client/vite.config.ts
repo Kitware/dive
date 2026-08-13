@@ -87,6 +87,12 @@ export default defineConfig(({ mode }) => {
         'vuetify',
         '@girder/components/src',
       ],
+      // onnxruntime locates its .wasm relative to its own module URL. Pre-bundled
+      // into node_modules/.vite/deps that resolves to a path the dev server
+      // answers with the SPA HTML fallback, so the runtime fails to instantiate.
+      // Served unbundled, the .wasm sits next to the module and loads. The
+      // production build already emits it as a hashed asset either way.
+      exclude: ['onnxruntime-web'],
     },
     build: {
       sourcemap: true,
