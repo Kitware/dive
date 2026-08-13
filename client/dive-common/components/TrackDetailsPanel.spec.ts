@@ -10,6 +10,7 @@ const state = vi.hoisted(() => ({
   displayPairIndex: vi.fn(() => 1),
   track: null as Track | null,
   multiSelectList: [] as number[],
+  editingMultiTrack: false,
   acceptTrackType: vi.fn(),
   assignTrackType: vi.fn(),
 }));
@@ -40,7 +41,7 @@ vi.mock('vue-media-annotator/provides', () => ({
     typeStyling: ref({ color: (type: string) => `color:${type}` }),
   }),
   useEditingGroupId: () => ref(null),
-  useEditingMultiTrack: () => ref(false),
+  useEditingMultiTrack: () => ref(state.editingMultiTrack),
   useGroupFilterControls: () => ({ allTypes: ref([]) }),
   useCameraStore: () => ({
     camMap: ref(new Map([['singleCam', { groupStore: undefined }]])),
@@ -81,6 +82,7 @@ describe('TrackDetailsPanel hierarchy summary', () => {
   beforeEach(() => {
     state.displayPairIndex.mockReturnValue(1);
     state.multiSelectList = [];
+    state.editingMultiTrack = false;
     state.acceptTrackType.mockClear();
     state.assignTrackType.mockClear();
     state.track = new Track(1, {
@@ -125,6 +127,7 @@ describe('TrackDetailsPanel hierarchy summary', () => {
 
   it('routes bulk assignment through the same hierarchy-aware command', () => {
     state.multiSelectList = [1];
+    state.editingMultiTrack = true;
     const { vm } = mountPanel();
     vm.updateMultiTrackType('new leaf');
     vm.updateSelectedTracksType();
@@ -132,5 +135,14 @@ describe('TrackDetailsPanel hierarchy summary', () => {
       hierarchyIndex: undefined,
       replaceType: 'leaf',
     });
+  });
+
+  it('does not bulk-assign the hidden default during ordinary track selection', () => {
+    const { wrapper, vm } = mountPanel();
+
+    vm.updateSelectedTracksType();
+
+    expect(state.assignTrackType).not.toHaveBeenCalled();
+    expect(wrapper.text()).not.toContain('Update type for selected tracks');
   });
 });
