@@ -169,6 +169,10 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
         continue;
       }
       if (deps.registration.dirty.value) {
+        // The confirm is modal and can sit unanswered indefinitely; say so,
+        // rather than leaving the panel claiming the job is still matching
+        // frames while it is really waiting on the user.
+        status.value = 'Auto Register finished — confirm loading the results';
         // eslint-disable-next-line no-await-in-loop
         const confirmed = await deps.confirmReload();
         if (!confirmed) {

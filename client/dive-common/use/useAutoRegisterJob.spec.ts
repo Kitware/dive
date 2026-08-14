@@ -11,7 +11,7 @@
  */
 // eslint-disable-next-line import/no-extraneous-dependencies
 import {
-  describe, expect, it,
+  describe, expect, it, vi,
 } from 'vitest';
 import { ref } from 'vue';
 import type { FrameImage } from 'dive-common/apispec';
@@ -226,5 +226,67 @@ describe('replaceExisting and the unsaved-edits baseline', () => {
 
     expect(removed).toEqual([]);
     expect(calls.markSaved).toBe(0);
+  });
+});
+
+/**
+ * The completion confirm is modal and can sit unanswered indefinitely. While
+ * it waits, the panel must not keep claiming the job is still matching frames
+ * -- that reads as a hung job when the work is already done and merged.
+ */
+describe('status while the completion confirm is open', () => {
+  const timeline = buildAlignedTimeline(IMAGES);
+  const { slots } = (timeline as { aligned: true; slots: AlignedSlot[] });
+
+  it('reports waiting on confirmation rather than "job running"', async () => {
+    vi.useFakeTimers();
+    try {
+      let resolveConfirm: (value: boolean) => void = () => {};
+      let confirmOpened = false;
+      // Metadata changes after the baseline read, so the first poll tick sees
+      // the job's result land and routes into the dirty-store confirm.
+      let loads = 0;
+      const service = createAutoRegisterJobService({
+        datasetId: ref('ds1'),
+        cameras: ref(CAMERAS),
+        frameCount: (camera: string) => IMAGES[camera].length,
+        timestampsFor: (camera: string) => IMAGES[camera].map((frame) => frame.timestamp),
+        alignedSlots: () => slots,
+        resolveImagePaths: async (camera: string, frames: number[]) => (
+          frames.map((n) => IMAGES[camera][n].filename)
+        ),
+        getPipelineList: async () => ({ utility: { pipes: [ALIGN_PIPE] } }),
+        runPipeline: async () => undefined,
+        loadMetadata: async () => {
+          loads += 1;
+          return { cameraCorrespondences: loads > 1 ? { 'rgb::ir': [1] } : {} };
+        },
+        registration: {
+          observations: ref({}),
+          dirty: ref(true),
+        } as unknown as CameraRegistrationStore,
+        confirmReload: () => {
+          confirmOpened = true;
+          return new Promise<boolean>((resolve) => { resolveConfirm = resolve; });
+        },
+      });
+      await service.refreshAvailability();
+      const settled = service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+      // Launch settles, then the 5s poll tick fires.
+      await vi.advanceTimersByTimeAsync(0);
+      expect(service.status.value).toMatch(/matching frames/);
+      await vi.advanceTimersByTimeAsync(5000);
+
+      expect(confirmOpened).toBe(true);
+      expect(service.status.value).toBe('Auto Register finished — confirm loading the results');
+      expect(service.status.value).not.toMatch(/job running/);
+
+      resolveConfirm(false);
+      await settled;
+      expect(service.running.value).toBe(false);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
