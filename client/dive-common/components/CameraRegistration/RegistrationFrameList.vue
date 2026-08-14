@@ -158,16 +158,6 @@ export default defineComponent({
           mdi-circle
         </v-icon>
       </template>
-      <v-chip
-        v-if="row.source !== 'manual'"
-        x-small
-        label
-        outlined
-        class="mx-1"
-        style="pointer-events: none;"
-      >
-        {{ row.source }}
-      </v-chip>
       <v-spacer />
       <tooltip-btn
         icon="mdi-target"
@@ -182,13 +172,6 @@ export default defineComponent({
         @click="remove(row)"
       />
     </div>
-    <span
-      v-if="!rows.length"
-      class="text-caption grey--text"
-    >
-      No registration frames yet: pick points on a frame, or run Auto
-      Register.
-    </span>
   </div>
 </template>
 
