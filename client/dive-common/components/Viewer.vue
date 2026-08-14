@@ -748,6 +748,13 @@ export default defineComponent({
         }
         return images.map((image) => image.timestamp);
       },
+      // Register through the same timeline playback uses, so a candidate
+      // "frame" is one capture across the rig rather than one index reused on
+      // cameras that may have dropped different frames.
+      alignedSlots: () => {
+        const result = alignedTimeline.value;
+        return result.aligned ? result.slots : null;
+      },
       resolveImagePaths: async (camera: string, frames: number[]) => {
         const images = imageData.value[camera];
         return frames.map((frameNum) => images?.[frameNum]?.filename ?? `frame://${frameNum}`);
