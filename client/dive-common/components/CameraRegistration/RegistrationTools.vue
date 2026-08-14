@@ -13,6 +13,7 @@ import {
 } from 'vue-media-annotator/alignedView/transform';
 import { unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
+import { MANUAL_SOURCE } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { injectAggregateController } from 'vue-media-annotator/components/annotators/useMediaController';
 import { useApi } from 'dive-common/apispec';
@@ -208,6 +209,73 @@ export default defineComponent({
         current: row.frame !== null && row.frame === currentPairFrame.value,
       }));
     });
+    /**
+     * Skipped rows are candidates a producer rejected -- overwhelmingly
+     * "pruned", the oversampling remainder from proposing candidatesPerBin per
+     * bin and keeping the best. They carry no points and support no action, so
+     * they are counted, not listed.
+     */
+    const skippedCount = computed(() => frameRows.value.filter((row) => row.skipped).length);
+    const listedRows = computed(() => frameRows.value.filter((row) => !row.skipped));
+    const autoRows = computed(() => listedRows.value.filter((row) => row.source !== MANUAL_SOURCE));
+    const manualRows = computed(
+      () => listedRows.value.filter((row) => row.source === MANUAL_SOURCE),
+    );
+    /** Enabled count + mean agreement with the pooled fit, for a section header. */
+    function sectionSummary(rows: FrameRow[]) {
+      const enabled = rows.filter((row) => row.enabled);
+      const measured = enabled
+        .map((row) => row.rmsPx)
+        .filter((rms): rms is number => rms !== null);
+      return {
+        total: rows.length,
+        enabled: enabled.length,
+        rmsPx: measured.length
+          ? measured.reduce((sum, rms) => sum + rms, 0) / measured.length
+          : null,
+      };
+    }
+    const autoSummary = computed(() => sectionSummary(autoRows.value));
+    const manualSummary = computed(() => sectionSummary(manualRows.value));
+
+    /**
+     * Every observation of a section, INCLUDING the skipped ones the list
+     * hides: they are still stored and still travel into the saved
+     * registration file, so a "clear all" that left them behind would leave
+     * invisible cruft the user has no way to see or remove.
+     */
+    const autoAll = computed(
+      () => frameRows.value.filter((row) => row.source !== MANUAL_SOURCE),
+    );
+    const manualAll = computed(
+      () => frameRows.value.filter((row) => row.source === MANUAL_SOURCE),
+    );
+    async function clearRows(rows: FrameRow[], label: string) {
+      const key = activeKey.value;
+      if (!key || !rows.length) {
+        return;
+      }
+      const doomed = [...rows];
+      const points = doomed.reduce((sum, row) => sum + row.count, 0);
+      const hidden = doomed.filter((row) => row.skipped).length;
+      const confirmed = await prompt({
+        title: `Clear ${label} Frames`,
+        text: `Remove all ${doomed.length} ${label.toLowerCase()} frame(s)`
+          + `${hidden ? ` (${hidden} hidden as rejected candidates)` : ''}`
+          + ` and their ${points} point pair(s) from this pair's registration?`,
+        positiveButton: 'Remove all',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+      doomed.forEach(
+        (row) => registration.removeObservation(key, row.imageA, row.imageB, row.source),
+      );
+    }
+    const clearAuto = () => clearRows(autoAll.value, 'Auto');
+    const clearManual = () => clearRows(manualAll.value, 'Manual');
     /** Point pairs picked/matched on the frame currently being viewed. */
     const frameCorrespondences = computed(() => {
       const key = activeKey.value;
@@ -645,6 +713,15 @@ export default defineComponent({
       seekPrevMarker,
       seekNextMarker,
       addCurrentFrame,
+      skippedCount,
+      autoRows,
+      manualRows,
+      autoSummary,
+      manualSummary,
+      autoAll,
+      manualAll,
+      clearAuto,
+      clearManual,
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
       minPoints,
@@ -840,55 +917,133 @@ export default defineComponent({
           tooltip-text="Next registration frame"
           @click="seekNextMarker"
         />
+      </div>
+      <span class="text-caption grey--text d-block mb-2">
+        The fit pools points from every checked frame, auto and manual alike.
+        Uncheck a frame to exclude it without deleting its points.
+      </span>
+
+      <!-- Auto: matched frames, and the queue for the next run -->
+      <div class="d-flex align-center section-head">
+        <v-icon
+          x-small
+          class="mr-1"
+        >
+          mdi-auto-fix
+        </v-icon>
+        <span class="font-weight-medium">Auto</span>
+        <span class="text-caption grey--text mx-2">
+          {{ autoSummary.enabled }}/{{ autoSummary.total }} frames
+          <template v-if="autoSummary.rmsPx !== null">
+            · rms {{ autoSummary.rmsPx.toFixed(1) }} px
+          </template>
+        </span>
+        <v-spacer />
         <tooltip-btn
-          icon="mdi-plus"
-          tooltip-text="Add the current frame: turn on point picking here"
-          @click="addCurrentFrame"
+          icon="mdi-delete-sweep-outline"
+          color="error"
+          :disabled="!autoAll.length"
+          tooltip-text="Clear all auto-registered frames for this pair"
+          @click="clearAuto"
+        />
+        <tooltip-btn
+          v-if="autoRegisterAvailable"
+          icon="mdi-cog-outline"
+          :disabled="cameras.length < 2 || autoRegistering"
+          tooltip-text="Auto Register: match a spread of frames across the sequence"
+          @click="openAutoRegisterDialog"
         />
       </div>
-      <span class="text-caption grey--text d-block mb-1">
-        The fit pools points from every checked frame. Uncheck a frame to
-        exclude it without deleting its points.
-      </span>
       <registration-frame-list
-        :rows="frameRows"
+        :rows="autoRows"
         @toggle="toggleFrameRow"
         @jump="jumpToFrame"
         @remove="removeFrameRow"
       />
-    </template>
-
-    <v-tooltip
-      v-if="autoRegisterAvailable"
-      bottom
-      open-delay="200"
-    >
-      <template #activator="{ on }">
+      <div
+        v-if="!autoRows.length"
+        class="ml-2 mb-1"
+      >
+        <span class="text-caption grey--text d-block">
+          No auto-registered frames yet.
+        </span>
         <v-btn
-          block
+          v-if="autoRegisterAvailable"
           outlined
-          small
+          x-small
           color="primary"
+          class="mt-1"
           :disabled="cameras.length < 2 || autoRegistering"
           :loading="autoRegistering"
-          class="mt-2"
-          v-on="on"
           @click="openAutoRegisterDialog"
         >
+          <template #loader>
+            <v-progress-circular
+              indeterminate
+              size="14"
+              width="2"
+            />
+          </template>
           <v-icon
-            small
+            x-small
             left
           >
             mdi-auto-fix
           </v-icon>
           Auto Register Frames…
         </v-btn>
-      </template>
-      <span>
-        Match many image pairs across the whole sequence in one job and pool
-        a transform per camera pair
+      </div>
+
+      <!-- Manual: hand-picked points -->
+      <div class="d-flex align-center section-head mt-3">
+        <v-icon
+          x-small
+          class="mr-1"
+        >
+          mdi-cursor-default-click-outline
+        </v-icon>
+        <span class="font-weight-medium">Manual</span>
+        <span class="text-caption grey--text mx-2">
+          {{ manualSummary.enabled }}/{{ manualSummary.total }} frames
+          <template v-if="manualSummary.rmsPx !== null">
+            · rms {{ manualSummary.rmsPx.toFixed(1) }} px
+          </template>
+        </span>
+        <v-spacer />
+        <tooltip-btn
+          icon="mdi-delete-sweep-outline"
+          color="error"
+          :disabled="!manualAll.length"
+          tooltip-text="Clear all hand-picked frames for this pair"
+          @click="clearManual"
+        />
+        <tooltip-btn
+          icon="mdi-plus"
+          tooltip-text="Pick points on the current frame"
+          @click="addCurrentFrame"
+        />
+      </div>
+      <registration-frame-list
+        :rows="manualRows"
+        @toggle="toggleFrameRow"
+        @jump="jumpToFrame"
+        @remove="removeFrameRow"
+      />
+      <span
+        v-if="!manualRows.length"
+        class="text-caption grey--text d-block ml-2 mb-1"
+      >
+        No hand-picked frames.
       </span>
-    </v-tooltip>
+
+      <span
+        v-if="skippedCount"
+        class="text-caption grey--text d-block mt-1"
+      >
+        {{ skippedCount }} candidate(s) the matcher rejected are not listed.
+      </span>
+    </template>
+
     <auto-register-dialog
       v-model="autoRegisterDialog"
       :camera-count="cameras.length"
