@@ -137,9 +137,15 @@ export default defineComponent({
      * Registration-frame markers for the Timeline work-area, shown ONLY
      * while the Camera Registration panel is open (the same signal the
      * viewer's registrationActive keys off) -- outside that tab the timeline
-     * stays exactly as it is today. Marker frames are the observations'
-     * resolved camA-local indices, which is the Timeline's own (selected
-     * camera local) frame space on positionally aligned rigs.
+     * stays exactly as it is today.
+     *
+     * Observation frames are camA-local, but the Timeline draws in the
+     * SELECTED camera's local frame space. Those two spaces only coincide
+     * when the rig drops no frames (or when camA happens to be selected):
+     * a rig whose cameras drop frames independently accumulates an offset,
+     * putting every marker a frame or two off. Translate through the aligned
+     * timeline, and drop markers whose capture has no frame on the selected
+     * camera -- there is no honest place to draw those.
      */
     const cameraRegistration = useCameraRegistration();
     const registrationMarkers = computed(() => {
@@ -152,9 +158,17 @@ export default defineComponent({
       if (!key) {
         return [];
       }
+      const [camA] = key.split('::');
+      const target = selectedCamera.value;
       return cameraRegistration.framesForPair(key)
         .filter((row) => row.frame !== null)
-        .map((row) => ({ frame: row.frame as number, enabled: row.enabled }));
+        .map((row) => ({
+          frame: aggregateController.value.translateCameraFrame(camA, row.frame as number, target),
+          enabled: row.enabled,
+        }))
+        .filter((marker): marker is { frame: number; enabled: boolean } => (
+          marker.frame !== undefined
+        ));
     });
     // The timeline charts (line/event charts) are built from trackStores in
     // the selected camera's own local frame space. Under an aligned timeline
