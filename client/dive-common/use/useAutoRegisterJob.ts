@@ -3,6 +3,7 @@ import {
 } from 'vue';
 import type CameraRegistrationStore from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import proposeRegistrationFrames from 'dive-common/autoRegisterSelection';
+import type { AlignedSlot } from 'dive-common/alignedTimeline';
 
 /**
  * Auto-register job bridge for the Camera Registration panel.
@@ -65,6 +66,14 @@ export interface AutoRegisterJobDeps {
   frameCount(camera: string): number;
   /** Per-frame capture timestamps for skew ranking, or null when unknown. */
   timestampsFor(camera: string): (number | undefined)[] | null;
+  /**
+   * The dataset's aligned timeline (alignedTimeline.ts), or null when the
+   * dataset does not qualify for it. Cameras drop frames independently, so one
+   * frame index does NOT mean the same capture on every camera -- the slots are
+   * what say which local frames belong to one instant. Null falls back to
+   * positional pairing, which is all an unaligned dataset supports.
+   */
+  alignedSlots(): AlignedSlot[] | null;
   /**
    * Resolve the platform image identifiers for a camera's frames (absolute
    * paths on desktop, image names on web, frame://N for video).
@@ -187,26 +196,53 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     error.value = null;
     try {
       const cameras = deps.cameras.value;
+      const localTimestamps = cameras.map((camera) => deps.timestampsFor(camera));
+      // Only slots holding a frame from every camera can be registered: the
+      // matcher needs the whole set, and the pipeline reads the image lists off
+      // disk, so a gap has no path to send. Gaps stay in the dataset and stay
+      // visible in the viewer -- they are simply not candidates.
+      const slots: AlignedSlot[] = [];
+      (deps.alignedSlots() ?? []).forEach((slot) => {
+        if (cameras.every((camera) => slot[camera] !== undefined)) {
+          slots.push(slot);
+        }
+      });
+      const aligned = slots.length > 0;
       const frames = proposeRegistrationFrames({
-        counts: cameras.map((camera) => deps.frameCount(camera)),
+        // With a timeline, "frame i" means slot i -- one capture across the
+        // rig. Without one, it falls back to the raw per-camera index.
+        counts: aligned
+          ? cameras.map(() => slots.length)
+          : cameras.map((camera) => deps.frameCount(camera)),
         timestamps: (() => {
-          const lists = cameras.map((camera) => deps.timestampsFor(camera));
-          return lists.every((list) => list !== null)
-            ? (lists as (number | undefined)[][])
-            : undefined;
+          if (!localTimestamps.every((list) => list !== null)) {
+            return undefined;
+          }
+          const lists = localTimestamps as (number | undefined)[][];
+          return aligned
+            ? cameras.map((camera, i) => slots.map((slot) => lists[i][slot[camera] as number]))
+            : lists;
         })(),
         bins: options.maxFrames,
         perBin: options.candidatesPerBin,
       });
       if (frames.length === 0) {
-        throw new Error('No candidate frames could be proposed for this dataset.');
+        throw new Error(aligned
+          ? 'No candidate frames could be proposed: no capture has a frame on every camera.'
+          : 'No candidate frames could be proposed for this dataset.');
       }
       status.value = `Proposing ${frames.length} candidate frames…`;
       const imagePairs: Record<string, string[]> = {};
       // eslint-disable-next-line no-restricted-syntax
       for (const camera of cameras) {
+        // Translate each chosen capture into THIS camera's own local frame
+        // index; reusing one index across cameras is what paired mismatched
+        // instants before.
+        const localFrames = aligned
+          ? frames.map((slotIndex) => slots[slotIndex][camera] as number)
+          : frames;
         // eslint-disable-next-line no-await-in-loop
-        imagePairs[camera] = await deps.resolveImagePaths(camera, frames);
+        imagePairs[camera] = await deps.resolveImagePaths(camera, localFrames);
       }
       if (options.replaceExisting) {
         // Drop prior matcher observations so the fresh run replaces rather
@@ -215,9 +251,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
         Object.entries(registration.observations.value).forEach(([key, list]) => {
           list
             .filter((obs) => obs.source === MATCHER_SOURCE)
-            .forEach((obs) => registration.removeObservation(
-              key, obs.imageA, obs.imageB, MATCHER_SOURCE,
-            ));
+            .forEach((obs) => registration.removeObservation(key, obs.imageA, obs.imageB, MATCHER_SOURCE));
         });
       }
       const kwiverParams: Record<string, string> = {
