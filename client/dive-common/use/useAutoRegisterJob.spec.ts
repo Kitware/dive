@@ -151,6 +151,70 @@ describe('auto-register candidate selection', () => {
     expect(service.error.value).toMatch(/No candidate frames/);
   });
 });
+
+/**
+ * Queued frames: the user has already chosen the captures, so the stratified
+ * proposal (temporal bins, per-bin oversampling, skew ranking) does not apply.
+ * Every queued capture is matched; only captures a camera is missing get
+ * dropped, because the pipeline reads image lists off disk and a gap has no
+ * path to send.
+ */
+describe('running an explicitly queued frame set', () => {
+  const timeline = buildAlignedTimeline(IMAGES);
+  const { slots } = (timeline as { aligned: true; slots: AlignedSlot[] });
+
+  it('matches exactly the queued captures, in slot order', async () => {
+    const { service, sent } = buildService(slots);
+    await service.refreshAvailability();
+    await service.run({
+      maxFrames: 3, candidatesPerBin: 1, slots: [140, 141, 200],
+    });
+
+    const pairs = sent.imagePairs as Record<string, string[]>;
+    expect(pairs.rgb).toHaveLength(3);
+    // Slot 140 is rgb-local 139 / ir-local 138 (the drops so far).
+    expect(pairs.rgb[0]).toBe(IMAGES.rgb[139].filename);
+    expect(pairs.ir[0]).toBe(IMAGES.ir[138].filename);
+    pairs.rgb.forEach((name, i) => {
+      expect(timestampOf('ir', pairs.ir[i])).toBe(timestampOf('rgb', name));
+      expect(timestampOf('uv', pairs.uv[i])).toBe(timestampOf('rgb', name));
+    });
+  });
+
+  it('gives the pipeline one bin per queued frame so none are pruned', async () => {
+    const { service, sent } = buildService(slots);
+    await service.refreshAvailability();
+    await service.run({
+      maxFrames: 99, candidatesPerBin: 7, slots: [140, 141, 200],
+    });
+
+    // maxFrames/candidatesPerBin are the proposal's knobs and must not leak in.
+    expect(sent.kwiverParams?.['register:max_frames']).toBe('3');
+  });
+
+  it('drops queued captures a camera is missing', async () => {
+    const { service, sent } = buildService(slots);
+    await service.refreshAvailability();
+    // Slot 0 is RGB-only; 93 has no RGB. Only 140 is registerable.
+    await service.run({
+      maxFrames: 3, candidatesPerBin: 1, slots: [0, 93, 140],
+    });
+
+    const pairs = sent.imagePairs as Record<string, string[]>;
+    expect(pairs.rgb).toHaveLength(1);
+    expect(pairs.rgb[0]).toBe(IMAGES.rgb[139].filename);
+  });
+
+  it('errors rather than launching when no queued capture is registerable', async () => {
+    const { service, sent } = buildService(slots);
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 2, candidatesPerBin: 1, slots: [0, 93] });
+
+    expect(sent.imagePairs).toBeUndefined();
+    expect(service.error.value).toMatch(/None of the queued frames/);
+  });
+});
+
 /**
  * "Replace existing" drops the prior matcher observations from the in-memory
  * store. Those removals are the run's own bookkeeping, so on their own they

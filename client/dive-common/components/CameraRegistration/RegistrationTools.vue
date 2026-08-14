@@ -239,6 +239,32 @@ export default defineComponent({
     const manualSummary = computed(() => sectionSummary(manualRows.value));
 
     /**
+     * Captures queued for the next matcher run, as global aligned-timeline
+     * slots (what the frame readout shows). The user picks the captures, so
+     * the run matches exactly these rather than proposing a spread.
+     */
+    const queuedSlots = ref<number[]>([]);
+    const currentSlot = computed(() => {
+      const pair = registration.activePair.value;
+      const frame = currentPairFrame.value;
+      if (!pair || frame === null) {
+        return null;
+      }
+      return aggregateController.value.cameraFrameToSlot(pair.camA, frame) ?? frame;
+    });
+    const currentQueued = computed(() => (
+      currentSlot.value !== null && queuedSlots.value.includes(currentSlot.value)
+    ));
+    function queueCurrentFrame() {
+      const slot = currentSlot.value;
+      if (slot !== null && !queuedSlots.value.includes(slot)) {
+        queuedSlots.value = [...queuedSlots.value, slot].sort((a, b) => a - b);
+      }
+    }
+    function unqueueSlot(slot: number) {
+      queuedSlots.value = queuedSlots.value.filter((queued) => queued !== slot);
+    }
+    /**
      * Every observation of a section, INCLUDING the skipped ones the list
      * hides: they are still stored and still travel into the saved
      * registration file, so a "clear all" that left them behind would leave
@@ -276,6 +302,18 @@ export default defineComponent({
     }
     const clearAuto = () => clearRows(autoAll.value, 'Auto');
     const clearManual = () => clearRows(manualAll.value, 'Manual');
+    function clearQueue() {
+      queuedSlots.value = [];
+    }
+    function runQueuedFrames() {
+      autoRegisterJob?.run({
+        maxFrames: queuedSlots.value.length,
+        candidatesPerBin: 1,
+        slots: [...queuedSlots.value],
+      });
+      queuedSlots.value = [];
+    }
+
     /** Point pairs picked/matched on the frame currently being viewed. */
     const frameCorrespondences = computed(() => {
       const key = activeKey.value;
@@ -718,10 +756,17 @@ export default defineComponent({
       manualRows,
       autoSummary,
       manualSummary,
+      queuedSlots,
+      currentSlot,
+      currentQueued,
+      queueCurrentFrame,
+      unqueueSlot,
+      runQueuedFrames,
       autoAll,
       manualAll,
       clearAuto,
       clearManual,
+      clearQueue,
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
       minPoints,
@@ -992,6 +1037,63 @@ export default defineComponent({
           </v-icon>
           Auto Register Frames…
         </v-btn>
+      </div>
+
+      <!-- Queue: captures the user picked for the next matcher run -->
+      <div class="d-flex align-center flex-wrap ml-2 mt-1">
+        <tooltip-btn
+          icon="mdi-plus"
+          :disabled="currentSlot === null || currentQueued"
+          :tooltip-text="currentQueued
+            ? 'This frame is already queued'
+            : 'Queue the current frame for the next matcher run'"
+          @click="queueCurrentFrame"
+        />
+        <span
+          v-if="!queuedSlots.length"
+          class="text-caption grey--text"
+        >
+          Queue frames to match
+        </span>
+        <v-chip
+          v-for="slot in queuedSlots"
+          :key="`queued-${slot}`"
+          x-small
+          label
+          close
+          class="mr-1 mb-1"
+          @click:close="unqueueSlot(slot)"
+        >
+          {{ slot }}
+        </v-chip>
+      </div>
+      <div
+        v-if="queuedSlots.length"
+        class="d-flex align-center mt-1"
+      >
+        <v-btn
+          outlined
+          x-small
+          color="primary"
+          class="flex-grow-1"
+          :disabled="autoRegistering"
+          :loading="autoRegistering"
+          @click="runQueuedFrames"
+        >
+          <template #loader>
+            <v-progress-circular
+              indeterminate
+              size="14"
+              width="2"
+            />
+          </template>
+          Run matcher on {{ queuedSlots.length }} frame(s)
+        </v-btn>
+        <tooltip-btn
+          icon="mdi-close"
+          tooltip-text="Clear the queue"
+          @click="clearQueue"
+        />
       </div>
 
       <!-- Manual: hand-picked points -->
