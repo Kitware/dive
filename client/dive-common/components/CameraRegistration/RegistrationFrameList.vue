@@ -7,7 +7,15 @@ import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
  * the active camera pair, with its fit-inclusion toggle and quality readout.
  */
 export interface FrameRow {
+  /** The pair's camA-local frame: the identity every panel action works in. */
   frame: number | null;
+  /**
+   * The same capture as a global aligned-timeline slot -- what the frame
+   * readout and scrubber display. Shown instead of `frame` so the panel agrees
+   * with the rest of the viewer; they differ by however many frames camA has
+   * dropped. Falls back to `frame` when there is no aligned timeline.
+   */
+  displayFrame: number | null;
   imageA: string;
   imageB: string;
   enabled: boolean;
@@ -91,10 +99,10 @@ export default defineComponent({
         @input="toggle(row, $event)"
       />
       <span
-        v-if="row.frame !== null"
+        v-if="row.displayFrame !== null"
         class="frame-label"
       >
-        {{ row.frame }}
+        {{ row.displayFrame }}
       </span>
       <v-tooltip
         v-else
