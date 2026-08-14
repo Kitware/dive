@@ -100,9 +100,24 @@ export default defineComponent({
           max="50"
           dense
           outlined
-          hide-details
+          persistent-hint
+          hint="10-20 is usually right: the pooled fit converges by about 10
+                frames, and beyond that extra frames mainly tighten triplet
+                consistency. Cost is roughly linear in frames."
           class="mb-3"
         />
+        <v-alert
+          v-if="maxFrames < 5"
+          dense
+          outlined
+          type="warning"
+          class="text-caption py-1 mb-3"
+        >
+          Very few frames overfit. One frame fits its own points perfectly --
+          100% inliers, near-zero RMS -- while producing the least consistent
+          rig of any setting, so the quality readouts will look their best
+          exactly when they are least trustworthy.
+        </v-alert>
         <v-text-field
           v-model.number="candidatesPerBin"
           label="Candidates per bin"
