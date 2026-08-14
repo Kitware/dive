@@ -1,5 +1,5 @@
 import {
-  ComputedRef, Ref, computed, shallowRef, triggerRef,
+  ComputedRef, Ref, computed, ref, shallowRef, triggerRef,
 } from 'vue';
 import { cloneDeep, uniq } from 'lodash';
 import {
@@ -68,11 +68,25 @@ export default class CameraStore {
 
   private projectionCache: Map<AnnotationId, ComputedRef<TrackProjection | null>>;
 
+  /**
+   * The dataset's persisted camera display order (multiCamMedia.cameraOrder,
+   * via orderedMultiCamCameraNames), set by the viewer at load.
+   *
+   * camMap's own key order is insertion order: cameras are added one at a
+   * time inside an awaited per-camera load loop, and entries can survive a
+   * dataset switch, so it is not a dependable statement of rig order. Anything
+   * where "which camera is first/last" carries meaning -- the registration
+   * reference camera, the direction a loop-closure residual is measured in --
+   * must read this instead.
+   */
+  displayOrder: Ref<string[]>;
+
   constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
     this.markChangesPending = markChangesPending;
     const cameraName = 'singleCam';
     this.defaultGroup = ['no-group', 1.0];
     this.projectionCache = new Map();
+    this.displayOrder = ref([]);
     this.camMap = shallowRef(new Map([[cameraName, {
       trackStore: new TrackStore({ markChangesPending, cameraName }),
       groupStore: new GroupStore({ markChangesPending, cameraName }),
@@ -222,6 +236,17 @@ export default class CameraStore {
       end: Math.max(...tracks.map((track) => track.end)),
       getType: (index?: number) => (confidencePairs[index || 0]?.[0] || 'unknown'),
     };
+  }
+
+  /**
+   * Camera names in persisted display order, restricted to cameras actually
+   * present. Falls back to camMap order when no order has been set (single
+   * camera datasets, or before the viewer has loaded one).
+   */
+  orderedCameraNames(): string[] {
+    const present = this.camMap.value;
+    const ordered = this.displayOrder.value.filter((name) => present.has(name));
+    return ordered.length === present.size ? ordered : [...present.keys()];
   }
 
   addCamera(cameraName: string) {
