@@ -10,7 +10,9 @@
  * aligned timeline's slots are what make index i mean one instant.
  */
 // eslint-disable-next-line import/no-extraneous-dependencies
-import { describe, expect, it } from 'vitest';
+import {
+  describe, expect, it,
+} from 'vitest';
 import { ref } from 'vue';
 import type { FrameImage } from 'dive-common/apispec';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
@@ -147,5 +149,82 @@ describe('auto-register candidate selection', () => {
 
     expect(sent.imagePairs).toBeUndefined();
     expect(service.error.value).toMatch(/No candidate frames/);
+  });
+});
+/**
+ * "Replace existing" drops the prior matcher observations from the in-memory
+ * store. Those removals are the run's own bookkeeping, so on their own they
+ * must not leave the store looking like it holds the user's unsaved edits --
+ * otherwise the completion path stops to ask whether to discard edits the
+ * user never made, on every single replace-mode run.
+ */
+describe('replaceExisting and the unsaved-edits baseline', () => {
+  const timeline = buildAlignedTimeline(IMAGES);
+  const { slots } = (timeline as { aligned: true; slots: AlignedSlot[] });
+  const OBSERVATIONS = {
+    'rgb::ir': [
+      {
+        imageA: 'a.jpg', imageB: 'b.png', source: 'minima_loftr', enabled: true, points: [],
+      },
+      {
+        imageA: 'c.jpg', imageB: 'd.png', source: 'hand', enabled: true, points: [],
+      },
+    ],
+  };
+
+  function buildStoreService(dirtyBefore: boolean) {
+    const removed: string[] = [];
+    const calls = { markSaved: 0 };
+    const registration = {
+      observations: ref(OBSERVATIONS),
+      dirty: ref(dirtyBefore),
+      removeObservation: (_key: string, imageA: string, _imageB: string, source: string) => {
+        removed.push(`${imageA}:${source}`);
+      },
+      markSaved: () => { calls.markSaved += 1; },
+    } as unknown as CameraRegistrationStore;
+    const service = createAutoRegisterJobService({
+      datasetId: ref('ds1'),
+      cameras: ref(CAMERAS),
+      frameCount: (camera: string) => IMAGES[camera].length,
+      timestampsFor: (camera: string) => IMAGES[camera].map((frame) => frame.timestamp),
+      alignedSlots: () => slots,
+      resolveImagePaths: async (camera: string, frames: number[]) => (
+        frames.map((n) => IMAGES[camera][n].filename)
+      ),
+      getPipelineList: async () => ({ utility: { pipes: [ALIGN_PIPE] } }),
+      runPipeline: async () => { throw new Error('stop-after-launch'); },
+      loadMetadata: async () => ({ cameraCorrespondences: {} }),
+      registration,
+      confirmReload: async () => true,
+    });
+    return { service, removed, calls };
+  }
+
+  it('re-baselines a clean store so its own removals do not read as edits', async () => {
+    const { service, removed, calls } = buildStoreService(false);
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2, replaceExisting: true });
+
+    // Only the matcher's own observations are dropped; hand picks survive.
+    expect(removed).toEqual(['a.jpg:minima_loftr']);
+    expect(calls.markSaved).toBe(1);
+  });
+
+  it('leaves a genuinely dirty store dirty', async () => {
+    const { service, calls } = buildStoreService(true);
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2, replaceExisting: true });
+
+    expect(calls.markSaved).toBe(0);
+  });
+
+  it('does not touch the baseline when not replacing', async () => {
+    const { service, removed, calls } = buildStoreService(false);
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(removed).toEqual([]);
+    expect(calls.markSaved).toBe(0);
   });
 });
