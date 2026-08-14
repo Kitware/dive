@@ -248,11 +248,21 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
         // Drop prior matcher observations so the fresh run replaces rather
         // than merges; hand-picked observations always survive.
         const { registration } = deps;
+        const wasDirty = registration.dirty.value;
         Object.entries(registration.observations.value).forEach(([key, list]) => {
           list
             .filter((obs) => obs.source === MATCHER_SOURCE)
             .forEach((obs) => registration.removeObservation(key, obs.imageA, obs.imageB, MATCHER_SOURCE));
         });
+        // These removals are this run's own bookkeeping, not the user's
+        // edits: left counted as unsaved they would trip the "you have
+        // unsaved edits" confirmation at the end of EVERY replace-mode run,
+        // asking the user to protect changes they never made. Re-baseline so
+        // only genuine hand edits still read dirty (same rule frame
+        // resolution follows in CameraRegistrationStore.setFrameResolver).
+        if (!wasDirty) {
+          registration.markSaved();
+        }
       }
       const kwiverParams: Record<string, string> = {
         'register:max_frames': String(options.maxFrames),
