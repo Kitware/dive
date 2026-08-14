@@ -22,6 +22,15 @@ import { loopClosureResidual, Matrix3 } from 'vue-media-annotator/alignedView/ho
 
 import RegistrationFrameList, { FrameRow } from './RegistrationFrameList.vue';
 import AutoRegisterDialog from './AutoRegisterDialog.vue';
+/**
+ * A solved triplet is "consistent" when the direct and routed transforms
+ * agree to within this fraction of the last camera's width. 0.001 keeps the
+ * behaviour the old fixed 5px threshold happened to have on a ~5000px-wide
+ * camera, while meaning the same thing on rigs whose cameras are far larger
+ * or smaller. Measured on a KAMERA calibration flight: a converged 10-100
+ * frame fit sits near 0.05%, a single-frame (overfit) rig at 0.15%.
+ */
+const LOOP_CLOSURE_MAX_FRACTION = 0.001;
 
 export default defineComponent({
   name: 'CameraRegistration',
@@ -36,7 +45,16 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const aggregateController = injectAggregateController();
 
-    const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
+    /**
+     * The rig in persisted display order. Not camMap's key order: that is
+     * insertion order from an awaited per-camera load loop and can carry
+     * entries across a dataset switch, and both the reference camera below
+     * and the direction of the loop-closure residual depend on which camera
+     * is first and last.
+     */
+    // orderedCameraNames reads camMap and displayOrder, so the computed picks
+    // up both as dependencies without touching them explicitly.
+    const cameras = computed(() => cameraStore.orderedCameraNames());
     /**
      * Per-camera alignment status for the whole rig, driving the status block:
      * the first camera (display order) is the reference (identity); every other
@@ -530,9 +548,39 @@ export default defineComponent({
      * pairs fitted, compare the direct A->C transform against the A->B->C
      * route. This is the whole reason to solve the redundant third pair --
      * three individually plausible fits can still disagree as a rig.
-     * Computed over a nominal camera-1 grid (a relative indicator; the
-     * pipeline logs the exact-native-size figure in the job output).
+     *
+     * The residual comes out in the LAST camera's native pixels (the grid is
+     * pushed from camera 1 into camera 3), so both halves of this have to
+     * respect real image sizes:
+     *
+     *  - Sample over camera 1's actual frame. The default nominal 1000x1000
+     *    grid only covers a corner of a 12768x9564 EO frame, so it measured
+     *    agreement over a fraction of the field of view and missed exactly
+     *    the divergence at the edges that matters.
+     *  - Judge the result relative to camera 3's width, not against a fixed
+     *    pixel count. The same rig error reads ~7.6x larger against a
+     *    4864-wide UV camera than a 640-wide IR one, so a fixed threshold
+     *    silently means something different per rig -- and flags a rig
+     *    inconsistent for nothing more than having a large last camera.
      */
+    /**
+     * A camera's native frame size, or null until its annotator has actually
+     * drawn a frame. originalBounds starts life as a 1x1 placeholder
+     * (useMediaController's reactive state), so "not ready" has to be
+     * detected by an implausibly small box rather than a zero -- a 1x1 box
+     * read as a real size collapses the loop-closure sample grid onto a
+     * single corner pixel and yields a meaningless residual.
+     */
+    function nativeSize(camera: string): [number, number] | null {
+      try {
+        const bounds = aggregateController.value.getController(camera).originalBounds.value;
+        const width = bounds.right - bounds.left;
+        const height = bounds.bottom - bounds.top;
+        return (width > 1 && height > 1) ? [width, height] : null;
+      } catch {
+        return null;
+      }
+    }
     const loopClosure = computed(() => {
       const list = cameras.value;
       if (list.length !== 3) {
@@ -552,10 +600,22 @@ export default defineComponent({
       if (!h01 || !h12 || !h02) {
         return null;
       }
-      const residual = loopClosureResidual(h01, h12, h02);
+      // Both ends must be measurable: the grid is sampled over the source
+      // camera's frame and the residual judged against the target camera's
+      // width, so a placeholder size on either side makes the ratio
+      // meaningless. Report nothing while the panes are still coming up
+      // rather than a confident-looking wrong verdict.
+      const sourceSize = nativeSize(list[0]);
+      const targetSize = nativeSize(list[2]);
+      if (!sourceSize || !targetSize) {
+        return null;
+      }
+      const residual = loopClosureResidual(h01, h12, h02, sourceSize);
+      const fraction = residual.meanPx / targetSize[0];
       return {
         ...residual,
-        consistent: residual.meanPx <= 5,
+        fraction,
+        consistent: fraction <= LOOP_CLOSURE_MAX_FRACTION,
         route: `${list[0]}↔${list[2]} vs ${list[0]}↔${list[1]}↔${list[2]}`,
       };
     });
@@ -713,10 +773,12 @@ export default defineComponent({
         </v-icon>
         <template v-if="loopClosure.consistent">
           triplet consistent — {{ loopClosure.meanPx.toFixed(1) }} px loop closure
+          ({{ (loopClosure.fraction * 100).toFixed(3) }}% of {{ cameras[2] }} width)
         </template>
         <template v-else>
-          {{ loopClosure.meanPx.toFixed(1) }} px loop closure:
-          {{ loopClosure.route }} disagree
+          {{ loopClosure.meanPx.toFixed(1) }} px loop closure
+          ({{ (loopClosure.fraction * 100).toFixed(3) }}% of {{ cameras[2] }} width)
+          — {{ loopClosure.route }} disagree
         </template>
       </div>
     </div>
