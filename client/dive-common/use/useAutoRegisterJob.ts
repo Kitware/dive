@@ -46,6 +46,14 @@ export interface AutoRegisterRunOptions {
    * merging over them frame by frame.
    */
   replaceExisting?: boolean;
+  /**
+   * Explicit global aligned-timeline slots to match, bypassing the stratified
+   * proposal. Used by "queue these frames and run": the user has already
+   * chosen the captures, so temporal spread and per-bin oversampling do not
+   * apply -- every queued capture is matched, and only captures missing a
+   * frame on some camera are dropped. maxFrames/candidatesPerBin are ignored.
+   */
+  slots?: number[];
 }
 
 export interface AutoRegisterJobService {
@@ -206,13 +214,28 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
       // disk, so a gap has no path to send. Gaps stay in the dataset and stay
       // visible in the viewer -- they are simply not candidates.
       const slots: AlignedSlot[] = [];
-      (deps.alignedSlots() ?? []).forEach((slot) => {
+      // Global slot index -> position in `slots`, so an explicitly queued
+      // capture (which the UI names by its global slot) can be located here.
+      const positionOfSlot = new Map<number, number>();
+      (deps.alignedSlots() ?? []).forEach((slot, globalIndex) => {
         if (cameras.every((camera) => slot[camera] !== undefined)) {
+          positionOfSlot.set(globalIndex, slots.length);
           slots.push(slot);
         }
       });
       const aligned = slots.length > 0;
-      const frames = proposeRegistrationFrames({
+      const queued = options.slots?.length
+        ? options.slots
+          .map((globalIndex) => (aligned ? positionOfSlot.get(globalIndex) : globalIndex))
+          .filter((position): position is number => position !== undefined)
+        : null;
+      if (options.slots?.length && !queued?.length) {
+        throw new Error(
+          'None of the queued frames can be registered: no capture in the queue '
+          + 'has a frame on every camera.',
+        );
+      }
+      const frames = queued ?? proposeRegistrationFrames({
         // With a timeline, "frame i" means slot i -- one capture across the
         // rig. Without one, it falls back to the raw per-camera index.
         counts: aligned
@@ -235,7 +258,9 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
           ? 'No candidate frames could be proposed: no capture has a frame on every camera.'
           : 'No candidate frames could be proposed for this dataset.');
       }
-      status.value = `Proposing ${frames.length} candidate frames…`;
+      status.value = queued
+        ? `Matching ${frames.length} queued frame(s)…`
+        : `Proposing ${frames.length} candidate frames…`;
       const imagePairs: Record<string, string[]> = {};
       // eslint-disable-next-line no-restricted-syntax
       for (const camera of cameras) {
@@ -269,7 +294,11 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
         }
       }
       const kwiverParams: Record<string, string> = {
-        'register:max_frames': String(options.maxFrames),
+        // max_frames is the pipeline's bin budget: it keeps the best candidate
+        // per bin and prunes the rest. A queued run has already chosen its
+        // captures, so give it one bin per frame or it would prune them back
+        // down to the proposal's budget.
+        'register:max_frames': String(queued ? frames.length : options.maxFrames),
       };
       if (options.pairs) {
         kwiverParams['register:pairs'] = options.pairs;
