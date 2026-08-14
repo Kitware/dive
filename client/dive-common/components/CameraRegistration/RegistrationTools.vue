@@ -7,7 +7,6 @@ import {
   useCameraStore,
   useCameraRegistration,
   useDatasetId,
-  useHandler,
 } from 'vue-media-annotator/provides';
 import {
   TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
@@ -15,11 +14,13 @@ import {
 import { unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+import { injectAggregateController } from 'vue-media-annotator/components/annotators/useMediaController';
 import { useApi } from 'dive-common/apispec';
-import RegistrationFrameList, { FrameRow } from './RegistrationFrameList.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AutoRegisterRunOptions, useAutoRegisterJob } from 'dive-common/use/useAutoRegisterJob';
 import { loopClosureResidual, Matrix3 } from 'vue-media-annotator/alignedView/homography';
+
+import RegistrationFrameList, { FrameRow } from './RegistrationFrameList.vue';
 import AutoRegisterDialog from './AutoRegisterDialog.vue';
 
 export default defineComponent({
@@ -33,7 +34,7 @@ export default defineComponent({
     const alignedView = useAlignedView();
     const { saveConfig } = useApi();
     const { prompt } = usePrompt();
-    const handler = useHandler();
+    const aggregateController = injectAggregateController();
 
     const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
     /**
@@ -169,8 +170,15 @@ export default defineComponent({
       const rmsByIdentity = new Map(stats.perObservation.map((obs) => [
         `${obs.imageA}::${obs.imageB}`, obs.rmsPx,
       ]));
+      // camA-local drives every action in this panel, but the number shown must
+      // match the frame readout / scrubber, which count global slots.
+      const [camA] = key.split('::');
+      const toSlot = (frame: number | null) => (
+        frame === null ? null : aggregateController.value.cameraFrameToSlot(camA, frame) ?? frame
+      );
       return registration.framesForPair(key).map((row) => ({
         frame: row.frame,
+        displayFrame: toSlot(row.frame),
         imageA: row.imageA,
         imageB: row.imageB,
         enabled: row.enabled,
@@ -196,10 +204,26 @@ export default defineComponent({
         registration.setObservationEnabled(key, row.imageA, row.imageB, enabled);
       }
     }
+    /**
+     * Seek a camA-local frame. markerFrames / currentPairFrame are all in the
+     * active pair's camA space (see CameraRegistrationStore.currentPairFrame),
+     * so every seek out of this panel goes through camA rather than whichever
+     * camera happens to be selected.
+     */
+    function seekPairFrame(frame: number) {
+      const pair = registration.activePair.value;
+      if (!pair) {
+        return;
+      }
+      aggregateController.value.seekCameraFrame(pair.camA, frame);
+    }
     function jumpToFrame(frame: number) {
-      // Observation frames are camA-local; the handler seeks the selected
-      // camera's local space (a passthrough on positionally aligned rigs).
-      handler.seekFrame(frame);
+      // Observation frames are camA-local, but handler.seekFrame() interprets
+      // its argument in the SELECTED camera's local space -- wrong whenever
+      // the rig's cameras drop frames independently. Seek camA's own frame
+      // instead; seekCameraFrame translates through the aligned timeline so
+      // every camera lands on the same capture.
+      seekPairFrame(frame);
     }
     async function removeFrameRow(row: FrameRow) {
       const key = activeKey.value;
@@ -210,7 +234,7 @@ export default defineComponent({
         const confirmed = await prompt({
           title: 'Remove Registration Frame',
           text: `Remove the ${row.count} point pair(s) from `
-            + `${row.frame !== null ? `frame ${row.frame}` : 'this frame'}? `
+            + `${row.displayFrame !== null ? `frame ${row.displayFrame}` : 'this frame'}? `
             + 'To exclude the frame from the fit without deleting its points, '
             + 'uncheck it instead.',
           positiveButton: 'Remove',
@@ -232,14 +256,14 @@ export default defineComponent({
       const current = currentPairFrame.value ?? 0;
       const prev = [...markerFrames.value].reverse().find((frameNum) => frameNum < current);
       if (prev !== undefined) {
-        handler.seekFrame(prev);
+        seekPairFrame(prev);
       }
     }
     function seekNextMarker() {
       const current = currentPairFrame.value ?? 0;
       const next = markerFrames.value.find((frameNum) => frameNum > current);
       if (next !== undefined) {
-        handler.seekFrame(next);
+        seekPairFrame(next);
       }
     }
     /** One-click way to start contributing the current frame: enable picking. */
