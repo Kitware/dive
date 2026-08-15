@@ -981,7 +981,17 @@ describe('native.common', () => {
     const contents = fs.readdirSync(result);
     expect(stat.isDirectory()).toBe(true);
     expect(contents).toEqual([]);
-    expect(result).toMatch(/DIVE_Jobs\/myproject1_name_tktfgyv2g9_mypipeline\.pipe_/);
+    // Every interpolated component is path-sanitized, pipeline included:
+    // whitespace, dots and slashes collapse to underscores.
+    expect(result).toMatch(/DIVE_Jobs\/myproject1_name_tktfgyv2g9_mypipeline_pipe_/);
+
+    // Pipeline display names carry spaces ("utility align cameras 3 cam"),
+    // which used to land verbatim in the job folder name.
+    const spaced = await createWorkingDirectory(settings, [jsonConfig], 'utility align cameras 3 cam');
+    expect(spaced).toMatch(
+      /DIVE_Jobs\/myproject1_name_tktfgyv2g9_utility_align_cameras_3_cam_/,
+    );
+    expect(spaced).not.toMatch(/ /);
   });
 
   it('beginMediaImport image sequence success', async () => {
