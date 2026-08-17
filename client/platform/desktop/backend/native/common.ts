@@ -285,10 +285,24 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
     const lines = await readLines(filePath);
     let inDescription = false;
     let fullDescription = '';
+    // `process warpN` followed by `:: warp_detections|warp_image` marks an
+    // input whose camera must be registered onto camera 1.
+    let lastProcessName: string | null = null;
+    const registrationWarps: number[] = [];
 
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
+
+      const processMatch = trimmed.match(/^process\s+(\S+)/);
+      if (processMatch) {
+        [, lastProcessName] = processMatch;
+      } else if (/^::\s*(warp_detections|warp_image)\b/.test(trimmed) && lastProcessName) {
+        const warpMatch = lastProcessName.match(/^warp(\d+)$/);
+        if (warpMatch) {
+          registrationWarps.push(Number.parseInt(warpMatch[1], 10));
+        }
+      }
 
       // --- Description extraction (Multiline) ---
       if (/^#\s*Description:\s*/i.test(line)) {
@@ -365,6 +379,9 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
         }
       }
     });
+    if (registrationWarps.length) {
+      metadata.registrationWarps = [...new Set(registrationWarps)].sort((a, b) => a - b);
+    }
     metadata.description = fullDescription.trim() || undefined;
   } catch (error) {
     console.error(`Error while reading ${filePath} metadata`, error);

@@ -15,6 +15,7 @@ from dive_tasks.multicam_pipeline import (
     infer_camera_roles,
     is_stereo_measurement_pipeline,
     is_stereo_or_multicam_pipeline,
+    missing_registrations,
     pipeline_camera_order,
     pipeline_requires_input,
     resolve_pipeline_camera_order,
@@ -169,6 +170,18 @@ def test_resolve_pipeline_camera_order_roles_win_over_names():
     assert resolve_pipeline_camera_order(
         ['EO', 'IR'], ['thermal', 'other'], {'thermal': 'eo', 'other': 'ir'}
     ) == ['thermal', 'other']
+
+
+def test_missing_registrations():
+    order = ['rgb', 'uv', 'ir']
+    fitted = ['rgb::ir']  # stored in the reverse orientation still counts
+    assert missing_registrations(order, [2, 3], fitted) == [(2, 'uv', 'rgb')]
+    assert missing_registrations(order, [2, 3], fitted + ['uv::rgb']) == []
+    # No warps declared (or no order): nothing to check.
+    assert missing_registrations(order, None, []) == []
+    assert missing_registrations([], [2], []) == []
+    # Out-of-range warp positions are ignored rather than crashing.
+    assert missing_registrations(['rgb', 'ir'], [3], []) == []
 
 
 def test_resolve_pipeline_camera_order():

@@ -29,6 +29,7 @@ import {
   pipelineCreatesNewDataset,
 } from 'dive-common/pipelineCreatesDataset';
 import { pipelineCameraNames } from 'dive-common/multicamDisplay';
+import { describeMissingRegistration, missingRegistrations } from 'dive-common/pipelineCameraOrder';
 import * as common from './common';
 import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
@@ -424,8 +425,20 @@ async function runPipeline(
     }
     if (multiCamOrder) {
       // Hand the camera registration (Aligned View homographies) to the
-      // pipeline's per-camera warp processes.
+      // pipeline's per-camera warp processes. Refuse up front when a warped
+      // camera has no registration onto camera 1, rather than letting the
+      // pipe die at configure time on a missing file.
       const registrationArgs = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, multiCamOrder);
+      // buildRegistrationPipelineArgs only binds warps whose camera has a
+      // fitted pair onto camera 1, so the bound warps are the fitted set.
+      const fittedPairs = Object.keys(registrationArgs)
+        .map((key) => key.match(/^warp(\d+):transformation_file$/))
+        .filter((match): match is RegExpMatchArray => match !== null)
+        .map((match) => `${multiCamOrder[Number.parseInt(match[1], 10) - 1]}::${multiCamOrder[0]}`);
+      const missing = missingRegistrations(multiCamOrder, pipeline.metadata?.registrationWarps, fittedPairs);
+      if (missing.length) {
+        throw new Error(missing.map((entry) => describeMissingRegistration(entry, pipeline.name)).join('\n'));
+      }
       Object.entries(registrationArgs).forEach(([arg, value]) => {
         command.push(`-s ${arg}="${value}"`);
       });

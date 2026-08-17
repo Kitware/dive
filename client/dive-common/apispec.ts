@@ -89,6 +89,14 @@ interface PipeMetadata {
    * cameras are fed registration-reference first, then display order.
    */
   cameraOrder?: string[];
+  /**
+   * Input positions whose detections/images the pipe warps onto camera 1
+   * (`process warpN :: warp_detections | warp_image` in the pipe body), e.g.
+   * [2, 3]. Each such camera needs a fitted Aligned View registration onto
+   * camera 1; DIVE checks that before the run instead of letting the pipe
+   * fail at configure time on a missing file.
+   */
+  registrationWarps?: number[];
 }
 
 interface PipelineRuntimeParams {

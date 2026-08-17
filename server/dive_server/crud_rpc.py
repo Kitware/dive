@@ -20,7 +20,9 @@ from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
 from dive_tasks.multicam_pipeline import (
     build_registration_pairs,
+    describe_missing_registration,
     is_stereo_or_multicam_pipeline,
+    missing_registrations,
     pipeline_camera_order,
     pipeline_requires_input,
     resolve_pipeline_camera_order,
@@ -448,6 +450,27 @@ def run_pipeline(
         if calibration_item_id:
             params['calibration_item_id'] = calibration_item_id
         if is_warp_pipeline and reference_camera:
+            # Refuse up front when a warped camera has no registration onto
+            # camera 1, rather than letting the pipe die at configure time.
+            fitted_pairs = [
+                key
+                for key, value in (
+                    (folder.get('meta') or {}).get('cameraHomographies') or {}
+                ).items()
+                if value and (value.get('AtoB') or value.get('BtoA'))
+            ]
+            missing = missing_registrations(
+                camera_order,
+                (pipeline.get('metadata') or {}).get('registrationWarps'),
+                fitted_pairs,
+            )
+            if missing:
+                raise RestException(
+                    ' '.join(
+                        describe_missing_registration(*entry, pipeline['name']) for entry in missing
+                    ),
+                    code=400,
+                )
             registration_pairs = build_registration_pairs(folder.get('meta') or {})
             if any(
                 pair.get('leftToRight') or pair.get('rightToLeft') for pair in registration_pairs

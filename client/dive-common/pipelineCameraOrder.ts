@@ -192,6 +192,50 @@ export function pipelineCameraSlots(declaredOrder: string[] | null | undefined, 
   return Array.from({ length: count }, (_, i) => `input${i + 1}`);
 }
 
+export interface MissingRegistration {
+  /** 1-based pipeline input position. */
+  input: number;
+  camera: string;
+  /** Camera 1, the frame the warp maps onto. */
+  target: string;
+}
+
+/**
+ * Cameras a pipe will warp (its `warpN` processes) that have no fitted
+ * registration onto camera 1 of the given order. `fittedPairs` are the
+ * dataset's homography keys (`a::b`, either orientation counts). Checked
+ * before a run so the failure is "register camera X onto Y first" rather
+ * than the pipe dying at configure time on a missing file.
+ */
+export function missingRegistrations(
+  order: (string | null)[],
+  registrationWarps: number[] | null | undefined,
+  fittedPairs: string[],
+): MissingRegistration[] {
+  const target = order[0];
+  if (!target || !registrationWarps?.length) {
+    return [];
+  }
+  const fitted = new Set(fittedPairs);
+  const missing: MissingRegistration[] = [];
+  registrationWarps.forEach((input) => {
+    const camera = order[input - 1];
+    if (!camera || camera === target) {
+      return;
+    }
+    if (!fitted.has(`${camera}::${target}`) && !fitted.has(`${target}::${camera}`)) {
+      missing.push({ input, camera, target });
+    }
+  });
+  return missing;
+}
+
+export function describeMissingRegistration(missing: MissingRegistration, pipelineName?: string): string {
+  const where = pipelineName ? ` before running ${pipelineName}` : '';
+  return `Camera "${missing.camera}" (input${missing.input}) has no registration onto camera 1 `
+    + `("${missing.target}"). Register ${missing.camera} → ${missing.target} in Aligned View${where}.`;
+}
+
 /** Parse the value of a `# Camera Order:` header into slot tokens. */
 export function parseCameraOrderHeader(value: string): string[] {
   return value.trim().split(/[\s,]+/).filter((token) => token);

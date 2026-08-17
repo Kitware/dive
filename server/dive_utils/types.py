@@ -97,6 +97,10 @@ class PipeMetadata(TypedDict):
     # camera by name at run time; when unset cameras are fed reference-first, then
     # display order.
     cameraOrder: NotRequired[Optional[list[str]]]
+    # Input positions the pipe warps onto camera 1 (`process warpN :: warp_detections |
+    # warp_image`), e.g. [2, 3]; each such camera needs a fitted registration onto
+    # camera 1, checked before the run.
+    registrationWarps: NotRequired[Optional[list[int]]]
 
 
 class PipelineDescription(TypedDict):

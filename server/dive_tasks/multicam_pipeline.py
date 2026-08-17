@@ -270,6 +270,41 @@ def build_registration_pairs(folder_meta: dict) -> List[dict]:
     return pairs
 
 
+def missing_registrations(
+    order: List[str], registration_warps: Optional[List[int]], fitted_pairs: List[str]
+) -> List[Tuple[int, str, str]]:
+    """
+    (input, camera, camera1) for each warped input whose camera has no fitted
+    registration onto camera 1. `fitted_pairs` are the dataset's homography
+    keys (`a::b`, either orientation counts). Checked before a run so the
+    failure is "register camera X onto Y first" rather than the pipe dying at
+    configure time on a missing file.
+    """
+    if not order or not registration_warps:
+        return []
+    target = order[0]
+    fitted = set(fitted_pairs)
+    missing = []
+    for position in registration_warps:
+        if position < 2 or position > len(order):
+            continue
+        camera = order[position - 1]
+        if camera == target:
+            continue
+        if f'{camera}::{target}' not in fitted and f'{target}::{camera}' not in fitted:
+            missing.append((position, camera, target))
+    return missing
+
+
+def describe_missing_registration(
+    position: int, camera: str, target: str, pipeline_name: str
+) -> str:
+    return (
+        f'Camera "{camera}" (input{position}) has no registration onto camera 1 ("{target}"). '
+        f'Register {camera} -> {target} in Aligned View before running {pipeline_name}.'
+    )
+
+
 def build_registration_kwiver_settings(
     work_dir: Path,
     cameras: List[MulticamCameraJob],

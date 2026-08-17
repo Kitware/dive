@@ -135,11 +135,33 @@ def test_extract_pipe_metadata_camera_order(tmp_path: Path):
     metadata = extract_pipe_metadata(pipe)
 
     assert metadata['cameraOrder'] == ['EO', 'UV', 'IR']
+    assert 'registrationWarps' not in metadata
     # The header must not bleed into the multi-line description.
     assert metadata['description'] == 'three camera detector'
     assert 'cameraOrder' not in extract_pipe_metadata(
         _write(tmp_path, 'detector_plain.pipe', ['# Description: none'])
     )
+
+
+def test_extract_pipe_metadata_registration_warps(tmp_path: Path):
+    pipe = _write(
+        tmp_path,
+        'detector_seal_3-cam.pipe',
+        [
+            '# Description: three camera detector',
+            'process input1',
+            '  :: video_input',
+            'process warp3',
+            '  :: warp_detections',
+            '  :transformation_file  registration_camera3_to_camera1.json',
+            'process warp2',
+            '  :: warp_detections',
+            '  :inverse true',
+            'process not_a_warp',
+            '  :: warp_image',
+        ],
+    )
+    assert extract_pipe_metadata(pipe)['registrationWarps'] == [2, 3]
 
 
 def _write(tmp_path: Path, name: str, lines: list) -> Path:
