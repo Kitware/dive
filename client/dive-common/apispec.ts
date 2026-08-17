@@ -92,7 +92,7 @@ interface PipeMetadata {
   /**
    * Input positions whose detections/images the pipe warps onto camera 1
    * (`process warpN :: warp_detections | warp_image` in the pipe body), e.g.
-   * [2, 3]. Each such camera needs a fitted Aligned View registration onto
+   * [2, 3]. Each such camera needs a fitted registration (Camera Registration tab) onto
    * camera 1; DIVE checks that before the run instead of letting the pipe
    * fail at configure time on a missing file.
    */

@@ -233,7 +233,7 @@ export function missingRegistrations(
 export function describeMissingRegistration(missing: MissingRegistration, pipelineName?: string): string {
   const where = pipelineName ? ` before running ${pipelineName}` : '';
   return `Camera "${missing.camera}" (input${missing.input}) has no registration onto camera 1 `
-    + `("${missing.target}"). Register ${missing.camera} → ${missing.target} in Aligned View${where}.`;
+    + `("${missing.target}"). Register ${missing.camera} → ${missing.target} in the Camera Registration tab${where}.`;
 }
 
 /** Parse the value of a `# Camera Order:` header into slot tokens. */
