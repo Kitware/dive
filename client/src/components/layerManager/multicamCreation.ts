@@ -50,3 +50,19 @@ export function cameraAwaitingGeometry(
   }
   return false;
 }
+
+/**
+ * True when `camera` holds a brand-new track shell: one frame, no geometry.
+ * That shell is created when the user presses N, before the first box is drawn.
+ */
+export function isEmptyCameraTrack(
+  cameraStore: CameraStore,
+  camera: string,
+  trackId: AnnotationId,
+): boolean {
+  const track = cameraStore.getPossibleTrack(trackId, camera);
+  if (!track || track.begin !== track.end) {
+    return false;
+  }
+  return track.getFeature(track.begin).every((feature) => feature === null);
+}

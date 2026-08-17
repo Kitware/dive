@@ -54,28 +54,22 @@ export default defineComponent({
     const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
     const sortingMode = ref(0);
 
-    const selectedTrack = computed(() => {
-      if (selectedTrackIdRef.value !== null) {
-        return cameraStore.getAnyTrack(selectedTrackIdRef.value);
-      }
-      return null;
-    });
-
-    // Using Revision to nudge the attributes after updating them
+    // Logical-track reads: same projection as the track row, so Detection
+    // Attributes stay visible when the selected camera has no replica.
     const selectedAttributes = computed(() => {
-      if (selectedTrack.value && selectedTrack.value.revision.value) {
-        const t = selectedTrack.value;
-        if (t !== undefined && t !== null) {
-          if (props.mode === 'Track') {
-            return t;
-          }
-          if (props.mode === 'Detection') {
-            const [real] = t.getFeature(frameRef.value);
-            return real;
-          }
-        }
+      if (selectedTrackIdRef.value === null) {
+        return null;
       }
-      return null;
+      try {
+        const projection = cameraStore.getTrackProjection(selectedTrackIdRef.value);
+        if (props.mode === 'Track') {
+          return projection;
+        }
+        const [real] = projection.getFeature(frameRef.value);
+        return real;
+      } catch {
+        return null;
+      }
     });
 
     const filteredFullAttributes = computed(() => {
