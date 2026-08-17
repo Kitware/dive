@@ -11,6 +11,8 @@ from dive_tasks.multicam_pipeline import (
     build_registration_pairs,
     cameras_matching_slot,
     find_downloaded_calibration_file,
+    infer_camera_role,
+    infer_camera_roles,
     is_stereo_measurement_pipeline,
     is_stereo_or_multicam_pipeline,
     pipeline_camera_order,
@@ -146,6 +148,27 @@ def test_cameras_matching_slot():
     # Exact name wins over role matching elsewhere; literal segments for non-role tokens.
     assert cameras_matching_slot('ir', ['ir', 'thermal']) == ['ir']
     assert cameras_matching_slot('left', ['left_cam', 'right_cam']) == ['left_cam']
+
+
+def test_infer_camera_role():
+    assert infer_camera_role('rgb') == 'eo'
+    assert infer_camera_role('CENT_IR') == 'ir'
+    assert infer_camera_role('uv_cam') == 'uv'
+    assert infer_camera_role('cam1', ['flight_0001_rgb.jpg', 'flight_0002_rgb.jpg']) == 'eo'
+    assert infer_camera_role('cam1', ['a_rgb.jpg', 'b_ir.tif']) is None
+    assert infer_camera_role('eo_ir') is None
+    assert infer_camera_role('center', ['0001.png']) is None
+    assert infer_camera_roles({'rgb': [], 'center': ['x_ir.tif'], 'other': ['a.png']}) == {
+        'rgb': 'eo',
+        'center': 'ir',
+    }
+
+
+def test_resolve_pipeline_camera_order_roles_win_over_names():
+    # "thermal" is named like IR but the user marked it optical.
+    assert resolve_pipeline_camera_order(
+        ['EO', 'IR'], ['thermal', 'other'], {'thermal': 'eo', 'other': 'ir'}
+    ) == ['thermal', 'other']
 
 
 def test_resolve_pipeline_camera_order():

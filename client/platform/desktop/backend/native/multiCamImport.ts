@@ -12,6 +12,7 @@ import {
   MultiType,
 } from 'dive-common/constants';
 import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import { inferCameraRoles } from 'dive-common/pipelineCameraOrder';
 import {
   JsonConfig, JsonConfigCurrentVersion,
   DesktopMediaImportResponse,
@@ -371,6 +372,19 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   // Shared attachment travels on the response (like beginMediaImport), not on
   // jsonConfig: ImportDialog binds metadataFileAbsPath so the user can see and clear it.
   // finalizeMediaImport still accepts jsonConfig.metadataFile as a fallback for older callers.
+  // Sensor role per camera, from the camera name and (for image sequences)
+  // the image names; the pipeline camera-assignment step prefills from it
+  // and the user can correct it there.
+  const cameraRoles = inferCameraRoles(Object.fromEntries(
+    Object.entries(cameras).map(([name, camera]) => [
+      name,
+      camera.originalImageFiles.length ? camera.originalImageFiles : [camera.originalVideoFile],
+    ]),
+  ));
+  if (Object.keys(cameraRoles).length) {
+    jsonConfig.cameraRoles = cameraRoles;
+  }
+
   return {
     jsonConfig,
     globPattern: '',

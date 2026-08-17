@@ -37,6 +37,13 @@ import pipelineTypeDisplay from 'dive-common/pipelineTypeDisplay';
 import { useRequest } from 'dive-common/use';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import PipelineParamsDialog from 'dive-common/components/PipelineParamsDialog.vue';
+import PipelineCameraAssignDialog, {
+  PipelineCameraAssignRequest, PipelineCameraAssignResult,
+} from 'dive-common/components/PipelineCameraAssignDialog.vue';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import {
+  CameraRole, pipelineCameraSlots, prefillPipelineCameraOrder,
+} from 'dive-common/pipelineCameraOrder';
 import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
 
 type MenuState = 'idle' | 'configuring';
@@ -48,6 +55,7 @@ export default defineComponent({
     JobLaunchDialog,
     JobConfigFilterTranscodeDialog,
     PipelineParamsDialog,
+    PipelineCameraAssignDialog,
     RunPipelineToast,
     PipelineCalibrationWarningIcon,
   },
@@ -111,7 +119,9 @@ export default defineComponent({
 
   setup(props) {
     const { prompt } = usePrompt();
-    const { runPipeline, getPipelineList, hasCalibrationFile } = useApi();
+    const {
+      runPipeline, getPipelineList, hasCalibrationFile, loadConfig, saveConfig,
+    } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const {
       request: _runPipelineRequest,
@@ -257,6 +267,74 @@ export default defineComponent({
       return false;
     });
 
+    // --- Multicam camera assignment -------------------------------------
+    // Before a 2-cam/3-cam run the user sees which dataset camera DIVE
+    // proposes for each pipeline input (by camera role, else by name) and
+    // confirms or corrects it. Nothing about the placement is inferred at
+    // run time behind their back.
+    const cameraAssignRequest = ref<PipelineCameraAssignRequest | null>(null);
+    let cameraAssignResolve: ((result: PipelineCameraAssignResult | null) => void) | null = null;
+
+    function askCameraAssignment(request: PipelineCameraAssignRequest) {
+      return new Promise<PipelineCameraAssignResult | null>((resolve) => {
+        cameraAssignResolve = resolve;
+        cameraAssignRequest.value = request;
+      });
+    }
+    function settleCameraAssignment(result: PipelineCameraAssignResult | null) {
+      cameraAssignRequest.value = null;
+      const resolve = cameraAssignResolve;
+      cameraAssignResolve = null;
+      resolve?.(result);
+    }
+
+    /**
+     * Confirmed input1..N camera order per dataset, or null when the user
+     * cancelled. Persists confirmed roles onto the dataset when asked so the
+     * next run (and other pipelines) prefill correctly.
+     */
+    async function confirmCameraOrders(
+      pipeline: Pipe,
+      datasetIds: string[],
+    ): Promise<Record<string, string[]> | null> {
+      const orders: Record<string, string[]> = {};
+      // eslint-disable-next-line no-restricted-syntax
+      for (const id of datasetIds) {
+        // eslint-disable-next-line no-await-in-loop
+        const config = await loadConfig(id);
+        const cameras = orderedMultiCamCameraNames(config.multiCamMedia);
+        if (!cameras.length) {
+          throw new Error(`${config.name} is not a multi-camera dataset`);
+        }
+        const slots = pipelineCameraSlots(pipeline.metadata?.cameraOrder, cameras.length);
+        if (slots.length !== cameras.length) {
+          throw new Error(`${pipeline.name} expects ${slots.length} cameras but ${config.name} has ${cameras.length} (${cameras.join(', ')})`);
+        }
+        const roles: Record<string, CameraRole> = config.cameraRoles ?? {};
+        // eslint-disable-next-line no-await-in-loop
+        const result = await askCameraAssignment({
+          datasetName: config.name,
+          pipelineName: pipeline.name,
+          slots,
+          cameras,
+          proposed: prefillPipelineCameraOrder(slots, cameras, roles),
+          roles,
+        });
+        if (!result) {
+          return null;
+        }
+        orders[id] = result.order;
+        if (result.roles) {
+          const merged = { ...roles, ...result.roles };
+          if (JSON.stringify(merged) !== JSON.stringify(roles)) {
+            // eslint-disable-next-line no-await-in-loop
+            await saveConfig(id, { cameraRoles: merged });
+          }
+        }
+      }
+      return orders;
+    }
+
     async function _runPipelineOnSelectedItemInner(
       pipeline: Pipe,
       outputDatasetNameById?: Record<string, string>,
@@ -286,6 +364,14 @@ export default defineComponent({
       || stereoPipelineMarker === pipeline.type) {
         datasetIds = props.selectedDatasetIds.map((item) => parentDatasetId(item));
       }
+      let cameraOrderById: Record<string, string[]> = {};
+      if (multiCamPipelineMarkers.includes(pipeline.type)) {
+        const confirmed = await confirmCameraOrders(pipeline, datasetIds);
+        if (!confirmed) {
+          return;
+        }
+        cameraOrderById = confirmed;
+      }
       selectedPipeline.value = pipeline;
       const frameRange = props.timeFilter;
       await _runPipelineRequest(() => Promise.all(
@@ -294,6 +380,7 @@ export default defineComponent({
           outputDatasetName: outputDatasetNameById?.[id],
           outputParentFolderId,
           kwiverParams: kwiverParamsById?.[id],
+          cameraOrder: cameraOrderById[id],
         })),
       ));
     }
@@ -373,6 +460,8 @@ export default defineComponent({
       pipelineHasParams,
       categoryHasParams,
       categoryHasCalibrationWarning,
+      cameraAssignRequest,
+      settleCameraAssignment,
     };
   },
 });
@@ -597,6 +686,12 @@ export default defineComponent({
       :pipeline="selectedPipeline"
       :params="pipelineParams"
       @confirm="confirmPipelineExecution"
+    />
+    <PipelineCameraAssignDialog
+      :value="cameraAssignRequest !== null"
+      :request="cameraAssignRequest"
+      @cancel="settleCameraAssignment(null)"
+      @confirm="settleCameraAssignment($event)"
     />
   </div>
 </template>

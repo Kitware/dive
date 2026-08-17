@@ -16,6 +16,7 @@ from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
+from dive_tasks.multicam_pipeline import infer_camera_roles
 from dive_utils import (
     TRUTHY_META_VALUES,
     asbool,
@@ -1692,6 +1693,7 @@ def create_multicam(
     default_child = loaded_children[validated.defaultDisplay]
     parent_folder_doc = parent_folder
     multi_cam_cameras: Dict[str, Dict[str, str]] = {}
+    camera_image_names: Dict[str, List[str]] = {}
     for name in camera_order:
         child = loaded_children[name]
         if child['name'] != name:
@@ -1701,6 +1703,11 @@ def create_multicam(
             'folderId': str(child['_id']),
             'type': camera_types_by_name[name],
         }
+        camera_image_names[name] = [item['name'] for item in Folder().childItems(child, limit=50)]
+    # Sensor role per camera, from the camera name and its media names; the
+    # pipeline camera-assignment step prefills from it and the user can
+    # correct it there.
+    camera_roles = infer_camera_roles(camera_image_names)
 
     calibration_source_item_id = None
     json_calibration_item_id = None
@@ -1780,6 +1787,7 @@ def create_multicam(
                 else {}
             ),
         },
+        **({'cameraRoles': camera_roles} if camera_roles else {}),
     }
     parent_folder_doc['meta'].setdefault(
         constants.ConfidenceFiltersMarker,

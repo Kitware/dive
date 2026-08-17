@@ -340,10 +340,22 @@ def run_pipeline(
             # feeds which inputN is the pipe's contract (`# Camera Order:`
             # header); a pipe without one gets the registration reference
             # first, then display order.
+            confirmed_order = (pipeline_params or {}).get('cameraOrder')
             declared_order = (pipeline.get('metadata') or {}).get('cameraOrder')
-            if declared_order:
+            if confirmed_order:
+                # The order the user confirmed in the camera-assignment step.
+                if sorted(confirmed_order) != sorted(camera_order):
+                    raise RestException(
+                        f'Camera assignment [{", ".join(confirmed_order)}] does not match '
+                        f'the dataset cameras [{", ".join(camera_order)}]',
+                        code=400,
+                    )
+                camera_order = list(confirmed_order)
+            elif declared_order:
                 try:
-                    camera_order = resolve_pipeline_camera_order(declared_order, camera_order)
+                    camera_order = resolve_pipeline_camera_order(
+                        declared_order, camera_order, (folder.get('meta') or {}).get('cameraRoles')
+                    )
                 except ValueError as err:
                     raise RestException(str(err), code=400) from err
             else:

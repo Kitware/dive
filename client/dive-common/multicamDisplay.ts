@@ -1,6 +1,6 @@
 import type { SubType } from 'dive-common/apispec';
 import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
-import { resolvePipelineCameraOrder } from 'dive-common/pipelineCameraOrder';
+import { CameraRole, resolvePipelineCameraOrder } from 'dive-common/pipelineCameraOrder';
 
 export type MultiCamSubType = 'stereo' | 'multicam';
 
@@ -82,9 +82,10 @@ export function pipelineOrderedCameraNames(multiCamMedia: MultiCamMediaLike | nu
 export function pipelineCameraNames(
   multiCamMedia: MultiCamMediaLike | null | undefined,
   declaredOrder?: string[] | null,
+  roles: Record<string, CameraRole> = {},
 ): string[] {
   if (declaredOrder?.length) {
-    const result = resolvePipelineCameraOrder(declaredOrder, orderedMultiCamCameraNames(multiCamMedia));
+    const result = resolvePipelineCameraOrder(declaredOrder, orderedMultiCamCameraNames(multiCamMedia), roles);
     if (result.error !== undefined) {
       throw new Error(result.error);
     }

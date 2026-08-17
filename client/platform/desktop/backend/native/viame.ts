@@ -15,6 +15,7 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import sendToRenderer from 'platform/desktop/background';
 
+import type { Pipe } from 'dive-common/apispec';
 import {
   MultiType,
   stereoPipelineMarker,
@@ -164,6 +165,24 @@ async function importNewMedia(
 /**
  * a node.js implementation of dive_tasks.tasks.run_pipeline
  */
+/**
+ * The input1..N camera order for a 2-cam/3-cam run: the confirmed order when
+ * one was supplied (validated against the dataset's cameras), else resolved
+ * from the pipe's declared slots and the dataset's camera roles/names.
+ */
+function resolveMultiCamOrder(meta: JsonConfig, pipeline: Pipe, confirmed?: string[]): string[] {
+  const cameras = Object.keys(meta.multiCam?.cameras ?? {});
+  if (confirmed?.length) {
+    const unknown = confirmed.filter((name) => !cameras.includes(name));
+    const missing = cameras.filter((name) => !confirmed.includes(name));
+    if (unknown.length || missing.length || new Set(confirmed).size !== confirmed.length) {
+      throw new Error(`Camera assignment [${confirmed.join(', ')}] does not match the dataset cameras [${cameras.join(', ')}]`);
+    }
+    return confirmed;
+  }
+  return pipelineCameraNames(meta.multiCam, pipeline.metadata?.cameraOrder, meta.cameraRoles ?? {});
+}
+
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
@@ -369,10 +388,11 @@ async function runPipeline(
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
     const isMultiCamPipeline = multiCamPipelineMarkers.includes(pipeline.type);
-    // 2-cam/3-cam pipes: which camera feeds which inputN is the pipe's
-    // contract (its `# Camera Order:` header), else reference-first.
+    // 2-cam/3-cam pipes: which camera feeds which inputN is the order the
+    // user confirmed before the run; without one (CLI), the pipe's
+    // `# Camera Order:` header matched by role/name, else reference-first.
     const multiCamOrder = isMultiCamPipeline
-      ? pipelineCameraNames(meta.multiCam, pipeline.metadata?.cameraOrder)
+      ? resolveMultiCamOrder(meta, pipeline, runPipelineArgs.pipelineParams?.cameraOrder)
       : undefined;
     const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, multiCamOrder);
     Object.entries(argFilePair).forEach(([arg, file]) => {
