@@ -3,7 +3,7 @@ import {
   computed, defineComponent, PropType, ref, watch,
 } from 'vue';
 import {
-  CameraRole, CAMERA_ROLE_LABELS, roleOfToken,
+  CameraRole, CAMERA_ROLE_LABELS, describeMissingRegistration, missingRegistrations, roleOfToken,
 } from 'dive-common/pipelineCameraOrder';
 
 /**
@@ -21,6 +21,10 @@ export interface PipelineCameraAssignRequest {
   proposed: (string | null)[];
   /** Current dataset roles, shown next to each camera in the pickers. */
   roles: Record<string, CameraRole>;
+  /** Input positions the pipe warps onto camera 1 (metadata.registrationWarps). */
+  registrationWarps: number[];
+  /** Fitted registration pair keys (`a::b`) the dataset holds. */
+  fittedPairs: string[];
 }
 
 export interface PipelineCameraAssignResult {
@@ -91,8 +95,33 @@ export default defineComponent({
     const changed = computed(() => (props.request?.proposed ?? [])
       .some((camera, index) => camera !== selection.value[index]));
 
+    /** Warped inputs whose chosen camera has no registration onto camera 1. */
+    const missing = computed(() => missingRegistrations(
+      selection.value,
+      props.request?.registrationWarps,
+      props.request?.fittedPairs ?? [],
+    ));
+    const missingMessages = computed(() => missing.value
+      .map((entry) => describeMissingRegistration(entry)));
+    function rowRegistrationHint(index: number): string | null {
+      const warps = props.request?.registrationWarps ?? [];
+      const target = selection.value[0];
+      const camera = selection.value[index];
+      if (index === 0 || !warps.includes(index + 1) || !camera || !target) {
+        return null;
+      }
+      const isMissing = missing.value.some((entry) => entry.input === index + 1);
+      return isMissing
+        ? `No registration of ${camera} onto ${target}`
+        : `Registered onto ${target}`;
+    }
+    function rowMissing(index: number): boolean {
+      return missing.value.some((entry) => entry.input === index + 1);
+    }
+    const blocked = computed(() => problems.value.length > 0 || missing.value.length > 0);
+
     function confirm() {
-      if (problems.value.length || !props.request) {
+      if (blocked.value || !props.request) {
         return;
       }
       const order = selection.value as string[];
@@ -116,6 +145,10 @@ export default defineComponent({
       slotLabel,
       cameraLabel,
       problems,
+      missingMessages,
+      rowRegistrationHint,
+      rowMissing,
+      blocked,
       changed,
       confirm,
     };
@@ -147,9 +180,11 @@ export default defineComponent({
           v-model="selection[index]"
           :items="request.cameras.map((camera) => ({ text: cameraLabel(camera), value: camera }))"
           :label="slotLabel(index)"
+          :hint="rowRegistrationHint(index) || undefined"
+          :persistent-hint="!!rowRegistrationHint(index)"
+          :error="rowMissing(index)"
           outlined
           dense
-          hide-details
           class="mb-3"
         />
         <v-checkbox
@@ -174,6 +209,20 @@ export default defineComponent({
             {{ problem }}
           </div>
         </v-alert>
+        <v-alert
+          v-if="missingMessages.length"
+          type="error"
+          dense
+          text
+          class="mt-3 mb-0"
+        >
+          <div
+            v-for="message in missingMessages"
+            :key="message"
+          >
+            {{ message }}
+          </div>
+        </v-alert>
       </v-card-text>
       <v-card-actions>
         <v-spacer />
@@ -185,7 +234,7 @@ export default defineComponent({
         </v-btn>
         <v-btn
           color="primary"
-          :disabled="problems.length > 0"
+          :disabled="blocked"
           @click="confirm"
         >
           {{ changed ? 'Run with these cameras' : 'Run' }}

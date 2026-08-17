@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  camerasMatchingSlot, inferCameraRole, inferCameraRoles, parseCameraOrderHeader,
-  pipelineCameraSlots, prefillPipelineCameraOrder, resolvePipelineCameraOrder,
+  camerasMatchingSlot, inferCameraRole, inferCameraRoles, missingRegistrations,
+  parseCameraOrderHeader, pipelineCameraSlots, prefillPipelineCameraOrder,
+  resolvePipelineCameraOrder,
 } from './pipelineCameraOrder';
 import { pipelineCameraNames } from './multicamDisplay';
 
@@ -66,6 +67,18 @@ describe('pipelineCameraOrder', () => {
       .toStrictEqual([null, null]);
     expect(pipelineCameraSlots(['EO', 'IR'], 2)).toStrictEqual(['EO', 'IR']);
     expect(pipelineCameraSlots(undefined, 3)).toStrictEqual(['input1', 'input2', 'input3']);
+  });
+
+  it('reports warped cameras with no fitted registration onto camera 1', () => {
+    const order = ['rgb', 'uv', 'ir'];
+    // Stored in the reverse orientation still counts.
+    expect(missingRegistrations(order, [2, 3], ['rgb::ir']))
+      .toStrictEqual([{ input: 2, camera: 'uv', target: 'rgb' }]);
+    expect(missingRegistrations(order, [2, 3], ['rgb::ir', 'uv::rgb'])).toStrictEqual([]);
+    expect(missingRegistrations(order, undefined, [])).toStrictEqual([]);
+    expect(missingRegistrations([null, 'uv'], [2], [])).toStrictEqual([]);
+    // An unfilled slot is reported by the assignment problems, not here.
+    expect(missingRegistrations(['rgb', null], [2], [])).toStrictEqual([]);
   });
 
   it('pipelineCameraNames uses the declared order or falls back to reference-first', () => {

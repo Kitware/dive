@@ -319,6 +319,8 @@ export default defineComponent({
           cameras,
           proposed: prefillPipelineCameraOrder(slots, cameras, roles),
           roles,
+          registrationWarps: pipeline.metadata?.registrationWarps ?? [],
+          fittedPairs: Object.keys(config.cameraHomographies ?? {}),
         });
         if (!result) {
           return null;
