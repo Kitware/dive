@@ -27,6 +27,7 @@ import {
   isTranscodePipeline,
   pipelineCreatesNewDataset,
 } from 'dive-common/pipelineCreatesDataset';
+import { pipelineCameraNames } from 'dive-common/multicamDisplay';
 import * as common from './common';
 import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
@@ -368,7 +369,12 @@ async function runPipeline(
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
     const isMultiCamPipeline = multiCamPipelineMarkers.includes(pipeline.type);
-    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, isMultiCamPipeline);
+    // 2-cam/3-cam pipes: which camera feeds which inputN is the pipe's
+    // contract (its `# Camera Order:` header), else reference-first.
+    const multiCamOrder = isMultiCamPipeline
+      ? pipelineCameraNames(meta.multiCam, pipeline.metadata?.cameraOrder)
+      : undefined;
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, multiCamOrder);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
@@ -396,10 +402,10 @@ async function runPipeline(
         command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
       });
     }
-    if (isMultiCamPipeline) {
+    if (multiCamOrder) {
       // Hand the camera registration (Aligned View homographies) to the
       // pipeline's per-camera warp processes.
-      const registrationArgs = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir);
+      const registrationArgs = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, multiCamOrder);
       Object.entries(registrationArgs).forEach(([arg, value]) => {
         command.push(`-s ${arg}="${value}"`);
       });

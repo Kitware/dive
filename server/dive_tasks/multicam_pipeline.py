@@ -90,6 +90,63 @@ def append_metadata_file_kwiver_settings(
     command.append(f'-s {shlex.quote(kwiver_key)}={shlex.quote(str(metadata_path))}')
 
 
+# Role aliases: a slot token and a camera name match when they share a role, or
+# when the token itself appears as a segment of the camera name (so pipes can
+# name cameras literally, e.g. `# Camera Order: left, right`). Kept in sync with
+# client/dive-common/pipelineCameraOrder.ts.
+CAMERA_ROLE_ALIASES: Dict[str, Tuple[str, ...]] = {
+    'eo': ('eo', 'rgb', 'optical', 'color', 'colour', 'vis', 'visible'),
+    'ir': ('ir', 'thermal', 'lwir', 'mwir', 'flir'),
+    'uv': ('uv', 'ultraviolet'),
+}
+
+
+def _name_segments(name: str) -> List[str]:
+    return [seg for seg in re.split(r'[^a-z0-9]+', name.lower()) if seg]
+
+
+def cameras_matching_slot(token: str, cameras: List[str]) -> List[str]:
+    """Cameras whose name matches a slot token, by exact name, segment, or shared role."""
+    lower = token.lower()
+    exact = [camera for camera in cameras if camera.lower() == lower]
+    if exact:
+        return exact
+    role = next((r for r, aliases in CAMERA_ROLE_ALIASES.items() if lower in aliases), None)
+    aliases = set(CAMERA_ROLE_ALIASES[role]) if role else {lower}
+    return [camera for camera in cameras if any(seg in aliases for seg in _name_segments(camera))]
+
+
+def resolve_pipeline_camera_order(slots: List[str], cameras: List[str]) -> List[str]:
+    """
+    Map a pipe's declared `# Camera Order:` slots onto dataset cameras: every
+    slot must match exactly one camera and no camera may fill two slots.
+    Raises ValueError with a message naming the slot, the pipe's slots and the
+    dataset's cameras otherwise, so the run fails up front instead of being
+    silently mis-wired.
+    """
+    context = f'pipeline cameras [{", ".join(slots)}], dataset cameras [{", ".join(cameras)}]'
+    if len(slots) != len(cameras):
+        raise ValueError(
+            f'Pipeline expects {len(slots)} cameras but the dataset has {len(cameras)}: '
+            f'{context}'
+        )
+    order: List[str] = []
+    for index, slot in enumerate(slots, start=1):
+        matches = [c for c in cameras_matching_slot(slot, cameras) if c not in order]
+        if len(matches) != 1:
+            why = (
+                'no dataset camera matches'
+                if not matches
+                else f'several dataset cameras match ({", ".join(matches)})'
+            )
+            raise ValueError(
+                f'Cannot place pipeline camera "{slot}" (input{index}): {why}. {context}. '
+                'Rename the dataset cameras so each pipeline camera matches exactly one.'
+            )
+        order.append(matches[0])
+    return order
+
+
 def pipeline_camera_order(camera_names: List[str], reference: str) -> List[str]:
     """
     Camera order for 2-cam/3-cam pipelines, matching the desktop client: the
