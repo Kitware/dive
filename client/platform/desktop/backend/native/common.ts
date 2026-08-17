@@ -31,6 +31,7 @@ import {
   FrameMetadataSourcesResponse,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { parseCameraOrderHeader } from 'dive-common/pipelineCameraOrder';
 import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
 import {
   METADATA_ATTACHMENT_UNAVAILABLE, isFrameMetadataReadableName,
@@ -297,7 +298,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
@@ -351,6 +352,16 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
         const keys = calibrationKeysMatch[1].trim().split(/[\s,]+/).filter((k) => k);
         if (keys.length) {
           metadata.calibrationKeys = keys;
+        }
+      }
+
+      // `# Camera Order: EO, UV, IR` names the camera role fed to each inputN of
+      // a 2-cam/3-cam pipe; DIVE matches dataset cameras onto it by name.
+      const cameraOrderMatch = line.match(/^#\s*Camera\s+Order:\s*(.+)/i);
+      if (cameraOrderMatch) {
+        const slots = parseCameraOrderHeader(cameraOrderMatch[1]);
+        if (slots.length) {
+          metadata.cameraOrder = slots;
         }
       }
     });

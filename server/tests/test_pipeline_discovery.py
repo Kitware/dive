@@ -120,6 +120,34 @@ def test_extract_pipe_metadata_calibration_keys(tmp_path: Path):
     assert metadata['description'] == 'rectified disparity'
 
 
+def test_extract_pipe_metadata_camera_order(tmp_path: Path):
+    pipe = tmp_path / 'detector_seal_3-cam.pipe'
+    pipe.write_text(
+        '\n'.join(
+            [
+                '# Description: three camera detector',
+                '# Camera Order: EO, UV, IR',
+                '# Input: IMAGE (per camera)',
+            ]
+        )
+    )
+
+    metadata = extract_pipe_metadata(pipe)
+
+    assert metadata['cameraOrder'] == ['EO', 'UV', 'IR']
+    # The header must not bleed into the multi-line description.
+    assert metadata['description'] == 'three camera detector'
+    assert 'cameraOrder' not in extract_pipe_metadata(
+        _write(tmp_path, 'detector_plain.pipe', ['# Description: none'])
+    )
+
+
+def _write(tmp_path: Path, name: str, lines: list) -> Path:
+    pipe = tmp_path / name
+    pipe.write_text('\n'.join(lines))
+    return pipe
+
+
 def test_extract_pipe_metadata_parses_metadata_file_key(tmp_path: Path):
     pipe = tmp_path / 'detector_stabilize.pipe'
     pipe.write_text(

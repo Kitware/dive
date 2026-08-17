@@ -92,6 +92,11 @@ class PipeMetadata(TypedDict):
     # not the conventional `measurer`/`calibration_reader` declare their own keys
     # here; when unset the two conventional keys are used.
     calibrationKeys: NotRequired[Optional[list[str]]]
+    # Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]),
+    # parsed from `# Camera Order: <cam> [cam...]`. Each slot is matched to a dataset
+    # camera by name at run time; when unset cameras are fed reference-first, then
+    # display order.
+    cameraOrder: NotRequired[Optional[list[str]]]
 
 
 class PipelineDescription(TypedDict):

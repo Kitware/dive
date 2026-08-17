@@ -18,10 +18,7 @@ import {
 import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
 import { invert3, Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import { DatasetConfigMutable } from 'dive-common/apispec';
-import {
-  referenceCameraName as multicamReferenceCameraName,
-  pipelineOrderedCameraNames,
-} from 'dive-common/multicamDisplay';
+import { referenceCameraName as multicamReferenceCameraName } from 'dive-common/multicamDisplay';
 import {
   RegistrationFileNamePattern,
   compareRegistrationCandidates,
@@ -197,24 +194,25 @@ export async function loadEffectiveRegistration(
 
 /**
  * Build the kwiver -s settings that hand a dataset's camera registration to
- * a 2-cam/3-cam pipeline. One standard <camera>_to_<reference>_registration
- * file per non-reference camera is written into the job work dir; each
- * camera's warp process (warp2, warp3, ... matching the pipeline's
- * reference-first camera order) receives its own single-pair file. The pair
+ * a 2-cam/3-cam pipeline. `cameraOrder` is the pipeline's input1..N camera
+ * order (see pipelineCameraNames); camera 1 is the frame the pipe warps
+ * everything onto, so one standard <camera>_to_<camera1>_registration file
+ * per other camera is written into the job work dir and each camera's warp
+ * process (warp2, warp3, ...) receives its own single-pair file. The pair
  * and direction are still pinned through the reader's from_camera/to_camera
  * config, since a pair may be stored in either orientation.
  *
- * Only pairs registering a camera directly onto the reference are
- * supported: pairs between two non-reference cameras are explicitly
- * unsupported here (there is no transform composition) and never reach the
- * pipeline. Cameras without a fitted reference pair get no settings; a
- * pipeline that needs one then fails at configure time with the file name
- * it was missing.
+ * Only pairs registering a camera directly onto camera 1 are supported:
+ * pairs between two other cameras are explicitly unsupported here (there is
+ * no transform composition) and never reach the pipeline. Cameras without a
+ * fitted pair onto camera 1 get no settings; a pipeline that needs one then
+ * fails at configure time with the file name it was missing.
  */
 export async function buildRegistrationPipelineArgs(
   settings: Settings,
   meta: JsonConfig,
   jobWorkDir: string,
+  cameraOrder: string[],
 ): Promise<Record<string, string>> {
   const args: Record<string, string> = {};
   if (!meta.multiCam) {
@@ -222,13 +220,13 @@ export async function buildRegistrationPipelineArgs(
   }
   const projectDirInfo = await getValidatedProjectDir(settings, meta.id);
   const values = await loadEffectiveRegistration(projectDirInfo.basePath, meta);
-  const reference = multicamReferenceCameraName(meta.multiCam);
+  const [reference] = cameraOrder;
   if (!reference) {
     return args;
   }
   const files = buildPerCameraRegistrationFiles(values, reference);
   const writes: Promise<void>[] = [];
-  pipelineOrderedCameraNames(meta.multiCam).forEach((camera, index) => {
+  cameraOrder.forEach((camera, index) => {
     if (index === 0 || camera === reference) {
       return;
     }

@@ -78,6 +78,14 @@ interface PipeMetadata {
    * the two conventional keys are used.
    */
   calibrationKeys?: string[];
+  /**
+   * Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]:
+   * input1 is optical, input2 ultraviolet, input3 thermal), parsed from a
+   * `# Camera Order: <cam> [cam...]` header. At run time each slot is matched to
+   * a dataset camera by name (dive-common/pipelineCameraOrder.ts); when unset,
+   * cameras are fed registration-reference first, then display order.
+   */
+  cameraOrder?: string[];
 }
 
 interface PipelineRuntimeParams {

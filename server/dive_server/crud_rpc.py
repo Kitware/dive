@@ -23,6 +23,7 @@ from dive_tasks.multicam_pipeline import (
     is_stereo_or_multicam_pipeline,
     pipeline_camera_order,
     pipeline_requires_input,
+    resolve_pipeline_camera_order,
 )
 from dive_tasks.utils import choose_annotation_fps
 from dive_utils import (
@@ -335,14 +336,24 @@ def run_pipeline(
         cameras_meta = multi_cam.get('cameras') or {}
         is_warp_pipeline = pipeline['type'] in constants.MultiCamPipelineMarkers
         if is_warp_pipeline and camera_order:
-            # 2-cam/3-cam pipes treat camera 1 as the reference frame the
-            # other cameras register onto; feed them reference-first.
-            reference_camera = (
-                multicam_default_display
-                if multicam_default_display in cameras_meta
-                else camera_order[0]
-            )
-            camera_order = pipeline_camera_order(camera_order, reference_camera)
+            # 2-cam/3-cam pipes warp everything onto camera 1. Which camera
+            # feeds which inputN is the pipe's contract (`# Camera Order:`
+            # header); a pipe without one gets the registration reference
+            # first, then display order.
+            declared_order = (pipeline.get('metadata') or {}).get('cameraOrder')
+            if declared_order:
+                try:
+                    camera_order = resolve_pipeline_camera_order(declared_order, camera_order)
+                except ValueError as err:
+                    raise RestException(str(err), code=400) from err
+            else:
+                reference_camera = (
+                    multicam_default_display
+                    if multicam_default_display in cameras_meta
+                    else camera_order[0]
+                )
+                camera_order = pipeline_camera_order(camera_order, reference_camera)
+            reference_camera = camera_order[0]
         for name in camera_order:
             cam_info = cameras_meta[name]
             folder_id = cam_info.get('folderId')

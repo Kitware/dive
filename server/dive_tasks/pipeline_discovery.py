@@ -205,7 +205,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
                             r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
-                            r'|Image\s+List\s+Keys?|Calibration\s+Keys?):',
+                            r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
                             line_raw,
                             re.IGNORECASE,
                         )
@@ -276,6 +276,19 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     ]
                     if keys:
                         metadata["calibrationKeys"] = keys
+
+                # `# Camera Order: EO, UV, IR` names the camera role fed to each
+                # inputN of a 2-cam/3-cam pipe; DIVE matches dataset cameras onto
+                # it by name at run time (multicam_pipeline.resolve_pipeline_camera_order).
+                camera_order_match = re.match(
+                    r'^#\s*Camera\s+Order:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if camera_order_match:
+                    slots = [
+                        s for s in re.split(r'[\s,]+', camera_order_match.group(1).strip()) if s
+                    ]
+                    if slots:
+                        metadata["cameraOrder"] = slots
 
         if full_description_parts:
             metadata["description"] = " ".join(full_description_parts)

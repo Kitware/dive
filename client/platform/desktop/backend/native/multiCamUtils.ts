@@ -10,7 +10,6 @@ import { JsonConfig, Settings } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
-import { pipelineOrderedCameraNames } from 'dive-common/multicamDisplay';
 
 /**
  * Figure out the destination location
@@ -80,17 +79,17 @@ async function writeMultiCamStereoPipelineArgs(
   settings: Settings,
   utility = false,
   forceTranscoded = false,
-  // 2-cam/3-cam pipes treat camera 1 as the reference frame the other
-  // cameras register onto, so their inputs go reference-first; stereo
-  // measurement keeps the stored left/right order.
-  referenceFirst = false,
+  // Explicit input1..N camera order for 2-cam/3-cam pipes (see
+  // pipelineCameraNames); stereo measurement keeps the stored left/right
+  // order when omitted.
+  cameraOrder: string[] | undefined = undefined,
 ) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
     const { cameras } = meta.multiCam;
-    const cameraNames = referenceFirst
-      ? pipelineOrderedCameraNames(meta.multiCam).filter((name) => name in cameras)
+    const cameraNames = cameraOrder
+      ? cameraOrder.filter((name) => name in cameras)
       : Object.keys(cameras);
     const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
     for (let i = 0; i < cameraList.length; i += 1) {

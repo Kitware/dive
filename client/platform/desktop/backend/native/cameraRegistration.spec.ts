@@ -6,6 +6,7 @@ import {
 } from 'vitest';
 
 import { Settings, JsonConfig } from 'platform/desktop/constants';
+import { pipelineOrderedCameraNames } from 'dive-common/multicamDisplay';
 import { buildRegistrationPipelineArgs } from './cameraRegistration';
 
 // mock-fs no longer intercepts fs-extra's exists checks on newer Node;
@@ -128,7 +129,7 @@ describe('buildRegistrationPipelineArgs', () => {
     const meta = multiCamMeta('withreg', ['ir', 'rgb', 'uv'], 'rgb');
     const jobWorkDir = '/home/user/job/full';
     await fs.ensureDir(jobWorkDir);
-    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir);
+    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, pipelineOrderedCameraNames(meta.multiCam));
 
     const irPath = npath.join(jobWorkDir, 'ir_to_rgb_registration.json');
     const uvPath = npath.join(jobWorkDir, 'uv_to_rgb_registration.json');
@@ -155,7 +156,7 @@ describe('buildRegistrationPipelineArgs', () => {
     const meta = multiCamMeta('partial', ['rgb', 'ir', 'uv'], 'rgb');
     const jobWorkDir = '/home/user/job/partial';
     await fs.ensureDir(jobWorkDir);
-    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir);
+    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, pipelineOrderedCameraNames(meta.multiCam));
     // Pipeline order is rgb, uv, ir: uv (warp2) has only the unsupported
     // uv-to-ir pair, so it gets nothing; ir (warp3) has a reference pair.
     expect(Object.keys(args).some((key) => key.startsWith('warp2'))).toBe(false);
@@ -169,11 +170,26 @@ describe('buildRegistrationPipelineArgs', () => {
     expect(await fs.readdir(jobWorkDir)).toStrictEqual(['ir_to_rgb_registration.json']);
   });
 
+  it('follows an explicit pipeline camera order, camera 1 being the warp target', async () => {
+    // Pipe declares EO, UV, IR; dataset display order is ir, rgb, uv. The
+    // resolved order is rgb, uv, ir so uv is warp2 and ir is warp3, and the
+    // files register onto rgb (camera 1) regardless of the reference camera.
+    const meta = multiCamMeta('withreg', ['ir', 'rgb', 'uv'], 'ir');
+    const jobWorkDir = '/home/user/job/declared';
+    await fs.ensureDir(jobWorkDir);
+    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, ['rgb', 'uv', 'ir']);
+    expect(args['warp2:transform_reader:dive:from_camera']).toBe('uv');
+    expect(args['warp2:transform_reader:dive:to_camera']).toBe('rgb');
+    expect(args['warp3:transform_reader:dive:from_camera']).toBe('ir');
+    expect(args['warp3:transform_reader:dive:to_camera']).toBe('rgb');
+    expect(await fs.readdir(jobWorkDir)).toStrictEqual(['ir_to_rgb_registration.json', 'uv_to_rgb_registration.json']);
+  });
+
   it('returns no args when the dataset has no registration', async () => {
     const meta = multiCamMeta('noreg', ['rgb', 'ir'], 'rgb');
     const jobWorkDir = '/home/user/job/noreg';
     await fs.ensureDir(jobWorkDir);
-    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir);
+    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, pipelineOrderedCameraNames(meta.multiCam));
     expect(args).toStrictEqual({});
     expect(await fs.readdir(jobWorkDir)).toStrictEqual([]);
   });
@@ -185,7 +201,7 @@ describe('buildRegistrationPipelineArgs', () => {
     };
     const jobWorkDir = '/home/user/job/seeded';
     await fs.ensureDir(jobWorkDir);
-    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir);
+    const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, pipelineOrderedCameraNames(meta.multiCam));
     expect(args['warp2:transform_reader:dive:from_camera']).toBe('ir');
     expect(args['warp2:transform_reader:dive:to_camera']).toBe('rgb');
   });

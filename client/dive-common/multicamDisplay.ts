@@ -1,5 +1,6 @@
 import type { SubType } from 'dive-common/apispec';
 import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import { resolvePipelineCameraOrder } from 'dive-common/pipelineCameraOrder';
 
 export type MultiCamSubType = 'stereo' | 'multicam';
 
@@ -68,6 +69,28 @@ export function pipelineOrderedCameraNames(multiCamMedia: MultiCamMediaLike | nu
   const ordered = orderedMultiCamCameraNames(multiCamMedia);
   const reference = referenceCameraName(multiCamMedia);
   return reference ? [reference, ...ordered.filter((name) => name !== reference)] : ordered;
+}
+
+/**
+ * The cameras to feed input1..N of a 2-cam/3-cam pipeline. A pipe that
+ * declares its slots (`# Camera Order:` header, parsed into
+ * metadata.cameraOrder) gets each slot matched to a dataset camera by name and
+ * throws when that is not unambiguous; a pipe without one gets
+ * {@link pipelineOrderedCameraNames}. Camera 1 is the frame the others'
+ * registrations must map onto.
+ */
+export function pipelineCameraNames(
+  multiCamMedia: MultiCamMediaLike | null | undefined,
+  declaredOrder?: string[] | null,
+): string[] {
+  if (declaredOrder?.length) {
+    const result = resolvePipelineCameraOrder(declaredOrder, orderedMultiCamCameraNames(multiCamMedia));
+    if (result.error !== undefined) {
+      throw new Error(result.error);
+    }
+    return result.order;
+  }
+  return pipelineOrderedCameraNames(multiCamMedia);
 }
 
 export function isMultiCamSubType(subType: SubType | string | null | undefined): subType is MultiCamSubType {
