@@ -14,7 +14,7 @@
  * when both sides have one, else by name -- and confirms or corrects it; the
  * confirmed order is what the job runs with.
  *
- * Kept in sync with server/dive_tasks/multicam_pipeline.py.
+ * Role inference is mirrored in server/dive_tasks/multicam_pipeline.py.
  */
 
 /** The sensor modalities DIVE knows how to match. */
@@ -85,64 +85,14 @@ export function inferCameraRoles(
   return roles;
 }
 
-/** Cameras whose name matches a slot token, by literal segment or shared role. */
-export function camerasMatchingSlot(token: string, cameras: string[]): string[] {
-  const lower = token.toLowerCase();
-  const exact = cameras.filter((camera) => camera.toLowerCase() === lower);
-  if (exact.length) {
-    return exact;
-  }
-  const role = roleOfToken(token);
-  const aliases = new Set<string>(role ? CAMERA_ROLE_ALIASES[role] : [lower]);
-  return cameras.filter((camera) => segments(camera).some((seg) => aliases.has(seg)));
-}
-
-export type PipelineCameraOrderResult =
-  | { order: string[]; error?: undefined }
-  | { order?: undefined; error: string };
-
 /**
- * Resolve declared slots to dataset cameras without user interaction (CLI,
- * and the fallback when no confirmed order was supplied). Every slot must
- * match exactly one camera and no camera may fill two slots; anything else
- * is an error message naming the slot, the pipe's slots and the dataset's
- * cameras.
+ * Cameras that could fill a slot. A camera whose assigned role equals the
+ * slot's role wins over name matching, so a corrected role beats a
+ * misleading name; otherwise the slot token must equal the camera name, or
+ * share a role (or, for non-role tokens like `left`, appear literally) with
+ * one of the name's segments.
  */
-export function resolvePipelineCameraOrder(
-  slots: string[],
-  cameras: string[],
-  roles: Record<string, CameraRole> = {},
-): PipelineCameraOrderResult {
-  const context = `pipeline cameras [${slots.join(', ')}], dataset cameras [${cameras.join(', ')}]`;
-  if (slots.length !== cameras.length) {
-    return {
-      error: `Pipeline expects ${slots.length} cameras but the dataset has ${cameras.length}: ${context}`,
-    };
-  }
-  const order: string[] = [];
-  for (let i = 0; i < slots.length; i += 1) {
-    const slot = slots[i];
-    const matches = candidatesForSlot(slot, cameras, roles).filter((c) => !order.includes(c));
-    if (matches.length !== 1) {
-      const why = matches.length === 0
-        ? 'no dataset camera matches'
-        : `several dataset cameras match (${matches.join(', ')})`;
-      return {
-        error: `Cannot place pipeline camera "${slot}" (input${i + 1}): ${why}. ${context}. `
-          + 'Set the camera roles (or rename the cameras) so each pipeline camera matches exactly one.',
-      };
-    }
-    order.push(matches[0]);
-  }
-  return { order };
-}
-
-/**
- * Cameras that could fill a slot: cameras whose assigned role equals the
- * slot's role take precedence over name matching, so a corrected role wins
- * over a misleading name.
- */
-export function candidatesForSlot(
+export function camerasForSlot(
   slot: string,
   cameras: string[],
   roles: Record<string, CameraRole> = {},
@@ -154,13 +104,18 @@ export function candidatesForSlot(
       return byRole;
     }
   }
-  return camerasMatchingSlot(slot, cameras);
+  const lower = slot.toLowerCase();
+  const exact = cameras.filter((camera) => camera.toLowerCase() === lower);
+  if (exact.length) {
+    return exact;
+  }
+  const aliases = new Set<string>(role ? CAMERA_ROLE_ALIASES[role] : [lower]);
+  return cameras.filter((camera) => segments(camera).some((seg) => aliases.has(seg)));
 }
 
 /**
- * Propose a camera for every slot for the confirmation step. Unlike
- * {@link resolvePipelineCameraOrder} this never fails: a slot with no unique
- * candidate is proposed as null and left for the user to fill.
+ * Propose a camera for every slot for the confirmation step. Never fails: a
+ * slot with no unique candidate is proposed as null and left for the user.
  */
 export function prefillPipelineCameraOrder(
   slots: string[],
@@ -172,7 +127,7 @@ export function prefillPipelineCameraOrder(
   // Unique matches first, so an ambiguous slot cannot steal a camera another
   // slot needs unambiguously.
   slots.forEach((slot, index) => {
-    const matches = candidatesForSlot(slot, cameras, roles).filter((c) => !taken.has(c));
+    const matches = camerasForSlot(slot, cameras, roles).filter((c) => !taken.has(c));
     if (matches.length === 1) {
       [proposed[index]] = matches;
       taken.add(matches[0]);

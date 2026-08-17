@@ -84,9 +84,9 @@ interface PipeMetadata {
   /**
    * Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]:
    * input1 is optical, input2 ultraviolet, input3 thermal), parsed from a
-   * `# Camera Order: <cam> [cam...]` header. At run time each slot is matched to
-   * a dataset camera by name (dive-common/pipelineCameraOrder.ts); when unset,
-   * cameras are fed registration-reference first, then display order.
+   * `# Camera Order: <cam> [cam...]` header. Labels the slots of the pre-run
+   * camera-assignment step and drives its prefill (dive-common/pipelineCameraOrder.ts);
+   * pipes without it show bare input1..N slots.
    */
   cameraOrder?: string[];
   /**
@@ -108,9 +108,8 @@ interface PipelineParams {
   runtimeParams?: PipelineRuntimeParams;
   /**
    * 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
-   * confirmed by the user before the run. When omitted the backend places
-   * cameras from the pipe's `# Camera Order:` header (or, without one,
-   * registration reference first then display order).
+   * confirmed by the user before the run. When omitted (API callers) the
+   * dataset's stored camera order is used.
    */
   cameraOrder?: string[];
   /** Filter / transcode / disparity pipelines: name for the newly created dataset. */

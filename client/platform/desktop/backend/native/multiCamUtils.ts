@@ -79,9 +79,8 @@ async function writeMultiCamStereoPipelineArgs(
   settings: Settings,
   utility = false,
   forceTranscoded = false,
-  // Explicit input1..N camera order for 2-cam/3-cam pipes (see
-  // pipelineCameraNames); stereo measurement keeps the stored left/right
-  // order when omitted.
+  // Explicit input1..N camera order for 2-cam/3-cam pipes; stereo
+  // measurement keeps the stored left/right order when omitted.
   cameraOrder: string[] | undefined = undefined,
 ) {
   const argFilePair: Record<string, string> = {};

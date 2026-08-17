@@ -19,6 +19,7 @@ import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView
 import { invert3, Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import { DatasetConfigMutable } from 'dive-common/apispec';
 import { referenceCameraName as multicamReferenceCameraName } from 'dive-common/multicamDisplay';
+import { describeMissingRegistration } from 'dive-common/pipelineCameraOrder';
 import {
   RegistrationFileNamePattern,
   compareRegistrationCandidates,
@@ -194,67 +195,52 @@ export async function loadEffectiveRegistration(
 
 /**
  * Build the kwiver -s settings that hand a dataset's camera registration to
- * a 2-cam/3-cam pipeline. `cameraOrder` is the pipeline's input1..N camera
- * order (see pipelineCameraNames); camera 1 is the frame the pipe warps
- * everything onto, so one standard <camera>_to_<camera1>_registration file
- * per other camera is written into the job work dir and each camera's warp
- * process (warp2, warp3, ...) receives its own single-pair file. The pair
- * and direction are still pinned through the reader's from_camera/to_camera
- * config, since a pair may be stored in either orientation.
- *
- * Only pairs registering a camera directly onto camera 1 are supported:
- * pairs between two other cameras are explicitly unsupported here (there is
- * no transform composition) and never reach the pipeline. Cameras without a
- * fitted pair onto camera 1 get no settings; a pipeline that needs one then
- * fails at configure time with the file name it was missing.
+ * a 2-cam/3-cam pipeline. `cameraOrder` is the pipeline's input1..N cameras;
+ * camera 1 is the frame the pipe warps everything onto, so each other camera
+ * with a fitted pair onto camera 1 gets a single-pair
+ * <camera>_to_<camera1>_registration.json in the job work dir bound to its
+ * warpN, with the direction pinned through the reader's from/to config since
+ * a pair may be stored in either orientation. Pairs between two other
+ * cameras are unsupported (no transform composition) and never reach the
+ * job. A warped input (`registrationWarps`) whose camera has no fitted pair
+ * onto camera 1 is an error before the run, not a missing file at pipe
+ * configure time.
  */
 export async function buildRegistrationPipelineArgs(
   settings: Settings,
   meta: JsonConfig,
   jobWorkDir: string,
   cameraOrder: string[],
+  registrationWarps: number[] = [],
+  pipelineName = '',
 ): Promise<Record<string, string>> {
   const args: Record<string, string> = {};
-  if (!meta.multiCam) {
+  const [reference] = cameraOrder;
+  if (!meta.multiCam || !reference) {
     return args;
   }
   const projectDirInfo = await getValidatedProjectDir(settings, meta.id);
   const values = await loadEffectiveRegistration(projectDirInfo.basePath, meta);
-  const [reference] = cameraOrder;
-  if (!reference) {
-    return args;
-  }
   const files = buildPerCameraRegistrationFiles(values, reference);
   const writes: Promise<void>[] = [];
-  cameraOrder.forEach((camera, index) => {
-    if (index === 0 || camera === reference) {
-      return;
-    }
-    // Points-only pairs have no matrix the warp could apply.
-    const fitted = values.homographies[`${camera}::${reference}`]
-      || values.homographies[`${reference}::${camera}`];
-    if (!fitted) {
-      return;
-    }
+  cameraOrder.slice(1).forEach((camera, offset) => {
+    const input = offset + 2;
     const file = files.find((candidate) => candidate.camera === camera);
-    if (!file) {
-      return;
-    }
-    // Unsupported non-reference pairs are dropped from the file body too, so
-    // the job dir only ever holds camera-to-reference registrations.
-    const referencePairs = file.body.pairs.filter(
-      (pair) => pair.left === reference || pair.right === reference,
-    );
-    if (!referencePairs.length) {
+    const pair = file?.body.pairs.find((candidate) => (
+      (candidate.left === reference || candidate.right === reference)
+      && (candidate.leftToRight || candidate.rightToLeft)));
+    if (!file || !pair) {
+      if (registrationWarps.includes(input)) {
+        throw new Error(describeMissingRegistration({ input, camera, target: reference }, pipelineName));
+      }
       return;
     }
     const registrationPath = npath.join(jobWorkDir, registrationFileName(camera, reference));
-    writes.push(writeJsonFile(registrationPath, { ...file.body, pairs: referencePairs }));
-    const warp = `warp${index + 1}`;
-    args[`${warp}:transformation_file`] = registrationPath;
-    args[`${warp}:transform_reader:type`] = 'dive';
-    args[`${warp}:transform_reader:dive:from_camera`] = camera;
-    args[`${warp}:transform_reader:dive:to_camera`] = reference;
+    writes.push(writeJsonFile(registrationPath, { ...file.body, pairs: [pair] }));
+    args[`warp${input}:transformation_file`] = registrationPath;
+    args[`warp${input}:transform_reader:type`] = 'dive';
+    args[`warp${input}:transform_reader:dive:from_camera`] = camera;
+    args[`warp${input}:transform_reader:dive:to_camera`] = reference;
   });
   await Promise.all(writes);
   return args;

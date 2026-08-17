@@ -1,6 +1,5 @@
 import type { SubType } from 'dive-common/apispec';
 import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
-import { CameraRole, resolvePipelineCameraOrder } from 'dive-common/pipelineCameraOrder';
 
 export type MultiCamSubType = 'stereo' | 'multicam';
 
@@ -56,42 +55,6 @@ export function referenceCameraName(multiCamMedia: MultiCamMediaLike | null | un
   }
   const defaultDisplay = multiCamMedia?.defaultDisplay;
   return defaultDisplay && ordered.includes(defaultDisplay) ? defaultDisplay : ordered[0];
-}
-
-/**
- * Camera order for 2-cam/3-cam VIAME pipelines: the registration reference
- * camera feeds input1 (the per-camera registrations all map onto the
- * reference, and the pipes warp everything onto camera 1's frame), remaining
- * cameras keep display order. Which detector a pipe runs on which input is
- * the pipe's documented contract, not something DIVE infers.
- */
-export function pipelineOrderedCameraNames(multiCamMedia: MultiCamMediaLike | null | undefined): string[] {
-  const ordered = orderedMultiCamCameraNames(multiCamMedia);
-  const reference = referenceCameraName(multiCamMedia);
-  return reference ? [reference, ...ordered.filter((name) => name !== reference)] : ordered;
-}
-
-/**
- * The cameras to feed input1..N of a 2-cam/3-cam pipeline. A pipe that
- * declares its slots (`# Camera Order:` header, parsed into
- * metadata.cameraOrder) gets each slot matched to a dataset camera by name and
- * throws when that is not unambiguous; a pipe without one gets
- * {@link pipelineOrderedCameraNames}. Camera 1 is the frame the others'
- * registrations must map onto.
- */
-export function pipelineCameraNames(
-  multiCamMedia: MultiCamMediaLike | null | undefined,
-  declaredOrder?: string[] | null,
-  roles: Record<string, CameraRole> = {},
-): string[] {
-  if (declaredOrder?.length) {
-    const result = resolvePipelineCameraOrder(declaredOrder, orderedMultiCamCameraNames(multiCamMedia), roles);
-    if (result.error !== undefined) {
-      throw new Error(result.error);
-    }
-    return result.order;
-  }
-  return pipelineOrderedCameraNames(multiCamMedia);
 }
 
 export function isMultiCamSubType(subType: SubType | string | null | undefined): subType is MultiCamSubType {

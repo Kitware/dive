@@ -93,9 +93,8 @@ class PipeMetadata(TypedDict):
     # here; when unset the two conventional keys are used.
     calibrationKeys: NotRequired[Optional[list[str]]]
     # Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]),
-    # parsed from `# Camera Order: <cam> [cam...]`. Each slot is matched to a dataset
-    # camera by name at run time; when unset cameras are fed reference-first, then
-    # display order.
+    # parsed from `# Camera Order: <cam> [cam...]`. Labels the slots of the client's
+    # pre-run camera-assignment step; pipes without it show bare input1..N slots.
     cameraOrder: NotRequired[Optional[list[str]]]
     # Input positions the pipe warps onto camera 1 (`process warpN :: warp_detections |
     # warp_image`), e.g. [2, 3]; each such camera needs a fitted registration onto
@@ -124,8 +123,8 @@ class PipelineParams(TypedDict, total=False):
     kwiverParams: Dict[str, str]
     runtimeParams: PipelineRuntimeParams
     # 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
-    # confirmed by the user before the run. When omitted the pipe's declared
-    # `# Camera Order:` slots are matched by role/name, else reference-first.
+    # confirmed by the user before the run. When omitted (API callers) the
+    # dataset's stored camera order is used.
     cameraOrder: List[str]
     # Name for the newly created dataset (filter / transcode / disparity).
     outputDatasetName: str
