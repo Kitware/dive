@@ -119,6 +119,10 @@ class PipelineRuntimeParams(TypedDict, total=False):
 class PipelineParams(TypedDict, total=False):
     kwiverParams: Dict[str, str]
     runtimeParams: PipelineRuntimeParams
+    # 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
+    # confirmed by the user before the run. When omitted the pipe's declared
+    # `# Camera Order:` slots are matched by role/name, else reference-first.
+    cameraOrder: List[str]
     # Name for the newly created dataset (filter / transcode / disparity).
     outputDatasetName: str
     # Optional Girder folder that should own the new dataset (else sibling of input).

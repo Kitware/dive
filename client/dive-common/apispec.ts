@@ -11,6 +11,7 @@ import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements'
 import type {
   CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
+import type { CameraRole } from 'dive-common/pipelineCameraOrder';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
@@ -97,6 +98,13 @@ interface PipelineRuntimeParams {
 interface PipelineParams {
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
+  /**
+   * 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
+   * confirmed by the user before the run. When omitted the backend places
+   * cameras from the pipe's `# Camera Order:` header (or, without one,
+   * registration reference first then display order).
+   */
+  cameraOrder?: string[];
   /** Filter / transcode / disparity pipelines: name for the newly created dataset. */
   outputDatasetName?: string;
   /**
@@ -280,9 +288,16 @@ interface DatasetConfigMutable {
   cameraTransformTypes?: CameraTransformTypes;
   /** Producer provenance of the camera registration (see RegistrationSource). */
   cameraRegistrationSource?: RegistrationSource | null;
+  /**
+   * Sensor role per multicam camera name (eo / ir / uv), inferred at import
+   * from the camera and image names and editable afterwards; used to place
+   * cameras onto a pipeline's declared camera slots. Cameras with no known
+   * role are absent.
+   */
+  cameraRoles?: Record<string, CameraRole>;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
