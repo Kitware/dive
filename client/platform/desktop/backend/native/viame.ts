@@ -15,7 +15,6 @@ import { observeChild } from 'platform/desktop/backend/native/processManager';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import sendToRenderer from 'platform/desktop/background';
 
-import type { Pipe } from 'dive-common/apispec';
 import {
   MultiType,
   stereoPipelineMarker,
@@ -28,8 +27,6 @@ import {
   isTranscodePipeline,
   pipelineCreatesNewDataset,
 } from 'dive-common/pipelineCreatesDataset';
-import { pipelineCameraNames } from 'dive-common/multicamDisplay';
-import { describeMissingRegistration, missingRegistrations } from 'dive-common/pipelineCameraOrder';
 import * as common from './common';
 import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
@@ -167,21 +164,19 @@ async function importNewMedia(
  * a node.js implementation of dive_tasks.tasks.run_pipeline
  */
 /**
- * The input1..N camera order for a 2-cam/3-cam run: the confirmed order when
- * one was supplied (validated against the dataset's cameras), else resolved
- * from the pipe's declared slots and the dataset's camera roles/names.
+ * The input1..N camera order for a 2-cam/3-cam run: the order the user
+ * confirmed in the camera-assignment step (validated against the dataset's
+ * cameras), else the dataset's camera order as stored.
  */
-function resolveMultiCamOrder(meta: JsonConfig, pipeline: Pipe, confirmed?: string[]): string[] {
+function multiCamOrderFor(meta: JsonConfig, confirmed?: string[]): string[] {
   const cameras = Object.keys(meta.multiCam?.cameras ?? {});
-  if (confirmed?.length) {
-    const unknown = confirmed.filter((name) => !cameras.includes(name));
-    const missing = cameras.filter((name) => !confirmed.includes(name));
-    if (unknown.length || missing.length || new Set(confirmed).size !== confirmed.length) {
-      throw new Error(`Camera assignment [${confirmed.join(', ')}] does not match the dataset cameras [${cameras.join(', ')}]`);
-    }
-    return confirmed;
+  if (!confirmed?.length) {
+    return cameras;
   }
-  return pipelineCameraNames(meta.multiCam, pipeline.metadata?.cameraOrder, meta.cameraRoles ?? {});
+  if ([...confirmed].sort().join('\n') !== [...cameras].sort().join('\n')) {
+    throw new Error(`Camera assignment [${confirmed.join(', ')}] does not match the dataset cameras [${cameras.join(', ')}]`);
+  }
+  return confirmed;
 }
 
 async function runPipeline(
@@ -390,10 +385,9 @@ async function runPipeline(
   if (meta.multiCam && stereoOrMultiCam) {
     const isMultiCamPipeline = multiCamPipelineMarkers.includes(pipeline.type);
     // 2-cam/3-cam pipes: which camera feeds which inputN is the order the
-    // user confirmed before the run; without one (CLI), the pipe's
-    // `# Camera Order:` header matched by role/name, else reference-first.
+    // user confirmed before the run.
     const multiCamOrder = isMultiCamPipeline
-      ? resolveMultiCamOrder(meta, pipeline, runPipelineArgs.pipelineParams?.cameraOrder)
+      ? multiCamOrderFor(meta, runPipelineArgs.pipelineParams?.cameraOrder)
       : undefined;
     const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, multiCamOrder);
     Object.entries(argFilePair).forEach(([arg, file]) => {
@@ -424,21 +418,17 @@ async function runPipeline(
       });
     }
     if (multiCamOrder) {
-      // Hand the camera registration (Camera Registration homographies) to the
-      // pipeline's per-camera warp processes. Refuse up front when a warped
-      // camera has no registration onto camera 1, rather than letting the
-      // pipe die at configure time on a missing file.
-      const registrationArgs = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, multiCamOrder);
-      // buildRegistrationPipelineArgs only binds warps whose camera has a
-      // fitted pair onto camera 1, so the bound warps are the fitted set.
-      const fittedPairs = Object.keys(registrationArgs)
-        .map((key) => key.match(/^warp(\d+):transformation_file$/))
-        .filter((match): match is RegExpMatchArray => match !== null)
-        .map((match) => `${multiCamOrder[Number.parseInt(match[1], 10) - 1]}::${multiCamOrder[0]}`);
-      const missing = missingRegistrations(multiCamOrder, pipeline.metadata?.registrationWarps, fittedPairs);
-      if (missing.length) {
-        throw new Error(missing.map((entry) => describeMissingRegistration(entry, pipeline.name)).join('\n'));
-      }
+      // Hand the camera registration to the pipeline's warp processes; a
+      // warped camera with no registration onto camera 1 fails here, before
+      // the job exists.
+      const registrationArgs = await buildRegistrationPipelineArgs(
+        settings,
+        meta,
+        jobWorkDir,
+        multiCamOrder,
+        pipeline.metadata?.registrationWarps,
+        pipeline.name,
+      );
       Object.entries(registrationArgs).forEach(([arg, value]) => {
         command.push(`-s ${arg}="${value}"`);
       });

@@ -1,24 +1,19 @@
 import json
 from pathlib import Path
 
-import pytest
-
 from dive_tasks.multicam_pipeline import (
     DEFAULT_CALIBRATION_KEYS,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     build_registration_kwiver_settings,
     build_registration_pairs,
-    cameras_matching_slot,
     find_downloaded_calibration_file,
     infer_camera_role,
     infer_camera_roles,
     is_stereo_measurement_pipeline,
     is_stereo_or_multicam_pipeline,
     missing_registrations,
-    pipeline_camera_order,
     pipeline_requires_input,
-    resolve_pipeline_camera_order,
     stereo_calibration_keys,
 )
 from dive_utils import constants
@@ -131,45 +126,13 @@ def test_build_multicam_kwiver_settings_image_sequence(tmp_path: Path):
     )
 
 
-def test_pipeline_camera_order():
-    # Reference first, remaining display order preserved.
-    assert pipeline_camera_order(['ir', 'rgb', 'uv'], 'rgb') == ['rgb', 'ir', 'uv']
-    assert pipeline_camera_order(['rgb', 'uv', 'ir'], 'rgb') == ['rgb', 'uv', 'ir']
-    assert pipeline_camera_order(['CENT_IR', 'CENT_EO'], 'CENT_EO') == ['CENT_EO', 'CENT_IR']
-    # Unknown reference leaves the order alone.
-    assert pipeline_camera_order(['a', 'b'], 'missing') == ['a', 'b']
-
-
-def test_cameras_matching_slot():
-    cameras = ['rgb', 'CENT_IR', 'uv_cam']
-    assert cameras_matching_slot('EO', cameras) == ['rgb']
-    assert cameras_matching_slot('IR', cameras) == ['CENT_IR']
-    assert cameras_matching_slot('ultraviolet', cameras) == ['uv_cam']
-    assert cameras_matching_slot('rgb', cameras) == ['rgb']
-    # Exact name wins over role matching elsewhere; literal segments for non-role tokens.
-    assert cameras_matching_slot('ir', ['ir', 'thermal']) == ['ir']
-    assert cameras_matching_slot('left', ['left_cam', 'right_cam']) == ['left_cam']
-
-
 def test_infer_camera_role():
     assert infer_camera_role('rgb') == 'eo'
     assert infer_camera_role('CENT_IR') == 'ir'
     assert infer_camera_role('uv_cam') == 'uv'
-    assert infer_camera_role('cam1', ['flight_0001_rgb.jpg', 'flight_0002_rgb.jpg']) == 'eo'
-    assert infer_camera_role('cam1', ['a_rgb.jpg', 'b_ir.tif']) is None
     assert infer_camera_role('eo_ir') is None
-    assert infer_camera_role('center', ['0001.png']) is None
-    assert infer_camera_roles({'rgb': [], 'center': ['x_ir.tif'], 'other': ['a.png']}) == {
-        'rgb': 'eo',
-        'center': 'ir',
-    }
-
-
-def test_resolve_pipeline_camera_order_roles_win_over_names():
-    # "thermal" is named like IR but the user marked it optical.
-    assert resolve_pipeline_camera_order(
-        ['EO', 'IR'], ['thermal', 'other'], {'thermal': 'eo', 'other': 'ir'}
-    ) == ['thermal', 'other']
+    assert infer_camera_role('center') is None
+    assert infer_camera_roles(['rgb', 'CENT_IR', 'center']) == {'rgb': 'eo', 'CENT_IR': 'ir'}
 
 
 def test_missing_registrations():
@@ -182,24 +145,6 @@ def test_missing_registrations():
     assert missing_registrations([], [2], []) == []
     # Out-of-range warp positions are ignored rather than crashing.
     assert missing_registrations(['rgb', 'ir'], [3], []) == []
-
-
-def test_resolve_pipeline_camera_order():
-    assert resolve_pipeline_camera_order(['EO', 'UV', 'IR'], ['rgb', 'ir', 'uv']) == [
-        'rgb',
-        'uv',
-        'ir',
-    ]
-    assert resolve_pipeline_camera_order(['EO', 'IR'], ['CENT_IR', 'CENT_EO']) == [
-        'CENT_EO',
-        'CENT_IR',
-    ]
-    with pytest.raises(ValueError, match='expects 2 cameras but the dataset has 3'):
-        resolve_pipeline_camera_order(['EO', 'IR'], ['rgb', 'ir', 'uv'])
-    with pytest.raises(ValueError, match=r'"UV" \(input2\): no dataset camera matches'):
-        resolve_pipeline_camera_order(['EO', 'UV', 'IR'], ['rgb', 'ir', 'cam3'])
-    with pytest.raises(ValueError, match=r'"EO" \(input1\): several dataset cameras match'):
-        resolve_pipeline_camera_order(['EO', 'IR'], ['rgb', 'color'])
 
 
 IR_TO_RGB = [[1, 0, 5], [0, 1, -3], [0, 0, 1]]

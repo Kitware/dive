@@ -90,9 +90,7 @@ def append_metadata_file_kwiver_settings(
     command.append(f'-s {shlex.quote(kwiver_key)}={shlex.quote(str(metadata_path))}')
 
 
-# Role aliases: a slot token and a camera name match when they share a role, or
-# when the token itself appears as a segment of the camera name (so pipes can
-# name cameras literally, e.g. `# Camera Order: left, right`). Kept in sync with
+# Sensor-role aliases for camera names; mirrors CAMERA_ROLE_ALIASES in
 # client/dive-common/pipelineCameraOrder.ts.
 CAMERA_ROLE_ALIASES: Dict[str, Tuple[str, ...]] = {
     'eo': ('eo', 'rgb', 'optical', 'color', 'colour', 'vis', 'visible'),
@@ -101,120 +99,22 @@ CAMERA_ROLE_ALIASES: Dict[str, Tuple[str, ...]] = {
 }
 
 
-def _name_segments(name: str) -> List[str]:
-    return [seg for seg in re.split(r'[^a-z0-9]+', name.lower()) if seg]
-
-
-def role_of_token(token: str) -> Optional[str]:
-    """The role (eo / ir / uv) a slot token or camera-name segment denotes, if any."""
-    lower = token.lower()
-    return next((role for role, aliases in CAMERA_ROLE_ALIASES.items() if lower in aliases), None)
-
-
-def infer_camera_role(camera_name: str, image_names: Optional[List[str]] = None) -> Optional[str]:
+def infer_camera_role(camera_name: str) -> Optional[str]:
     """
-    Infer a camera's sensor role from its name, falling back to tokens in its
-    image file names (KAMERA style `..._rgb.jpg` / `_ir.tif` / `_uv.jpg`).
-    Only a unanimous answer counts: a name or file set naming two roles yields
-    None. Kept in sync with client/dive-common/pipelineCameraOrder.ts.
+    The sensor role (eo / ir / uv) a camera name denotes, or None when it names
+    none or more than one. Set once at multicam import; the pipeline
+    camera-assignment step prefills from it and lets the user correct it.
     """
-    from_name = {r for r in (role_of_token(seg) for seg in _name_segments(camera_name)) if r}
-    if len(from_name) == 1:
-        return next(iter(from_name))
-    if len(from_name) > 1:
-        return None
-    from_images = set()
-    for image in (image_names or [])[:50]:
-        base = re.split(r'[\\/]', image)[-1]
-        stem = re.sub(r'\.[^.]+$', '', base)
-        from_images.update(r for r in (role_of_token(seg) for seg in _name_segments(stem)) if r)
-    return next(iter(from_images)) if len(from_images) == 1 else None
+    segments = [seg for seg in re.split(r'[^a-z0-9]+', camera_name.lower()) if seg]
+    roles = {
+        role for role, aliases in CAMERA_ROLE_ALIASES.items() if any(s in aliases for s in segments)
+    }
+    return next(iter(roles)) if len(roles) == 1 else None
 
 
-def infer_camera_roles(cameras: Dict[str, Optional[List[str]]]) -> Dict[str, str]:
-    """Infer roles for a whole rig; cameras that cannot be classified are omitted."""
-    roles: Dict[str, str] = {}
-    for name, images in cameras.items():
-        role = infer_camera_role(name, images or [])
-        if role:
-            roles[name] = role
-    return roles
-
-
-def candidates_for_slot(
-    slot: str, cameras: List[str], roles: Optional[Dict[str, str]] = None
-) -> List[str]:
-    """
-    Cameras that could fill a slot: cameras whose assigned role equals the
-    slot's role take precedence over name matching, so a corrected role wins
-    over a misleading name.
-    """
-    role = role_of_token(slot)
-    if role and roles:
-        by_role = [camera for camera in cameras if roles.get(camera) == role]
-        if by_role:
-            return by_role
-    return cameras_matching_slot(slot, cameras)
-
-
-def cameras_matching_slot(token: str, cameras: List[str]) -> List[str]:
-    """Cameras whose name matches a slot token, by exact name, segment, or shared role."""
-    lower = token.lower()
-    exact = [camera for camera in cameras if camera.lower() == lower]
-    if exact:
-        return exact
-    role = next((r for r, aliases in CAMERA_ROLE_ALIASES.items() if lower in aliases), None)
-    aliases = set(CAMERA_ROLE_ALIASES[role]) if role else {lower}
-    return [camera for camera in cameras if any(seg in aliases for seg in _name_segments(camera))]
-
-
-def resolve_pipeline_camera_order(
-    slots: List[str], cameras: List[str], roles: Optional[Dict[str, str]] = None
-) -> List[str]:
-    """
-    Map a pipe's declared `# Camera Order:` slots onto dataset cameras without
-    user interaction: every slot must match exactly one camera (by assigned
-    role first, then by name) and no camera may fill two slots. Raises
-    ValueError with a message naming the slot, the pipe's slots and the
-    dataset's cameras otherwise, so the run fails up front instead of being
-    silently mis-wired.
-    """
-    context = f'pipeline cameras [{", ".join(slots)}], dataset cameras [{", ".join(cameras)}]'
-    if len(slots) != len(cameras):
-        raise ValueError(
-            f'Pipeline expects {len(slots)} cameras but the dataset has {len(cameras)}: '
-            f'{context}'
-        )
-    order: List[str] = []
-    for index, slot in enumerate(slots, start=1):
-        matches = [c for c in candidates_for_slot(slot, cameras, roles) if c not in order]
-        if len(matches) != 1:
-            why = (
-                'no dataset camera matches'
-                if not matches
-                else f'several dataset cameras match ({", ".join(matches)})'
-            )
-            raise ValueError(
-                f'Cannot place pipeline camera "{slot}" (input{index}): {why}. {context}. '
-                'Set the camera roles (or rename the cameras) so each pipeline camera '
-                'matches exactly one.'
-            )
-        order.append(matches[0])
-    return order
-
-
-def pipeline_camera_order(camera_names: List[str], reference: str) -> List[str]:
-    """
-    Camera order for 2-cam/3-cam pipelines, matching the desktop client: the
-    registration reference camera feeds input1 (the per-camera registrations
-    all map onto the reference, and the pipes warp everything onto camera 1's
-    frame), remaining cameras keep display order. Which detector a pipe runs
-    on which input is the pipe's documented contract, not something DIVE
-    infers.
-    """
-    if reference not in camera_names:
-        return camera_names
-    return [reference] + [name for name in camera_names if name != reference]
+def infer_camera_roles(camera_names: List[str]) -> Dict[str, str]:
+    """Roles for a whole rig; cameras that cannot be classified are omitted."""
+    return {name: role for name in camera_names for role in [infer_camera_role(name)] if role}
 
 
 def build_registration_pairs(folder_meta: dict) -> List[dict]:

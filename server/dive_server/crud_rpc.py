@@ -23,9 +23,7 @@ from dive_tasks.multicam_pipeline import (
     describe_missing_registration,
     is_stereo_or_multicam_pipeline,
     missing_registrations,
-    pipeline_camera_order,
     pipeline_requires_input,
-    resolve_pipeline_camera_order,
 )
 from dive_tasks.utils import choose_annotation_fps
 from dive_utils import (
@@ -338,14 +336,11 @@ def run_pipeline(
         cameras_meta = multi_cam.get('cameras') or {}
         is_warp_pipeline = pipeline['type'] in constants.MultiCamPipelineMarkers
         if is_warp_pipeline and camera_order:
-            # 2-cam/3-cam pipes warp everything onto camera 1. Which camera
-            # feeds which inputN is the pipe's contract (`# Camera Order:`
-            # header); a pipe without one gets the registration reference
-            # first, then display order.
+            # 2-cam/3-cam pipes warp everything onto camera 1; the order the
+            # user confirmed in the camera-assignment step is which camera
+            # feeds which inputN. Without one, the dataset's stored order.
             confirmed_order = (pipeline_params or {}).get('cameraOrder')
-            declared_order = (pipeline.get('metadata') or {}).get('cameraOrder')
             if confirmed_order:
-                # The order the user confirmed in the camera-assignment step.
                 if sorted(confirmed_order) != sorted(camera_order):
                     raise RestException(
                         f'Camera assignment [{", ".join(confirmed_order)}] does not match '
@@ -353,20 +348,6 @@ def run_pipeline(
                         code=400,
                     )
                 camera_order = list(confirmed_order)
-            elif declared_order:
-                try:
-                    camera_order = resolve_pipeline_camera_order(
-                        declared_order, camera_order, (folder.get('meta') or {}).get('cameraRoles')
-                    )
-                except ValueError as err:
-                    raise RestException(str(err), code=400) from err
-            else:
-                reference_camera = (
-                    multicam_default_display
-                    if multicam_default_display in cameras_meta
-                    else camera_order[0]
-                )
-                camera_order = pipeline_camera_order(camera_order, reference_camera)
             reference_camera = camera_order[0]
         for name in camera_order:
             cam_info = cameras_meta[name]
