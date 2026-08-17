@@ -301,7 +301,8 @@ def describe_missing_registration(
 ) -> str:
     return (
         f'Camera "{camera}" (input{position}) has no registration onto camera 1 ("{target}"). '
-        f'Register {camera} -> {target} in the Camera Registration tab before running {pipeline_name}.'
+        f'Register {camera} -> {target} in the Camera Registration tab '
+        f'before running {pipeline_name}.'
     )
 
 
