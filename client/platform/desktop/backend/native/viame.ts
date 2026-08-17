@@ -424,7 +424,7 @@ async function runPipeline(
       });
     }
     if (multiCamOrder) {
-      // Hand the camera registration (Aligned View homographies) to the
+      // Hand the camera registration (Camera Registration homographies) to the
       // pipeline's per-camera warp processes. Refuse up front when a warped
       // camera has no registration onto camera 1, rather than letting the
       // pipe die at configure time on a missing file.
