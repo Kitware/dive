@@ -12,7 +12,7 @@ from subprocess import Popen
 import tempfile
 import threading
 import time
-from typing import Iterator, List, Optional, Tuple, Union
+from typing import Iterator, List, Optional, Sequence, Tuple, Union
 from urllib import request
 from urllib.parse import urlencode, urljoin
 
@@ -212,20 +212,25 @@ def ffprobe_header_args(headers: str) -> Iterator[List[str]]:
             os.unlink(path)
 
 
-def sanitize_subprocess_args_for_log(args: List[str]) -> List[str]:
+def sanitize_subprocess_args_for_log(args: Union[str, Sequence[str]]) -> Union[str, List[str]]:
     """
     Copy *args* for job logs, redacting values that may contain secrets.
 
     Inline ``-headers`` values (Girder tokens) are replaced with ``<redacted>``.
     ``-/headers`` paths are left as-is (token lives in the file, not argv).
+    Shell command strings are returned unchanged; ``list(str)`` would split
+    them into characters and produce unreadable job logs.
     """
+    if isinstance(args, str):
+        return args
     sanitized: List[str] = []
     skip_next = False
-    for i, arg in enumerate(args):
+    arg_list = list(args)
+    for i, arg in enumerate(arg_list):
         if skip_next:
             skip_next = False
             continue
-        if arg == '-headers' and i + 1 < len(args):
+        if arg == '-headers' and i + 1 < len(arg_list):
             sanitized.extend(['-headers', '<redacted>'])
             skip_next = True
             continue
@@ -437,8 +442,8 @@ def stream_subprocess(
                 return
 
     with tempfile.TemporaryFile() as stderr_file:
-        logged_args = sanitize_subprocess_args_for_log(list(launch_kwargs['args']))
-        manager.write(f"Running command: {str(logged_args)}\n", forceFlush=True)
+        logged_args = sanitize_subprocess_args_for_log(launch_kwargs['args'])
+        manager.write(f"Running command: {logged_args}\n", forceFlush=True)
         process = Popen(
             **launch_kwargs,
             stdout=subprocess.PIPE,
