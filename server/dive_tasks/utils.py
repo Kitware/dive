@@ -165,7 +165,7 @@ def ffprobe_supports_option_from_file() -> bool:
     """
     True if this ffprobe accepts ``-/option file`` value loading (FFmpeg 5+).
 
-    Worker images ship BtbN FFmpeg 7.1, which supports it. Cached after one probe
+    Worker images ship BtbN FFmpeg 8.1, which supports it. Cached after one probe
     so local/dev hosts with older distro ffprobe can still fall back to ``-headers``.
     """
     fd, path = tempfile.mkstemp(prefix='ffprobe-headers-probe-', suffix='.txt')
