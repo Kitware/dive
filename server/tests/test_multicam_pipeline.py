@@ -262,9 +262,9 @@ def test_build_registration_kwiver_settings(tmp_path: Path):
     }
     written = json.loads((tmp_path / 'ir_to_rgb_registration.json').read_text(encoding='utf-8'))
     assert written['type'] == 'dive-camera-registration'
-    # VIAME's dive transform reader rejects anything but v2, and the client
-    # loader skips a non-v2 file rather than reading a matrix-only pair with
-    # its points silently dropped.
+    # DIVE's format-v2 loader rejects any other version rather than reading
+    # a matrix-only pair with its points silently dropped; VIAME's dive
+    # transform reader only consumes the matrices and ignores the version.
     assert written['version'] == 2
     assert len(written['pairs']) == 1
     assert written['pairs'][0]['left'] == 'ir'

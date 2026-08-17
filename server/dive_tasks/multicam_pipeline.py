@@ -137,11 +137,7 @@ def build_registration_pairs(folder_meta: dict) -> List[dict]:
                     'frame': obs.get('frame'),
                     'enabled': obs.get('enabled', True),
                     'source': obs.get('source') or 'manual',
-                    **(
-                        {'stats': obs['stats']}
-                        if obs.get('stats') is not None
-                        else {}
-                    ),
+                    **({'stats': obs['stats']} if obs.get('stats') is not None else {}),
                     'points': [
                         [p['a'][0], p['a'][1], p['b'][0], p['b'][1]]
                         for p in obs.get('points') or []

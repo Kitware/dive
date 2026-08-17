@@ -5,15 +5,15 @@ import {
   it, expect, describe, afterAll, vi,
 } from 'vitest';
 
-import { Settings, JsonMeta } from 'platform/desktop/constants';
+import { Settings, JsonConfig } from 'platform/desktop/constants';
 import { buildRegistrationPipelineArgs } from './cameraRegistration';
 
 // mock-fs no longer intercepts fs-extra's exists checks on newer Node;
 // route them through statSync like common.spec.ts does.
 vi.mock('fs-extra', async () => {
-  const actual = await vi.importActual<typeof import('fs-extra')>('fs-extra');
+  const actual = await vi.importActual<typeof import('fs-extra') & { default: typeof import('fs-extra') }>('fs-extra');
   const fsNode = await import('node:fs');
-  const existsByStat = (targetPath: fsNode.PathLike) => {
+  const existsByStat = (targetPath: Parameters<typeof fsNode.statSync>[0]) => {
     try {
       fsNode.statSync(targetPath);
       return true;
@@ -92,7 +92,7 @@ mockfs({
 
 afterAll(() => mockfs.restore());
 
-function multiCamMeta(id: string, cameras: string[], defaultDisplay: string): JsonMeta {
+function multiCamMeta(id: string, cameras: string[], defaultDisplay: string): JsonConfig {
   return {
     version: 1,
     type: 'multi',
@@ -117,7 +117,7 @@ function multiCamMeta(id: string, cameras: string[], defaultDisplay: string): Js
       }])),
       defaultDisplay,
     },
-  } as unknown as JsonMeta;
+  } as unknown as JsonConfig;
 }
 
 describe('buildRegistrationPipelineArgs', () => {

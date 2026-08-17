@@ -1,6 +1,5 @@
 from datetime import datetime, timedelta
 import json
-from pathlib import Path
 from typing import Dict, List, Literal, NamedTuple, Optional, Tuple, TypedDict, cast
 
 from girder.constants import AccessType
