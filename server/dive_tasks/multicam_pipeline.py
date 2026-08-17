@@ -108,7 +108,17 @@ def build_registration_pairs(folder_meta: dict) -> List[dict]:
     """
     Convert a dataset folder's camera registration meta (cameraHomographies /
     cameraCorrespondences / cameraTransformTypes, keyed by directional
-    "left::right") into dive-camera-registration file pairs.
+    "left::right") into dive-camera-registration file pairs (format v2).
+
+    Meta stores each pair's points as observations -- one entry per image
+    pair, carrying its own points -- so this is the inverse of
+    registration_output._from_registration_pairs: the store's imageA/imageB
+    become the file's imageLeft/imageRight, and each point's a/b pair becomes
+    one `leftX leftY rightX rightY` row.
+
+    VIAME's dive transform reader only consumes the matrices; the
+    observations travel for provenance and so a file round-trips back into
+    DIVE without losing which frame contributed what.
     """
     homographies = folder_meta.get('cameraHomographies') or {}
     correspondences = folder_meta.get('cameraCorrespondences') or {}
@@ -118,14 +128,31 @@ def build_registration_pairs(folder_meta: dict) -> List[dict]:
     for key in sorted(keys):
         left, _, right = key.partition('::')
         homography = homographies.get(key)
+        observations = []
+        for obs in correspondences.get(key) or []:
+            observations.append(
+                {
+                    'imageLeft': obs.get('imageA'),
+                    'imageRight': obs.get('imageB'),
+                    'frame': obs.get('frame'),
+                    'enabled': obs.get('enabled', True),
+                    'source': obs.get('source') or 'manual',
+                    **(
+                        {'stats': obs['stats']}
+                        if obs.get('stats') is not None
+                        else {}
+                    ),
+                    'points': [
+                        [p['a'][0], p['a'][1], p['b'][0], p['b'][1]]
+                        for p in obs.get('points') or []
+                    ],
+                }
+            )
         pairs.append(
             {
                 'left': left,
                 'right': right,
-                'points': [
-                    [c['a'][0], c['a'][1], c['b'][0], c['b'][1]]
-                    for c in correspondences.get(key) or []
-                ],
+                'observations': observations,
                 'leftToRight': homography.get('AtoB') if homography else None,
                 'rightToLeft': homography.get('BtoA') if homography else None,
                 'transformType': transform_types.get(key, 'similarity'),
@@ -183,7 +210,7 @@ def build_registration_kwiver_settings(
         registration_path = work_dir / f'{name}_to_{reference}_registration.json'
         with open(registration_path, 'w', encoding='utf-8') as registration_file:
             json.dump(
-                {'type': 'dive-camera-registration', 'version': 1, 'pairs': camera_pairs},
+                {'type': 'dive-camera-registration', 'version': 2, 'pairs': camera_pairs},
                 registration_file,
                 indent=2,
             )

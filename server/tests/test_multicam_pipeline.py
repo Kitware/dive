@@ -141,8 +141,26 @@ def test_build_registration_pairs():
     folder_meta = {
         'cameraHomographies': {'ir::rgb': {'AtoB': IR_TO_RGB, 'BtoA': RGB_TO_IR}},
         'cameraCorrespondences': {
-            'ir::rgb': [{'id': 1, 'a': [1, 2], 'b': [3, 4]}],
-            'uv::rgb': [{'id': 1, 'a': [5, 6], 'b': [7, 8]}],
+            'ir::rgb': [
+                {
+                    'imageA': 'ir_0001.png',
+                    'imageB': 'rgb_0001.jpg',
+                    'frame': 1,
+                    'enabled': True,
+                    'source': 'manual',
+                    'points': [{'id': 1, 'a': [1, 2], 'b': [3, 4]}],
+                }
+            ],
+            'uv::rgb': [
+                {
+                    'imageA': 'uv_0002.jpg',
+                    'imageB': 'rgb_0002.jpg',
+                    'frame': 2,
+                    'enabled': True,
+                    'source': 'minima_loftr',
+                    'points': [{'id': 1, 'a': [5, 6], 'b': [7, 8]}],
+                }
+            ],
         },
         'cameraTransformTypes': {'ir::rgb': 'affine'},
     }
@@ -151,7 +169,16 @@ def test_build_registration_pairs():
         {
             'left': 'ir',
             'right': 'rgb',
-            'points': [[1, 2, 3, 4]],
+            'observations': [
+                {
+                    'imageLeft': 'ir_0001.png',
+                    'imageRight': 'rgb_0001.jpg',
+                    'frame': 1,
+                    'enabled': True,
+                    'source': 'manual',
+                    'points': [[1, 2, 3, 4]],
+                }
+            ],
             'leftToRight': IR_TO_RGB,
             'rightToLeft': RGB_TO_IR,
             'transformType': 'affine',
@@ -159,7 +186,16 @@ def test_build_registration_pairs():
         {
             'left': 'uv',
             'right': 'rgb',
-            'points': [[5, 6, 7, 8]],
+            'observations': [
+                {
+                    'imageLeft': 'uv_0002.jpg',
+                    'imageRight': 'rgb_0002.jpg',
+                    'frame': 2,
+                    'enabled': True,
+                    'source': 'minima_loftr',
+                    'points': [[5, 6, 7, 8]],
+                }
+            ],
             'leftToRight': None,
             'rightToLeft': None,
             'transformType': 'similarity',
@@ -180,7 +216,7 @@ def test_build_registration_kwiver_settings(tmp_path: Path):
             {
                 'left': 'ir',
                 'right': 'rgb',
-                'points': [],
+                'observations': [],
                 'leftToRight': IR_TO_RGB,
                 'rightToLeft': RGB_TO_IR,
                 'transformType': 'similarity',
@@ -189,7 +225,16 @@ def test_build_registration_kwiver_settings(tmp_path: Path):
             {
                 'left': 'uv',
                 'right': 'rgb',
-                'points': [[1, 2, 3, 4]],
+                'observations': [
+                    {
+                        'imageLeft': 'uv_0001.jpg',
+                        'imageRight': 'rgb_0001.jpg',
+                        'frame': 1,
+                        'enabled': True,
+                        'source': 'manual',
+                        'points': [[1, 2, 3, 4]],
+                    }
+                ],
                 'leftToRight': None,
                 'rightToLeft': None,
                 'transformType': 'similarity',
@@ -199,7 +244,7 @@ def test_build_registration_kwiver_settings(tmp_path: Path):
             {
                 'left': 'uv',
                 'right': 'ir',
-                'points': [],
+                'observations': [],
                 'leftToRight': IR_TO_RGB,
                 'rightToLeft': RGB_TO_IR,
                 'transformType': 'similarity',
@@ -217,6 +262,10 @@ def test_build_registration_kwiver_settings(tmp_path: Path):
     }
     written = json.loads((tmp_path / 'ir_to_rgb_registration.json').read_text(encoding='utf-8'))
     assert written['type'] == 'dive-camera-registration'
+    # VIAME's dive transform reader rejects anything but v2, and the client
+    # loader skips a non-v2 file rather than reading a matrix-only pair with
+    # its points silently dropped.
+    assert written['version'] == 2
     assert len(written['pairs']) == 1
     assert written['pairs'][0]['left'] == 'ir'
     # uv produced no file: its only fitted pair skips the reference.
