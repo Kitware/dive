@@ -48,6 +48,24 @@ def test_successful_exit_returns_normally():
     assert run_command(['bash', '-c', 'exit 0']) == ""
 
 
+def test_logs_shell_command_string_not_character_list():
+    """Training/pipeline jobs pass a shell string; list(str) must not log chars."""
+    task = MagicMock()
+    task.canceled = False
+    manager = MagicMock()
+    manager.status = None
+    cmd = 'exit 0'
+    stream_subprocess(
+        task,
+        {},
+        manager,
+        {'args': cmd, 'shell': True, 'executable': '/bin/bash'},
+    )
+    written = ''.join(str(c.args[0]) for c in manager.write.call_args_list)
+    assert f'Running command: {cmd}' in written
+    assert "['e', 'x', 'i', 't'" not in written
+
+
 def test_cancel_kills_process_group_and_raises_canceled(monkeypatch):
     """
     Cancel must kill shell descendants, not only the shell PID.

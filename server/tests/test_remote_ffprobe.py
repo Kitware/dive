@@ -81,6 +81,14 @@ def test_sanitize_subprocess_args_keeps_header_file_path():
     assert utils.sanitize_subprocess_args_for_log(args) == args
 
 
+def test_sanitize_subprocess_args_keeps_shell_command_string():
+    cmd = (
+        '. /opt/noaa/viame/setup_viame.sh && KWIVER_DEFAULT_LOG_LEVEL=warn '
+        '/opt/noaa/viame/bin/viame train --no-query --no-embedded-pipe'
+    )
+    assert utils.sanitize_subprocess_args_for_log(cmd) == cmd
+
+
 def test_ffprobe_header_args_uses_file_when_supported():
     headers = 'Girder-Token: tok\r\n'
     with patch.object(utils, 'ffprobe_supports_option_from_file', return_value=True):
