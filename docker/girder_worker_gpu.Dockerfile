@@ -4,14 +4,14 @@
 # ====================
 # == FFMPEG FETCHER ==
 # ====================
-# BtbN FFmpeg 7.1 release-branch builds (not git master). Supports -/headers so
+# BtbN FFmpeg 8.1 release-branch builds (not git master). Supports -/headers so
 # Girder tokens need not appear in ffprobe argv. See:
 # https://github.com/BtbN/FFmpeg-Builds/releases/latest
 FROM python:3.11-bookworm AS ffmpeg-builder
 RUN apt-get update && apt-get install -qy --no-install-recommends wget ca-certificates xz-utils \
   && rm -rf /var/lib/apt/lists/*
 RUN wget -O /tmp/ffmpeg.tar.xz \
-  https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n7.1-latest-linux64-gpl-7.1.tar.xz \
+  https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz \
   && mkdir /tmp/ffextracted \
   && tar -xvf /tmp/ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1 \
   && rm /tmp/ffmpeg.tar.xz
