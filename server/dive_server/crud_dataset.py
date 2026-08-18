@@ -1,7 +1,7 @@
 import copy
 import json
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set, Tuple
 
 from bson.objectid import InvalidId, ObjectId
 import cherrypy
@@ -28,6 +28,12 @@ from dive_utils import (
     types,
 )
 from dive_utils.serializers import kwcoco
+from dive_utils.type_hierarchy import (
+    HierarchyWrite,
+    TypeHierarchyError,
+    normalize_type_hierarchy,
+    resolve_type_hierarchy,
+)
 
 
 def get_url(dataset: types.GirderModel, item: types.GirderModel) -> str:
@@ -146,6 +152,7 @@ def _create_multicam_soft_clone(
         cloned_child = _create_single_camera_soft_clone(
             owner, child, cloned_folder, cam_name, revision
         )
+        remove_camera_type_hierarchy(cloned_child)
         new_cameras[cam_name] = {
             'folderId': str(cloned_child['_id']),
             'type': cam_info.get('type') or fromMeta(child, constants.TypeMarker),
@@ -588,17 +595,49 @@ class MetadataMutableUpdateArgs(models.MetadataMutable):
         extra = 'forbid'
 
 
-def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
+def validate_metadata_shape(data: dict) -> MetadataMutableUpdateArgs:
+    """Validate mutable metadata fields without changing storage."""
+    return crud.get_validated_model(MetadataMutableUpdateArgs, **data)
+
+
+def validate_type_hierarchy_update(
+    dsFolder: types.GirderModel,
+    data: dict,
+    hierarchy_mode: Literal['save', 'additive'] = 'save',
+) -> HierarchyWrite:
+    """Resolve a metadata hierarchy instruction without changing storage."""
+    try:
+        return resolve_type_hierarchy(
+            fromMeta(dsFolder, 'typeHierarchy'),
+            'typeHierarchy' in data,
+            data.get('typeHierarchy'),
+            hierarchy_mode,
+        )
+    except TypeHierarchyError as error:
+        raise crud.hierarchy_rest_error(error) from error
+
+
+def update_metadata(
+    dsFolder: types.GirderModel,
+    data: dict,
+    verify=True,
+    hierarchy_mode: Literal['save', 'additive'] = 'save',
+):
     """Update mutable metadata"""
     if verify:
         crud.verify_dataset(dsFolder)
     # Reload before save so concurrent convert_video metadata is not wiped.
     crud.refresh_folder_document(dsFolder)
-    validated: MetadataMutableUpdateArgs = crud.get_validated_model(
-        MetadataMutableUpdateArgs, **data
-    )
-    for name, value in validated.dict(exclude_none=True).items():
+    hierarchy_write = validate_type_hierarchy_update(dsFolder, data, hierarchy_mode)
+    validated = validate_metadata_shape(data)
+    validated_data = validated.dict(exclude_none=True)
+    validated_data.pop('typeHierarchy', None)
+    for name, value in validated_data.items():
         dsFolder['meta'][name] = value
+    if hierarchy_write['action'] == 'set':
+        dsFolder['meta']['typeHierarchy'] = hierarchy_write['hierarchy']
+    elif hierarchy_write['action'] == 'delete':
+        dsFolder['meta'].pop('typeHierarchy', None)
     # exclude_none drops explicit null, so a field the client nulls to clear it
     # must be popped by hand. timeFilters: null disables the filter;
     # cameraRegistrationSource: null drops a stale producer-provenance stamp when
@@ -608,6 +647,30 @@ def update_metadata(dsFolder: types.GirderModel, data: dict, verify=True):
             dsFolder['meta'].pop(nullable, None)
     Folder().save(dsFolder)
     return dsFolder['meta']
+
+
+def remove_camera_type_hierarchy(folder: types.GirderModel) -> bool:
+    """Remove a derived hierarchy copy from a multicamera child folder.
+
+    Returns whether a stored copy was actually removed.
+    """
+    if 'typeHierarchy' not in folder.get('meta', {}):
+        return False
+    folder['meta'].pop('typeHierarchy', None)
+    Folder().save(folder)
+    return True
+
+
+def type_hierarchy_for_export(
+    dsFolder: types.GirderModel,
+    user: Optional[types.GirderUserModel] = None,
+) -> Optional[Dict[str, str]]:
+    """Return a normalized export hierarchy, rejecting corrupt stored metadata."""
+    try:
+        owner = crud.get_multicam_owner_folder(dsFolder)
+        return normalize_type_hierarchy(fromMeta(owner or dsFolder, 'typeHierarchy'))
+    except TypeHierarchyError as error:
+        raise crud.hierarchy_rest_error(error, 'No configuration file was exported.') from error
 
 
 class AttributeUpdateArgs(BaseModel):
@@ -872,6 +935,7 @@ def _yield_single_dataset_export(
     includeDetections: bool,
     excludeBelowThreshold: bool,
     typeFilter: Iterable[str],
+    includeHierarchy: bool = True,
 ) -> Generator[bytes, None, None]:
     """Stream meta, annotations, media, and detections for one DIVE dataset folder."""
 
@@ -895,8 +959,13 @@ def _yield_single_dataset_export(
         """Include dataset metadata file with full export"""
         meta = get_dataset(dsFolder, user)
         media = get_media(dsFolder, user)
+        hierarchy = type_hierarchy_for_export(dsFolder, user) if includeHierarchy else None
+        meta_json = meta.dict(exclude_none=True)
+        meta_json.pop('typeHierarchy', None)
+        if hierarchy is not None:
+            meta_json['typeHierarchy'] = hierarchy
         output = {
-            **meta.dict(exclude_none=True),
+            **meta_json,
             **media.dict(exclude_none=True),
         }
         # Attachment locators never travel in an archive: a server-local item id means
@@ -966,6 +1035,7 @@ def _yield_multicam_dataset_export(
     includeDetections: bool,
     excludeBelowThreshold: bool,
     typeFilter: Iterable[str],
+    children: Dict[str, types.GirderModel],
 ) -> Generator[bytes, None, None]:
     """Export a multicam parent plus each child camera folder."""
     multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
@@ -994,13 +1064,7 @@ def _yield_multicam_dataset_export(
             yield data
 
     for cam_name in _multicam_camera_order(multi_cam):
-        cam_info = multi_cam['cameras'][cam_name]
-        child = Folder().load(cam_info['folderId'], level=AccessType.READ, user=user)
-        if child is None:
-            raise RestException(
-                f'Camera folder for "{cam_name}" was not found',
-                code=404,
-            )
+        child = children[cam_name]
         child_path = f'{zip_path}{cam_name}/'
         for data in _yield_single_dataset_export(
             z,
@@ -1011,6 +1075,7 @@ def _yield_multicam_dataset_export(
             includeDetections,
             excludeBelowThreshold,
             typeFilter,
+            includeHierarchy=False,
         ):
             yield data
 
@@ -1024,6 +1089,38 @@ def export_datasets_zipstream(
     typeFilter: Optional[List[str]],
 ):
     failed_datasets = []
+    skipped_dataset_ids: Set[str] = set()
+    multicam_children: Dict[str, Dict[str, types.GirderModel]] = {}
+
+    # Validate while the REST endpoint is still building its response. Exceptions
+    # raised later by a streaming generator are replaced by CherryPy's generic 500
+    # body, and the caller would lose the actionable hierarchy error. A batch export
+    # reports a per-dataset failure the way the stream does; a single-dataset export
+    # raises, because its caller has a dataset to act on.
+    single_dataset = len(dsFolders) == 1
+    for dsFolder in dsFolders:
+        dataset_id = str(dsFolder['_id'])
+        try:
+            type_hierarchy_for_export(dsFolder, user)
+            if fromMeta(dsFolder, constants.TypeMarker) != constants.MultiType:
+                continue
+            multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
+            children = {}
+            for cam_name in _multicam_camera_order(multi_cam):
+                cam_info = multi_cam['cameras'][cam_name]
+                child = Folder().load(cam_info['folderId'], level=AccessType.READ, user=user)
+                if child is None:
+                    raise RestException(
+                        f'Camera folder for "{cam_name}" was not found',
+                        code=404,
+                    )
+                children[cam_name] = child
+            multicam_children[dataset_id] = children
+        except RestException as error:
+            if single_dataset:
+                raise
+            skipped_dataset_ids.add(dataset_id)
+            failed_datasets.append(f"Dataset: {dsFolder['name']} was not exported. {error}\n")
 
     def stream():
         z = ziputil.ZipGenerator()
@@ -1031,6 +1128,8 @@ def export_datasets_zipstream(
         if nestedTypeFilter is None:
             nestedTypeFilter = set()
         for dsFolder in dsFolders:
+            if str(dsFolder['_id']) in skipped_dataset_ids:
+                continue
             zip_path = f"./{dsFolder['name']}/"
             source_type = fromMeta(dsFolder, constants.TypeMarker)
             try:
@@ -1054,6 +1153,7 @@ def export_datasets_zipstream(
                         includeDetections,
                         excludeBelowThreshold,
                         nestedTypeFilter,
+                        multicam_children[str(dsFolder['_id'])],
                     ):
                         yield data
                 else:
@@ -1563,6 +1663,7 @@ def create_multicam(
     multi_cam_cameras: Dict[str, Dict[str, str]] = {}
     for name in camera_order:
         child = loaded_children[name]
+        remove_camera_type_hierarchy(child)
         if child['name'] != name:
             child['name'] = name
             Folder().save(child)
@@ -1606,7 +1707,14 @@ def create_multicam(
         metadata_file_item_id = str(md_item['_id'])
         metadata_file_name = md_item['name']
 
+    mutable_keys = models.MetadataMutable.schema()['properties'].keys()
+    mutable_meta = {
+        key: value
+        for key, value in parent_folder_doc.get('meta', {}).items()
+        if key in mutable_keys
+    }
     parent_folder_doc['meta'] = {
+        **mutable_meta,
         constants.DatasetMarker: True,
         constants.TypeMarker: constants.MultiType,
         constants.SubTypeMarker: validated.subType,
@@ -1641,8 +1749,11 @@ def create_multicam(
                 else {}
             ),
         },
-        constants.ConfidenceFiltersMarker: {'default': 0.1},
     }
+    parent_folder_doc['meta'].setdefault(
+        constants.ConfidenceFiltersMarker,
+        {'default': 0.1},
+    )
     Folder().save(parent_folder_doc)
     crud.get_or_create_auxiliary_folder(parent_folder_doc, user)
     return parent_folder_doc

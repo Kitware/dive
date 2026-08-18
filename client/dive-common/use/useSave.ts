@@ -41,6 +41,7 @@ export default function useSave(
   readonlyMode: Ref<Readonly<boolean>>,
 ) {
   const pendingSaveCount = ref(0);
+  let globalMetadataPending = 0;
   const pendingChangeMaps: Record<string, ChangeMap> = {
     singleCam: {
       upsert: new Map<TrackId, Track>(),
@@ -65,8 +66,10 @@ export default function useSave(
     if (readonlyMode.value) {
       throw new Error('attempted to save in read only mode');
     }
+    const pendingSaveSnapshot = pendingSaveCount.value;
     const promiseList: Promise<unknown>[] = [];
-    let globalMetadataUpdated = false;
+    let canonicalConfigScheduled = false;
+    let canonicalConfigPersisted = false;
     Object.entries(pendingChangeMaps).forEach(([camera, pendingChangeMap]) => {
       const saveId = camera === 'singleCam' ? datasetId.value : `${datasetId.value}/${camera}`;
       if (
@@ -90,16 +93,23 @@ export default function useSave(
           pendingChangeMap.delete.clear();
         }));
       }
-      if (datasetMeta && pendingChangeMap.meta > 0) {
-        // Save once for each camera into their own metadata file
-        promiseList.push(saveConfig(saveId, datasetMeta).then(() => {
-          // eslint-disable-next-line no-param-reassign
-          pendingChangeMap.meta = 0;
-        }));
-        // Only update global if there are multiple cameras
-        if (saveId !== datasetId.value) {
-          globalMetadataUpdated = true;
+      const metadataSnapshot = pendingChangeMap.meta;
+      if (datasetMeta && metadataSnapshot > 0) {
+        const cameraMeta = saveId === datasetId.value
+          ? datasetMeta
+          : Object.fromEntries(
+            Object.entries(datasetMeta).filter(([key]) => key !== 'typeHierarchy'),
+          );
+        if (saveId === datasetId.value) {
+          canonicalConfigScheduled = true;
         }
+        promiseList.push(saveConfig(saveId, cameraMeta).then(() => {
+          if (saveId === datasetId.value) {
+            canonicalConfigPersisted = true;
+          }
+          // eslint-disable-next-line no-param-reassign
+          pendingChangeMap.meta = Math.max(0, pendingChangeMap.meta - metadataSnapshot);
+        }));
       }
       if (pendingChangeMap.attributeUpsert.size || pendingChangeMap.attributeDelete.size) {
         promiseList.push(saveAttributes(datasetId.value, {
@@ -121,12 +131,26 @@ export default function useSave(
         }));
       }
     });
-    // Final save into the multi-cam metadata if multiple cameras exists
-    if (globalMetadataUpdated && datasetMeta && pendingChangeMaps) {
-      promiseList.push(saveConfig(datasetId.value, datasetMeta));
+    const globalMetadataSnapshot = globalMetadataPending;
+    if (globalMetadataSnapshot > 0 && datasetMeta) {
+      canonicalConfigScheduled = true;
+      promiseList.push(saveConfig(datasetId.value, datasetMeta).then(() => {
+        canonicalConfigPersisted = true;
+        globalMetadataPending = Math.max(0, globalMetadataPending - globalMetadataSnapshot);
+      }));
     }
-    await Promise.all(promiseList);
-    pendingSaveCount.value = 0;
+    const results = await Promise.allSettled(promiseList);
+    const failed = results.find((result) => result.status === 'rejected') as
+      PromiseRejectedResult | undefined;
+    if (failed) {
+      const error = failed.reason instanceof Error
+        ? failed.reason
+        : new Error(String(failed.reason));
+      Object.assign(error, { canonicalConfigPersisted });
+      throw error;
+    }
+    pendingSaveCount.value = Math.max(0, pendingSaveCount.value - pendingSaveSnapshot);
+    return { canonicalConfigPersisted: canonicalConfigScheduled && canonicalConfigPersisted };
   }
 
   function markChangesPending(
@@ -153,6 +177,9 @@ export default function useSave(
         // eslint-disable-next-line no-param-reassign
         pendingChangeMap.meta += 1;
       });
+      if (!pendingChangeMaps.singleCam) {
+        globalMetadataPending += 1;
+      }
       pendingSaveCount.value += 1;
     } else if (pendingChangeMaps[cameraName]) {
       const pendingChangeMap = pendingChangeMaps[cameraName];
@@ -210,6 +237,7 @@ export default function useSave(
       pendingChangeMap.meta = 0;
     });
     pendingSaveCount.value = 0;
+    globalMetadataPending = 0;
   }
 
   function addCamera(cameraName: string) {

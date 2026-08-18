@@ -23,6 +23,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    displayPairIndex: {
+      type: Number,
+      required: true,
+    },
     track: {
       type: Object as PropType<Track>,
       required: true,

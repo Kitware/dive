@@ -155,6 +155,7 @@ export default defineComponent({
       readOnlyMode,
       styleManager,
       disableAnnotationFilters: trackFilterControls.disableAnnotationFilters,
+      hierarchyActive: trackFilterControls.hierarchyActive,
       confidenceFilters: trackFilterControls.confidenceFilters,
       visible,
       horizontalTabIcon,
@@ -194,6 +195,7 @@ export default defineComponent({
             <template #settings>
               <TypeSettingsPanel
                 :all-types="allTypesRef"
+                :hierarchy-active="hierarchyActive"
                 @import-types="$emit('import-types', $event)"
               />
             </template>
@@ -396,6 +398,7 @@ export default defineComponent({
         <template #settings>
           <TypeSettingsPanel
             :all-types="allTypesRef"
+            :hierarchy-active="hierarchyActive"
             @import-types="$emit('import-types', $event)"
           />
         </template>

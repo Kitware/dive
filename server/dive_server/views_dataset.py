@@ -1,3 +1,4 @@
+import json
 from typing import List, Optional
 
 import cherrypy
@@ -21,6 +22,14 @@ DatasetModelParam = {
     'paramType': 'path',
     'required': True,
 }
+
+
+def _raw_rest_error(resource: Resource, error: RestException) -> str:
+    """Return a streaming/download validation error without Girder rewriting its body."""
+    resource.setRawResponse()
+    cherrypy.response.status = error.code
+    cherrypy.response.headers['Content-Type'] = 'text/plain'
+    return str(error)
 
 
 class DatasetResource(Resource):
@@ -256,14 +265,20 @@ class DatasetResource(Resource):
         )
     )
     def get_configuration(self, folder):
-        setContentDisposition(f'{folder["name"]}.config.json')
         # A dataset configuration consists of MetadataMutable properties.
         expose = MetadataMutable.schema()['properties'].keys()
-        return crud_dataset.get_dataset(folder, self.getCurrentUser()).json(
-            exclude_none=True,
-            include=expose,
-            indent=2,
+        try:
+            hierarchy = crud_dataset.type_hierarchy_for_export(folder, self.getCurrentUser())
+        except RestException as error:
+            return _raw_rest_error(self, error)
+        setContentDisposition(f'{folder["name"]}.config.json')
+        configuration = crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(
+            exclude_none=True, include=expose
         )
+        configuration.pop('typeHierarchy', None)
+        if hierarchy is not None:
+            configuration['typeHierarchy'] = hierarchy
+        return json.dumps(configuration, indent=2)
 
     @access.user
     @autoDescribeRoute(
@@ -339,14 +354,17 @@ class DatasetResource(Resource):
             girder_folders.append(
                 Folder().load(folder, level=AccessType.READ, user=self.getCurrentUser())
             )
-        gen = crud_dataset.export_datasets_zipstream(
-            girder_folders,
-            self.getCurrentUser(),
-            includeMedia=includeMedia,
-            includeDetections=includeDetections,
-            excludeBelowThreshold=excludeBelowThreshold,
-            typeFilter=typeFilter,
-        )
+        try:
+            gen = crud_dataset.export_datasets_zipstream(
+                girder_folders,
+                self.getCurrentUser(),
+                includeMedia=includeMedia,
+                includeDetections=includeDetections,
+                excludeBelowThreshold=excludeBelowThreshold,
+                typeFilter=typeFilter,
+            )
+        except RestException as error:
+            return _raw_rest_error(self, error)
         zip_name = "batch_export.zip"
         if len(girder_folders) == 1:
             zip_name = f"{girder_folders[0]['name']}.zip"
@@ -374,7 +392,28 @@ class DatasetResource(Resource):
         )
     )
     def patch_metadata(self, folder, data):
-        return crud_dataset.update_metadata(folder, data)
+        if 'typeHierarchy' not in data:
+            return crud_dataset.update_metadata(folder, data)
+        parent = crud.get_multicam_parent_folder(folder, self.getCurrentUser())
+        if parent is None:
+            if crud.get_multicam_owner_folder(folder) is not None:
+                raise RestException(
+                    'Write access to the multicamera parent is required '
+                    'to change its type hierarchy.',
+                    code=403,
+                )
+            return crud_dataset.update_metadata(folder, data)
+        camera_data = dict(data)
+        hierarchy = camera_data.pop('typeHierarchy')
+        hierarchy_data = {'typeHierarchy': hierarchy}
+        crud_dataset.validate_type_hierarchy_update(parent, hierarchy_data)
+        if camera_data:
+            crud_dataset.validate_metadata_shape(camera_data)
+        result = crud_dataset.update_metadata(parent, hierarchy_data)
+        if camera_data:
+            crud_dataset.update_metadata(folder, camera_data)
+        crud_dataset.remove_camera_type_hierarchy(folder)
+        return result
 
     @access.user
     @autoDescribeRoute(

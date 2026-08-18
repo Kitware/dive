@@ -71,7 +71,8 @@ export default defineComponent({
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTrackStyleManager().typeStyling;
-    const allTypesRef = useTrackFilters().allTypes;
+    const trackFilters = useTrackFilters();
+    const allTypesRef = trackFilters.allTypes;
     const cameraStore = useCameraStore();
     const multiCam = ref(cameraStore.camMap.value.size > 1);
     const selectedCamera = useSelectedCamera();
@@ -260,6 +261,19 @@ export default defineComponent({
       cameraStore.setTrackType(track.id, type, 1, currentType);
     }
 
+    const displayRows = computed(() => selectedTrackList.value.map((track) => {
+      // trackFilters returns -1 when no confidence pair passes the filters, but this panel
+      // always shows the selected track, so clamp to pair 0.
+      const pairIndex = Math.max(trackFilters.displayPairIndex(track, 0), 0);
+      return {
+        track,
+        // Re-run when track confidence pairs change (see AttributesSubsection revision pattern)
+        revision: track.revision.value,
+        pairIndex,
+        pair: track.confidencePairs.length ? track.confidencePairs[pairIndex] : null,
+      };
+    }));
+
     return {
       selectedTrackIdRef,
       editingGroupIdRef,
@@ -302,6 +316,8 @@ export default defineComponent({
       updateSelectedTracksType,
       setTrackType,
       displayConfidencePairs,
+      displayRows,
+      trackFilters,
     };
   },
 });
@@ -423,7 +439,7 @@ export default defineComponent({
         class="track-details"
       >
         <v-card
-          v-for="track in selectedTrackList"
+          v-for="{ track, pair, pairIndex } in displayRows"
           :key="track.trackId"
           class="mx-2 mb-2"
           outlined
@@ -431,15 +447,17 @@ export default defineComponent({
         >
           <div class="d-flex align-center">
             <TrackItem
+              v-if="pair"
               :solo="true"
               :merging="multiSelectInProgress"
               :track="track"
-              :track-type="track.confidencePairs[0][0]"
+              :track-type="pair[0]"
+              :display-pair-index="pairIndex"
               :selected="selectedTrackIdRef === track.id"
               :secondary-selected="true"
               :editing="!!editingModeRef"
               :input-value="true"
-              :color="typeStylingRef.color(track.confidencePairs[0][0])"
+              :color="typeStylingRef.color(pair[0])"
               :lock-types="lockTypes"
               :disabled="disabled"
               class="grow"

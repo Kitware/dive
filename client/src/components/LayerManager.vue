@@ -105,7 +105,8 @@ export default defineComponent({
     if (!trackStore || !groupStore) {
       throw Error(`TrackStore: ${trackStore} or GroupStore: ${groupStore} are undefined for camera ${props.camera}`);
     }
-    const enabledTracksRef = useTrackFilters().enabledAnnotations;
+    const trackFilters = useTrackFilters();
+    const enabledTracksRef = trackFilters.enabledAnnotations;
     const selectedTrackIdRef = useSelectedTrackId();
     const multiSeletListRef = useMultiSelectList();
     const editingModeRef = useEditingMode();
@@ -386,11 +387,18 @@ export default defineComponent({
             (trackWithContext) => trackWithContext.annotation.id === trackId,
           );
           if (enabledIndex !== -1) {
+            // The context index addresses the merged cross-camera vector; a
+            // camera-local track resolves its own hierarchy pair.
+            let { confidencePairIndex } = enabledTracks[enabledIndex].context;
+            if (trackFilters.hierarchyActive.value) {
+              confidencePairIndex = trackFilters.displayPairIndex(track, 0);
+              if (confidencePairIndex < 0) {
+                return;
+              }
+            }
             const [features] = track.getFeature(frame);
             const groups = cameraStore.lookupGroups(track.id);
-            const trackStyleType = track.getType(
-              enabledTracks[enabledIndex].context.confidencePairIndex,
-            );
+            const trackStyleType = track.getType(confidencePairIndex);
             const groupStyleType = groups?.[0]?.getType() ?? cameraStore.defaultGroup;
             // A detection flagged with the suppression attribute (it is NOT
             // under a region — those are hidden above) stays visible but is
@@ -408,6 +416,7 @@ export default defineComponent({
               groups,
               features,
               styleType,
+              trackStyleType,
               suppressed,
               set: track.set,
             };
@@ -550,6 +559,7 @@ export default defineComponent({
             groups: cameraStore.lookupGroups(editTrack.id),
             features: (features && features.interpolate) ? features : null,
             styleType: cameraStore.defaultGroup, // Won't be used
+            trackStyleType: cameraStore.defaultGroup, // Won't be used
           };
           editingTracks.push(trackFrame);
         }

@@ -20,6 +20,9 @@ export interface FrameDataTrack {
   /* The exact pair to base the style on  */
   styleType: [string, number];
 
+  /* The track's own selected pair, independent of the colorBy mode */
+  trackStyleType: [string, number];
+
   /* Suppression type name when the detection is attribute-flagged as
    * suppressed: layers may draw a dashed/custom fill outline and show an
    * eye-off tag on the canvas label and hover tooltip. Real type is unchanged. */

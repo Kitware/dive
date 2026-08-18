@@ -2,9 +2,11 @@ import copy
 import json
 from unittest.mock import MagicMock, patch
 
-from girder.exceptions import AccessException
+from girder.exceptions import AccessException, RestException
+import pytest
 
-from dive_server import crud_dataset
+from dive_server import crud, crud_dataset
+from dive_server.crud_rpc import _get_data_by_type
 from dive_utils import constants
 
 
@@ -73,6 +75,7 @@ def test_create_single_camera_soft_clone_copies_metadata(
             'annotate': True,
             'type': 'image-sequence',
             'custom': {'labels': ['fish'], 'settings': {'enabled': True}},
+            'typeHierarchy': {'salmon': 'fish'},
         },
     }
     parent = {'_id': 'dest-parent'}
@@ -85,17 +88,74 @@ def test_create_single_camera_soft_clone_copies_metadata(
     assert result is cloned_folder
     source['meta']['custom']['labels'].append('shark')
     source['meta']['custom']['settings']['enabled'] = False
+    source['meta']['typeHierarchy']['salmon'] = 'animal'
     assert cloned_folder['meta']['custom'] == {
         'labels': ['fish'],
         'settings': {'enabled': True},
     }
+    assert cloned_folder['meta']['typeHierarchy'] == {'salmon': 'fish'}
 
     cloned_folder['meta']['custom']['labels'].append('ray')
     cloned_folder['meta']['custom']['settings']['enabled'] = None
+    cloned_folder['meta']['typeHierarchy']['tuna'] = 'fish'
     assert source['meta']['custom'] == {
         'labels': ['fish', 'shark'],
         'settings': {'enabled': False},
     }
+    assert source['meta']['typeHierarchy'] == {'salmon': 'animal'}
+
+
+@patch('dive_server.crud_dataset._clone_calibration_items')
+@patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
+@patch('dive_server.crud_dataset.Folder')
+def test_create_multicam_soft_clone_preserves_only_parent_hierarchy(
+    folder_cls,
+    get_clone_root_mock,
+    _aux,
+    _clone_ann,
+    clone_calibration_mock,
+):
+    owner = {'login': 'tester'}
+    source = _multi_parent_folder()
+    source['meta']['typeHierarchy'] = {'salmon': 'fish'}
+    left = _child_folder('left-id', 'left')
+    left['meta']['typeHierarchy'] = {'left salmon': 'fish'}
+    right = _child_folder('right-id', 'right')
+    right['meta']['typeHierarchy'] = {'right salmon': 'fish'}
+    destination = {'_id': 'dest-parent'}
+    cloned_parent = {'_id': 'clone-parent-id', 'name': 'Clone stereo'}
+    cloned_left = {'_id': 'clone-left-id', 'name': 'left'}
+    cloned_right = {'_id': 'clone-right-id', 'name': 'right'}
+    folder_cls.return_value.createFolder.side_effect = [
+        cloned_parent,
+        cloned_left,
+        cloned_right,
+    ]
+    folder_cls.return_value.load.side_effect = lambda folder_id, **_kwargs: {
+        'left-id': left,
+        'right-id': right,
+    }[folder_id]
+    get_clone_root_mock.side_effect = lambda _owner, source_folder: source_folder
+    clone_calibration_mock.side_effect = lambda _owner, _source, _cloned, multi_cam: multi_cam
+
+    result = crud_dataset.createSoftClone(owner, source, destination, 'Clone stereo', None)
+
+    assert result is cloned_parent
+    assert cloned_parent['meta']['typeHierarchy'] == {'salmon': 'fish'}
+    assert 'typeHierarchy' not in cloned_left['meta']
+    assert 'typeHierarchy' not in cloned_right['meta']
+    cameras = cloned_parent['meta'][constants.MultiCamMarker]['cameras']
+    assert cameras['left']['folderId'] == 'clone-left-id'
+    assert cameras['right']['folderId'] == 'clone-right-id'
+
+    source['meta']['typeHierarchy']['salmon'] = 'animal'
+    left['meta']['typeHierarchy']['left tuna'] = 'fish'
+    right['meta']['typeHierarchy']['right salmon'] = 'animal'
+    assert cloned_parent['meta']['typeHierarchy'] == {'salmon': 'fish'}
+    assert 'typeHierarchy' not in cloned_left['meta']
+    assert 'typeHierarchy' not in cloned_right['meta']
 
 
 @patch('dive_server.crud_dataset.find_json_calibration_item_id', return_value=None)
@@ -316,6 +376,7 @@ def test_export_multicam_zip_includes_multicam_json_and_cameras(
         call for call in yield_single_mock.call_args_list if call.args[1] == './stereo-dataset/'
     )
     assert parent_call.args[4] is True
+    assert folder_cls.return_value.load.call_count == 2
 
 
 @patch('dive_server.crud_dataset.crud.getCloneRoot')
@@ -464,8 +525,11 @@ def test_export_multicam_integration_zip_paths(
     parent = _multi_parent_folder()
     parent['meta'][constants.MetadataFileItemIdMarker] = 'metadata-id'
     parent['meta'][constants.MetadataFileOriginalNameMarker] = 'flight_log.csv'
+    parent['meta']['typeHierarchy'] = {'salmon': 'fish'}
     left = _child_folder('left-id', 'left')
+    left['meta']['typeHierarchy'] = {'left salmon': 'fish'}
     right = _child_folder('right-id', 'right')
+    right['meta']['typeHierarchy'] = {}
     user = {'login': 'tester'}
 
     zip_entries = {}
@@ -485,14 +549,20 @@ def test_export_multicam_integration_zip_paths(
     z = RecordingZip()
     zip_gen_cls.return_value = z
 
-    get_dataset_mock.return_value = MagicMock(
-        dict=lambda exclude_none=True: {
-            'id': 'parent-id',
-            'type': constants.MultiType,
-            constants.MetadataFileItemIdMarker: 'metadata-id',
-            constants.MetadataFileOriginalNameMarker: 'flight_log.csv',
-        }
-    )
+    def get_dataset(folder, _user):
+        data = {'id': folder['_id'], 'type': folder['meta']['type']}
+        if 'typeHierarchy' in folder['meta']:
+            data['typeHierarchy'] = folder['meta']['typeHierarchy']
+        if constants.MetadataFileItemIdMarker in folder['meta']:
+            data[constants.MetadataFileItemIdMarker] = folder['meta'][
+                constants.MetadataFileItemIdMarker
+            ]
+            data[constants.MetadataFileOriginalNameMarker] = folder['meta'][
+                constants.MetadataFileOriginalNameMarker
+            ]
+        return MagicMock(dict=lambda exclude_none=True: data)
+
+    get_dataset_mock.side_effect = get_dataset
     get_media_mock.return_value = MagicMock(
         dict=lambda exclude_none=True: {'imageData': [], 'video': None}
     )
@@ -538,13 +608,82 @@ def test_export_multicam_integration_zip_paths(
     assert 'stereo-dataset/right/config.json' in zip_entries
     multi_cam = json.loads(zip_entries['stereo-dataset/multiCam.json'].decode())
     assert multi_cam['defaultDisplay'] == 'left'
-    parent_meta = json.loads(zip_entries['stereo-dataset/config.json'].decode())
+    parent_config = json.loads(zip_entries['stereo-dataset/config.json'].decode())
     # The archive carries no attachment locator at all -- neither the server-local item id
     # nor the name -- because it is discovered at metadata/<originalName>. Same key set the
     # desktop exporter writes (withoutMetadataAttachment in multicamExport.ts).
-    assert constants.MetadataFileItemIdMarker not in parent_meta
-    assert constants.MetadataFileOriginalNameMarker not in parent_meta
+    assert constants.MetadataFileItemIdMarker not in parent_config
+    assert constants.MetadataFileOriginalNameMarker not in parent_config
     assert 'stereo-dataset/metadata/flight_log.csv' in zip_entries
+    left_config = json.loads(zip_entries['stereo-dataset/left/config.json'].decode())
+    right_config = json.loads(zip_entries['stereo-dataset/right/config.json'].decode())
+    assert parent_config['typeHierarchy'] == {'salmon': 'fish'}
+    assert 'typeHierarchy' not in left_config
+    assert 'typeHierarchy' not in right_config
+
+    with patch('dive_server.crud_rpc.File') as file_cls:
+        file_cls.return_value.download.return_value = lambda: [
+            zip_entries['stereo-dataset/config.json']
+        ]
+        imported, warnings = _get_data_by_type(
+            {'_id': 'file-id', 'name': 'config.json', 'exts': ['json']}
+        )
+    assert warnings is None
+    assert imported['type'] == crud.FileType.DIVE_CONF
+    assert imported['meta']['typeHierarchy'] == {'salmon': 'fish'}
+
+
+@patch('dive_server.crud_dataset.ziputil.ZipGenerator')
+def test_export_zip_preflights_invalid_hierarchy_before_archive_header(zip_gen_cls):
+    folder = {
+        '_id': 'dataset-id',
+        'name': 'dataset',
+        'meta': {
+            'annotate': True,
+            'type': constants.VideoType,
+            'fps': 5,
+            'typeHierarchy': {'fish': 'fish'},
+        },
+    }
+
+    with pytest.raises(RestException) as error_info:
+        crud_dataset.export_datasets_zipstream(
+            [folder],
+            {'_id': 'user-id'},
+            includeMedia=True,
+            includeDetections=True,
+            excludeBelowThreshold=False,
+            typeFilter=None,
+        )
+
+    assert str(error_info.value) == (
+        'Type hierarchy is invalid: self edge "fish -> fish". '
+        'No configuration file was exported.'
+    )
+    zip_gen_cls.assert_not_called()
+
+    folder['meta']['typeHierarchy'] = {'salmon': 'fish'}
+    zip_gen_cls.return_value.footer.return_value = b'footer'
+    with (
+        patch('dive_server.crud_dataset.get_media') as get_media_mock,
+        patch(
+            'dive_server.crud_dataset._yield_single_dataset_export',
+            return_value=iter([b'config-entry']),
+        ),
+    ):
+        get_media_mock.return_value = MagicMock()
+        retry = crud_dataset.export_datasets_zipstream(
+            [folder],
+            {'_id': 'user-id'},
+            includeMedia=True,
+            includeDetections=True,
+            excludeBelowThreshold=False,
+            typeFilter=None,
+        )
+        chunks = list(retry())
+
+    assert chunks == [b'config-entry', b'footer']
+    zip_gen_cls.assert_called_once()
 
 
 @patch('dive_server.crud_dataset.Folder')

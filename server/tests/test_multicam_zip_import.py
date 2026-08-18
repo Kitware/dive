@@ -5,15 +5,14 @@ from unittest.mock import MagicMock, call
 
 import pytest
 
-# dive_tasks package __init__ imports girder_worker; stub it for unit tests.
 if 'girder_worker' not in sys.modules:
-    _gw = MagicMock()
-    sys.modules['girder_worker'] = _gw
-    sys.modules['girder_worker.task'] = _gw.task
-    sys.modules['girder_worker.utils'] = _gw.utils
+    worker = MagicMock()
+    sys.modules['girder_worker'] = worker
+    sys.modules['girder_worker.task'] = worker.task
+    sys.modules['girder_worker.utils'] = worker.utils
 
 from dive_tasks import utils  # noqa: E402
-from dive_utils import constants
+from dive_utils import constants  # noqa: E402
 
 
 def _write_image_sequence_export(
@@ -22,6 +21,7 @@ def _write_image_sequence_export(
     fps: float = 5.0,
     metadata_name: str | None = None,
     extra_meta: dict | None = None,
+    hierarchy=None,
 ):
     """Write an exported image-sequence dataset directory.
 
@@ -37,6 +37,8 @@ def _write_image_sequence_export(
         'imageData': [{'filename': name} for name in images],
         **(extra_meta or {}),
     }
+    if hierarchy is not None:
+        meta['typeHierarchy'] = hierarchy
     if metadata_name:
         metadata_dir = target / 'metadata'
         metadata_dir.mkdir()
@@ -50,11 +52,14 @@ def _write_multicam_export_tree(
     sub_type: str = 'stereo',
     with_calibration: bool = True,
     with_metadata: bool = False,
+    root_hierarchy='missing',
+    camera_hierarchy=None,
 ):
     _write_image_sequence_export(
         root / 'left',
         ['frame0.png'],
         metadata_name='left.csv' if with_metadata else None,
+        hierarchy=camera_hierarchy,
     )
     _write_image_sequence_export(root / 'right', ['frame0.png'])
     multi_cam = {
@@ -72,7 +77,10 @@ def _write_multicam_export_tree(
         'fps': 5.0,
         'version': 1,
         'name': 'stereo-import',
+        'confidenceFilters': {'default': 0.7},
     }
+    if root_hierarchy != 'missing':
+        parent_meta['typeHierarchy'] = root_hierarchy
     if with_metadata:
         metadata_dir = root / 'metadata'
         metadata_dir.mkdir()
@@ -85,7 +93,11 @@ def _write_multicam_export_tree(
 @pytest.fixture
 def mock_gc():
     gc = MagicMock()
-    gc.getFolder.return_value = {'_id': 'parent-id', 'name': 'stereo-import'}
+    gc.getFolder.return_value = {
+        '_id': 'parent-id',
+        'name': 'stereo-import',
+        'meta': {'typeHierarchy': {'fish': 'animal'}},
+    }
     gc.createFolder.side_effect = lambda parent_id, name, **kwargs: {
         '_id': f'{name}-id',
         'name': name,
@@ -124,30 +136,93 @@ def test_import_exported_dataset_rejects_multicam_root(tmp_path, mock_gc, mock_m
         utils._import_exported_dataset_directory(mock_gc, mock_manager, 'dest', root)
 
 
-def test_upload_exported_multicam_imports_cameras_and_finalizes(tmp_path, mock_gc, mock_manager):
-    root = tmp_path / 'stereo-dataset'
-    _write_multicam_export_tree(root)
+@pytest.mark.parametrize(
+    ('additive', 'root_hierarchy', 'expected'),
+    [
+        (False, {'salmon': 'fish'}, {'salmon': 'fish'}),
+        (
+            True,
+            {'salmon': 'fish'},
+            {'fish': 'animal', 'salmon': 'fish'},
+        ),
+    ],
+)
+def test_multicam_root_hierarchy_resolves_before_camera_creation(
+    tmp_path, mock_gc, additive, root_hierarchy, expected
+):
+    root = tmp_path / 'stereo'
+    _write_multicam_export_tree(root, root_hierarchy=root_hierarchy)
+    manager = MagicMock()
+    uploaded = []
 
-    utils.upload_exported_multicam_zipped_dataset(mock_gc, mock_manager, 'parent-id', root, '')
+    def capture(folder_id, path):
+        uploaded.append((folder_id, json.loads(Path(path).read_text())))
+
+    mock_gc.uploadFileToFolder.side_effect = capture
+    utils.upload_exported_multicam_zipped_dataset(
+        mock_gc, manager, 'parent-id', root, additive=additive
+    )
 
     assert mock_gc.createFolder.call_args_list == [
         call('parent-id', 'left', reuseExisting=True),
         call('parent-id', 'right', reuseExisting=True),
     ]
-    assert mock_gc.upload.call_count >= 3
     mock_gc.sendRestRequest.assert_called_once()
-    (_method, path), kwargs = mock_gc.sendRestRequest.call_args
-    assert _method == 'POST'
-    assert path == '/dive_dataset/multicam'
-    assert kwargs['parameters'] == {'parentFolderId': 'parent-id'}
-    body = kwargs['json']
+    (method, path), post_kwargs = mock_gc.sendRestRequest.call_args
+    assert (method, path) == ('POST', '/dive_dataset/multicam')
+    assert post_kwargs['parameters'] == {'parentFolderId': 'parent-id'}
+    body = post_kwargs['json']
     assert body['subType'] == 'stereo'
     assert body['defaultDisplay'] == 'left'
     assert body['cameras'] == {
         'left': {'folderId': 'left-id'},
         'right': {'folderId': 'right-id'},
     }
+    assert body['cameraOrder'] == ['left', 'right']
     assert body['calibrationFileId'] == 'cal-item-id'
+    final_uploads = uploaded[-3:]
+    assert [target for target, _config in final_uploads] == [
+        'left-id',
+        'right-id',
+        'parent-id',
+    ]
+    assert all('typeHierarchy' not in config for _target, config in final_uploads[:2])
+    assert final_uploads[2][1]['typeHierarchy'] == expected
+    assert all(post.kwargs['data']['additive'] is additive for post in mock_gc.post.call_args_list)
+
+
+@pytest.mark.parametrize(
+    ('root_hierarchy', 'existing', 'error_type', 'message'),
+    [
+        (
+            {'fish': 'fish'},
+            {'fish': 'animal'},
+            utils.MalformedExportedConfigurationError,
+            'self edge',
+        ),
+        (
+            {'salmon': 'mammal'},
+            {'salmon': 'fish'},
+            RuntimeError,
+            'conflicting parents',
+        ),
+    ],
+)
+def test_multicam_root_hierarchy_rejection_precedes_camera_creation(
+    tmp_path, mock_gc, root_hierarchy, existing, error_type, message
+):
+    root = tmp_path / 'stereo'
+    _write_multicam_export_tree(root, root_hierarchy=root_hierarchy)
+    mock_gc.getFolder.return_value['meta']['typeHierarchy'] = existing
+
+    with pytest.raises(error_type, match=message):
+        utils.upload_exported_multicam_zipped_dataset(
+            mock_gc, MagicMock(), 'parent-id', root, additive=True
+        )
+
+    mock_gc.createFolder.assert_not_called()
+    mock_gc.sendRestRequest.assert_not_called()
+    mock_gc.uploadFileToFolder.assert_not_called()
 
 
 def test_upload_exported_zipped_dataset_redirects_when_multicam_json_present(
@@ -163,7 +238,7 @@ def test_upload_exported_zipped_dataset_redirects_when_multicam_json_present(
 
     utils.upload_exported_zipped_dataset(mock_gc, mock_manager, 'parent-id', root, '')
 
-    multicam_mock.assert_called_once_with(mock_gc, mock_manager, 'parent-id', root, '')
+    multicam_mock.assert_called_once_with(mock_gc, mock_manager, 'parent-id', root, '', False)
 
 
 def _list_items_by_name(folder_id, name=None):
@@ -363,3 +438,36 @@ def test_upload_exported_multicam_restores_shared_and_camera_metadata(
         if call_args.args[0] == 'right-id'
     )
     assert constants.MetadataFileItemIdMarker not in right_meta
+
+
+def test_multicam_camera_hierarchy_is_rejected_before_camera_creation(tmp_path, mock_gc):
+    root = tmp_path / 'stereo'
+    _write_multicam_export_tree(
+        root,
+        root_hierarchy={'fish': 'animal'},
+        camera_hierarchy={'salmon': 'fish'},
+    )
+
+    with pytest.raises(
+        utils.MalformedExportedConfigurationError,
+        match='Camera "left" config.json contains typeHierarchy',
+    ):
+        utils.upload_exported_multicam_zipped_dataset(mock_gc, MagicMock(), 'parent-id', root)
+
+    mock_gc.createFolder.assert_not_called()
+
+
+def test_missing_root_hierarchy_does_not_project_invalid_existing_storage(tmp_path, mock_gc):
+    root = tmp_path / 'stereo'
+    _write_multicam_export_tree(root)
+    mock_gc.getFolder.return_value['meta']['typeHierarchy'] = ['legacy-invalid']
+    uploaded = []
+    mock_gc.uploadFileToFolder.side_effect = lambda folder_id, path: uploaded.append(
+        (folder_id, json.loads(Path(path).read_text()))
+    )
+
+    utils.upload_exported_multicam_zipped_dataset(
+        mock_gc, MagicMock(), 'parent-id', root, additive=True
+    )
+
+    assert 'typeHierarchy' not in uploaded[-1][1]

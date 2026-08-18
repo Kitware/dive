@@ -104,6 +104,14 @@ export default defineComponent({
     const sortKey = ref<SortKey>('id');
     const sortDirection = ref<SortDirection>('asc');
 
+    const displayConfidence = (
+      track: ReturnType<typeof cameraStore.getTracksMerged>,
+      contextIndex: number,
+    ) => {
+      const pairIndex = trackFilters.hierarchyActive.value ? contextIndex : 0;
+      return track.confidencePairs[pairIndex]?.[1] ?? 0;
+    };
+
     const filterDetectionsByFrame = ref(clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame);
     watch(
       () => clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame,
@@ -114,6 +122,11 @@ export default defineComponent({
 
     const finalFilteredTracks = computed<TrackWithContext[]>(() => {
       let tracks = filteredTracksRef.value;
+      if (trackFilters.hierarchyActive.value) {
+        tracks = tracks.filter(({ annotation, context }) => (
+          annotation.confidencePairs[context.confidencePairIndex] !== undefined
+        ));
+      }
       if (filterDetectionsByFrame.value && !isPlaying.value) {
         // Depend on the edit counter so moving a suppression region re-runs the
         // filter (geometry mutations are not reactive track-set changes).
@@ -228,8 +241,8 @@ export default defineComponent({
           case 'endTime':
             return (trackA.end - trackB.end) * direction;
           case 'confidence': {
-            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
-            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            const confA = displayConfidence(trackA, a.context.confidencePairIndex);
+            const confB = displayConfidence(trackB, b.context.confidencePairIndex);
             return (confA - confB) * direction;
           }
           case 'type': {
@@ -238,8 +251,8 @@ export default defineComponent({
             const typeCompare = typeA.localeCompare(typeB);
             if (typeCompare !== 0) return typeCompare * direction;
             // Secondary sort by confidence within same type
-            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
-            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            const confA = displayConfidence(trackA, a.context.confidencePairIndex);
+            const confB = displayConfidence(trackB, b.context.confidencePairIndex);
             return (confA - confB) * direction;
           }
           case 'notes': {
@@ -320,6 +333,9 @@ export default defineComponent({
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),
         types: item.allTypes,
+        displayPairIndex: trackFilters.hierarchyActive.value
+          ? item.filteredTrack.context.confidencePairIndex
+          : 0,
       };
     }
 

@@ -18,6 +18,7 @@ export default defineComponent({
   props: {
     track: { type: Object as PropType<Track>, required: true },
     trackType: { type: String, required: true },
+    displayPairIndex: { type: Number, required: true },
     itemStyle: { type: Object, required: true },
     color: { type: String, required: true },
     lockTypes: { type: Boolean, default: false },
@@ -61,7 +62,7 @@ export default defineComponent({
       if (props.track.revision.value !== undefined
           && props.track.confidencePairs
           && props.track.confidencePairs.length > 0) {
-        return props.track.confidencePairs[0][1];
+        return props.track.confidencePairs[props.displayPairIndex]?.[1] ?? null;
       }
       return null;
     });

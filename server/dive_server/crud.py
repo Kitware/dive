@@ -15,6 +15,7 @@ import pydantic
 from pydantic.main import BaseModel
 
 from dive_utils import asbool, constants, fromMeta, models, strNumericCompare
+from dive_utils.type_hierarchy import TypeHierarchyError
 from dive_utils.types import GirderModel, GirderUserModel
 
 
@@ -130,18 +131,48 @@ MULTICAM_SHARED_MUTABLE_KEYS = (
 )
 
 
-def get_multicam_parent_folder(folder: GirderModel, user: GirderUserModel):
-    """Return the multicam parent if ``folder`` is one of its camera children, else None."""
+def hierarchy_rest_error(
+    error: TypeHierarchyError,
+    consequence: str = 'No configuration was changed.',
+) -> RestException:
+    """Render a type hierarchy validation failure as a client-actionable REST error."""
+    return RestException(f'Type hierarchy is invalid: {error.reason}. {consequence}')
+
+
+def get_multicam_owner_folder(folder: GirderModel) -> Optional[GirderModel]:
+    """Return the multicam parent that registers ``folder`` as a camera child, else None.
+
+    Camera-child membership is resolved without an ACL check: callers reach a camera child
+    through an already access-gated route, and the parent holds configuration that logically
+    belongs to the child. Callers that mutate the parent must gate on
+    :func:`get_multicam_parent_folder` instead.
+    """
     parent_id = folder.get('parentId')
     if not parent_id:
         return None
-    parent = Folder().load(parent_id, level=AccessType.WRITE, user=user)
+    parent = Folder().load(parent_id, force=True)
     if parent is None or fromMeta(parent, constants.TypeMarker) != constants.MultiType:
         return None
     multi_cam = fromMeta(parent, constants.MultiCamMarker, default={}) or {}
     cameras = multi_cam.get('cameras') or {}
     folder_id = str(folder['_id'])
     if not any(str(cam.get('folderId')) == folder_id for cam in cameras.values()):
+        return None
+    return parent
+
+
+def get_multicam_parent_folder(
+    folder: GirderModel,
+    user: GirderUserModel,
+    level: AccessType = AccessType.WRITE,
+):
+    """Return the multicam parent if ``folder`` is a camera child ``user`` may access at ``level``.
+
+    Insufficient access yields None rather than an AccessException, so a caller holding only
+    child-level rights degrades to the single-folder path instead of failing the request.
+    """
+    parent = get_multicam_owner_folder(folder)
+    if parent is None or not Folder().hasAccess(parent, user, level):
         return None
     return parent
 

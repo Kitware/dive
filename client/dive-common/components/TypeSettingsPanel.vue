@@ -16,6 +16,10 @@ export default defineComponent({
       type: Array as PropType<Array<string>>,
       required: true,
     },
+    hierarchyActive: {
+      type: Boolean,
+      required: true,
+    },
   },
   setup(props, { emit }) {
     const itemHeight = 45; // in pixels
@@ -204,7 +208,14 @@ export default defineComponent({
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
+                :disabled="hierarchyActive"
               />
+              <div
+                v-if="hierarchyActive"
+                class="ml-1 text-caption"
+              >
+                Not applicable to hierarchical types; DIVE selects the deepest qualifying type.
+              </div>
             </v-col>
             <v-col
               cols="2"

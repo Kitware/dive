@@ -1,0 +1,448 @@
+{
+  "normalizationCases": [
+    {
+      "name": "null is canonical absence",
+      "input": null,
+      "expected": null,
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "empty object is canonical absence",
+      "input": {},
+      "expected": null,
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "single edge with heading-only parent",
+      "input": { "cod": "fish" },
+      "expected": { "cod": "fish" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "chain",
+      "input": { "juvenile cod": "cod", "cod": "fish" },
+      "expected": { "cod": "fish", "juvenile cod": "cod" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "forest",
+      "input": { "cod": "fish", "tern": "bird", "fish": "animal" },
+      "expected": { "cod": "fish", "fish": "animal", "tern": "bird" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "names are preserved byte-for-byte",
+      "input": { " cod ": " fish " },
+      "expected": { " cod ": " fish " },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "whitespace-only child",
+      "input": { "   ": "fish" },
+      "expected": null,
+      "errorReason": "empty child",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "whitespace-only parent",
+      "input": { "cod": "  " },
+      "expected": null,
+      "errorReason": "empty parent for \"cod\"",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "child blank only under Python str.strip",
+      "input": {
+        "\u001c\u001d\u001e\u001f\u0085": "fish"
+      },
+      "expected": null,
+      "errorReason": "empty child",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "parent blank only under JS String.trim",
+      "input": {
+        "cod": "\ufeff"
+      },
+      "expected": null,
+      "errorReason": "empty parent for \"cod\"",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "non-string parent",
+      "input": { "cod": 7 },
+      "expected": null,
+      "errorReason": "parent for \"cod\" must be a string",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "array is not an object map",
+      "input": ["cod", "fish"],
+      "expected": null,
+      "errorReason": "expected an object",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "scalar is not an object map",
+      "input": "cod",
+      "expected": null,
+      "errorReason": "expected an object",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "self edge",
+      "input": { "fish": "fish" },
+      "expected": null,
+      "errorReason": "self edge \"fish -> fish\"",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "two-node cycle rotates to bytewise-smallest name",
+      "input": { "zebra": "ant", "ant": "zebra" },
+      "expected": null,
+      "errorReason": "cycle ant -> zebra -> ant",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "cycle rotation uses UTF-8 byte order",
+      "input": { "𐀀 node": " node", " node": "𐀀 node" },
+      "expected": null,
+      "errorReason": "cycle  node -> 𐀀 node ->  node",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "longer cycle",
+      "input": { "cod": "fish", "fish": "animal", "animal": "cod" },
+      "expected": null,
+      "errorReason": "cycle animal -> cod -> fish -> animal",
+      "errorKind": "malformed"
+    },
+    {
+      "name": "multiple cycles use bytewise-smallest rendered path",
+      "input": {
+        "𐀀 one": "𐀀 two",
+        "𐀀 two": "𐀀 one",
+        " one": " two",
+        " two": " one"
+      },
+      "expected": null,
+      "errorReason": "cycle  one ->  two ->  one",
+      "errorKind": "malformed"
+    }
+  ],
+  "resolutionCases": [
+    {
+      "name": "missing key is no instruction and does not validate existing",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": false,
+      "mode": "save",
+      "expectedAction": "none",
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "direct null clears invalid existing storage",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": true,
+      "incoming": null,
+      "mode": "save",
+      "expectedAction": "delete",
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "overwrite empty object clears",
+      "existing": { "cod": "fish" },
+      "incomingPresent": true,
+      "incoming": {},
+      "mode": "overwrite",
+      "expectedAction": "delete",
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "direct save sets complete incoming map",
+      "existing": { "cod": "fish" },
+      "incomingPresent": true,
+      "incoming": { "tern": "bird" },
+      "mode": "save",
+      "expectedAction": "set",
+      "expected": { "tern": "bird" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "overwrite replaces complete map",
+      "existing": { "cod": "fish", "fish": "animal" },
+      "incomingPresent": true,
+      "incoming": { "tern": "bird" },
+      "mode": "overwrite",
+      "expectedAction": "set",
+      "expected": { "tern": "bird" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "overwrite valid input repairs invalid existing storage",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": true,
+      "incoming": { "cod": "fish" },
+      "mode": "overwrite",
+      "expectedAction": "set",
+      "expected": { "cod": "fish" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "additive explicit null clears",
+      "existing": { "cod": "fish" },
+      "incomingPresent": true,
+      "incoming": null,
+      "mode": "additive",
+      "expectedAction": "delete",
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "additive explicit null clears invalid existing storage",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": true,
+      "incoming": null,
+      "mode": "additive",
+      "expectedAction": "delete",
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "additive empty object preserves invalid existing storage without validation",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": true,
+      "incoming": {},
+      "mode": "additive",
+      "expectedAction": "none",
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "additive identical edge coalesces",
+      "existing": { "cod": "fish" },
+      "incomingPresent": true,
+      "incoming": { "cod": "fish" },
+      "mode": "additive",
+      "expectedAction": "set",
+      "expected": { "cod": "fish" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "additive non-conflicting maps merge",
+      "existing": { "cod": "fish" },
+      "incomingPresent": true,
+      "incoming": { "fish": "animal", "tern": "bird" },
+      "mode": "additive",
+      "expectedAction": "set",
+      "expected": { "cod": "fish", "fish": "animal", "tern": "bird" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "additive conflicting parent rejects",
+      "existing": { "cod": "fish" },
+      "incomingPresent": true,
+      "incoming": { "cod": "animal" },
+      "mode": "additive",
+      "expectedAction": null,
+      "errorReason": "conflicting parents for \"cod\": \"fish\" and \"animal\"",
+      "errorKind": "conflict"
+    },
+    {
+      "name": "additive combined cycle rejects",
+      "existing": { "cod": "fish" },
+      "incomingPresent": true,
+      "incoming": { "fish": "cod" },
+      "mode": "additive",
+      "expectedAction": null,
+      "errorReason": "cycle cod -> fish -> cod",
+      "errorKind": "conflict"
+    },
+    {
+      "name": "valid additive input against invalid existing is conflict",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": true,
+      "incoming": { "cod": "fish" },
+      "mode": "additive",
+      "expectedAction": null,
+      "errorReason": "cycle a -> b -> a",
+      "errorKind": "conflict"
+    },
+    {
+      "name": "invalid incoming remains malformed even against invalid existing",
+      "existing": { "a": "b", "b": "a" },
+      "incomingPresent": true,
+      "incoming": { "cod": 3 },
+      "mode": "additive",
+      "expectedAction": null,
+      "errorReason": "parent for \"cod\" must be a string",
+      "errorKind": "malformed"
+    }
+  ],
+  "renameCases": [
+    {
+      "name": "rename child key",
+      "hierarchy": { "cod": "fish" },
+      "currentType": "cod",
+      "newType": "haddock",
+      "expected": { "haddock": "fish" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "rename parent value",
+      "hierarchy": { "cod": "fish", "tern": "bird" },
+      "currentType": "fish",
+      "newType": "animal",
+      "expected": { "cod": "animal", "tern": "bird" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "rename both key and value occurrences",
+      "hierarchy": { "cod": "fish", "fish": "animal" },
+      "currentType": "fish",
+      "newType": "vertebrate",
+      "expected": { "cod": "vertebrate", "vertebrate": "animal" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "rename coalesces identical destination edge",
+      "hierarchy": { "cod": "fish", "haddock": "fish" },
+      "currentType": "cod",
+      "newType": "haddock",
+      "expected": { "haddock": "fish" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "rename parent onto existing parent shares destination",
+      "hierarchy": { "cod": "fish", "tern": "bird" },
+      "currentType": "fish",
+      "newType": "bird",
+      "expected": { "cod": "bird", "tern": "bird" },
+      "errorReason": null,
+      "errorKind": null
+    },
+    {
+      "name": "rename child to its parent creates self edge",
+      "hierarchy": { "cod": "fish" },
+      "currentType": "cod",
+      "newType": "fish",
+      "expected": null,
+      "errorReason": "self edge \"fish -> fish\"",
+      "errorKind": "conflict"
+    },
+    {
+      "name": "rename to child with different parent conflicts",
+      "hierarchy": { "cod": "fish", "haddock": "animal" },
+      "currentType": "cod",
+      "newType": "haddock",
+      "expected": null,
+      "errorReason": "conflicting parents for \"haddock\": \"animal\" and \"fish\"",
+      "errorKind": "conflict"
+    },
+    {
+      "name": "rename parent to descendant creates cycle",
+      "hierarchy": { "cod": "fish", "fish": "animal" },
+      "currentType": "animal",
+      "newType": "cod",
+      "expected": null,
+      "errorReason": "cycle cod -> fish -> cod",
+      "errorKind": "conflict"
+    }
+  ],
+  "selectionCases": [
+    {
+      "name": "monotone chain chooses leaf",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["juvenile cod", 0.9], ["cod", 0.8], ["fish", 0.7]],
+      "passes": [true, true, true],
+      "expectedIndex": 0
+    },
+    {
+      "name": "non-monotone chain chooses passing leaf despite confidence order",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["cod", 0.9], ["fish", 0.8], ["juvenile cod", 0.7]],
+      "passes": [true, true, true],
+      "expectedIndex": 2
+    },
+    {
+      "name": "unchecked leaf rolls up to passing parent",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["juvenile cod", 0.9], ["cod", 0.8], ["fish", 0.7]],
+      "passes": [false, true, true],
+      "expectedIndex": 1
+    },
+    {
+      "name": "passing descendant wins when ancestor is unchecked",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["cod", 0.9], ["juvenile cod", 0.8]],
+      "passes": [false, true],
+      "expectedIndex": 1
+    },
+    {
+      "name": "failing descendant leaves passing ancestor",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish" },
+      "pairs": [["juvenile cod", 0.9], ["cod", 0.8]],
+      "passes": [false, true],
+      "expectedIndex": 1
+    },
+    {
+      "name": "no passing pair",
+      "hierarchy": { "cod": "fish" },
+      "pairs": [["cod", 0.9], ["fish", 0.8]],
+      "passes": [false, false],
+      "expectedIndex": -1
+    },
+    {
+      "name": "duplicate type names preserve first passing occurrence",
+      "hierarchy": { "cod": "fish" },
+      "pairs": [["fish", 0.95], ["cod", 0.8], ["cod", 0.8]],
+      "passes": [true, true, true],
+      "expectedIndex": 1
+    },
+    {
+      "name": "equal scores preserve original order between unrelated leaves",
+      "hierarchy": { "cod": "fish", "tern": "bird" },
+      "pairs": [["tern", 0.8], ["cod", 0.8]],
+      "passes": [true, true],
+      "expectedIndex": 0
+    },
+    {
+      "name": "unrelated branches do not compare numeric depth",
+      "hierarchy": { "juvenile cod": "cod", "cod": "fish", "tern": "bird" },
+      "pairs": [["tern", 0.9], ["juvenile cod", 0.8], ["cod", 0.7]],
+      "passes": [true, true, true],
+      "expectedIndex": 0
+    },
+    {
+      "name": "unknown hierarchy name remains unrelated",
+      "hierarchy": { "cod": "fish" },
+      "pairs": [["mystery", 0.9], ["cod", 0.8], ["fish", 0.7]],
+      "passes": [true, true, true],
+      "expectedIndex": 0
+    },
+    {
+      "name": "empty hierarchy pure selector parity",
+      "hierarchy": {},
+      "pairs": [["cod", 0.9], ["fish", 0.8]],
+      "passes": [false, true],
+      "expectedIndex": 1
+    }
+  ]
+}

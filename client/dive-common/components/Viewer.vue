@@ -666,6 +666,7 @@ export default defineComponent({
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       lookupGroups: cameraStore.lookupGroups,
       getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
+      getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
       groupFilterControls: groupFilters,
       setType: setTrackType,
       removeTypes,
@@ -933,16 +934,27 @@ export default defineComponent({
           });
         }
       }
+      const typeHierarchyPatch = trackFilters.typeHierarchySavePatch();
       try {
-        await saveToServer({
-          customTypeStyling: trackStyleManager.getTypeStyles(trackFilters.allTypes),
+        const { canonicalConfigPersisted } = await saveToServer({
+          customTypeStyling: trackStyleManager.getTypeStyles(
+            trackFilters.usedPlusConfiguredTypes,
+          ),
           customGroupStyling: groupStyleManager.getTypeStyles(groupFilters.allTypes),
           confidenceFilters: trackFilters.confidenceFilters.value,
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
+          ...typeHierarchyPatch,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
+        if (canonicalConfigPersisted) {
+          trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+        }
       } catch (err) {
+        const saveResult = err as { canonicalConfigPersisted?: boolean };
+        if (saveResult.canonicalConfigPersisted) {
+          trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+        }
         let text = 'Unable to Save Data';
         const saveErr = err as { response?: { status?: number } };
         if (saveErr.response && saveErr.response.status === 403) {
@@ -1495,6 +1507,15 @@ export default defineComponent({
         // Close and reset sideBar
         context.resetActive();
         const meta = await loadConfig(datasetId.value);
+        trackFilters.setTypeHierarchy(meta.typeHierarchy);
+        const hierarchyWarning = trackFilters.consumeLoadWarning();
+        if (hierarchyWarning) {
+          await prompt({
+            title: 'Invalid Type Hierarchy',
+            text: hierarchyWarning,
+            positiveButton: 'OK',
+          });
+        }
         baseMulticamDatasetId.value = datasetId.value;
         if (meta.multiCamMedia) {
           /* We're loading a multicamera dataset */

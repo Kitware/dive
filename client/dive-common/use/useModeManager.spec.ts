@@ -13,6 +13,7 @@ import { IDENTITY3 } from 'vue-media-annotator/alignedView/alignedView';
 import type { Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import type { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import useModeManager from './useModeManager';
 
@@ -58,6 +59,7 @@ function makeHarness() {
     markChangesPending: () => undefined,
     lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTrack: (id: AnnotationId, camera = 'singleCam') => cameraStore.getTrack(id, camera),
+    getTracks: (id: AnnotationId) => cameraStore.getTrackAll(id),
     groupFilterControls,
     setType: () => undefined,
     removeTypes: () => [],
@@ -151,6 +153,18 @@ describe('useModeManager aligned-view track mirroring', () => {
     expect(cameraStore.getTrack(trackId, 'left').features[0]?.bounds).toEqual([10, 20, 30, 40]);
   });
 
+  it('mirrors the whole source vector onto a newly created counterpart', () => {
+    const { cameraStore, modeManager } = makeHarness();
+    const trackId = modeManager.handler.trackAdd();
+    const source = cameraStore.getTrack(trackId, 'left');
+    source.setType('leaf', 0.8);
+    modeManager.handler.updateRectBounds(0, 0, [10, 20, 30, 40]);
+
+    const mirrored = cameraStore.getTrack(trackId, 'right');
+    expect(mirrored.confidencePairs).toEqual(source.confidencePairs);
+    expect(mirrored.confidencePairs).not.toBe(source.confidencePairs);
+  });
+
   it('does not mirror while the aligned view is suspended (registration picking)', () => {
     const { cameraStore, alignedView, modeManager } = makeHarness();
     alignedView.setSuspended(true);
@@ -182,6 +196,7 @@ function makeSingleCamHarness() {
     markChangesPending: () => undefined,
     lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTrack: (id: AnnotationId, camera = 'singleCam') => cameraStore.getTrack(id, camera),
+    getTracks: (id: AnnotationId) => cameraStore.getTrackAll(id),
     groupFilterControls,
     setType: () => undefined,
     removeTypes: () => [],
@@ -194,8 +209,43 @@ function makeSingleCamHarness() {
     readonlyState: ref(false),
     recipes: [],
   });
-  return { cameraStore, modeManager };
+  return { cameraStore, modeManager, trackFilterControls };
 }
+
+describe('useModeManager counterpart creation', () => {
+  it('copies the source confidence vector onto the counterpart camera track', () => {
+    const { cameraStore, modeManager } = makeHarness();
+    cameraStore.camMap.value.get('left')?.trackStore.insert(new Track(9, {
+      confidencePairs: [['root', 0.9], ['leaf', 0.8]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
+    }));
+    modeManager.selectedCamera.value = 'right';
+    modeManager.handler.trackAdd(9);
+
+    const source = cameraStore.getTrack(9, 'left');
+    const counterpart = cameraStore.getTrack(9, 'right');
+    expect(counterpart.confidencePairs).toEqual([['root', 0.9], ['leaf', 0.8]]);
+    expect(counterpart.confidencePairs).not.toBe(source.confidencePairs);
+    expect(counterpart.confidencePairs[0]).not.toBe(source.confidencePairs[0]);
+  });
+});
+
+describe('TrackFilterControls construction', () => {
+  it('provides complete stored-track enumeration for hierarchy renames', () => {
+    const { cameraStore, trackFilterControls } = makeSingleCamHarness();
+    const trackStore = cameraStore.camMap.value.get('singleCam')?.trackStore;
+    trackStore?.insert(new Track(7, {
+      confidencePairs: [['leaf', 1], ['root', 0.8]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
+    }));
+    trackStore?.setEnableSorting();
+    trackFilterControls.setTypeHierarchy({ leaf: 'root' });
+    trackFilterControls.updateTypeName({ currentType: 'leaf', newType: 'fin' });
+    expect(cameraStore.getTrack(7).confidencePairs).toEqual([
+      ['fin', 1], ['root', 0.8],
+    ]);
+  });
+});
 
 describe('useModeManager polygon clip on box resize', () => {
   // Triangle that sticks past x=20; clipping to [0,0,20,40] leaves a non-box shape.

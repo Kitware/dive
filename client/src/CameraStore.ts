@@ -243,23 +243,6 @@ export default class CameraStore {
     });
   }
 
-  changeTrackTypes({ currentType, newType }: { currentType: string; newType: string }) {
-    this.camMap.value.forEach((camera) => {
-      camera.trackStore.sorted.value.forEach((annotation) => {
-        for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
-          const [name, confidenceVal] = annotation.confidencePairs[i];
-          if (name === currentType) {
-            const track = camera.trackStore.get(annotation.id);
-            if (track) {
-              track.setType(newType, confidenceVal, currentType);
-            }
-            break;
-          }
-        }
-      });
-    });
-  }
-
   removeTypes(id: AnnotationId, types: string[]) {
     let resultingTypes: ConfidencePair[] = [];
     this.camMap.value.forEach((camera) => {

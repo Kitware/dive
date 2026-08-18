@@ -11,6 +11,7 @@ import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/di
 
 import { CameraCorrespondences, MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
+import { getResponseError } from 'vue-media-annotator/utils';
 import * as common from './common';
 import { createWorkingDirectory, buildTrainingExitManifest } from './utils';
 import beginMultiCamImport from './multiCamImport';
@@ -949,6 +950,39 @@ describe('native.common', () => {
     )).rejects.toThrow('no bbox and no usable polygon segmentation');
   });
 
+  it.each([
+    ['malformed', '{broken'],
+    ['null', 'null'],
+    ['number', '5'],
+    ['string', '"annotation"'],
+  ])('keeps an earlier annotation write when later %s JSON is invalid', async (kind, contents) => {
+    const valid = '/home/user/output/valid-before-malformed.coco.json';
+    const malformed = `/home/user/output/${kind}-later.json`;
+    const project = common.getProjectDir(settings, 'projectid1');
+    await fs.writeFile(valid, cocoWithRle(1));
+    await fs.writeFile(malformed, contents);
+    const writeFile = vi.spyOn(fs, 'writeFile');
+
+    try {
+      await common.ingestDataFiles(
+        settings,
+        'projectid1',
+        [valid, malformed],
+      ).catch(() => undefined);
+
+      expect(await fs.pathExists(
+        npath.join(project.auxDirAbsPath, `imported_${npath.basename(valid)}`),
+      )).toBe(true);
+      const annotationWrites = writeFile.mock.calls.filter(([path, data]) => (
+        npath.basename(String(path)).startsWith('result_')
+        && Object.prototype.hasOwnProperty.call(JSON.parse(String(data)).tracks, '1')
+      ));
+      expect(annotationWrites).toHaveLength(1);
+    } finally {
+      writeFile.mockRestore();
+    }
+  });
+
   it('getPipelineList lists pipelines', async () => {
     const exists = await fs.pathExists(settings.viamePath);
     expect(exists).toBe(true);
@@ -1024,6 +1058,282 @@ describe('native.common', () => {
     ]);
     expect(data.imageData[0].timestamp).toBe(1686839422);
     expect(data.imageData[1].timestamp).toBeUndefined();
+  });
+
+  it('saveConfig sets, clears, and atomically rejects a type hierarchy', async () => {
+    const legacyProject = common.getProjectDir(settings, 'projectid1');
+    await common.saveProjectConfig(
+      legacyProject.basePath,
+      await fs.readJSON(legacyProject.datasetFileAbsPath),
+    );
+    await common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { shark: 'fish' },
+    });
+    let meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(meta.typeHierarchy).toEqual({ shark: 'fish' });
+
+    const project = common.getProjectDir(settings, 'projectid1');
+    const beforeInvalid = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+    await expect(common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { fish: 'fish' },
+      confidenceFilters: { default: 0.9 },
+    })).rejects.toThrow(
+      'Type hierarchy is invalid: self edge "fish -> fish". No configuration was changed.',
+    );
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(beforeInvalid);
+
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: null });
+    meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(meta.typeHierarchy).toBeUndefined();
+  });
+
+  it('an unrelated direct save preserves invalid hierarchy storage until repaired', async () => {
+    let project = common.getProjectDir(settings, 'projectid1');
+    const raw = await fs.readJSON(project.datasetFileAbsPath);
+    raw.typeHierarchy = ['corrupt'];
+    await common.saveProjectConfig(project.basePath, raw);
+    project = common.getProjectDir(settings, 'projectid1');
+
+    await common.saveConfig(settings, 'projectid1', {
+      confidenceFilters: { default: 0.7 },
+    });
+    let saved = await fs.readJSON(common.getProjectDir(settings, 'projectid1').datasetFileAbsPath);
+    expect(saved.typeHierarchy).toEqual(['corrupt']);
+
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: {} });
+    saved = await fs.readJSON(common.getProjectDir(settings, 'projectid1').datasetFileAbsPath);
+    expect(saved.typeHierarchy).toBeUndefined();
+    await common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { tuna: 'fish' },
+    });
+    saved = await fs.readJSON(common.getProjectDir(settings, 'projectid1').datasetFileAbsPath);
+    expect(saved.typeHierarchy).toEqual({ tuna: 'fish' });
+  });
+
+  it('imports overwrite, additive, and explicit-empty hierarchy instructions', async () => {
+    const overwrite = '/home/user/output/hierarchy-overwrite.json';
+    const additive = '/home/user/output/hierarchy-additive.json';
+    const empty = '/home/user/output/hierarchy-empty.json';
+    const cleared = '/home/user/output/hierarchy-null.json';
+    await fs.writeJSON(overwrite, { typeHierarchy: { shark: 'fish' } });
+    await fs.writeJSON(additive, { typeHierarchy: { tuna: 'fish' } });
+    await fs.writeJSON(empty, { typeHierarchy: {} });
+    await fs.writeJSON(cleared, { typeHierarchy: null });
+
+    await common.dataFileImport(settings, 'projectid1', overwrite);
+    await common.dataFileImport(settings, 'projectid1', additive, true);
+    let meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(meta.typeHierarchy).toEqual({ shark: 'fish', tuna: 'fish' });
+
+    await common.dataFileImport(settings, 'projectid1', empty, true);
+    meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(meta.typeHierarchy).toEqual({ shark: 'fish', tuna: 'fish' });
+    await common.dataFileImport(settings, 'projectid1', cleared, true);
+    meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(meta.typeHierarchy).toBeUndefined();
+
+    await common.dataFileImport(settings, 'projectid1', overwrite);
+    await common.dataFileImport(settings, 'projectid1', empty);
+    meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(meta.typeHierarchy).toBeUndefined();
+  });
+
+  it('rejects additive hierarchy conflicts without writes and allows corrected retry', async () => {
+    const imported = '/home/user/output/hierarchy-conflict.json';
+    const legacyProject = common.getProjectDir(settings, 'projectid1');
+    await common.saveProjectConfig(
+      legacyProject.basePath,
+      await fs.readJSON(legacyProject.datasetFileAbsPath),
+    );
+    await common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { shark: 'fish' },
+      confidenceFilters: { default: 0.2 },
+    });
+    await fs.writeJSON(imported, {
+      typeHierarchy: { shark: 'animal' },
+      confidenceFilters: { default: 0.9 },
+    });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+
+    await expect(common.dataFileImport(
+      settings,
+      'projectid1',
+      imported,
+      true,
+    )).rejects.toThrow(
+      'Type hierarchy is invalid: conflicting parents for "shark": "fish" and "animal". '
+      + 'No configuration was changed.',
+    );
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
+    expect(await fs.pathExists(npath.join(project.auxDirAbsPath, 'imported_hierarchy-conflict.json')))
+      .toBe(false);
+
+    await fs.writeJSON(imported, { typeHierarchy: { tuna: 'fish' } });
+    await common.dataFileImport(settings, 'projectid1', imported, true);
+    const saved = await common.loadConfig(settings, 'projectid1', urlMapper);
+    expect(saved.typeHierarchy).toEqual({ shark: 'fish', tuna: 'fish' });
+  });
+
+  it('preflights ordered hierarchy config batches and cleans every auxiliary copy on failure', async () => {
+    const annotation = '/home/user/output/annotation-before-config.json';
+    const first = '/home/user/output/hierarchy-first.json';
+    const second = '/home/user/output/hierarchy-second.json';
+    await fs.writeJSON(annotation, { 0: { trackId: 0 } });
+    await fs.writeJSON(first, {
+      typeHierarchy: { shark: 'fish' },
+      datasetInfo: { first: true, replaced: 'first' },
+    });
+    await fs.writeJSON(second, { typeHierarchy: { fish: 'shark' } });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+    const annotationsBefore = await fs.readFile(project.trackFileAbsPath, 'utf8');
+
+    await expect(common.ingestDataFiles(
+      settings,
+      'projectid1',
+      [annotation, first, second],
+      undefined,
+      undefined,
+      true,
+    )).rejects.toThrow(
+      'Type hierarchy is invalid: cycle fish -> shark -> fish. No configuration was changed.',
+    );
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
+    expect(await fs.readFile(project.trackFileAbsPath, 'utf8')).toBe(annotationsBefore);
+    expect(await fs.pathExists(npath.join(project.auxDirAbsPath, 'imported_hierarchy-first.json')))
+      .toBe(false);
+    expect(await fs.pathExists(npath.join(project.auxDirAbsPath, 'imported_hierarchy-second.json')))
+      .toBe(false);
+
+    await fs.writeJSON(second, {
+      typeHierarchy: { tuna: 'fish' },
+      datasetInfo: { second: true, replaced: 'second' },
+    });
+    const result = await common.ingestDataFiles(
+      settings,
+      'projectid1',
+      [first, second],
+      undefined,
+      undefined,
+      true,
+    );
+    expect(result.meta.typeHierarchy).toEqual({ shark: 'fish', tuna: 'fish' });
+    expect(result.meta.datasetInfo).toEqual({
+      first: true,
+      second: true,
+      replaced: 'second',
+    });
+
+    const overwriteResult = await common.ingestDataFiles(
+      settings,
+      'projectid1',
+      [first, second],
+    );
+    expect(overwriteResult.meta.typeHierarchy).toEqual({ tuna: 'fish' });
+    expect(overwriteResult.meta.datasetInfo).toEqual({ second: true, replaced: 'second' });
+  });
+
+  it('parses each config once and executes the exact ordered hierarchy candidate', async () => {
+    const first = '/home/user/output/parse-once-first.json';
+    const second = '/home/user/output/parse-once-second.json';
+    const legacyProject = common.getProjectDir(settings, 'projectid1');
+    await common.saveProjectConfig(
+      legacyProject.basePath,
+      await fs.readJSON(legacyProject.datasetFileAbsPath),
+    );
+    await common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { shark: 'fish' },
+    });
+    await fs.writeJSON(first, {
+      typeHierarchy: { tuna: 'fish' },
+      datasetInfo: { sequence: 'first' },
+    });
+    await fs.writeJSON(second, {
+      typeHierarchy: { mako: 'shark' },
+      datasetInfo: { sequence: 'second' },
+    });
+    const readFile = vi.spyOn(fs, 'readFile');
+
+    try {
+      const result = await common.ingestDataFiles(
+        settings,
+        'projectid1',
+        [first, second],
+        undefined,
+        undefined,
+        true,
+      );
+
+      expect(result.meta.typeHierarchy).toEqual({
+        mako: 'shark',
+        shark: 'fish',
+        tuna: 'fish',
+      });
+      expect(result.meta.datasetInfo).toEqual({ sequence: 'second' });
+      expect(readFile.mock.calls.filter(([path]) => path === first)).toHaveLength(1);
+      expect(readFile.mock.calls.filter(([path]) => path === second)).toHaveLength(1);
+    } finally {
+      readFile.mockRestore();
+    }
+  });
+
+  it('surfaces the exact hierarchy error through the desktop public import boundary', async () => {
+    const imported = '/home/user/output/public-import-conflict.json';
+    const expected = 'Type hierarchy is invalid: conflicting parents for "shark": "fish" and '
+      + '"animal". No configuration was changed.';
+    const legacyProject = common.getProjectDir(settings, 'projectid1');
+    await common.saveProjectConfig(
+      legacyProject.basePath,
+      await fs.readJSON(legacyProject.datasetFileAbsPath),
+    );
+    await common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { shark: 'fish' },
+    });
+    await fs.writeJSON(imported, { typeHierarchy: { shark: 'animal' } });
+    let surfacedError: unknown;
+
+    try {
+      await common.dataFileImport(settings, 'projectid1', imported, true);
+    } catch (error) {
+      surfacedError = error;
+    }
+
+    expect(surfacedError).toBeInstanceOf(Error);
+    expect((surfacedError as Error).message).toBe(expected);
+    expect(getResponseError(surfacedError)).toBe(expected);
+  });
+
+  it('exports only a valid non-empty type hierarchy and writes no invalid export', async () => {
+    const output = '/home/user/output/exported-config.json';
+    const legacyProject = common.getProjectDir(settings, 'projectid1');
+    await common.saveProjectConfig(
+      legacyProject.basePath,
+      await fs.readJSON(legacyProject.datasetFileAbsPath),
+    );
+    await common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { shark: 'fish' },
+    });
+    await common.exportConfiguration(settings, { id: 'projectid1', path: output });
+    expect((await fs.readJSON(output)).typeHierarchy).toEqual({ shark: 'fish' });
+
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: null });
+    await common.exportConfiguration(settings, { id: 'projectid1', path: output });
+    expect((await fs.readJSON(output)).typeHierarchy).toBeUndefined();
+
+    const project = common.getProjectDir(settings, 'projectid1');
+    const raw = await fs.readJSON(project.datasetFileAbsPath);
+    raw.typeHierarchy = { fish: 'fish' };
+    await fs.writeJSON(project.datasetFileAbsPath, raw);
+    await fs.remove(output);
+    await expect(common.exportConfiguration(
+      settings,
+      { id: 'projectid1', path: output },
+    )).rejects.toThrow(
+      'Type hierarchy is invalid: self edge "fish -> fish". '
+      + 'No configuration file was exported.',
+    );
+    expect(await fs.pathExists(output)).toBe(false);
   });
 
   it('loadJsonConfig parses per-camera frame timestamps for multicam datasets', async () => {
@@ -1350,7 +1660,12 @@ describe('native.common', () => {
     };
     seededBase.cameraTransformTypes = { 'left::right': 'similarity' };
     seededBase.cameraRegistrationSource = { model: 'seeded' };
+    seededBase.typeHierarchy = { shark: 'fish' };
     await fs.writeJSON(baseDir.datasetFileAbsPath, seededBase);
+    const cameraDir = common.getProjectDir(settings, `${baseId}/left`);
+    const seededCamera = await common.loadJsonConfig(cameraDir.datasetFileAbsPath);
+    seededCamera.typeHierarchy = { whale: 'mammal' };
+    await fs.writeJSON(cameraDir.datasetFileAbsPath, seededCamera);
 
     await common.dataFileImport(
       settings,
@@ -1371,6 +1686,30 @@ describe('native.common', () => {
     expect(baseMeta.cameraCorrespondences).toStrictEqual(seededBase.cameraCorrespondences);
     expect(baseMeta.cameraTransformTypes).toStrictEqual(seededBase.cameraTransformTypes);
     expect(baseMeta.cameraRegistrationSource).toStrictEqual(seededBase.cameraRegistrationSource);
+
+    const hierarchyImport = '/home/user/output/multicam-hierarchy.json';
+    await fs.writeJSON(hierarchyImport, { typeHierarchy: { shark: 'animal' } });
+    const parentBeforeConflict = await fs.readFile(baseDir.datasetFileAbsPath, 'utf8');
+    const cameraBeforeConflict = await fs.readFile(cameraDir.datasetFileAbsPath, 'utf8');
+    await expect(common.dataFileImport(
+      settings,
+      `${baseId}/left`,
+      hierarchyImport,
+      true,
+    )).rejects.toThrow(
+      'Type hierarchy is invalid: conflicting parents for "shark": "fish" and "animal". '
+      + 'No configuration was changed.',
+    );
+    expect(await fs.readFile(baseDir.datasetFileAbsPath, 'utf8')).toBe(parentBeforeConflict);
+    expect(await fs.readFile(cameraDir.datasetFileAbsPath, 'utf8')).toBe(cameraBeforeConflict);
+
+    await fs.writeJSON(hierarchyImport, { typeHierarchy: { tuna: 'fish' } });
+    await common.dataFileImport(settings, `${baseId}/left`, hierarchyImport, true);
+    const resolvedHierarchy = { shark: 'fish', tuna: 'fish' };
+    expect((await common.loadConfig(settings, baseId, urlMapper)).typeHierarchy)
+      .toEqual(resolvedHierarchy);
+    expect((await common.loadConfig(settings, `${baseId}/left`, urlMapper)).typeHierarchy)
+      .toEqual(resolvedHierarchy);
   });
 
   it('saveConfig writes per-camera registration files (pairs + points) and reloads them', async () => {

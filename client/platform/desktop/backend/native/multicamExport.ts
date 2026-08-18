@@ -75,6 +75,7 @@ async function writeDatasetExportContents(
   datasetId: string,
   excludeBelowThreshold: boolean,
   typeFilter: Set<string>,
+  includeHierarchy = true,
 ): Promise<void> {
   const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
   const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
@@ -86,6 +87,9 @@ async function writeDatasetExportContents(
 
   await fs.ensureDir(destDir);
   const exportMeta = buildExportMetaJson(meta);
+  if (!includeHierarchy) {
+    delete exportMeta.typeHierarchy;
+  }
   if (meta.metadataFile) {
     if (!await fs.pathExists(meta.metadataFile)) {
       throw new Error(`Metadata attachment is missing: ${meta.metadataFile}`);
@@ -188,6 +192,7 @@ export async function exportMulticamEverything(
         `${parentId}/${cameraName}`,
         args.exclude,
         args.typeFilter,
+        false,
       );
     }
 
