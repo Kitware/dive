@@ -238,6 +238,7 @@ export interface ConversionArgs extends JobArgs {
   type: JobType.Conversion;
   meta: JsonConfig;
   mediaList: [string, string][];
+  importWarnings?: string[];
 }
 
 /** IPC payload when a CLI open must wait on media conversion. */

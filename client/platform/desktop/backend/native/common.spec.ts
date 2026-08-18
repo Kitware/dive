@@ -150,6 +150,23 @@ function cocoWithRle(trackId: number, categoryName = 'fish') {
   });
 }
 
+function cocoWithHierarchy(trackId: number, child: string, parent: string) {
+  return {
+    images: [{ id: 1, file_name: 'frame_000001.jpg', frame_index: 0 }],
+    annotations: [{
+      id: trackId,
+      image_id: 1,
+      category_id: 2,
+      bbox: [10, 20, 30, 40],
+      track_id: trackId,
+    }],
+    categories: [
+      { id: 1, name: parent },
+      { id: 2, name: child, supercategory: parent },
+    ],
+  };
+}
+
 // Below sets up data in the mockfs
 type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
 /* Viame.spec.json is an array in the format [CSV row Array, MultiTrackRecord, Attributes Object][]
@@ -866,6 +883,59 @@ beforeEach(() => {
 });
 
 describe('native.common', () => {
+  it('imports COCO annotations and applies valid producer hierarchy separately', async () => {
+    const imported = '/home/user/output/hierarchy.coco.json';
+    await fs.writeJSON(imported, cocoWithHierarchy(41, 'shark', 'fish'));
+
+    const result = await common.dataFileImport(settings, 'projectid1', imported);
+
+    expect(result.warnings).toEqual([]);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toEqual({ shark: 'fish' });
+    expect((await common.loadDetections(settings, 'projectid1')).tracks[41].confidencePairs)
+      .toEqual([['shark', 1]]);
+  });
+
+  it('warns and skips a conflicting COCO hierarchy without dropping annotations', async () => {
+    const imported = '/home/user/output/conflict.coco.json';
+    await common.saveConfig(settings, 'projectid1', {
+      typeHierarchy: { shark: 'animal' },
+    });
+    await fs.writeJSON(imported, cocoWithHierarchy(42, 'shark', 'fish'));
+
+    const result = await common.dataFileImport(settings, 'projectid1', imported);
+
+    expect(result.warnings).toEqual([
+      'The category hierarchy in the COCO file could not be applied: conflicting parents for '
+      + '"shark": "animal" and "fish". Annotations were imported without changing the dataset '
+      + 'type hierarchy.',
+    ]);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toEqual({ shark: 'animal' });
+    expect((await common.loadDetections(settings, 'projectid1')).tracks[42]).toBeDefined();
+  });
+
+  it('promotes the first multicamera COCO hierarchy and warns on later conflicts', async () => {
+    const left = '/home/user/output/left-hierarchy.coco.json';
+    const right = '/home/user/output/right-hierarchy.coco.json';
+    await fs.writeJSON(left, cocoWithHierarchy(51, 'shark', 'fish'));
+    await fs.writeJSON(right, cocoWithHierarchy(52, 'shark', 'animal'));
+
+    const result = await common.ingestDataFiles(
+      settings,
+      'stereoDataset',
+      [],
+      { left, right },
+    );
+
+    expect(result.meta.typeHierarchy).toEqual({ shark: 'fish' });
+    expect(result.warnings).toEqual([
+      'The category hierarchy in the COCO file could not be applied: conflicting parents for '
+      + '"shark": "fish" and "animal". Annotations were imported without changing the dataset '
+      + 'type hierarchy.',
+    ]);
+  });
+
   it('preserves warnings from primary COCO files in input order', async () => {
     const first = '/home/user/output/first.coco.json';
     const second = '/home/user/output/second.coco.json';
@@ -1336,6 +1406,70 @@ describe('native.common', () => {
     expect(await fs.pathExists(output)).toBe(false);
   });
 
+  it('uses the parent hierarchy when exporting COCO from a selected multicam camera', async () => {
+    const parentId = 'coco-export-parent';
+    const parentDir = common.getProjectDir(settings, parentId);
+    const cameraDir = common.getProjectDir(settings, `${parentId}/left`);
+    const seed = await common.loadJsonConfig(
+      common.getProjectDir(settings, 'projectid1').datasetFileAbsPath,
+    );
+    await fs.ensureDir(cameraDir.basePath);
+    await fs.writeJSON(parentDir.datasetFileAbsPath, {
+      ...seed,
+      id: parentId,
+      typeHierarchy: { shark: 'fish' },
+    });
+    await fs.writeJSON(cameraDir.datasetFileAbsPath, {
+      ...seed,
+      id: `${parentId}/left`,
+      typeHierarchy: { shark: 'animal' },
+    });
+    await fs.writeJSON(npath.join(cameraDir.basePath, 'result.json'), {
+      version: AnnotationsCurrentVersion,
+      groups: {},
+      tracks: {
+        1: {
+          id: 1,
+          begin: 0,
+          end: 0,
+          attributes: {},
+          confidencePairs: [['shark', 0.9]],
+          features: [{ frame: 0, bounds: [0, 0, 1, 1] }],
+        },
+      },
+    });
+
+    const output = '/home/user/output/selected-camera.coco.json';
+    await common.exportDataset(settings, {
+      id: `${parentId}/left`,
+      path: output,
+      type: 'coco',
+      exclude: false,
+      typeFilter: new Set(),
+    });
+
+    const exported = await fs.readJSON(output);
+    expect(exported.categories).toEqual(expect.arrayContaining([
+      expect.objectContaining({ name: 'shark', supercategory: 'fish' }),
+    ]));
+
+    const corruptParent = await fs.readJSON(parentDir.datasetFileAbsPath);
+    corruptParent.typeHierarchy = { fish: 'fish' };
+    await fs.writeJSON(parentDir.datasetFileAbsPath, corruptParent);
+    await fs.remove(output);
+    await expect(common.exportDataset(settings, {
+      id: `${parentId}/left`,
+      path: output,
+      type: 'coco',
+      exclude: false,
+      typeFilter: new Set(),
+    })).rejects.toThrow(
+      'Type hierarchy is invalid: self edge "fish -> fish". '
+      + 'No COCO file was exported.',
+    );
+    expect(await fs.pathExists(output)).toBe(false);
+  });
+
   it('loadJsonConfig parses per-camera frame timestamps for multicam datasets', async () => {
     const data = await common.loadConfig(settings, 'stereoDataset', urlMapper);
     expect(data.multiCamMedia).not.toBeNull();
@@ -1484,6 +1618,79 @@ describe('native.common', () => {
     const rightMeta = await fs.readJSON(npath.join(projectDir, 'right', 'dataset.json'));
     expect(rightMeta.metadataFile).toBeUndefined();
     expect(rightMeta.metadataOriginalName).toBeUndefined();
+  });
+
+  it('promotes the first camera COCO hierarchy and reports a later conflict', async () => {
+    const leftTrackFile = '/home/user/output/finalize-left.coco.json';
+    const rightTrackFile = '/home/user/output/finalize-right.coco.json';
+    await fs.writeJSON(leftTrackFile, cocoWithHierarchy(61, 'shark', 'fish'));
+    await fs.writeJSON(rightTrackFile, cocoWithHierarchy(62, 'shark', 'animal'));
+    const payload = await beginMultiCamImport({
+      datasetName: 'hierarchy_multicam',
+      defaultDisplay: 'left',
+      sourceList: {
+        left: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: leftTrackFile,
+        },
+        right: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: rightTrackFile,
+        },
+      },
+      type: 'image-sequence',
+    });
+
+    const result = await common.finalizeMediaImport(settings, payload);
+
+    expect(result.meta.typeHierarchy).toEqual({ shark: 'fish' });
+    expect(result.importWarnings).toContain(
+      'Camera "right" type hierarchy was skipped: conflicting parents for "shark": "fish" '
+      + 'and "animal"',
+    );
+    const project = common.getProjectDir(settings, result.meta.id);
+    const leftMeta = await fs.readJSON(npath.join(project.basePath, 'left', 'dataset.json'));
+    const rightMeta = await fs.readJSON(npath.join(project.basePath, 'right', 'dataset.json'));
+    expect(leftMeta.typeHierarchy).toBeUndefined();
+    expect(rightMeta.typeHierarchy).toBeUndefined();
+  });
+
+  it('promotes hierarchies in stored camera order and still imports unlisted cameras', async () => {
+    const leftTrackFile = '/home/user/output/ordered-left.coco.json';
+    const rightTrackFile = '/home/user/output/ordered-right.coco.json';
+    await fs.writeJSON(leftTrackFile, cocoWithHierarchy(63, 'shark', 'fish'));
+    await fs.writeJSON(rightTrackFile, cocoWithHierarchy(64, 'shark', 'animal'));
+    const payload = await beginMultiCamImport({
+      datasetName: 'ordered_hierarchy_multicam',
+      defaultDisplay: 'left',
+      sourceList: {
+        left: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: leftTrackFile,
+        },
+        right: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: rightTrackFile,
+        },
+      },
+      type: 'image-sequence',
+    });
+    // Simulate a legacy/partial stored order: unknown names are ignored and cameras omitted
+    // from the list are appended after the explicitly ordered cameras.
+    if (payload.jsonConfig.multiCam) {
+      payload.jsonConfig.multiCam.cameraOrder = ['missing', 'right'];
+    }
+
+    const result = await common.finalizeMediaImport(settings, payload);
+
+    expect(result.meta.typeHierarchy).toEqual({ shark: 'animal' });
+    expect(result.importWarnings).toContain(
+      'Camera "left" type hierarchy was skipped: conflicting parents for "shark": "animal" '
+      + 'and "fish"',
+    );
+    const project = common.getProjectDir(settings, result.meta.id);
+    expect(await fs.pathExists(npath.join(project.basePath, 'right', 'dataset.json'))).toBe(true);
+    expect(await fs.pathExists(npath.join(project.basePath, 'left', 'dataset.json'))).toBe(true);
   });
 
   it('warns instead of refusing when a folder holds two reserved metadata attachments', async () => {

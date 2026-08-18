@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import Dict, List, Literal, Optional, Tuple, TypedDict, cast
+from typing import Dict, List, Literal, NamedTuple, Optional, Tuple, TypedDict, cast
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -14,6 +14,7 @@ from girder_jobs.models.job import Job, JobStatus
 from girder_plugin_worker.status import CustomJobStatus
 from pydantic import BaseModel
 import pymongo
+from typing_extensions import NotRequired
 
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
@@ -594,6 +595,7 @@ GetDataReturnType = TypedDict(
         'meta': Optional[dict],
         'attributes': Optional[dict],
         'type': crud.FileType,
+        'hierarchy': NotRequired[Optional[Dict[str, str]]],
     },
 )
 
@@ -644,13 +646,14 @@ def _get_data_by_type(
             as_type = crud.FileType.COCO_JSON
         elif models.MetadataMutable.is_dive_configuration(data_dict):
             hierarchy_present = 'typeHierarchy' in data_dict
-            normalized_hierarchy = None
+            raw_hierarchy = data_dict.get('typeHierarchy')
             if hierarchy_present:
-                normalized_hierarchy = normalize_type_hierarchy(data_dict['typeHierarchy'])
+                normalize_type_hierarchy(raw_hierarchy)
             data_dict = models.MetadataMutable(**data_dict).dict(exclude_none=True)
             if hierarchy_present:
-                # Pydantic drops explicit null; preserve presence for the resolver.
-                data_dict['typeHierarchy'] = normalized_hierarchy
+                # Pydantic drops explicit null. Preserve the raw instruction so additive
+                # import can distinguish an empty no-op from an explicit deletion.
+                data_dict['typeHierarchy'] = raw_hierarchy
             as_type = crud.FileType.DIVE_CONF
         else:
             as_type = crud.FileType.DIVE_JSON
@@ -659,7 +662,7 @@ def _get_data_by_type(
     else:
         raise RestException('Got file of unknown and unusable type')
 
-    if configuration_only and as_type != crud.FileType.DIVE_CONF:
+    if configuration_only and as_type not in (crud.FileType.DIVE_CONF, crud.FileType.COCO_JSON):
         return None, None
 
     # Parse the file as the now known type
@@ -700,12 +703,14 @@ def _get_data_by_type(
             coco_warnings,
             datasetInfo,
         ) = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
+        hierarchy, hierarchy_warnings = kwcoco.type_hierarchy_from_categories(data_dict)
         return {
             'annotations': converted,
             'meta': {"datasetInfo": datasetInfo} if datasetInfo else None,
             'attributes': attributes,
             'type': as_type,
-        }, coco_warnings or warnings
+            'hierarchy': hierarchy,
+        }, (coco_warnings + hierarchy_warnings) or warnings
     if as_type == crud.FileType.DIVE_CONF:
         return {
             'annotations': None,
@@ -835,27 +840,40 @@ def _fresh_folder_snapshot(folder: types.GirderModel) -> types.GirderModel:
     return cast(types.GirderModel, fresh) if isinstance(fresh, dict) else folder
 
 
+class HierarchyInstruction(NamedTuple):
+    present: bool
+    hierarchy: object
+    soft_warning: Optional[str] = None
+
+
 def _resolve_configuration_hierarchy(
     existing: object,
-    instructions: list,
+    instructions: List[HierarchyInstruction],
     additive: bool,
-) -> HierarchyWrite:
+) -> Tuple[HierarchyWrite, List[str]]:
     candidate = existing
     final_write: HierarchyWrite = {'action': 'none'}
-    for incoming_present, incoming in instructions:
-        next_write = resolve_type_hierarchy(
-            candidate,
-            incoming_present,
-            incoming,
-            'additive' if additive else 'overwrite',
-        )
+    soft_warnings: List[str] = []
+    for instruction in instructions:
+        try:
+            next_write = resolve_type_hierarchy(
+                candidate,
+                instruction.present,
+                instruction.hierarchy,
+                'additive' if additive or instruction.soft_warning is not None else 'overwrite',
+            )
+        except TypeHierarchyError as error:
+            if instruction.soft_warning is None:
+                raise
+            soft_warnings.append(instruction.soft_warning.format(reason=error.reason))
+            continue
         if next_write['action'] == 'set':
             candidate = next_write['hierarchy']
             final_write = next_write
         elif next_write['action'] == 'delete':
             candidate = None
             final_write = next_write
-    return final_write
+    return final_write, soft_warnings
 
 
 def _prepare_configuration_imports(
@@ -890,10 +908,23 @@ def _prepare_configuration_imports(
         if results is None:
             continue
         parsed_json_items[str(item['_id'])] = (file, results, warnings)
+        if results['type'] == crud.FileType.COCO_JSON:
+            coco_hierarchy = results.get('hierarchy')
+            if coco_hierarchy is not None:
+                hierarchy_instructions.append(
+                    HierarchyInstruction(
+                        True,
+                        coco_hierarchy,
+                        kwcoco.SUPERCATEGORY_INVALID_WARNING,
+                    )
+                )
+            continue
         if results['type'] != crud.FileType.DIVE_CONF:
             continue
         meta = results['meta'] or {}
-        hierarchy_instructions.append(('typeHierarchy' in meta, meta.get('typeHierarchy')))
+        hierarchy_instructions.append(
+            HierarchyInstruction('typeHierarchy' in meta, meta.get('typeHierarchy'))
+        )
         config_results.append(results)
 
     if (
@@ -907,7 +938,7 @@ def _prepare_configuration_imports(
         )
 
     try:
-        hierarchy_write = _resolve_configuration_hierarchy(
+        hierarchy_write, _ = _resolve_configuration_hierarchy(
             fromMeta(canonical, 'typeHierarchy'),
             hierarchy_instructions,
             additive,
@@ -990,13 +1021,15 @@ def _apply_configuration_imports(
                 if promoted_write['action'] == 'set':
                     existing_hierarchy = promoted_write['hierarchy']
     try:
-        hierarchy_write = _resolve_configuration_hierarchy(
+        hierarchy_write, soft_warnings = _resolve_configuration_hierarchy(
             existing_hierarchy,
             configuration_plan['hierarchy_instructions'],
             configuration_plan['additive'],
         )
     except TypeHierarchyError as error:
         raise crud.hierarchy_rest_error(error) from error
+    if soft_warnings:
+        configuration_plan.setdefault('warnings', []).extend(soft_warnings)
     if hierarchy_write['action'] == 'none':
         hierarchy_write = promoted_write
 

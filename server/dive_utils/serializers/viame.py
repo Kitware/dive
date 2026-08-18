@@ -593,7 +593,8 @@ def export_tracks_as_csv(
     """
     Export track json to a CSV format.
 
-    :param excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
+    :param excludeBelowThreshold: omit tracks and confidence pairs below a certain
+        confidence.  Requires thresholds.
     :param thresholds: key/value pairs with threshold values
     :param filenames: list of string file names.  filenames[n] should be the image at frame n
     :param fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
@@ -621,119 +622,122 @@ def export_tracks_as_csv(
 
     for t in track_iterator:
         track = Track(**t)
-        if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds, typeFilter):
-            # filter by types if applicable
-            if typeFilter:
-                confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
-                # skip line if no confidence pairs
-                if not confidence_pairs:
-                    continue
-            else:
-                confidence_pairs = track.confidencePairs
+        confidence_pairs = track.confidencePairs
+        if excludeBelowThreshold:
+            default_threshold = thresholds.get('default', 0)
+            confidence_pairs = [
+                pair
+                for pair in confidence_pairs
+                if pair[1] >= thresholds.get(pair[0], default_threshold)
+            ]
+        if typeFilter:
+            confidence_pairs = [pair for pair in confidence_pairs if pair[0] in typeFilter]
+        if not confidence_pairs:
+            continue
 
-            sorted_confidence_pairs = sorted(
-                confidence_pairs, key=lambda item: item[1], reverse=True
-            )
+        sorted_confidence_pairs = sorted(
+            confidence_pairs, key=lambda item: item[1], reverse=True
+        )
 
-            for index, keyframe in enumerate(track.features):
-                features = [keyframe]
+        for index, keyframe in enumerate(track.features):
+            features = [keyframe]
 
-                # If this is not the last keyframe, and interpolation is
-                # enabled for this keyframe, interpolate
-                if keyframe.interpolate and index < len(track.features) - 1:
-                    nextKeyframe = track.features[index + 1]
-                    # interpolate all features in [a,b)
-                    features = interpolate(keyframe, nextKeyframe)
+            # If this is not the last keyframe, and interpolation is
+            # enabled for this keyframe, interpolate
+            if keyframe.interpolate and index < len(track.features) - 1:
+                nextKeyframe = track.features[index + 1]
+                # interpolate all features in [a,b)
+                features = interpolate(keyframe, nextKeyframe)
 
-                for feature in features:
-                    attributes = dict(feature.attributes or {})
-                    attr_length: Optional[float] = None
-                    if 'length' in attributes:
-                        try:
-                            candidate = float(attributes['length'])
-                            if candidate == candidate:
-                                attr_length = candidate
-                        except (TypeError, ValueError):
-                            attr_length = None
-                    resolved_length = attr_length if attr_length is not None else feature.fishLength
-                    export_length = (
-                        resolved_length
-                        if resolved_length is not None and resolved_length == resolved_length
-                        else -1
-                    )
+            for feature in features:
+                attributes = dict(feature.attributes or {})
+                attr_length: Optional[float] = None
+                if 'length' in attributes:
+                    try:
+                        candidate = float(attributes['length'])
+                        if candidate == candidate:
+                            attr_length = candidate
+                    except (TypeError, ValueError):
+                        attr_length = None
+                resolved_length = attr_length if attr_length is not None else feature.fishLength
+                export_length = (
+                    resolved_length
+                    if resolved_length is not None and resolved_length == resolved_length
+                    else -1
+                )
 
-                    columns = [
-                        track.id,
-                        "",
-                        feature.frame,
-                        *feature.bounds,
-                        sorted_confidence_pairs[0][1],
-                        export_length,
-                    ]
+                columns = [
+                    track.id,
+                    "",
+                    feature.frame,
+                    *feature.bounds,
+                    sorted_confidence_pairs[0][1],
+                    export_length,
+                ]
 
-                    # If FPS is set, column 2 will be video timestamp
-                    if fps is not None and fps > 0:
-                        columns[1] = format_timestamp(fps, feature.frame)
-                    # else if filenames is set, column 2 will be image file name
-                    elif filenames and feature.frame < len(filenames):
-                        columns[1] = filenames[feature.frame]
+                # If FPS is set, column 2 will be video timestamp
+                if fps is not None and fps > 0:
+                    columns[1] = format_timestamp(fps, feature.frame)
+                # else if filenames is set, column 2 will be image file name
+                elif filenames and feature.frame < len(filenames):
+                    columns[1] = filenames[feature.frame]
 
-                    for pair in sorted_confidence_pairs:
-                        columns.extend(list(pair))
+                for pair in sorted_confidence_pairs:
+                    columns.extend(list(pair))
 
-                    if resolved_length is not None and resolved_length == resolved_length:
-                        attributes['length'] = resolved_length
+                if resolved_length is not None and resolved_length == resolved_length:
+                    attributes['length'] = resolved_length
 
-                    if attributes:
-                        for key, val in attributes.items():
-                            columns.append(f"(atr) {key} {valueToString(val)}")
+                if attributes:
+                    for key, val in attributes.items():
+                        columns.append(f"(atr) {key} {valueToString(val)}")
 
-                    if track.attributes:
-                        for key, val in track.attributes.items():
-                            columns.append(f"(trk-atr) {key} {valueToString(val)}")
+                if track.attributes:
+                    for key, val in track.attributes.items():
+                        columns.append(f"(trk-atr) {key} {valueToString(val)}")
 
-                    if feature.geometry and "FeatureCollection" == feature.geometry.type:
-                        for geoJSONFeature in feature.geometry.features:
-                            if 'Polygon' == geoJSONFeature.geometry.type:
-                                all_rings = geoJSONFeature.geometry.coordinates  # type: ignore
+                if feature.geometry and "FeatureCollection" == feature.geometry.type:
+                    for geoJSONFeature in feature.geometry.features:
+                        if 'Polygon' == geoJSONFeature.geometry.type:
+                            all_rings = geoJSONFeature.geometry.coordinates  # type: ignore
 
-                                # Write outer ring (first ring)
-                                if len(all_rings) > 0:
-                                    outer_coords = [
+                            # Write outer ring (first ring)
+                            if len(all_rings) > 0:
+                                outer_coords = [
+                                    item
+                                    for sublist in all_rings[0]
+                                    for item in sublist  # type: ignore
+                                ]
+                                columns.append(
+                                    "(poly) "
+                                    + ' '.join(map(lambda x: str(round(x)), outer_coords))
+                                )
+
+                                # Write holes (additional rings)
+                                for hole_ring in all_rings[1:]:
+                                    hole_coords = [
                                         item
-                                        for sublist in all_rings[0]
+                                        for sublist in hole_ring
                                         for item in sublist  # type: ignore
                                     ]
                                     columns.append(
-                                        "(poly) "
-                                        + ' '.join(map(lambda x: str(round(x)), outer_coords))
+                                        "(hole) "
+                                        + ' '.join(map(lambda x: str(round(x)), hole_coords))
                                     )
+                        if 'Point' == geoJSONFeature.geometry.type:
+                            coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
+                            columns.append(
+                                f"(kp) {geoJSONFeature.properties['key']} "
+                                f"{round(coordinates[0])} {round(coordinates[1])}"
+                            )
 
-                                    # Write holes (additional rings)
-                                    for hole_ring in all_rings[1:]:
-                                        hole_coords = [
-                                            item
-                                            for sublist in hole_ring
-                                            for item in sublist  # type: ignore
-                                        ]
-                                        columns.append(
-                                            "(hole) "
-                                            + ' '.join(map(lambda x: str(round(x)), hole_coords))
-                                        )
-                            if 'Point' == geoJSONFeature.geometry.type:
-                                coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
-                                columns.append(
-                                    f"(kp) {geoJSONFeature.properties['key']} "
-                                    f"{round(coordinates[0])} {round(coordinates[1])}"
-                                )
+                # Emitted last, matching the desktop TypeScript serializer's
+                # column order so both exporters produce identical rows.
+                for note in feature.notes or []:
+                    columns.append(f"(note) {note}")
 
-                    # Emitted last, matching the desktop TypeScript serializer's
-                    # column order so both exporters produce identical rows.
-                    for note in feature.notes or []:
-                        columns.append(f"(note) {note}")
-
-                    writer.writerow(columns)
-                    yield csvFile.getvalue()
-                    csvFile.seek(0)
-                    csvFile.truncate(0)
+                writer.writerow(columns)
+                yield csvFile.getvalue()
+                csvFile.seek(0)
+                csvFile.truncate(0)
     yield csvFile.getvalue()

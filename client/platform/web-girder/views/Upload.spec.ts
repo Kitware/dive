@@ -11,8 +11,15 @@ import {
 import type { ValidatedUploadRoleMap, ValidationResponse } from 'platform/web-girder/api';
 import type { DatasetType } from 'dive-common/apispec';
 import { openFromDisk } from 'platform/web-girder/utils';
-import { validateUploadGroup } from 'platform/web-girder/api';
+import {
+  createGirderFolder,
+  createMulticamDataset,
+  validateUploadGroup,
+  waitForFolderDatasetReady,
+} from 'platform/web-girder/api';
 import Upload from './Upload.vue';
+
+const prompt = vi.hoisted(() => vi.fn());
 
 Vue.config.ignoredElements = [/^v-/];
 
@@ -38,7 +45,7 @@ vi.mock('vue-router/composables', () => ({
 }));
 
 vi.mock('dive-common/vue-utilities/prompt-service', () => ({
-  usePrompt: () => ({ prompt: vi.fn() }),
+  usePrompt: () => ({ prompt }),
 }));
 
 const Stub = {
@@ -53,6 +60,16 @@ function uploadGirderStub(upload: () => Promise<void>) {
     name: 'UploadGirder',
     render(this: Vue, h: CreateElement) {
       return h('div', this.$scopedSlots.default?.({ upload }));
+    },
+  };
+}
+
+function multicamUploadGirderStub(uploadCameraDataset: () => Promise<unknown>) {
+  return {
+    name: 'UploadGirder',
+    methods: { uploadCameraDataset },
+    render(this: Vue, h: CreateElement) {
+      return h('div', this.$scopedSlots.default?.({ upload: () => Promise.resolve() }));
     },
   };
 }
@@ -88,7 +105,10 @@ function rejection(message: string): ValidationResponse {
  * @vue/test-utils' `mount()` typings do not resolve a setup-returned instance shape, so the
  * component is mounted through a host that captures the real, fully-typed instance via `ref`.
  */
-function mountUpload(upload: () => Promise<void> = () => Promise.resolve()) {
+function mountUpload(
+  upload: () => Promise<void> = () => Promise.resolve(),
+  uploadGirder = uploadGirderStub(upload),
+) {
   let child: InstanceType<typeof Upload> | undefined;
   const Host = defineComponent({
     setup: () => () => h(Upload, {
@@ -105,7 +125,7 @@ function mountUpload(upload: () => Promise<void> = () => Promise.resolve()) {
       ImportButton: Stub,
       ImportMultiCamDialog: Stub,
       ImportMultiCamBatchDialog: Stub,
-      UploadGirder: uploadGirderStub(upload),
+      UploadGirder: uploadGirder,
     },
   });
   if (!child) {
@@ -127,6 +147,7 @@ describe('Upload pending rows', () => {
   beforeEach(() => {
     vi.mocked(openFromDisk).mockReset();
     vi.mocked(validateUploadGroup).mockReset();
+    prompt.mockReset();
   });
 
   it('derives fan-out from the server media role, not the client slot guess', async () => {
@@ -337,10 +358,10 @@ describe('Upload pending rows', () => {
       }),
     } as never);
 
-    const wrapper = mountUpload();
-    await wrapper.vm.openImport('video');
+    const { vm } = mountUpload();
+    await vm.openImport('video');
 
-    const [row] = wrapper.vm.pendingUploads;
+    const [row] = vm.pendingUploads;
     expect(row.uploadFiles.map((entry: File) => entry.name)).toEqual([
       'dive.mp4',
       'hierarchy.config.json',
@@ -361,5 +382,42 @@ describe('Upload pending rows', () => {
     await Promise.all([vm.prepAndUpload(upload), vm.prepAndUpload(upload)]);
 
     expect(upload).toHaveBeenCalledTimes(1);
+  });
+
+  it('surfaces import warnings returned when the multicam dataset is linked', async () => {
+    const uploadCameraDataset = vi.fn().mockResolvedValue({
+      folder: { _id: 'camera-folder' },
+      jobIds: [],
+    });
+    vi.mocked(createGirderFolder).mockResolvedValue({ data: { _id: 'dataset-folder' } } as never);
+    vi.mocked(validateUploadGroup).mockResolvedValue({
+      data: validation({ roles: { media: ['left.mp4'] } }),
+    } as never);
+    vi.mocked(waitForFolderDatasetReady).mockResolvedValue(undefined as never);
+    vi.mocked(createMulticamDataset).mockResolvedValue({
+      data: { _id: 'parent-folder', importWarnings: ['Camera hierarchy was skipped.'] },
+    } as never);
+    const { vm } = mountUpload(
+      () => Promise.resolve(),
+      multicamUploadGirderStub(uploadCameraDataset),
+    );
+    vm.registerSubfolderCameras([{
+      cameraName: 'left', sourcePath: 'left-source', files: [file('left.mp4')],
+    }]);
+
+    await vm.multiCamImport({
+      datasetName: 'multicam',
+      defaultDisplay: 'left',
+      type: 'video',
+      sourceList: {
+        left: { sourcePath: 'left-source', trackFile: '', type: 'video' },
+      },
+    });
+
+    expect(prompt).toHaveBeenCalledWith({
+      title: 'Import Warnings',
+      text: ['Camera hierarchy was skipped.'],
+      positiveButton: 'OK',
+    });
   });
 });

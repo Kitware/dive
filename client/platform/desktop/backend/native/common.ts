@@ -101,9 +101,25 @@ const invalidHierarchyMessage = (reason: string) => (
   `Type hierarchy is invalid: ${reason}. No configuration was changed.`
 );
 
-const corruptHierarchyExportMessage = (reason: string) => (
-  `Type hierarchy is invalid: ${reason}. No configuration file was exported.`
+const corruptHierarchyExportMessage = (reason: string, artifact = 'configuration file') => (
+  `Type hierarchy is invalid: ${reason}. No ${artifact} was exported.`
 );
+
+function normalizedHierarchyForExport(
+  meta: { typeHierarchy?: unknown },
+  artifact?: string,
+) {
+  try {
+    return Object.prototype.hasOwnProperty.call(meta, 'typeHierarchy')
+      ? normalizeTypeHierarchy(meta.typeHierarchy)
+      : undefined;
+  } catch (error) {
+    if (error instanceof TypeHierarchyError) {
+      throw new Error(corruptHierarchyExportMessage(error.reason, artifact));
+    }
+    throw error;
+  }
+}
 
 class DataFileJsonParseError extends Error {}
 
@@ -1374,7 +1390,7 @@ async function _ingestFilePath(
   (DatasetConfigMutable & { fps?: number }), string[], boolean, string,
 ] | null> {
   const {
-    datasetId, path, additive, additivePrepend, configMeta,
+    datasetId, path, additive, additivePrepend, configMeta, cocoHierarchy,
   } = plan;
   if (!fs.existsSync(path)) {
     return null;
@@ -1411,6 +1427,9 @@ async function _ingestFilePath(
       const [parsedAnnotations, parsedMeta, cocoWarnings] = await coco.parseFile(path);
       annotations = parsedAnnotations;
       merge(meta, parsedMeta);
+      if (cocoHierarchy) {
+        meta.typeHierarchy = { ...cocoHierarchy };
+      }
       warnings = warnings.concat(cocoWarnings);
     } else {
       // Regular dive json
@@ -1482,6 +1501,8 @@ interface IngestFilePlan {
   additive: boolean;
   additivePrepend: string;
   configMeta?: StagedConfigImport;
+  cocoHierarchy?: Record<string, string>;
+  configWarnings?: string[];
 }
 
 async function loadCanonicalHierarchy(settings: Settings, datasetId: string): Promise<unknown> {
@@ -1614,6 +1635,30 @@ async function preflightIngestFiles(
           }
           throw error;
         }
+      } else if (jsonObject !== undefined && coco.isCocoJson(jsonObject)) {
+        const { hierarchy, warnings } = coco.typeHierarchyFromCategories(jsonObject);
+        entry.configWarnings = warnings;
+        if (hierarchy !== undefined) {
+          try {
+            const write = resolveTypeHierarchy(
+              hierarchyCandidate ?? null,
+              true,
+              hierarchy,
+              'additive',
+            );
+            if (write.action === 'set') {
+              hierarchyCandidate = write.hierarchy;
+              entry.cocoHierarchy = { ...write.hierarchy };
+            }
+          } catch (error) {
+            if (!(error instanceof TypeHierarchyError)) {
+              throw error;
+            }
+            entry.configWarnings = entry.configWarnings.concat(
+              coco.invalidCocoHierarchyMessage(error.reason),
+            );
+          }
+        }
       }
     }
   }
@@ -1669,7 +1714,7 @@ async function ingestDataFiles(
       );
       if (results !== null) {
         const [newMeta, warnings, metadataConfig, auxiliaryPath] = results;
-        outwarnings = outwarnings.concat(warnings);
+        outwarnings = outwarnings.concat(warnings, entry.configWarnings || []);
         mergeStagedImportedConfig(meta, newMeta, additive);
         if (metadataConfig) {
           importedConfigCopies.push(auxiliaryPath);
@@ -2267,12 +2312,34 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   return result;
 }
 
+function mergeCameraTypeHierarchy(
+  promoted: Record<string, string> | undefined,
+  cameraHierarchy: Record<string, string>,
+  cameraName: string,
+): { hierarchy: Record<string, string>; warning?: string } {
+  try {
+    const write = resolveTypeHierarchy(promoted ?? null, true, cameraHierarchy, 'additive');
+    return {
+      hierarchy: write.action === 'set' ? { ...write.hierarchy } : { ...(promoted || {}) },
+    };
+  } catch (error) {
+    if (!(error instanceof TypeHierarchyError)) {
+      throw error;
+    }
+    return {
+      hierarchy: { ...(promoted || {}) },
+      warning: `Camera "${cameraName}" type hierarchy was skipped: ${error.reason}`,
+    };
+  }
+}
+
 async function _importTrackFile(
   settings: Settings,
   dsId: string,
   projectDirAbsPath: string,
   jsonConfig: JsonConfig,
   userTrackFileAbsPath: string,
+  promoteTypeHierarchy = false,
 ) {
   /* custom image sort */
   if (jsonConfig.imageListPath === undefined) {
@@ -2281,9 +2348,17 @@ async function _importTrackFile(
   if (jsonConfig.transcodedImageFiles) {
     jsonConfig.transcodedImageFiles.sort(strNumericCompare);
   }
+  let promotedTypeHierarchy: Record<string, string> | undefined;
+  let warnings: string[] = [];
   if (userTrackFileAbsPath) {
     const processed = await ingestDataFiles(settings, dsId, [userTrackFileAbsPath], undefined, validImageNamesMap(jsonConfig));
-    merge(jsonConfig, processed.meta);
+    const importedMeta = { ...processed.meta };
+    if (promoteTypeHierarchy && importedMeta.typeHierarchy) {
+      promotedTypeHierarchy = importedMeta.typeHierarchy;
+      delete importedMeta.typeHierarchy;
+    }
+    merge(jsonConfig, importedMeta);
+    warnings = processed.warnings;
     if (processed.processedFiles.length === 0) {
       await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
     }
@@ -2291,7 +2366,7 @@ async function _importTrackFile(
     await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
   }
   await saveProjectConfig(projectDirAbsPath, jsonConfig);
-  return jsonConfig;
+  return { jsonConfig, typeHierarchy: promotedTypeHierarchy, warnings };
 }
 
 /**
@@ -2446,11 +2521,22 @@ async function finalizeMediaImport(
   }
 
   //We need to create datasets for each of the multiCam folders as well
+  let promotedTypeHierarchy = jsonConfig.typeHierarchy
+    ? { ...jsonConfig.typeHierarchy }
+    : undefined;
+  const importWarnings: string[] = [];
   if (datasetType === MultiType && jsonConfig.multiCam?.cameras) {
-    const cameraNameAndData = Object.entries(jsonConfig.multiCam.cameras);
+    const { cameras } = jsonConfig.multiCam;
+    const orderedCameraNames = orderedMultiCamCameraNames(jsonConfig.multiCam);
+    const cameraNames = [
+      ...orderedCameraNames,
+      ...Object.keys(cameras).filter((name) => !orderedCameraNames.includes(name)),
+    ];
+    const cameraNameAndData = cameraNames.map(
+      (cameraName) => [cameraName, cameras[cameraName]] as const,
+    );
     for (let i = 0; i < cameraNameAndData.length; i += 1) {
-      const cameraName = cameraNameAndData[i][0];
-      const cameraData = cameraNameAndData[i][1];
+      const [cameraName, cameraData] = cameraNameAndData[i];
 
       const jsonClone = { ...cloneDeep(jsonConfig), ...cameraData };
       if (!cameraData.metadataFile) {
@@ -2462,6 +2548,7 @@ async function finalizeMediaImport(
       jsonClone.transcodedVideoFile = cameraData.transcodedVideoFile || '';
       jsonClone.transcodedImageFiles = cameraData.transcodedImageFiles || [];
       jsonClone.subType = null;
+      delete jsonClone.typeHierarchy;
       // eslint-disable-next-line no-await-in-loop
       const cameraDirAbsPath = await _initializeProjectDir(settings, jsonClone);
       let multiCamTrackFile = '';
@@ -2469,10 +2556,40 @@ async function finalizeMediaImport(
         multiCamTrackFile = args.multiCamTrackFiles[cameraName];
       }
       // eslint-disable-next-line no-await-in-loop
-      await _importTrackFile(settings, jsonClone.id, cameraDirAbsPath, jsonClone, multiCamTrackFile);
+      const imported = await _importTrackFile(
+        settings,
+        jsonClone.id,
+        cameraDirAbsPath,
+        jsonClone,
+        multiCamTrackFile,
+        true,
+      );
+      importWarnings.push(...imported.warnings);
+      if (imported.typeHierarchy) {
+        const merged = mergeCameraTypeHierarchy(
+          promotedTypeHierarchy,
+          imported.typeHierarchy,
+          cameraName,
+        );
+        promotedTypeHierarchy = merged.hierarchy;
+        if (merged.warning) {
+          importWarnings.push(merged.warning);
+        }
+      }
     }
   }
-  const finalJsonConfig = await _importTrackFile(settings, jsonConfig.id, projectDirAbsPath, jsonConfig, args.trackFileAbsPath);
+  if (promotedTypeHierarchy && Object.keys(promotedTypeHierarchy).length > 0) {
+    jsonConfig.typeHierarchy = promotedTypeHierarchy;
+  }
+  const finalImport = await _importTrackFile(
+    settings,
+    jsonConfig.id,
+    projectDirAbsPath,
+    jsonConfig,
+    args.trackFileAbsPath,
+  );
+  const finalJsonConfig = finalImport.jsonConfig;
+  importWarnings.push(...finalImport.warnings);
   if (args.configFileAbsPath) {
     await dataFileImport(settings, jsonConfig.id, args.configFileAbsPath);
   }
@@ -2480,6 +2597,7 @@ async function finalizeMediaImport(
     type: JobType.Conversion,
     meta: finalJsonConfig,
     mediaList: srcDstList,
+    importWarnings,
   };
   return conversionJobArgs;
 }
@@ -2588,6 +2706,15 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+  const { cameraName } = parseCompositeDatasetId(args.id);
+  if (cameraName) {
+    const hierarchy = await loadCanonicalHierarchy(settings, args.id);
+    if (hierarchy === null) {
+      delete meta.typeHierarchy;
+    } else {
+      meta.typeHierarchy = hierarchy as Record<string, string>;
+    }
+  }
   if (args.type === 'json') {
     return dive.serializeFile(args.path, data, meta, args.typeFilter, {
       excludeBelowThreshold: args.exclude,
@@ -2595,6 +2722,12 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
     });
   }
   if (args.type === 'coco') {
+    const hierarchy = normalizedHierarchyForExport(meta, 'COCO file');
+    if (hierarchy) {
+      meta.typeHierarchy = { ...hierarchy };
+    } else {
+      delete meta.typeHierarchy;
+    }
     return coco.serializeFile(args.path, data, meta, args.typeFilter, {
       excludeBelowThreshold: args.exclude,
     });
@@ -2618,17 +2751,7 @@ async function exportConfiguration(settings: Settings, args: ExportConfiguration
     }
   }
   const output: DatasetConfigMutable & { version: number} = { version: meta.version };
-  let hierarchy;
-  try {
-    hierarchy = Object.prototype.hasOwnProperty.call(meta, 'typeHierarchy')
-      ? normalizeTypeHierarchy(meta.typeHierarchy)
-      : undefined;
-  } catch (error) {
-    if (error instanceof TypeHierarchyError) {
-      throw new Error(corruptHierarchyExportMessage(error.reason));
-    }
-    throw error;
-  }
+  const hierarchy = normalizedHierarchyForExport(meta);
   if (DatasetConfigMutableKeys.some((key) => key in meta)) {
     // DIVE Configuration File fields (attributes, styles, FPS, …)
     merge(output, pick(meta, DatasetConfigMutableKeys));

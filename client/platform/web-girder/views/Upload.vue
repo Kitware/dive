@@ -649,6 +649,14 @@ export default defineComponent({
         });
         multicamLinked = true;
 
+        if (parentFolder.importWarnings?.length) {
+          await prompt({
+            title: 'Import Warnings',
+            text: parentFolder.importWarnings,
+            positiveButton: 'OK',
+          });
+        }
+
         if (registrationSeed?.values) {
           // Seed the dataset's saved camera registration (the same
           // registration the in-app panel edits and the Align button

@@ -725,3 +725,25 @@ def test_export_multicam_annotations_zip_csv(zip_gen_cls, csv_gen_mock, folder_c
     assert 'stereo-dataset/left/annotations.viame.csv' in paths
     assert 'stereo-dataset/right/annotations.viame.csv' in paths
     assert csv_gen_mock.call_count == 2
+
+
+@patch('dive_server.crud_dataset.ziputil.ZipGenerator')
+def test_export_multicam_annotations_preflights_invalid_coco_hierarchy(zip_gen_cls):
+    parent = _multi_parent_folder()
+    parent['meta']['typeHierarchy'] = {'fish': 'fish'}
+
+    with pytest.raises(RestException) as error_info:
+        crud_dataset.export_multicam_annotations_zipstream(
+            parent,
+            {'login': 'tester'},
+            'coco_json',
+            False,
+            None,
+            None,
+        )
+
+    assert str(error_info.value) == (
+        'Type hierarchy is invalid: self edge "fish -> fish". '
+        'No COCO file was exported.'
+    )
+    zip_gen_cls.assert_not_called()

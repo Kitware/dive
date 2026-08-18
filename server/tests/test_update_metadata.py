@@ -316,7 +316,7 @@ def test_get_data_by_type_classifies_presence_only_type_hierarchy_as_config(file
 
     assert warnings is None
     assert result['type'] == crud.FileType.DIVE_CONF
-    assert result['meta']['typeHierarchy'] is None
+    assert result['meta']['typeHierarchy'] == hierarchy
 
 
 def test_metadata_mutable_does_not_classify_unrelated_json_as_config():
@@ -439,6 +439,21 @@ def test_configuration_endpoint_rejects_invalid_stored_hierarchy_before_serializ
     assert response.status == 400
     assert response.headers.__setitem__.call_args.args == ('Content-Type', 'text/plain')
     _set_content_disposition.assert_not_called()
+
+
+def test_type_hierarchy_for_export_names_the_coco_artifact():
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {'typeHierarchy': {'fish': 'fish'}},
+    }
+
+    with pytest.raises(RestException) as error_info:
+        crud_dataset.type_hierarchy_for_export(folder, artifact='COCO file')
+
+    assert str(error_info.value) == (
+        'Type hierarchy is invalid: self edge "fish -> fish". '
+        'No COCO file was exported.'
+    )
 
 
 @patch('dive_server.views_dataset.setContentDisposition')

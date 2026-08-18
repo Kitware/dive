@@ -6,6 +6,7 @@ import pytest
 
 from dive_server import crud_rpc
 from dive_utils import constants
+from dive_utils.serializers import kwcoco
 from dive_utils.type_hierarchy import TypeHierarchyError
 
 
@@ -94,7 +95,7 @@ def test_single_dataset_configuration_write_matrix(monkeypatch, additive, incomi
     monkeypatch.setattr(crud_rpc.crud_dataset, 'update_metadata', update_metadata)
     plan = {
         'parent': None,
-        'hierarchy_instructions': [(True, incoming)],
+        'hierarchy_instructions': [crud_rpc.HierarchyInstruction(True, incoming)],
         'additive': additive,
         'staged_meta': {},
         'staged_parent_meta': {},
@@ -135,7 +136,7 @@ def test_camera_configuration_updates_only_parent_hierarchy(monkeypatch):
     monkeypatch.setattr(crud_rpc.crud_dataset, 'remove_camera_type_hierarchy', remove_copy)
     plan = {
         'parent': parent,
-        'hierarchy_instructions': [(True, {'salmon': 'fish'})],
+        'hierarchy_instructions': [crud_rpc.HierarchyInstruction(True, {'salmon': 'fish'})],
         'additive': True,
         'staged_meta': {'imageEnhancements': {'brightness': 1.1}},
         'staged_parent_meta': {'confidenceFilters': {'default': 0.4}},
@@ -222,26 +223,6 @@ def test_camera_without_stored_hierarchy_import_warns_nothing(monkeypatch):
     assert 'warnings' not in plan
 
 
-def test_camera_configuration_conflict_is_rejected_before_writes(monkeypatch):
-    parent = {'_id': 'parent', 'meta': {'typeHierarchy': {'salmon': 'fish'}}}
-    camera = {'_id': 'camera', 'meta': {}}
-    update_metadata = MagicMock()
-    monkeypatch.setattr(crud_rpc, '_fresh_folder_snapshot', lambda target: target)
-    monkeypatch.setattr(crud_rpc.crud_dataset, 'update_metadata', update_metadata)
-    plan = {
-        'parent': parent,
-        'hierarchy_instructions': [(True, {'salmon': 'mammal'})],
-        'additive': True,
-        'staged_meta': {},
-        'staged_parent_meta': {},
-        'applied': False,
-    }
-
-    with pytest.raises(RestException, match='conflicting parents for "salmon"'):
-        crud_rpc._apply_configuration_imports(camera, plan)
-    update_metadata.assert_not_called()
-
-
 def test_camera_stored_hierarchy_is_promoted_without_new_configuration(monkeypatch):
     parent = {'_id': 'parent', 'meta': {'type': constants.MultiType}}
     camera = {
@@ -276,6 +257,26 @@ def test_camera_stored_hierarchy_is_promoted_without_new_configuration(monkeypat
     assert 'typeHierarchy' not in camera['meta']
 
 
+def test_camera_configuration_conflict_is_rejected_before_writes(monkeypatch):
+    parent = {'_id': 'parent', 'meta': {'typeHierarchy': {'salmon': 'fish'}}}
+    camera = {'_id': 'camera', 'meta': {}}
+    update_metadata = MagicMock()
+    monkeypatch.setattr(crud_rpc, '_fresh_folder_snapshot', lambda target: target)
+    monkeypatch.setattr(crud_rpc.crud_dataset, 'update_metadata', update_metadata)
+    plan = {
+        'parent': parent,
+        'hierarchy_instructions': [crud_rpc.HierarchyInstruction(True, {'salmon': 'mammal'})],
+        'additive': True,
+        'staged_meta': {},
+        'staged_parent_meta': {},
+        'applied': False,
+    }
+
+    with pytest.raises(RestException, match='conflicting parents for "salmon"'):
+        crud_rpc._apply_configuration_imports(camera, plan)
+    update_metadata.assert_not_called()
+
+
 def test_conflicting_camera_hierarchy_is_skipped_before_incoming_configuration(monkeypatch):
     parent = {'_id': 'parent', 'meta': {'typeHierarchy': {'salmon': 'fish'}}}
     camera = {
@@ -297,7 +298,7 @@ def test_conflicting_camera_hierarchy_is_skipped_before_incoming_configuration(m
     )
     plan = {
         'parent': parent,
-        'hierarchy_instructions': [(True, {'shark': 'fish'})],
+        'hierarchy_instructions': [crud_rpc.HierarchyInstruction(True, {'shark': 'fish'})],
         'additive': True,
         'staged_meta': {},
         'staged_parent_meta': {},
@@ -342,6 +343,44 @@ def test_failed_parent_save_leaves_camera_hierarchy_for_retry(monkeypatch):
 
     assert camera['meta']['typeHierarchy'] == {'salmon': 'fish'}
     remove_copy.assert_not_called()
+
+
+def test_soft_coco_hierarchy_conflict_warns_and_preserves_the_candidate():
+    write, warnings = crud_rpc._resolve_configuration_hierarchy(
+        {'shark': 'animal'},
+        [
+            crud_rpc.HierarchyInstruction(
+                True,
+                {'shark': 'fish'},
+                kwcoco.SUPERCATEGORY_INVALID_WARNING,
+            )
+        ],
+        additive=False,
+    )
+
+    assert write == {'action': 'none'}
+    assert warnings == [
+        kwcoco.SUPERCATEGORY_INVALID_WARNING.format(
+            reason='conflicting parents for "shark": "animal" and "fish"'
+        )
+    ]
+
+
+def test_first_soft_coco_hierarchy_initializes_an_absent_candidate():
+    write, warnings = crud_rpc._resolve_configuration_hierarchy(
+        None,
+        [
+            crud_rpc.HierarchyInstruction(
+                True,
+                {'shark': 'fish'},
+                kwcoco.SUPERCATEGORY_INVALID_WARNING,
+            )
+        ],
+        additive=False,
+    )
+
+    assert write == {'action': 'set', 'hierarchy': {'shark': 'fish'}}
+    assert warnings == []
 
 
 def test_postprocess_delegates_without_private_preflight_protocol(monkeypatch):

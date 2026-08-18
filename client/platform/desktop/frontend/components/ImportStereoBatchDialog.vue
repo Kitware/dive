@@ -42,7 +42,11 @@ export default defineComponent({
       const recentsMeta = await api.loadConfig(conversionArgs.meta.id);
       setRecents(recentsMeta);
       // Batch imports skip the confirmation dialog that normally shows these.
-      return importPayload.importWarnings;
+      const warnings = Array.from(new Set([
+        ...(importPayload.importWarnings || []),
+        ...(conversionArgs.importWarnings || []),
+      ]));
+      return warnings.length ? warnings : undefined;
     }
 
     return {

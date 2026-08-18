@@ -6,7 +6,9 @@ import {
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import { JobType, DesktopMediaImportResponse, Job } from 'platform/desktop/constants';
+import {
+  JobType, DesktopMediaImportResponse, Job, ConversionArgs,
+} from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
@@ -65,6 +67,19 @@ export default defineComponent({
       error, loading: checkingMedia, request, reset: resetError,
     } = useRequest();
 
+    async function presentImportWarnings(imports: ConversionArgs[]) {
+      const warnings = Array.from(new Set(imports.flatMap(({ importWarnings }) => (
+        importWarnings || []
+      ))));
+      if (warnings.length) {
+        await prompt({
+          title: 'Import Warnings',
+          text: warnings,
+          positiveButton: 'Okay',
+        });
+      }
+    }
+
     async function open(dstype: DatasetType | 'bulk' | 'text', directory = false) {
       bulkImport.value = false;
 
@@ -96,6 +111,8 @@ export default defineComponent({
       const imports = await request(async () => Promise.all(argsArray.map((args) => api.finalizeImport(args))));
       pendingImportPayload.value = null;
 
+      await presentImportWarnings(imports);
+
       imports.forEach(async (conversionArgs) => {
         // Queue conversion job
         if (conversionArgs.mediaList.length > 0) {
@@ -113,6 +130,7 @@ export default defineComponent({
       importing.value = true;
       await request(async () => {
         const conversionArgs = await api.finalizeImport(args);
+        await presentImportWarnings([conversionArgs]);
         pendingImportPayload.value = null; // close dialog
         if (conversionArgs.mediaList.length === 0) {
           router.push({

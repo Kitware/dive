@@ -24,6 +24,29 @@ def _dataset_parent():
     return {'_id': 'multi-id', 'name': 'stereo-set'}
 
 
+def _saved_parent_meta(folder_cls):
+    return next(
+        call.args[0]['meta']
+        for call in folder_cls.return_value.save.call_args_list
+        if call.args[0].get('_id') == 'multi-id'
+    )
+
+
+def _stereo_data():
+    return {
+        'name': 'stereo-set',
+        'fps': 5,
+        'type': 'image-sequence',
+        'subType': 'stereo',
+        'defaultDisplay': 'left',
+        'cameraOrder': ['left', 'right'],
+        'cameras': {
+            'left': {'folderId': 'left-id'},
+            'right': {'folderId': 'right-id'},
+        },
+    }
+
+
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.valid_images')
@@ -67,7 +90,7 @@ def test_create_multicam_links_children(_verify, valid_images_mock, folder_cls, 
     assert result == dataset_parent
     folder_cls.return_value.createFolder.assert_not_called()
     folder_cls.return_value.move.assert_not_called()
-    saved_meta = folder_cls.return_value.save.call_args_list[-1][0][0]['meta']
+    saved_meta = _saved_parent_meta(folder_cls)
     assert saved_meta[constants.TypeMarker] == constants.MultiType
     assert saved_meta[constants.SubTypeMarker] == 'stereo'
     assert saved_meta[constants.MultiCamMarker]['cameraOrder'] == ['left', 'right']
@@ -75,6 +98,94 @@ def test_create_multicam_links_children(_verify, valid_images_mock, folder_cls, 
     assert saved_meta['typeHierarchy'] == {'salmon': 'fish'}
     assert saved_meta['customTypeStyling'] == {'salmon': {'color': '#123456'}}
     assert saved_meta['confidenceFilters'] == {'default': 0.7, 'salmon': 0.85}
+
+
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.valid_images')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_create_multicam_promotes_camera_hierarchies_to_the_parent(
+    _verify, valid_images_mock, folder_cls, _aux
+):
+    parent = _dataset_parent()
+    parent['meta'] = {}
+    left = _child_folder('left-id', 'left')
+    right = _child_folder('right-id', 'right')
+    left['meta']['typeHierarchy'] = {'salmon': 'fish'}
+    right['meta']['typeHierarchy'] = {'trout': 'fish'}
+    folder_cls.return_value.load.side_effect = lambda folder_id, **_kwargs: {
+        'left-id': left,
+        'right-id': right,
+    }[folder_id]
+    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+
+    crud_dataset.create_multicam({'login': 'tester'}, parent, _stereo_data())
+
+    saved_meta = _saved_parent_meta(folder_cls)
+    assert saved_meta['typeHierarchy'] == {'salmon': 'fish', 'trout': 'fish'}
+    assert 'typeHierarchy' not in left['meta']
+    assert 'typeHierarchy' not in right['meta']
+
+
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.valid_images')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_create_multicam_keeps_first_hierarchy_and_warns_for_later_conflict(
+    _verify, valid_images_mock, folder_cls, _aux
+):
+    parent = _dataset_parent()
+    parent['meta'] = {}
+    left = _child_folder('left-id', 'left')
+    right = _child_folder('right-id', 'right')
+    left['meta']['typeHierarchy'] = {'salmon': 'fish'}
+    right['meta']['typeHierarchy'] = {'salmon': 'mammal'}
+    folder_cls.return_value.load.side_effect = lambda folder_id, **_kwargs: {
+        'left-id': left,
+        'right-id': right,
+    }[folder_id]
+    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+
+    result = crud_dataset.create_multicam({'login': 'tester'}, parent, _stereo_data())
+
+    assert result['meta']['typeHierarchy'] == {'salmon': 'fish'}
+    assert result['importWarnings'] == [
+        'Camera "right" type hierarchy was skipped: conflicting parents for "salmon": '
+        '"fish" and "mammal"'
+    ]
+    assert 'typeHierarchy' not in left['meta']
+    assert 'typeHierarchy' not in right['meta']
+    saved_meta = _saved_parent_meta(folder_cls)
+    assert saved_meta['typeHierarchy'] == {'salmon': 'fish'}
+
+
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.valid_images')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_create_multicam_keeps_camera_hierarchies_when_late_validation_fails(
+    _verify, valid_images_mock, folder_cls, _aux
+):
+    parent = _dataset_parent()
+    parent['meta'] = {}
+    left = _child_folder('left-id', 'left')
+    right = _child_folder('right-id', 'right')
+    left['meta']['typeHierarchy'] = {'salmon': 'fish'}
+    right['meta']['typeHierarchy'] = {'trout': 'fish'}
+    folder_cls.return_value.load.side_effect = lambda folder_id, **_kwargs: {
+        'left-id': left,
+        'right-id': right,
+    }[folder_id]
+    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    data = _stereo_data()
+    data['subType'] = 'multicam'
+    data['calibrationFileId'] = 'cal-id'
+
+    with pytest.raises(RestException, match='Calibration is only supported for stereo datasets'):
+        crud_dataset.create_multicam({'login': 'tester'}, parent, data)
+
+    assert left['meta']['typeHierarchy'] == {'salmon': 'fish'}
+    assert right['meta']['typeHierarchy'] == {'trout': 'fish'}
 
 
 @patch('dive_server.crud_dataset.Item')

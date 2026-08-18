@@ -6,6 +6,7 @@ KWCOCO-compatible extensions when they are present.
 """
 
 import functools
+import math
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 from dive_utils import constants, strNumericCompare, types
@@ -17,6 +18,133 @@ RLE_SEGMENTATION_WARNING = (
     'The COCO file included run-length encoded segmentation masks that are not supported. '
     'Bounding boxes and other annotation data were imported, but masks were skipped.'
 )
+
+PROB_TOP_K = 10
+PROB_EPSILON = 0.001
+
+PROB_LENGTH_MISMATCH_WARNING = (
+    'Some annotations had a "prob" array whose length did not match the number of categories. '
+    'Class probabilities were ignored for those annotations; the primary category and score '
+    'were imported instead.'
+)
+PROB_DUPLICATE_CATEGORY_WARNING = (
+    'The COCO file contains duplicate category names, so "prob" arrays cannot be mapped to '
+    'class names. Class probabilities were ignored; primary categories and scores were '
+    'imported instead.'
+)
+DIVE_CONFIDENCE_PAIRS_WARNING = (
+    'Some annotations had malformed "dive_confidence_pairs" values. Those values were '
+    'ignored; a valid "prob" vector or the primary category and score were imported instead.'
+)
+SUPERCATEGORY_MULTI_PARENT_WARNING = (
+    'Some COCO categories declare multiple parents via "parents", which DIVE cannot '
+    'represent. Only single-parent "supercategory" or one-element "parents" edges were imported.'
+)
+SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING = (
+    'The COCO file contains duplicate category names, so category hierarchy edges cannot be '
+    'mapped to class names. The dataset type hierarchy was left unchanged.'
+)
+CATEGORY_MISSING_NAME_WARNING = (
+    'Some COCO categories have no non-empty string name. Those positional category slots were '
+    'ignored when importing classifications and hierarchy edges.'
+)
+SUPERCATEGORY_INVALID_WARNING = (
+    'The category hierarchy in the COCO file could not be applied: {reason}. '
+    'Annotations were imported without changing the dataset type hierarchy.'
+)
+
+
+def _has_duplicate_names(names: List[Optional[str]]) -> bool:
+    usable_names = [name for name in names if isinstance(name, str) and name]
+    return len(set(usable_names)) != len(usable_names)
+
+
+def _parent_from_category(category: Dict[str, Any]) -> Optional[str]:
+    """Prefer COCO supercategory; fall back to a single KWCOCO parents entry."""
+    parent = category.get('supercategory')
+    if isinstance(parent, str) and parent:
+        return parent
+    parents = category.get('parents')
+    if isinstance(parents, list) and len(parents) == 1:
+        candidate = parents[0]
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
+
+
+def _confidence_pairs_from_prob(
+    prob: List[Any], ordered_names: List[Optional[str]]
+) -> Optional[List[Tuple[str, float]]]:
+    """Map a positional KWCOCO probability vector to DIVE confidence pairs."""
+    if len(prob) != len(ordered_names):
+        return None
+    pairs = [
+        (name, min(1.0, max(0.0, float(value))))
+        for name, value in zip(ordered_names, prob)
+        if isinstance(name, str)
+        and name
+        and isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ]
+    pairs = [pair for pair in pairs if pair[1] > PROB_EPSILON]
+    pairs.sort(key=lambda pair: pair[1], reverse=True)
+    return pairs[:PROB_TOP_K] or None
+
+
+def _confidence_pairs_from_extension(value: Any) -> Optional[List[Tuple[str, float]]]:
+    """Read DIVE's sparse confidence extension without pruning zero-valued pairs."""
+    if not isinstance(value, list) or not value:
+        return None
+    pairs: List[Tuple[str, float]] = []
+    names = set()
+    for pair in value:
+        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+            return None
+        name, confidence = pair
+        if (
+            not isinstance(name, str)
+            or not name
+            or name in names
+            or not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool)
+            or not math.isfinite(confidence)
+            or confidence < 0
+            or confidence > 1
+        ):
+            return None
+        names.add(name)
+        pairs.append((name, float(confidence)))
+    return pairs
+
+
+def type_hierarchy_from_categories(
+    coco: Dict[str, Any],
+) -> Tuple[Optional[Dict[str, str]], List[str]]:
+    """Derive DIVE child-to-parent edges from KWCOCO category supercategories."""
+    categories = coco.get('categories', [])
+    warnings: List[str] = []
+    if any(
+        isinstance(category.get('parents'), list) and len(category['parents']) > 1
+        for category in categories
+    ):
+        warnings.append(SUPERCATEGORY_MULTI_PARENT_WARNING)
+
+    names = [category.get('name') for category in categories]
+    if any(not isinstance(name, str) or not name for name in names):
+        warnings.append(CATEGORY_MISSING_NAME_WARNING)
+    if _has_duplicate_names(names):
+        warnings.append(SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING)
+        return None, warnings
+
+    hierarchy: Dict[str, str] = {}
+    for category in categories:
+        name = category.get('name')
+        parent = _parent_from_category(category)
+        # Some producers spell roots as a self-supercategory; it is not an edge.
+        if isinstance(name, str) and name and parent and name != parent:
+            hierarchy[name] = parent
+    return hierarchy or None, warnings
 
 
 def _has_valid_bbox(annotation: dict) -> bool:
@@ -152,7 +280,8 @@ def _parse_annotation(
 
     category_id = annotation['category_id']
     score = annotation.get('score', 1.0)  # may not exist, default to 1.0
-    class_name = meta.categories[category_id]['name']
+    category = meta.categories.get(category_id, {})
+    class_name = category.get('name') or 'unknown'
     confidence_pair = (class_name, score)
 
     # parse keypoints
@@ -160,7 +289,7 @@ def _parse_annotation(
     head_tail = []
     for keypoint in keypoints:
         if isinstance(keypoint, (int, float)):  # [x1, y1, v1, ...] coco format
-            keypoint_labels = meta.categories[category_id].get('keypoints', [])
+            keypoint_labels = category.get('keypoints', [])
             n = min(len(keypoint_labels), int(len(keypoints) / 3))  # stopping index
             for i in range(n):
                 point = keypoints[3 * i : 3 * i + 2]  # extract [x, y] pair
@@ -283,6 +412,7 @@ def load_coco_metadata(coco: Dict[str, Any]) -> CocoMetadata:
         images=images_map,
         videos=videos_map,
         datasetInfo=datasetInfo,
+        ordered_category_names=[category.get('name') for category in categories],
     )
 
 
@@ -303,6 +433,23 @@ def load_coco_as_tracks_and_attributes(
     annotations = coco.get('annotations', [])
     _validate_annotation_bounds(annotations)
 
+    ordered_names = meta.ordered_category_names
+    duplicate_category_names = _has_duplicate_names(ordered_names)
+    prob_length_mismatch = False
+    prob_ignored_for_duplicates = False
+
+    # Process each logical track in frame order so confidence pairs describe its
+    # temporal endpoint regardless of annotation order in the source file.  COCO
+    # annotation IDs make equal-frame selection deterministic as well.
+    annotations = sorted(
+        annotations,
+        key=lambda annotation: (
+            meta.images[annotation['image_id']]['frame_index'],
+            annotation['id'],
+        ),
+    )
+
+    malformed_extension = False
     for annotation in annotations:
         (
             feature,
@@ -312,6 +459,23 @@ def load_coco_as_tracks_and_attributes(
             rle_skipped,
         ) = _parse_annotation_for_tracks(annotation, meta)
         skipped_rle_masks = skipped_rle_masks or rle_skipped
+
+        extension_present = 'dive_confidence_pairs' in annotation
+        extension_pairs = _confidence_pairs_from_extension(annotation.get('dive_confidence_pairs'))
+        if extension_pairs is not None:
+            confidence_pairs = extension_pairs
+        else:
+            malformed_extension = malformed_extension or extension_present
+            prob = annotation.get('prob')
+            if isinstance(prob, list):
+                if duplicate_category_names:
+                    prob_ignored_for_duplicates = True
+                else:
+                    prob_pairs = _confidence_pairs_from_prob(prob, ordered_names)
+                    if prob_pairs is None and len(prob) != len(ordered_names):
+                        prob_length_mismatch = True
+                    elif prob_pairs:
+                        confidence_pairs = prob_pairs
 
         trackId, _, frame, _ = annotation_info(annotation, meta)
 
@@ -342,6 +506,12 @@ def load_coco_as_tracks_and_attributes(
     }
     if skipped_rle_masks:
         warnings.append(RLE_SEGMENTATION_WARNING)
+    if prob_length_mismatch:
+        warnings.append(PROB_LENGTH_MISMATCH_WARNING)
+    if prob_ignored_for_duplicates:
+        warnings.append(PROB_DUPLICATE_CATEGORY_WARNING)
+    if malformed_extension:
+        warnings.append(DIVE_CONFIDENCE_PAIRS_WARNING)
     return converted, metadata_attributes, warnings, meta.datasetInfo
 
 
@@ -396,6 +566,7 @@ def export_dive_as_coco(
     image_filenames: Dict[int, str],
     dataset_name: str,
     datasetInfo: Optional[types.DatasetInfo] = None,
+    typeHierarchy: Optional[Dict[str, str]] = None,
 ) -> Dict[str, Any]:
     """
     Export DIVE tracks to a single-dataset COCO JSON document.
@@ -407,14 +578,30 @@ def export_dive_as_coco(
         datasetInfo: per-dataset station metadata; when present, written under
             ``info.dive_dataset_info`` and advertised in ``info.dive_extensions``.
             Omitted entirely when empty.
+        typeHierarchy: DIVE child-to-parent category hierarchy, emitted through
+            KWCOCO's ``categories[].supercategory`` field.
     """
-    categories: Dict[str, int] = {}
+    parsed_tracks = [Track(**track_doc) for track_doc in tracks]
+    category_names: List[str] = []
+
+    def add_category_name(name: str) -> None:
+        if name not in category_names:
+            category_names.append(name)
+
+    for track in parsed_tracks:
+        for name, _confidence in track.confidencePairs:
+            add_category_name(name)
+    for name in sorted((typeHierarchy or {}).keys()):
+        add_category_name(name)
+    for name in sorted(set((typeHierarchy or {}).values())):
+        add_category_name(name)
+
+    categories = {name: index + 1 for index, name in enumerate(category_names)}
     coco_annotations: List[dict] = []
     images: Dict[int, dict] = {}
     annotation_id = 1
 
-    for track_doc in tracks:
-        track = Track(**track_doc)
+    for track in parsed_tracks:
         for feature in track.features:
             if feature.frame not in image_filenames:
                 continue
@@ -423,7 +610,7 @@ def export_dive_as_coco(
             if not track.confidencePairs:
                 continue
             class_name, score = max(track.confidencePairs, key=lambda x: x[1])
-            category_id = categories.setdefault(class_name, len(categories) + 1)
+            category_id = categories[class_name]
             x1, y1, x2, y2 = feature.bounds
             width = max(0, x2 - x1)
             height = max(0, y2 - y1)
@@ -447,6 +634,11 @@ def export_dive_as_coco(
                 # Single-instance polygon export; DIVE does not emit crowd RLE (iscrowd: 1).
                 'iscrowd': 0,
                 'score': score,
+                # KWCOCO probability vectors align with document category order.
+                'prob': [dict(track.confidencePairs).get(name, 0.0) for name in category_names],
+                # Preserve sparse membership and explicit zero confidence without
+                # requiring consumers to infer it from a dense probability vector.
+                'dive_confidence_pairs': [list(pair) for pair in track.confidencePairs],
             }
             # Keep a stable object identity across frames when track data exists.
             annotation['track_id'] = track.id
@@ -467,6 +659,9 @@ def export_dive_as_coco(
     categories_doc: List[dict] = []
     for class_name, category_id in categories.items():
         category: Dict[str, Any] = {'id': category_id, 'name': class_name}
+        parent = (typeHierarchy or {}).get(class_name)
+        if parent is not None:
+            category['supercategory'] = parent
         # When keypoints are exported, publish the category labels explicitly.
         category['keypoints'] = ['head', 'tail']
         categories_doc.append(category)
@@ -477,6 +672,7 @@ def export_dive_as_coco(
             'dive_detection_attributes',
             'dive_track_attributes',
             'dive_notes',
+            'dive_confidence_pairs',
         ],
     }
     if datasetInfo:

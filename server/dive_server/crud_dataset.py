@@ -1,7 +1,7 @@
 import copy
 import json
 from pathlib import Path
-from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set, Tuple
+from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set, Tuple, Union
 
 from bson.objectid import InvalidId, ObjectId
 import cherrypy
@@ -661,16 +661,39 @@ def remove_camera_type_hierarchy(folder: types.GirderModel) -> bool:
     return True
 
 
+def promote_camera_type_hierarchies(
+    parent_folder: types.GirderModel,
+    loaded_children: Dict[str, types.GirderModel],
+    camera_order: List[str],
+) -> Tuple[Optional[Dict[str, str]], List[str]]:
+    """Resolve camera hierarchies into the parent before removing child copies."""
+    promoted = fromMeta(parent_folder, 'typeHierarchy')
+    warnings = []
+    for name in camera_order:
+        child_hierarchy = fromMeta(loaded_children[name], 'typeHierarchy')
+        if child_hierarchy is None:
+            continue
+        try:
+            write = resolve_type_hierarchy(promoted, True, child_hierarchy, 'additive')
+        except TypeHierarchyError as error:
+            warnings.append(f'Camera "{name}" type hierarchy was skipped: {error.reason}')
+            continue
+        if write['action'] == 'set':
+            promoted = write['hierarchy']
+    return promoted, warnings
+
+
 def type_hierarchy_for_export(
     dsFolder: types.GirderModel,
     user: Optional[types.GirderUserModel] = None,
+    artifact: str = 'configuration file',
 ) -> Optional[Dict[str, str]]:
     """Return a normalized export hierarchy, rejecting corrupt stored metadata."""
     try:
         owner = crud.get_multicam_owner_folder(dsFolder)
         return normalize_type_hierarchy(fromMeta(owner or dsFolder, 'typeHierarchy'))
     except TypeHierarchyError as error:
-        raise crud.hierarchy_rest_error(error, 'No configuration file was exported.') from error
+        raise crud.hierarchy_rest_error(error, f'No {artifact} was exported.') from error
 
 
 class AttributeUpdateArgs(BaseModel):
@@ -742,16 +765,29 @@ def _filtered_annotation_tracks(
     annotations = crud_annotation.get_annotations(dsFolder, revision=revision)
     tracks = annotations['tracks']
     thresholds = fromMeta(dsFolder, "confidenceFilters", {}) if excludeBelowThreshold else {}
+    default_threshold = thresholds.get('default', 0)
     updated_tracks = {}
     for track_id in tracks:
         track = models.Track(**tracks[track_id])
-        if excludeBelowThreshold and not track.exceeds_thresholds(thresholds):
-            continue
+        confidence_pairs = track.confidencePairs
+        if excludeBelowThreshold:
+            confidence_pairs = [
+                pair
+                for pair in confidence_pairs
+                if pair[1] >= thresholds.get(pair[0], default_threshold)
+            ]
         if typeFilter:
-            confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
-            if not confidence_pairs:
-                continue
-        updated_tracks[track_id] = tracks[track_id]
+            confidence_pairs = [pair for pair in confidence_pairs if pair[0] in typeFilter]
+        if not confidence_pairs:
+            continue
+        if excludeBelowThreshold or typeFilter:
+            # Filters select raw stored evidence.  Copy before pruning so an export
+            # never mutates the stored track or leaks removed pairs into its output.
+            exported_track = dict(tracks[track_id])
+            exported_track['confidencePairs'] = [list(pair) for pair in confidence_pairs]
+            updated_tracks[track_id] = exported_track
+        else:
+            updated_tracks[track_id] = tracks[track_id]
     return updated_tracks
 
 
@@ -794,6 +830,7 @@ def _coco_json_export_text(
         image_filenames=image_filenames,
         dataset_name=dsFolder['name'],
         datasetInfo=fromMeta(dsFolder, "datasetInfo", {}),
+        typeHierarchy=type_hierarchy_for_export(dsFolder, user, artifact='COCO file'),
     )
     return json.dumps(coco)
 
@@ -810,10 +847,23 @@ def export_multicam_annotations_zipstream(
     if format not in ('viame_csv', 'dive_json', 'coco_json'):
         raise RestException(f'Format {format} is not a valid option.')
 
+    if format == 'coco_json':
+        type_hierarchy_for_export(dsFolder, user, artifact='COCO file')
+    multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
+    children = {}
+    for cam_name in _multicam_camera_order(multi_cam):
+        cam_info = multi_cam['cameras'][cam_name]
+        child = Folder().load(cam_info['folderId'], level=AccessType.READ, user=user)
+        if child is None:
+            raise RestException(
+                f'Camera folder for "{cam_name}" was not found',
+                code=404,
+            )
+        children[cam_name] = child
+
     def stream():
         z = ziputil.ZipGenerator()
         zip_path = f"./{dsFolder['name']}/"
-        multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
 
         def makeMultiCamJson():
             yield json.dumps(multi_cam, indent=2).encode('utf-8')
@@ -823,13 +873,7 @@ def export_multicam_annotations_zipstream(
 
         nested_type_filter = typeFilter if typeFilter is not None else set()
         for cam_name in _multicam_camera_order(multi_cam):
-            cam_info = multi_cam['cameras'][cam_name]
-            child = Folder().load(cam_info['folderId'], level=AccessType.READ, user=user)
-            if child is None:
-                raise RestException(
-                    f'Camera folder for "{cam_name}" was not found',
-                    code=404,
-                )
+            child = children[cam_name]
             child_path = f'{zip_path}{cam_name}/'
             if format == 'viame_csv':
                 _, gen = crud_annotation.get_annotation_csv_generator(
@@ -979,25 +1023,9 @@ def _yield_single_dataset_export(
     def makeDiveJson():
         """Include DIVE JSON output annotation file"""
         annotations = crud_annotation.get_annotations(dsFolder)
-        tracks = annotations['tracks']
-        thresholds = None
-        if excludeBelowThreshold:
-            thresholds = fromMeta(dsFolder, "confidenceFilters", {})
-        if thresholds is None:
-            thresholds = {}
-
-        updated_tracks = {}
-        for t in tracks:
-            track = models.Track(**tracks[t])
-            if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
-                if typeFilter:
-                    confidence_pairs = [
-                        item for item in track.confidencePairs if item[0] in typeFilter
-                    ]
-                    if not confidence_pairs:
-                        continue
-                updated_tracks[t] = tracks[t]
-        annotations['tracks'] = updated_tracks
+        annotations['tracks'] = _filtered_annotation_tracks(
+            dsFolder, None, excludeBelowThreshold, typeFilter
+        )
         yield json.dumps(annotations)
 
     for data in z.addFile(makeMetajson, Path(f'{zip_path}{constants.ConfigFileName}')):
@@ -1547,7 +1575,7 @@ def create_multicam(
     user: types.GirderUserModel,
     parent_folder: types.GirderModel,
     data: dict,
-) -> types.GirderModel:
+) -> Union[types.GirderModel, Dict[str, Any]]:
     """Finalize a multicam dataset whose camera folders already live under parent_folder."""
     validated: CreateMulticamArgs = crud.get_validated_model(CreateMulticamArgs, **data)
     if parent_folder['name'] != validated.name:
@@ -1658,12 +1686,14 @@ def create_multicam(
     # Frame alignment pairs frames across cameras downstream, so a per-camera
     # frame-count equality check would reject the primary use case for this feature.
 
+    promoted_hierarchy, hierarchy_warnings = promote_camera_type_hierarchies(
+        parent_folder, loaded_children, camera_order
+    )
     default_child = loaded_children[validated.defaultDisplay]
     parent_folder_doc = parent_folder
     multi_cam_cameras: Dict[str, Dict[str, str]] = {}
     for name in camera_order:
         child = loaded_children[name]
-        remove_camera_type_hierarchy(child)
         if child['name'] != name:
             child['name'] = name
             Folder().save(child)
@@ -1715,6 +1745,7 @@ def create_multicam(
     }
     parent_folder_doc['meta'] = {
         **mutable_meta,
+        **({'typeHierarchy': promoted_hierarchy} if promoted_hierarchy else {}),
         constants.DatasetMarker: True,
         constants.TypeMarker: constants.MultiType,
         constants.SubTypeMarker: validated.subType,
@@ -1755,7 +1786,15 @@ def create_multicam(
         {'default': 0.1},
     )
     Folder().save(parent_folder_doc)
+    # The parent is now the durable canonical owner.  Do not remove the only hierarchy
+    # copies from camera folders until every fallible validation above has succeeded.
+    for child in loaded_children.values():
+        remove_camera_type_hierarchy(child)
     crud.get_or_create_auxiliary_folder(parent_folder_doc, user)
+    if hierarchy_warnings:
+        response: Dict[str, Any] = dict(parent_folder_doc)
+        response['importWarnings'] = hierarchy_warnings
+        return response
     return parent_folder_doc
 
 

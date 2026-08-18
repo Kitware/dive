@@ -1,9 +1,14 @@
 import json
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pytest
 
 from dive_utils.serializers import kwcoco
+
+KWCOCO_PROFILE = json.loads(
+    (Path(__file__).parents[2] / 'testutils/kwcoco/import-profile.json').read_text()
+)
 
 test_tuple: List[Tuple[dict, dict, dict]] = [
     (
@@ -727,6 +732,37 @@ def test_export_dive_as_coco_single_dataset():
     assert "dive_notes" in coco["info"]["dive_extensions"]
 
 
+def test_export_dive_as_coco_preserves_pairs_and_category_hierarchy_roundtrip():
+    profile = KWCOCO_PROFILE['exportRoundTrip']
+    exported = kwcoco.export_dive_as_coco(
+        profile['tracks'],
+        {int(frame): name for frame, name in profile['imageFilenames'].items()},
+        dataset_name=profile['datasetName'],
+        typeHierarchy=profile['typeHierarchy'],
+    )
+    categories = {category['name']: category for category in exported['categories']}
+    assert list(categories) == profile['expectedCategoryNames']
+    assert {
+        name: category['supercategory']
+        for name, category in categories.items()
+        if 'supercategory' in category
+    } == profile['expectedParents']
+    annotation = exported['annotations'][0]
+    assert annotation['track_id'] == profile['tracks'][0]['id']
+    assert annotation['category_id'] == categories['leaf']['id']
+    assert annotation['score'] == 0.75
+    assert annotation['prob'] == profile['expectedProb']
+    assert annotation['dive_confidence_pairs'] == profile['expectedPairs']
+    assert 'dive_confidence_pairs' in exported['info']['dive_extensions']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(exported)
+    track_id = str(profile['tracks'][0]['id'])
+    assert converted['tracks'][track_id]['confidencePairs'] == [
+        tuple(pair) for pair in profile['expectedPairs']
+    ]
+    assert warnings == []
+
+
 # --- datasetInfo passthrough ---
 
 DATASET_INFO = {
@@ -936,3 +972,213 @@ def test_import_polygon_and_rle_segmentation():
     assert rle_track["features"][0]["bounds"] == [400, 200, 600, 260]
     assert "geometry" not in rle_track["features"][0]
     assert len(warnings) == 1
+
+
+def _classification_coco(categories, annotations):
+    return {
+        'images': [
+            {'id': 1, 'file_name': 'frame_1.jpg', 'frame_index': 1},
+            {'id': 2, 'file_name': 'frame_2.jpg', 'frame_index': 2},
+        ],
+        'annotations': annotations,
+        'categories': categories,
+    }
+
+
+def _classification_annotation(annotation_id, image_id=1, **extra):
+    return {
+        'id': annotation_id,
+        'image_id': image_id,
+        'category_id': 1,
+        'track_id': 9,
+        'bbox': [1, 2, 3, 4],
+        **extra,
+    }
+
+
+def test_prob_uses_raw_category_order_and_preserves_unnamed_slots():
+    coco = _classification_coco(
+        [{'id': 10, 'name': 'fish'}, {'id': 1}, {'id': 4, 'name': 'shark'}],
+        [_classification_annotation(1, category_id=10, prob=[0.2, 0.9, 0.1])],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    assert converted['tracks']['9']['confidencePairs'] == [('fish', 0.2), ('shark', 0.1)]
+    assert warnings == []
+
+
+def test_unnamed_primary_category_falls_back_to_unknown():
+    coco = _classification_coco(
+        [{'id': 1}, {'id': 2, 'name': 'fish'}],
+        [_classification_annotation(1, category_id=1)],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    assert converted['tracks']['9']['confidencePairs'] == [('unknown', 1.0)]
+    assert warnings == []
+
+
+def test_prob_prunes_and_warns_once_for_mismatch_or_duplicate_names():
+    categories = [{'id': index, 'name': f'class_{index}'} for index in range(12)]
+    annotations = [
+        _classification_annotation(
+            1,
+            track_id=1,
+            prob=[0.5 - index * 0.01 for index in range(12)],
+        ),
+        _classification_annotation(2, track_id=2, prob=[0.1]),
+        _classification_annotation(3, track_id=3, prob=[0.2]),
+    ]
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        _classification_coco(categories, annotations)
+    )
+    assert len(converted['tracks']['1']['confidencePairs']) == 10
+    assert warnings == [kwcoco.PROB_LENGTH_MISMATCH_WARNING]
+
+    duplicate = _classification_coco(
+        [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'fish'}],
+        [_classification_annotation(4, prob=[0.1, 0.9])],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(duplicate)
+    assert converted['tracks']['9']['confidencePairs'] == [('fish', 1.0)]
+    assert warnings == [kwcoco.PROB_DUPLICATE_CATEGORY_WARNING]
+
+
+def test_dive_confidence_pairs_prefer_exact_sparse_zero_membership():
+    coco = _classification_coco(
+        [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}],
+        [
+            _classification_annotation(
+                1,
+                prob=[0.1, 0.9],
+                dive_confidence_pairs=[['shark', 0.0], ['fish', 0.25]],
+            )
+        ],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    assert converted['tracks']['9']['confidencePairs'] == [('shark', 0.0), ('fish', 0.25)]
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        [],
+        'not a pair list',
+        [['fish']],
+        [['fish', 0.2], ['fish', 0.3]],
+        [['fish', float('nan')]],
+        [['fish', 1.1]],
+    ],
+)
+def test_malformed_dive_confidence_pairs_warns_once_and_falls_back(value):
+    coco = _classification_coco(
+        [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}],
+        [
+            _classification_annotation(1, prob=[0.2, 0.8], dive_confidence_pairs=value),
+            _classification_annotation(2, prob=[0.2, 0.8], dive_confidence_pairs=value),
+        ],
+    )
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+
+    assert converted['tracks']['9']['confidencePairs'] == [('shark', 0.8), ('fish', 0.2)]
+    assert warnings == [kwcoco.DIVE_CONFIDENCE_PAIRS_WARNING]
+
+
+def test_highest_frame_confidence_wins_independent_of_source_order():
+    categories = [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}]
+    annotations = [
+        _classification_annotation(1, image_id=2, prob=[0.2, 0.8]),
+        _classification_annotation(2, image_id=1, prob=[0.9, 0.1]),
+    ]
+    converted, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        _classification_coco(categories, annotations)
+    )
+    assert converted['tracks']['9']['confidencePairs'] == [('shark', 0.8), ('fish', 0.2)]
+
+
+def test_same_highest_frame_uses_greater_annotation_id_independent_of_source_order():
+    categories = [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}]
+    annotations = [
+        _classification_annotation(2, prob=[0.9, 0.1]),
+        _classification_annotation(1, prob=[0.2, 0.8]),
+    ]
+    document = _classification_coco(categories, annotations)
+
+    converted, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(document)
+    reordered, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        {**document, 'annotations': list(reversed(annotations))}
+    )
+
+    expected = [('fish', 0.9), ('shark', 0.1)]
+    assert converted['tracks']['9']['confidencePairs'] == expected
+    assert reordered['tracks']['9']['confidencePairs'] == expected
+
+
+def test_supercategory_extraction_handles_roots_duplicates_and_multiple_parents():
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
+        {
+            'categories': [
+                {'id': 1, 'name': 'root', 'supercategory': 'root'},
+                {'id': 2, 'name': 'leaf', 'supercategory': 'root', 'parents': ['root', 'other']},
+                {'id': 3, 'name': 'external', 'supercategory': 'outside'},
+                {'id': 4},
+            ]
+        }
+    )
+    assert hierarchy == {'leaf': 'root', 'external': 'outside'}
+    assert warnings == [
+        kwcoco.SUPERCATEGORY_MULTI_PARENT_WARNING,
+        kwcoco.CATEGORY_MISSING_NAME_WARNING,
+    ]
+
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
+        {'categories': [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'fish'}]}
+    )
+    assert hierarchy is None
+    assert warnings == [kwcoco.SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING]
+
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
+        {
+            'categories': [
+                {'id': 1, 'name': 'fish'},
+                {'id': 2, 'name': 'shark', 'parents': ['fish']},
+                {'id': 3, 'name': 'tuna', 'supercategory': 'animal', 'parents': ['fish']},
+                {'id': 4, 'name': 'whale', 'parents': ['mammal', 'fish']},
+            ]
+        }
+    )
+    assert hierarchy == {'shark': 'fish', 'tuna': 'animal'}
+    assert warnings == [kwcoco.SUPERCATEGORY_MULTI_PARENT_WARNING]
+
+
+def test_shared_exact_vector_and_hierarchy_import_profile():
+    profile = KWCOCO_PROFILE['highestFrameExact']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(profile['document'])
+    hierarchy, hierarchy_warnings = kwcoco.type_hierarchy_from_categories(profile['document'])
+
+    pairs = converted['tracks'][str(profile['trackId'])]['confidencePairs']
+    assert [list(pair) for pair in pairs] == profile['expectedPairs']
+    assert hierarchy == profile['expectedHierarchy']
+    assert warnings == []
+    assert hierarchy_warnings == []
+
+
+def test_shared_missing_frame_index_profile():
+    profile = KWCOCO_PROFILE['missingFrameIndexExact']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(profile['document'])
+
+    pairs = converted['tracks'][str(profile['trackId'])]['confidencePairs']
+    assert [list(pair) for pair in pairs] == profile['expectedPairs']
+    assert warnings == []
+
+
+def test_shared_empty_dive_confidence_pairs_profile():
+    profile = KWCOCO_PROFILE['emptyDiveConfidencePairs']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(profile['document'])
+
+    pairs = converted['tracks'][str(profile['trackId'])]['confidencePairs']
+    assert [list(pair) for pair in pairs] == profile['expectedPairs']
+    assert warnings == [kwcoco.DIVE_CONFIDENCE_PAIRS_WARNING]
