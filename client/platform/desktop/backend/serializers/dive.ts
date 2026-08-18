@@ -50,26 +50,34 @@ function filterTracks(
     header: true,
   },
 ): AnnotationSchema {
-  const filteredTracks = Object.values(data.tracks).filter((track) => {
-    const filters = meta.confidenceFilters || {};
-    /* Include only the pairs that exceed the threshold in CSV output */
+  const filters = meta.confidenceFilters || {};
+  const updatedFilteredTracks: Record<number, TrackData> = {};
+  Object.values(data.tracks).forEach((track) => {
+    /* Include only the pairs that exceed the threshold in JSON output */
     const confidencePairs = options.excludeBelowThreshold
       ? Track.exceedsThreshold(track.confidencePairs, filters)
       : track.confidencePairs;
     const filteredPairs = typeFilter.size > 0
       ? confidencePairs.filter((x) => typeFilter.has(x[0]))
       : confidencePairs;
-    return filteredPairs.length > 0;
+    if (!filteredPairs.length) {
+      return;
+    }
+    if (options.excludeBelowThreshold || typeFilter.size > 0) {
+      // Filters select raw stored evidence. Copy before pruning so an export
+      // never mutates the stored track or leaks removed pairs into its output.
+      updatedFilteredTracks[track.id] = {
+        ...track,
+        confidencePairs: filteredPairs.map(([name, score]) => [name, score]),
+      };
+    } else {
+      updatedFilteredTracks[track.id] = track;
+    }
   });
-  // Convert the track list back into an object
-  const updatedFilteredTracks: Record<number, TrackData> = {};
-  filteredTracks.forEach((track) => {
-    updatedFilteredTracks[track.id] = track;
-  });
-  const updatedData = { ...data };
-  updatedData.tracks = updatedFilteredTracks;
-  // Write out the tracks to a file
-  return updatedData;
+  return {
+    ...data,
+    tracks: updatedFilteredTracks,
+  };
 }
 
 async function serializeFile(

@@ -628,3 +628,56 @@ def test_notes_round_trip_through_csv_export():
         "needs review",
         "occluded by kelp",
     ]
+
+
+def test_export_csv_prunes_pairs_below_threshold_without_mutating_source():
+    tracks = {
+        "7": {
+            "id": 7,
+            "begin": 0,
+            "end": 0,
+            "confidencePairs": [["fish", 0.8], ["shark", 0.4]],
+            "attributes": {},
+            "features": [{"frame": 0, "bounds": [1, 2, 3, 4]}],
+        }
+    }
+    source_pairs = list(tracks["7"]["confidencePairs"])
+
+    lines = list(
+        viame.export_tracks_as_csv(
+            tracks.values(),
+            filenames=filenames,
+            header=False,
+            excludeBelowThreshold=True,
+            thresholds={"default": 0.5},
+        )
+    )
+
+    assert lines[0].strip() == "7,1.png,0,1,2,3,4,0.8,-1,fish,0.8"
+    assert "shark" not in lines[0]
+    assert tracks["7"]["confidencePairs"] == source_pairs
+
+
+def test_export_csv_omits_track_when_no_pairs_meet_threshold():
+    tracks = {
+        "7": {
+            "id": 7,
+            "begin": 0,
+            "end": 0,
+            "confidencePairs": [["shark", 0.4]],
+            "attributes": {},
+            "features": [{"frame": 0, "bounds": [1, 2, 3, 4]}],
+        }
+    }
+
+    lines = list(
+        viame.export_tracks_as_csv(
+            tracks.values(),
+            filenames=filenames,
+            header=False,
+            excludeBelowThreshold=True,
+            thresholds={"default": 0.5},
+        )
+    )
+
+    assert [line.strip() for line in lines if line.strip()] == []
