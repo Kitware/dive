@@ -133,6 +133,22 @@ const console = new Console(process.stdout, process.stderr);
 
 const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
 
+function cocoWithRle(trackId: number, categoryName = 'fish') {
+  return JSON.stringify({
+    images: [{ id: 1, file_name: 'frame_000001.jpg', frame_index: 0 }],
+    annotations: [{
+      id: trackId,
+      image_id: 1,
+      category_id: 5,
+      bbox: [10, 20, 30, 40],
+      track_id: trackId,
+      iscrowd: 1,
+      segmentation: { size: [100, 100], counts: 'abc' },
+    }],
+    categories: [{ id: 5, name: categoryName }],
+  });
+}
+
 // Below sets up data in the mockfs
 type testPairs = [string[], MultiTrackRecord, Record<string, Attribute>];
 /* Viame.spec.json is an array in the format [CSV row Array, MultiTrackRecord, Attributes Object][]
@@ -849,6 +865,90 @@ beforeEach(() => {
 });
 
 describe('native.common', () => {
+  it('preserves warnings from primary COCO files in input order', async () => {
+    const first = '/home/user/output/first.coco.json';
+    const second = '/home/user/output/second.coco.json';
+    await fs.writeFile(first, cocoWithRle(1, 'fish'));
+    await fs.writeFile(second, cocoWithRle(2, 'shark'));
+
+    const result = await common.ingestDataFiles(settings, 'projectid1', [first, second]);
+
+    expect(result.processedFiles).toEqual([first, second]);
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings.every((warning) => warning.includes('segmentation masks'))).toBe(true);
+  });
+
+  it('does not let an empty warning list erase earlier primary warnings', async () => {
+    const first = '/home/user/output/first.coco.json';
+    const empty = '/home/user/output/config.json';
+    const third = '/home/user/output/third.csv';
+    await fs.writeFile(first, cocoWithRle(1));
+    await fs.writeJSON(empty, { confidenceFilters: { default: 0.8 } });
+    await fs.writeFile(third, '# metadata,fps: 30,dataset_info: 42');
+
+    const result = await common.ingestDataFiles(settings, 'projectid1', [first, empty, third]);
+
+    expect(result.processedFiles).toEqual([first, empty, third]);
+    expect(result.warnings).toEqual([
+      'The COCO file included run-length encoded segmentation masks that are not supported. '
+        + 'Bounding boxes and other annotation data were imported, but masks were skipped.',
+      'Ignored dataset_info entry: expected a JSON object but got number',
+    ]);
+  });
+
+  it('preserves identical warnings from separate primary files', async () => {
+    const first = '/home/user/output/first.coco.json';
+    const second = '/home/user/output/second.coco.json';
+    const input = cocoWithRle(1);
+    await fs.writeFile(first, input);
+    await fs.writeFile(second, input);
+
+    const result = await common.ingestDataFiles(settings, 'projectid1', [first, second]);
+
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings[0]).toBe(result.warnings[1]);
+  });
+
+  it('places primary warnings before multicam warnings', async () => {
+    const primary = '/home/user/output/primary.coco.json';
+    const multicam = '/home/user/output/left.csv';
+    await fs.writeFile(primary, cocoWithRle(1));
+    await fs.writeFile(multicam, '# metadata,fps: 30,dataset_info: 42');
+
+    const result = await common.ingestDataFiles(
+      settings,
+      'stereoDataset',
+      [primary],
+      { left: multicam },
+    );
+
+    expect(result.processedFiles).toEqual([primary, multicam]);
+    expect(result.warnings).toHaveLength(2);
+    expect(result.warnings[0]).toContain('segmentation masks');
+    expect(result.warnings[1]).toContain('expected a JSON object but got number');
+  });
+
+  it('rejects when a COCO annotation has no bbox and no usable polygon segmentation', async () => {
+    const rejectedFile = '/home/user/output/rejected.coco.json';
+    await fs.writeJSON(rejectedFile, {
+      images: [{ id: 1, file_name: 'frame_000001.jpg', frame_index: 0 }],
+      annotations: [{
+        id: 2,
+        image_id: 1,
+        category_id: 5,
+        iscrowd: 1,
+        segmentation: { size: [100, 100], counts: 'abc' },
+      }],
+      categories: [{ id: 5, name: 'fish' }],
+    });
+
+    await expect(common.ingestDataFiles(
+      settings,
+      'projectid1',
+      [rejectedFile],
+    )).rejects.toThrow('no bbox and no usable polygon segmentation');
+  });
+
   it('getPipelineList lists pipelines', async () => {
     const exists = await fs.pathExists(settings.viamePath);
     expect(exists).toBe(true);

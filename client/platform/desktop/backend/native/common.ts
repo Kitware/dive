@@ -1458,7 +1458,7 @@ async function ingestDataFiles(
     const results = await _ingestFilePath(settings, datasetId, path, imageMap, additive, additivePrepend);
     if (results !== null) {
       const [newMeta, warnings] = results;
-      outwarnings = warnings;
+      outwarnings = outwarnings.concat(warnings);
       merge(meta, newMeta);
       processedFiles.push(path);
     }
