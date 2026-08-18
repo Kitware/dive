@@ -7,6 +7,7 @@ import {
   DIVE_CONFIDENCE_PAIRS_INVALID_WARNING,
   PROB_DUPLICATE_CATEGORY_WARNING,
   PROB_LENGTH_MISMATCH_WARNING,
+  PROB_TOP_K,
   SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
   SUPERCATEGORY_MULTI_PARENT_WARNING,
   isCocoJson,
@@ -359,8 +360,12 @@ describe('COCO serializer', () => {
     expect(warnings).toEqual([]);
   });
 
-  it('clamps finite prob values and prunes to the strongest ten above epsilon', async () => {
-    const categories = Array.from({ length: 12 }, (_, id) => ({ id: id + 1, name: `type-${id}` }));
+  it('clamps finite prob values and prunes to the strongest scores above epsilon', async () => {
+    const aboveEpsilon = PROB_TOP_K + 2;
+    const categories = Array.from({ length: aboveEpsilon + 1 }, (_, id) => ({
+      id: id + 1,
+      name: `type-${id}`,
+    }));
     mockfs({
       '/input': {
         'pruned-prob.json': JSON.stringify({
@@ -371,16 +376,22 @@ describe('COCO serializer', () => {
             category_id: 1,
             bbox: [0, 0, 1, 1],
             track_id: 9,
-            prob: [1.5, ...Array.from({ length: 10 }, (_, index) => 0.9 - (index * 0.01)), 0.0005],
+            prob: [
+              1.5,
+              ...Array.from({ length: aboveEpsilon - 1 }, (_, index) => 0.9 - (index * 0.01)),
+              0.0005,
+            ],
           }],
           categories,
         }),
       },
     });
     const [parsed] = await parseFile('/input/pruned-prob.json');
-    expect(parsed.tracks[9].confidencePairs).toHaveLength(10);
+    const names = parsed.tracks[9].confidencePairs.map(([name]) => name);
+    expect(parsed.tracks[9].confidencePairs).toHaveLength(PROB_TOP_K);
     expect(parsed.tracks[9].confidencePairs[0]).toEqual(['type-0', 1]);
-    expect(parsed.tracks[9].confidencePairs.map(([name]) => name)).not.toContain('type-11');
+    expect(names).not.toContain(`type-${aboveEpsilon - 1}`);
+    expect(names).not.toContain(`type-${aboveEpsilon}`);
   });
 
   it('warns once for invalid external prob vectors and falls back to category score', async () => {
