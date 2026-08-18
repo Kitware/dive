@@ -356,7 +356,9 @@ are also accepted on import.
 DIVE Web and Desktop use the same KWCOCO profile for hierarchy and complete confidence vectors:
 
 * `categories` contains every type in an exported confidence vector and every child or parent in
-  the dataset hierarchy. A child's immediate parent is written as `supercategory`.
+  the dataset hierarchy. A child's immediate parent is written as `supercategory`. On import, that
+  field is the parent edge; a one-element `parents` list is used only when `supercategory` is
+  absent.
 * Every annotation retains standard `category_id` and `score` fields for the highest-confidence
   exported pair, so readers that ignore KWCOCO extensions still receive a primary category.
 * Every annotation also has a dense `prob` array aligned by position with the document's complete

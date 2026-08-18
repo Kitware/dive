@@ -1137,6 +1137,19 @@ def test_supercategory_extraction_handles_roots_duplicates_and_multiple_parents(
     assert hierarchy is None
     assert warnings == [kwcoco.SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING]
 
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
+        {
+            'categories': [
+                {'id': 1, 'name': 'fish'},
+                {'id': 2, 'name': 'shark', 'parents': ['fish']},
+                {'id': 3, 'name': 'tuna', 'supercategory': 'animal', 'parents': ['fish']},
+                {'id': 4, 'name': 'whale', 'parents': ['mammal', 'fish']},
+            ]
+        }
+    )
+    assert hierarchy == {'shark': 'fish', 'tuna': 'animal'}
+    assert warnings == [kwcoco.SUPERCATEGORY_MULTI_PARENT_WARNING]
+
 
 def test_shared_exact_vector_and_hierarchy_import_profile():
     profile = KWCOCO_PROFILE['highestFrameExact']

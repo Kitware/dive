@@ -561,6 +561,19 @@ describe('COCO serializer', () => {
     });
     expect(duplicate.hierarchy).toBeUndefined();
     expect(duplicate.warnings).toEqual([SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING]);
+
+    const parentsFallback = typeHierarchyFromCategories({
+      images: [],
+      annotations: [],
+      categories: [
+        { id: 1, name: 'fish' },
+        { id: 2, name: 'shark', parents: ['fish'] },
+        { id: 3, name: 'tuna', supercategory: 'animal', parents: ['fish'] },
+        { id: 4, name: 'whale', parents: ['mammal', 'fish'] },
+      ],
+    });
+    expect(parentsFallback.hierarchy).toEqual({ shark: 'fish', tuna: 'animal' });
+    expect(parentsFallback.warnings).toEqual([SUPERCATEGORY_MULTI_PARENT_WARNING]);
   });
 
   it('warns once and ignores prob vectors when category names are duplicated', async () => {

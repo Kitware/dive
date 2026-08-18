@@ -44,7 +44,7 @@ const DIVE_CONFIDENCE_PAIRS_INVALID_WARNING = (
 );
 const SUPERCATEGORY_MULTI_PARENT_WARNING = (
   'Some COCO categories declare multiple parents via "parents", which DIVE cannot '
-  + 'represent. Only single-parent "supercategory" edges were imported.'
+  + 'represent. Only single-parent "supercategory" or one-element "parents" edges were imported.'
 );
 const SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING = (
   'The COCO file contains duplicate category names, so category hierarchy edges cannot be '
@@ -62,6 +62,19 @@ const SUPERCATEGORY_INVALID_WARNING = (
 function hasDuplicateCategoryNames(names: readonly (string | undefined)[]): boolean {
   const named = names.filter((name): name is string => typeof name === 'string' && name.length > 0);
   return new Set(named).size !== named.length;
+}
+
+function parentFromCategory(category: CocoCategory): string | undefined {
+  if (typeof category.supercategory === 'string' && category.supercategory) {
+    return category.supercategory;
+  }
+  if (Array.isArray(category.parents) && category.parents.length === 1) {
+    const [candidate] = category.parents;
+    if (typeof candidate === 'string' && candidate) {
+      return candidate;
+    }
+  }
+  return undefined;
 }
 
 function invalidCocoHierarchyMessage(reason: string): string {
@@ -327,11 +340,11 @@ function typeHierarchyFromCategories(
     return { warnings };
   }
   const hierarchy: Record<string, string> = {};
-  document.categories.forEach(({ name, supercategory }) => {
-    if (typeof name === 'string' && name
-      && typeof supercategory === 'string' && supercategory
-      && name !== supercategory) {
-      hierarchy[name] = supercategory;
+  document.categories.forEach((category) => {
+    const { name } = category;
+    const parent = parentFromCategory(category);
+    if (typeof name === 'string' && name && parent && name !== parent) {
+      hierarchy[name] = parent;
     }
   });
   return Object.keys(hierarchy).length ? { hierarchy, warnings } : { warnings };

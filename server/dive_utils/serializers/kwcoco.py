@@ -38,7 +38,7 @@ DIVE_CONFIDENCE_PAIRS_WARNING = (
 )
 SUPERCATEGORY_MULTI_PARENT_WARNING = (
     'Some COCO categories declare multiple parents via "parents", which DIVE cannot '
-    'represent. Only single-parent "supercategory" edges were imported.'
+    'represent. Only single-parent "supercategory" or one-element "parents" edges were imported.'
 )
 SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING = (
     'The COCO file contains duplicate category names, so category hierarchy edges cannot be '
@@ -57,6 +57,19 @@ SUPERCATEGORY_INVALID_WARNING = (
 def _has_duplicate_names(names: List[Optional[str]]) -> bool:
     usable_names = [name for name in names if isinstance(name, str) and name]
     return len(set(usable_names)) != len(usable_names)
+
+
+def _parent_from_category(category: Dict[str, Any]) -> Optional[str]:
+    """Prefer COCO supercategory; fall back to a single KWCOCO parents entry."""
+    parent = category.get('supercategory')
+    if isinstance(parent, str) and parent:
+        return parent
+    parents = category.get('parents')
+    if isinstance(parents, list) and len(parents) == 1:
+        candidate = parents[0]
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
 
 
 def _confidence_pairs_from_prob(
@@ -127,9 +140,9 @@ def type_hierarchy_from_categories(
     hierarchy: Dict[str, str] = {}
     for category in categories:
         name = category.get('name')
-        parent = category.get('supercategory')
+        parent = _parent_from_category(category)
         # Some producers spell roots as a self-supercategory; it is not an edge.
-        if isinstance(name, str) and name and isinstance(parent, str) and parent and name != parent:
+        if isinstance(name, str) and name and parent and name != parent:
             hierarchy[name] = parent
     return hierarchy or None, warnings
 
