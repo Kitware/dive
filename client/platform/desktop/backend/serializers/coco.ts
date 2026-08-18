@@ -25,7 +25,7 @@ const RLE_SEGMENTATION_WARNING = (
   + 'Bounding boxes and other annotation data were imported, but masks were skipped.'
 );
 
-const PROB_TOP_K = 10;
+const PROB_TOP_K = 25;
 const PROB_EPSILON = 0.001;
 
 const PROB_LENGTH_MISMATCH_WARNING = (
