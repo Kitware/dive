@@ -568,7 +568,9 @@ describe('COCO serializer', () => {
       categories: [
         { id: 1, name: 'fish' },
         { id: 2, name: 'shark', parents: ['fish'] },
-        { id: 3, name: 'tuna', supercategory: 'animal', parents: ['fish'] },
+        {
+          id: 3, name: 'tuna', supercategory: 'animal', parents: ['fish'],
+        },
         { id: 4, name: 'whale', parents: ['mammal', 'fish'] },
       ],
     });
