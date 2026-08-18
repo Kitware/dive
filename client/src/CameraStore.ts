@@ -1,16 +1,17 @@
 import {
   ComputedRef, Ref, computed, shallowRef, triggerRef,
 } from 'vue';
-import { uniq } from 'lodash';
+import { cloneDeep, uniq } from 'lodash';
 import {
   acceptPairAsCorrect,
   compileHierarchy,
+  mergePairs,
   reassignPairs,
   removePair,
   setPairConfidence,
   TypeHierarchyIndex,
 } from 'dive-common/typeHierarchy';
-import type Track from './track';
+import Track from './track';
 import type Group from './Group';
 import { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
@@ -24,6 +25,28 @@ interface TrackAssignmentOptions {
   hierarchyIndex?: TypeHierarchyIndex;
   replaceType?: string;
   confidence?: number;
+}
+
+function confidencePairsEqual(
+  left: readonly ConfidencePair[],
+  right: readonly ConfidencePair[],
+): boolean {
+  return left.length === right.length
+    && left.every(([type, confidence], index) => (
+      type === right[index][0] && confidence === right[index][1]
+    ));
+}
+
+export function formatDivergentClassificationWarning(
+  trackIds: readonly AnnotationId[],
+): string | null {
+  if (trackIds.length === 0) {
+    return null;
+  }
+  const sortedIds = [...trackIds].sort((a, b) => a - b);
+  const shownIds = sortedIds.slice(0, 10).join(', ');
+  const suffix = sortedIds.length > 10 ? ', …' : '';
+  return `${sortedIds.length} tracks have divergent per-camera classifications (tracks ${shownIds}${suffix})`;
 }
 
 /**
@@ -97,27 +120,14 @@ export default class CameraStore {
   }
 
   getAnyPossibleTrack(trackId: Readonly<AnnotationId>) {
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (tempTrack) {
-        track = tempTrack;
-      }
-    });
-    if (track) {
-      return track;
-    }
-    return undefined;
+    // Map iteration order defines the canonical camera for logical-track reads.
+    return Array.from(this.camMap.value.values())
+      .map((camera) => camera.trackStore.getPossible(trackId))
+      .find((track): track is Track => track !== undefined);
   }
 
   getAnyTrack(trackId: Readonly<AnnotationId>) {
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (tempTrack) {
-        track = tempTrack;
-      }
-    });
+    const track = this.getAnyPossibleTrack(trackId);
     if (track) {
       return track;
     }
@@ -134,6 +144,23 @@ export default class CameraStore {
       }
     });
     return trackList;
+  }
+
+  divergentClassificationTrackIds(): AnnotationId[] {
+    const vectorsByTrack = new Map<AnnotationId, ConfidencePair[][]>();
+    this.camMap.value.forEach(({ trackStore }) => {
+      trackStore.annotationIds.value.forEach((trackId) => {
+        const track = trackStore.get(trackId);
+        const vectors = vectorsByTrack.get(trackId) || [];
+        vectors.push(track.confidencePairs);
+        vectorsByTrack.set(trackId, vectors);
+      });
+    });
+    return Array.from(vectorsByTrack.entries())
+      .filter(([, vectors]) => vectors.length > 1
+        && vectors.slice(1).some((vector) => !confidencePairsEqual(vectors[0], vector)))
+      .map(([trackId]) => trackId)
+      .sort((a, b) => a - b);
   }
 
   /**
@@ -175,17 +202,24 @@ export default class CameraStore {
     return projection;
   }
 
+  /**
+   * The sorted list is recomputed on every annotation mutation, so it reads only the
+   * logical range and classification rather than building a full TrackProjection, whose
+   * per-feature deep copies would scale with the whole dataset on each edit. Safe only
+   * once projections take classification from the canonical camera instead of merging.
+   */
   getTrackProjectionForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
-    const track = this.getTrackProjection(trackId);
-    // A projection's vector is read-only; sorted annotations declare a mutable one, so the
-    // caller gets a copy rather than a window onto stored evidence.
-    const confidencePairs = track.confidencePairs
+    const tracks = this.getTrackAll(trackId);
+    if (tracks.length === 0) {
+      throw Error(`TrackId: ${trackId} is not found in any camera`);
+    }
+    const confidencePairs = tracks[0].confidencePairs
       .map(([type, confidence]) => [type, confidence] as ConfidencePair);
     return {
-      id: track.id,
+      id: tracks[0].id,
       confidencePairs,
-      begin: track.begin,
-      end: track.end,
+      begin: Math.min(...tracks.map((track) => track.begin)),
+      end: Math.max(...tracks.map((track) => track.end)),
       getType: (index?: number) => (confidencePairs[index || 0]?.[0] || 'unknown'),
     };
   }
@@ -199,6 +233,23 @@ export default class CameraStore {
       // Bump the shallowRef
       triggerRef(this.camMap);
     }
+  }
+
+  setCameraOrder(cameraNames: readonly string[]) {
+    cameraNames.forEach((cameraName) => this.addCamera(cameraName));
+    const reordered = new Map<string, { trackStore: TrackStore; groupStore: GroupStore }>();
+    cameraNames.forEach((cameraName) => {
+      const camera = this.camMap.value.get(cameraName);
+      if (camera !== undefined) {
+        reordered.set(cameraName, camera);
+      }
+    });
+    this.camMap.value.forEach((camera, cameraName) => {
+      if (!reordered.has(cameraName)) {
+        reordered.set(cameraName, camera);
+      }
+    });
+    this.camMap.value = reordered;
   }
 
   removeCamera(cameraName: string) {
@@ -224,16 +275,60 @@ export default class CameraStore {
 
   remove(trackId: AnnotationId, cameraName = '') {
     this.camMap.value.forEach((camera) => {
-      if (camera.trackStore.getPossible(trackId)) {
-        if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
-          camera.trackStore.remove(trackId);
-        }
-        if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
-          camera.groupStore.trackRemove(trackId);
-        }
+      if (
+        camera.trackStore.getPossible(trackId)
+        && (cameraName === '' || camera.trackStore.cameraName === cameraName)
+      ) {
+        camera.trackStore.remove(trackId);
+      }
+      if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
+        camera.groupStore.trackRemove(trackId);
       }
     });
     this.projectionCache.delete(trackId);
+  }
+
+  mergeTracks(targetId: AnnotationId, sourceIds: AnnotationId[]) {
+    const replicas: Array<{
+      trackStore: TrackStore;
+      target?: Track;
+      sources: Track[];
+    }> = [];
+    const vectors: ConfidencePair[][] = [];
+
+    this.camMap.value.forEach(({ trackStore }) => {
+      const target = trackStore.getPossible(targetId);
+      const sources = sourceIds
+        .map((sourceId) => trackStore.getPossible(sourceId))
+        .filter((source): source is Track => source !== undefined);
+      if (target || sources.length) {
+        replicas.push({ trackStore, target, sources });
+        if (target) {
+          vectors.push(target.confidencePairs);
+        }
+        sources.forEach((source) => vectors.push(source.confidencePairs));
+      }
+    });
+
+    const canonicalPairs = mergePairs(vectors);
+    replicas.forEach((replica) => {
+      let { target } = replica;
+      if (!target) {
+        const source = replica.sources[0];
+        target = Track.fromJSON({
+          id: targetId,
+          begin: source.begin,
+          end: source.end,
+          confidencePairs: cloneDeep(source.confidencePairs),
+          attributes: cloneDeep(source.attributes),
+          features: cloneDeep(source.features.filter((feature) => feature !== undefined)),
+          meta: cloneDeep(source.meta),
+        }, source.set);
+        replica.trackStore.insert(target);
+      }
+      target.merge(replica.sources);
+      target.setConfidencePairs(canonicalPairs);
+    });
   }
 
   getNewTrackId() {
@@ -256,13 +351,7 @@ export default class CameraStore {
   }
 
   removeTracks(id: AnnotationId, cameraName = '') {
-    this.camMap.value.forEach((camera) => {
-      if (camera.trackStore.getPossible(id)) {
-        if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
-          camera.trackStore.remove(id);
-        }
-      }
-    });
+    this.remove(id, cameraName);
   }
 
   removeGroups(id: AnnotationId, cameraName = '') {
@@ -285,18 +374,41 @@ export default class CameraStore {
     });
   }
 
+  setGroupType(id: AnnotationId, newType: string, confidenceVal?: number, currentType?: string) {
+    this.camMap.value.forEach((camera) => {
+      const group = camera.groupStore.getPossible(id);
+      if (group !== undefined) {
+        group.setType(newType, confidenceVal, currentType);
+      }
+    });
+  }
+
   private updateTrackConfidencePairs(
     id: AnnotationId,
     update: (pairs: readonly ConfidencePair[]) => ConfidencePair[],
+    mergeReplicaPairs = false,
+    deleteWhenEmpty = false,
   ): ConfidencePair[] {
     const tracks = this.getTrackAll(id);
     if (tracks.length === 0) {
       throw new Error(`TrackId ${id} not found in any camera`);
     }
-    const canonicalPairs = tracks[0].confidencePairs
-      .map(([type, confidence]) => [type, confidence] as ConfidencePair);
+    // Merging re-sorts equal-confidence pairs into a canonical order, which would move the
+    // displayed type of a single-replica track that never needed reconciling.
+    const canonicalPairs = mergeReplicaPairs && tracks.length > 1
+      ? mergePairs(tracks.map((track) => track.confidencePairs))
+      : tracks[0].confidencePairs
+        .map(([type, confidence]) => [type, confidence] as ConfidencePair);
     const nextPairs = update(canonicalPairs);
-    tracks.forEach((track) => track.setConfidencePairs(nextPairs));
+    if (deleteWhenEmpty && nextPairs.length === 0) {
+      this.remove(id);
+      return [];
+    }
+    tracks.forEach((track) => {
+      if (!confidencePairsEqual(track.confidencePairs, nextPairs)) {
+        track.setConfidencePairs(nextPairs);
+      }
+    });
     return nextPairs.map(([type, confidence]) => [type, confidence]);
   }
 
@@ -341,7 +453,7 @@ export default class CameraStore {
   }
 
   removeTrackPair(id: AnnotationId, type: string): ConfidencePair[] {
-    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type));
+    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type), true, true);
   }
 
   renameTrackPair(
@@ -430,15 +542,33 @@ export default class CameraStore {
     this.getTrackForCameraEdit(id, cameraName)?.toggleInterpolationForAllGaps(frame);
   }
 
-  removeTypes(id: AnnotationId, types: string[]) {
-    let resultingTypes: ConfidencePair[] = [];
+  removeTypes(id: AnnotationId, types: string[]): ConfidencePair[] {
+    const removedTypes = new Set(types);
+    return this.updateTrackConfidencePairs(
+      id,
+      (pairs) => pairs
+        .filter(([type]) => !removedTypes.has(type))
+        .map(([type, confidence]) => [type, confidence] as ConfidencePair),
+      true,
+      true,
+    );
+  }
+
+  removeGroupTypes(id: AnnotationId, types: string[]): ConfidencePair[] {
+    let result: ConfidencePair[] | undefined;
     this.camMap.value.forEach((camera) => {
-      const track = camera.trackStore.getPossible(id);
-      if (track !== undefined) {
-        resultingTypes = track.removeTypes(types);
+      const group = camera.groupStore.getPossible(id);
+      if (group !== undefined) {
+        const pairs = group.removeTypes(types);
+        if (result === undefined) {
+          result = pairs.map(([type, confidence]) => [type, confidence] as ConfidencePair);
+        }
       }
     });
-    return resultingTypes;
+    if (result === undefined) {
+      throw new Error(`GroupId ${id} not found in any camera`);
+    }
+    return result;
   }
 
   getGroupMemebers(id: AnnotationId) {

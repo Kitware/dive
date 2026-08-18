@@ -48,24 +48,10 @@ export function createTrackProjection(tracks: readonly Track[]): TrackProjection
   }
 
   const features: (Feature | undefined)[] = [];
-  let confidencePairs = first.confidencePairs
+  const confidencePairs = first.confidencePairs
     .map(([type, confidence]) => [type, confidence] as ConfidencePair);
   const attributes = cloneDeep(first.attributes);
-  tracks.forEach((track, trackIndex) => {
-    if (trackIndex > 0) {
-      track.confidencePairs.forEach(([type, confidence]) => {
-        const current = confidencePairs.find(([name]) => name === type);
-        if (current === undefined || confidence > current[1]) {
-          if (confidence >= 1) {
-            confidencePairs = [[type, 1]];
-          } else {
-            confidencePairs = confidencePairs.filter(([name]) => name !== type);
-            confidencePairs.push([type, confidence]);
-            confidencePairs.sort((a, b) => b[1] - a[1]);
-          }
-        }
-      });
-    }
+  tracks.forEach((track) => {
     track.features.forEach((feature) => {
       if (features[feature.frame] === undefined) {
         features[feature.frame] = cloneDeep(feature);

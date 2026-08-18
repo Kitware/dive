@@ -18,6 +18,7 @@ import {
 import {
   Track, Group,
   CameraStore,
+  formatDivergentClassificationWarning,
   CameraRegistrationStore,
   AlignedViewStore,
   StyleManager, TrackFilterControls, GroupFilterControls,
@@ -647,13 +648,24 @@ export default defineComponent({
       cameraStore.setTrackType(id, newType, confidenceVal, currentType);
     };
     const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
+    const setGroupType = (
+      id: AnnotationId,
+      newType: string,
+      confidenceVal?: number,
+      currentType?: string,
+    ) => {
+      cameraStore.setGroupType(id, newType, confidenceVal, currentType);
+    };
+    const removeGroupTypes = (id: AnnotationId, types: string[]) => (
+      cameraStore.removeGroupTypes(id, types)
+    );
     const getTrackProjection = (id: AnnotationId) => cameraStore.getTrackProjection(id);
     const groupFilters = new GroupFilterControls({
       sorted: cameraStore.sortedGroups,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       remove: removeGroups,
-      setType: setTrackType,
-      removeTypes,
+      setType: setGroupType,
+      removeTypes: removeGroupTypes,
     });
 
     // This context for removal
@@ -1533,6 +1545,7 @@ export default defineComponent({
           multiCamList.value = ['singleCam'];
           resetMulticamAlignment();
         }
+        cameraStore.setCameraOrder(multiCamList.value);
         /* Otherwise, complete loading of the dataset */
         /**
          * When shared colors are enabled, overlay the cross-dataset styles on
@@ -1781,6 +1794,22 @@ export default defineComponent({
             removeSaveCamera(key);
           }
         });
+        if (multiCamList.value.length > 1 && props.comparisonSets.length === 0) {
+          const divergenceWarning = formatDivergentClassificationWarning(
+            cameraStore.divergentClassificationTrackIds(),
+          );
+          if (divergenceWarning) {
+            trackFilters.queueLoadWarning(divergenceWarning);
+            const loadWarning = trackFilters.consumeLoadWarning();
+            if (loadWarning) {
+              await prompt({
+                title: 'Divergent Track Classifications',
+                text: loadWarning,
+                positiveButton: 'OK',
+              });
+            }
+          }
+        }
         // Needs to be done after the cameraMap is created
         if (meta.attributeTrackFilters) {
           trackFilters.loadTrackAttributesFilter(Object.values(meta.attributeTrackFilters));

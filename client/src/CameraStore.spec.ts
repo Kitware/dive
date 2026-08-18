@@ -1,6 +1,7 @@
 /// <reference types="vitest" />
 import { compileHierarchy } from 'dive-common/typeHierarchy';
-import CameraStore from './CameraStore';
+import CameraStore, { formatDivergentClassificationWarning } from './CameraStore';
+import Group from './Group';
 import Track, { Feature } from './track';
 
 const HIERARCHY_INDEX = compileHierarchy({
@@ -127,10 +128,185 @@ describe('CameraStore classification commands', () => {
     const result = fixture.store.removeTrackPair(TRACK_ID, 'shark');
 
     expectSynchronizedWrite(fixture, result, [
+      ['rock', 0.95],
       ['fish', 0.9],
       ['great white shark', 0.4],
       ['bird', 0.2],
     ]);
+  });
+
+  it('removes types from the complete logical vector and synchronizes every camera', () => {
+    const fixture = makeTwoCameraStore();
+    const result = fixture.store.removeTypes(TRACK_ID, ['shark', 'bird']);
+
+    expectSynchronizedWrite(fixture, result, [
+      ['rock', 0.95],
+      ['fish', 0.9],
+      ['great white shark', 0.4],
+    ]);
+  });
+
+  it('produces the same removal result for either camera insertion order', () => {
+    const removeFish = (cameraOrder: string[]) => {
+      const store = new CameraStore({ markChangesPending: vi.fn() });
+      store.removeCamera('singleCam');
+      cameraOrder.forEach((cameraName) => store.addCamera(cameraName));
+      const vectors: Record<string, [string, number][]> = {
+        left: [['fish', 0.9]],
+        right: [['rock', 0.8]],
+      };
+      cameraOrder.forEach((cameraName) => {
+        store.camMap.value.get(cameraName)?.trackStore.insert(new Track(TRACK_ID, {
+          confidencePairs: confidencePairs(vectors[cameraName]),
+          features: features(),
+        }), { imported: true });
+      });
+      const result = store.removeTypes(TRACK_ID, ['fish']);
+      expect(store.getTrackAll(TRACK_ID).map((track) => track.confidencePairs))
+        .toEqual(cameraOrder.map(() => [['rock', 0.8]]));
+      return result;
+    };
+
+    expect(removeFish(['left', 'right'])).toEqual([['rock', 0.8]]);
+    expect(removeFish(['right', 'left'])).toEqual([['rock', 0.8]]);
+  });
+
+  it('cleans group membership when an empty classification deletes the logical track', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([['fish', 0.9]]);
+    fixture.right.setConfidencePairs([['rock', 0.9]]);
+    fixture.store.camMap.value.forEach(({ groupStore }) => {
+      groupStore.insert(new Group(3, {
+        members: {
+          [TRACK_ID]: { ranges: [[0, 0]] },
+          99: { ranges: [[0, 0]] },
+        },
+      }), { imported: true });
+    });
+    fixture.markChangesPending.mockClear();
+
+    const result = fixture.store.removeTypes(TRACK_ID, ['fish', 'rock']);
+    expect(result).toEqual([]);
+
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      expect(trackStore.getPossible(TRACK_ID)).toBeUndefined();
+      expect(groupStore.get(3).memberIds).toEqual([99]);
+      expect(groupStore.trackMap.get(TRACK_ID)).toEqual(new Set());
+    });
+    expect(fixture.markChangesPending.mock.calls.filter(([change]) => change.action === 'delete'))
+      .toHaveLength(2);
+  });
+
+  it('cleans stale group membership in a camera without a track replica', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([['fish', 0.9]]);
+    fixture.store.camMap.value.forEach(({ groupStore }) => {
+      groupStore.insert(new Group(3, {
+        members: {
+          [TRACK_ID]: { ranges: [[0, 0]] },
+          99: { ranges: [[0, 0]] },
+        },
+      }), { imported: true });
+    });
+    fixture.store.camMap.value.get('right')?.trackStore.remove(TRACK_ID, true);
+    fixture.markChangesPending.mockClear();
+
+    expect(fixture.store.removeTrackPair(TRACK_ID, 'fish')).toEqual([]);
+
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      expect(trackStore.getPossible(TRACK_ID)).toBeUndefined();
+      expect(groupStore.get(3).memberIds).toEqual([99]);
+      expect(groupStore.trackMap.get(TRACK_ID)).toEqual(new Set());
+    });
+    expect(fixture.markChangesPending.mock.calls.filter(([change]) => change.action === 'delete'))
+      .toHaveLength(1);
+  });
+
+  it('deletes a final pair through the single-pair command', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([['fish', 0.9]]);
+    fixture.right.setConfidencePairs([['fish', 0.9]]);
+    fixture.markChangesPending.mockClear();
+
+    expect(fixture.store.removeTrackPair(TRACK_ID, 'fish')).toEqual([]);
+    expect(fixture.store.getTrackAll(TRACK_ID)).toEqual([]);
+    expect(fixture.markChangesPending.mock.calls.map(([change]) => change.action))
+      .toEqual(['delete', 'delete']);
+  });
+
+  it('does not notify replicas for a no-op classification command', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.right.setConfidencePairs(fixture.left.confidencePairs);
+    fixture.markChangesPending.mockClear();
+
+    expect(fixture.store.removeTrackPair(TRACK_ID, 'not-present')).toEqual([
+      ['fish', 0.9],
+      ['shark', 0.7],
+      ['great white shark', 0.4],
+      ['bird', 0.2],
+    ]);
+    expect(fixture.markChangesPending).not.toHaveBeenCalled();
+  });
+
+  it('keeps group commands separate from colliding track ids across cameras', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      trackStore.insert(new Track(3, {
+        confidencePairs: [['track-type', 1]],
+        features: features(),
+      }), { imported: true });
+      groupStore.insert(new Group(3, {
+        confidencePairs: [['group-type', 0.5]],
+        members: {},
+      }), { imported: true });
+    });
+    fixture.markChangesPending.mockClear();
+
+    fixture.store.setGroupType(3, 'renamed-group', 0.7, 'group-type');
+    expect(fixture.store.removeGroupTypes(3, ['renamed-group'])).toEqual([]);
+
+    fixture.store.camMap.value.forEach(({ trackStore, groupStore }) => {
+      expect(trackStore.get(3).confidencePairs).toEqual([['track-type', 1]]);
+      expect(groupStore.get(3).confidencePairs).toEqual([]);
+    });
+    expect(fixture.markChangesPending).toHaveBeenCalledTimes(4);
+  });
+
+  it('uses the first configured camera for any-track reads', () => {
+    const fixture = makeTwoCameraStore();
+
+    expect(fixture.store.getAnyTrack(TRACK_ID)).toBe(fixture.left);
+    expect(fixture.store.getAnyPossibleTrack(TRACK_ID)).toBe(fixture.left);
+  });
+
+  it('resets canonical camera order when a new dataset reverses existing cameras', () => {
+    const fixture = makeTwoCameraStore();
+    expect(fixture.store.getAnyTrack(TRACK_ID)).toBe(fixture.left);
+
+    fixture.store.clearAll();
+    fixture.store.setCameraOrder(['right', 'left']);
+    const reloadedRight = new Track(TRACK_ID, {
+      confidencePairs: [['new-right', 1]],
+      features: features(),
+    });
+    const reloadedLeft = new Track(TRACK_ID, {
+      confidencePairs: [['new-left', 1]],
+      features: features(),
+    });
+    fixture.store.camMap.value.get('right')?.trackStore.insert(reloadedRight, { imported: true });
+    fixture.store.camMap.value.get('left')?.trackStore.insert(reloadedLeft, { imported: true });
+
+    expect(Array.from(fixture.store.camMap.value.keys())).toEqual(['right', 'left']);
+    expect(fixture.store.getAnyTrack(TRACK_ID)).toBe(reloadedRight);
+    expect(fixture.store.getTrackProjection(TRACK_ID).confidencePairs).toEqual([['new-right', 1]]);
+  });
+
+  it('returns unknown when an imported track has no confidence pairs', () => {
+    const fixture = makeTwoCameraStore();
+    fixture.left.setConfidencePairs([]);
+    fixture.right.setConfidencePairs([]);
+
+    expect(fixture.store.getTrackProjectionForSorted(TRACK_ID).getType()).toBe('unknown');
   });
 
   it('renames one pair without applying assignment or acceptance semantics', () => {
@@ -246,7 +422,7 @@ describe('CameraStore track projections', () => {
     expect(projection.features[2]?.notes).toEqual(['left']);
     expect(projection.features[5]?.notes).toEqual(['right']);
     expect(projection.attributes).toMatchObject({ source: 'left', quality: 'right' });
-    expect(projection.confidencePairs).toEqual([['fish', 0.9], ['bird', 0.2]]);
+    expect(projection.confidencePairs).toEqual([['fish', 0.7]]);
     mutationKeys.forEach((key) => expect(key in projection).toBe(false));
     expect(left.serialize()).toEqual(leftBefore);
     expect(right.serialize()).toEqual(rightBefore);
@@ -324,6 +500,49 @@ describe('CameraStore projection cache', () => {
     const after = store.getTrackProjection(TRACK_ID);
     expect(after).not.toBe(before);
     expect(after.confidencePairs).toEqual(confidencePairs([['rock', 0.95], ['shark', 0.1]]));
+  });
+
+  it('re-projects from the new canonical camera after a reorder', () => {
+    const { store } = makeTwoCameraStore();
+    const before = store.getTrackProjection(TRACK_ID);
+    store.setCameraOrder(['right', 'left']);
+    const after = store.getTrackProjection(TRACK_ID);
+    expect(after).not.toBe(before);
+    expect(after.confidencePairs).toEqual(confidencePairs([['rock', 0.95], ['shark', 0.1]]));
+  });
+});
+
+describe('CameraStore classification divergence', () => {
+  it('finds exact vector differences only when an id exists in multiple cameras', () => {
+    const store = new CameraStore({ markChangesPending: vi.fn() });
+    store.removeCamera('singleCam');
+    store.addCamera('left');
+    store.addCamera('right');
+    const insert = (cameraName: string, id: number, pairs: [string, number][]) => {
+      store.camMap.value.get(cameraName)?.trackStore.insert(new Track(id, {
+        confidencePairs: confidencePairs(pairs),
+        features: features(),
+      }), { imported: true });
+    };
+    insert('left', 9, [['fish', 0.8], ['bird', 0.2]]);
+    insert('right', 9, [['fish', 0.8], ['bird', 0.2]]);
+    insert('left', 4, [['fish', 0.8], ['bird', 0.2]]);
+    insert('right', 4, [['bird', 0.2], ['fish', 0.8]]);
+    insert('left', 2, [['fish', 0.8]]);
+    insert('right', 2, [['fish', 0.7]]);
+    insert('left', 1, [['left only', 1]]);
+
+    expect(store.divergentClassificationTrackIds()).toEqual([2, 4]);
+  });
+
+  it('formats one bounded, sorted dataset warning', () => {
+    expect(formatDivergentClassificationWarning([])).toBeNull();
+    expect(formatDivergentClassificationWarning([5, 2])).toBe(
+      '2 tracks have divergent per-camera classifications (tracks 2, 5)',
+    );
+    expect(formatDivergentClassificationWarning([11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1])).toBe(
+      '11 tracks have divergent per-camera classifications (tracks 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, …)',
+    );
   });
 });
 

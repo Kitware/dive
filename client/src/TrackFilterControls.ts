@@ -51,7 +51,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   invalidHierarchyReason: Ref<string | null>;
 
-  private hierarchyWarningConsumed = false;
+  private pendingLoadWarnings: string[] = [];
 
   private hierarchyDirty = false;
 
@@ -246,8 +246,13 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   /** Install hierarchy state loaded from a dataset or a successful config replacement. */
   setTypeHierarchy(value: unknown) {
-    this.hierarchyWarningConsumed = false;
+    this.pendingLoadWarnings = [];
     this.installTypeHierarchy(value, false);
+    if (this.invalidHierarchyReason.value !== null) {
+      this.queueLoadWarning(
+        `The saved type hierarchy is invalid: ${this.invalidHierarchyReason.value}. Hierarchical type selection is disabled until the configuration is corrected.`,
+      );
+    }
   }
 
   /** Usage across every camera's stored vector, unlike the lossy merged `usedTypes`. */
@@ -339,12 +344,14 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     return true;
   }
 
-  consumeLoadWarning(): string | null {
-    if (this.invalidHierarchyReason.value === null || this.hierarchyWarningConsumed) {
-      return null;
+  queueLoadWarning(message: string): void {
+    if (!this.pendingLoadWarnings.includes(message)) {
+      this.pendingLoadWarnings.push(message);
     }
-    this.hierarchyWarningConsumed = true;
-    return `The saved type hierarchy is invalid: ${this.invalidHierarchyReason.value}. Hierarchical type selection is disabled until the configuration is corrected.`;
+  }
+
+  consumeLoadWarning(): string | null {
+    return this.pendingLoadWarnings.shift() || null;
   }
 
   typeHierarchySavePatch(): TypeHierarchySavePatch {

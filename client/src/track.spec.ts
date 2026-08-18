@@ -203,6 +203,56 @@ describe('Track', () => {
     expect(track0.featureIndex.length).toBe(3);
     expect(track0.confidencePairs).toEqual([['c', 0.3], ['a', 0.2], ['b', 0.2]]);
   });
+
+  it('merges a score-one pair without dropping other classifications', () => {
+    const receiver = new Track(1, {
+      confidencePairs: [['b', 0.4], ['a', 0.2]],
+    });
+    const source = new Track(2, {
+      confidencePairs: [['a', 1.0], ['c', 0.7]],
+    });
+    const sourceBefore = source.confidencePairs.map((pair) => [...pair]);
+
+    receiver.merge([source]);
+
+    expect(receiver.confidencePairs).toEqual([
+      ['a', 1.0],
+      ['c', 0.7],
+      ['b', 0.4],
+    ]);
+    expect(source.confidencePairs).toEqual(sourceBefore);
+    receiver.confidencePairs.forEach((pair) => expect(source.confidencePairs).not.toContain(pair));
+  });
+
+  it('splits classifications into independent vectors and tuples', () => {
+    const source = Track.fromJSON({
+      id: 1,
+      begin: 0,
+      end: 10,
+      attributes: {},
+      confidencePairs: [['a', 0.8], ['b', 0.2]],
+      features: [
+        { frame: 0, bounds: [0, 0, 1, 1] },
+        { frame: 10, bounds: [10, 10, 1, 1] },
+      ],
+    });
+
+    const [left, right] = source.split(5, 2, 3);
+
+    expect(left.confidencePairs).toEqual(source.confidencePairs);
+    expect(right.confidencePairs).toEqual(source.confidencePairs);
+    expect(left.confidencePairs).not.toBe(source.confidencePairs);
+    expect(right.confidencePairs).not.toBe(source.confidencePairs);
+    expect(left.confidencePairs).not.toBe(right.confidencePairs);
+    left.confidencePairs.forEach((pair) => {
+      expect(source.confidencePairs).not.toContain(pair);
+      expect(right.confidencePairs).not.toContain(pair);
+    });
+
+    left.setType('a', 0.4);
+    expect(source.confidencePairs).toEqual([['a', 0.8], ['b', 0.2]]);
+    expect(right.confidencePairs).toEqual([['a', 0.8], ['b', 0.2]]);
+  });
   it('toggleInterpolation(frame) and toggleKeyframe(frame)', () => {
     const itrack: TrackData = {
       attributes: {},

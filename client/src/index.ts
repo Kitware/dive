@@ -5,7 +5,7 @@ import * as components from './components';
 import AlignedViewStore from './alignedView/AlignedViewStore';
 import BaseAnnotation from './BaseAnnotation';
 import BaseAnnotationStore from './BaseAnnotationStore';
-import CameraStore from './CameraStore';
+import CameraStore, { formatDivergentClassificationWarning } from './CameraStore';
 import CameraRegistrationStore from './alignedView/CameraRegistrationStore';
 import Group from './Group';
 import GroupFilterControls from './GroupFilterControls';
@@ -31,6 +31,7 @@ export {
   BaseAnnotation,
   BaseAnnotationStore,
   CameraStore,
+  formatDivergentClassificationWarning,
   CameraRegistrationStore,
   Group,
   GroupFilterControls,

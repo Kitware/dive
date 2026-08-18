@@ -353,13 +353,22 @@ function dummyState(): State {
     cameraStore.setTrackType(id, newType, confidenceVal, currentType);
   };
   const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
+  const setGroupType = (
+    id: AnnotationId,
+    newType: string,
+    confidenceVal?: number,
+    currentType?: string,
+  ) => {
+    cameraStore.setGroupType(id, newType, confidenceVal, currentType);
+  };
+  const removeGroupTypes = (id: AnnotationId, types: string[]) => cameraStore.removeGroupTypes(id, types);
   const groupFilterControls = new GroupFilterControls(
     {
       sorted: cameraStore.sortedGroups,
       remove: cameraStore.removeGroups,
       markChangesPending,
-      setType: setTrackType,
-      removeTypes,
+      setType: setGroupType,
+      removeTypes: removeGroupTypes,
     },
   );
   const trackFilterControls = new TrackFilterControls({

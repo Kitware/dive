@@ -208,6 +208,20 @@ describe('useAnnotationFilters', () => {
     expect(tf.consumeLoadWarning()).not.toBeNull();
   });
 
+  it('queues each dataset load warning once and resets the channel on a new load', () => {
+    const tf = makeTrackFilterControls();
+    const warning = '2 tracks have divergent per-camera classifications (tracks 2, 5)';
+    tf.queueLoadWarning(warning);
+    tf.queueLoadWarning(warning);
+
+    expect(tf.consumeLoadWarning()).toBe(warning);
+    expect(tf.consumeLoadWarning()).toBeNull();
+
+    tf.setTypeHierarchy(undefined);
+    tf.queueLoadWarning(warning);
+    expect(tf.consumeLoadWarning()).toBe(warning);
+  });
+
   it('retains a hierarchy save patch until persistence succeeds', () => {
     const tf = makeTrackFilterControls();
     tf.setTypeHierarchy({ foo: 'root' });
@@ -393,12 +407,16 @@ describe('useAnnotationFilters', () => {
     expect(tf.confidenceFilters.value).toEqual({ baz: 0.1 });
   });
 
-  it('removeTypeTrack', async () => {
-    const tf = makeTrackFilterControls();
-    tf.removeTypeAnnotations(['bar']);
-    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
-    tf.removeTypeAnnotations(['baz']);
-    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+  it('removes annotations by the complete displayed type name', () => {
+    const { cameraStore, filters } = makePairFixture([
+      [['bar', 1]],
+      [['bar', 0.8], ['baz', 0.7]],
+    ]);
+
+    filters.removeTypeAnnotations(['bar']);
+
+    expect(cameraStore.getPossibleTrack(0)).toBeUndefined();
+    expect(cameraStore.getTrack(1).confidencePairs).toEqual([['baz', 0.7]]);
   });
 
   it('returns the caller fallback without recomputing flat pair selection', () => {
@@ -696,7 +714,7 @@ describe('useAnnotationFilters', () => {
     expect(markPending).toHaveBeenCalledTimes(2);
   });
 
-  it('blocks deleting a type that only a collapse-hidden camera still uses', () => {
+  it('blocks deleting a type that a divergent camera still uses', () => {
     const markPending = vi.fn();
     const { cameraStore, filters } = makePairFixture([
       [['fish', 0.9], ['tuna', 0.7]],
@@ -706,18 +724,17 @@ describe('useAnnotationFilters', () => {
       confidencePairs: [['shark', 1]],
       features,
     }));
-    filters.importTypes(['tuna'], false);
-    filters.setConfidenceFilters({ tuna: 0.4, default: 0.1 });
-    filters.setTypeHierarchy({ tuna: 'fish' });
+    filters.importTypes(['shark'], false);
+    filters.setConfidenceFilters({ shark: 0.4, default: 0.1 });
+    filters.setTypeHierarchy({ shark: 'fish' });
     markPending.mockClear();
 
-    expect(filters.usedTypes.value).toEqual(['shark']);
-    expect(filters.typeInUseOnAnyCamera('tuna')).toBe(true);
-    expect(filters.deleteType('tuna')).toBe(false);
-    expect(filters.typeHierarchy.value).toEqual({ tuna: 'fish' });
-    expect(filters.configuredTypes.value).toContain('tuna');
-    expect(filters.confidenceFilters.value).toHaveProperty('tuna', 0.4);
-    expect(filters.checkedTypes.value).toContain('tuna');
+    expect(filters.usedTypes.value).toEqual(['fish', 'tuna']);
+    expect(filters.typeInUseOnAnyCamera('shark')).toBe(true);
+    expect(filters.deleteType('shark')).toBe(false);
+    expect(filters.typeHierarchy.value).toEqual({ shark: 'fish' });
+    expect(filters.configuredTypes.value).toContain('shark');
+    expect(filters.confidenceFilters.value).toHaveProperty('shark', 0.4);
     expect(markPending).not.toHaveBeenCalled();
   });
 

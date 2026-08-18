@@ -13,6 +13,7 @@ import { IDENTITY3 } from 'vue-media-annotator/alignedView/alignedView';
 import type { Matrix3 } from 'vue-media-annotator/alignedView/homography';
 import type { AggregateMediaController } from 'vue-media-annotator/components/annotators/mediaControllerType';
 import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore';
 import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import useModeManager from './useModeManager';
@@ -21,8 +22,8 @@ function translation(tx: number, ty: number): Matrix3 {
   return [[1, 0, tx], [0, 1, ty], [0, 0, 1]];
 }
 
-function makeHarness() {
-  const cameraStore = new CameraStore({ markChangesPending: () => undefined });
+function makeHarness(markChangesPending: MarkChangesPending = () => undefined) {
+  const cameraStore = new CameraStore({ markChangesPending });
   cameraStore.removeCamera('singleCam');
   cameraStore.addCamera('left');
   cameraStore.addCamera('right');
@@ -233,6 +234,110 @@ describe('useModeManager counterpart creation', () => {
     expect(counterpart.confidencePairs).toEqual([['root', 0.9], ['leaf', 0.8]]);
     expect(counterpart.confidencePairs).not.toBe(source.confidencePairs);
     expect(counterpart.confidencePairs[0]).not.toBe(source.confidencePairs[0]);
+  });
+});
+
+describe('useModeManager multicamera merge', () => {
+  it('canonicalizes every target and source replica before removing sources', () => {
+    const changes: string[] = [];
+    const { cameraStore, modeManager } = makeHarness((change) => {
+      changes.push(`${change.action}:${change.track?.id}`);
+    });
+    const leftStore = cameraStore.camMap.value.get('left')?.trackStore;
+    const rightStore = cameraStore.camMap.value.get('right')?.trackStore;
+    leftStore?.insert(new Track(1, {
+      confidencePairs: [['fish', 0.4]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
+    }), { imported: true });
+    leftStore?.insert(Track.fromJSON({
+      id: 2,
+      begin: 1,
+      end: 1,
+      attributes: {},
+      confidencePairs: [['fish', 0.7]],
+      features: [{ frame: 1, bounds: [1, 1, 2, 2], keyframe: true }],
+    }), { imported: true });
+    leftStore?.insert(Track.fromJSON({
+      id: 3,
+      begin: 2,
+      end: 2,
+      attributes: {},
+      confidencePairs: [['turtle', 0.8]],
+      features: [{ frame: 2, bounds: [2, 2, 3, 3], keyframe: true }],
+    }), { imported: true });
+    rightStore?.insert(new Track(1, {
+      confidencePairs: [['rock', 0.6]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
+    }), { imported: true });
+    rightStore?.insert(Track.fromJSON({
+      id: 2,
+      begin: 1,
+      end: 1,
+      attributes: {},
+      confidencePairs: [['shark', 0.9]],
+      features: [{ frame: 1, bounds: [1, 1, 2, 2], keyframe: true }],
+    }), { imported: true });
+    const leftTarget = cameraStore.getTrack(1, 'left');
+    const setConfidencePairs = leftTarget.setConfidencePairs.bind(leftTarget);
+    vi.spyOn(leftTarget, 'setConfidencePairs').mockImplementation((pairs) => {
+      changes.push('canonical:left');
+      setConfidencePairs(pairs);
+    });
+    const rightTarget = cameraStore.getTrack(1, 'right');
+    const setRightConfidencePairs = rightTarget.setConfidencePairs.bind(rightTarget);
+    vi.spyOn(rightTarget, 'setConfidencePairs').mockImplementation((pairs) => {
+      changes.push('canonical:right');
+      setRightConfidencePairs(pairs);
+    });
+    modeManager.multiSelectList.value = [1, 2, 3];
+
+    modeManager.handler.commitMerge();
+
+    const leftPairs = cameraStore.getTrack(1, 'left').confidencePairs;
+    const rightPairs = cameraStore.getTrack(1, 'right').confidencePairs;
+    expect(leftPairs).toEqual([
+      ['shark', 0.9], ['turtle', 0.8], ['fish', 0.7], ['rock', 0.6],
+    ]);
+    expect(rightPairs).toEqual(leftPairs);
+    expect(rightPairs).not.toBe(leftPairs);
+    expect(cameraStore.getPossibleTrack(2, 'left')).toBeUndefined();
+    expect(cameraStore.getPossibleTrack(2, 'right')).toBeUndefined();
+    expect(cameraStore.getPossibleTrack(3, 'left')).toBeUndefined();
+    ['canonical:left', 'canonical:right'].forEach((canonical) => {
+      expect(changes.indexOf(canonical)).toBeLessThan(changes.indexOf('delete:2'));
+      expect(changes.indexOf(canonical)).toBeLessThan(changes.indexOf('delete:3'));
+    });
+  });
+
+  it('creates a target replica in a source-only camera without losing local data', () => {
+    const { cameraStore, modeManager } = makeHarness();
+    const leftStore = cameraStore.camMap.value.get('left')?.trackStore;
+    const rightStore = cameraStore.camMap.value.get('right')?.trackStore;
+    leftStore?.insert(Track.fromJSON({
+      id: 2,
+      begin: 4,
+      end: 4,
+      attributes: { camera: 'left' },
+      confidencePairs: [['fish', 0.8]],
+      features: [{ frame: 4, bounds: [4, 5, 6, 7], keyframe: true }],
+    }), { imported: true });
+    rightStore?.insert(new Track(1, {
+      confidencePairs: [['shark', 0.9]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
+    }), { imported: true });
+    modeManager.multiSelectList.value = [1, 2];
+
+    modeManager.handler.commitMerge();
+
+    const leftTarget = cameraStore.getTrack(1, 'left');
+    const rightTarget = cameraStore.getTrack(1, 'right');
+    expect(leftTarget.features[4]?.bounds).toEqual([4, 5, 6, 7]);
+    expect(leftTarget.attributes).toEqual({ camera: 'left' });
+    expect(leftTarget.confidencePairs).toEqual([['shark', 0.9], ['fish', 0.8]]);
+    expect(rightTarget.confidencePairs).toEqual(leftTarget.confidencePairs);
+    expect(rightTarget.confidencePairs).not.toBe(leftTarget.confidencePairs);
+    expect(rightTarget.confidencePairs[0]).not.toBe(leftTarget.confidencePairs[0]);
+    expect(cameraStore.getPossibleTrack(2, 'left')).toBeUndefined();
   });
 });
 
