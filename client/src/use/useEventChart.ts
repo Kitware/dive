@@ -3,13 +3,14 @@ import type { AnnotationWithContext } from '../BaseFilterControls';
 import type { TypeStyling } from '../StyleManager';
 import BaseAnnotation, { AnnotationId } from '../BaseAnnotation';
 import type Track from '../track';
+import type { TrackProjection } from '../TrackProjection';
 import { Group } from '..';
 
 interface EventChartParams<T extends BaseAnnotation> {
   enabledTracks: Readonly<Ref<AnnotationWithContext<OneOf<T, [Group, Track]>>[]>>;
   selectedTrackIds: Ref<AnnotationId[]>;
   typeStyling: Ref<TypeStyling>;
-  getTracksMerged: (id: AnnotationId) => Track;
+  getTrackProjection: (id: AnnotationId) => TrackProjection;
 }
 
 export interface EventChartData {
@@ -23,7 +24,7 @@ export interface EventChartData {
 }
 
 export default function useEventChart<T extends BaseAnnotation>({
-  enabledTracks, selectedTrackIds, typeStyling, getTracksMerged,
+  enabledTracks, selectedTrackIds, typeStyling, getTrackProjection,
 }: EventChartParams<T>) {
   const eventChartData = computed(() => {
     const values = [] as EventChartData[];
@@ -35,11 +36,9 @@ export default function useEventChart<T extends BaseAnnotation>({
       const { confidencePairs } = track;
       let markers: [number, boolean][] = [];
       if (selectedTrackIds.value.includes(filtered.annotation.id)) {
-        const mergedTrack = getTracksMerged(filtered.annotation.id);
-        if ('featureIndex' in mergedTrack) {
-          markers = mergedTrack.featureIndex.map((i) => (
-            [i, mergedTrack.features[i].interpolate || false]));
-        }
+        const projection = getTrackProjection(filtered.annotation.id);
+        markers = projection.featureIndex.map((i) => (
+          [i, projection.features[i]?.interpolate || false]));
       }
       if (confidencePairs.length) {
         const trackType = track.getType(filtered.context.confidencePairIndex);

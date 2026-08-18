@@ -61,7 +61,7 @@ describe('useLineChart display context', () => {
       enabledTracks,
       allTypes: ref(['root', 'leaf']),
       typeStyling,
-      getTracksMerged: vi.fn(),
+      getTrackProjection: vi.fn(),
     });
 
     const selectedSeries = lineChartData.value.find(({ name }) => name === expected);

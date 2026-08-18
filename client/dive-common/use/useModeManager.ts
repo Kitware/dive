@@ -324,7 +324,7 @@ export default function useModeManager({
       : interpolateTrack;
   }
 
-  function seekNearest(track: Track) {
+  function seekNearest(track: Readonly<Pick<Track, 'begin' | 'end'>>) {
     // Seek to the nearest point in the track. Compares/seeks using
     // selectedCamera's own local frame (see selectedCameraFrame) rather than
     // aggregateController.frame directly -- under an aligned timeline (SEAL
@@ -1203,7 +1203,7 @@ export default function useModeManager({
   }
 
   function handleTrackClick(trackId: TrackId, modifiers?: { ctrl: boolean }) {
-    const track = cameraStore.getTracksMerged(trackId);
+    const track = cameraStore.getTrackProjection(trackId);
     seekNearest(track);
     handleSelectTrack(trackId, editingTrack.value, modifiers);
   }

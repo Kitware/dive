@@ -8,6 +8,9 @@ import BottomBarTrackItemView from './BottomBarTrackItemView.vue';
 const providerState = vi.hoisted(() => ({
   assignTrackType: vi.fn(),
   setTrackPairConfidence: vi.fn(),
+  setTrackNotes: vi.fn(),
+  setTrackAttribute: vi.fn(),
+  setTrackFirstFeatureAttribute: vi.fn(),
 }));
 
 vi.mock('../../../provides', () => ({
@@ -20,11 +23,16 @@ vi.mock('../../../provides', () => ({
   useCameraStore: () => ({
     assignTrackType: providerState.assignTrackType,
     setTrackPairConfidence: providerState.setTrackPairConfidence,
+    setTrackNotes: providerState.setTrackNotes,
+    setTrackAttribute: providerState.setTrackAttribute,
+    setTrackFirstFeatureAttribute: providerState.setTrackFirstFeatureAttribute,
   }),
 }));
 
 function mountItem(displayPairIndex: number) {
   const track = new Track(1, {
+    begin: 0,
+    end: 0,
     confidencePairs: [['root', 0.9], ['leaf', 0.7]],
     features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
   });
@@ -63,8 +71,7 @@ function mountItem(displayPairIndex: number) {
 
 describe('BottomBarTrackItemView hierarchy display', () => {
   beforeEach(() => {
-    providerState.assignTrackType.mockClear();
-    providerState.setTrackPairConfidence.mockClear();
+    vi.clearAllMocks();
   });
 
   it('renders and seeds editing from the selected hierarchy pair', () => {
@@ -100,5 +107,29 @@ describe('BottomBarTrackItemView hierarchy display', () => {
     vm.saveConfidence();
 
     expect(providerState.setTrackPairConfidence).toHaveBeenCalledWith(1, 'leaf', Number(value));
+  });
+
+  it('routes notes and both attribute scopes through logical-track commands', () => {
+    const wrapper = mountItem(1);
+    const vm = wrapper.vm as unknown as {
+      setEditNotesValue: (value: string) => void;
+      saveNotes: () => void;
+      editingAttributeKey: string | null;
+      setEditAttributeValue: (value: string) => void;
+      saveAttribute: () => void;
+    };
+    vm.setEditNotesValue('reviewed');
+    vm.saveNotes();
+    vm.editingAttributeKey = 'track_quality';
+    vm.setEditAttributeValue('high');
+    vm.saveAttribute();
+    vm.editingAttributeKey = 'detection_occluded';
+    vm.setEditAttributeValue('yes');
+    vm.saveAttribute();
+
+    expect(providerState.setTrackNotes).toHaveBeenCalledWith(1, 'reviewed');
+    expect(providerState.setTrackAttribute).toHaveBeenCalledWith(1, 'quality', 'high');
+    expect(providerState.setTrackFirstFeatureAttribute)
+      .toHaveBeenCalledWith(1, 'occluded', 'yes');
   });
 });

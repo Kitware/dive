@@ -198,10 +198,7 @@ export default class Track extends BaseAnnotation {
    * Merge other into track at frame, preferring features from
    * self if there are conflicts
    */
-  merge(others: Track[], disableNotifier = false) {
-    if (disableNotifier) {
-      this.notifierEnabled = false;
-    }
+  merge(others: Track[]) {
     others.forEach((other) => {
       other.confidencePairs.forEach((pair) => {
         const match = this.confidencePairs.find(([name]) => name === pair[0]);
@@ -224,9 +221,6 @@ export default class Track extends BaseAnnotation {
         });
       }
     });
-    if (disableNotifier) {
-      this.notifierEnabled = true;
-    }
   }
 
   toggleKeyframe(frame: number) {
@@ -538,35 +532,41 @@ export default class Track extends BaseAnnotation {
    * [exact_feature_match, previous_keyframe, next_keyframe]
    */
   getFeature(frame: number): [Feature | null, Feature | null, Feature | null] {
-    // First, try a direct keyframe hit
-    const maybeFrame = this.features[frame];
+    return Track.getFeatureFrom(this.features, this.featureIndex, this.begin, this.end, frame);
+  }
+
+  static getFeatureFrom(
+    features: readonly (Feature | undefined)[],
+    featureIndex: readonly number[],
+    begin: number,
+    end: number,
+    frame: number,
+  ): [Feature | null, Feature | null, Feature | null] {
+    const maybeFrame = features[frame];
     if (maybeFrame) {
       return [maybeFrame, maybeFrame, maybeFrame];
     }
-    // Then see if we are outside the track bounds
-    if (frame < this.begin || frame > this.end) {
-      if (frame <= this.begin) {
-        return [null, this.features[this.begin], null];
+    if (frame < begin || frame > end) {
+      if (frame <= begin) {
+        return [null, features[begin] as Feature, null];
       }
-      return [null, null, this.features[this.end]];
+      return [null, null, features[end] as Feature];
     }
-    // Then try to interpolate
-    const position = binarySearch(this.featureIndex, frame);
-    const maybeInterpolated = getSurroundingElements(this.featureIndex, position);
+    const position = binarySearch(featureIndex, frame);
+    const maybeInterpolated = getSurroundingElements(featureIndex, position);
 
     if (maybeInterpolated !== null) {
-      const [d0, d1] = maybeInterpolated.map((_frame) => this.features[_frame]);
-      return [Track.interpolate(frame, d0, d1), d0, d1];
+      const [d0, d1] = maybeInterpolated.map((_frame) => features[_frame]);
+      return [Track.interpolate(frame, d0 as Feature, d1 as Feature), d0 as Feature, d1 as Feature];
     }
 
-    if (this.featureIndex.length !== 0) {
+    if (featureIndex.length !== 0) {
       throw new Error(`Unexpected condition: Track bounds mis-aligned with feature array.
-        begin=${this.begin}
-        end=${this.end}
-        firstFeature=${this.featureIndex[0]}
+        begin=${begin}
+        end=${end}
+        firstFeature=${featureIndex[0]}
       `);
     }
-    // Should only reach here when there are no features (empty)
     return [null, null, null];
   }
 

@@ -55,7 +55,7 @@ describe('useEventChart display context', () => {
       enabledTracks,
       selectedTrackIds: ref([]),
       typeStyling,
-      getTracksMerged: vi.fn(),
+      getTrackProjection: vi.fn(),
     });
 
     expect(eventChartData.value.values).toEqual([expect.objectContaining({
