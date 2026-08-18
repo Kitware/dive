@@ -34,7 +34,7 @@ PROB_DUPLICATE_CATEGORY_WARNING = (
 )
 DIVE_CONFIDENCE_PAIRS_WARNING = (
     'Some annotations had malformed "dive_confidence_pairs" values. Those values were '
-    'ignored; the primary category and score or a valid "prob" vector were imported instead.'
+    'ignored; a valid "prob" vector or the primary category and score were imported instead.'
 )
 SUPERCATEGORY_MULTI_PARENT_WARNING = (
     'Some COCO categories declare multiple parents via "parents", which DIVE cannot '

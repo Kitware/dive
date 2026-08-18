@@ -39,8 +39,8 @@ const PROB_DUPLICATE_CATEGORY_WARNING = (
   + 'imported instead.'
 );
 const DIVE_CONFIDENCE_PAIRS_INVALID_WARNING = (
-  'Some annotations had malformed "dive_confidence_pairs" values. '
-  + 'Those values were ignored; class probabilities or primary categories and scores were used instead.'
+  'Some annotations had malformed "dive_confidence_pairs" values. Those values were '
+  + 'ignored; a valid "prob" vector or the primary category and score were imported instead.'
 );
 const SUPERCATEGORY_MULTI_PARENT_WARNING = (
   'Some COCO categories declare multiple parents via "parents", which DIVE cannot '
