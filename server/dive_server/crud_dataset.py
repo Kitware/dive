@@ -180,7 +180,7 @@ def _create_single_camera_soft_clone(
         reuseExisting=False,
         creator=owner,
     )
-    cloned_folder['meta'] = source_folder['meta']
+    cloned_folder['meta'] = copy.deepcopy(source_folder['meta'])
     media_source_folder = crud.getCloneRoot(owner, source_folder)
     cloned_folder[constants.ForeignMediaIdMarker] = str(media_source_folder['_id'])
     cloned_folder['meta'][constants.PublishedMarker] = False

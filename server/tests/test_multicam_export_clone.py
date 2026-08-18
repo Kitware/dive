@@ -58,6 +58,46 @@ def _descriptor(name: str):
     return {'itemId': f'{name}-id', 'name': name}
 
 
+@patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
+@patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
+@patch('dive_server.crud_dataset.crud.getCloneRoot')
+@patch('dive_server.crud_dataset.Folder')
+def test_create_single_camera_soft_clone_copies_metadata(
+    folder_cls, get_clone_root_mock, _aux, _clone_ann
+):
+    owner = {'login': 'tester'}
+    source = {
+        '_id': 'source-id',
+        'name': 'source-dataset',
+        'meta': {
+            'annotate': True,
+            'type': 'image-sequence',
+            'custom': {'labels': ['fish'], 'settings': {'enabled': True}},
+        },
+    }
+    parent = {'_id': 'dest-parent'}
+    cloned_folder = {'_id': 'clone-id', 'name': 'Clone dataset'}
+    folder_cls.return_value.createFolder.return_value = cloned_folder
+    get_clone_root_mock.return_value = source
+
+    result = crud_dataset.createSoftClone(owner, source, parent, 'Clone dataset', None)
+
+    assert result is cloned_folder
+    source['meta']['custom']['labels'].append('shark')
+    source['meta']['custom']['settings']['enabled'] = False
+    assert cloned_folder['meta']['custom'] == {
+        'labels': ['fish'],
+        'settings': {'enabled': True},
+    }
+
+    cloned_folder['meta']['custom']['labels'].append('ray')
+    cloned_folder['meta']['custom']['settings']['enabled'] = None
+    assert source['meta']['custom'] == {
+        'labels': ['fish', 'shark'],
+        'settings': {'enabled': False},
+    }
+
+
 @patch('dive_server.crud_dataset.find_json_calibration_item_id', return_value=None)
 @patch('dive_server.crud_dataset.find_calibration_item_id', return_value=None)
 @patch('dive_server.crud_dataset.crud_annotation.clone_annotations')
