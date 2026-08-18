@@ -29,7 +29,7 @@ import {
 } from 'dive-common/pipelineCreatesDataset';
 import * as common from './common';
 import {
-  jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory,
+  jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
 } from './utils';
 import {
@@ -193,7 +193,13 @@ async function runPipeline(
   }
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
   const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
-  const jobWorkDir = await createWorkingDirectory(settings, [meta], pipeline.name);
+  // Name the job folder after the pipe that actually ran, not pipeline.name --
+  // that is a display label the pipeline list reconstructs from this very
+  // filename (underscores to spaces, hyphens lost to cleanString), so routing
+  // it back into a path is a lossy round trip. splitExt also drops the
+  // directory, which matters because a 'trained' pipeline's .pipe is a full
+  // path rather than a bare filename.
+  const jobWorkDir = await createWorkingDirectory(settings, [meta], splitExt(pipeline.pipe)[0]);
 
   const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
   let cameraLogLine: string | null = null;
@@ -617,7 +623,8 @@ async function exportTrainedPipeline(
     throw new Error(`No weights path (${extensions.join(', ')}) found.`);
   }
 
-  const jobWorkDir = await createCustomWorkingDirectory(settings, 'OnnxExport', pipeline.name);
+  const pipeSegment = splitExt(pipeline.pipe)[0];
+  const jobWorkDir = await createCustomWorkingDirectory(settings, 'OnnxExport', pipeSegment);
 
   const converterOutput = npath.join(jobWorkDir, 'model.onnx');
   const joblog = npath.join(jobWorkDir, 'runlog.txt');

@@ -212,6 +212,12 @@ async function convertMedia(
   ffmpegArgs.push('-i', args.mediaList[mediaIndex][0]);
   if ((args.meta.type === 'video' || multiType === 'video') && mediaIndex < args.mediaList.length) {
     ffmpegArgs.push(...VideoArgs);
+  } else {
+    // Image conversions write exactly one frame to a literal filename. Without
+    // -update the image2 muxer logs "does not contain an image sequence
+    // pattern" for every frame; it still writes the file, so this is noise
+    // rather than a failure, but it buries real errors in the job log.
+    ffmpegArgs.push('-update', '1', '-frames:v', '1');
   }
   ffmpegArgs.push(args.mediaList[mediaIndex][1]);
 

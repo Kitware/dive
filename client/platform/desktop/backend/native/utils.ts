@@ -89,6 +89,16 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
 }
 
 /**
+ * Collapse whitespace, dots and separators into underscores so a value is safe
+ * (and pleasant) to embed in a job folder name. Applied to every interpolated
+ * component: pipeline display names carry spaces ("utility align cameras 3
+ * cam"), which made for awkward-to-type, quoting-hostile paths.
+ */
+// eslint won't recognize \. as valid escape
+// eslint-disable-next-line no-useless-escape
+const pathSafeSegment = (segment: string) => segment.replace(/[\.\s/]+/g, '_');
+
+/**
  * Create job run working directory
  */
 async function createWorkingDirectory(settings: Settings, jsonConfigList: JsonConfig[], pipeline: string) {
@@ -96,10 +106,9 @@ async function createWorkingDirectory(settings: Settings, jsonConfigList: JsonCo
     throw new Error('At least 1 jsonConfig item must be provided');
   }
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
-  // eslint won't recognize \. as valid escape
-  // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = jsonConfigList[0].id.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const safeDatasetName = pathSafeSegment(jsonConfigList[0].id);
+  const safePipeline = pathSafeSegment(pipeline);
+  const runFolderName = moment().format(`[${safeDatasetName}_${safePipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
@@ -111,9 +120,9 @@ async function createWorkingDirectory(settings: Settings, jsonConfigList: JsonCo
 async function createCustomWorkingDirectory(settings: Settings, prefix: string, pipeline: string) {
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
   // Formating prefix if for any reason the prefix is input by the user in the futur
-  // eslint-disable-next-line no-useless-escape
-  const safePrefix = prefix.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safePrefix}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const safePrefix = pathSafeSegment(prefix);
+  const safePipeline = pathSafeSegment(pipeline);
+  const runFolderName = moment().format(`[${safePrefix}_${safePipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
