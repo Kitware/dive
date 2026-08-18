@@ -25,6 +25,11 @@ interface TrackFilterControlsParams extends FilterControlsParams<Track> {
   getTrack: (annotationId: AnnotationId, camera?: string) => Track;
   groupFilterControls: BaseFilterControls<Group>;
   getTracks: (annotationId: AnnotationId) => Track[];
+  renameTrackPair: (
+    annotationId: AnnotationId,
+    currentType: string,
+    newType: string,
+  ) => [string, number][];
 }
 
 export default class TrackFilterControls extends BaseFilterControls<Track> {
@@ -54,10 +59,13 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   private getTracks: (annotationId: AnnotationId) => Track[];
 
+  private renameTrackPair: TrackFilterControlsParams['renameTrackPair'];
+
   constructor(params: TrackFilterControlsParams) {
     super(params);
 
     this.getTracks = params.getTracks;
+    this.renameTrackPair = params.renameTrackPair;
 
     const flatAllTypes = this.allTypes;
     this.typeHierarchy = ref(undefined);
@@ -250,17 +258,20 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     if (!this.hierarchyActive.value) {
-      super.updateTypeName({ currentType, newType });
-      // The base pass walks the merged view, whose confidence vector can hide a type that an
-      // individual camera still carries. Rename those per-camera tracks too.
       this.sorted.value.forEach((annotation) => {
-        this.getTracks(annotation.id).forEach((track) => {
-          const pair = track.confidencePairs.find(([name]) => name === currentType);
-          if (pair) {
-            track.setType(newType, pair[1], currentType);
-          }
-        });
+        if (this.getTracks(annotation.id)
+          .some((track) => track.confidencePairs.some(([name]) => name === currentType))) {
+          this.renameTrackPair(annotation.id, currentType, newType);
+        }
       });
+      if (!(newType in this.confidenceFilters.value)
+        && currentType in this.confidenceFilters.value) {
+        this.setConfidenceFilters({
+          ...this.confidenceFilters.value,
+          [newType]: this.confidenceFilters.value[currentType],
+        });
+      }
+      this.deleteType(currentType);
       return;
     }
     const tracks = this.sorted.value.flatMap((annotation) => this.getTracks(annotation.id));
@@ -282,24 +293,9 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     const newWasChecked = this.checkedTypes.value.includes(newType);
 
     this.sorted.value.forEach((annotation) => {
-      const storedTracks = this.getTracks(annotation.id);
-      const rewrittenPairs = storedTracks.map((track) => track.confidencePairs.map(
-        ([name, confidence]) => [
-          name === currentType ? newType : name,
-          confidence,
-        ] as [string, number],
-      ));
-      const triggerPair = storedTracks
-        .flatMap((track) => track.confidencePairs)
-        .find(([name]) => name === currentType);
-      if (triggerPair) {
-        this.setType(annotation.id, newType, triggerPair[1], currentType);
-        storedTracks.forEach((track, index) => {
-          // setType emits the existing annotation notification. Restore the exact
-          // preflighted vector because its confidence-1 branch intentionally collapses pairs.
-          // eslint-disable-next-line no-param-reassign
-          track.confidencePairs = rewrittenPairs[index];
-        });
+      if (this.getTracks(annotation.id)
+        .some((track) => track.confidencePairs.some(([name]) => name === currentType))) {
+        this.renameTrackPair(annotation.id, currentType, newType);
       }
     });
     if (!(newType in this.confidenceFilters.value)

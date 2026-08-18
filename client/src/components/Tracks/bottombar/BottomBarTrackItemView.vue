@@ -34,7 +34,8 @@ export default defineComponent({
   setup(props) {
     const handler = useHandler();
     const readOnlyMode = useReadOnlyMode();
-    const { allTypes } = useTrackFilters();
+    const trackFilters = useTrackFilters();
+    const { allTypes } = trackFilters;
     const cameraStore = useCameraStore();
 
     const editingType = ref(false);
@@ -149,7 +150,11 @@ export default defineComponent({
     function saveType() {
       if (editTypeValue.value.trim() && editTypeValue.value !== props.trackType) {
         const confidence = topConfidence.value !== null ? topConfidence.value : 1;
-        props.track.setType(editTypeValue.value.trim(), confidence, props.trackType);
+        cameraStore.assignTrackType(props.track.id, editTypeValue.value.trim(), {
+          hierarchyIndex: trackFilters.hierarchyIndex.value,
+          replaceType: props.trackType,
+          confidence,
+        });
       }
       editingType.value = false;
     }
@@ -172,7 +177,7 @@ export default defineComponent({
     function saveConfidence() {
       const val = parseFloat(editConfidenceValue.value);
       if (!Number.isNaN(val) && val >= 0 && val <= 1) {
-        cameraStore.setTrackType(props.track.id, props.trackType, val);
+        cameraStore.setTrackPairConfidence(props.track.id, props.trackType, val);
       }
       editingConfidence.value = false;
     }

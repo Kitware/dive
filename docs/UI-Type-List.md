@@ -24,7 +24,9 @@ When a dataset has a type hierarchy, DIVE displays the deepest checked type whos
 
 Track attribute filters are an exception: they match a track's raw top confidence pair, not the hierarchy-selected pair.
 
-Assigning a type to a track is not hierarchy-aware: setting a type that is not a descendant of the track's retained pairs keeps the ancestor pairs, and the display re-selects among the qualifying pairs, which may not be the newly assigned type.
+Assigning a type to a track is hierarchy-aware. A type together with its ancestors and descendants is one classification claim, so assigning over any pair in that lineage replaces the whole chain rather than leaving a relative behind for the display to select instead. Stored ancestors of the newly assigned type survive because the assignment still implies them, and pairs on unrelated branches are untouched.
+
+**Accept as correct** is a separate command: it sets the accepted pair to `1.0`, keeps stored ancestors and descendants at their existing scores, and removes unrelated pairs. Editing a confidence value to `1.0` does not accept the type or remove any other pair.
 
 Hierarchy members remain ordinary flat Type List rows. A parent with no annotations or explicit style configuration is visible when **Show Empty** is enabled. The Type List does not render a tree or offer subtree controls or hierarchy editing.
 

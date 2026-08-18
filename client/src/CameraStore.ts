@@ -2,12 +2,28 @@ import {
   Ref, computed, shallowRef, triggerRef,
 } from 'vue';
 import { cloneDeep, uniq } from 'lodash';
+import {
+  acceptPairAsCorrect,
+  compileHierarchy,
+  reassignPairs,
+  removePair,
+  setPairConfidence,
+  TypeHierarchyIndex,
+} from 'dive-common/typeHierarchy';
 import type Track from './track';
 import type Group from './Group';
 import { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
 import GroupStore from './GroupStore';
 import TrackStore from './TrackStore';
+
+const FLAT_HIERARCHY_INDEX = compileHierarchy({});
+
+interface TrackAssignmentOptions {
+  hierarchyIndex?: TypeHierarchyIndex;
+  replaceType?: string;
+  confidence?: number;
+}
 
 /**
  * CameraStore is a warapper for holding and collating tracks from multiple cameras.
@@ -240,6 +256,79 @@ export default class CameraStore {
       if (track !== undefined) {
         track.setType(newType, confidenceVal, currentType);
       }
+    });
+  }
+
+  private updateTrackConfidencePairs(
+    id: AnnotationId,
+    update: (pairs: readonly ConfidencePair[]) => ConfidencePair[],
+  ): ConfidencePair[] {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    const canonicalPairs = tracks[0].confidencePairs
+      .map(([type, confidence]) => [type, confidence] as ConfidencePair);
+    const nextPairs = update(canonicalPairs);
+    tracks.forEach((track) => track.setConfidencePairs(nextPairs));
+    return nextPairs.map(([type, confidence]) => [type, confidence]);
+  }
+
+  assignTrackType(
+    id: AnnotationId,
+    newType: string,
+    {
+      hierarchyIndex = FLAT_HIERARCHY_INDEX,
+      replaceType,
+      confidence = 1,
+    }: TrackAssignmentOptions = {},
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(id, (pairs) => reassignPairs(
+      hierarchyIndex,
+      pairs,
+      replaceType ?? pairs[0]?.[0] ?? newType,
+      newType,
+      confidence,
+    ));
+  }
+
+  acceptTrackType(
+    id: AnnotationId,
+    acceptedType: string,
+    hierarchyIndex: TypeHierarchyIndex = FLAT_HIERARCHY_INDEX,
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(
+      id,
+      (pairs) => acceptPairAsCorrect(hierarchyIndex, pairs, acceptedType),
+    );
+  }
+
+  setTrackPairConfidence(
+    id: AnnotationId,
+    type: string,
+    confidence: number,
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(
+      id,
+      (pairs) => setPairConfidence(pairs, type, confidence),
+    );
+  }
+
+  removeTrackPair(id: AnnotationId, type: string): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type));
+  }
+
+  renameTrackPair(
+    id: AnnotationId,
+    currentType: string,
+    newType: string,
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(id, (pairs) => {
+      const current = pairs.find(([type]) => type === currentType);
+      if (!current) {
+        return pairs.map(([type, confidence]) => [type, confidence]);
+      }
+      return setPairConfidence(removePair(pairs, currentType), newType, current[1]);
     });
   }
 

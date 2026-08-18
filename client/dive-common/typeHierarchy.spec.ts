@@ -1,10 +1,14 @@
 import fs from 'fs-extra';
 import {
+  acceptPairAsCorrect,
   compileHierarchy,
   normalizeTypeHierarchy,
+  reassignPairs,
+  removePair,
   resolveTypeHierarchy,
   rewriteHierarchyType,
   selectPairIndex,
+  setPairConfidence,
   TypeHierarchyError,
 } from './typeHierarchy';
 
@@ -45,11 +49,48 @@ interface SelectionCase {
   expectedIndex: number;
 }
 
+interface ReassignmentCase {
+  name: string;
+  hierarchy: Record<string, string>;
+  pairs: [string, number][];
+  replaceType: string;
+  newType: string;
+  confidence: number;
+  expected: [string, number][];
+}
+
+interface AcceptanceCase {
+  name: string;
+  hierarchy: Record<string, string>;
+  pairs: [string, number][];
+  acceptedType: string;
+  expected: [string, number][];
+}
+
+interface PairConfidenceCase {
+  name: string;
+  pairs: [string, number][];
+  type: string;
+  confidence: number;
+  expected: [string, number][];
+}
+
+interface PairRemovalCase {
+  name: string;
+  pairs: [string, number][];
+  type: string;
+  expected: [string, number][];
+}
+
 interface TypeHierarchyCorpus {
   normalizationCases: NormalizationCase[];
   resolutionCases: ResolutionCase[];
   renameCases: RenameCase[];
   selectionCases: SelectionCase[];
+  reassignmentCases: ReassignmentCase[];
+  acceptanceCases: AcceptanceCase[];
+  pairConfidenceCases: PairConfidenceCase[];
+  pairRemovalCases: PairRemovalCase[];
 }
 
 const corpus = fs.readJSONSync('../testutils/typeHierarchy.spec.json') as TypeHierarchyCorpus;
@@ -132,6 +173,46 @@ describe('shared type hierarchy corpus', () => {
       )).toBe(testCase.expectedIndex);
     });
   });
+
+  describe.each(corpus.reassignmentCases)('reassignment: $name', (testCase) => {
+    it('matches the shared result', () => {
+      const hierarchy = normalizeTypeHierarchy(testCase.hierarchy) || {};
+      expect(reassignPairs(
+        compileHierarchy(hierarchy),
+        testCase.pairs,
+        testCase.replaceType,
+        testCase.newType,
+        testCase.confidence,
+      )).toEqual(testCase.expected);
+    });
+  });
+
+  describe.each(corpus.acceptanceCases)('acceptance: $name', (testCase) => {
+    it('matches the shared result', () => {
+      const hierarchy = normalizeTypeHierarchy(testCase.hierarchy) || {};
+      expect(acceptPairAsCorrect(
+        compileHierarchy(hierarchy),
+        testCase.pairs,
+        testCase.acceptedType,
+      )).toEqual(testCase.expected);
+    });
+  });
+
+  describe.each(corpus.pairConfidenceCases)('pair confidence: $name', (testCase) => {
+    it('matches the shared result', () => {
+      expect(setPairConfidence(
+        testCase.pairs,
+        testCase.type,
+        testCase.confidence,
+      )).toEqual(testCase.expected);
+    });
+  });
+
+  describe.each(corpus.pairRemovalCases)('pair removal: $name', (testCase) => {
+    it('matches the shared result', () => {
+      expect(removePair(testCase.pairs, testCase.type)).toEqual(testCase.expected);
+    });
+  });
 });
 
 describe('type hierarchy index', () => {
@@ -147,5 +228,22 @@ describe('type hierarchy index', () => {
     expect(() => selectPairIndex(index, [['cod', 0.9]], [])).toThrow(
       'passes and pairs must have the same length',
     );
+  });
+
+  it('classification operations do not mutate or reuse their input pairs', () => {
+    const pairs: [string, number][] = [['cod', 0.8], ['fish', 0.7], ['bird', 0.2]];
+    const snapshot = pairs.map(([type, confidence]) => [type, confidence] as [string, number]);
+    const results = [
+      reassignPairs(index, pairs, 'cod', 'haddock', 0.8),
+      acceptPairAsCorrect(index, pairs, 'cod'),
+      setPairConfidence(pairs, 'cod', 1.0),
+      removePair(pairs, 'bird'),
+    ];
+
+    expect(pairs).toEqual(snapshot);
+    results.forEach((result) => {
+      expect(result).not.toBe(pairs);
+      result.forEach((pair) => expect(pairs).not.toContain(pair));
+    });
   });
 });

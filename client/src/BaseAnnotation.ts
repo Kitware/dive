@@ -140,6 +140,12 @@ export default abstract class BaseAnnotation {
     return this.confidencePairs;
   }
 
+  setConfidencePairs(pairs: readonly (readonly [string, number])[]) {
+    const old = this.confidencePairs;
+    this.confidencePairs = pairs.map(([type, confidence]) => [type, confidence]);
+    this.notify('confidencePairs', old);
+  }
+
   setType(annotationType: string, confidenceVal = 1, replace: string | undefined = undefined) {
     const old = this.confidencePairs;
     if (confidenceVal >= 1) {

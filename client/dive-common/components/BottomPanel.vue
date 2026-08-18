@@ -16,6 +16,7 @@ import type StyleManager from 'vue-media-annotator/StyleManager';
 import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 import type { AnnotationSettings } from 'dive-common/store/settings';
 import type { DatasetType } from 'dive-common/apispec';
+import { useCameraStore, useTrackFilters } from 'vue-media-annotator/provides';
 
 export default defineComponent({
   name: 'BottomPanel',
@@ -71,8 +72,19 @@ export default defineComponent({
     saveThreshold: { type: Function as PropType<() => void>, required: true },
     isStereoDataset: { type: Boolean, default: false },
   },
-  setup() {
-    return { context };
+  setup(props) {
+    const cameraStore = useCameraStore();
+    const trackFilters = useTrackFilters();
+    function acceptTrackType(type: string) {
+      if (props.selectedTrackForDetails) {
+        cameraStore.acceptTrackType(
+          props.selectedTrackForDetails.id,
+          type,
+          trackFilters.hierarchyIndex.value,
+        );
+      }
+    }
+    return { acceptTrackType, context };
   },
 });
 </script>
@@ -212,7 +224,7 @@ export default defineComponent({
               v-if="showConfidenceFirst"
               :confidence-pairs="selectedTrackForDetails.confidencePairs"
               :disabled="false"
-              @set-type="selectedTrackForDetails.setType($event)"
+              @set-type="acceptTrackType($event)"
             />
             <template v-if="showTrackAttributesFirst">
               <AttributeSubsection
@@ -254,7 +266,7 @@ export default defineComponent({
               v-if="!showConfidenceFirst"
               :confidence-pairs="selectedTrackForDetails.confidencePairs"
               :disabled="false"
-              @set-type="selectedTrackForDetails.setType($event)"
+              @set-type="acceptTrackType($event)"
             />
           </div>
           <div v-else class="pa-3 text-caption grey--text">
