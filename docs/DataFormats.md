@@ -212,7 +212,9 @@ prevents either configuration export and reports
 `Type hierarchy is invalid: {reason}. No configuration file was exported.` It prevents KWCOCO
 export and reports `Type hierarchy is invalid: {reason}. No COCO file was exported.` Hierarchy is
 not transported by DIVE Annotation JSON, VIAME CSV, KPF, NIST, or `labels.txt`. KWCOCO transports it
-through category `supercategory` fields as described below.
+through category `supercategory` fields as described in
+[COCO and KWCOCO](#coco-and-kwcoco), including a
+[hierarchy classification example](#example-kwcoco-file-with-hierarchy-classifications).
 
 When importing a DIVE Configuration JSON with `datasetInfo`, **Overwrite** import (the
 default) replaces the existing `datasetInfo` block; an additive import merges it per-key
@@ -382,6 +384,10 @@ camera hierarchy in configured camera order becomes the parent dataset hierarchy
 hierarchies coalesce; conflicting later hierarchies are skipped with a warning. Camera datasets do
 not retain separate hierarchy copies.
 
+See [Example KWCOCO file with hierarchy classifications](#example-kwcoco-file-with-hierarchy-classifications)
+for a complete document that round-trips a multi-level hierarchy and an exact
+confidence vector.
+
 ### DIVE COCO Attribute Extensions
 
 COCO does not define standard fields for arbitrary track or detection attributes
@@ -516,4 +522,86 @@ For COCO files not produced by DIVE:
     }
   ]
 }
+```
+
+### Example KWCOCO file with hierarchy classifications
+
+A DIVE type hierarchy is a child-to-parent map. This configuration:
+
+```json
+{
+  "typeHierarchy": {
+    "shark": "fish",
+    "great white shark": "shark",
+    "ray": "fish"
+  }
+}
+```
+
+is the forest `fish` → `shark` → `great white shark` plus unused sibling `ray`.
+KWCOCO stores each immediate parent on the child category as `supercategory`.
+DIVE also writes every hierarchy member into `categories`, including heading-only
+parents (`fish`) and unused children (`ray`).
+
+The annotation below scores `great white shark` highest, keeps ancestor `shark`
+at an explicit `0`, and scores unrelated `rock`. Dense `prob` is aligned with
+`categories` order; missing pairs become `0` there. Sparse
+`dive_confidence_pairs` is the source of truth: `shark` scored `0` is kept, while
+`fish` and `ray` are absent rather than zero.
+
+```json
+{
+  "info": {
+    "description": "DIVE export for my-dataset",
+    "dive_extensions": ["dive_confidence_pairs"]
+  },
+  "images": [
+    { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
+  ],
+  "categories": [
+    { "id": 1, "name": "shark", "supercategory": "fish" },
+    { "id": 2, "name": "great white shark", "supercategory": "shark" },
+    { "id": 3, "name": "rock" },
+    { "id": 4, "name": "ray", "supercategory": "fish" },
+    { "id": 5, "name": "fish" }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 2,
+      "bbox": [100, 200, 50, 80],
+      "score": 0.91,
+      "prob": [0, 0.91, 0.22, 0, 0],
+      "dive_confidence_pairs": [
+        ["shark", 0],
+        ["great white shark", 0.91],
+        ["rock", 0.22]
+      ],
+      "track_id": 42
+    }
+  ]
+}
+```
+
+On import, that document restores:
+
+```json
+{
+  "typeHierarchy": {
+    "shark": "fish",
+    "great white shark": "shark",
+    "ray": "fish"
+  }
+}
+```
+
+and the track confidence vector `[["shark", 0], ["great white shark", 0.91], ["rock", 0.22]]`.
+
+External KWCOCO files may omit `supercategory` and use a one-element `parents`
+list instead. DIVE treats that as the same parent edge; `supercategory` wins when
+both are present.
+
+```json
+{ "id": 1, "name": "shark", "parents": ["fish"] }
 ```
