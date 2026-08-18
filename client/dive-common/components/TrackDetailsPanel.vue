@@ -238,6 +238,7 @@ export default defineComponent({
     });
 
     function updateSelectedTracksType() {
+      if (!editingMultiTrack.value) return;
       selectedTrackList.value.forEach((track) => {
         const pairIndex = Math.max(trackFilters.displayPairIndex(track, 0), 0);
         cameraStore.assignTrackType(track.id, multiTrackType.value, {
@@ -617,6 +618,7 @@ export default defineComponent({
           />
         </div>
         <v-btn
+          v-if="editingMultiTrack"
           class="mx-2 mb-2"
           :disabled="readOnlyMode || disabled"
           color="primary"

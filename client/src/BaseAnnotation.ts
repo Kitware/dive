@@ -1,4 +1,5 @@
 import { Ref, ref } from 'vue';
+import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 
 export type ConfidencePair = [string, number];
 export type AnnotationId = number;
@@ -180,7 +181,8 @@ export default abstract class BaseAnnotation {
    * Figure out if any confidence pairs are above any corresponding thresholds
    */
   static exceedsThreshold(pairs: Array<ConfidencePair>, thresholds: Record<string, number>): Array<ConfidencePair> {
-    const defaultThresh = thresholds.default || 0;
-    return pairs.filter(([name, value]) => value >= (thresholds[name] || defaultThresh));
+    return pairs.filter(([name, value]) => (
+      value >= resolveConfidenceThreshold(thresholds, name)
+    ));
   }
 }

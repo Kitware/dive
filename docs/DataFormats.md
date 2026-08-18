@@ -344,6 +344,10 @@ DIVE Web and Desktop can import and export COCO for a single dataset at a time
 (an image-sequence dataset or a single video dataset). KWCOCO-compatible files
 are also accepted on import.
 
+When **Checked Types Only** is enabled, export matches the checked names against each track's raw
+stored confidence pairs and removes nonmatching pairs from the exported vector. It does not replace
+that evidence with the hierarchy-resolved type currently displayed in the viewer.
+
 * Read the [COCO Specification](https://cocodataset.org/#format-data)
 * Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
 

@@ -25,6 +25,8 @@ import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type BaseAnnotationStore from 'vue-media-annotator/BaseAnnotationStore';
 import type Track from 'vue-media-annotator/track';
 import type { Feature } from 'vue-media-annotator/track';
+import { clientSettings } from 'dive-common/store/settings';
+import { selectFlatPairIndex } from 'dive-common/typeHierarchy';
 
 export const DEFAULT_SUPPRESSION_THRESHOLD = 0.99;
 
@@ -208,11 +210,60 @@ interface SuppressionCacheEntry {
   revision: number;
   type: string;
   threshold: number;
+  resolutionKey: string;
   byFrame: Map<number, Set<AnnotationId>>;
 }
 /** Per-store memo of frame results, valid for one edit revision. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const suppressionCache = new WeakMap<any, SuppressionCacheEntry>();
+
+export interface SuppressionTypeResolver {
+  displayType: (track: Track) => string | undefined;
+  cacheKey: string;
+}
+
+type SuppressionFilterState = {
+  checkedTypes?: { value: string[] };
+  confidenceFilters?: { value: Record<string, number> };
+  disableAnnotationFilters?: { value: boolean };
+  displayPairIndex?: (track: Track, flatFallbackIndex: number) => number;
+  hierarchyActive?: { value: boolean };
+  hierarchyIndex?: { value: { hierarchy: unknown } | undefined };
+};
+
+/** Match suppression regions against the same type that the track filter displays. */
+export function suppressionTypeResolver(
+  trackFilters: SuppressionFilterState,
+): SuppressionTypeResolver {
+  const hierarchyActive = trackFilters.hierarchyActive?.value ?? false;
+  const checkedTypes = trackFilters.checkedTypes?.value ?? [];
+  const confidenceFilters = trackFilters.confidenceFilters?.value ?? { default: 0 };
+  const filtersDisabled = trackFilters.disableAnnotationFilters?.value ?? false;
+  const preventCascadeTypes = clientSettings.typeSettings.preventCascadeTypes ?? false;
+  const cacheKey = JSON.stringify({
+    hierarchyActive,
+    hierarchy: trackFilters.hierarchyIndex?.value?.hierarchy,
+    checkedTypes,
+    confidenceFilters,
+    disableAnnotationFilters: filtersDisabled,
+    preventCascadeTypes,
+  });
+  const flatDisplayIndex = (track: Track): number => selectFlatPairIndex(track.confidencePairs, {
+    checkedSet: new Set(checkedTypes),
+    confidenceFilters,
+    filtersDisabled,
+    preventCascade: preventCascadeTypes,
+  });
+  return {
+    cacheKey,
+    displayType: (track) => {
+      const flatIndex = flatDisplayIndex(track);
+      const index = hierarchyActive && trackFilters.displayPairIndex
+        ? trackFilters.displayPairIndex(track, flatIndex) : flatIndex;
+      return index >= 0 ? track.confidencePairs[index]?.[0] : undefined;
+    },
+  };
+}
 
 /**
  * Loose truthiness for a suppression attribute value set by a user or
@@ -261,10 +312,12 @@ export function getSuppressedTrackIds(
   frame: number,
   suppressionType: string | undefined,
   thresholdPercent?: number,
-  options: { revision?: number } = {},
+  options: { revision?: number; resolver?: SuppressionTypeResolver } = {},
 ): Set<AnnotationId> {
   if (!suppressionType) return new Set<AnnotationId>();
   const threshold = normalizeSuppressionThreshold(thresholdPercent);
+  const { resolver } = options;
+  const resolutionKey = resolver?.cacheKey || '';
 
   let cacheEntry: SuppressionCacheEntry | undefined;
   const { revision } = options;
@@ -272,9 +325,10 @@ export function getSuppressedTrackIds(
     cacheEntry = suppressionCache.get(trackStore);
     if (!cacheEntry || cacheEntry.revision !== revision
       || cacheEntry.type !== suppressionType
-      || cacheEntry.threshold !== threshold) {
+      || cacheEntry.threshold !== threshold
+      || cacheEntry.resolutionKey !== resolutionKey) {
       cacheEntry = {
-        revision, type: suppressionType, threshold, byFrame: new Map(),
+        revision, type: suppressionType, threshold, resolutionKey, byFrame: new Map(),
       };
       suppressionCache.set(trackStore, cacheEntry);
     }
@@ -297,7 +351,7 @@ export function getSuppressedTrackIds(
     if (!track) return;
     const shape = featureShape(track.getFeature(frame)[0]);
     if (!shape) return;
-    if (track.confidencePairs.some(([t]) => t === suppressionType)) {
+    if ((resolver ? resolver.displayType(track) : track.confidencePairs[0]?.[0]) === suppressionType) {
       regions.push(prepareRegion(shape));
     } else {
       candidates.push({ id, shape });

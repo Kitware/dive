@@ -1,8 +1,10 @@
 /// <reference types="vitest" />
 import Track, { TrackData } from '../track';
+import { clientSettings } from '../../dive-common/store/settings';
 import {
   isSuppressedAttributeValue, hasSuppressionAttribute,
   getSuppressedTrackIds, normalizeSuppressionThreshold, DEFAULT_SUPPRESSION_THRESHOLD,
+  suppressionTypeResolver,
 } from './suppression';
 
 function makeTrack(overrides: Partial<TrackData> = {}): Track {
@@ -189,6 +191,72 @@ describe('getSuppressedTrackIds', () => {
     // A new revision recomputes with the updated geometry
     expect(getSuppressedTrackIds(store, 0, 'Suppressed', undefined, { revision: 2 }))
       .toEqual(new Set());
+  });
+
+  it('matches regions by their resolved display type and invalidates cache on resolution changes', () => {
+    covered.setFeature({
+      frame: 0,
+      bounds: [10, 10, 90, 90],
+      keyframe: true,
+      interpolate: false,
+    });
+    const store = makeStore([region, covered]);
+    const hiddenResolver = {
+      cacheKey: 'leaf-is-displayed',
+      displayType: () => 'leaf',
+    };
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed', undefined, {
+      revision: 1,
+      resolver: hiddenResolver,
+    })).toEqual(new Set());
+
+    const suppressionResolver = {
+      cacheKey: 'suppression-is-displayed',
+      displayType: (track: Track) => (track.id === 1 ? 'Suppressed' : 'seal'),
+    };
+    expect(getSuppressedTrackIds(store, 0, 'Suppressed', undefined, {
+      revision: 1,
+      resolver: suppressionResolver,
+    })).toEqual(new Set([2]));
+  });
+
+  it('builds a resolver from TrackFilterControls display state', () => {
+    const filters = {
+      hierarchyActive: { value: true },
+      hierarchyIndex: { value: { hierarchy: { leaf: 'root' } } },
+      checkedTypes: { value: ['leaf'] },
+      confidenceFilters: { value: { default: 0.1 } },
+      disableAnnotationFilters: { value: false },
+      displayPairIndex: () => 1,
+    };
+    const resolver = suppressionTypeResolver(filters as never);
+    const track = makeTrack({ confidencePairs: [['root', 0.9], ['leaf', 0.8]] });
+    expect(resolver.displayType(track)).toBe('leaf');
+    expect(resolver.cacheKey).toContain('leaf');
+  });
+
+  it('uses the checked and threshold-passing display pair in flat mode', () => {
+    clientSettings.typeSettings.preventCascadeTypes = false;
+    const filters = {
+      hierarchyActive: { value: false },
+      checkedTypes: { value: ['Suppressed'] },
+      confidenceFilters: { value: { default: 0.5 } },
+      disableAnnotationFilters: { value: false },
+    };
+    const track = makeTrack({
+      confidencePairs: [['hidden', 0.9], ['Suppressed', 0.8]],
+    });
+
+    expect(suppressionTypeResolver(filters).displayType(track)).toBe('Suppressed');
+
+    filters.confidenceFilters.value.default = 0.85;
+    expect(suppressionTypeResolver(filters).displayType(track)).toBeUndefined();
+
+    filters.confidenceFilters.value.default = 0.5;
+    clientSettings.typeSettings.preventCascadeTypes = true;
+    expect(suppressionTypeResolver(filters).displayType(track)).toBeUndefined();
+    expect(suppressionTypeResolver(filters).cacheKey).toContain('preventCascadeTypes');
+    clientSettings.typeSettings.preventCascadeTypes = false;
   });
 });
 

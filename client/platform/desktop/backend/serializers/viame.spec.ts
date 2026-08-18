@@ -313,6 +313,23 @@ describe('VIAME serialize testing', () => {
     const expectedOutput = ['first_type', '0.9', 'second_type', '0.7'];
     expect(checkConfidenceOutput(output)).toEqual(expectedOutput);
   });
+  it('keeps an explicit zero score when its type threshold is zero', async () => {
+    const path = '/home/zero-threshold.csv';
+    const stream = fs.createWriteStream(path);
+    const zeroData = JSON.parse(JSON.stringify(data)) as AnnotationSchema;
+    const [zeroTrack] = Object.values(zeroData.tracks);
+    zeroTrack.confidencePairs.push(['zero_type', 0]);
+    await serialize(stream, zeroData, {
+      ...meta,
+      confidenceFilters: { default: 0.65, zero_type: 0 },
+    } as JsonConfig, new Set<string>(), {
+      excludeBelowThreshold: true,
+      header: true,
+    });
+    const output = fs.readFileSync(path).toString().split('\n');
+    expect(checkConfidenceOutput(output)).toContain('zero_type');
+    expect(checkConfidenceOutput(output)).toContain('0');
+  });
 });
 
 // Returns the entries of the `# metadata` row (without the leading marker), or null if absent

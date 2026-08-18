@@ -6,8 +6,10 @@ import {
   normalizeTypeHierarchy,
   reassignPairs,
   removePair,
+  resolveConfidenceThreshold,
   resolveTypeHierarchy,
   rewriteHierarchyType,
+  selectFlatPairIndex,
   selectPairIndex,
   setPairConfidence,
   TypeHierarchyError,
@@ -246,6 +248,50 @@ describe('type hierarchy index', () => {
       expect(result).not.toBe(pairs);
       result.forEach((pair) => expect(pairs).not.toContain(pair));
     });
+  });
+});
+
+describe('flat pair selection', () => {
+  const pairs: [string, number][] = [['top', 0.5], ['fallback', 0.8]];
+
+  it('uses zero when the default threshold is absent', () => {
+    expect(selectFlatPairIndex(pairs, {
+      checkedSet: new Set(['fallback']),
+      confidenceFilters: {},
+      filtersDisabled: false,
+      preventCascade: false,
+    })).toBe(1);
+  });
+
+  it('keeps the strict Prevent Cascade threshold comparison', () => {
+    expect(selectFlatPairIndex(pairs, {
+      checkedSet: new Set(['top', 'fallback']),
+      confidenceFilters: { top: 0.5, default: 0.1 },
+      filtersDisabled: false,
+      preventCascade: true,
+    })).toBe(-1);
+  });
+
+  it('honors an explicit type threshold of zero the same way export does', () => {
+    const filters = { default: 0.1, zero: 0 };
+    const stored: [string, number][] = [['zero', 0], ['other', 0.9]];
+
+    expect(resolveConfidenceThreshold(filters, 'zero')).toBe(0);
+    expect(selectFlatPairIndex(stored, {
+      checkedSet: new Set(['zero']),
+      confidenceFilters: filters,
+      filtersDisabled: false,
+      preventCascade: false,
+    })).toBe(0);
+  });
+
+  it('lets a type-specific threshold override a higher default', () => {
+    expect(selectFlatPairIndex([['fish', 0.4]], {
+      checkedSet: new Set(['fish']),
+      confidenceFilters: { default: 0.5, fish: 0.3 },
+      filtersDisabled: false,
+      preventCascade: false,
+    })).toBe(0);
   });
 });
 

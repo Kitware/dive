@@ -4,11 +4,13 @@ import Track, { Feature } from './track';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import type { MarkChangesPendingFilter } from './BaseFilterControls';
+import Group from './Group';
 import CameraStore from './CameraStore';
 import { AnnotationId } from './BaseAnnotation';
 import useSave from '../dive-common/use/useSave';
 import { clientSettings } from '../dive-common/store/settings';
 import { TypeHierarchyError } from '../dive-common/typeHierarchy';
+import { AttributeTrackFilter } from './AttributeTrackFilterControls';
 
 const apiMocks = vi.hoisted(() => ({
   saveConfig: vi.fn(),
@@ -71,9 +73,9 @@ function makeGroupFilterControls(store: CameraStore) {
     confidenceVal?: number,
     currentType?: string,
   ) => {
-    store.setTrackType(id, newType, confidenceVal, currentType);
+    store.setGroupType(id, newType, confidenceVal, currentType);
   };
-  const removeTypes = (id: AnnotationId, types: string[]) => store.removeTypes(id, types);
+  const removeTypes = (id: AnnotationId, types: string[]) => store.removeGroupTypes(id, types);
   const remove = (id: AnnotationId) => {
     store.removeGroups(id);
   };
@@ -109,7 +111,6 @@ function makeTrackFilterControls(markPending: MarkChangesPendingFilter = markCha
     markChangesPending: markPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
-    getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
     getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
@@ -136,7 +137,6 @@ function makePairFixture(
     markChangesPending: markPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
-    getTrack: (id, camera = 'singleCam') => cameraStore.getTrack(id, camera),
     getTracks: (id) => cameraStore.getTrackAll(id),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
@@ -160,6 +160,33 @@ describe('useAnnotationFilters', () => {
 
   afterEach(() => {
     clientSettings.typeSettings.preventCascadeTypes = false;
+  });
+
+  it('deletes multicamera groups without mutating a colliding track id', () => {
+    const cameraStore = new CameraStore({ markChangesPending });
+    cameraStore.removeCamera('singleCam');
+    cameraStore.addCamera('left');
+    cameraStore.addCamera('right');
+    cameraStore.camMap.value.forEach(({ trackStore, groupStore }) => {
+      trackStore.insert(new Track(3, {
+        confidencePairs: [['track-type', 1]],
+        features,
+      }), { imported: true });
+      groupStore.insert(new Group(3, {
+        confidencePairs: [['group-type', 1]],
+        members: {},
+      }), { imported: true });
+      groupStore.setEnableSorting();
+    });
+    const filters = makeGroupFilterControls(cameraStore);
+    filters.checkedTypes.value = ['group-type'];
+
+    filters.removeTypeAnnotations(['group-type']);
+
+    cameraStore.camMap.value.forEach(({ trackStore, groupStore }) => {
+      expect(trackStore.get(3).confidencePairs).toEqual([['track-type', 1]]);
+      expect(groupStore.getPossible(3)).toBeUndefined();
+    });
   });
 
   it('loads absent and valid hierarchy state without creating a save instruction', () => {
@@ -445,6 +472,11 @@ describe('useAnnotationFilters', () => {
     expect(filters.filteredAnnotations.value.map(({ context }) => context.confidencePairIndex))
       .toEqual([1, -1]);
 
+    const zeroThreshold = makePairFixture([[['zero', 0]]]).filters;
+    zeroThreshold.setConfidenceFilters({ default: 0.1, zero: 0 });
+    expect(zeroThreshold.filteredAnnotations.value.map(({ context }) => context.confidencePairIndex))
+      .toEqual([0]);
+
     const cascadeFixture = makePairFixture([
       [['top', 0.5], ['fallback', 0.8]],
     ]).filters;
@@ -475,6 +507,11 @@ describe('useAnnotationFilters', () => {
     expect(filters.displayPairIndex(cameraStore.getTrack(0), 0)).toBe(2);
     filters.setConfidenceFilters({ leaf: 0.71, default: 0.5 });
     expect(filters.displayPairIndex(cameraStore.getTrack(0), 0)).toBe(1);
+
+    const zeroFixture = makePairFixture([[['root', 0.9], ['leaf', 0]]]);
+    zeroFixture.filters.setTypeHierarchy({ leaf: 'root' });
+    zeroFixture.filters.setConfidenceFilters({ default: 0.1, leaf: 0 });
+    expect(zeroFixture.filters.displayPairIndex(zeroFixture.cameraStore.getTrack(0), 0)).toBe(1);
   });
 
   it('rolls up unchecked leaves and ignores Prevent Cascade in hierarchy mode', () => {
@@ -488,6 +525,139 @@ describe('useAnnotationFilters', () => {
     clientSettings.typeSettings.preventCascadeTypes = true;
     expect(filters.displayPairIndex(cameraStore.getTrack(0), 0)).toBe(withoutPrevent);
     expect(withoutPrevent).toBe(1);
+  });
+
+  it('keeps empty flat-mode annotations when Prevent Cascade is enabled', () => {
+    const { filters } = makePairFixture([[]]);
+    clientSettings.typeSettings.preventCascadeTypes = true;
+
+    expect(filters.filteredAnnotations.value.map(({ annotation, context }) => ({
+      id: annotation.id,
+      confidencePairIndex: context.confidencePairIndex,
+    }))).toEqual([{ id: 0, confidencePairIndex: -1 }]);
+  });
+
+  it.each(['track', 'detection'] as const)(
+    'applies %s attribute type filters to the resolved hierarchy display type',
+    (type) => {
+      const { cameraStore, filters } = makePairFixture([
+        [['root', 0.9], ['leaf', 0.8]],
+      ]);
+      const track = cameraStore.getTrack(0);
+      if (type === 'track') {
+        track.attributes.quality = 'bad';
+      } else {
+        track.features[0].attributes = { quality: 'bad' };
+      }
+      const attributeFilter: AttributeTrackFilter = {
+        name: `${type} quality`,
+        type,
+        typeFilter: ['leaf'],
+        attribute: 'quality',
+        filter: { op: '=', val: 'good' },
+        enabled: true,
+      };
+      filters.setTypeHierarchy({ leaf: 'root' });
+      filters.setConfidenceFilters({ default: 0.5 });
+      filters.loadTrackAttributesFilter([attributeFilter]);
+
+      // The leaf is selected despite root's greater score, so the failing
+      // leaf-only attribute filter applies and excludes the track.
+      expect(filters.filteredAnnotations.value).toEqual([]);
+
+      // Hiding leaf changes the resolved display type to root. The leaf-only
+      // filter is skipped for both track- and detection-scoped attributes.
+      filters.checkedTypes.value = ['root'];
+      expect(filters.filteredAnnotations.value.map(({ annotation }) => annotation.id)).toEqual([0]);
+    },
+  );
+
+  it('applies each track attribute filter independently on a flat dataset', () => {
+    const { cameraStore, filters } = makePairFixture([[['fish', 0.9]]]);
+    const track = cameraStore.getTrack(0);
+    track.attributes.quality = 'bad';
+    filters.loadTrackAttributesFilter([
+      {
+        name: 'other-type quality',
+        type: 'track',
+        typeFilter: ['bird'],
+        attribute: 'quality',
+        filter: { op: '=', val: 'good' },
+        enabled: true,
+      },
+      {
+        name: 'fish quality',
+        type: 'track',
+        typeFilter: ['fish'],
+        attribute: 'quality',
+        filter: { op: '=', val: 'good' },
+        enabled: true,
+      },
+    ]);
+
+    // The non-matching first filter is skipped rather than passing the whole track,
+    // so the matching second filter still excludes it.
+    expect(filters.filteredAnnotations.value).toEqual([]);
+  });
+
+  it('skips a non-matching detection attribute type filter on a flat dataset', () => {
+    const { cameraStore, filters } = makePairFixture([[['fish', 0.9]]]);
+    const track = cameraStore.getTrack(0);
+    track.features[0].attributes = { quality: 'bad' };
+    filters.loadTrackAttributesFilter([{
+      name: 'other-type quality',
+      type: 'detection',
+      typeFilter: ['bird'],
+      attribute: 'quality',
+      filter: { op: '=', val: 'good' },
+      enabled: true,
+    }]);
+
+    expect(filters.filteredAnnotations.value.map(({ annotation }) => annotation.id)).toEqual([0]);
+  });
+
+  it('uses the first configured camera for multicamera attribute filters', () => {
+    const cameraStore = new CameraStore({ markChangesPending });
+    cameraStore.removeCamera('singleCam');
+    cameraStore.addCamera('left');
+    cameraStore.addCamera('right');
+    cameraStore.camMap.value.get('left')?.trackStore.insert(new Track(8, {
+      confidencePairs: [['fish', 1]],
+      attributes: { quality: 'good' },
+      features,
+    }), { imported: true });
+    cameraStore.camMap.value.get('right')?.trackStore.insert(new Track(8, {
+      confidencePairs: [['fish', 1]],
+      attributes: { quality: 'bad' },
+      features,
+    }), { imported: true });
+    cameraStore.camMap.value.forEach(({ trackStore }) => trackStore.setEnableSorting());
+    const groupFilters = makeGroupFilterControls(cameraStore);
+    const filters = new TrackFilterControls({
+      sorted: cameraStore.sortedTracks,
+      remove: (id) => cameraStore.removeTracks(id),
+      markChangesPending,
+      groupFilterControls: groupFilters,
+      lookupGroups: cameraStore.lookupGroups,
+      getTracks: (id) => cameraStore.getTrackAll(id),
+      renameTrackPair: (id, currentType, newType) => (
+        cameraStore.renameTrackPair(id, currentType, newType)
+      ),
+      setType: (id, type, confidence, current) => (
+        cameraStore.setTrackType(id, type, confidence, current)
+      ),
+      removeTypes: (id, types) => cameraStore.removeTypes(id, types),
+    });
+    filters.loadTrackAttributesFilter([{
+      name: 'quality',
+      type: 'track',
+      typeFilter: ['fish'],
+      attribute: 'quality',
+      filter: { op: '=', val: 'good' },
+      enabled: true,
+    }]);
+
+    expect(filters.filteredAnnotations.value.map(({ annotation }) => annotation.id)).toEqual([8]);
   });
 
   it('uses pair zero for the active-hierarchy disabled-filter bypass', () => {

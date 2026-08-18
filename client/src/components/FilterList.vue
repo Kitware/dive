@@ -15,10 +15,13 @@ import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
 import BaseFilterControls from '../BaseFilterControls';
+import TrackFilterControls from '../TrackFilterControls';
 import Track from '../track';
 import Group from '../Group';
 import StyleManager from '../StyleManager';
-import { getSuppressedTrackIds, hasSuppressionAttribute } from '../use/suppression';
+import {
+  getSuppressedTrackIds, hasSuppressionAttribute, suppressionTypeResolver,
+} from '../use/suppression';
 
 interface VirtualTypeItem {
   type: string;
@@ -97,6 +100,9 @@ export default defineComponent({
       filterText: '',
     });
     const trackFilters = props.filterControls;
+    const suppressionResolutionRef = computed(() => (
+      trackFilters instanceof TrackFilterControls ? suppressionTypeResolver(trackFilters) : undefined
+    ));
     const checkedTypesRef = trackFilters.checkedTypes;
     const allTypesRef = trackFilters.allTypes;
     const usedTypesRef = trackFilters.usedTypes;
@@ -161,6 +167,7 @@ export default defineComponent({
       const editRevision = pendingSaveCount.value;
       const suppType = clientSettings.typeSettings.suppressionType;
       const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
+      const suppressionResolver = suppressionResolutionRef.value;
       const excluded = new Set<number>();
       if (!suppType || editRevision < 0) {
         fullySuppressedIds.value = excluded;
@@ -173,7 +180,9 @@ export default defineComponent({
         const regionRanges: [number, number][] = [];
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
-          if (track.confidencePairs?.some(([t]) => t === suppType)) {
+          if ((suppressionResolver
+            ? suppressionResolver.displayType(track)
+            : track.confidencePairs?.[0]?.[0]) === suppType) {
             regionRanges.push([track.begin, track.end]);
           }
         });
@@ -183,7 +192,7 @@ export default defineComponent({
           f,
           suppType,
           suppThreshold,
-          { revision: editRevision },
+          { revision: editRevision, resolver: suppressionResolver },
         );
         store.annotationMap.forEach((annotation) => {
           const track = annotation as Track;
@@ -208,6 +217,7 @@ export default defineComponent({
         () => clientSettings.typeSettings.suppressionType,
         () => clientSettings.typeSettings.suppressionThreshold,
         cameraStore.camMap,
+        suppressionResolutionRef,
       ],
       () => computeFullySuppressedIds(),
       { immediate: true },
@@ -248,7 +258,7 @@ export default defineComponent({
           frame.value,
           suppType,
           clientSettings.typeSettings.suppressionThreshold,
-          { revision: editRevision },
+          { revision: editRevision, resolver: suppressionResolutionRef.value },
         )
         : new Set<number>();
       const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {

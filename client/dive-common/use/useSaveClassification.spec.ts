@@ -3,6 +3,7 @@ import { ref } from 'vue';
 
 import CameraStore from 'vue-media-annotator/CameraStore';
 import Track, { Feature, TrackData } from 'vue-media-annotator/track';
+import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 
 import useSave from './useSave';
 
@@ -111,5 +112,28 @@ describe('classification save and reload', () => {
     rightReloaded.confidencePairs.forEach((pair) => (
       expect(leftReloaded.confidencePairs).not.toContain(pair)
     ));
+  });
+
+  it('persists global attribute definitions after multicamera setup', async () => {
+    const saveControls = useSave(ref('multicam-dataset'), ref(false));
+    saveControls.removeCamera('singleCam');
+    saveControls.addCamera('left');
+    saveControls.addCamera('right');
+    const trackAttribute: Attribute = {
+      belongs: 'track', datatype: 'text', key: 'track_note', name: 'note',
+    };
+    const detectionAttribute: Attribute = {
+      belongs: 'detection', datatype: 'text', key: 'detection_state', name: 'state',
+    };
+
+    saveControls.markChangesPending({ action: 'upsert', attribute: trackAttribute });
+    saveControls.markChangesPending({ action: 'upsert', attribute: detectionAttribute });
+    await saveControls.save();
+
+    expect(apiMocks.saveAttributes).toHaveBeenCalledOnce();
+    expect(apiMocks.saveAttributes).toHaveBeenCalledWith('multicam-dataset', {
+      upsert: [trackAttribute, detectionAttribute],
+      delete: [],
+    });
   });
 });

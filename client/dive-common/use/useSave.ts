@@ -181,10 +181,12 @@ export default function useSave(
         globalMetadataPending += 1;
       }
       pendingSaveCount.value += 1;
-    } else if (pendingChangeMaps[cameraName]) {
-      const pendingChangeMap = pendingChangeMaps[cameraName];
+    } else {
+      const globalDefinition = attribute !== undefined || attributeTrackFilter !== undefined;
+      const pendingChangeMap = pendingChangeMaps[cameraName]
+        ?? (globalDefinition ? Object.values(pendingChangeMaps)[0] : undefined);
 
-      if (!readonlyMode.value) {
+      if (pendingChangeMap && !readonlyMode.value) {
         if (track !== undefined) {
           _updatePendingChangeMap(
             track.trackId,

@@ -433,7 +433,7 @@ export default defineComponent({
                 v-model="excludeUncheckedTypes"
                 label="export checked types only"
                 dense
-                hint="Export only the track types currently enabled in the type filter"
+                hint="Export only stored confidence pairs whose raw type names are checked; other pairs are removed from exported tracks"
                 persistent-hint
                 class="pt-0"
               />

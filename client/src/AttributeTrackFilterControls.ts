@@ -112,6 +112,7 @@ export const trackIdPassesFilter = (
   filters: AttributeTrackFilter[],
   userDefinedvals: userDefinedVals[],
   enabled: boolean[],
+  displayType: string | undefined,
 ) => {
   const track = getTrack(id);
   const trackAttributes = track.attributes;
@@ -132,16 +133,22 @@ export const trackIdPassesFilter = (
   });
   for (let i = 0; i < trackFilters.length; i += 1) {
     const filter = trackFilters[i];
-    // If we have a type filter only filter by the types specified
-    if (filter.typeFilter.length > 0 && !filter.typeFilter.includes(track.getType()[0])) {
-      return true;
-    }
-    if (trackAttributes[filter.attribute] === undefined && !filter.ignoreUndefined) {
-      return false;
-    }
-    const result = checkAttributes(filter.filter, trackAttributes[filter.attribute] as userDefinedVals, trackUserVals[i]);
-    if (!result) {
-      return false;
+    // Attribute type filters apply to the type the UI resolved for display, not
+    // necessarily confidencePairs[0] (which can be a hierarchy ancestor).
+    const appliesToDisplayType = filter.typeFilter.length === 0
+      || filter.typeFilter.includes(displayType || '');
+    if (appliesToDisplayType) {
+      if (trackAttributes[filter.attribute] === undefined && !filter.ignoreUndefined) {
+        return false;
+      }
+      const result = checkAttributes(
+        filter.filter,
+        trackAttributes[filter.attribute] as userDefinedVals,
+        trackUserVals[i],
+      );
+      if (!result) {
+        return false;
+      }
     }
   }
   for (let i = 0; i < detectionFilters.length; i += 1) {
@@ -149,7 +156,9 @@ export const trackIdPassesFilter = (
       const index = track.featureIndex[k];
       const detectionAttributes = track.features[index].attributes;
       const filter = detectionFilters[i];
-      if (detectionAttributes) {
+      const appliesToDisplayType = filter.typeFilter.length === 0
+        || filter.typeFilter.includes(displayType || '');
+      if (detectionAttributes && appliesToDisplayType) {
         if (detectionAttributes[filter.attribute] === undefined && !filter.ignoreUndefined) {
           return false;
         }

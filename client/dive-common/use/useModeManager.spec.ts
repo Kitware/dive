@@ -59,7 +59,6 @@ function makeHarness(markChangesPending: MarkChangesPending = () => undefined) {
     remove: () => undefined,
     markChangesPending: () => undefined,
     lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
-    getTrack: (id: AnnotationId, camera = 'singleCam') => cameraStore.getTrack(id, camera),
     getTracks: (id: AnnotationId) => cameraStore.getTrackAll(id),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
@@ -199,7 +198,6 @@ function makeSingleCamHarness() {
     remove: () => undefined,
     markChangesPending: () => undefined,
     lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
-    getTrack: (id: AnnotationId, camera = 'singleCam') => cameraStore.getTrack(id, camera),
     getTracks: (id: AnnotationId) => cameraStore.getTrackAll(id),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
