@@ -348,7 +348,7 @@ def test_convert_video_downloads_when_transcode_required():
 
 
 def test_convert_video_cancel_during_remote_probe_does_not_download():
-    """CanceledError from remote ffprobe must abort, not fall back to download."""
+    """Canceling remote ffprobe must abort, not fall back to download."""
     task = MagicMock()
     task.canceled = False
     gc = MagicMock()

@@ -285,7 +285,7 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
     window.removeEventListener('mouseup', this.boundDragEnd);
   }
 
-  // eslint-disable-next-line class-methods-use-this, @typescript-eslint/no-unused-vars
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   formatData(_frameData: FrameDataTrack[]): RegistrationPointData[] {
     const result: RegistrationPointData[] = [];
     if (!this.registration) {
@@ -414,7 +414,6 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
     }
   }
 
-  // eslint-disable-next-line class-methods-use-this
   createStyle(): LayerStyle<RegistrationPointData> {
     return {
       ...super.createStyle(),

@@ -263,7 +263,6 @@ export default class PolygonBoundsExpand implements Recipe {
     }
   }
 
-  // eslint-disable-next-line class-methods-use-this
   activate() {
     // no-op
     this.active.value = true;
@@ -274,7 +273,6 @@ export default class PolygonBoundsExpand implements Recipe {
     });
   }
 
-  // eslint-disable-next-line class-methods-use-this
   deactivate() {
     // no-op
     this.active.value = false;

@@ -18,7 +18,6 @@ import {
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as dive from 'platform/desktop/backend/serializers/dive';
 
-// eslint-disable-next-line import/no-cycle
 import {
   ArchiveMetadataFolderName, getValidatedProjectDir, loadAnnotationFile, loadJsonConfig,
 } from './common';

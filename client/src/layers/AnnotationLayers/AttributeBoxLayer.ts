@@ -1,6 +1,3 @@
-/* eslint-disable max-len */
-/* eslint-disable class-methods-use-this */
-
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { boundToGeojson } from '../../utils';
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';

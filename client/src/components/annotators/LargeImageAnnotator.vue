@@ -138,7 +138,6 @@ export default defineComponent({
       mediaController,
     } = cameraInitializer(props.camera, 'large-image', {
       // allow hoisting for these functions to pass a reference before defining them.
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
     });
     const { playbackCursor } = useAnnotatorImageCursor(
@@ -379,7 +378,6 @@ export default defineComponent({
       return returnFunc;
     }
     async function cacheFrame(frame: number) {
-      // eslint-disable-next-line no-unreachable
       const resp2 = await props.getTiles(props.imageData[frame].id, projection);
       const newParams = geo.util.pixelCoordinateParams(
         container.value,

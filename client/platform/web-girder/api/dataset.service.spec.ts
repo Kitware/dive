@@ -1,4 +1,3 @@
-// eslint-disable-next-line import/no-extraneous-dependencies -- Vitest is only used in tests
 import {
   beforeEach, describe, expect, it, vi,
 } from 'vitest';

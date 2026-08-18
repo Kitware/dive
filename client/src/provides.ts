@@ -336,7 +336,6 @@ export interface State {
   percentileHistogramLoading: PercentileHistogramLoadingType;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-function
 const markChangesPending = () => { };
 
 /**

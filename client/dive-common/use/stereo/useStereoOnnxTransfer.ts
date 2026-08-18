@@ -466,7 +466,6 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     });
 
     // Sequential: each job runs a wasm inference and reads frame pixels.
-    // eslint-disable-next-line no-restricted-syntax
     for (let i = 0; i < jobs.length; i += 1) {
       config.onStatus?.(`Warping detection ${i + 1} of ${jobs.length}...`);
       // eslint-disable-next-line no-await-in-loop

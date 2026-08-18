@@ -62,7 +62,6 @@ function processTrackAttributes(tracks: TrackData[]):
         if (lowCount >= predefinedMinCount && attributeType.indexOf('text') !== -1) {
           attributeObj[attributeKey].values = values;
         }
-        // eslint-disable-next-line no-param-reassign
         attributeObj[attributeKey].datatype = attributeType;
       }
     });

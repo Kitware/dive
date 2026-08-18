@@ -1,4 +1,3 @@
-/* eslint-disable import/prefer-default-export -- singleton composable store */
 import type { GirderModel } from '@girder/components/src';
 import { computed, ref } from 'vue';
 import type { Route } from 'vue-router';

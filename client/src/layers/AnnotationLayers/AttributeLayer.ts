@@ -1,5 +1,4 @@
 /* eslint-disable prefer-destructuring */
-/* eslint-disable max-len */
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import { RectBounds } from 'vue-media-annotator/utils';

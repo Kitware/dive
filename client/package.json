@@ -19,7 +19,7 @@
     "build:electron": "electron-vite build && electron-builder --config electron-builder.json",
     "build:electron:dir": "electron-vite build && electron-builder --config electron-builder.json --dir",
     "divecli": "node ./bin/platform/desktop/backend/cli.js",
-    "lint": "eslint --ext .js,.ts,.vue src/ dive-common/ platform/",
+    "lint": "eslint --ext .js,.ts,.vue --report-unused-disable-directives src/ dive-common/ platform/",
     "lint:templates": "eslint --ext vue src/ dive-common/ platform/",
     "test": "vitest run src/ dive-common/ platform/",
     "typecheck": "vue-tsc --noEmit -p tsconfig.typecheck.json"
@@ -183,6 +183,19 @@
           "@vue/typescript",
           "@vue/typescript/recommended"
         ]
+      },
+      {
+        "files": [
+          "**/*.spec.ts"
+        ],
+        "rules": {
+          "import/no-extraneous-dependencies": [
+            "error",
+            {
+              "devDependencies": true
+            }
+          ]
+        }
       }
     ],
     "parserOptions": {

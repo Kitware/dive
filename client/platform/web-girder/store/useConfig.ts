@@ -1,4 +1,3 @@
-/* eslint-disable import/prefer-default-export -- singleton composable store */
 import { ref } from 'vue';
 
 import {

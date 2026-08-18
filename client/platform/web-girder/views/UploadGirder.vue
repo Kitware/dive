@@ -63,7 +63,6 @@ export default Vue.extend({
           // eslint-disable-next-line no-await-in-loop
           await this.uploadPending(pendingUplodsCopy[i], uploaded);
         } catch (err) {
-          // eslint-disable-next-line no-console
           console.error(err);
           error = err;
           break;

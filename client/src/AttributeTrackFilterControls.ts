@@ -1,4 +1,3 @@
-/* eslint-disable max-len */
 import { isArray } from 'lodash';
 import { AnnotationId } from './BaseAnnotation';
 import type Track from './track';

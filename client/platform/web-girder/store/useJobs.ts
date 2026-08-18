@@ -1,4 +1,3 @@
-/* eslint-disable import/prefer-default-export -- singleton composable store */
 import Vue, { computed, ref } from 'vue';
 import { GirderJob } from '@girder/components/src';
 import { all } from '@girder/components/src/components/Job/status';

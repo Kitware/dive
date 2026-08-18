@@ -25,7 +25,6 @@ import {
 } from 'dive-common/registrationParentFolder';
 import { JsonConfig, Settings } from 'platform/desktop/constants';
 
-// eslint-disable-next-line import/no-cycle
 import {
   getValidatedProjectDir, loadJsonConfig, saveConfig,
 } from './common';

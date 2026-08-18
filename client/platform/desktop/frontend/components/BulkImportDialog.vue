@@ -76,7 +76,6 @@ export default defineComponent({
       ctx.emit('finalize-import', finalImports);
     }
 
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     function updateImportConfig(oldItem: DesktopMediaImportResponse, newItem: DesktopMediaImportResponse) {
       const itemIndex = imports.value.indexOf(oldItem);
 
