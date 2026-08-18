@@ -472,6 +472,11 @@ describe('useAnnotationFilters', () => {
     expect(filters.filteredAnnotations.value.map(({ context }) => context.confidencePairIndex))
       .toEqual([1, -1]);
 
+    const zeroThreshold = makePairFixture([[['zero', 0]]]).filters;
+    zeroThreshold.setConfidenceFilters({ default: 0.1, zero: 0 });
+    expect(zeroThreshold.filteredAnnotations.value.map(({ context }) => context.confidencePairIndex))
+      .toEqual([0]);
+
     const cascadeFixture = makePairFixture([
       [['top', 0.5], ['fallback', 0.8]],
     ]).filters;
@@ -502,6 +507,11 @@ describe('useAnnotationFilters', () => {
     expect(filters.displayPairIndex(cameraStore.getTrack(0), 0)).toBe(2);
     filters.setConfidenceFilters({ leaf: 0.71, default: 0.5 });
     expect(filters.displayPairIndex(cameraStore.getTrack(0), 0)).toBe(1);
+
+    const zeroFixture = makePairFixture([[['root', 0.9], ['leaf', 0]]]);
+    zeroFixture.filters.setTypeHierarchy({ leaf: 'root' });
+    zeroFixture.filters.setConfidenceFilters({ default: 0.1, leaf: 0 });
+    expect(zeroFixture.filters.displayPairIndex(zeroFixture.cameraStore.getTrack(0), 0)).toBe(1);
   });
 
   it('rolls up unchecked leaves and ignores Prevent Cascade in hierarchy mode', () => {

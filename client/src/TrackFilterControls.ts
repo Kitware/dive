@@ -4,6 +4,7 @@ import { clientSettings } from 'dive-common/store/settings';
 import {
   compileHierarchy,
   normalizeTypeHierarchy,
+  resolveConfidenceThreshold,
   selectFlatPairIndex,
   rewriteHierarchyType,
   selectPairIndex,
@@ -184,13 +185,10 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     }
     const checkedSet = this.checkedTypesSet.value;
     const confidenceFilters = this.confidenceFilters.value;
-    const passes = track.confidencePairs.map(([confkey, confval]) => {
-      const confidenceThresh = Math.max(
-        confidenceFilters[confkey] || 0,
-        confidenceFilters.default,
-      );
-      return confval >= confidenceThresh && checkedSet.has(confkey);
-    });
+    const passes = track.confidencePairs.map(([confkey, confval]) => (
+      confval >= resolveConfidenceThreshold(confidenceFilters, confkey)
+      && checkedSet.has(confkey)
+    ));
     return selectPairIndex(index, track.confidencePairs, passes);
   }
 

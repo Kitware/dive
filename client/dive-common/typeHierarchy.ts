@@ -30,6 +30,17 @@ interface FlatPairSelectionOptions {
   preventCascade: boolean;
 }
 
+/**
+ * Resolve the threshold used by both viewer display and export.
+ * A type-specific value, including 0, overrides default instead of flooring against it.
+ */
+export function resolveConfidenceThreshold(
+  confidenceFilters: Readonly<Record<string, number>>,
+  type: string,
+): number {
+  return confidenceFilters[type] ?? confidenceFilters.default ?? 0;
+}
+
 /** Select the visible classification pair when no hierarchy is active. */
 export function selectFlatPairIndex(
   pairs: readonly (readonly [string, number])[],
@@ -39,20 +50,14 @@ export function selectFlatPairIndex(
 ): number {
   if (pairs.length === 0) return -1;
   if (filtersDisabled) return 0;
-  const passes = ([type, confidence]: readonly [string, number]) => {
-    const threshold = Math.max(
-      confidenceFilters[type] || 0,
-      confidenceFilters.default || 0,
-    );
-    return checkedSet.has(type) && confidence >= threshold;
-  };
+  const passes = ([type, confidence]: readonly [string, number]) => (
+    checkedSet.has(type)
+    && confidence >= resolveConfidenceThreshold(confidenceFilters, type)
+  );
   if (preventCascade) {
     const [type, confidence] = pairs[0];
-    const threshold = Math.max(
-      confidenceFilters[type] || 0,
-      confidenceFilters.default || 0,
-    );
-    return checkedSet.has(type) && confidence > threshold ? 0 : -1;
+    return checkedSet.has(type)
+      && confidence > resolveConfidenceThreshold(confidenceFilters, type) ? 0 : -1;
   }
   return pairs.findIndex(passes);
 }

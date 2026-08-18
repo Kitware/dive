@@ -6,6 +6,7 @@ import {
   normalizeTypeHierarchy,
   reassignPairs,
   removePair,
+  resolveConfidenceThreshold,
   resolveTypeHierarchy,
   rewriteHierarchyType,
   selectFlatPairIndex,
@@ -269,6 +270,28 @@ describe('flat pair selection', () => {
       filtersDisabled: false,
       preventCascade: true,
     })).toBe(-1);
+  });
+
+  it('honors an explicit type threshold of zero the same way export does', () => {
+    const filters = { default: 0.1, zero: 0 };
+    const stored: [string, number][] = [['zero', 0], ['other', 0.9]];
+
+    expect(resolveConfidenceThreshold(filters, 'zero')).toBe(0);
+    expect(selectFlatPairIndex(stored, {
+      checkedSet: new Set(['zero']),
+      confidenceFilters: filters,
+      filtersDisabled: false,
+      preventCascade: false,
+    })).toBe(0);
+  });
+
+  it('lets a type-specific threshold override a higher default', () => {
+    expect(selectFlatPairIndex([['fish', 0.4]], {
+      checkedSet: new Set(['fish']),
+      confidenceFilters: { default: 0.5, fish: 0.3 },
+      filtersDisabled: false,
+      preventCascade: false,
+    })).toBe(0);
   });
 });
 
