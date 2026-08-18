@@ -441,6 +441,21 @@ def test_configuration_endpoint_rejects_invalid_stored_hierarchy_before_serializ
     _set_content_disposition.assert_not_called()
 
 
+def test_type_hierarchy_for_export_names_the_coco_artifact():
+    folder = {
+        '_id': 'dataset-id',
+        'meta': {'typeHierarchy': {'fish': 'fish'}},
+    }
+
+    with pytest.raises(RestException) as error_info:
+        crud_dataset.type_hierarchy_for_export(folder, artifact='COCO file')
+
+    assert str(error_info.value) == (
+        'Type hierarchy is invalid: self edge "fish -> fish". '
+        'No COCO file was exported.'
+    )
+
+
 @patch('dive_server.views_dataset.setContentDisposition')
 @patch('dive_server.views_dataset.cherrypy.response')
 @patch('dive_server.views_dataset.crud_dataset.export_datasets_zipstream')

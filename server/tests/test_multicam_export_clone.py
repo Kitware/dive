@@ -728,18 +728,11 @@ def test_export_multicam_annotations_zip_csv(zip_gen_cls, csv_gen_mock, folder_c
 
 
 @patch('dive_server.crud_dataset.ziputil.ZipGenerator')
-def test_export_multicam_annotations_preflights_invalid_coco_hierarchy(zip_gen_cls, monkeypatch):
+def test_export_multicam_annotations_preflights_invalid_coco_hierarchy(zip_gen_cls):
     parent = _multi_parent_folder()
-    hierarchy_error = RestException(
-        'Type hierarchy is invalid: cycle detected. No configuration file was exported.'
-    )
-    monkeypatch.setattr(
-        crud_dataset,
-        'type_hierarchy_for_export',
-        MagicMock(side_effect=hierarchy_error),
-    )
+    parent['meta']['typeHierarchy'] = {'fish': 'fish'}
 
-    with pytest.raises(RestException, match='cycle detected'):
+    with pytest.raises(RestException) as error_info:
         crud_dataset.export_multicam_annotations_zipstream(
             parent,
             {'login': 'tester'},
@@ -749,4 +742,8 @@ def test_export_multicam_annotations_preflights_invalid_coco_hierarchy(zip_gen_c
             None,
         )
 
+    assert str(error_info.value) == (
+        'Type hierarchy is invalid: self edge "fish -> fish". '
+        'No COCO file was exported.'
+    )
     zip_gen_cls.assert_not_called()

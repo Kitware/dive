@@ -686,13 +686,14 @@ def promote_camera_type_hierarchies(
 def type_hierarchy_for_export(
     dsFolder: types.GirderModel,
     user: Optional[types.GirderUserModel] = None,
+    artifact: str = 'configuration file',
 ) -> Optional[Dict[str, str]]:
     """Return a normalized export hierarchy, rejecting corrupt stored metadata."""
     try:
         owner = crud.get_multicam_owner_folder(dsFolder)
         return normalize_type_hierarchy(fromMeta(owner or dsFolder, 'typeHierarchy'))
     except TypeHierarchyError as error:
-        raise crud.hierarchy_rest_error(error, 'No configuration file was exported.') from error
+        raise crud.hierarchy_rest_error(error, f'No {artifact} was exported.') from error
 
 
 class AttributeUpdateArgs(BaseModel):
@@ -829,7 +830,7 @@ def _coco_json_export_text(
         image_filenames=image_filenames,
         dataset_name=dsFolder['name'],
         datasetInfo=fromMeta(dsFolder, "datasetInfo", {}),
-        typeHierarchy=type_hierarchy_for_export(dsFolder, user),
+        typeHierarchy=type_hierarchy_for_export(dsFolder, user, artifact='COCO file'),
     )
     return json.dumps(coco)
 
@@ -847,7 +848,7 @@ def export_multicam_annotations_zipstream(
         raise RestException(f'Format {format} is not a valid option.')
 
     if format == 'coco_json':
-        type_hierarchy_for_export(dsFolder, user)
+        type_hierarchy_for_export(dsFolder, user, artifact='COCO file')
     multi_cam = fromMeta(dsFolder, constants.MultiCamMarker) or {}
     children = {}
     for cam_name in _multicam_camera_order(multi_cam):

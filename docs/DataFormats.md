@@ -209,8 +209,9 @@ configuration without changing it. Invalid saves and imports report
 DIVE Configuration JSON exports include a valid non-empty hierarchy and omit an absent or empty
 one. The `config.json` embedded in a dataset zip follows the same rules. Invalid stored hierarchy
 prevents either configuration export and reports
-`Type hierarchy is invalid: {reason}. No configuration file was exported.` Hierarchy is not
-transported by DIVE Annotation JSON, VIAME CSV, KPF, NIST, or `labels.txt`. KWCOCO transports it
+`Type hierarchy is invalid: {reason}. No configuration file was exported.` It prevents KWCOCO
+export and reports `Type hierarchy is invalid: {reason}. No COCO file was exported.` Hierarchy is
+not transported by DIVE Annotation JSON, VIAME CSV, KPF, NIST, or `labels.txt`. KWCOCO transports it
 through category `supercategory` fields as described below.
 
 When importing a DIVE Configuration JSON with `datasetInfo`, **Overwrite** import (the
