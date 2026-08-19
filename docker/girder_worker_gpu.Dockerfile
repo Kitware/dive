@@ -30,8 +30,8 @@ RUN chmod +x /tini
 
 
 
-# VIAME tooling expects `python` to stay on the image default (3.10).
-RUN ln -fs /usr/bin/python3.10 /usr/bin/python
+# VIAME tooling expects `python` to stay on the image default (3.12).
+RUN ln -fs /usr/bin/python3.12 /usr/bin/python
 WORKDIR /opt/dive/src
 
 # Use a globally accessible uv binary (works before/after USER switch)
