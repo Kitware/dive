@@ -154,6 +154,7 @@ export default defineComponent({
       }
       const key = cameraRegistration.activePairKey();
       // Touch observations so edits recompute the markers.
+      // eslint-disable-next-line no-void
       void cameraRegistration.observations.value;
       if (!key) {
         return [];

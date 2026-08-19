@@ -364,9 +364,7 @@ export async function importCameraRegistration(
   } catch {
     throw new Error('File is not valid JSON');
   }
-  return importCameraRegistrationData(
-    settings, datasetId, data, npath.basename(filePath), options,
-  );
+  return importCameraRegistrationData(settings, datasetId, data, npath.basename(filePath), options);
 }
 
 /**
@@ -464,7 +462,5 @@ export async function ingestPipelineRegistration(
       });
     });
   }
-  return importCameraRegistrationData(
-    settings, datasetId, data, npath.basename(filePath),
-  );
+  return importCameraRegistrationData(settings, datasetId, data, npath.basename(filePath));
 }

@@ -659,6 +659,8 @@ export function useMediaController() {
       resizing,
       alignedGapSlots,
       seekCameraFrame: aggregateSeekCameraFrame,
+      translateCameraFrame: aggregateTranslateCameraFrame,
+      cameraFrameToSlot: aggregateCameraFrameToSlot,
     };
 
     subControllers.push(mediaController);

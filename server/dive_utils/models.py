@@ -240,7 +240,8 @@ class CameraObservation(BaseModel):
     is a dataset-local index the client re-resolves from them at load time.
     ``source`` is the producer id ('manual' for hand-picked, else a matcher
     id like 'minima_loftr'); ``stats`` are free-form producer quality
-    statistics preserved verbatim."""
+    statistics preserved verbatim.
+    """
 
     imageA: str
     imageB: str

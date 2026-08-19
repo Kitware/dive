@@ -117,7 +117,8 @@ def build_multicam_kwiver_settings(
         if subset is not None:
             if media_type != constants.ImageSequenceType:
                 raise ValueError(
-                    f'Image-pair subsets are only supported for image-sequence cameras (camera "{key}")'
+                    'Image-pair subsets are only supported for image-sequence cameras '
+                    f'(camera "{key}")'
                 )
             by_name = {Path(path).name: path for path in media_list}
             missing = [name for name in subset if name not in by_name]

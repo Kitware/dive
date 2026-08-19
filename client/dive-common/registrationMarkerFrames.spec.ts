@@ -10,7 +10,7 @@
  * missing 3 of them, IR/UV missing 3 different ones, so each modality has
  * exactly 274 frames over mismatched timelines.
  */
-// eslint-disable-next-line import/no-extraneous-dependencies
+
 import { describe, expect, it } from 'vitest';
 import type { FrameImage } from 'dive-common/apispec';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';

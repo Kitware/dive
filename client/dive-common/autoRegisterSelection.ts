@@ -69,10 +69,8 @@ export default function proposeRegistrationFrames(options: ProposalOptions): num
   for (let bin = 0; bin < bins; bin += 1) {
     const start = Math.floor((bin * usable) / bins);
     const end = Math.floor(((bin + 1) * usable) / bins); // exclusive
+    // bins <= usable, so every bin spans at least one frame.
     const size = end - start;
-    if (size <= 0) {
-      continue;
-    }
     const perBin = Math.min(options.perBin, size);
     if (timestamps && timestamps.length) {
       // Rank the whole bin by skew; unknowable-skew frames rank after

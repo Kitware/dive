@@ -5,7 +5,7 @@
  * camera, the direction a loop-closure residual is measured in -- has to go
  * through the persisted order instead.
  */
-// eslint-disable-next-line import/no-extraneous-dependencies
+
 import { describe, expect, it } from 'vitest';
 import CameraStore from './CameraStore';
 

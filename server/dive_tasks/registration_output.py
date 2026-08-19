@@ -20,8 +20,10 @@ from girder_client import GirderClient
 MANUAL_SOURCE = 'manual'
 
 
-def _invert3(m: List[List[float]]) -> Optional[List[List[float]]]:
-    """Inverse of a row-major 3x3 matrix, or None when singular."""
+def _invert3(m: Optional[List[List[float]]]) -> Optional[List[List[float]]]:
+    """Inverse of a row-major 3x3 matrix, or None when missing or singular."""
+    if not m:
+        return None
     a, b, c = m[0]
     d, e, f = m[1]
     g, h, i = m[2]
@@ -59,21 +61,25 @@ def _from_registration_pairs(pairs: List[Dict[str, Any]], next_id: int):
             points = []
             for row in obs.get('points') or []:
                 next_id += 1
-                points.append({
-                    'id': next_id,
-                    'a': [row[0], row[1]],
-                    'b': [row[2], row[3]],
-                })
-            rows.append({
-                'imageA': obs['imageLeft'],
-                'imageB': obs['imageRight'],
-                # The client re-resolves frames from the image names on load.
-                'frame': obs.get('frame'),
-                'enabled': obs.get('enabled', True),
-                'source': obs.get('source') or MANUAL_SOURCE,
-                **({'stats': obs['stats']} if obs.get('stats') is not None else {}),
-                'points': points,
-            })
+                points.append(
+                    {
+                        'id': next_id,
+                        'a': [row[0], row[1]],
+                        'b': [row[2], row[3]],
+                    }
+                )
+            rows.append(
+                {
+                    'imageA': obs['imageLeft'],
+                    'imageB': obs['imageRight'],
+                    # The client re-resolves frames from the image names on load.
+                    'frame': obs.get('frame'),
+                    'enabled': obs.get('enabled', True),
+                    'source': obs.get('source') or MANUAL_SOURCE,
+                    **({'stats': obs['stats']} if obs.get('stats') is not None else {}),
+                    'points': points,
+                }
+            )
         if rows:
             observations[key] = rows
         transform_types[key] = pair.get('transformType') or 'homography'
@@ -103,8 +109,7 @@ def ingest_registration_output(
     current = gc.get(f'dive_dataset/{folder_id}')
     homographies = dict(current.get('cameraHomographies') or {})
     observations = {
-        key: list(value)
-        for key, value in (current.get('cameraCorrespondences') or {}).items()
+        key: list(value) for key, value in (current.get('cameraCorrespondences') or {}).items()
     }
     transform_types = dict(current.get('cameraTransformTypes') or {})
 
@@ -128,7 +133,8 @@ def ingest_registration_output(
         if incoming_rows:
             replaced = {_observation_identity(obs) for obs in incoming_rows}
             observations[key] = [
-                obs for obs in observations.get(key, [])
+                obs
+                for obs in observations.get(key, [])
                 if _observation_identity(obs) not in replaced
             ] + incoming_rows
         elif key in incoming_h or key in incoming_t:

@@ -38,7 +38,10 @@ export default defineComponent({
     const isTriplet = computed(() => props.cameraCount >= 3);
     const candidateTotal = computed(() => maxFrames.value * candidatesPerBin.value);
     const matcherRuns = computed(() => {
-      const pairCount = isTriplet.value ? (pairMode.value === 'all' ? 3 : 2) : 1;
+      let pairCount = 1;
+      if (isTriplet.value) {
+        pairCount = pairMode.value === 'all' ? 3 : 2;
+      }
       return maxFrames.value * pairCount;
     });
 

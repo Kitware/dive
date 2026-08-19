@@ -1221,7 +1221,9 @@ export default class CameraRegistrationStore {
         transformTypes[key] = pair.transformType;
       }
       observations[key] = (pair.observations || []).map((raw, j) => this.readObservation(
-        raw, pair.left, `${context}, observation ${j + 1}`,
+        raw,
+        pair.left,
+        `${context}, observation ${j + 1}`,
       ));
       const leftToRight = (pair.leftToRight === null || pair.leftToRight === undefined)
         ? null
@@ -1276,9 +1278,7 @@ export default class CameraRegistrationStore {
       throw new Error(`${context}: "stats" must be an object when present`);
     }
     const points = (obs.points || []).map((row, j) => {
-      const [ax, ay, bx, by] = CameraRegistrationStore.readPointsRow(
-        row, `${context}, points row ${j + 1}`,
-      );
+      const [ax, ay, bx, by] = CameraRegistrationStore.readPointsRow(row, `${context}, points row ${j + 1}`);
       // Ids are renumbered after the whole file parses (renumberPoints).
       return {
         id: 0, a: [ax, ay] as Point, b: [bx, by] as Point,

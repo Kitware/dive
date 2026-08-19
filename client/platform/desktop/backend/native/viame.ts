@@ -513,7 +513,10 @@ async function runPipeline(
               .filter(([, camera]) => camera.type === 'video')
               .map(([name]) => name);
             const summary = await ingestPipelineRegistration(
-              settings, datasetId, npath.join(jobWorkDir, registrationFile), videoCameras,
+              settings,
+              datasetId,
+              npath.join(jobWorkDir, registrationFile),
+              videoCameras,
             );
             updater({
               ...jobBase,
