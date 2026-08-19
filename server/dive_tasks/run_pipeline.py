@@ -20,13 +20,13 @@ from dive_tasks.multicam_pipeline import (
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
 )
-from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.pipeline_creates_dataset import (
     append_new_dataset_media_writers,
     is_transcode_pipeline,
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
+from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.viame_config import Config
 from dive_utils import constants, fromMeta
 from dive_utils.types import GirderModel, MulticamCameraJob, MulticamPipelineJob, PipelineJob
@@ -451,7 +451,8 @@ def run_pipeline(self: Task, params: PipelineJob):
                 # a file present here is a complete result. Substring sniff,
                 # like the desktop collector.
                 registration_files = [
-                    path for path in output_path.iterdir()
+                    path
+                    for path in output_path.iterdir()
                     if path.is_file()
                     and 'registration' in path.name.lower()
                     and path.suffix == '.json'
@@ -465,9 +466,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 newfile = gc.uploadFileToFolder(input_folder_id, str(registration_path))
                 gc.addMetadataToItem(str(newfile['itemId']), {'pipeline': pipeline})
                 merged = ingest_registration_output(gc, input_folder_id, registration_path)
-                manager.write(
-                    f'Merged camera registration for {merged} pair(s) into the dataset\n'
-                )
+                manager.write(f'Merged camera registration for {merged} pair(s) into the dataset\n')
                 return
             for camera in multicam_cameras:
                 cam_name = camera['name']

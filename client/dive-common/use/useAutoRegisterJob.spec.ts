@@ -9,7 +9,7 @@
  * frame index picks images a full cadence apart for all 274 frames; the
  * aligned timeline's slots are what make index i mean one instant.
  */
-// eslint-disable-next-line import/no-extraneous-dependencies
+
 import {
   describe, expect, it, vi,
 } from 'vitest';

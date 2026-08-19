@@ -11,7 +11,7 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
-import { isStereoscopicDatasetConfig, isMultiCamDatasetConfig } from 'dive-common/multicamDisplay';
+import { isStereoscopicDatasetConfig } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -660,6 +660,7 @@ export default defineComponent({
       // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
       if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
 
+      if (!meta.multiCamMedia) return false;
       const { cameras } = meta.multiCamMedia;
       const cameraNames = Object.keys(cameras);
 
@@ -699,23 +700,6 @@ export default defineComponent({
         return await populateMultiCamImagePathGetters(meta);
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
-        return false;
-      }
-    }
-
-    /**
-     * Multicam metadata loader for Auto Register. Unlike loadStereoMetadata this
-     * accepts ANY multi-camera dataset (stereoscopic or plain 'multicam', e.g.
-     * an EO/IR rig), since deep-feature alignment does not require a calibrated
-     * stereo pair -- only two cameras' images for the current frame.
-     */
-    async function loadMultiCamMetadata(): Promise<boolean> {
-      try {
-        const meta = await loadConfig(props.id);
-        if (!meta.multiCamMedia || !isMultiCamDatasetConfig({ type: meta.type, subType: meta.subType ?? undefined })) return false;
-        return await populateMultiCamImagePathGetters(meta);
-      } catch (err) {
-        console.error('[MultiCam] Failed to load multicam metadata:', err);
         return false;
       }
     }

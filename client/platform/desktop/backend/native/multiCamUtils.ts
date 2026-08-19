@@ -46,14 +46,14 @@ async function extractVideoFrames(
   for (const frameNum of frames) {
     const seconds = fps > 0 ? frameNum / fps : 0;
     const dest = npath.join(outDir, `${camera}.frame_${frameNum}.png`);
-    // eslint-disable-next-line no-await-in-loop -- a dozen sequential decodes
+
     const result = await spawnResult(ffmpegPath, [
       '-ss', seconds.toFixed(6),
       '-i', videoPath,
       '-frames:v', '1',
       '-y', dest,
     ]);
-    // eslint-disable-next-line no-await-in-loop
+
     if (result.error || !await fs.pathExists(dest)) {
       throw new Error(`Could not extract frame ${frameNum} from ${videoPath}: ${result.error ?? 'no output'}`);
     }
@@ -196,7 +196,11 @@ async function writeMultiCamStereoPipelineArgs(
           return frameNum;
         });
         const extracted = await extractVideoFrames(
-          videoPath, frames, meta.fps, npath.join(jobWorkDir, `extracted_${key}`), key,
+          videoPath,
+          frames,
+          meta.fps,
+          npath.join(jobWorkDir, `extracted_${key}`),
+          key,
         );
         const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
         const inputFile = fs.createWriteStream(inputFileName);

@@ -9,7 +9,7 @@ import {
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
-import { MultiTrackRecord } from 'dive-common/apispec';
+import { CameraObservations, MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { getResponseError } from 'vue-media-annotator/utils';
 import * as common from './common';
@@ -1863,7 +1863,14 @@ describe('native.common', () => {
       },
     };
     seededBase.cameraCorrespondences = {
-      'left::right': [{ id: 1, a: [0, 0], b: [1, 1] }],
+      'left::right': [{
+        imageA: 'left_0001.png',
+        imageB: 'right_0001.png',
+        frame: 1,
+        enabled: true,
+        source: 'manual',
+        points: [{ id: 1, a: [0, 0], b: [1, 1] }],
+      }],
     };
     seededBase.cameraTransformTypes = { 'left::right': 'similarity' };
     seededBase.cameraRegistrationSource = { model: 'seeded' };
@@ -1932,7 +1939,7 @@ describe('native.common', () => {
         BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
       },
     };
-    const cameraCorrespondences = {
+    const cameraCorrespondences: CameraObservations = {
       'rgb::ir': [{
         imageA: 'rgb_0001.png',
         imageB: 'ir_0001.png',

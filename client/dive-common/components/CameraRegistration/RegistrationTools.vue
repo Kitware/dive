@@ -172,6 +172,7 @@ export default defineComponent({
     /** The camA-space frame the viewer currently displays for this pair. */
     const currentPairFrame = computed(() => {
       // Touch currentFrame so scrubbing recomputes the readouts.
+      // eslint-disable-next-line no-void
       void registration.currentFrame.value;
       const key = activeKey.value;
       return key !== null ? registration.currentFrameForPair(key) : null;
