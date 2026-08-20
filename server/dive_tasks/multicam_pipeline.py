@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 import re
 import shlex
@@ -9,7 +10,7 @@ from typing import Dict, List, Optional, Tuple
 
 from dive_tasks.pipeline_creates_dataset import is_disparity_image_pipeline
 from dive_utils import constants
-from dive_utils.types import MulticamCameraJob, PipelineDescription
+from dive_utils.types import MulticamCameraJob, MulticamRegistrationJob, PipelineDescription
 
 _PIPELINE_INPUT_PATTERN = re.compile(r'utility_|filter_|transcode_|measurement_')
 
@@ -87,6 +88,183 @@ def append_metadata_file_kwiver_settings(
     declared via its `# Metadata File:` header (e.g. stabilizer:flight_log).
     """
     command.append(f'-s {shlex.quote(kwiver_key)}={shlex.quote(str(metadata_path))}')
+
+
+# Sensor-role aliases for camera names; mirrors CAMERA_ROLE_ALIASES in
+# client/dive-common/pipelineCameraOrder.ts.
+CAMERA_ROLE_ALIASES: Dict[str, Tuple[str, ...]] = {
+    'eo': ('eo', 'rgb', 'optical', 'color', 'colour', 'vis', 'visible'),
+    'ir': ('ir', 'thermal', 'lwir', 'mwir', 'flir'),
+    'uv': ('uv', 'ultraviolet'),
+}
+
+
+def infer_camera_role(camera_name: str) -> Optional[str]:
+    """
+    The sensor role (eo / ir / uv) a camera name denotes, or None when it names
+    none or more than one. Set once at multicam import; the pipeline
+    camera-assignment step prefills from it and lets the user correct it.
+    """
+    segments = [seg for seg in re.split(r'[^a-z0-9]+', camera_name.lower()) if seg]
+    roles = {
+        role for role, aliases in CAMERA_ROLE_ALIASES.items() if any(s in aliases for s in segments)
+    }
+    return next(iter(roles)) if len(roles) == 1 else None
+
+
+def infer_camera_roles(camera_names: List[str]) -> Dict[str, str]:
+    """Roles for a whole rig; cameras that cannot be classified are omitted."""
+    return {name: role for name in camera_names for role in [infer_camera_role(name)] if role}
+
+
+def build_registration_pairs(folder_meta: dict) -> List[dict]:
+    """
+    Convert a dataset folder's camera registration meta (cameraHomographies /
+    cameraCorrespondences / cameraTransformTypes, keyed by directional
+    "left::right") into dive-camera-registration file pairs (format v2).
+
+    Meta stores each pair's points as observations -- one entry per image
+    pair, carrying its own points -- so this is the inverse of
+    registration_output._from_registration_pairs: the store's imageA/imageB
+    become the file's imageLeft/imageRight, and each point's a/b pair becomes
+    one `leftX leftY rightX rightY` row.
+
+    VIAME's dive transform reader only consumes the matrices; the
+    observations travel for provenance and so a file round-trips back into
+    DIVE without losing which frame contributed what.
+    """
+    homographies = folder_meta.get('cameraHomographies') or {}
+    correspondences = folder_meta.get('cameraCorrespondences') or {}
+    transform_types = folder_meta.get('cameraTransformTypes') or {}
+    keys = set(homographies) | set(correspondences) | set(transform_types)
+    pairs: List[dict] = []
+    for key in sorted(keys):
+        left, _, right = key.partition('::')
+        homography = homographies.get(key)
+        observations = []
+        for obs in correspondences.get(key) or []:
+            observations.append(
+                {
+                    'imageLeft': obs.get('imageA'),
+                    'imageRight': obs.get('imageB'),
+                    'frame': obs.get('frame'),
+                    'enabled': obs.get('enabled', True),
+                    'source': obs.get('source') or 'manual',
+                    **({'stats': obs['stats']} if obs.get('stats') is not None else {}),
+                    'points': [
+                        [p['a'][0], p['a'][1], p['b'][0], p['b'][1]]
+                        for p in obs.get('points') or []
+                    ],
+                }
+            )
+        pairs.append(
+            {
+                'left': left,
+                'right': right,
+                'observations': observations,
+                'leftToRight': homography.get('AtoB') if homography else None,
+                'rightToLeft': homography.get('BtoA') if homography else None,
+                'transformType': transform_types.get(key, 'similarity'),
+            }
+        )
+    return pairs
+
+
+def missing_registrations(
+    order: List[str], registration_warps: Optional[List[int]], fitted_pairs: List[str]
+) -> List[Tuple[int, str, str]]:
+    """
+    (input, camera, camera1) for each warped input whose camera has no fitted
+    registration onto camera 1. `fitted_pairs` are the dataset's homography
+    keys (`a::b`, either orientation counts). Checked before a run so the
+    failure is "register camera X onto Y first" rather than the pipe dying at
+    configure time on a missing file.
+    """
+    if not order or not registration_warps:
+        return []
+    target = order[0]
+    fitted = set(fitted_pairs)
+    missing = []
+    for position in registration_warps:
+        if position < 2 or position > len(order):
+            continue
+        camera = order[position - 1]
+        if camera == target:
+            continue
+        if f'{camera}::{target}' not in fitted and f'{target}::{camera}' not in fitted:
+            missing.append((position, camera, target))
+    return missing
+
+
+def describe_missing_registration(
+    position: int, camera: str, target: str, pipeline_name: str
+) -> str:
+    return (
+        f'Camera "{camera}" (input{position}) has no registration onto camera 1 ("{target}"). '
+        f'Register {camera} -> {target} in the Camera Registration tab '
+        f'before running {pipeline_name}.'
+    )
+
+
+def build_registration_kwiver_settings(
+    work_dir: Path,
+    cameras: List[MulticamCameraJob],
+    registration: MulticamRegistrationJob,
+) -> Dict[str, str]:
+    """
+    Build the -s settings handing the camera registration to a 2-cam/3-cam
+    pipeline. One standard <camera>_to_<reference>_registration.json per
+    non-reference camera is written into the work dir; each camera's warp
+    process (warp2, warp3, ... matching the job camera order) gets its own
+    single-pair file. The pair and direction are still pinned via the
+    reader's from_camera/to_camera config, since a pair may be stored in
+    either orientation.
+
+    Only pairs registering a camera directly onto the reference are
+    supported: pairs between two non-reference cameras are explicitly
+    unsupported here (there is no transform composition) and never reach the
+    pipeline. Cameras without a fitted reference pair get no settings.
+    """
+    reference = registration.get('reference')
+    if not reference:
+        return {}
+    reference_pairs = [
+        pair
+        for pair in registration.get('pairs') or []
+        if reference in (pair['left'], pair['right']) and pair['left'] != pair['right']
+    ]
+    pairs_by_camera: Dict[str, List[dict]] = {}
+    for pair in reference_pairs:
+        camera = pair['left'] if pair['right'] == reference else pair['right']
+        pairs_by_camera.setdefault(camera, []).append(pair)
+    fitted = {
+        (pair['left'], pair['right'])
+        for pair in reference_pairs
+        if pair.get('leftToRight') or pair.get('rightToLeft')
+    }
+    settings: Dict[str, str] = {}
+    for index, camera in enumerate(cameras):
+        name = camera['name']
+        if index == 0 or name == reference:
+            continue
+        if (name, reference) not in fitted and (reference, name) not in fitted:
+            continue
+        camera_pairs = pairs_by_camera.get(name)
+        if not camera_pairs:
+            continue
+        registration_path = work_dir / f'{name}_to_{reference}_registration.json'
+        with open(registration_path, 'w', encoding='utf-8') as registration_file:
+            json.dump(
+                {'type': 'dive-camera-registration', 'version': 2, 'pairs': camera_pairs},
+                registration_file,
+                indent=2,
+            )
+        warp = f'warp{index + 1}'
+        settings[f'{warp}:transformation_file'] = str(registration_path)
+        settings[f'{warp}:transform_reader:type'] = 'dive'
+        settings[f'{warp}:transform_reader:dive:from_camera'] = name
+        settings[f'{warp}:transform_reader:dive:to_camera'] = reference
+    return settings
 
 
 def build_multicam_kwiver_settings(

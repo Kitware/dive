@@ -11,6 +11,7 @@ import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements'
 import type {
   CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
+import type { CameraRole } from 'dive-common/pipelineCameraOrder';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
@@ -78,6 +79,22 @@ interface PipeMetadata {
    * the two conventional keys are used.
    */
   calibrationKeys?: string[];
+  /**
+   * Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]:
+   * input1 is optical, input2 ultraviolet, input3 thermal), parsed from a
+   * `# Camera Order: <cam> [cam...]` header. Labels the slots of the pre-run
+   * camera-assignment step and drives its prefill (dive-common/pipelineCameraOrder.ts);
+   * pipes without it show bare input1..N slots.
+   */
+  cameraOrder?: string[];
+  /**
+   * Input positions whose detections/images the pipe warps onto camera 1
+   * (`process warpN :: warp_detections | warp_image` in the pipe body), e.g.
+   * [2, 3]. Each such camera needs a fitted registration (Camera Registration tab) onto
+   * camera 1; DIVE checks that before the run instead of letting the pipe
+   * fail at configure time on a missing file.
+   */
+  registrationWarps?: number[];
 }
 
 interface PipelineRuntimeParams {
@@ -87,6 +104,12 @@ interface PipelineRuntimeParams {
 interface PipelineParams {
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
+  /**
+   * 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
+   * confirmed by the user before the run. When omitted (API callers) the
+   * dataset's stored camera order is used.
+   */
+  cameraOrder?: string[];
   /** Filter / transcode / disparity pipelines: name for the newly created dataset. */
   outputDatasetName?: string;
   /**
@@ -270,9 +293,16 @@ interface DatasetConfigMutable {
   cameraTransformTypes?: CameraTransformTypes;
   /** Producer provenance of the camera registration (see RegistrationSource). */
   cameraRegistrationSource?: RegistrationSource | null;
+  /**
+   * Sensor role per multicam camera name (eo / ir / uv), inferred at import
+   * from the camera and image names and editable afterwards; used to place
+   * cameras onto a pipeline's declared camera slots. Cameras with no known
+   * role are absent.
+   */
+  cameraRoles?: Record<string, CameraRole>;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).

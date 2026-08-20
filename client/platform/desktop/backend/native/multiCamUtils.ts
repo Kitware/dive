@@ -73,11 +73,24 @@ function getTranscodedMultiCamType(imageListFile: string, jsonConfig: JsonConfig
   throw new Error(`No associate type for ${imageListFile} in multiCam data`);
 }
 
-async function writeMultiCamStereoPipelineArgs(jobWorkDir: string, meta: JsonConfig, settings: Settings, utility = false, forceTranscoded = false) {
+async function writeMultiCamStereoPipelineArgs(
+  jobWorkDir: string,
+  meta: JsonConfig,
+  settings: Settings,
+  utility = false,
+  forceTranscoded = false,
+  // Explicit input1..N camera order for 2-cam/3-cam pipes; stereo
+  // measurement keeps the stored left/right order when omitted.
+  cameraOrder: string[] | undefined = undefined,
+) {
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
-    const cameraList = Object.entries(meta.multiCam.cameras);
+    const { cameras } = meta.multiCam;
+    const cameraNames = cameraOrder
+      ? cameraOrder.filter((name) => name in cameras)
+      : Object.keys(cameras);
+    const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
     for (let i = 0; i < cameraList.length; i += 1) {
       const [key, list] = cameraList[i];
       const { originalBasePath } = list;
@@ -149,6 +162,7 @@ function getMultiCamUrls(
     }
     const multiCamMedia: MultiCamMedia = {
       cameras: {},
+      cameraOrder: projectMetaData.multiCam.cameraOrder,
       defaultDisplay: projectMetaData.multiCam.defaultDisplay,
     };
 
