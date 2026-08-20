@@ -2372,6 +2372,7 @@ export default defineComponent({
       cycleSidebarMode,
       sidebarModeIcon,
       sidebarModeTooltip,
+      registrationActive,
       bottomRightPanelView,
       toggleBottomRightPanel,
       colorBy,
@@ -2543,7 +2544,14 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <!--
+          No sidebar while registering: the picking panes want the room, and
+          the bottom layout in particular doesn't lay them out usably. The
+          panel collapses the sidebar on open and restores it on close, so
+          the toggle is simply not offered in between.
+        -->
         <v-tooltip
+          v-if="!registrationActive"
           bottom
         >
           <template #activator="{ on }">
