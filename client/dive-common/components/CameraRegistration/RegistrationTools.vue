@@ -502,10 +502,24 @@ export default defineComponent({
       () => correspondences.value.length > 0 || hasLoadedTransform.value,
     );
 
+    // Short L/R labels keep the toggle from overflowing on long camera
+    // names; the full names stay available as the button tooltip.
     const alignmentModeItems = computed(() => [
-      { text: 'Picking', value: 'original', disabled: false },
-      { text: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !hasTransform.value },
-      { text: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !hasTransform.value },
+      {
+        text: 'Picking', title: undefined, value: 'original', disabled: false,
+      },
+      {
+        text: 'L → R',
+        title: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`,
+        value: 'AtoB',
+        disabled: !hasTransform.value,
+      },
+      {
+        text: 'R → L',
+        title: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`,
+        value: 'BtoA',
+        disabled: !hasTransform.value,
+      },
     ]);
 
     function setTransformType(type: TransformType) {
@@ -1339,6 +1353,7 @@ export default defineComponent({
         :key="item.value"
         :value="item.value"
         :disabled="item.disabled"
+        :title="item.title"
         small
         class="flex-grow-1"
         style="text-transform: none;"
