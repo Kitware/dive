@@ -58,8 +58,11 @@ async function extractVideoFrames(
       '-y', dest,
     ]);
 
-    if (result.error || !await fs.pathExists(dest)) {
-      throw new Error(`Could not extract frame ${frameNum} from ${videoPath}: ${result.error ?? 'no output'}`);
+    // result.error is just accumulated stderr, which ffmpeg always writes
+    // (its own progress/banner logging) even on success -- exit code and
+    // the output file are the actual success signal.
+    if (result.exitCode !== 0 || !await fs.pathExists(dest)) {
+      throw new Error(`Could not extract frame ${frameNum} from ${videoPath}: ${result.error || 'no output'}`);
     }
     results.push(dest);
   }
