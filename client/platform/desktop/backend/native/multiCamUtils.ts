@@ -51,6 +51,10 @@ async function extractVideoFrames(
       '-ss', seconds.toFixed(6),
       '-i', videoPath,
       '-frames:v', '1',
+      // Without -update, ffmpeg's image2 muxer treats any digit-bearing
+      // output name as an ambiguous sequence pattern and refuses to write
+      // it; -update 1 tells it this is one literal file.
+      '-update', '1',
       '-y', dest,
     ]);
 
