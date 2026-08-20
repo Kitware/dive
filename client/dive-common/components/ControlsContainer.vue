@@ -162,7 +162,12 @@ export default defineComponent({
       const [camA] = key.split('::');
       const target = selectedCamera.value;
       return cameraRegistration.framesForPair(key)
-        .filter((row) => row.frame !== null)
+        // Only frames that actually carry points. A producer records the
+        // candidates it considered and discarded too (auto-register proposes
+        // more frames than it matches, then prunes) -- those have no points
+        // and nothing to toggle, so a marker for them is just noise on the
+        // scrubber. The frame list still lists them with their skip reason.
+        .filter((row) => row.frame !== null && row.count > 0)
         .map((row) => ({
           frame: aggregateController.value.translateCameraFrame(camA, row.frame as number, target),
           enabled: row.enabled,
