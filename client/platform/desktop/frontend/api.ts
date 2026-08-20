@@ -836,6 +836,7 @@ export {
   textQuery,
   refineDetections,
   runTextQueryPipeline,
+  /* Auto Register APIs */
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,

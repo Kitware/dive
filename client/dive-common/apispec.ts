@@ -9,7 +9,7 @@ import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 import type {
-  CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
+  CameraHomographies, CameraObservations, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 
@@ -82,6 +82,15 @@ interface PipeMetadata {
 
 interface PipelineRuntimeParams {
   frameRange?: [number, number] | null;
+  /**
+   * Multicam registration subset: camera name -> ordered image identifiers
+   * for exactly the frames the job should process. Row i of one camera's
+   * list pairs with row i of every other's. Identifiers are the camera's
+   * own image names (the platform backend resolves them to real paths) or
+   * `frame://N` pseudo-names for video cameras (the backend extracts those
+   * frames to temp images before the job).
+   */
+  imagePairs?: Record<string, string[]>;
 }
 
 interface PipelineParams {
@@ -266,7 +275,12 @@ interface DatasetConfigMutable {
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
   datasetInfo?: DatasetInfoFields;
   cameraHomographies?: CameraHomographies;
-  cameraCorrespondences?: CameraCorrespondences;
+  /**
+   * Per-image-pair correspondence observations, keyed by directional
+   * "left::right". Each entry lists the observations (image-pair identity,
+   * enabled flag, producer source, stats, and points) behind that pair's fit.
+   */
+  cameraCorrespondences?: CameraObservations;
   cameraTransformTypes?: CameraTransformTypes;
   /** Producer provenance of the camera registration (see RegistrationSource). */
   cameraRegistrationSource?: RegistrationSource | null;
@@ -698,4 +712,4 @@ export type {
   MediaImportResponse,
 };
 
-export type { PercentileStretch, CameraCorrespondences };
+export type { PercentileStretch, CameraObservations };

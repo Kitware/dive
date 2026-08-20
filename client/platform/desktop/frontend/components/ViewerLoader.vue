@@ -642,8 +642,54 @@ export default defineComponent({
     let stereoDatasetFps: number | undefined;
 
     /**
-     * Load multicam metadata for both cameras to build image path getters
+     * Populate stereoImagePathGetters (per-camera frame -> image path) from a
+     * dataset's already-loaded multicam metadata. This part is not stereo
+     * specific: both the stereo features and Auto Register resolve per-camera
+     * image paths the same way. Callers gate on the dataset kind they support
+     * (stereo requires a stereoscopic dataset; auto-register accepts any multicam)
+     * before calling this. `meta.multiCamMedia` must already be truthy.
      */
+    async function populateMultiCamImagePathGetters(
+      meta: Awaited<ReturnType<typeof loadConfig>>,
+    ): Promise<boolean> {
+      // Extract calibration file path from multiCam metadata
+      stereoCalibrationFile = meta.multiCam?.calibration || undefined;
+      // Capture the dataset-level fps as a fallback for per-camera frame times.
+      stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
+
+      // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
+      if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
+
+      if (!meta.multiCamMedia) return false;
+      const { cameras } = meta.multiCamMedia;
+      const cameraNames = Object.keys(cameras);
+
+      for (let i = 0; i < cameraNames.length; i += 1) {
+        const cam = cameraNames[i];
+        const cameraId = `${props.id}/${cam}`;
+        // eslint-disable-next-line no-await-in-loop
+        const camMeta = await loadConfig(cameraId);
+        const {
+          originalBasePath, originalImageFiles, type, originalVideoFile,
+        } = camMeta;
+
+        stereoImagePathGetters.value[cam] = (frameNum: number): string => {
+          if (type === 'video') {
+            return joinPath(originalBasePath, originalVideoFile || '');
+          }
+          if (originalImageFiles && originalImageFiles[frameNum]) {
+            const imagePath = originalImageFiles[frameNum];
+            if (isAbsolutePath(imagePath)) {
+              return imagePath;
+            }
+            return joinPath(originalBasePath, imagePath);
+          }
+          return '';
+        };
+      }
+      return true;
+    }
+
     async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadConfig(props.id);
@@ -651,42 +697,7 @@ export default defineComponent({
         // no stereo so the caller does not load the stereo service.
         if (!meta.multiCamMedia
           || !isStereoscopicDatasetConfig({ type: meta.type, subType: meta.subType ?? undefined })) return false;
-
-        // Extract calibration file path from multiCam metadata
-        stereoCalibrationFile = meta.multiCam?.calibration || undefined;
-        // Capture the dataset-level fps as a fallback for per-camera frame times.
-        stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
-
-        // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
-        if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
-
-        const { cameras } = meta.multiCamMedia;
-        const cameraNames = Object.keys(cameras);
-
-        for (let i = 0; i < cameraNames.length; i += 1) {
-          const cam = cameraNames[i];
-          const cameraId = `${props.id}/${cam}`;
-          // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadConfig(cameraId);
-          const {
-            originalBasePath, originalImageFiles, type, originalVideoFile,
-          } = camMeta;
-
-          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-            if (type === 'video') {
-              return joinPath(originalBasePath, originalVideoFile || '');
-            }
-            if (originalImageFiles && originalImageFiles[frameNum]) {
-              const imagePath = originalImageFiles[frameNum];
-              if (isAbsolutePath(imagePath)) {
-                return imagePath;
-              }
-              return joinPath(originalBasePath, imagePath);
-            }
-            return '';
-          };
-        }
-        return true;
+        return await populateMultiCamImagePathGetters(meta);
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
         return false;

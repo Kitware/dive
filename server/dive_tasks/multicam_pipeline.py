@@ -95,9 +95,15 @@ def build_multicam_kwiver_settings(
     camera_media: Dict[str, Tuple[List[str], str]],
     *,
     requires_input: bool = False,
+    image_pairs: Optional[Dict[str, List[str]]] = None,
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
     Build KWIVER -s key/value pairs for per-camera inputs/outputs.
+
+    image_pairs is the registration frame subset (camera name -> ordered
+    image names): when present for a camera, ONLY those images are written
+    to its input list, in the given order -- row i of one camera's list
+    pairs with row i of every other's.
 
     Returns (arg_file_pair, out_files) where out_files maps camera name -> output csv basename.
     """
@@ -107,6 +113,20 @@ def build_multicam_kwiver_settings(
     for i, camera in enumerate(cameras):
         key = camera['name']
         media_list, media_type = camera_media[key]
+        subset = (image_pairs or {}).get(key)
+        if subset is not None:
+            if media_type != constants.ImageSequenceType:
+                raise ValueError(
+                    'Image-pair subsets are only supported for image-sequence cameras '
+                    f'(camera "{key}")'
+                )
+            by_name = {Path(path).name: path for path in media_list}
+            missing = [name for name in subset if name not in by_name]
+            if missing:
+                raise ValueError(
+                    f'Camera "{key}" media does not include requested frames: {missing[:5]}'
+                )
+            media_list = [by_name[name] for name in subset]
         output_file_name = f'computed_tracks_{key}.csv'
         output_arg = f'detector_writer{i + 1}:file_name'
         output_arg_tracks = f'track_writer{i + 1}:file_name'

@@ -36,6 +36,7 @@ import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
+import { ingestPipelineRegistration } from './cameraRegistration';
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -172,6 +173,7 @@ async function runPipeline(
 ): Promise<DesktopJob> {
   const { datasetId, pipeline } = runPipelineArgs;
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
+  const imagePairs = runPipelineArgs.pipelineParams?.runtimeParams?.imagePairs ?? undefined;
   // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
   // categorized under '2-cam'/'3-cam' rather than by their filename prefix,
   // so output handling is recognized from the pipe filename as well as the type.
@@ -366,7 +368,7 @@ async function runPipeline(
 
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
-    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput);
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, { imagePairs, frameRange });
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
@@ -393,6 +395,14 @@ async function runPipeline(
       calibrationKeys.forEach((key) => {
         command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
       });
+    }
+
+    if (pipeline.pipe.toLowerCase().includes('align_cameras')) {
+      // Camera names for the output JSON, aligned with the input{i} order
+      // the arg writer uses (Object.entries over meta.multiCam.cameras).
+      const cameraNames = Object.keys(meta.multiCam.cameras).join(',');
+      command.push(`-s register:camera_names="${cameraNames}"`);
+      command.push(`-s register:output_directory="${jobWorkDir}"`);
     }
   } else if (pipeline.type === stereoPipelineMarker) {
     throw new Error('Attempting to run a multicam pipeline on non multicam data');
@@ -486,6 +496,32 @@ async function runPipeline(
           if (newMeta) {
             meta.attributes = newMeta.attributes;
             await common.saveConfig(settings, datasetId, meta);
+          }
+        }
+
+        // Registration pipeline: merge the output into the dataset's saved
+        // camera registration. Filename sniff is substring-based, like the
+        // calibration hook below; the process writes atomically, so a file
+        // present here is a complete result (a canceled job leaves none).
+        if (pipeline.pipe.toLowerCase().includes('align_cameras')) {
+          const files = await fs.readdir(jobWorkDir);
+          const registrationFile = files.find(
+            (f) => f.toLowerCase().includes('registration') && f.endsWith('.json'),
+          );
+          if (registrationFile && meta.multiCam) {
+            const videoCameras = Object.entries(meta.multiCam.cameras)
+              .filter(([, camera]) => camera.type === 'video')
+              .map(([name]) => name);
+            const summary = await ingestPipelineRegistration(
+              settings,
+              datasetId,
+              npath.join(jobWorkDir, registrationFile),
+              videoCameras,
+            );
+            updater({
+              ...jobBase,
+              body: [`Merged camera registration for ${summary.pairCount} pair(s) into the dataset`],
+            });
           }
         }
 

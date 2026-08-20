@@ -89,7 +89,7 @@ export default defineComponent({
       }
       const progress = alignedView.registrationProgress.value;
       return progress
-        ? `${progress.registered}/${progress.total} cameras registered`
+        ? `${progress.registered}/${progress.total} cameras ready`
         : '';
     });
     const activeCameraName = computed(() => {
@@ -136,7 +136,7 @@ export default defineComponent({
       }
       const pairKeys = [
         ...Object.keys(cameraRegistration.homographies.value),
-        ...Object.keys(cameraRegistration.correspondences.value),
+        ...Object.keys(cameraRegistration.observations.value),
       ];
       const cams = [...cameraStore.camMap.value.keys()];
       const reference = alignedView.reference.value ?? cams[0];
@@ -347,7 +347,7 @@ export default defineComponent({
           // review posture -- picking stays off for a file-loaded transform.
           const pairKeys = [
             ...Object.keys(cameraRegistration.homographies.value),
-            ...Object.keys(cameraRegistration.correspondences.value),
+            ...Object.keys(cameraRegistration.observations.value),
           ];
           // Pair bodies name their own cameras, so a pair can reference one
           // missing from this dataset; only select a pair the panel can show.

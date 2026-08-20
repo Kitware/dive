@@ -10,7 +10,7 @@ function registrationFile(
 ): File {
   return new File([JSON.stringify({
     type: 'dive-camera-registration',
-    version: 1,
+    version: 2,
     ...(source ? { source } : {}),
     pairs,
   })], name, { type: 'application/json' });
@@ -19,7 +19,12 @@ function registrationFile(
 const eoIrPair = {
   left: 'eo',
   right: 'ir',
-  points: [[0, 0, 5, -3], [10, 0, 15, -3]],
+  observations: [{
+    imageLeft: 'eo_0000.jpg',
+    imageRight: 'ir_0000.tif',
+    source: 'kamera-solver',
+    points: [[0, 0, 5, -3], [10, 0, 15, -3]],
+  }],
   leftToRight: SHIFT,
   rightToLeft: UNSHIFT,
   transformType: 'translation',
@@ -35,7 +40,9 @@ describe('parseRegistrationSeed', () => {
     }], ['eo', 'ir']);
     expect(warnings).toStrictEqual([]);
     expect(values?.homographies['eo::ir'].AtoB).toEqual(SHIFT);
-    expect(values?.correspondences['eo::ir']).toHaveLength(2);
+    expect(values?.observations['eo::ir']).toHaveLength(1);
+    expect(values?.observations['eo::ir'][0].points).toHaveLength(2);
+    expect(values?.observations['eo::ir'][0].source).toBe('kamera-solver');
     expect(values?.transformTypes['eo::ir']).toBe('translation');
     expect(values?.source).toEqual(source);
   });
@@ -45,7 +52,7 @@ describe('parseRegistrationSeed', () => {
       cameraName: 'ir',
       fileName: 'uv_to_rgb_registration.json',
       file: registrationFile('uv_to_rgb_registration.json', [{
-        left: 'uv', right: 'rgb', points: [], leftToRight: SHIFT, rightToLeft: UNSHIFT,
+        left: 'uv', right: 'rgb', observations: [], leftToRight: SHIFT, rightToLeft: UNSHIFT,
       }]),
     }], ['eo', 'ir']);
     expect(values?.homographies['uv::rgb']).toBeDefined();
@@ -65,7 +72,7 @@ describe('parseRegistrationSeed', () => {
         cameraName: 'uv',
         fileName: 'uv_to_eo_registration.json',
         file: registrationFile('uv_to_eo_registration.json', [{
-          left: 'eo', right: 'uv', points: [], leftToRight: SHIFT, rightToLeft: UNSHIFT,
+          left: 'eo', right: 'uv', observations: [], leftToRight: SHIFT, rightToLeft: UNSHIFT,
         }], { model: 'b' }),
       },
     ], ['eo', 'ir', 'uv']);

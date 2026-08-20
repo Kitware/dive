@@ -14,9 +14,11 @@ import {
   Timeline,
 } from 'vue-media-annotator/components';
 import { clientSettings } from 'dive-common/store/settings';
+import context from 'dive-common/store/context';
 import {
   useHandler,
   useAttributesFilters,
+  useCameraRegistration,
   useCameraStore,
   useSelectedCamera,
   useTime,
@@ -131,6 +133,49 @@ export default defineComponent({
     const {
       volume, setVolume, setSpeed, speed,
     } = aggregateController.value;
+    /**
+     * Registration-frame markers for the Timeline work-area, shown ONLY
+     * while the Camera Registration panel is open (the same signal the
+     * viewer's registrationActive keys off) -- outside that tab the timeline
+     * stays exactly as it is today.
+     *
+     * Observation frames are camA-local, but the Timeline draws in the
+     * SELECTED camera's local frame space. Those two spaces only coincide
+     * when the rig drops no frames (or when camA happens to be selected):
+     * a rig whose cameras drop frames independently accumulates an offset,
+     * putting every marker a frame or two off. Translate through the aligned
+     * timeline, and drop markers whose capture has no frame on the selected
+     * camera -- there is no honest place to draw those.
+     */
+    const cameraRegistration = useCameraRegistration();
+    const registrationMarkers = computed(() => {
+      if (context.state.active !== 'CameraRegistration') {
+        return [];
+      }
+      const key = cameraRegistration.activePairKey();
+      // Touch observations so edits recompute the markers.
+      // eslint-disable-next-line no-void
+      void cameraRegistration.observations.value;
+      if (!key) {
+        return [];
+      }
+      const [camA] = key.split('::');
+      const target = selectedCamera.value;
+      return cameraRegistration.framesForPair(key)
+        // Only frames that actually carry points. A producer records the
+        // candidates it considered and discarded too (auto-register proposes
+        // more frames than it matches, then prunes) -- those have no points
+        // and nothing to toggle, so a marker for them is just noise on the
+        // scrubber. The frame list still lists them with their skip reason.
+        .filter((row) => row.frame !== null && row.count > 0)
+        .map((row) => ({
+          frame: aggregateController.value.translateCameraFrame(camA, row.frame as number, target),
+          enabled: row.enabled,
+        }))
+        .filter((marker): marker is { frame: number; enabled: boolean } => (
+          marker.frame !== undefined
+        ));
+    });
     // The timeline charts (line/event charts) are built from trackStores in
     // the selected camera's own local frame space. Under an aligned timeline
     // (SEAL feature 5) the aggregate controller's frame/maxFrame/seek operate
@@ -167,6 +212,7 @@ export default defineComponent({
       ticks,
       hasGroups,
       attributeData,
+      registrationMarkers,
       timelineEnabled,
       activeCountSettings,
       clientSettings,
@@ -466,6 +512,7 @@ export default defineComponent({
       :display="!collapsed"
       :dataset-type="datasetType"
       :bottom-layout="bottomLayout"
+      :markers="registrationMarkers"
       @seek="seek"
     >
       <template

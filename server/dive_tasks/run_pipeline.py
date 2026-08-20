@@ -26,6 +26,7 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
+from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.viame_config import Config
 from dive_utils import constants, fromMeta
 from dive_utils.types import GirderModel, MulticamCameraJob, MulticamPipelineJob, PipelineJob
@@ -253,6 +254,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     force_transcoded = params.get('force_transcoded', False)
     runtime_params = params.get('runtime_params') or {}
     frame_range = runtime_params.get('frameRange')
+    image_pairs = runtime_params.get('imagePairs')
     multicam_params: MulticamPipelineJob = params
     multicam_cameras: List[MulticamCameraJob] = multicam_params.get('multicam_cameras') or []
     camera_name = params.get('camera_name')
@@ -305,6 +307,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 multicam_cameras,
                 camera_media,
                 requires_input=requires_input,
+                image_pairs=image_pairs,
             )
 
             command = [
@@ -365,6 +368,13 @@ def run_pipeline(self: Task, params: PipelineJob):
             _append_input_list_kwiver_settings(command, pipeline, input_manifests)
 
             _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
+
+            is_align_pipeline = 'align_cameras' in pipeline['pipe']
+            if is_align_pipeline:
+                # Camera names for the output JSON, aligned with the
+                # input{i} order used above.
+                camera_names = ','.join(camera['name'] for camera in multicam_cameras)
+                command.append(f'-s register:camera_names={shlex.quote(camera_names)}')
 
             kwiver_params = params.get('kwiver_params')
             if kwiver_params:
@@ -435,6 +445,29 @@ def run_pipeline(self: Task, params: PipelineJob):
                 return
 
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            if is_align_pipeline:
+                # The register process writes its JSON atomically in the run
+                # cwd (output_path); a canceled/failed job leaves no file, so
+                # a file present here is a complete result. Substring sniff,
+                # like the desktop collector.
+                registration_files = [
+                    path
+                    for path in output_path.iterdir()
+                    if path.is_file()
+                    and 'registration' in path.name.lower()
+                    and path.suffix == '.json'
+                ]
+                if not registration_files:
+                    manager.write('No registration output produced; see the log above.\n')
+                    return
+                registration_path = registration_files[0]
+                # Keep the raw artifact with the dataset (provenance), then
+                # merge it into the saved registration meta.
+                newfile = gc.uploadFileToFolder(input_folder_id, str(registration_path))
+                gc.addMetadataToItem(str(newfile['itemId']), {'pipeline': pipeline})
+                merged = ingest_registration_output(gc, input_folder_id, registration_path)
+                manager.write(f'Merged camera registration for {merged} pair(s) into the dataset\n')
+                return
             for camera in multicam_cameras:
                 cam_name = camera['name']
                 output_name = out_files[cam_name]

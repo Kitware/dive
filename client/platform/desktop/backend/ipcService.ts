@@ -58,6 +58,7 @@ function isSam3Installed(viamePath: string): boolean {
     path.join(pipelinesDir, configName),
   ));
 }
+
 if (OS.platform() === 'win32') {
   win32.initialize();
 }

@@ -30,7 +30,7 @@ import {
 } from './common';
 
 export type CameraHomographies = NonNullable<DatasetConfigMutable['cameraHomographies']>;
-export type CameraCorrespondences = NonNullable<DatasetConfigMutable['cameraCorrespondences']>;
+export type CameraObservations = NonNullable<DatasetConfigMutable['cameraCorrespondences']>;
 export type CameraTransformTypes = NonNullable<DatasetConfigMutable['cameraTransformTypes']>;
 export type RegistrationSource = NonNullable<DatasetConfigMutable['cameraRegistrationSource']>;
 
@@ -47,34 +47,51 @@ export function readRegistrationSource(raw: unknown): RegistrationSource | null 
 }
 
 /**
- * One camera pair in calibration.json. `left`/`right` are camera (folder) names;
- * `points` are the picked correspondences as rows of `leftX leftY rightX rightY`;
- * `leftToRight`/`rightToLeft` are the fitted
- * 3x3 homographies, when a fit has been performed; `transformType` is the fit
- * model used to compute them (defaults to {@link DEFAULT_TRANSFORM_TYPE} when
- * absent, matching the in-app default so a pair fitted at the default resolves
- * to the same model after a save/reload).
+ * One observation row in a registration file pair: the points contributed by
+ * one image pair, identified by its image names (`frame` is advisory --
+ * producers may not know this dataset's indices; the client re-resolves).
+ */
+export interface RegistrationObservation {
+  frame?: number | null;
+  imageLeft: string;
+  imageRight: string;
+  enabled?: boolean;
+  source?: string;
+  points?: number[][];
+  stats?: Record<string, unknown>;
+}
+
+/**
+ * One camera pair in a registration file (format v2). `left`/`right` are
+ * camera (folder) names; `observations` carry the per-image-pair points as
+ * rows of `leftX leftY rightX rightY`; `leftToRight`/`rightToLeft` are the
+ * fitted 3x3 homographies, when a fit has been performed; `transformType` is
+ * the fit model used to compute them (defaults to
+ * {@link DEFAULT_TRANSFORM_TYPE} when absent, matching the in-app default so
+ * a pair fitted at the default resolves to the same model after a
+ * save/reload).
  */
 export interface RegistrationPair {
   left: string;
   right: string;
-  points: number[][];
+  observations?: RegistrationObservation[];
   leftToRight: number[][] | null;
   rightToLeft: number[][] | null;
   transformType?: TransformType;
 }
 
-/** Rebuild the in-app homographies/correspondences/transform types from calibration.json pairs. */
+/** Rebuild the in-app homographies/observations/transform types from registration file pairs. */
 export function fromRegistrationPairs(
   pairs: RegistrationPair[],
 ): {
   homographies: CameraHomographies;
-  correspondences: CameraCorrespondences;
+  observations: CameraObservations;
   transformTypes: CameraTransformTypes;
 } {
   const homographies: CameraHomographies = {};
-  const correspondences: CameraCorrespondences = {};
+  const observations: CameraObservations = {};
   const transformTypes: CameraTransformTypes = {};
+  let nextId = 0;
   pairs.forEach((pair) => {
     const key = `${pair.left}::${pair.right}`;
     // Mirror the shared client parser (CameraRegistrationStore.loadRegistrationText):
@@ -91,14 +108,25 @@ export function fromRegistrationPairs(
         // Singular / non-invertible: skip the matrix, keep the points.
       }
     }
-    if (pair.points && pair.points.length) {
-      correspondences[key] = pair.points.map((p, i) => ({
-        id: i + 1, a: [p[0], p[1]], b: [p[2], p[3]],
+    if (pair.observations && pair.observations.length) {
+      observations[key] = pair.observations.map((obs) => ({
+        imageA: obs.imageLeft,
+        imageB: obs.imageRight,
+        // The client re-resolves frames from the image names on hydrate;
+        // the stored value is a fallback for resolver-less contexts.
+        frame: obs.frame ?? null,
+        enabled: obs.enabled ?? true,
+        source: obs.source || 'manual',
+        ...(obs.stats !== undefined ? { stats: obs.stats } : {}),
+        points: (obs.points || []).map((p) => {
+          nextId += 1;
+          return { id: nextId, a: [p[0], p[1]] as [number, number], b: [p[2], p[3]] as [number, number] };
+        }),
       }));
     }
     transformTypes[key] = pair.transformType || DEFAULT_TRANSFORM_TYPE;
   });
-  return { homographies, correspondences, transformTypes };
+  return { homographies, observations, transformTypes };
 }
 
 async function writeJsonFile(absPath: string, data: unknown): Promise<void> {
@@ -116,7 +144,7 @@ async function writeJsonFile(absPath: string, data: unknown): Promise<void> {
 export async function loadRegistrationFiles(basePath: string): Promise<{
   found: boolean;
   homographies: CameraHomographies;
-  correspondences: CameraCorrespondences;
+  observations: CameraObservations;
   transformTypes: CameraTransformTypes;
   source: RegistrationSource | null;
 }> {
@@ -140,6 +168,19 @@ export async function loadRegistrationFiles(basePath: string): Promise<{
       // eslint-disable-next-line no-await-in-loop -- files merged in deterministic order
       const calibration = await fs.readJson(absPath);
       if (calibration && Array.isArray(calibration.pairs)) {
+        // One format, one loader: a pre-v2 file has no observations, and
+        // accepting it would load a matrix-only pair with its points
+        // silently dropped -- indistinguishable from a real producer file.
+        // Skip it loudly instead.
+        if (calibration.version !== 2) {
+          console.warn(
+            `Skipping ${absPath}: unsupported registration file version `
+            + `${JSON.stringify(calibration.version)} (expected 2). Regenerate it `
+            + 'with a current producer.',
+          );
+          // eslint-disable-next-line no-continue
+          continue;
+        }
         found = true;
         (calibration.pairs as RegistrationPair[]).forEach((pair) => {
           const key = `${pair.left}::${pair.right}`;
@@ -185,7 +226,7 @@ export async function loadEffectiveRegistration(
   }
   return {
     homographies: meta.cameraHomographies ?? {},
-    correspondences: meta.cameraCorrespondences ?? {},
+    observations: meta.cameraCorrespondences ?? {},
     transformTypes: meta.cameraTransformTypes ?? {},
     source: meta.cameraRegistrationSource ?? null,
   };
@@ -203,13 +244,13 @@ export async function saveRegistrationToDatasetDir(
 ): Promise<void> {
   const onDisk = await loadRegistrationFiles(basePath);
   let {
-    homographies, correspondences, transformTypes, source,
+    homographies, observations, transformTypes, source,
   } = onDisk;
   if (args.cameraHomographies) {
     homographies = args.cameraHomographies;
   }
   if (args.cameraCorrespondences) {
-    correspondences = args.cameraCorrespondences;
+    observations = args.cameraCorrespondences;
   }
   if (args.cameraTransformTypes) {
     transformTypes = args.cameraTransformTypes;
@@ -220,7 +261,7 @@ export async function saveRegistrationToDatasetDir(
   }
   const files = buildPerCameraRegistrationFiles(
     {
-      homographies, correspondences, transformTypes, source,
+      homographies, observations, transformTypes, source,
     },
     referenceCamera,
   );
@@ -317,17 +358,40 @@ export async function importCameraRegistration(
   filePath: string,
   options: { camera?: string } = {},
 ): Promise<{ cameras: string[]; pairCount: number }> {
-  const parentId = datasetId.split('/')[0];
-  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
-  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   let data;
   try {
     data = await fs.readJson(filePath);
   } catch {
     throw new Error('File is not valid JSON');
   }
+  return importCameraRegistrationData(settings, datasetId, data, npath.basename(filePath), options);
+}
+
+/**
+ * Merge parsed registration data into a dataset (see
+ * {@link importCameraRegistration}); also the ingest point for pipeline
+ * outputs, which arrive as already-read JSON.
+ */
+export async function importCameraRegistrationData(
+  settings: Settings,
+  datasetId: string,
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any,
+  label: string,
+  options: { camera?: string } = {},
+): Promise<{ cameras: string[]; pairCount: number }> {
+  const parentId = datasetId.split('/')[0];
+  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
   if (!data || !Array.isArray(data.pairs)) {
     throw new Error('Not a DIVE camera registration file (expected a "pairs" list)');
+  }
+  if (data.version !== 2) {
+    throw new Error(
+      `Unsupported registration file version ${JSON.stringify(data.version)} `
+      + '(expected 2). Regenerate the file with a current producer; pre-v2 '
+      + 'files have no per-image-pair observations.',
+    );
   }
   let incoming: CameraRegistrationValues = {
     ...fromRegistrationPairs(data.pairs),
@@ -350,13 +414,53 @@ export async function importCameraRegistration(
   const merged = mergeRegistrationValues(
     await loadEffectiveRegistration(projectDirInfo.basePath, meta),
     incoming,
-    npath.basename(filePath),
+    label,
   );
   await saveConfig(settings, parentId, {
     cameraHomographies: merged.homographies,
-    cameraCorrespondences: merged.correspondences,
+    cameraCorrespondences: merged.observations,
     cameraTransformTypes: merged.transformTypes,
     cameraRegistrationSource: merged.source,
   });
   return summary;
+}
+
+/**
+ * Ingest an align_cameras pipeline output (registration JSON in the job
+ * work dir) into the dataset's saved registration. Frame-subset jobs on
+ * video cameras run over extracted stills named <camera>.frame_<N>.png, so
+ * such observation image names are mapped back to the frame://N
+ * pseudo-identities the client resolves; image-sequence names pass through
+ * (the extracted-or-original basenames are the dataset's own image names).
+ * Merging happens at observation granularity via the shared writers, which
+ * re-group pairs under DIVE's own reference camera -- the pipeline never
+ * needs to know it.
+ */
+export async function ingestPipelineRegistration(
+  settings: Settings,
+  datasetId: string,
+  filePath: string,
+  videoCameras: string[],
+): Promise<{ cameras: string[]; pairCount: number }> {
+  const data = await fs.readJson(filePath);
+  if (data && Array.isArray(data.pairs) && videoCameras.length) {
+    const videoSet = new Set(videoCameras);
+    const remap = (name: unknown, camera: string) => {
+      if (typeof name !== 'string' || !videoSet.has(camera)) {
+        return name;
+      }
+      const match = /\.frame_(\d+)\.\w+$/.exec(name);
+      return match ? `frame://${Number(match[1])}` : name;
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    data.pairs.forEach((pair: any) => {
+      (pair?.observations ?? []).forEach((obs: Record<string, unknown>) => {
+        // eslint-disable-next-line no-param-reassign
+        obs.imageLeft = remap(obs.imageLeft, pair.left);
+        // eslint-disable-next-line no-param-reassign
+        obs.imageRight = remap(obs.imageRight, pair.right);
+      });
+    });
+  }
+  return importCameraRegistrationData(settings, datasetId, data, npath.basename(filePath));
 }

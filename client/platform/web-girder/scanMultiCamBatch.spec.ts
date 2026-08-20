@@ -46,7 +46,7 @@ describe('scanMultiCamBatchFromFiles', () => {
   });
 
   it('attaches per-collect registration files to import args', async () => {
-    const registration = JSON.stringify({ version: 1, pairs: [] });
+    const registration = JSON.stringify({ version: 2, pairs: [] });
     const files = [
       ...frames('fl01', 'EO', 3),
       ...frames('fl01', 'IR', 3),
