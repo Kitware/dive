@@ -45,7 +45,7 @@ export default defineComponent({
     const enabledTracksRef = useTrackFilters().enabledAnnotations;
     const inEditingMode = useEditingMode();
 
-    const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
+    const cameras = computed(() => cameraStore.orderedCameraNames());
     const canary = ref(false);
     const STORAGE_KEY = 'multiCamToolbar.expanded';
 

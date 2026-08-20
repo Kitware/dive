@@ -138,7 +138,7 @@ export default defineComponent({
         ...Object.keys(cameraRegistration.homographies.value),
         ...Object.keys(cameraRegistration.correspondences.value),
       ];
-      const cams = [...cameraStore.camMap.value.keys()];
+      const cams = cameraStore.orderedCameraNames();
       const reference = alignedView.reference.value ?? cams[0];
       return cams.filter((camera) => camera !== reference).map((camera) => ({
         camera,
