@@ -241,16 +241,18 @@ def _validate_annotation_bounds(annotations: List[dict]) -> None:
 
 
 def frame_rate_from_coco(coco: Dict[str, Any]) -> Optional[float]:
-    """Frame rate recorded on the video, the COCO counterpart of the CSV header's fps.
+    """Rate the annotations were produced at, the counterpart of the CSV header's fps.
 
     Neither MS-COCO nor KWCOCO define a frame rate, so this reads the field VIAME
-    writes on the video entry. Image-sequence documents describe no video and
-    carry none, which is not an error.
+    writes on the video entry. It is named for what it is: the rate detections
+    were produced at, which is the downsampled rate rather than the video's
+    native one. Image-sequence documents describe no video and carry none, which
+    is not an error.
     """
     for video in coco.get('videos') or []:
         if not isinstance(video, dict):
             continue
-        rate = video.get('fps')
+        rate = video.get('annotation_fps')
         if isinstance(rate, bool) or not isinstance(rate, (int, float)):
             continue
         if math.isfinite(rate) and rate > 0:

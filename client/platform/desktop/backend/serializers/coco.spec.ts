@@ -687,10 +687,10 @@ describe('COCO serializer', () => {
     });
     mockfs({
       '/input': {
-        'video.json': document([{ id: 1, name: 'clip', fps: 5 }]),
+        'video.json': document([{ id: 1, name: 'clip', annotation_fps: 5 }]),
         'image-list.json': document(undefined),
-        'unusable.json': document([{ id: 1, name: 'clip', fps: 0 }]),
-        'not-a-number.json': document([{ id: 1, name: 'clip', fps: '5' }]),
+        'unusable.json': document([{ id: 1, name: 'clip', annotation_fps: 0 }]),
+        'not-a-number.json': document([{ id: 1, name: 'clip', annotation_fps: '5' }]),
       },
     });
 
@@ -701,7 +701,7 @@ describe('COCO serializer', () => {
     const [, listMeta] = await parseFile('/input/image-list.json');
     expect(listMeta.fps).toBeUndefined();
 
-    // Nothing downstream should ever see fps: 0 or a string.
+    // Nothing downstream should ever see annotation_fps: 0 or a string.
     const [, zeroMeta] = await parseFile('/input/unusable.json');
     expect(zeroMeta.fps).toBeUndefined();
     const [, stringMeta] = await parseFile('/input/not-a-number.json');

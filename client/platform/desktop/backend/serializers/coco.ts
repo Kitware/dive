@@ -233,7 +233,7 @@ type CocoAnnotation = {
 type CocoVideo = {
   id: number;
   name?: string;
-  fps?: unknown;
+  annotation_fps?: unknown;
 };
 
 type CocoDocument = {
@@ -245,15 +245,16 @@ type CocoDocument = {
 };
 
 /**
- * Frame rate recorded on the video, the COCO counterpart of the VIAME CSV
+ * Rate the annotations were produced at, the counterpart of the VIAME CSV
  * header's fps. Neither COCO nor kwcoco define one, so this reads the field
- * VIAME writes on the video entry; an image sequence describes no video and
- * carries none, which is not an error.
+ * VIAME writes on the video entry -- named for what it is, the downsampled
+ * rate rather than the video's native one. An image sequence describes no
+ * video and carries none, which is not an error.
  */
 function frameRateFromDocument(document: CocoDocument): number | undefined {
   const videos = Array.isArray(document.videos) ? document.videos : [];
   for (let i = 0; i < videos.length; i += 1) {
-    const rate = videos[i]?.fps;
+    const rate = videos[i]?.annotation_fps;
     if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
       return rate;
     }

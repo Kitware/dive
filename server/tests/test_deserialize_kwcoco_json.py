@@ -1200,10 +1200,10 @@ def _fps_document(videos=None):
 def test_frame_rate_read_from_video():
     """The COCO counterpart of the VIAME CSV header's fps."""
     assert kwcoco.frame_rate_from_coco(
-        _fps_document([{'id': 1, 'name': 'clip', 'fps': 5}])
+        _fps_document([{'id': 1, 'name': 'clip', 'annotation_fps': 5}])
     ) == 5.0
     assert kwcoco.frame_rate_from_coco(
-        _fps_document([{'id': 1}, {'id': 2, 'name': 'clip', 'fps': 29.97}])
+        _fps_document([{'id': 1}, {'id': 2, 'name': 'clip', 'annotation_fps': 29.97}])
     ) == 29.97
 
 
@@ -1213,5 +1213,5 @@ def test_frame_rate_absent_or_unusable():
     assert kwcoco.frame_rate_from_coco(_fps_document([])) is None
     for fps in [0, -5, '5', True, float('inf'), float('nan'), None]:
         assert kwcoco.frame_rate_from_coco(
-            _fps_document([{'id': 1, 'fps': fps}])
+            _fps_document([{'id': 1, 'annotation_fps': fps}])
         ) is None
