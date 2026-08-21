@@ -32,6 +32,7 @@ export async function parseRegistrationSeed(
   const homographies: CameraRegistrationValues['homographies'] = {};
   const observations: CameraRegistrationValues['observations'] = {};
   const transformTypes: CameraRegistrationValues['transformTypes'] = {};
+  const frameOffsets: Record<string, number> = {};
   const stamps: { file: string; source: RegistrationSource | null }[] = [];
   const warnings: string[] = [];
   // eslint-disable-next-line no-restricted-syntax
@@ -58,6 +59,7 @@ export async function parseRegistrationSeed(
     Object.assign(homographies, store.homographies.value);
     Object.assign(observations, store.observations.value);
     Object.assign(transformTypes, store.transformTypes.value);
+    Object.assign(frameOffsets, store.frameOffsets.value);
     stamps.push({ file: file.name, source: store.source.value });
   }
   const seeded = Object.keys(homographies).length || Object.keys(observations).length;
@@ -67,6 +69,7 @@ export async function parseRegistrationSeed(
       observations,
       transformTypes,
       source: mergeRegistrationSources(stamps),
+      ...(Object.keys(frameOffsets).length ? { frameOffsets } : {}),
     } : null,
     warnings,
   };

@@ -25,6 +25,12 @@ export interface CameraRegistrationValues {
   observations: CameraObservations;
   transformTypes: CameraTransformTypes;
   source: RegistrationSource | null;
+  /**
+   * Per-camera constant start offset in that camera's own frames. Optional:
+   * files written before this existed carry none, and the in-app default is
+   * an empty map (every camera in step).
+   */
+  frameOffsets?: Record<string, number>;
 }
 
 /**
@@ -109,6 +115,12 @@ function toRegistrationFilePairs(values: CameraRegistrationValues): Registration
       leftToRight: homography ? homography.AtoB : null,
       rightToLeft: homography ? homography.BtoA : null,
       transformType: values.transformTypes[key] || DEFAULT_TRANSFORM_TYPE,
+      // Offsets are stored per camera against the rig reference; a pair
+      // carries the right camera's, which is what "right relative to left"
+      // means whenever the left side IS the reference (the normal case).
+      ...(values.frameOffsets?.[right]
+        ? { frameOffset: values.frameOffsets[right] }
+        : {}),
     };
   });
 }
@@ -291,7 +303,15 @@ export function mergeRegistrationValues(
       files: { previous: existing.source, [incomingLabel]: incoming.source },
     };
   }
+  // Later files win a camera's offset, matching how pairs merge above. An
+  // incoming file that carries none leaves any existing value alone rather
+  // than resetting it to zero.
+  const frameOffsets = { ...existing.frameOffsets, ...incoming.frameOffsets };
   return {
-    homographies, observations, transformTypes, source,
+    homographies,
+    observations,
+    transformTypes,
+    source,
+    ...(Object.keys(frameOffsets).length ? { frameOffsets } : {}),
   };
 }
