@@ -938,7 +938,7 @@ def test_import_missing_bbox_raises_descriptive_error():
         kwcoco.load_coco_as_tracks_and_attributes(coco)
     message = str(exc.value)
     assert "no bbox and no usable polygon" in message
-    assert "RLE segmentation masks still require a bbox" in message
+    assert "An RLE mask supplies bounds only when it can be decoded" in message
 
 
 def test_import_polygon_without_bbox_derives_bounds():
@@ -1239,3 +1239,87 @@ def test_frame_rate_absent_or_unusable():
         assert kwcoco.frame_rate_from_coco(
             _fps_document([{'id': 1, 'annotation_fps': fps}])
         ) is None
+
+
+def _rle_to_string(cnts):
+    """pycocotools rleToString, so the decoder is tested against real output."""
+    out = []
+    for i, count in enumerate(cnts):
+        x = int(count)
+        if i > 2:
+            x -= int(cnts[i - 2])
+        more = True
+        while more:
+            chunk = x & 0x1F
+            x >>= 5
+            more = (x != -1) if (chunk & 0x10) else (x != 0)
+            if more:
+                chunk |= 0x20
+            out.append(chr(chunk + 48))
+    return ''.join(out)
+
+
+def _square_mask_runs():
+    """Column-major run lengths for a 6x6 square at (3, 2) in a 10x10 mask."""
+    runs, current, length = [], 0, 0
+    for column in range(10):
+        for row in range(10):
+            value = 1 if (2 <= row < 8 and 3 <= column < 9) else 0
+            if value == current:
+                length += 1
+            else:
+                runs.append(length)
+                current = value
+                length = 1
+    runs.append(length)
+    return runs
+
+
+def _rle_document(counts):
+    return {
+        'images': [{'id': 1, 'file_name': 'frame_000000.png', 'frame_index': 0}],
+        'annotations': [{
+            'id': 1, 'image_id': 1, 'category_id': 1, 'track_id': 1,
+            'segmentation': {'counts': counts, 'size': [10, 10]}, 'iscrowd': 1,
+        }],
+        'categories': [{'id': 1, 'name': 'fish'}],
+    }
+
+
+@pytest.mark.parametrize('as_string', [False, True])
+def test_rle_masks_import_as_outlines(as_string):
+    """DIVE stores geometry, so a decoded mask arrives as its outline."""
+    runs = _square_mask_runs()
+    counts = _rle_to_string(runs) if as_string else runs
+    tracks, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(_rle_document(counts))
+
+    feature = tracks['tracks']['1']['features'][0]
+    polygon = [
+        geometry for geometry in feature['geometry']['features']
+        if geometry['geometry']['type'] == 'Polygon'
+    ]
+    assert polygon, 'expected a polygon traced from the mask'
+    coords = polygon[0]['geometry']['coordinates'][0]
+    xs = [point[0] for point in coords]
+    ys = [point[1] for point in coords]
+    assert (min(xs), max(xs), min(ys), max(ys)) == (3, 8, 2, 7)
+    # The mask carried no bbox, so it supplied the bounds itself.
+    assert feature['bounds'] == [3, 2, 8, 7]
+    assert kwcoco.RLE_SEGMENTATION_WARNING not in warnings
+
+
+def test_undecodable_rle_still_warns():
+    """Run lengths that do not fill the mask are reported, not guessed at."""
+    document = _rle_document([5])
+    document['annotations'][0]['bbox'] = [0, 0, 4, 4]
+    tracks, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(document)
+
+    assert kwcoco.RLE_SEGMENTATION_WARNING in warnings
+    assert tracks['tracks']['1']['features'][0]['bounds'] == [0, 0, 4, 4]
+
+
+def test_decode_rle_counts_rejects_junk():
+    assert kwcoco._decode_rle_counts([1, -2]) is None
+    assert kwcoco._decode_rle_counts([1, 'x']) is None
+    assert kwcoco._decode_rle_counts(None) is None
+    assert kwcoco._decode_rle_counts(_rle_to_string([4, 2, 4])) == [4, 2, 4]
