@@ -240,6 +240,24 @@ def _validate_annotation_bounds(annotations: List[dict]) -> None:
         raise ValueError(_missing_bounds_error(missing_ids))
 
 
+def frame_rate_from_coco(coco: Dict[str, Any]) -> Optional[float]:
+    """Frame rate recorded on the video, the COCO counterpart of the CSV header's fps.
+
+    Neither MS-COCO nor KWCOCO define a frame rate, so this reads the field VIAME
+    writes on the video entry. Image-sequence documents describe no video and
+    carry none, which is not an error.
+    """
+    for video in coco.get('videos') or []:
+        if not isinstance(video, dict):
+            continue
+        rate = video.get('fps')
+        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+            continue
+        if math.isfinite(rate) and rate > 0:
+            return float(rate)
+    return None
+
+
 def is_coco_json(coco: Dict[str, Any]):
     # Minimal COCO fields according to https://cocodataset.org/#format-data.
     # `info` and `licenses` are optional in common exports.

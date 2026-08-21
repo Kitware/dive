@@ -1182,3 +1182,36 @@ def test_shared_empty_dive_confidence_pairs_profile():
     pairs = converted['tracks'][str(profile['trackId'])]['confidencePairs']
     assert [list(pair) for pair in pairs] == profile['expectedPairs']
     assert warnings == [kwcoco.DIVE_CONFIDENCE_PAIRS_WARNING]
+
+
+def _fps_document(videos=None):
+    document = {
+        'images': [{'id': 1, 'file_name': 'frame_000000.png', 'frame_index': 0}],
+        'annotations': [
+            {'id': 1, 'image_id': 1, 'category_id': 1, 'bbox': [0, 0, 1, 1], 'track_id': 1}
+        ],
+        'categories': [{'id': 1, 'name': 'fish'}],
+    }
+    if videos is not None:
+        document['videos'] = videos
+    return document
+
+
+def test_frame_rate_read_from_video():
+    """The COCO counterpart of the VIAME CSV header's fps."""
+    assert kwcoco.frame_rate_from_coco(
+        _fps_document([{'id': 1, 'name': 'clip', 'fps': 5}])
+    ) == 5.0
+    assert kwcoco.frame_rate_from_coco(
+        _fps_document([{'id': 1}, {'id': 2, 'name': 'clip', 'fps': 29.97}])
+    ) == 29.97
+
+
+def test_frame_rate_absent_or_unusable():
+    """An image sequence carries no rate, and no caller should see fps: 0."""
+    assert kwcoco.frame_rate_from_coco(_fps_document()) is None
+    assert kwcoco.frame_rate_from_coco(_fps_document([])) is None
+    for fps in [0, -5, '5', True, float('inf'), float('nan'), None]:
+        assert kwcoco.frame_rate_from_coco(
+            _fps_document([{'id': 1, 'fps': fps}])
+        ) is None

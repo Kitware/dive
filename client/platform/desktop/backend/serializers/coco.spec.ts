@@ -675,6 +675,38 @@ describe('COCO serializer', () => {
     const [parsed] = await parseFile('/input/filtered.json');
     expect(parsed.tracks[4].confidencePairs).toEqual([['root', 0.2]]);
   });
+
+  it('imports the frame rate a video records, as the CSV header path does', async () => {
+    const document = (videos: unknown) => JSON.stringify({
+      images: [{ id: 1, file_name: 'frame_000000.png', frame_index: 0 }],
+      annotations: [{
+        id: 1, image_id: 1, category_id: 1, bbox: [0, 0, 1, 1], track_id: 1,
+      }],
+      categories: [{ id: 1, name: 'fish' }],
+      ...(videos === undefined ? {} : { videos }),
+    });
+    mockfs({
+      '/input': {
+        'video.json': document([{ id: 1, name: 'clip', fps: 5 }]),
+        'image-list.json': document(undefined),
+        'unusable.json': document([{ id: 1, name: 'clip', fps: 0 }]),
+        'not-a-number.json': document([{ id: 1, name: 'clip', fps: '5' }]),
+      },
+    });
+
+    const [, videoMeta] = await parseFile('/input/video.json');
+    expect(videoMeta.fps).toBe(5);
+
+    // An image sequence describes no video, so it carries no rate to import.
+    const [, listMeta] = await parseFile('/input/image-list.json');
+    expect(listMeta.fps).toBeUndefined();
+
+    // Nothing downstream should ever see fps: 0 or a string.
+    const [, zeroMeta] = await parseFile('/input/unusable.json');
+    expect(zeroMeta.fps).toBeUndefined();
+    const [, stringMeta] = await parseFile('/input/not-a-number.json');
+    expect(stringMeta.fps).toBeUndefined();
+  });
 });
 
 afterEach(() => {
