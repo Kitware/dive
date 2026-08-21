@@ -319,7 +319,12 @@ describe('COCO serializer', () => {
   // --- annotation fps on videos[] ---
 
   it('writes videos[].fps for video datasets and restores it on re-import', async () => {
-    const videoMeta = { ...imageMeta, type: 'video' as const, fps: 5, name: 'clip' };
+    const videoMeta = {
+      ...imageMeta,
+      type: 'video' as const,
+      fps: 5,
+      name: 'clip',
+    };
     await serializeFile('/output/video.coco.json', annotationSchema, videoMeta);
     const out = await fs.readJSON('/output/video.coco.json');
     expect(out.videos).toEqual([{ id: 1, name: 'clip', fps: 5 }]);
