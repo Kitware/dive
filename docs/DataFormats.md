@@ -521,8 +521,12 @@ For COCO files not produced by DIVE:
 * Partially supported:
   * COCO has no direct equivalent for DIVE groups, so groups are not represented in COCO export.
 * Partially supported:
-  * Run-length encoded segmentations (RLE): bounding boxes and other fields import,
-    but masks are skipped and a warning is shown.
+  * Run-length encoded segmentations (RLE): the mask is decoded and imported as its
+    outline, since DIVE stores geometry rather than rasters. Both COCO counts
+    spellings are read: a list of run lengths, and the LEB128 string pycocotools
+    writes. Holes are not representable and are dropped, and a mask that cannot be
+    decoded is skipped with a warning, as before. Web import only; desktop import
+    still skips RLE.
 
 ### Example COCO Annotation with DIVE Extensions
 
