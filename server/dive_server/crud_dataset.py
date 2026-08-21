@@ -801,6 +801,10 @@ def _dive_json_export_text(
     annotations['tracks'] = _filtered_annotation_tracks(
         dsFolder, revision, excludeBelowThreshold, typeFilter
     )
+    # Annotation FPS rides on the document the same way CSV/COCO carry it.
+    fps = fromMeta(dsFolder, constants.FPSMarker, None)
+    if isinstance(fps, (int, float)) and not isinstance(fps, bool) and fps > 0:
+        annotations['fps'] = float(fps)
     return json.dumps(annotations)
 
 

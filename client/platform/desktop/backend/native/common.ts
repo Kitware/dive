@@ -1434,6 +1434,9 @@ async function _ingestFilePath(
     } else {
       // Regular dive json
       annotations = await loadAnnotationFile(path);
+      if (annotations.fps !== undefined) {
+        meta.fps = annotations.fps;
+      }
     }
   } else if (CsvFileName.test(path)) {
     // VIAME CSV File

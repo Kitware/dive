@@ -27,6 +27,8 @@ interface AnnotationSchema {
   version: number;
   tracks: MultiTrackRecord;
   groups: MultiGroupRecord;
+  /** Annotation frame rate when present; omitted when absent or unusable. */
+  fps?: number;
 }
 
 /**

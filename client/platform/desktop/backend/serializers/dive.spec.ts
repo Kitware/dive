@@ -1,6 +1,13 @@
+import fs from 'fs-extra';
+import mockfs from 'mock-fs';
 import { AnnotationSchema } from 'dive-common/apispec';
 import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
-import { filterTracks } from 'platform/desktop/backend/serializers/dive';
+import {
+  filterTracks,
+  frameRateFromDocument,
+  migrate,
+  serializeFile,
+} from 'platform/desktop/backend/serializers/dive';
 
 const annotationSchema: AnnotationSchema = {
   version: AnnotationsCurrentVersion,
@@ -34,6 +41,16 @@ const imageMeta = {
   multiCam: null,
   subType: null,
 } as JsonConfig;
+
+beforeEach(() => {
+  mockfs({
+    '/output': {},
+  });
+});
+
+afterEach(() => {
+  mockfs.restore();
+});
 
 describe('DIVE JSON filterTracks', () => {
   it('prunes type-filtered pairs without mutating the source track', () => {
@@ -92,5 +109,35 @@ describe('DIVE JSON filterTracks', () => {
     expect(filtered.tracks[1]).not.toBe(data.tracks[1]);
     expect(filtered.tracks[1].confidencePairs).toEqual([['whale', 0.8], ['zero', 0]]);
     expect(data.tracks[1].confidencePairs).toEqual(original);
+  });
+});
+
+describe('DIVE JSON annotation fps', () => {
+  it('writes fps from dataset meta on export and restores it on migrate', async () => {
+    await serializeFile('/output/out.json', annotationSchema, { ...imageMeta, fps: 5 });
+    const out = await fs.readJSON('/output/out.json');
+    expect(out.fps).toBe(5);
+    expect(migrate(out).fps).toBe(5);
+  });
+
+  it('omits fps when dataset meta rate is unusable', async () => {
+    await serializeFile('/output/zero.json', annotationSchema, { ...imageMeta, fps: 0 });
+    const out = await fs.readJSON('/output/zero.json');
+    expect(out).not.toHaveProperty('fps');
+  });
+
+  it('preserves a usable fps through migrate and drops unusable values', () => {
+    expect(migrate({ ...annotationSchema, fps: 29.97 }).fps).toBe(29.97);
+    expect(migrate({ ...annotationSchema, fps: 0 }).fps).toBeUndefined();
+    expect(migrate({ ...annotationSchema, fps: '5' }).fps).toBeUndefined();
+    expect(migrate({ ...annotationSchema, fps: Number.POSITIVE_INFINITY }).fps).toBeUndefined();
+    expect(migrate(annotationSchema).fps).toBeUndefined();
+  });
+
+  it('frameRateFromDocument mirrors migrate validation', () => {
+    expect(frameRateFromDocument({ fps: 5 })).toBe(5);
+    expect(frameRateFromDocument({ fps: 0 })).toBeUndefined();
+    expect(frameRateFromDocument({ fps: true })).toBeUndefined();
+    expect(frameRateFromDocument(null)).toBeUndefined();
   });
 });

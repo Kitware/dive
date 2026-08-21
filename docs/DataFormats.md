@@ -32,6 +32,11 @@ interface AnnotationSchema {
   tracks: Record<string, TrackData>;
   groups: Record<string, GroupData>;
   version: 2;
+  /**
+   * Annotation frame rate when present. Omitted when absent or unusable.
+   * Same role as the VIAME CSV `# metadata` `fps` field and COCO `videos[].fps`.
+   */
+  fps?: number;
 }
 
 interface TrackData {
@@ -112,6 +117,25 @@ These reserved names are enforced at both the UI level (when creating attributes
 
 The full source [TrackData definition can be found here](https://github.com/Kitware/dive/blob/main/client/src/track.ts) as a TypeScript interface.
 
+### Annotation frame rate (`fps`)
+
+Optional top-level `fps` carries the dataset annotation frame rate — the same value
+VIAME CSV writes in the `# metadata` header and COCO/KWCOCO records on `videos[].fps`.
+
+```json
+{
+  "version": 2,
+  "fps": 5,
+  "tracks": {},
+  "groups": {}
+}
+```
+
+* On export, DIVE writes a usable dataset `fps` (finite number greater than zero).
+* On import, that value is restored into dataset metadata. Unusable values (`0`, negative,
+  non-numeric, `inf`/`nan`) are ignored. A file with no `fps` leaves the dataset rate unchanged.
+* Older v1 track-map files have no place for `fps`; only the v2 document form carries it.
+
 ### Example JSON File
 
 This is a relatively simple example, and many optional fields are not included.
@@ -119,6 +143,7 @@ This is a relatively simple example, and many optional fields are not included.
 ```json
 {
   "version": 2,
+  "fps": 5,
 
   "tracks": {
     // Track 1 is a true multi-frame track
@@ -180,6 +205,10 @@ This information provides the specification for an individual dataset.  It consi
   * Edited from the [Dataset Info panel](UI-DatasetInfo.md).
   * Included in DIVE Configuration JSON as `datasetInfo`.
   * Included in [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and restored on import.
+* Annotation frame rate is stored as dataset `fps`.
+  * Included in [DIVE Annotation JSON](#annotation-frame-rate-fps) as top-level `fps`.
+  * Included in [VIAME CSV](#dataset-metadata-in-the-header) as the `# metadata` `fps` field.
+  * Included in [COCO / KWCOCO](#annotation-frame-rate-videosfps) as `videos[].fps` for video datasets.
 * A track type hierarchy is stored in `typeHierarchy` as a child-type to immediate-parent-type map.
 
 For example, this configuration makes `fish` a heading-only parent (it does not need to be an

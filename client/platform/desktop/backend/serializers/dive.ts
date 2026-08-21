@@ -13,6 +13,21 @@ function makeEmptyAnnotationFile(): AnnotationSchema {
 }
 
 /**
+ * Annotation FPS recorded on a DIVE JSON document, if usable.
+ * Same rules as the VIAME CSV `fps:` header and COCO `videos[].fps`.
+ */
+function frameRateFromDocument(data: unknown): number | undefined {
+  if (!data || typeof data !== 'object') {
+    return undefined;
+  }
+  const rate = (data as { fps?: unknown }).fps;
+  if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+    return rate;
+  }
+  return undefined;
+}
+
+/**
  * Take a JSON file and migrate it to the latest revision
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -23,7 +38,16 @@ function migrate(jsonData: any): AnnotationSchema {
   if (has(jsonData, 'version')) {
     const annotations = jsonData as AnnotationSchema;
     if (annotations.version === AnnotationsCurrentVersion) {
-      return annotations;
+      const migrated: AnnotationSchema = {
+        version: AnnotationsCurrentVersion,
+        tracks: annotations.tracks,
+        groups: annotations.groups || {},
+      };
+      const fps = frameRateFromDocument(annotations);
+      if (fps !== undefined) {
+        migrated.fps = fps;
+      }
+      return migrated;
     }
     throw new Error(`Unexpected version number ${jsonData.version}`);
   } else {
@@ -75,8 +99,9 @@ function filterTracks(
     }
   });
   return {
-    ...data,
+    version: data.version,
     tracks: updatedFilteredTracks,
+    groups: data.groups,
   };
 }
 
@@ -91,13 +116,22 @@ async function serializeFile(
   },
 ) {
   const updatedData = filterTracks(data, meta, typeFilter, options);
-  // write updatedData JSON to a path
-  const jsonData = JSON.stringify(updatedData, null, 2);
+  // Dataset annotation FPS rides on the document the same way CSV/COCO carry it.
+  const fps = (
+    typeof meta.fps === 'number'
+    && Number.isFinite(meta.fps)
+    && meta.fps > 0
+  ) ? meta.fps : undefined;
+  const output: AnnotationSchema = fps !== undefined
+    ? { ...updatedData, fps }
+    : updatedData;
+  const jsonData = JSON.stringify(output, null, 2);
   await fs.writeFile(path, jsonData, 'utf8');
 }
 
 export {
   makeEmptyAnnotationFile,
+  frameRateFromDocument,
   migrate,
   filterTracks,
   serializeFile,
