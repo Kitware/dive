@@ -146,6 +146,8 @@ export default defineComponent({
                 <v-switch
                   :id="`input-${param.key}`"
                   v-model="localParams[param.key]"
+                  true-value="true"
+                  false-value="false"
                   color="primary"
                   hide-details
                   class="mt-0 pt-0"
