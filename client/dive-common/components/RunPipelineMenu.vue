@@ -141,11 +141,21 @@ export default defineComponent({
 
     async function confirmPipelineExecution(updatedParams: Record<string, string>) {
       const kwiverParamsById: Record<string, Record<string, string>> = {};
-      props.selectedDatasetIds.forEach((id) => {
+      
+      let datasetIds = props.selectedDatasetIds;
+      const pipe = selectedPipeline.value;
+      if (pipe) {
+        if (multiCamPipelineMarkers.includes(pipe.type)
+          || stereoPipelineMarker === pipe.type) {
+            datasetIds = props.selectedDatasetIds.map((item) => parentDatasetId(item));
+          }
+      }
+
+      datasetIds.forEach((id) => {
         kwiverParamsById[id] = updatedParams;
       });
       showParamsDialog.value = false;
-      await _runPipelineOnSelectedItemInner(selectedPipeline.value!, undefined, undefined, kwiverParamsById);
+      await _runPipelineOnSelectedItemInner(pipe!, undefined, undefined, kwiverParamsById);
     }
 
     const includesLargeImage = computed(() => props.typeList.includes(LargeImageType));
