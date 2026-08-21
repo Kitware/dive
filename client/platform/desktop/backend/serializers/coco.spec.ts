@@ -316,9 +316,9 @@ describe('COCO serializer', () => {
     expect(parsedMeta).not.toHaveProperty('datasetInfo');
   });
 
-  // --- annotation fps on videos[] ---
+  // --- annotation fps in info.video_annotation_fps ---
 
-  it('writes videos[].fps for video datasets and restores it on re-import', async () => {
+  it('writes info.video_annotation_fps for video datasets and restores it on re-import', async () => {
     const videoMeta = {
       ...imageMeta,
       type: 'video' as const,
@@ -327,7 +327,9 @@ describe('COCO serializer', () => {
     };
     await serializeFile('/output/video.coco.json', annotationSchema, videoMeta);
     const out = await fs.readJSON('/output/video.coco.json');
-    expect(out.videos).toEqual([{ id: 1, name: 'clip', fps: 5 }]);
+    expect(out.videos).toEqual([{ id: 1, name: 'clip' }]);
+    expect(out.info.video_annotation_fps).toEqual({ 1: 5 });
+    expect(out.info.dive_extensions).toContain('video_annotation_fps');
     expect(out.images.every((image: { video_id?: number }) => image.video_id === 1)).toBe(true);
 
     mockfs({
@@ -342,6 +344,7 @@ describe('COCO serializer', () => {
     await serializeFile('/output/seq.coco.json', annotationSchema, { ...imageMeta, fps: 5 });
     const out = await fs.readJSON('/output/seq.coco.json');
     expect(out).not.toHaveProperty('videos');
+    expect(out.info).not.toHaveProperty('video_annotation_fps');
     expect(out.images.every((image: { video_id?: number }) => image.video_id === undefined)).toBe(true);
   });
 
@@ -353,6 +356,7 @@ describe('COCO serializer', () => {
     });
     const out = await fs.readJSON('/output/zero.coco.json');
     expect(out).not.toHaveProperty('videos');
+    expect(out.info).not.toHaveProperty('video_annotation_fps');
   });
 
   it('imports a pruned KWCOCO probability vector by raw category position', async () => {
@@ -715,26 +719,40 @@ describe('COCO serializer', () => {
     expect(parsed.tracks[4].confidencePairs).toEqual([['root', 0.2]]);
   });
 
-  it('imports the frame rate a video records, as the CSV header path does', async () => {
-    const document = (videos: unknown) => JSON.stringify({
+  it('imports the frame rate from info.video_annotation_fps only', async () => {
+    const document = (opts: {
+      videos?: unknown;
+      video_annotation_fps?: Record<string, unknown>;
+    }) => JSON.stringify({
+      ...(opts.video_annotation_fps
+        ? { info: { video_annotation_fps: opts.video_annotation_fps } }
+        : {}),
       images: [{ id: 1, file_name: 'frame_000000.png', frame_index: 0 }],
       annotations: [{
         id: 1, image_id: 1, category_id: 1, bbox: [0, 0, 1, 1], track_id: 1,
       }],
       categories: [{ id: 1, name: 'fish' }],
-      ...(videos === undefined ? {} : { videos }),
+      ...(opts.videos === undefined ? {} : { videos: opts.videos }),
     });
     mockfs({
       '/input': {
-        'video.json': document([{ id: 1, name: 'clip', fps: 5 }]),
-        'image-list.json': document(undefined),
-        'unusable.json': document([{ id: 1, name: 'clip', fps: 0 }]),
-        'not-a-number.json': document([{ id: 1, name: 'clip', fps: '5' }]),
+        'info-map.json': document({
+          videos: [{ id: 1, name: 'clip' }],
+          video_annotation_fps: { 1: 5 },
+        }),
+        'videos-fps-only.json': document({ videos: [{ id: 1, name: 'clip', fps: 5 }] }),
+        'image-list.json': document({}),
+        'unusable.json': document({ video_annotation_fps: { 1: 0 } }),
+        'not-a-number.json': document({ video_annotation_fps: { 1: '5' } }),
       },
     });
 
-    const [, videoMeta] = await parseFile('/input/video.json');
-    expect(videoMeta.fps).toBe(5);
+    const [, infoMeta] = await parseFile('/input/info-map.json');
+    expect(infoMeta.fps).toBe(5);
+
+    // fps on videos[] is ignored.
+    const [, videosFpsMeta] = await parseFile('/input/videos-fps-only.json');
+    expect(videosFpsMeta.fps).toBeUndefined();
 
     // An image sequence describes no video, so it carries no rate to import.
     const [, listMeta] = await parseFile('/input/image-list.json');

@@ -451,8 +451,7 @@ def test_type_hierarchy_for_export_names_the_coco_artifact():
         crud_dataset.type_hierarchy_for_export(folder, artifact='COCO file')
 
     assert str(error_info.value) == (
-        'Type hierarchy is invalid: self edge "fish -> fish". '
-        'No COCO file was exported.'
+        'Type hierarchy is invalid: self edge "fish -> fish". ' 'No COCO file was exported.'
     )
 
 

@@ -234,7 +234,6 @@ type CocoAnnotation = {
 type CocoVideo = {
   id: number;
   name?: string;
-  fps?: unknown;
 };
 
 type CocoDocument = {
@@ -245,19 +244,37 @@ type CocoDocument = {
   videos?: CocoVideo[];
 };
 
+function usableFpsRate(rate: unknown): number | undefined {
+  if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+    return rate;
+  }
+  return undefined;
+}
+
 /**
- * Frame rate recorded on the video, the COCO counterpart of the VIAME CSV
- * header's fps. Neither COCO nor kwcoco define one, so this reads the field
- * VIAME writes on the video entry; an image sequence describes no video and
- * carries none, which is not an error.
+ * Annotation FPS for a COCO/KWCOCO document, if usable.
+ * Reads `info.video_annotation_fps` (video_id → rate). Image sequences
+ * describe no video and carry none, which is not an error.
  */
 function frameRateFromDocument(document: CocoDocument): number | undefined {
+  const { info } = document;
+  const fpsMap = info?.video_annotation_fps;
+  if (!fpsMap || typeof fpsMap !== 'object' || Array.isArray(fpsMap)) {
+    return undefined;
+  }
+  const map = fpsMap as Record<string, unknown>;
   const videos = Array.isArray(document.videos) ? document.videos : [];
   for (let i = 0; i < videos.length; i += 1) {
-    const rate = videos[i]?.fps;
-    if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
-      return rate;
+    const videoId = videos[i]?.id;
+    if (videoId !== undefined) {
+      const rate = usableFpsRate(map[videoId]) ?? usableFpsRate(map[String(videoId)]);
+      if (rate !== undefined) return rate;
     }
+  }
+  const values = Object.values(map);
+  for (let i = 0; i < values.length; i += 1) {
+    const rate = usableFpsRate(values[i]);
+    if (rate !== undefined) return rate;
   }
   return undefined;
 }
@@ -560,8 +577,9 @@ async function serializeFile(
   Array.from(new Set(Object.values(hierarchy))).sort().forEach(addCategoryName);
   const categories = new Map(categoryNames.map((name, index) => [name, index + 1]));
 
-  // Video datasets record annotation FPS on a one-entry `videos` table (VIAME
-  // convention). Image sequences omit it so re-import does not treat them as video.
+  // Video datasets record annotation FPS under info.video_annotation_fps keyed
+  // by video_id, with a one-entry videos table. Image sequences omit videos so
+  // re-import does not treat them as video.
   const emitVideo = (
     meta.type === 'video'
     && typeof meta.fps === 'number'
@@ -622,8 +640,10 @@ async function serializeFile(
       'dive_notes',
       'dive_confidence_pairs',
       ...(datasetInfo ? ['dive_dataset_info'] : []),
+      ...(emitVideo ? ['video_annotation_fps'] : []),
     ],
     ...(datasetInfo ? { dive_dataset_info: datasetInfo } : {}),
+    ...(emitVideo ? { video_annotation_fps: { 1: meta.fps } } : {}),
   };
   const output: CocoDocument = {
     info,
@@ -631,7 +651,7 @@ async function serializeFile(
     annotations,
     categories: categoryDocs,
     ...(emitVideo ? {
-      videos: [{ id: 1, name: meta.name, fps: meta.fps }],
+      videos: [{ id: 1, name: meta.name }],
     } : {}),
   };
   await fs.writeJSON(path, output, { spaces: 2 });

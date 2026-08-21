@@ -34,7 +34,7 @@ interface AnnotationSchema {
   version: 2;
   /**
    * Annotation frame rate when present. Omitted when absent or unusable.
-   * Same role as the VIAME CSV `# metadata` `fps` field and COCO `videos[].fps`.
+   * Same role as the VIAME CSV `# metadata` `fps` field and COCO `info.video_annotation_fps`.
    */
   fps?: number;
 }
@@ -120,7 +120,8 @@ The full source [TrackData definition can be found here](https://github.com/Kitw
 ### Annotation frame rate (`fps`)
 
 Optional top-level `fps` carries the dataset annotation frame rate — the same value
-VIAME CSV writes in the `# metadata` header and COCO/KWCOCO records on `videos[].fps`.
+VIAME CSV writes in the `# metadata` header and COCO/KWCOCO records in
+`info.video_annotation_fps`.
 
 ```json
 {
@@ -208,7 +209,8 @@ This information provides the specification for an individual dataset.  It consi
 * Annotation frame rate is stored as dataset `fps`.
   * Included in [DIVE Annotation JSON](#annotation-frame-rate-fps) as top-level `fps`.
   * Included in [VIAME CSV](#dataset-metadata-in-the-header) as the `# metadata` `fps` field.
-  * Included in [COCO / KWCOCO](#annotation-frame-rate-videosfps) as `videos[].fps` for video datasets.
+  * Included in [COCO / KWCOCO](#annotation-frame-rate-infovideo_annotation_fps) as
+    `info.video_annotation_fps` for video datasets.
 * A track type hierarchy is stored in `typeHierarchy` as a child-type to immediate-parent-type map.
 
 For example, this configuration makes `fish` a heading-only parent (it does not need to be an
@@ -443,17 +445,22 @@ advertised in `info.dive_extensions`:
 
 * `info.dive_dataset_info = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
 
-### Annotation frame rate (`videos[].fps`)
+### Annotation frame rate (`info.video_annotation_fps`)
 
-Neither MS-COCO nor KWCOCO define a frame-rate field. On import, DIVE reads the
-annotation FPS the same way VIAME writes it: a positive numeric `fps` on an entry
-in the top-level `videos` table (the COCO counterpart of the VIAME CSV `# metadata`
-`fps` header). Image-sequence documents typically omit `videos` and carry no rate.
+Neither MS-COCO nor KWCOCO define a frame-rate field. DIVE stores the annotation
+FPS under `info.video_annotation_fps` as a map of KWCOCO `video_id` → rate (the
+COCO counterpart of the VIAME CSV `# metadata` `fps` header). Image-sequence
+documents typically omit `videos` and carry no rate.
 
 ```json
 {
+  "info": {
+    "description": "DIVE export for clip",
+    "dive_extensions": ["video_annotation_fps"],
+    "video_annotation_fps": { "1": 5 }
+  },
   "videos": [
-    { "id": 1, "name": "clip", "fps": 5 }
+    { "id": 1, "name": "clip" }
   ],
   "images": [
     { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0, "video_id": 1 }
@@ -463,10 +470,12 @@ in the top-level `videos` table (the COCO counterpart of the VIAME CSV `# metada
 
 * A usable value (finite number greater than zero) is restored into dataset metadata as
   `fps`. Unusable values (`0`, negative, non-numeric, `inf`/`nan`) are ignored.
-* When multiple video entries are present, the first usable `fps` wins.
-* On export of a **video** dataset, DIVE writes a one-entry `videos` table with the
-  annotation FPS and sets `images[].video_id`. Image-sequence exports omit `videos`
-  so re-import does not treat them as video.
+* Keys are stringified `video_id` values (JSON object keys are always strings).
+* When multiple rates are present, the first usable value wins (videos-table order,
+  then map insertion order).
+* On export of a **video** dataset, DIVE writes a one-entry `videos` table, sets
+  `images[].video_id`, and records the rate under `info.video_annotation_fps`.
+  Image-sequence exports omit `videos` so re-import does not treat them as video.
 
 ### Extension Field Details
 
@@ -502,9 +511,10 @@ For COCO files produced by DIVE:
 * DIVE writes category-aligned `prob` plus exact `dive_confidence_pairs` on each annotation.
 * Re-importing that file into DIVE preserves hierarchy edges, track IDs, complete confidence
   vectors, attributes, and notes.
-* For video datasets, DIVE also writes `videos[].fps` (and `images[].video_id`) so annotation
-  FPS round-trips. Image-sequence exports omit `videos`. See
-  [Annotation frame rate (`videos[].fps`)](#annotation-frame-rate-videosfps).
+* For video datasets, DIVE also writes `info.video_annotation_fps` (with `videos[]`
+  and `images[].video_id`) so annotation FPS round-trips. Image-sequence exports
+  omit `videos`. See
+  [Annotation frame rate (`info.video_annotation_fps`)](#annotation-frame-rate-infovideo_annotation_fps).
 
 For COCO files not produced by DIVE:
 

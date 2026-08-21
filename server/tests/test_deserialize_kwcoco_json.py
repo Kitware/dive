@@ -807,11 +807,13 @@ def test_export_dive_as_coco_omits_empty_dataset_info(datasetInfo):
 
 
 def test_export_dive_as_coco_writes_video_fps():
-    """Video annotation FPS lands on videos[].fps with images linked by video_id."""
+    """Video annotation FPS lands in info.video_annotation_fps keyed by video_id."""
     coco = kwcoco.export_dive_as_coco(
         _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="clip", fps=5
     )
-    assert coco["videos"] == [{"id": 1, "name": "clip", "fps": 5.0}]
+    assert coco["videos"] == [{"id": 1, "name": "clip"}]
+    assert coco["info"]["video_annotation_fps"] == {"1": 5.0}
+    assert "video_annotation_fps" in coco["info"]["dive_extensions"]
     assert all(image.get("video_id") == 1 for image in coco["images"])
     assert kwcoco.frame_rate_from_coco(coco) == 5.0
 
@@ -826,6 +828,7 @@ def test_export_dive_as_coco_omits_unusable_or_absent_fps(fps):
         _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo"
     )
     assert "videos" not in coco
+    assert "video_annotation_fps" not in coco["info"]
     assert all("video_id" not in image for image in coco["images"])
     assert coco == baseline
 
@@ -1208,7 +1211,7 @@ def test_shared_empty_dive_confidence_pairs_profile():
     assert warnings == [kwcoco.DIVE_CONFIDENCE_PAIRS_WARNING]
 
 
-def _fps_document(videos=None):
+def _fps_document(videos=None, video_annotation_fps=None):
     document = {
         'images': [{'id': 1, 'file_name': 'frame_000000.png', 'frame_index': 0}],
         'annotations': [
@@ -1218,24 +1221,44 @@ def _fps_document(videos=None):
     }
     if videos is not None:
         document['videos'] = videos
+    if video_annotation_fps is not None:
+        document['info'] = {'video_annotation_fps': video_annotation_fps}
     return document
 
 
-def test_frame_rate_read_from_video():
-    """The COCO counterpart of the VIAME CSV header's fps."""
-    assert kwcoco.frame_rate_from_coco(
-        _fps_document([{'id': 1, 'name': 'clip', 'fps': 5}])
-    ) == 5.0
-    assert kwcoco.frame_rate_from_coco(
-        _fps_document([{'id': 1}, {'id': 2, 'name': 'clip', 'fps': 29.97}])
-    ) == 29.97
+def test_frame_rate_read_from_info_map():
+    """info.video_annotation_fps keyed by video_id is the DIVE export shape."""
+    assert (
+        kwcoco.frame_rate_from_coco(
+            _fps_document(
+                videos=[{'id': 1, 'name': 'clip'}],
+                video_annotation_fps={'1': 5},
+            )
+        )
+        == 5.0
+    )
+    assert (
+        kwcoco.frame_rate_from_coco(
+            _fps_document(
+                videos=[{'id': 1}, {'id': 2, 'name': 'clip'}],
+                video_annotation_fps={'1': 0, '2': 29.97},
+            )
+        )
+        == 29.97
+    )
+    # Numeric keys (as in an in-memory dict before JSON round-trip) also work.
+    assert kwcoco.frame_rate_from_coco(_fps_document(video_annotation_fps={1: 12.5})) == 12.5
+
+
+def test_frame_rate_ignores_videos_fps_field():
+    """FPS on videos[] is not read; only info.video_annotation_fps is."""
+    assert kwcoco.frame_rate_from_coco(_fps_document([{'id': 1, 'name': 'clip', 'fps': 5}])) is None
 
 
 def test_frame_rate_absent_or_unusable():
     """An image sequence carries no rate, and no caller should see fps: 0."""
     assert kwcoco.frame_rate_from_coco(_fps_document()) is None
     assert kwcoco.frame_rate_from_coco(_fps_document([])) is None
+    assert kwcoco.frame_rate_from_coco(_fps_document(video_annotation_fps={'1': 0})) is None
     for fps in [0, -5, '5', True, float('inf'), float('nan'), None]:
-        assert kwcoco.frame_rate_from_coco(
-            _fps_document([{'id': 1, 'fps': fps}])
-        ) is None
+        assert kwcoco.frame_rate_from_coco(_fps_document(video_annotation_fps={'1': fps})) is None

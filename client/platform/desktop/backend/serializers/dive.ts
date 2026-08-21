@@ -14,7 +14,7 @@ function makeEmptyAnnotationFile(): AnnotationSchema {
 
 /**
  * Annotation FPS recorded on a DIVE JSON document, if usable.
- * Same rules as the VIAME CSV `fps:` header and COCO `videos[].fps`.
+ * Same rules as the VIAME CSV `fps:` header and COCO `info.video_annotation_fps`.
  */
 function frameRateFromDocument(data: unknown): number | undefined {
   if (!data || typeof data !== 'object') {

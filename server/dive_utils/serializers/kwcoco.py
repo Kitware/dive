@@ -240,21 +240,42 @@ def _validate_annotation_bounds(annotations: List[dict]) -> None:
         raise ValueError(_missing_bounds_error(missing_ids))
 
 
-def frame_rate_from_coco(coco: Dict[str, Any]) -> Optional[float]:
-    """Frame rate recorded on the video, the COCO counterpart of the CSV header's fps.
+def _usable_fps_rate(rate: Any) -> Optional[float]:
+    """Return rate when it is a finite number greater than zero; otherwise None."""
+    if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+        return None
+    if math.isfinite(rate) and rate > 0:
+        return float(rate)
+    return None
 
-    Neither MS-COCO nor KWCOCO define a frame rate, so this reads the field VIAME
-    writes on the video entry. Image-sequence documents describe no video and
-    carry none, which is not an error.
+
+def frame_rate_from_coco(coco: Dict[str, Any]) -> Optional[float]:
+    """Annotation FPS for a COCO/KWCOCO document, if usable.
+
+    Reads ``info.video_annotation_fps``, a map of ``video_id`` → rate (the DIVE
+    export shape). Image-sequence documents describe no video and carry none,
+    which is not an error.
+
+    When multiple rates are present, the first usable value wins: videos-table
+    order for the map (looking up each ``video_id``), then map insertion order.
     """
+    info = coco.get('info') or {}
+    fps_map = info.get('video_annotation_fps') if isinstance(info, dict) else None
+    if not isinstance(fps_map, dict):
+        return None
     for video in coco.get('videos') or []:
-        if not isinstance(video, dict):
+        if not isinstance(video, dict) or 'id' not in video:
             continue
-        rate = video.get('fps')
-        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
-            continue
-        if math.isfinite(rate) and rate > 0:
-            return float(rate)
+        video_id = video['id']
+        rate = _usable_fps_rate(fps_map.get(video_id))
+        if rate is None:
+            rate = _usable_fps_rate(fps_map.get(str(video_id)))
+        if rate is not None:
+            return rate
+    for rate in fps_map.values():
+        usable = _usable_fps_rate(rate)
+        if usable is not None:
+            return usable
     return None
 
 
@@ -600,10 +621,11 @@ def export_dive_as_coco(
         typeHierarchy: DIVE child-to-parent category hierarchy, emitted through
             KWCOCO's ``categories[].supercategory`` field.
         fps: Annotation frame rate for a video dataset. When usable (finite and
-            greater than zero), written on a one-entry ``videos`` table with
-            ``images[].video_id`` set — the same convention VIAME uses and DIVE
-            imports. Callers should pass this only for video datasets; image
-            sequences omit ``videos`` so re-import does not treat them as video.
+            greater than zero), written under ``info.video_annotation_fps`` keyed
+            by ``video_id``, with a one-entry ``videos`` table and
+            ``images[].video_id`` set. Callers should pass this only for video
+            datasets; image sequences omit ``videos`` so re-import does not treat
+            them as video.
     """
     parsed_tracks = [Track(**track_doc) for track_doc in tracks]
     category_names: List[str] = []
@@ -624,12 +646,7 @@ def export_dive_as_coco(
     coco_annotations: List[dict] = []
     images: Dict[int, dict] = {}
     annotation_id = 1
-    emit_video = (
-        isinstance(fps, (int, float))
-        and not isinstance(fps, bool)
-        and math.isfinite(fps)
-        and fps > 0
-    )
+    emit_video = _usable_fps_rate(fps) is not None
 
     for track in parsed_tracks:
         for feature in track.features:
@@ -708,6 +725,10 @@ def export_dive_as_coco(
     if datasetInfo:
         info['dive_dataset_info'] = datasetInfo
         info['dive_extensions'].append('dive_dataset_info')
+    if emit_video:
+        # JSON object keys are strings; video_id 1 → "1".
+        info['video_annotation_fps'] = {'1': float(fps)}
+        info['dive_extensions'].append('video_annotation_fps')
 
     coco: Dict[str, Any] = {
         'info': info,
@@ -716,5 +737,5 @@ def export_dive_as_coco(
         'categories': categories_doc,
     }
     if emit_video:
-        coco['videos'] = [{'id': 1, 'name': dataset_name, 'fps': float(fps)}]
+        coco['videos'] = [{'id': 1, 'name': dataset_name}]
     return coco
