@@ -257,7 +257,7 @@ export function compileHierarchy(hierarchy: TypeHierarchy): TypeHierarchyIndex {
   return { hierarchy: normalized, ancestors: Object.fromEntries(ancestorEntries) };
 }
 
-function ancestorsOf(index: TypeHierarchyIndex, type: string): readonly string[] {
+export function ancestorsOf(index: TypeHierarchyIndex, type: string): readonly string[] {
   return Object.prototype.hasOwnProperty.call(index.ancestors, type)
     ? index.ancestors[type]
     : [];
