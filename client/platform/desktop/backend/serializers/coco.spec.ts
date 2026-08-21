@@ -772,16 +772,18 @@ describe('COCO serializer', () => {
       },
     });
 
-    // Attributes and notes are not DIVE concepts, so the plain names are read;
-    // files DIVE wrote before the rename keep importing.
-    for (const name of ['generic.json', 'prefixed.json']) {
-      // eslint-disable-next-line no-await-in-loop
+    const expectImported = async (name: string) => {
       const [parsed] = await parseFile(`/input/${name}`);
       expect(parsed.tracks[1].features[0].attributes).toEqual({ occluded: true });
       expect(parsed.tracks[1].attributes).toEqual({ gear: 'trawl' });
       expect(parsed.tracks[1].features[0].notes).toEqual(['a note']);
       expect(parsed.tracks[1].confidencePairs).toEqual([['shark', 0.6], ['fish', 0.4]]);
-    }
+    };
+
+    // Attributes and notes are not DIVE concepts, so the plain names are read;
+    // files DIVE wrote before the rename keep importing.
+    await expectImported('generic.json');
+    await expectImported('prefixed.json');
   });
 });
 
