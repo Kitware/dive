@@ -811,7 +811,7 @@ def test_export_dive_as_coco_writes_video_fps():
     coco = kwcoco.export_dive_as_coco(
         _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="clip", fps=5
     )
-    assert coco["videos"] == [{"id": 1, "name": "clip", "fps": 5.0}]
+    assert coco["videos"] == [{"id": 1, "name": "clip", "annotation_fps": 5.0}]
     assert all(image.get("video_id") == 1 for image in coco["images"])
     assert kwcoco.frame_rate_from_coco(coco) == 5.0
 
