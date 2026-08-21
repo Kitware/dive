@@ -139,6 +139,15 @@ export interface RegistrationFilePair {
   leftToRight?: Matrix3 | null;
   rightToLeft?: Matrix3 | null;
   transformType?: TransformType;
+  /**
+   * The right camera's constant start offset in its own frames, relative to
+   * the left: right frame `n + frameOffset` is the same instant as left frame
+   * `n`. Carried here so a producer that measured it (see the batch
+   * registration driver) hands it over with the transform, and a reviewer's
+   * correction travels back out on export. Absent means zero -- no producer
+   * before this wrote one.
+   */
+  frameOffset?: number;
 }
 
 /** Portable calibration file: everything needed to restore all pairs. */
@@ -1218,6 +1227,7 @@ export default class CameraRegistrationStore {
     const observations: CameraObservations = {};
     const homographies: CameraHomographies = {};
     const transformTypes: CameraTransformTypes = {};
+    const frameOffsets: Record<string, number> = {};
     const cameras = new Set<string>();
     file.pairs.forEach((pair, i) => {
       const context = `Pair ${i + 1}`;
@@ -1228,6 +1238,15 @@ export default class CameraRegistrationStore {
       const key = this.pairKey(pair.left, pair.right);
       cameras.add(pair.left);
       cameras.add(pair.right);
+      if (pair.frameOffset !== undefined) {
+        if (!Number.isInteger(pair.frameOffset)) {
+          throw new Error(`${context}: "frameOffset" must be a whole number of frames`);
+        }
+        // Recorded against the left camera, and stored per camera against the
+        // rig reference -- the same thing whenever left is the reference,
+        // which is how producers write these files.
+        frameOffsets[pair.right] = pair.frameOffset;
+      }
       if (pair.transformType !== undefined) {
         if (!TRANSFORM_TYPES.some((t) => t.value === pair.transformType)) {
           throw new Error(
@@ -1260,6 +1279,7 @@ export default class CameraRegistrationStore {
     this.homographies.value = homographies;
     this.transformTypes.value = transformTypes;
     this.source.value = source;
+    this.frameOffsets.value = frameOffsets;
     this.markHomographySources();
     this.renumberPoints();
     this.pendingPoint.value = null;
