@@ -33,7 +33,7 @@ PROB_DUPLICATE_CATEGORY_WARNING = (
     'imported instead.'
 )
 DIVE_CONFIDENCE_PAIRS_WARNING = (
-    'Some annotations had malformed "dive_confidence_pairs" values. Those values were '
+    'Some annotations had malformed "confidence_pairs" values. Those values were '
     'ignored; a valid "prob" vector or the primary category and score were imported instead.'
 )
 SUPERCATEGORY_MULTI_PARENT_WARNING = (
@@ -342,18 +342,18 @@ def _parse_annotation(
 
     # DIVE extension fields for non-standard COCO attributes.
     detection_attributes = annotation.get(
-        'dive_detection_attributes', annotation.get('attributes', {})
+        'attributes', annotation.get('dive_detection_attributes', {})
     )
     if isinstance(detection_attributes, dict):
         attributes.update(detection_attributes)
     track_attributes_value = annotation.get(
-        'dive_track_attributes',
-        annotation.get('track_attributes', {}),
+        'track_attributes',
+        annotation.get('dive_track_attributes', {}),
     )
     if isinstance(track_attributes_value, dict):
         track_attributes.update(track_attributes_value)
 
-    note_values = annotation.get('dive_notes', annotation.get('notes', []))
+    note_values = annotation.get('notes', annotation.get('dive_notes', []))
     if isinstance(note_values, list):
         notes.extend([str(value).strip() for value in note_values if str(value).strip()])
     elif isinstance(note_values, str) and note_values.strip():
@@ -478,8 +478,12 @@ def load_coco_as_tracks_and_attributes(
         ) = _parse_annotation_for_tracks(annotation, meta)
         skipped_rle_masks = skipped_rle_masks or rle_skipped
 
-        extension_present = 'dive_confidence_pairs' in annotation
-        extension_pairs = _confidence_pairs_from_extension(annotation.get('dive_confidence_pairs'))
+        extension_present = (
+            'confidence_pairs' in annotation or 'dive_confidence_pairs' in annotation
+        )
+        extension_pairs = _confidence_pairs_from_extension(
+            annotation.get('confidence_pairs', annotation.get('dive_confidence_pairs'))
+        )
         if extension_pairs is not None:
             confidence_pairs = extension_pairs
         else:
@@ -668,16 +672,16 @@ def export_dive_as_coco(
                 'prob': [dict(track.confidencePairs).get(name, 0.0) for name in category_names],
                 # Preserve sparse membership and explicit zero confidence without
                 # requiring consumers to infer it from a dense probability vector.
-                'dive_confidence_pairs': [list(pair) for pair in track.confidencePairs],
+                'confidence_pairs': [list(pair) for pair in track.confidencePairs],
             }
             # Keep a stable object identity across frames when track data exists.
             annotation['track_id'] = track.id
             if feature.attributes:
-                annotation['dive_detection_attributes'] = feature.attributes
+                annotation['attributes'] = feature.attributes
             if track.attributes:
-                annotation['dive_track_attributes'] = track.attributes
+                annotation['track_attributes'] = track.attributes
             if feature.notes:
-                annotation['dive_notes'] = feature.notes
+                annotation['notes'] = feature.notes
             if segmentation:
                 annotation['segmentation'] = segmentation
             if keypoints:
@@ -699,10 +703,10 @@ def export_dive_as_coco(
     info: Dict[str, Any] = {
         'description': f'DIVE export for {dataset_name}',
         'dive_extensions': [
-            'dive_detection_attributes',
-            'dive_track_attributes',
-            'dive_notes',
-            'dive_confidence_pairs',
+            'attributes',
+            'track_attributes',
+            'notes',
+            'confidence_pairs',
         ],
     }
     if datasetInfo:

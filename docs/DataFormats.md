@@ -398,13 +398,14 @@ DIVE Web and Desktop use the same KWCOCO profile for hierarchy and complete conf
   exported pair, so readers that ignore KWCOCO extensions still receive a primary category.
 * Every annotation also has a dense `prob` array aligned by position with the document's complete
   `categories` array.
-* `dive_confidence_pairs` stores the track's ordered sparse vector exactly. This preserves the
+* `confidence_pairs` stores the track's ordered sparse vector exactly. This preserves the
   difference between a missing pair and a pair explicitly scored `0`, which a dense `prob` array
   cannot express. The extension is listed in `info.dive_extensions` and takes precedence when a
   DIVE-authored file is imported again. A present but malformed extension produces one import
-  warning and falls back to a valid `prob` vector or the primary category and score.
+  warning and falls back to a valid `prob` vector or the primary category and score. On import
+  the older `dive_confidence_pairs` spelling is still accepted.
 
-For an external KWCOCO file without `dive_confidence_pairs`, DIVE maps `prob` by the original
+For an external KWCOCO file without `confidence_pairs`, DIVE maps `prob` by the original
 category-array order, including unnamed positional slots. It accepts finite numeric values, clamps
 them to `[0, 1]`, keeps the ten highest entries above `0.001`, and falls back to `category_id` plus
 `score` when the vector length is wrong or duplicate category names make the mapping ambiguous.
@@ -424,16 +425,19 @@ confidence vector.
 ### DIVE COCO Attribute Extensions
 
 COCO does not define standard fields for arbitrary track or detection attributes
-or free-form notes. To preserve DIVE attributes and notes during COCO
-export/import, DIVE uses extension fields on each COCO `annotation` object:
+or free-form notes. Nothing about them is specific to DIVE, so DIVE writes them
+under plain names on each COCO `annotation` object:
 
-* `dive_detection_attributes`: Detection/frame-level attributes (maps to `Feature.attributes`)
-* `dive_track_attributes`: Track-level attributes (maps to `Track.attributes`)
-* `dive_notes`: Per-detection note (maps to `Feature.notes`)
+* `attributes`: Detection/frame-level attributes (maps to `Feature.attributes`)
+* `track_attributes`: Track-level attributes (maps to `Track.attributes`)
+* `notes`: Per-detection note (maps to `Feature.notes`)
 
-These extension keys are declared in the COCO `info` object as:
+The keys in use are declared in the COCO `info` object as:
 
-* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes", "dive_notes", "dive_confidence_pairs"]`
+* `info.dive_extensions = ["attributes", "track_attributes", "notes", "confidence_pairs"]`
+
+Files written before these were renamed used a `dive_` prefix on each of the four
+keys. Import still reads those, so older exports keep working.
 
 ### Dataset-level metadata (`datasetInfo`)
 
@@ -473,17 +477,19 @@ in the top-level `videos` table (the COCO counterpart of the VIAME CSV `# metada
 The DIVE extension fields are JSON objects with user-defined key/value pairs.
 Values are typically strings, numbers, or booleans.
 
-* `annotation.dive_detection_attributes`
+* `annotation.attributes`
   * Scope: one COCO annotation (one frame-level detection)
   * DIVE mapping: `Track.features[i].attributes`
-* `annotation.dive_track_attributes`
+  * Legacy alias: on import, if absent, DIVE also reads `dive_detection_attributes`
+* `annotation.track_attributes`
   * Scope: logical track identity across frames (`track_id`)
   * DIVE mapping: `Track.attributes`
-* `annotation.dive_notes`
+  * Legacy alias: on import, if absent, DIVE also reads `dive_track_attributes`
+* `annotation.notes`
   * Scope: one COCO annotation (one frame-level detection)
   * Type: `string[]` (typically one entry; a single non-empty string is also accepted on import)
   * DIVE mapping: `Track.features[i].notes`
-  * Legacy alias: on import, if `dive_notes` is absent, DIVE also reads `notes`
+  * Legacy alias: on import, if absent, DIVE also reads `dive_notes`
 
 When importing, DIVE merges any keys in the attribute objects into the target
 detection/track attribute dictionaries. If the same key appears in multiple
@@ -495,11 +501,11 @@ that annotation only.
 
 For COCO files produced by DIVE:
 
-* DIVE writes `info.dive_extensions` to advertise the extension keys used.
-* DIVE writes `dive_detection_attributes` and `dive_track_attributes` on each
-  annotation when attributes are present.
-* DIVE writes `dive_notes` on each annotation when that feature has a note.
-* DIVE writes category-aligned `prob` plus exact `dive_confidence_pairs` on each annotation.
+* DIVE writes `info.dive_extensions` to advertise the keys used.
+* DIVE writes `attributes` and `track_attributes` on each annotation when
+  attributes are present.
+* DIVE writes `notes` on each annotation when that feature has a note.
+* DIVE writes category-aligned `prob` plus exact `confidence_pairs` on each annotation.
 * Re-importing that file into DIVE preserves hierarchy edges, track IDs, complete confidence
   vectors, attributes, and notes.
 * For video datasets, DIVE also writes `videos[].fps` (and `images[].video_id`) so annotation
@@ -530,7 +536,7 @@ For COCO files not produced by DIVE:
 {
   "info": {
     "description": "DIVE export for my-dataset",
-    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes", "dive_notes", "dive_confidence_pairs"]
+    "dive_extensions": ["attributes", "track_attributes", "notes", "confidence_pairs"]
   },
   "images": [
     { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
@@ -548,17 +554,17 @@ For COCO files not produced by DIVE:
       "bbox": [100, 200, 50, 80],
       "score": 0.97,
       "prob": [0.03, 0.97, 0],
-      "dive_confidence_pairs": [["shark", 0.97], ["fish", 0.03]],
+      "confidence_pairs": [["shark", 0.97], ["fish", 0.03]],
       "track_id": 42,
-      "dive_detection_attributes": {
+      "attributes": {
         "visibility": "poor",
         "occluded": true
       },
-      "dive_track_attributes": {
+      "track_attributes": {
         "reviewed": true,
         "source": "analyst"
       },
-      "dive_notes": ["primary observation"]
+      "notes": ["primary observation"]
     },
     {
       "id": 2,
@@ -567,17 +573,17 @@ For COCO files not produced by DIVE:
       "bbox": [320, 140, 120, 90],
       "score": 0.91,
       "prob": [0, 0, 0.91],
-      "dive_confidence_pairs": [["crab", 0.91]],
+      "confidence_pairs": [["crab", 0.91]],
       "track_id": 77,
       "segmentation": [
         [320, 140, 360, 130, 430, 170, 440, 220, 360, 230, 325, 200]
       ],
       "keypoints": [350, 150, 2, 410, 210, 2],
       "num_keypoints": 2,
-      "dive_detection_attributes": {
+      "attributes": {
         "visibility": "clear"
       },
-      "dive_track_attributes": {
+      "track_attributes": {
         "species_confidence_note": "manual QA"
       }
     }
@@ -607,14 +613,14 @@ parents (`fish`) and unused children (`ray`).
 The annotation below scores `great white shark` highest, keeps ancestor `shark`
 at an explicit `0`, and scores unrelated `rock`. Dense `prob` is aligned with
 `categories` order; missing pairs become `0` there. Sparse
-`dive_confidence_pairs` is the source of truth: `shark` scored `0` is kept, while
+`confidence_pairs` is the source of truth: `shark` scored `0` is kept, while
 `fish` and `ray` are absent rather than zero.
 
 ```json
 {
   "info": {
     "description": "DIVE export for my-dataset",
-    "dive_extensions": ["dive_confidence_pairs"]
+    "dive_extensions": ["confidence_pairs"]
   },
   "images": [
     { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
@@ -634,7 +640,7 @@ at an explicit `0`, and scores unrelated `rock`. Dense `prob` is aligned with
       "bbox": [100, 200, 50, 80],
       "score": 0.91,
       "prob": [0, 0.91, 0.22, 0, 0],
-      "dive_confidence_pairs": [
+      "confidence_pairs": [
         ["shark", 0],
         ["great white shark", 0.91],
         ["rock", 0.22]

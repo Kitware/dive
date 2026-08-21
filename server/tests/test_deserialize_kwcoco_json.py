@@ -726,10 +726,10 @@ def test_export_dive_as_coco_single_dataset():
     assert len(coco["annotations"]) == 1
     assert coco["annotations"][0]["track_id"] == 7
     assert coco["annotations"][0]["bbox"] == [10, 20, 20, 40]
-    assert coco["annotations"][0]["dive_detection_attributes"] == {"occluded": True}
-    assert coco["annotations"][0]["dive_track_attributes"] == {"gear": "trawl"}
-    assert coco["annotations"][0]["dive_notes"] == ["net near reef"]
-    assert "dive_notes" in coco["info"]["dive_extensions"]
+    assert coco["annotations"][0]["attributes"] == {"occluded": True}
+    assert coco["annotations"][0]["track_attributes"] == {"gear": "trawl"}
+    assert coco["annotations"][0]["notes"] == ["net near reef"]
+    assert "notes" in coco["info"]["dive_extensions"]
 
 
 def test_export_dive_as_coco_preserves_pairs_and_category_hierarchy_roundtrip():
@@ -752,8 +752,8 @@ def test_export_dive_as_coco_preserves_pairs_and_category_hierarchy_roundtrip():
     assert annotation['category_id'] == categories['leaf']['id']
     assert annotation['score'] == 0.75
     assert annotation['prob'] == profile['expectedProb']
-    assert annotation['dive_confidence_pairs'] == profile['expectedPairs']
-    assert 'dive_confidence_pairs' in exported['info']['dive_extensions']
+    assert annotation['confidence_pairs'] == profile['expectedPairs']
+    assert 'confidence_pairs' in exported['info']['dive_extensions']
 
     converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(exported)
     track_id = str(profile['tracks'][0]['id'])
@@ -1239,3 +1239,50 @@ def test_frame_rate_absent_or_unusable():
         assert kwcoco.frame_rate_from_coco(
             _fps_document([{'id': 1, 'fps': fps}])
         ) is None
+
+
+def _generic_key_annotation(**extra):
+    return {
+        'images': [{'id': 1, 'file_name': 'frame_000000.png', 'frame_index': 0}],
+        'annotations': [
+            dict(
+                {'id': 1, 'image_id': 1, 'category_id': 1, 'bbox': [0, 0, 1, 1], 'track_id': 1},
+                **extra,
+            )
+        ],
+        'categories': [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}],
+    }
+
+
+def test_generic_keys_are_read():
+    """Attributes and notes are not DIVE concepts, so the plain names are read."""
+    tracks, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        _generic_key_annotation(
+            attributes={'occluded': True},
+            track_attributes={'gear': 'trawl'},
+            notes=['a note'],
+            confidence_pairs=[['shark', 0.6], ['fish', 0.4]],
+        )
+    )
+    track = tracks['tracks']['1']
+    assert track['features'][0]['attributes'] == {'occluded': True}
+    assert track['attributes'] == {'gear': 'trawl'}
+    assert track['features'][0]['notes'] == ['a note']
+    assert track['confidencePairs'] == [('shark', 0.6), ('fish', 0.4)]
+
+
+def test_prefixed_keys_still_read_for_older_files():
+    """Files DIVE wrote before the rename keep importing."""
+    tracks, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        _generic_key_annotation(
+            dive_detection_attributes={'occluded': True},
+            dive_track_attributes={'gear': 'trawl'},
+            dive_notes=['a note'],
+            dive_confidence_pairs=[['shark', 0.6], ['fish', 0.4]],
+        )
+    )
+    track = tracks['tracks']['1']
+    assert track['features'][0]['attributes'] == {'occluded': True}
+    assert track['attributes'] == {'gear': 'trawl'}
+    assert track['features'][0]['notes'] == ['a note']
+    assert track['confidencePairs'] == [('shark', 0.6), ('fish', 0.4)]
