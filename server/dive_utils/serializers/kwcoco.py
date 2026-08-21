@@ -208,6 +208,64 @@ def _decode_rle_counts(counts) -> Optional[List[int]]:
     return runs if all(run >= 0 for run in runs) else None
 
 
+# Clockwise Moore neighbourhood, as (dx, dy) starting from due east.
+_MOORE_OFFSETS = (
+    (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1),
+)
+
+
+def _trace_contour(mask, start, visited) -> List[Tuple[float, float]]:
+    """Moore-neighbour trace of one component's outer boundary.
+
+    Pure numpy: the server has numpy but not opencv, and walking the boundary
+    costs the perimeter rather than the area.
+    """
+    height, width = mask.shape
+    contour = [start]
+    visited[start[1], start[0]] = True
+    # Entering the start pixel from the west, so begin the search north of it.
+    previous = (start[0] - 1, start[1])
+    current = start
+
+    while True:
+        back = (previous[0] - current[0], previous[1] - current[1])
+        try:
+            index = _MOORE_OFFSETS.index(back)
+        except ValueError:
+            index = 0
+        found = None
+        for step in range(1, 9):
+            offset = _MOORE_OFFSETS[(index + step) % 8]
+            candidate = (current[0] + offset[0], current[1] + offset[1])
+            if not (0 <= candidate[0] < width and 0 <= candidate[1] < height):
+                continue
+            if mask[candidate[1], candidate[0]]:
+                found = candidate
+                break
+            previous = candidate
+        if found is None:  # isolated pixel
+            break
+        if found == start and len(contour) > 1:
+            break
+        contour.append(found)
+        visited[found[1], found[0]] = True
+        previous = current
+        current = found
+        if len(contour) > 4 * height * width:  # cannot happen; refuses to spin
+            break
+
+    return [(float(x), float(y)) for x, y in contour]
+
+
+def _polygon_area(points: List[Tuple[float, float]]) -> float:
+    """Shoelace area of a closed contour."""
+    total = 0.0
+    for index, (x, y) in enumerate(points):
+        next_x, next_y = points[(index + 1) % len(points)]
+        total += x * next_y - next_x * y
+    return abs(total) / 2.0
+
+
 def _rle_polygon_coords(segmentation) -> List[List[Tuple[float, float]]]:
     """Trace a COCO RLE mask into image-space polygon contours.
 
@@ -229,25 +287,38 @@ def _rle_polygon_coords(segmentation) -> List[List[Tuple[float, float]]]:
     if runs is None or sum(runs) != height * width:
         return []
 
-    import cv2
     import numpy as np
 
-    flat = np.zeros(height * width, dtype=np.uint8)
+    flat = np.zeros(height * width, dtype=bool)
     position = 0
     for index, run in enumerate(runs):
         if index % 2:  # odd runs are foreground
-            flat[position:position + run] = 1
+            flat[position:position + run] = True
         position += run
     # COCO run-length order is column-major.
     mask = flat.reshape((height, width), order='F')
+    if not mask.any():
+        return []
 
-    found = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+    # A boundary pixel is foreground with at least one background 4-neighbour.
+    padded = np.zeros((height + 2, width + 2), dtype=bool)
+    padded[1:-1, 1:-1] = mask
+    interior = (
+        padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:]
+    )
+    boundary = mask & ~interior
+
+    visited = np.zeros_like(mask)
     coord_lists = []
-    for contour in found[-2]:
-        points = contour.reshape(-1, 2)
-        if len(points) >= 3:
-            coord_lists.append([(float(x), float(y)) for x, y in points])
-    coord_lists.sort(key=len, reverse=True)
+    for y, x in zip(*np.nonzero(boundary)):
+        if visited[y, x]:
+            continue
+        contour = _trace_contour(mask, (int(x), int(y)), visited)
+        if len(contour) >= 3:
+            coord_lists.append(contour)
+    # Largest by enclosed area, not by point count: a long thin outline can
+    # carry more points than a bigger blob, and callers take the first.
+    coord_lists.sort(key=_polygon_area, reverse=True)
     return coord_lists
 
 

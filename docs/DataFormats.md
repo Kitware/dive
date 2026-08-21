@@ -526,7 +526,8 @@ For COCO files not produced by DIVE:
     spellings are read: a list of run lengths, and the LEB128 string pycocotools
     writes. Holes are not representable and are dropped, and a mask that cannot be
     decoded is skipped with a warning, as before. Web import only; desktop import
-    still skips RLE.
+    still skips RLE. Decoding needs no extra dependency: the outline is traced with
+    numpy alone.
 
 ### Example COCO Annotation with DIVE Extensions
 
