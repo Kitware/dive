@@ -210,3 +210,71 @@ export function computeGapSlots(slots: AlignedSlot[]): number[] {
   });
   return gaps;
 }
+
+/**
+ * A camera's constant start offset, in its own frames: local frame
+ * `slot + offset` shows the same instant as the reference camera's frame
+ * `slot`. A positive offset means this camera starts LATER -- its frame 0
+ * happens before the reference's frame 0, so it must be read further in.
+ */
+export type CameraFrameOffsets = Record<string, number>;
+
+/**
+ * Build a timeline from fixed per-camera start offsets rather than per-frame
+ * timestamps.
+ *
+ * buildAlignedTimeline needs a timestamp on every frame, which only image
+ * sequences carry (parsed from filenames) -- video panes never qualify, so
+ * they scrub in raw-index lockstep and any recording start offset between
+ * two cameras is baked into the review. On a fixed rig that offset is a
+ * single constant, so one number per camera is enough to line them up, and
+ * emitting it as slots means everything downstream (pane seek, gap
+ * indication, cross-camera frame translation) behaves exactly as it does
+ * for a timestamp-aligned dataset.
+ *
+ * Slots span the UNION of the cameras' coverage: where one camera has run
+ * out (or has not started), its entry is undefined, which the existing gap
+ * handling already renders and blanks correctly, rather than silently
+ * trimming footage off the ends.
+ *
+ * Returns { aligned: false } when fewer than two cameras have frames, or
+ * when every offset is zero -- there is nothing to correct then, so the
+ * caller should stay on the cheaper positional path.
+ */
+export function buildOffsetTimeline(
+  cameraFrameCounts: Record<string, number>,
+  offsets: CameraFrameOffsets,
+): TimelineResult {
+  const cameras = Object.keys(cameraFrameCounts)
+    .filter((camera) => cameraFrameCounts[camera] > 0);
+  if (cameras.length < 2) {
+    return { aligned: false };
+  }
+  if (cameras.every((camera) => (offsets[camera] ?? 0) === 0)) {
+    return { aligned: false };
+  }
+  // Slot s shows camera c's local frame s + offset[c]; that frame exists for
+  // s in [-offset[c], count[c] - offset[c]). Take the union across cameras,
+  // then rebase so the emitted slot array is 0-based.
+  const starts = cameras.map((camera) => -(offsets[camera] ?? 0));
+  const ends = cameras.map(
+    (camera) => cameraFrameCounts[camera] - (offsets[camera] ?? 0),
+  );
+  const base = Math.min(...starts);
+  const total = Math.max(...ends) - base;
+  if (total <= 0) {
+    return { aligned: false };
+  }
+  const slots: AlignedSlot[] = new Array(total);
+  for (let index = 0; index < total; index += 1) {
+    const slot: AlignedSlot = {};
+    cameras.forEach((camera) => {
+      const local = index + base + (offsets[camera] ?? 0);
+      slot[camera] = local >= 0 && local < cameraFrameCounts[camera]
+        ? local
+        : undefined;
+    });
+    slots[index] = slot;
+  }
+  return { aligned: true, slots };
+}
