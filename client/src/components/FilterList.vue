@@ -3,10 +3,13 @@ import {
   computed, defineComponent, onBeforeUnmount, PropType, reactive, ref, Ref,
   watch,
 } from 'vue';
-import { debounce, difference, union } from 'lodash';
+import {
+  debounce, difference, union,
+} from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
+import { compileHierarchy } from 'dive-common/typeHierarchy';
 import {
   useCameraStore, useHandler, useReadOnlyMode, useSelectedCamera, useTime,
   usePendingSaveCount,
@@ -14,14 +17,23 @@ import {
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
-import BaseFilterControls from '../BaseFilterControls';
+import BaseFilterControls, { AnnotationWithContext } from '../BaseFilterControls';
 import TrackFilterControls from '../TrackFilterControls';
 import Track from '../track';
 import Group from '../Group';
 import StyleManager from '../StyleManager';
 import {
-  getSuppressedTrackIds, hasSuppressionAttribute, suppressionTypeResolver,
+  createRegionSuppressionTester, getSuppressedTrackIds, hasSuppressionAttribute,
+  suppressionTypeResolver,
 } from '../use/suppression';
+import {
+  buildTypeListModel, countResolvedTypes, TypeListModel, updateHierarchyCheckedTypes,
+} from '../typeListHierarchy';
+
+/* Row height shared by the type rows, the shared-lineage breadcrumb, and the
+   scroller's height accounting. Mirrored by `$row-height` in the style block. */
+const ROW_HEIGHT = 30;
+const EMPTY_HIERARCHY_INDEX = compileHierarchy({});
 
 interface VirtualTypeItem {
   type: string;
@@ -29,6 +41,11 @@ interface VirtualTypeItem {
   displayText: string;
   color: string;
   checked: boolean;
+  indeterminate: boolean;
+  tree: boolean;
+  depth: number;
+  hasChildren: boolean;
+  expanded: boolean;
   isSuppressionType: boolean;
   suppressionThreshold: number;
 }
@@ -81,7 +98,9 @@ export default defineComponent({
     // counts so they re-evaluate suppression when a region is moved, since a
     // track's geometry is not itself a reactive dependency.
     const pendingSaveCount = usePendingSaveCount();
-    const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
+    const trackStore = computed(() => (
+      cameraStore.camMap.value.get(selectedCamera.value)?.trackStore
+    ));
     // Ordering of these lists should match
     const sortingMethods: ('a-z' | 'count' | 'frame count')[] = ['a-z', 'count', 'frame count'];
     const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending', 'mdi-sort-clock-ascending-outline'];
@@ -109,6 +128,21 @@ export default defineComponent({
     const typeStylingRef = props.styleManager.typeStyling;
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const confidenceFiltersRef = trackFilters.confidenceFilters;
+    const hierarchyHelpText = 'Hierarchical types: DIVE displays the deepest checked stored type above its threshold. A parent that is not stored on a track is not used as a fallback. Parent counts include displayed descendants.';
+    const collapsedTypes: Ref<Set<string>> = ref(new Set<string>());
+    const compactSharedLineage = ref(true);
+    const hierarchyIndexRef = computed(() => (
+      !props.group && trackFilters instanceof TrackFilterControls
+        ? trackFilters.hierarchyIndex.value
+        : undefined
+    ));
+    const hierarchyActive = computed(() => hierarchyIndexRef.value !== undefined);
+    if (trackFilters instanceof TrackFilterControls) {
+      watch(trackFilters.typeHierarchy, () => {
+        collapsedTypes.value = new Set<string>();
+        compactSharedLineage.value = true;
+      });
+    }
 
     function clickEdit(type: string) {
       data.selectedType = type;
@@ -224,38 +258,52 @@ export default defineComponent({
     );
     onBeforeUnmount(() => debouncedFullySuppressed.cancel());
 
+    /**
+     * Tally displayed types. With a hierarchy installed each track also counts
+     * toward its ancestors, and a track spanning several cameras counts once.
+     */
+    function countTypes(tracks: readonly AnnotationWithContext<Track | Group>[]) {
+      const entries = tracks.map(({ annotation, context }) => ({
+        id: annotation.id,
+        type: annotation.getType(context.confidencePairIndex),
+      }));
+      const hierarchyIndex = hierarchyIndexRef.value;
+      if (hierarchyIndex) {
+        return countResolvedTypes(entries, hierarchyIndex);
+      }
+      return entries.reduce(
+        (acc, { type }) => acc.set(type, (acc.get(type) || 0) + 1),
+        new Map<string, number>(),
+      );
+    }
+
     const typeCounts = computed(() => {
       const excluded = fullySuppressedIds.value;
-      return filteredTracksRef.value.reduce((acc, filteredTrack) => {
-        if (excluded.has(filteredTrack.annotation.id)) {
-          return acc;
-        }
-        const confidencePair = filteredTrack.annotation
-          .getType(filteredTrack.context.confidencePairIndex);
-        const trackType = confidencePair;
-        acc.set(trackType, (acc.get(trackType) || 0) + 1);
-
-        return acc;
-      }, new Map<string, number>());
+      return countTypes(filteredTracksRef.value
+        .filter(({ annotation }) => !excluded.has(annotation.id)));
     });
 
-    const filteredTracksForFrame = computed(() => {
+    function countedTracksForFrame(targetFrame: number) {
       // Depend on the edit counter so moving/resizing a suppression region
       // (which mutates geometry, not the reactive track set) re-runs the count.
       // It is always >= 0, so this reads the dependency without changing logic.
       const editRevision = pendingSaveCount.value;
-      const trackIdsForFrame = trackStore?.intervalTree
-        .search([frame.value, frame.value])
+      const activeTrackStore = trackStore.value;
+      if (!activeTrackStore) {
+        return [];
+      }
+      const trackIdsForFrame = activeTrackStore.intervalTree
+        .search([targetFrame, targetFrame])
         .map((str) => parseInt(str, 10));
       // Detections suppressed by a region on this frame are dropped so the
       // per-frame type counts read off the interface exclude them, and
       // attribute-suppressed detections (visible, real type retained) don't
       // count toward their own type either.
       const suppType = clientSettings.typeSettings.suppressionType;
-      const suppressedIds = (trackStore && editRevision >= 0)
+      const suppressedIds = editRevision >= 0
         ? getSuppressedTrackIds(
-          trackStore,
-          frame.value,
+          activeTrackStore,
+          targetFrame,
           suppType,
           clientSettings.typeSettings.suppressionThreshold,
           { revision: editRevision, resolver: suppressionResolutionRef.value },
@@ -265,73 +313,69 @@ export default defineComponent({
         if (suppressedIds.has(track.annotation.id)) {
           return false;
         }
-        const realTrack = trackStore?.getPossible(track.annotation.id);
-        if (realTrack && hasSuppressionAttribute(realTrack, frame.value, suppType)) {
+        const realTrack = activeTrackStore.getPossible(track.annotation.id);
+        if (realTrack && hasSuppressionAttribute(realTrack, targetFrame, suppType)) {
           return false;
         }
-        const keyframe = realTrack?.getFeature(frame.value)[0];
+        const keyframe = realTrack?.getFeature(targetFrame)[0];
         return !!keyframe?.keyframe;
       });
-      return (filteredKeyFrameTracks.filter((track) => trackIdsForFrame?.includes(track.annotation.id)));
-    });
-
-    const currentFrameTrackTypes = computed(() => filteredTracksForFrame.value.reduce((acc, filteredTrack) => {
-      const confidencePair = filteredTrack.annotation
-        .getType(filteredTrack.context.confidencePairIndex);
-      const trackType = confidencePair;
-      acc.set(trackType, (acc.get(trackType) || 0) + 1);
-
-      return acc;
-    }, new Map<string, number>()));
-
-    function sortAndFilterTypes(types: Ref<readonly string[]>) {
-      const filtered = types.value
-        .filter((t) => t.toLowerCase().includes(data.filterText.toLowerCase()));
-      switch (sortingMethods[data.sortingMethod]) {
-        case 'a-z':
-          return filtered.sort();
-        case 'count':
-          return filtered.sort(
-            (a, b) => (typeCounts.value.get(b) || 0) - (typeCounts.value.get(a) || 0),
-          );
-        case 'frame count':
-          return filtered.sort(
-            (a, b) => (currentFrameTrackTypes.value.get(b) || 0) - (currentFrameTrackTypes.value.get(a) || 0),
-          );
-        default:
-          return filtered;
-      }
+      return filteredKeyFrameTracks.filter(
+        (track) => trackIdsForFrame.includes(track.annotation.id),
+      );
     }
 
-    const visibleTypes = computed(() => {
-      if (props.showEmptyTypes) {
-        return sortAndFilterTypes(allTypesRef);
-      }
-      return sortAndFilterTypes(usedTypesRef);
-    });
+    const filteredTracksForFrame = computed(() => countedTracksForFrame(frame.value));
+
+    const currentFrameTrackTypes = computed(() => countTypes(filteredTracksForFrame.value));
+
     const filterTypesByFrame = ref(clientSettings.typeSettings.filterTypesByFrame);
 
     watch(() => clientSettings.typeSettings.filterTypesByFrame, (newValue) => {
       filterTypesByFrame.value = newValue;
     });
+    const noFrameCounts = new Map<string, number>();
+    const typeListModel: Ref<TypeListModel> = computed(() => {
+      const sort = sortingMethods[data.sortingMethod];
+      const byFrame = filterTypesByFrame.value ?? false;
+      // Frame counts only reach the model through frame-count sorting and the
+      // per-frame filter. Reading them unconditionally would rebuild the whole
+      // tree on every playback frame, so they are withheld otherwise.
+      const usesFrameCounts = byFrame || sort === 'frame count';
+      return buildTypeListModel({
+        hierarchyIndex: hierarchyIndexRef.value || EMPTY_HIERARCHY_INDEX,
+        allTypes: allTypesRef.value,
+        usedTypes: usedTypesRef.value,
+        configuredTypes: trackFilters.configuredTypes.value,
+        checkedTypes: checkedTypesRef.value,
+        counts: typeCounts.value,
+        frameCounts: usesFrameCounts ? currentFrameTrackTypes.value : noFrameCounts,
+        showEmpty: props.showEmptyTypes,
+        query: data.filterText,
+        filterTypesByFrame: byFrame,
+        sort,
+        collapsed: collapsedTypes.value,
+        compactSharedLineage: compactSharedLineage.value,
+      });
+    });
+    const sharedLineage = computed(() => typeListModel.value.sharedLineage);
+    const sharedLineageText = computed(() => sharedLineage.value.join(' › '));
+    const visibleTypes = computed(() => typeListModel.value.actionableTypes);
     const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
       const confidenceFiltersDeRef = confidenceFiltersRef.value;
       const typeCountsDeRef = typeCounts.value;
       const typeStylingDeRef = typeStylingRef.value;
-      const checkedTypesDeRef = checkedTypesRef.value;
       const frameTrackTypesDeRef = currentFrameTrackTypes.value;
-      let filteredTypeList = visibleTypes.value;
-      if (filterTypesByFrame.value) {
-        filteredTypeList = filteredTypeList.filter((item) => frameTrackTypesDeRef.get(item));
-      }
       const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
-      return filteredTypeList.map((item) => ({
-        type: item,
-        confidenceFilterNum: confidenceFiltersDeRef[item] || 0,
-        displayText: `${typeCountsDeRef.get(item) || 0} : ${frameTrackTypesDeRef.get(item) || 0}\u00A0 ${item}`,
-        color: typeStylingDeRef.color(item),
-        checked: checkedTypesDeRef.includes(item),
-        isSuppressionType: !!suppressionType && item === suppressionType,
+      const { rows } = typeListModel.value;
+      return rows.map(({ type, ...row }) => ({
+        ...row,
+        type,
+        confidenceFilterNum: confidenceFiltersDeRef[type] || 0,
+        displayText: `${typeCountsDeRef.get(type) || 0} : ${frameTrackTypesDeRef.get(type) || 0}\u00A0 ${type}`,
+        color: typeStylingDeRef.color(type),
+        tree: hierarchyActive.value,
+        isSuppressionType: !!suppressionType && type === suppressionType,
         suppressionThreshold: suppressionThreshold ?? 99,
       }));
     });
@@ -362,36 +406,81 @@ export default defineComponent({
       }
     }
 
-    function updateCheckedType(evt: boolean, type: string) {
-      if (evt) {
-        trackFilters.updateCheckedTypes(checkedTypesRef.value.concat([type]));
-      } else {
-        trackFilters.updateCheckedTypes(difference(checkedTypesRef.value, [type]));
-      }
+    function updateCheckedType(type: string) {
+      const model = typeListModel.value;
+      const shouldCheck = model.checkState.get(type) !== 'checked';
+      trackFilters.updateCheckedTypes(updateHierarchyCheckedTypes(
+        checkedTypesRef.value,
+        model.subtree,
+        type,
+        shouldCheck,
+      ));
     }
 
-    const virtualHeight = computed(() => props.height - props.headerHeight);
+    function toggleExpanded(type: string) {
+      if (data.filterText.length > 0) {
+        return;
+      }
+      const next = new Set(collapsedTypes.value);
+      if (next.has(type)) {
+        next.delete(type);
+      } else {
+        next.add(type);
+      }
+      collapsedTypes.value = next;
+    }
+
+    function toggleSharedLineage() {
+      compactSharedLineage.value = !compactSharedLineage.value;
+    }
+
+    const showSharedLineageControl = computed(() => (
+      sharedLineage.value.length > 0 && data.filterText.length === 0
+    ));
+    const virtualHeight = computed(() => (
+      props.height - props.headerHeight - (showSharedLineageControl.value ? ROW_HEIGHT : 0)
+    ));
 
     const goToPeakTrackFrame = (trackType: string) => {
-      const frameCounts = new Map<number, number>();
-
-      const tracksFilteredByType = filteredTracksRef.value.filter((track) => track.annotation.getType(track.context.confidencePairIndex) === trackType);
-      tracksFilteredByType.forEach((track) => {
-        const trackObj = cameraStore.getAnyPossibleTrack(track.annotation.id);
-        if (trackObj) {
-          trackObj.features.filter((item) => item.keyframe).forEach((item) => {
-            const current = frameCounts.get(item.frame) || 0;
-            frameCounts.set(item.frame, current + 1);
+      const subtreeSet = new Set(
+        hierarchyActive.value ? typeListModel.value.subtree.get(trackType) : [trackType],
+      );
+      const tracksFilteredByType = filteredTracksRef.value.filter(({ annotation, context }) => (
+        subtreeSet.has(annotation.getType(context.confidencePairIndex))
+      ));
+      const activeTrackStore = trackStore.value;
+      if (!activeTrackStore) {
+        handler.seekFrame(-1);
+        return;
+      }
+      /* The displayed frame counts are selected-camera scoped, so the peak is too. */
+      const suppType = clientSettings.typeSettings.suppressionType;
+      const isRegionSuppressed = createRegionSuppressionTester(
+        activeTrackStore,
+        suppType,
+        clientSettings.typeSettings.suppressionThreshold,
+        suppressionResolutionRef.value,
+      );
+      const countByFrame = new Map<number, number>();
+      tracksFilteredByType.forEach(({ annotation }) => {
+        const realTrack = activeTrackStore.getPossible(annotation.id);
+        realTrack?.features
+          .filter((item) => item?.keyframe)
+          .forEach((item) => {
+            if (hasSuppressionAttribute(realTrack, item.frame, suppType)
+              || isRegionSuppressed(realTrack, item.frame)) {
+              return;
+            }
+            countByFrame.set(item.frame, (countByFrame.get(item.frame) || 0) + 1);
           });
-        }
       });
 
       let maxFrame = -1;
       let maxCount = 0;
-      frameCounts.forEach((count, f) => {
+      countByFrame.forEach((count, candidateFrame) => {
         if (count > maxCount) {
           maxCount = count;
-          maxFrame = f;
+          maxFrame = candidateFrame;
         }
       });
       handler.seekFrame(maxFrame);
@@ -409,6 +498,12 @@ export default defineComponent({
 
     return {
       data,
+      hierarchyActive,
+      hierarchyHelpText,
+      compactSharedLineage,
+      sharedLineage,
+      sharedLineageText,
+      showSharedLineageControl,
       headCheckState,
       visibleTypes,
       usedTypesRef,
@@ -420,6 +515,7 @@ export default defineComponent({
       sortingMethodIcons,
       virtualHeight,
       virtualTypes,
+      rowHeight: ROW_HEIGHT,
       readOnlyMode,
       filteredTracksRef,
       disableAnnotationFilters,
@@ -430,6 +526,8 @@ export default defineComponent({
       headCheckClicked,
       setCheckedTypes: trackFilters.updateCheckedTypes,
       updateCheckedType,
+      toggleExpanded,
+      toggleSharedLineage,
       goToPeakTrackFrame,
       showMaxFrameButton,
     };
@@ -486,6 +584,27 @@ export default defineComponent({
             </template>
             <span>Toggle Type TotalCount:FrameCount Type Name</span>
           </v-tooltip>
+          <v-tooltip
+            v-if="hierarchyActive"
+            open-delay="100"
+            bottom
+            max-width="420"
+          >
+            <template #activator="{ on, attrs }">
+              <button
+                type="button"
+                class="hierarchy-help ml-1"
+                aria-label="About hierarchical types"
+                v-bind="attrs"
+                v-on="on"
+              >
+                <v-icon small>
+                  mdi-information-outline
+                </v-icon>
+              </button>
+            </template>
+            <span>{{ hierarchyHelpText }}</span>
+          </v-tooltip>
           <div class="type-header-actions d-flex align-center ml-auto">
             <tooltip-btn
               :icon="sortingMethodIcons[data.sortingMethod]"
@@ -528,18 +647,47 @@ export default defineComponent({
       placeholder="Search types"
       class="mx-2 mt-2 shrink input-box"
     >
+    <div
+      v-if="showSharedLineageControl"
+      class="shared-lineage d-flex align-center mx-2"
+    >
+      <span
+        v-if="compactSharedLineage"
+        class="shared-lineage-text text-body-2 grey--text text--lighten-1"
+        :title="sharedLineageText"
+      >
+        {{ sharedLineageText }}
+      </span>
+      <v-btn
+        text
+        small
+        class="shared-lineage-action ml-auto flex-shrink-0"
+        :aria-label="compactSharedLineage ? 'Expand parents' : 'Compact parents'"
+        @click="toggleSharedLineage"
+      >
+        {{ compactSharedLineage ? 'Expand Parents' : 'Compact Parents' }}
+      </v-btn>
+    </div>
     <div class="py-2 overflow-y-hidden">
       <v-virtual-scroll
         class="tracks"
         :items="virtualTypes"
-        :item-height="30"
+        :item-height="rowHeight"
         :height="virtualHeight"
+        :role="hierarchyActive ? 'list' : undefined"
+        :aria-label="hierarchyActive ? 'Track type hierarchy' : undefined"
         bench="1"
       >
         <template #default="{ item }">
           <type-item
             :type="item.type"
             :checked="item.checked"
+            :indeterminate="item.indeterminate"
+            :tree="item.tree"
+            :depth="item.depth"
+            :has-children="item.hasChildren"
+            :expanded="item.expanded"
+            :disclosure-visible="data.filterText.length === 0"
             :color="item.color"
             :display-text="item.displayText"
             :confidence-filter-num="item.confidenceFilterNum"
@@ -548,7 +696,8 @@ export default defineComponent({
             :disabled="disableAnnotationFilters"
             :is-suppression-type="item.isSuppressionType"
             :suppression-threshold="item.suppressionThreshold"
-            @setCheckedTypes="updateCheckedType($event, item.type)"
+            @setCheckedTypes="updateCheckedType(item.type)"
+            @toggleExpanded="toggleExpanded(item.type)"
             @goToMaxFrame="goToPeakTrackFrame($event)"
             @clickEdit="clickEdit"
           />
@@ -573,6 +722,8 @@ export default defineComponent({
 <style scoped lang='scss'>
 @import 'src/components/styles/common.scss';
 
+$row-height: 30px;
+
 .border-highlight {
    border-bottom: 1px solid gray;
  }
@@ -586,17 +737,34 @@ export default defineComponent({
   flex-shrink: 0;
 }
 
-.hover-show-parent {
-  .hover-show-child {
-    display: none;
-  }
-
-  &:hover {
-    .hover-show-child {
-      display: inherit;
-    }
-  }
+.hierarchy-help {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
 }
+
+.hierarchy-help:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.shared-lineage {
+  height: $row-height;
+  min-width: 0;
+}
+
+.shared-lineage-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .outlined {
   background-color: gray;
   color: #222;
