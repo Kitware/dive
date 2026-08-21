@@ -256,13 +256,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           this.renameTrackPair(annotation.id, currentType, newType);
         }
       });
-      if (!(newType in this.confidenceFilters.value)
-        && currentType in this.confidenceFilters.value) {
-        this.setConfidenceFilters({
-          ...this.confidenceFilters.value,
-          [newType]: this.confidenceFilters.value[currentType],
-        });
-      }
+      this.carryConfidenceFilter(currentType, newType);
       this.deleteType(currentType);
       return;
     }
@@ -290,13 +284,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
         this.renameTrackPair(annotation.id, currentType, newType);
       }
     });
-    if (!(newType in this.confidenceFilters.value)
-      && currentType in this.confidenceFilters.value) {
-      this.setConfidenceFilters({
-        ...this.confidenceFilters.value,
-        [newType]: this.confidenceFilters.value[currentType],
-      });
-    }
+    this.carryConfidenceFilter(currentType, newType);
     if (this.configuredTypes.value.includes(currentType)
       && !this.configuredTypes.value.includes(newType)) {
       this.configuredTypes.value.push(newType);

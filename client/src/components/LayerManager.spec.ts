@@ -253,7 +253,7 @@ function makeMultiCamFixture(
     sorted: cameraStore.sortedGroups,
     remove: () => undefined,
     markChangesPending: () => undefined,
-    setType: () => undefined,
+    setGroupType: () => undefined,
     removeTypes: () => [],
   });
   const trackFilters = new TrackFilterControls({
@@ -266,7 +266,6 @@ function makeMultiCamFixture(
       cameraStore.renameTrackPair(id, currentType, newType)
     ),
     groupFilterControls,
-    setType: () => undefined,
     removeTypes: () => [],
   });
   trackFilters.setTypeHierarchy(hierarchy);

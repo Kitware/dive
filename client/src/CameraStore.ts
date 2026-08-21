@@ -364,16 +364,6 @@ export default class CameraStore {
     });
   }
 
-  // Update all cameras to have the same track type
-  setTrackType(id: AnnotationId, newType: string, confidenceVal?: number, currentType?: string) {
-    this.camMap.value.forEach((camera) => {
-      const track = camera.trackStore.getPossible(id);
-      if (track !== undefined) {
-        track.setType(newType, confidenceVal, currentType);
-      }
-    });
-  }
-
   setGroupType(id: AnnotationId, newType: string, confidenceVal?: number, currentType?: string) {
     this.camMap.value.forEach((camera) => {
       const group = camera.groupStore.getPossible(id);
