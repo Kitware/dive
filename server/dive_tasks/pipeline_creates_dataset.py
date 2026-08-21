@@ -78,7 +78,7 @@ def append_new_dataset_media_writers(
 
     if is_disparity_image_pipeline(pipeline):
         # Override the consuming key: $CONFIG{global:...} expands at parse time.
-        template = str(output_path / 'depth_map%06d.png')
+        template = str(output_path / 'map%06d.png')
         command.append(f'-s output:file_name_template={shlex.quote(template)}')
 
     if is_transcode_pipeline(pipeline):

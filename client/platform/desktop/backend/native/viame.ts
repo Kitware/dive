@@ -348,7 +348,7 @@ async function runPipeline(
   // would ignore a -s on global:output_depths_directory.
   if (isDisparityPipe) {
     command.push(
-      `-s output:file_name_template="${outputDir}/depth_map%06d.png"`,
+      `-s output:file_name_template="${outputDir}/map%06d.png"`,
     );
   }
 
@@ -427,7 +427,7 @@ async function runPipeline(
   if (kwiverParams) {
     const escapeValue = (val: string) => val.replace(/["$]/g, '\\$&');
     Object.entries(kwiverParams).forEach(([key, value]) => {
-      command.push(`-s ${key}="${escapeValue(value)}"`);
+      command.push(`-s ${key}="${escapeValue(value.toString())}"`);
     });
   }
 

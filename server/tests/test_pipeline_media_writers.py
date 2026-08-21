@@ -27,7 +27,7 @@ def test_append_new_dataset_media_writers_disparity(tmp_path: Path):
     result = append_new_dataset_media_writers(command, pipeline, tmp_path)
     assert result is None
     assert any('output:file_name_template=' in part for part in command)
-    assert any('depth_map%06d.png' in part for part in command)
+    assert any('map%06d.png' in part for part in command)
 
 
 def test_append_new_dataset_media_writers_transcode(tmp_path: Path):
