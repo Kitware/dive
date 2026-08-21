@@ -306,6 +306,20 @@ export default class CameraRegistrationStore {
    */
   source: Ref<RegistrationSource | null>;
 
+  /**
+   * Per-camera constant start offset, in that camera's own frames: local
+   * frame `slot + offset` shows the same instant as the reference camera's
+   * `slot` (see dive-common/alignedTimeline.ts's buildOffsetTimeline).
+   *
+   * Lives here, beside the spatial transform, because it is the other half of
+   * "how these two cameras line up" and persists with the same dataset save.
+   * It is deliberately NOT derived from the transform: on a fixed rig the
+   * static background carries the homography fit, so the registration is
+   * insensitive to the temporal offset and cannot be used to recover or
+   * validate it -- only reviewing moving subjects can.
+   */
+  frameOffsets: Ref<Record<string, number>>;
+
   /** True when the calibration has unsaved changes since the last save or load. */
   dirty: ComputedRef<boolean>;
 
@@ -337,6 +351,7 @@ export default class CameraRegistrationStore {
     this.recenterRequest = ref(null);
     this.fitError = ref(null);
     this.source = ref(null);
+    this.frameOffsets = ref({});
     this.nextId = 1;
     this.nextRecenterId = 1;
     this.homographySources = {};
@@ -352,6 +367,7 @@ export default class CameraRegistrationStore {
       observations: this.observations.value,
       transformTypes: this.transformTypes.value,
       source: this.source.value,
+      frameOffsets: this.frameOffsets.value,
     });
   }
 
@@ -1378,11 +1394,13 @@ export default class CameraRegistrationStore {
     observations?: CameraObservations,
     transformTypes?: CameraTransformTypes,
     source?: RegistrationSource | null,
+    frameOffsets?: Record<string, number> | null,
   ) {
     this.homographies.value = homographies ? { ...homographies } : {};
     this.observations.value = observations ? { ...observations } : {};
     this.transformTypes.value = transformTypes ? { ...transformTypes } : {};
     this.source.value = source ?? null;
+    this.frameOffsets.value = frameOffsets ? { ...frameOffsets } : {};
     this.markHomographySources();
     this.activePair.value = null;
     this.pendingPoint.value = null;

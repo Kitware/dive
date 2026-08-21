@@ -74,7 +74,8 @@ import {
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
-  buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
+  buildAlignedTimeline, buildInverseAlignedIndex, buildOffsetTimeline, computeGapSlots,
+  TimelineResult,
 } from 'dive-common/alignedTimeline';
 import {
   computeOutputs,
@@ -217,6 +218,26 @@ export default defineComponent({
      * always for singleCam datasets -- playback falls back to today's exact
      * positional (broadcast-same-index) behavior via useMediaController.ts.
      */
+    // Constructed here rather than beside the other aligned-view state below
+    // because the aligned timeline reads its frame offsets, and that watch
+    // runs immediately.
+    const cameraRegistration = new CameraRegistrationStore();
+    /**
+     * How many frames this camera has: its image list when it is an image
+     * sequence, otherwise the annotator's own maxFrame (video panes carry no
+     * imageData). Returns 0 before the pane has loaded.
+     */
+    function cameraFrameCount(camera: string): number {
+      const images = imageData.value[camera];
+      if (images && images.length) {
+        return images.length;
+      }
+      try {
+        return aggregateController.value.getController(camera).maxFrame.value + 1;
+      } catch {
+        return 0;
+      }
+    }
     const alignedTimeline = computed<TimelineResult>(() => {
       if (!progress.loaded || multiCamList.value.length < 2) {
         return { aligned: false };
@@ -229,7 +250,20 @@ export default defineComponent({
       multiCamList.value.forEach((camera) => {
         camerasFrames[camera] = imageData.value[camera] ?? [];
       });
-      return buildAlignedTimeline(camerasFrames);
+      const byTimestamp = buildAlignedTimeline(camerasFrames);
+      if (byTimestamp.aligned) {
+        return byTimestamp;
+      }
+      // No usable timestamps (always the case for video panes). Fall back to
+      // the reviewer's fixed per-camera start offsets, which is the only way
+      // a video rig can express that one camera started late. Returns
+      // { aligned: false } when every offset is zero, so an uncorrected
+      // dataset stays on the cheaper positional path exactly as before.
+      const frameCounts: Record<string, number> = {};
+      multiCamList.value.forEach((camera) => {
+        frameCounts[camera] = cameraFrameCount(camera);
+      });
+      return buildOffsetTimeline(frameCounts, cameraRegistration.frameOffsets.value);
     });
     // Serialized shape of the currently installed timeline. The computed
     // re-evaluates whenever any camera's imageData array identity changes --
@@ -549,7 +583,6 @@ export default defineComponent({
      * loadData resolves), but watches, aligned navigation, and metadata
      * hydration only run for multicamera datasets.
      */
-    const cameraRegistration = new CameraRegistrationStore();
     const alignedView = new AlignedViewStore();
     const referenceCamera = computed(() => {
       const cams = multiCamList.value;
@@ -729,17 +762,7 @@ export default defineComponent({
     const autoRegisterJob = createAutoRegisterJobService({
       datasetId,
       cameras: multiCamList,
-      frameCount: (camera: string) => {
-        const images = imageData.value[camera];
-        if (images && images.length) {
-          return images.length;
-        }
-        try {
-          return aggregateController.value.getController(camera).maxFrame.value + 1;
-        } catch {
-          return 0;
-        }
-      },
+      frameCount: cameraFrameCount,
       timestampsFor: (camera: string) => {
         const images = imageData.value[camera];
         if (!images || !images.length
