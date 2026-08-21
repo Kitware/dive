@@ -340,6 +340,7 @@ export default defineComponent({
           meta.cameraCorrespondences,
           meta.cameraTransformTypes,
           meta.cameraRegistrationSource,
+          meta.cameraFrameOffsets,
         );
         if (priorPair) {
           // The panel is open: re-select the imported pair (falling back to

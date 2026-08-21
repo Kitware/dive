@@ -316,9 +316,11 @@ interface DatasetConfigMutable {
    * role are absent.
    */
   cameraRoles?: Record<string, CameraRole>;
+  /** Per-camera start offset in its own frames, for recorders that started at different times. */
+  cameraFrameOffsets?: Record<string, number>;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'cameraFrameOffsets', 'typeHierarchy', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).

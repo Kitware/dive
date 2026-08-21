@@ -241,6 +241,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
       meta.cameraCorrespondences,
       meta.cameraTransformTypes,
       meta.cameraRegistrationSource,
+      meta.cameraFrameOffsets,
     );
     if (priorPair) {
       registration.setActivePair(priorPair.camA, priorPair.camB);
