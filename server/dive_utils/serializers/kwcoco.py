@@ -241,7 +241,7 @@ def _validate_annotation_bounds(annotations: List[dict]) -> None:
 
 
 def frame_rate_from_coco(coco: Dict[str, Any]) -> Optional[float]:
-    """Frame rate recorded on the video, the COCO counterpart of the CSV header's fps.
+    """Rate the annotations were produced at, the counterpart of the CSV header's fps.
 
     Neither MS-COCO nor KWCOCO define a frame rate, so this reads the field VIAME
     writes on the video entry. Image-sequence documents describe no video and
@@ -250,7 +250,7 @@ def frame_rate_from_coco(coco: Dict[str, Any]) -> Optional[float]:
     for video in coco.get('videos') or []:
         if not isinstance(video, dict):
             continue
-        rate = video.get('fps')
+        rate = video.get('annotation_fps')
         if isinstance(rate, bool) or not isinstance(rate, (int, float)):
             continue
         if math.isfinite(rate) and rate > 0:
@@ -716,5 +716,7 @@ def export_dive_as_coco(
         'categories': categories_doc,
     }
     if emit_video:
-        coco['videos'] = [{'id': 1, 'name': dataset_name, 'fps': float(fps)}]
+        coco['videos'] = [
+            {'id': 1, 'name': dataset_name, 'annotation_fps': float(fps)}
+        ]
     return coco

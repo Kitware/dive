@@ -7,7 +7,7 @@ from dive_utils import constants, models, types
 def frame_rate_from_dive(data: Any) -> Optional[float]:
     """Annotation FPS recorded on a DIVE JSON document, if usable.
 
-    Same rules as the VIAME CSV ``fps:`` header and COCO ``videos[].fps``:
+    Same rules as the VIAME CSV ``fps:`` header and COCO ``videos[].annotation_fps``:
     a finite number greater than zero. Absent or unusable values are not an error.
     """
     if not isinstance(data, dict):
