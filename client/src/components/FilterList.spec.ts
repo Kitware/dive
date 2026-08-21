@@ -296,9 +296,6 @@ describe('FilterList hierarchy members', () => {
     });
 
     expect(vm.hierarchyActive).toBe(true);
-    expect(vm.hierarchyHelpText).toBe(
-      'Hierarchical types: DIVE displays the deepest checked stored type above its threshold. A parent that is not stored on a track is not used as a fallback. Parent counts include displayed descendants.',
-    );
     expect(wrapper.find('v-virtual-scroll').attributes()).toEqual(expect.objectContaining({
       role: 'list',
       'aria-label': 'Track type hierarchy',

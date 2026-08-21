@@ -310,10 +310,10 @@ export function hasSuppressionAttribute(
 }
 
 /**
- * Build a local region-overlap test for walking known track keyframes. Region
- * tracks are resolved once and their geometry is prepared once per visited
- * frame, without scanning the store's interval tree or populating its shared
- * per-frame suppression cache.
+ * Build a region-suppression predicate optimized for peak-frame counting,
+ * where the caller already walks known track keyframes. Region tracks are
+ * resolved once and geometry is cached per visited frame, avoiding an
+ * interval-tree query and shared-cache entry for every candidate frame.
  */
 export function createRegionSuppressionTester(
   trackStore: BaseAnnotationStore<Track>,

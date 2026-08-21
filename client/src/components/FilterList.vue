@@ -27,7 +27,8 @@ import {
   suppressionTypeResolver,
 } from '../use/suppression';
 import {
-  buildTypeListModel, countResolvedTypes, TypeListModel, updateHierarchyCheckedTypes,
+  buildTypeListModel, countResolvedTypes, TypeListModel, TypeListRow,
+  updateHierarchyCheckedTypes,
 } from '../typeListHierarchy';
 
 /* Row height shared by the type rows, the shared-lineage breadcrumb, and the
@@ -35,17 +36,11 @@ import {
 const ROW_HEIGHT = 30;
 const EMPTY_HIERARCHY_INDEX = compileHierarchy({});
 
-interface VirtualTypeItem {
-  type: string;
+interface VirtualTypeItem extends TypeListRow {
   confidenceFilterNum: number;
   displayText: string;
   color: string;
-  checked: boolean;
-  indeterminate: boolean;
   tree: boolean;
-  depth: number;
-  hasChildren: boolean;
-  expanded: boolean;
   isSuppressionType: boolean;
   suppressionThreshold: number;
 }
@@ -128,7 +123,6 @@ export default defineComponent({
     const typeStylingRef = props.styleManager.typeStyling;
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const confidenceFiltersRef = trackFilters.confidenceFilters;
-    const hierarchyHelpText = 'Hierarchical types: DIVE displays the deepest checked stored type above its threshold. A parent that is not stored on a track is not used as a fallback. Parent counts include displayed descendants.';
     const collapsedTypes: Ref<Set<string>> = ref(new Set<string>());
     const compactSharedLineage = ref(true);
     const hierarchyIndexRef = computed(() => (
@@ -338,9 +332,8 @@ export default defineComponent({
     const typeListModel: Ref<TypeListModel> = computed(() => {
       const sort = sortingMethods[data.sortingMethod];
       const byFrame = filterTypesByFrame.value ?? false;
-      // Frame counts only reach the model through frame-count sorting and the
-      // per-frame filter. Reading them unconditionally would rebuild the whole
-      // tree on every playback frame, so they are withheld otherwise.
+      // The model needs frame counts only when they affect row visibility or order.
+      // Otherwise playback can update displayed counts without rebuilding the tree.
       const usesFrameCounts = byFrame || sort === 'frame count';
       return buildTypeListModel({
         hierarchyIndex: hierarchyIndexRef.value || EMPTY_HIERARCHY_INDEX,
@@ -499,7 +492,6 @@ export default defineComponent({
     return {
       data,
       hierarchyActive,
-      hierarchyHelpText,
       compactSharedLineage,
       sharedLineage,
       sharedLineageText,
@@ -583,27 +575,6 @@ export default defineComponent({
               <b v-on="on">Type Filter</b>
             </template>
             <span>Toggle Type TotalCount:FrameCount Type Name</span>
-          </v-tooltip>
-          <v-tooltip
-            v-if="hierarchyActive"
-            open-delay="100"
-            bottom
-            max-width="420"
-          >
-            <template #activator="{ on, attrs }">
-              <button
-                type="button"
-                class="hierarchy-help ml-1"
-                aria-label="About hierarchical types"
-                v-bind="attrs"
-                v-on="on"
-              >
-                <v-icon small>
-                  mdi-information-outline
-                </v-icon>
-              </button>
-            </template>
-            <span>{{ hierarchyHelpText }}</span>
           </v-tooltip>
           <div class="type-header-actions d-flex align-center ml-auto">
             <tooltip-btn
@@ -735,22 +706,6 @@ $row-height: 30px;
 
 .type-header-actions {
   flex-shrink: 0;
-}
-
-.hierarchy-help {
-  width: 24px;
-  height: 24px;
-  padding: 0;
-  border: 0;
-  border-radius: 2px;
-  color: inherit;
-  background: transparent;
-  cursor: pointer;
-}
-
-.hierarchy-help:focus-visible {
-  outline: 2px solid currentColor;
-  outline-offset: 1px;
 }
 
 .shared-lineage {

@@ -1,3 +1,7 @@
+/**
+ * Pure Type List model helpers shared by flat and hierarchical modes.
+ * This module has no Vue or store dependencies; callers provide all state explicitly.
+ */
 import { difference, union } from 'lodash';
 import { ancestorsOf, TypeHierarchyIndex } from 'dive-common/typeHierarchy';
 
