@@ -10,6 +10,7 @@ type CocoImage = {
   id: number;
   file_name: string;
   frame_index?: number;
+  video_id?: number;
 };
 
 type CocoCategory = {
@@ -559,6 +560,15 @@ async function serializeFile(
   Array.from(new Set(Object.values(hierarchy))).sort().forEach(addCategoryName);
   const categories = new Map(categoryNames.map((name, index) => [name, index + 1]));
 
+  // Video datasets record annotation FPS on a one-entry `videos` table (VIAME
+  // convention). Image sequences omit it so re-import does not treat them as video.
+  const emitVideo = (
+    meta.type === 'video'
+    && typeof meta.fps === 'number'
+    && Number.isFinite(meta.fps)
+    && meta.fps > 0
+  );
+
   Object.values(data.tracks).forEach((track) => {
     const pairs = pairsByTrack.get(track.id);
     if (!pairs) return;
@@ -576,6 +586,7 @@ async function serializeFile(
           id: imageId,
           file_name: frameNameForExport(feature.frame, meta),
           frame_index: feature.frame,
+          ...(emitVideo ? { video_id: 1 } : {}),
         });
       }
       annotations.push({
@@ -619,6 +630,9 @@ async function serializeFile(
     images: Array.from(images.values()),
     annotations,
     categories: categoryDocs,
+    ...(emitVideo ? {
+      videos: [{ id: 1, name: meta.name, fps: meta.fps }],
+    } : {}),
   };
   await fs.writeJSON(path, output, { spaces: 2 });
   return path;

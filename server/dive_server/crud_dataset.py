@@ -825,12 +825,20 @@ def _coco_json_export_text(
             for feature in track_data.get('features', []):
                 max_frame = max(max_frame, feature.get('frame', -1))
         image_filenames = {i: f'frame_{i:06d}.jpg' for i in range(max_frame + 1)}
+    # Annotation FPS rides on videos[].fps for video datasets only; image sequences
+    # omit the table so re-import does not treat them as video.
+    export_fps = None
+    if dataset_type == constants.VideoType:
+        fps = fromMeta(dsFolder, constants.FPSMarker, None)
+        if isinstance(fps, (int, float)) and not isinstance(fps, bool) and fps > 0:
+            export_fps = float(fps)
     coco = kwcoco.export_dive_as_coco(
         filtered_tracks,
         image_filenames=image_filenames,
         dataset_name=dsFolder['name'],
         datasetInfo=fromMeta(dsFolder, "datasetInfo", {}),
         typeHierarchy=type_hierarchy_for_export(dsFolder, user, artifact='COCO file'),
+        fps=export_fps,
     )
     return json.dumps(coco)
 

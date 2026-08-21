@@ -806,6 +806,30 @@ def test_export_dive_as_coco_omits_empty_dataset_info(datasetInfo):
     assert coco["info"] == baseline["info"]
 
 
+def test_export_dive_as_coco_writes_video_fps():
+    """Video annotation FPS lands on videos[].fps with images linked by video_id."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="clip", fps=5
+    )
+    assert coco["videos"] == [{"id": 1, "name": "clip", "fps": 5.0}]
+    assert all(image.get("video_id") == 1 for image in coco["images"])
+    assert kwcoco.frame_rate_from_coco(coco) == 5.0
+
+
+@pytest.mark.parametrize("fps", [None, 0, -1, float("nan"), float("inf")])
+def test_export_dive_as_coco_omits_unusable_or_absent_fps(fps):
+    """Image-sequence callers pass no fps; unusable values must not emit videos."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", fps=fps
+    )
+    baseline = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo"
+    )
+    assert "videos" not in coco
+    assert all("video_id" not in image for image in coco["images"])
+    assert coco == baseline
+
+
 def test_load_coco_restores_dataset_info():
     """info.dive_dataset_info is surfaced as the 4th return value for the caller to persist."""
     coco = {
