@@ -726,9 +726,10 @@ def _get_data_by_type(
     if as_type == crud.FileType.DIVE_JSON:
         migrated = dive.migrate(data_dict)
         annotations, attributes = viame.load_json_as_track_and_attributes(data_dict)
+        dive_fps = dive.frame_rate_from_dive(data_dict)
         return {
             'annotations': migrated,
-            'meta': None,
+            'meta': {'fps': dive_fps} if dive_fps is not None else None,
             'attributes': attributes,
             'type': as_type,
         }, warnings

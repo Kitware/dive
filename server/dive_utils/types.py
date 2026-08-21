@@ -209,6 +209,8 @@ class DIVEAnnotationSchema(TypedDict):
     tracks: Dict[str, dict]
     groups: Dict[str, dict]
     version: int
+    # Annotation frame rate when present; omitted when absent or unusable.
+    fps: NotRequired[float]
 
 
 class CameraCalibration(TypedDict, total=False):
