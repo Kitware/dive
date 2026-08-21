@@ -234,7 +234,7 @@ type CocoAnnotation = {
 type CocoVideo = {
   id: number;
   name?: string;
-  fps?: unknown;
+  annotation_fps?: unknown;
 };
 
 type CocoDocument = {
@@ -254,7 +254,7 @@ type CocoDocument = {
 function frameRateFromDocument(document: CocoDocument): number | undefined {
   const videos = Array.isArray(document.videos) ? document.videos : [];
   for (let i = 0; i < videos.length; i += 1) {
-    const rate = videos[i]?.fps;
+    const rate = videos[i]?.annotation_fps;
     if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
       return rate;
     }
@@ -631,7 +631,7 @@ async function serializeFile(
     annotations,
     categories: categoryDocs,
     ...(emitVideo ? {
-      videos: [{ id: 1, name: meta.name, fps: meta.fps }],
+      videos: [{ id: 1, name: meta.name, annotation_fps: meta.fps }],
     } : {}),
   };
   await fs.writeJSON(path, output, { spaces: 2 });

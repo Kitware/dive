@@ -318,7 +318,7 @@ describe('COCO serializer', () => {
 
   // --- annotation fps on videos[] ---
 
-  it('writes videos[].fps for video datasets and restores it on re-import', async () => {
+  it('writes videos[].annotation_fps for video datasets and restores it on re-import', async () => {
     const videoMeta = {
       ...imageMeta,
       type: 'video' as const,
@@ -327,7 +327,7 @@ describe('COCO serializer', () => {
     };
     await serializeFile('/output/video.coco.json', annotationSchema, videoMeta);
     const out = await fs.readJSON('/output/video.coco.json');
-    expect(out.videos).toEqual([{ id: 1, name: 'clip', fps: 5 }]);
+    expect(out.videos).toEqual([{ id: 1, name: 'clip', annotation_fps: 5 }]);
     expect(out.images.every((image: { video_id?: number }) => image.video_id === 1)).toBe(true);
 
     mockfs({
@@ -726,7 +726,7 @@ describe('COCO serializer', () => {
     });
     mockfs({
       '/input': {
-        'video.json': document([{ id: 1, name: 'clip', fps: 5 }]),
+        'video.json': document([{ id: 1, name: 'clip', annotation_fps: 5 }]),
         'image-list.json': document(undefined),
         'unusable.json': document([{ id: 1, name: 'clip', fps: 0 }]),
         'not-a-number.json': document([{ id: 1, name: 'clip', fps: '5' }]),
