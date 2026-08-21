@@ -10,6 +10,7 @@ type CocoImage = {
   id: number;
   file_name: string;
   frame_index?: number;
+  video_id?: number;
 };
 
 type CocoCategory = {
@@ -230,12 +231,36 @@ type CocoAnnotation = {
   track_attributes?: Record<string, unknown>;
 };
 
+type CocoVideo = {
+  id: number;
+  name?: string;
+  fps?: unknown;
+};
+
 type CocoDocument = {
   info?: Record<string, unknown>;
   images: CocoImage[];
   annotations: CocoAnnotation[];
   categories: CocoCategory[];
+  videos?: CocoVideo[];
 };
+
+/**
+ * Frame rate recorded on the video, the COCO counterpart of the VIAME CSV
+ * header's fps. Neither COCO nor kwcoco define one, so this reads the field
+ * VIAME writes on the video entry; an image sequence describes no video and
+ * carries none, which is not an error.
+ */
+function frameRateFromDocument(document: CocoDocument): number | undefined {
+  const videos = Array.isArray(document.videos) ? document.videos : [];
+  for (let i = 0; i < videos.length; i += 1) {
+    const rate = videos[i]?.fps;
+    if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+      return rate;
+    }
+  }
+  return undefined;
+}
 
 /** True when segmentation is COCO RLE (crowd / `iscrowd: 1`), which DIVE does not decode. */
 function hasRleSegmentation(annotation: CocoAnnotation): boolean {
@@ -475,6 +500,11 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
   if (probIgnoredForDuplicates) warnings.push(PROB_DUPLICATE_CATEGORY_WARNING);
   if (diveConfidencePairsInvalid) warnings.push(DIVE_CONFIDENCE_PAIRS_INVALID_WARNING);
   const meta: Record<string, unknown> = { attributes: processed.attributes };
+  // Surfaced the same way the VIAME CSV path surfaces its header fps.
+  const fps = frameRateFromDocument(parsed);
+  if (fps !== undefined) {
+    meta.fps = fps;
+  }
   // Restore the per-dataset station metadata namespaced under `info.dive_dataset_info`; the
   // caller merges it into the dataset's metadata. Omitted when absent/empty.
   const { dive_dataset_info: datasetInfo } = parsed.info ?? {};
@@ -530,6 +560,15 @@ async function serializeFile(
   Array.from(new Set(Object.values(hierarchy))).sort().forEach(addCategoryName);
   const categories = new Map(categoryNames.map((name, index) => [name, index + 1]));
 
+  // Video datasets record annotation FPS on a one-entry `videos` table (VIAME
+  // convention). Image sequences omit it so re-import does not treat them as video.
+  const emitVideo = (
+    meta.type === 'video'
+    && typeof meta.fps === 'number'
+    && Number.isFinite(meta.fps)
+    && meta.fps > 0
+  );
+
   Object.values(data.tracks).forEach((track) => {
     const pairs = pairsByTrack.get(track.id);
     if (!pairs) return;
@@ -547,6 +586,7 @@ async function serializeFile(
           id: imageId,
           file_name: frameNameForExport(feature.frame, meta),
           frame_index: feature.frame,
+          ...(emitVideo ? { video_id: 1 } : {}),
         });
       }
       annotations.push({
@@ -590,6 +630,9 @@ async function serializeFile(
     images: Array.from(images.values()),
     annotations,
     categories: categoryDocs,
+    ...(emitVideo ? {
+      videos: [{ id: 1, name: meta.name, fps: meta.fps }],
+    } : {}),
   };
   await fs.writeJSON(path, output, { spaces: 2 });
   return path;

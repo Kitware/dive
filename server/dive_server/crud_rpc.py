@@ -704,9 +704,14 @@ def _get_data_by_type(
             datasetInfo,
         ) = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
         hierarchy, hierarchy_warnings = kwcoco.type_hierarchy_from_categories(data_dict)
+        coco_fps = kwcoco.frame_rate_from_coco(data_dict)
+        coco_meta = {
+            **({"datasetInfo": datasetInfo} if datasetInfo else {}),
+            **({'fps': coco_fps} if coco_fps is not None else {}),
+        }
         return {
             'annotations': converted,
-            'meta': {"datasetInfo": datasetInfo} if datasetInfo else None,
+            'meta': coco_meta or None,
             'attributes': attributes,
             'type': as_type,
             'hierarchy': hierarchy,

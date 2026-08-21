@@ -316,6 +316,45 @@ describe('COCO serializer', () => {
     expect(parsedMeta).not.toHaveProperty('datasetInfo');
   });
 
+  // --- annotation fps on videos[] ---
+
+  it('writes videos[].fps for video datasets and restores it on re-import', async () => {
+    const videoMeta = {
+      ...imageMeta,
+      type: 'video' as const,
+      fps: 5,
+      name: 'clip',
+    };
+    await serializeFile('/output/video.coco.json', annotationSchema, videoMeta);
+    const out = await fs.readJSON('/output/video.coco.json');
+    expect(out.videos).toEqual([{ id: 1, name: 'clip', fps: 5 }]);
+    expect(out.images.every((image: { video_id?: number }) => image.video_id === 1)).toBe(true);
+
+    mockfs({
+      '/input': { 'roundtrip.json': JSON.stringify(out) },
+      '/output': {},
+    });
+    const [, parsedMeta] = await parseFile('/input/roundtrip.json');
+    expect(parsedMeta.fps).toBe(5);
+  });
+
+  it('omits videos for image-sequence exports even when fps is set', async () => {
+    await serializeFile('/output/seq.coco.json', annotationSchema, { ...imageMeta, fps: 5 });
+    const out = await fs.readJSON('/output/seq.coco.json');
+    expect(out).not.toHaveProperty('videos');
+    expect(out.images.every((image: { video_id?: number }) => image.video_id === undefined)).toBe(true);
+  });
+
+  it('omits videos when video fps is unusable', async () => {
+    await serializeFile('/output/zero.coco.json', annotationSchema, {
+      ...imageMeta,
+      type: 'video',
+      fps: 0,
+    });
+    const out = await fs.readJSON('/output/zero.coco.json');
+    expect(out).not.toHaveProperty('videos');
+  });
+
   it('imports a pruned KWCOCO probability vector by raw category position', async () => {
     mockfs({
       '/input': {
@@ -674,6 +713,38 @@ describe('COCO serializer', () => {
     await fs.writeJSON('/input/filtered.json', out);
     const [parsed] = await parseFile('/input/filtered.json');
     expect(parsed.tracks[4].confidencePairs).toEqual([['root', 0.2]]);
+  });
+
+  it('imports the frame rate a video records, as the CSV header path does', async () => {
+    const document = (videos: unknown) => JSON.stringify({
+      images: [{ id: 1, file_name: 'frame_000000.png', frame_index: 0 }],
+      annotations: [{
+        id: 1, image_id: 1, category_id: 1, bbox: [0, 0, 1, 1], track_id: 1,
+      }],
+      categories: [{ id: 1, name: 'fish' }],
+      ...(videos === undefined ? {} : { videos }),
+    });
+    mockfs({
+      '/input': {
+        'video.json': document([{ id: 1, name: 'clip', fps: 5 }]),
+        'image-list.json': document(undefined),
+        'unusable.json': document([{ id: 1, name: 'clip', fps: 0 }]),
+        'not-a-number.json': document([{ id: 1, name: 'clip', fps: '5' }]),
+      },
+    });
+
+    const [, videoMeta] = await parseFile('/input/video.json');
+    expect(videoMeta.fps).toBe(5);
+
+    // An image sequence describes no video, so it carries no rate to import.
+    const [, listMeta] = await parseFile('/input/image-list.json');
+    expect(listMeta.fps).toBeUndefined();
+
+    // Nothing downstream should ever see fps: 0 or a string.
+    const [, zeroMeta] = await parseFile('/input/unusable.json');
+    expect(zeroMeta.fps).toBeUndefined();
+    const [, stringMeta] = await parseFile('/input/not-a-number.json');
+    expect(stringMeta.fps).toBeUndefined();
   });
 });
 

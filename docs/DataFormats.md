@@ -414,6 +414,31 @@ advertised in `info.dive_extensions`:
 
 * `info.dive_dataset_info = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
 
+### Annotation frame rate (`videos[].fps`)
+
+Neither MS-COCO nor KWCOCO define a frame-rate field. On import, DIVE reads the
+annotation FPS the same way VIAME writes it: a positive numeric `fps` on an entry
+in the top-level `videos` table (the COCO counterpart of the VIAME CSV `# metadata`
+`fps` header). Image-sequence documents typically omit `videos` and carry no rate.
+
+```json
+{
+  "videos": [
+    { "id": 1, "name": "clip", "fps": 5 }
+  ],
+  "images": [
+    { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0, "video_id": 1 }
+  ]
+}
+```
+
+* A usable value (finite number greater than zero) is restored into dataset metadata as
+  `fps`. Unusable values (`0`, negative, non-numeric, `inf`/`nan`) are ignored.
+* When multiple video entries are present, the first usable `fps` wins.
+* On export of a **video** dataset, DIVE writes a one-entry `videos` table with the
+  annotation FPS and sets `images[].video_id`. Image-sequence exports omit `videos`
+  so re-import does not treat them as video.
+
 ### Extension Field Details
 
 The DIVE extension fields are JSON objects with user-defined key/value pairs.
@@ -448,6 +473,9 @@ For COCO files produced by DIVE:
 * DIVE writes category-aligned `prob` plus exact `dive_confidence_pairs` on each annotation.
 * Re-importing that file into DIVE preserves hierarchy edges, track IDs, complete confidence
   vectors, attributes, and notes.
+* For video datasets, DIVE also writes `videos[].fps` (and `images[].video_id`) so annotation
+  FPS round-trips. Image-sequence exports omit `videos`. See
+  [Annotation frame rate (`videos[].fps`)](#annotation-frame-rate-videosfps).
 
 For COCO files not produced by DIVE:
 
