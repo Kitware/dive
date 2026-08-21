@@ -141,14 +141,14 @@ export default defineComponent({
 
     async function confirmPipelineExecution(updatedParams: Record<string, string>) {
       const kwiverParamsById: Record<string, Record<string, string>> = {};
-      
+
       let datasetIds = props.selectedDatasetIds;
       const pipe = selectedPipeline.value;
       if (pipe) {
         if (multiCamPipelineMarkers.includes(pipe.type)
           || stereoPipelineMarker === pipe.type) {
-            datasetIds = props.selectedDatasetIds.map((item) => parentDatasetId(item));
-          }
+          datasetIds = props.selectedDatasetIds.map((item) => parentDatasetId(item));
+        }
       }
 
       datasetIds.forEach((id) => {
