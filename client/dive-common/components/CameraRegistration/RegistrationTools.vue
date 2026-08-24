@@ -502,10 +502,24 @@ export default defineComponent({
       () => correspondences.value.length > 0 || hasLoadedTransform.value,
     );
 
+    // Short L/R labels keep the toggle from overflowing on long camera
+    // names; the full names stay available as the button tooltip.
     const alignmentModeItems = computed(() => [
-      { text: 'Picking', value: 'original', disabled: false },
-      { text: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !hasTransform.value },
-      { text: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !hasTransform.value },
+      {
+        text: 'Picking', title: undefined, value: 'original', disabled: false,
+      },
+      {
+        text: 'L → R',
+        title: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`,
+        value: 'AtoB',
+        disabled: !hasTransform.value,
+      },
+      {
+        text: 'R → L',
+        title: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`,
+        value: 'BtoA',
+        disabled: !hasTransform.value,
+      },
     ]);
 
     function setTransformType(type: TransformType) {
@@ -535,6 +549,18 @@ export default defineComponent({
       return entries.length ? entries.join(' · ') : 'present (no displayable fields)';
     });
 
+    /**
+     * Short L/R label for a camera in the active pair (falls back to the full
+     * name for anything else, though the readout only ever sees pair
+     * cameras) -- keeps the monospace cursor readout from overflowing on
+     * long camera names, matching the Overlay Warp toggle's labels.
+     */
+    function shortCameraLabel(cam: string): string {
+      if (cam === camLeft.value) return 'L';
+      if (cam === camRight.value) return 'R';
+      return cam;
+    }
+
     /** Live cursor readout text: this camera's coord, and its linked point in the other camera. */
     const cursorReadout = computed(() => {
       const cursor = registration.cursorCoord.value;
@@ -543,12 +569,12 @@ export default defineComponent({
       }
       const [x, y] = cursor.coord;
       const other = registration.linkedPoint(cursor.camera, cursor.coord);
-      const here = `${cursor.camera}: (${x.toFixed(1)}, ${y.toFixed(1)})`;
+      const here = `${shortCameraLabel(cursor.camera)}: (${x.toFixed(1)}, ${y.toFixed(1)})`;
       if (!other) {
         return here;
       }
       const [ox, oy] = other.coord;
-      return `${here} -> ${other.camera}: (${ox.toFixed(1)}, ${oy.toFixed(1)})`;
+      return `${here} -> ${shortCameraLabel(other.camera)}: (${ox.toFixed(1)}, ${oy.toFixed(1)})`;
     });
 
     /**
@@ -1339,6 +1365,7 @@ export default defineComponent({
         :key="item.value"
         :value="item.value"
         :disabled="item.disabled"
+        :title="item.title"
         small
         class="flex-grow-1"
         style="text-transform: none;"

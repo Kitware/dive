@@ -305,6 +305,13 @@ export default defineComponent({
     // is switching from number -> undefined, or vice versa.
     function pendingUpdate() {
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
+      // The aligned-view warp is a canvas snapshot of this <video> element,
+      // redrawn only on an imageRevision bump -- unlike the native pane,
+      // which the browser keeps live on its own. loadedmetadata bumps it
+      // once for the initial frame; without another bump here, a scrub
+      // leaves the warp showing whatever the video displayed mid-seek
+      // (often a black frame) instead of the frame the seek landed on.
+      data.imageRevision += 1;
     }
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);

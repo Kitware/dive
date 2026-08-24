@@ -548,9 +548,12 @@ export default defineComponent({
                     depressed
                     block
                     class="my-1"
+                    :title="`Registration: ${file.camera}${file.destination ? ` → ${file.destination}` : ''}`"
                     @click="exportRegistration(file.camera)"
                   >
-                    Registration: {{ file.camera }}{{ file.destination ? ` → ${file.destination}` : '' }}
+                    <span class="registration-export-btn__label">
+                      Registration: {{ file.camera }}{{ file.destination ? ` → ${file.destination}` : '' }}
+                    </span>
                   </v-btn>
                 </v-col>
               </v-row>
@@ -621,5 +624,14 @@ export default defineComponent({
   max-height: calc(100vh - 30px);
   overflow-y: auto;
   overflow-x: hidden;
+}
+
+/* Long camera names overflow the block button otherwise; the full label is
+   still available via the button's native title tooltip on hover. */
+.registration-export-btn__label {
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 </style>

@@ -108,21 +108,24 @@ export default function useLayerManagerAlignedView(options: {
     return mapped;
   }
 
+  /** This camera's currently displayed frame image/video, or null. */
+  function resolveCameraImage() {
+    try {
+      return getCameraQuadMedia(
+        (cam) => aggregateController.value.getController(cam),
+        camera,
+      );
+    } catch {
+      // Controllers may be cleared mid-poll during a dataset reload.
+      return null;
+    }
+  }
+
   // Created before the annotation layers in LayerManager so its geojs layer
   // z-orders beneath boxes/polygons/text (geojs stacks layers by creation order).
   const alignedImageLayer = new AlignedImageLayer({
     annotator,
-    getImage: () => {
-      try {
-        return getCameraQuadMedia(
-          (cam) => aggregateController.value.getController(cam),
-          camera,
-        );
-      } catch {
-        // Controllers may be cleared mid-poll during a dataset reload.
-        return null;
-      }
-    },
+    getImage: resolveCameraImage,
     getTransform: () => alignedDisplayTransform.value,
     // Follows the camera-lock toggle, the existing control for "the camera may
     // recenter itself". Never while creating/editing geometry, where
@@ -151,8 +154,15 @@ export default function useLayerManagerAlignedView(options: {
     // seek itself (blanking promptly when a frame has no image, e.g. an
     // aligned-timeline gap); the element the seek eventually loads arrives
     // through the imageRevision watch below.
+    //
+    // Video panes skip this: a video-backed camera never actually hits that
+    // gap case (see VideoAnnotator's seek(), unreachable by construction),
+    // and the browser hasn't decoded the target frame yet at this instant --
+    // repainting here only catches the stale pre-seek frame, flickering
+    // before the imageRevision watch below repaints with the frame the seek
+    // actually lands on. Image panes still need the immediate repaint.
     watch(frameNumberRef, () => {
-      if (alignedDisplayTransform.value) {
+      if (alignedDisplayTransform.value && resolveCameraImage()?.kind !== 'video') {
         alignedImageLayer.update();
       }
     });

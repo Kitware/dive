@@ -333,20 +333,20 @@ export default defineComponent({
     const showUserSettingsDialog = ref(false);
 
     // When the Camera Registration panel opens, minimize the workspace chrome
-    // to give the picking view more room: collapse the left type-filter
-    // sidebar. The bottom controls deliberately stay as they are -- the
-    // timeline hosts the registration-frame marker row, which is most useful
-    // exactly while this panel is open. This is a soft default -- the normal
-    // sidebar toggle still works while registering -- and whatever layout the
-    // user had before is restored on close.
+    // to give the picking view more room: hide the type-filter sidebar,
+    // whichever side it is on. Bottom especially -- it competes for the same
+    // vertical room the two picking panes want. The bottom controls
+    // deliberately stay as they are -- the timeline hosts the
+    // registration-frame marker row, which is most useful exactly while this
+    // panel is open. This is a soft default -- the normal sidebar toggle
+    // still works while registering -- and whatever layout the user had
+    // before is restored on close.
     const registrationActive = computed(() => context.state.active === RegistrationToolsVue.name);
     let preRegistrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
     watch(registrationActive, (active) => {
       if (active) {
         preRegistrationSidebarMode = sidebarMode.value;
-        if (sidebarMode.value === 'left') {
-          sidebarMode.value = 'collapsed';
-        }
+        sidebarMode.value = 'collapsed';
       } else if (preRegistrationSidebarMode !== null) {
         sidebarMode.value = preRegistrationSidebarMode;
         preRegistrationSidebarMode = null;
@@ -2363,6 +2363,7 @@ export default defineComponent({
       cycleSidebarMode,
       sidebarModeIcon,
       sidebarModeTooltip,
+      registrationActive,
       bottomRightPanelView,
       toggleBottomRightPanel,
       colorBy,
@@ -2534,7 +2535,14 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <!--
+          No sidebar while registering: the picking panes want the room, and
+          the bottom layout in particular doesn't lay them out usably. The
+          panel collapses the sidebar on open and restores it on close, so
+          the toggle is simply not offered in between.
+        -->
         <v-tooltip
+          v-if="!registrationActive"
           bottom
         >
           <template #activator="{ on }">
