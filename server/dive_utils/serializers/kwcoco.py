@@ -15,9 +15,13 @@ from dive_utils.models import CocoMetadata, Feature, Track
 from . import viame
 
 RLE_SEGMENTATION_WARNING = (
-    'The COCO file included run-length encoded segmentation masks that are not supported. '
-    'Bounding boxes and other annotation data were imported, but masks were skipped.'
+    'The COCO file included run-length encoded segmentation masks that could not be decoded. '
+    'Bounding boxes and other annotation data were imported, but those masks were skipped.'
 )
+
+# A mask larger than this is refused rather than allocated; 8K x 8K is already
+# far beyond anything DIVE displays.
+_RLE_MAX_PIXELS = 64 * 1024 * 1024
 
 PROB_TOP_K = 10
 PROB_EPSILON = 0.001
@@ -165,6 +169,159 @@ def _is_rle_segmentation(annotation: dict, segmentation=None) -> bool:
     return bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
 
 
+def _decode_rle_counts(counts) -> Optional[List[int]]:
+    """Run lengths from either COCO counts spelling.
+
+    Uncompressed COCO writes a list of integers; pycocotools writes the same
+    runs LEB128-encoded into a string.
+    """
+    if isinstance(counts, (list, tuple)):
+        if all(isinstance(count, int) and not isinstance(count, bool) and count >= 0
+               for count in counts):
+            return list(counts)
+        return None
+    if not isinstance(counts, (str, bytes)):
+        return None
+
+    text = counts.decode('ascii') if isinstance(counts, bytes) else counts
+    runs: List[int] = []
+    position = 0
+    while position < len(text):
+        value = 0
+        shift = 0
+        more = True
+        while more:
+            if position >= len(text):
+                return None
+            char = ord(text[position]) - 48
+            value |= (char & 0x1F) << shift
+            more = bool(char & 0x20)
+            position += 1
+            shift += 5
+            # The final chunk carries the sign in bit 0x10 (rleFrString).
+            if not more and char & 0x10:
+                value |= -1 << shift
+        # Runs past the first two are deltas against the run two places back.
+        if len(runs) > 2:
+            value += runs[-2]
+        runs.append(value)
+    return runs if all(run >= 0 for run in runs) else None
+
+
+# Clockwise Moore neighbourhood, as (dx, dy) starting from due east.
+_MOORE_OFFSETS = (
+    (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1),
+)
+
+
+def _trace_contour(mask, start, visited) -> List[Tuple[float, float]]:
+    """Moore-neighbour trace of one component's outer boundary.
+
+    Pure numpy: the server has numpy but not opencv, and walking the boundary
+    costs the perimeter rather than the area.
+    """
+    height, width = mask.shape
+    contour = [start]
+    visited[start[1], start[0]] = True
+    # Entering the start pixel from the west, so begin the search north of it.
+    previous = (start[0] - 1, start[1])
+    current = start
+
+    while True:
+        back = (previous[0] - current[0], previous[1] - current[1])
+        try:
+            index = _MOORE_OFFSETS.index(back)
+        except ValueError:
+            index = 0
+        found = None
+        for step in range(1, 9):
+            offset = _MOORE_OFFSETS[(index + step) % 8]
+            candidate = (current[0] + offset[0], current[1] + offset[1])
+            if not (0 <= candidate[0] < width and 0 <= candidate[1] < height):
+                continue
+            if mask[candidate[1], candidate[0]]:
+                found = candidate
+                break
+            previous = candidate
+        if found is None:  # isolated pixel
+            break
+        if found == start and len(contour) > 1:
+            break
+        contour.append(found)
+        visited[found[1], found[0]] = True
+        previous = current
+        current = found
+        if len(contour) > 4 * height * width:  # cannot happen; refuses to spin
+            break
+
+    return [(float(x), float(y)) for x, y in contour]
+
+
+def _polygon_area(points: List[Tuple[float, float]]) -> float:
+    """Shoelace area of a closed contour."""
+    total = 0.0
+    for index, (x, y) in enumerate(points):
+        next_x, next_y = points[(index + 1) % len(points)]
+        total += x * next_y - next_x * y
+    return abs(total) / 2.0
+
+
+def _rle_polygon_coords(segmentation) -> List[List[Tuple[float, float]]]:
+    """Trace a COCO RLE mask into image-space polygon contours.
+
+    DIVE stores geometry, not rasters, so an imported mask becomes its outline.
+    Holes are not representable and are dropped.
+    """
+    if not isinstance(segmentation, dict):
+        return []
+    size = segmentation.get('size')
+    if not (isinstance(size, (list, tuple)) and len(size) == 2):
+        return []
+    height, width = size
+    if not (isinstance(height, int) and isinstance(width, int)):
+        return []
+    if height <= 0 or width <= 0 or height * width > _RLE_MAX_PIXELS:
+        return []
+
+    runs = _decode_rle_counts(segmentation.get('counts'))
+    if runs is None or sum(runs) != height * width:
+        return []
+
+    import numpy as np
+
+    flat = np.zeros(height * width, dtype=bool)
+    position = 0
+    for index, run in enumerate(runs):
+        if index % 2:  # odd runs are foreground
+            flat[position:position + run] = True
+        position += run
+    # COCO run-length order is column-major.
+    mask = flat.reshape((height, width), order='F')
+    if not mask.any():
+        return []
+
+    # A boundary pixel is foreground with at least one background 4-neighbour.
+    padded = np.zeros((height + 2, width + 2), dtype=bool)
+    padded[1:-1, 1:-1] = mask
+    interior = (
+        padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:]
+    )
+    boundary = mask & ~interior
+
+    visited = np.zeros_like(mask)
+    coord_lists = []
+    for y, x in zip(*np.nonzero(boundary)):
+        if visited[y, x]:
+            continue
+        contour = _trace_contour(mask, (int(x), int(y)), visited)
+        if len(contour) >= 3:
+            coord_lists.append(contour)
+    # Largest by enclosed area, not by point count: a long thin outline can
+    # carry more points than a bigger blob, and callers take the first.
+    coord_lists.sort(key=_polygon_area, reverse=True)
+    return coord_lists
+
+
 def _extract_polygon_coords_lists(segmentation) -> List[List[Tuple[float, float]]]:
     """Parse COCO / KWCOCO polygon segmentations into coordinate lists."""
     if not segmentation or isinstance(segmentation, dict):
@@ -201,9 +358,10 @@ def _bbox_from_points(points: List[Tuple[float, float]]) -> List[float]:
 def _annotation_has_importable_bounds(annotation: dict) -> bool:
     if _has_valid_bbox(annotation):
         return True
-    if _is_rle_segmentation(annotation):
-        return False
-    return bool(_extract_polygon_coords_lists(annotation.get('segmentation', [])))
+    segmentation = annotation.get('segmentation', [])
+    if _is_rle_segmentation(annotation, segmentation):
+        return bool(_rle_polygon_coords(segmentation))
+    return bool(_extract_polygon_coords_lists(segmentation))
 
 
 def _missing_bounds_error(annotation_ids: List) -> str:
@@ -214,7 +372,7 @@ def _missing_bounds_error(annotation_ids: List) -> str:
         f'they have no bbox and '
         f'no usable polygon segmentation (ids: {shown}{extra}). '
         'Provide bbox [x, y, width, height] or polygon segmentation as [[x1, y1, ...]]. '
-        'Annotations with only RLE segmentation masks still require a bbox.'
+        'An RLE mask supplies bounds only when it can be decoded.'
     )
 
 
@@ -222,7 +380,11 @@ def _resolve_coco_bbox(annotation: dict) -> List[float]:
     if _has_valid_bbox(annotation):
         return list(annotation['bbox'])
 
-    coord_lists = _extract_polygon_coords_lists(annotation.get('segmentation', []))
+    segmentation = annotation.get('segmentation', [])
+    if _is_rle_segmentation(annotation, segmentation):
+        coord_lists = _rle_polygon_coords(segmentation)
+    else:
+        coord_lists = _extract_polygon_coords_lists(segmentation)
     all_points = [point for coords in coord_lists for point in coords]
     if all_points:
         return _bbox_from_points(all_points)
@@ -333,10 +495,16 @@ def _parse_annotation(
 
     # parse polygons
     segmentation = annotation.get('segmentation', [])
-    rle_skipped = _is_rle_segmentation(annotation, segmentation)
+    rle_skipped = False
 
-    if segmentation and not rle_skipped:
-        coord_lists = _extract_polygon_coords_lists(segmentation)
+    if segmentation:
+        if _is_rle_segmentation(annotation, segmentation):
+            coord_lists = _rle_polygon_coords(segmentation)
+            # Only undecodable masks are reported; a traced one is not a loss
+            # worth warning about.
+            rle_skipped = not coord_lists
+        else:
+            coord_lists = _extract_polygon_coords_lists(segmentation)
         if coord_lists:
             viame.create_geoJSONFeature(features, 'Polygon', coord_lists[0])
 
