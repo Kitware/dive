@@ -29,7 +29,7 @@ export default defineComponent({
     const { saveConfig } = useApi();
     const { prompt } = usePrompt();
 
-    const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
+    const cameras = computed(() => cameraStore.orderedCameraNames());
     /**
      * Per-camera alignment status for the whole rig, driving the status block:
      * the first camera (display order) is the reference (identity); every other

@@ -1534,6 +1534,9 @@ export default defineComponent({
         if (meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
           multiCamList.value = orderedMultiCamCameraNames(meta.multiCamMedia);
+          // Publish the persisted rig order for consumers that need to know
+          // which camera is first/last (see CameraStore.displayOrder).
+          cameraStore.displayOrder.value = multiCamList.value;
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
           changeCamera(defaultCamera.value);
           baseMulticamDatasetId.value = datasetId.value;
@@ -1542,6 +1545,9 @@ export default defineComponent({
           }
         } else {
           multiCamList.value = ['singleCam'];
+          // Clear any order carried over from a previously loaded multicam
+          // dataset, so orderedCameraNames falls back to camMap.
+          cameraStore.displayOrder.value = [];
           resetMulticamAlignment();
         }
         cameraStore.setCameraOrder(multiCamList.value);
