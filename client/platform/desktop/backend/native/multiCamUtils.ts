@@ -98,6 +98,41 @@ async function extractVideoFrames(
   return results;
 }
 
+/**
+ * Where each camera must start reading so row i of every camera's input is
+ * the same instant.
+ *
+ * Cameras on a fixed rig can start recording fractions of a second apart
+ * (see the dataset's cameraFrameOffsets and dive-common/alignedTimeline.ts).
+ * Pipeline inputs pair positionally -- row i with row i -- so without this
+ * a two-camera detector is handed mismatched instants and every cross-camera
+ * association it makes is wrong, silently.
+ *
+ * Camera c's local frame `slot + offset[c]` is slot `slot`; the first slot
+ * every camera can cover is the largest -offset. Returns null when nothing
+ * is offset, so an uncorrected dataset takes exactly the previous path.
+ */
+export function pairedStartFrames(
+  cameras: [string, { originalImageFiles: string[] }][],
+  offsets: Record<string, number> | undefined,
+): { start: Record<string, number>; length: number } | null {
+  const names = cameras.map(([name]) => name);
+  if (!offsets || !names.some((name) => (offsets[name] ?? 0) !== 0)) {
+    return null;
+  }
+  const firstSlot = Math.max(...names.map((name) => -(offsets[name] ?? 0)));
+  const start = Object.fromEntries(
+    names.map((name) => [name, firstSlot + (offsets[name] ?? 0)]),
+  );
+  // Every list must also END together, or the trailing rows of the longest
+  // pair against nothing. Only meaningful for image sequences, where the
+  // counts are known here.
+  const lengths = cameras
+    .filter(([, list]) => list.originalImageFiles.length)
+    .map(([name, list]) => list.originalImageFiles.length - start[name]);
+  return { start, length: lengths.length ? Math.min(...lengths) : 0 };
+}
+
 /** frame://N pseudo-name to frame number, or null for real image names. */
 function pseudoFrameNumber(entry: string): number | null {
   const match = /^frame:\/\/(\d+)$/.exec(entry);
@@ -226,6 +261,15 @@ async function writeMultiCamStereoPipelineArgs(
       ? cameraOrder.filter((name) => name in cameras)
       : orderedMultiCamCameraNames(meta.multiCam);
     const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
+    const startFrames = pairedStartFrames(cameraList, meta.cameraFrameOffsets);
+    if (startFrames && startFrames.length <= 0) {
+      // Empty input lists would fail deep inside the pipeline; say why here.
+      throw new Error(
+        'The dataset\'s camera time offsets leave no overlapping frames between '
+        + 'cameras, so there is nothing to run. Check the Time Offset in the '
+        + 'Camera Registration panel.',
+      );
+    }
     for (let i = 0; i < cameraList.length; i += 1) {
       const [key, list] = cameraList[i];
       const { originalBasePath } = list;
@@ -260,6 +304,10 @@ async function writeMultiCamStereoPipelineArgs(
               throw new Error(`Image file not found: ${image}`);
             }
           }
+        } else if (startFrames) {
+          // Keep this camera's paired span: from its first paired instant, as long as the shortest.
+          const from = startFrames.start[key];
+          images = images.slice(from, from + startFrames.length);
         } else if (runtime.frameRange) {
           // The single-camera path filters image lists by frameRange;
           // multicam silently ignored it (a pre-existing no-op) -- apply it
@@ -311,6 +359,11 @@ async function writeMultiCamStereoPipelineArgs(
         const vidTypeArg = `input${i + 1}:video_reader:type`;
         const vidType = 'vidl_ffmpeg';
         argFilePair[vidTypeArg] = vidType;
+        if (startFrames) {
+          // Same correction as the image-list slice, expressed as a seek:
+          // start_at_frame counts from 1, and 0 would mean "the beginning".
+          argFilePair[`input${i + 1}:start_at_frame`] = String(startFrames.start[key] + 1);
+        }
         const videoFileName = npath.join(originalBasePath, vidFile);
         argFilePair[inputArg] = videoFileName;
         if (i === 0) {
