@@ -198,7 +198,7 @@ export default defineComponent({
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
-      getPipelineList, runPipeline,
+      getPipelineList, runPipeline, watchPipelineJob,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -761,6 +761,9 @@ export default defineComponent({
       },
       getPipelineList,
       runPipeline,
+      // Only platforms that can report job state supply this; without it the
+      // service falls back to watching the dataset for the job's output.
+      watchJob: watchPipelineJob,
       loadMetadata: loadConfig,
       registration: cameraRegistration,
       confirmReload: () => prompt({

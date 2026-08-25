@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { watch } from 'vue';
 
 import type {
   AnnotationSchema,
@@ -9,6 +10,7 @@ import type {
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
+  PipelineJobResult,
 } from 'dive-common/apispec';
 
 import {
@@ -26,7 +28,7 @@ import {
   MultiCamBatchScanResult,
 } from 'platform/desktop/constants';
 
-import { gpuJobQueue, cpuJobQueue } from './store/jobs';
+import { gpuJobQueue, cpuJobQueue, jobHistory } from './store/jobs';
 
 interface FileFilter {
   name: string;
@@ -171,6 +173,57 @@ async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: Pipe
     outputDatasetName: pipelineParams?.outputDatasetName,
   };
   gpuJobQueue.enqueue(args);
+}
+
+/**
+ * Resolve when the pipeline job for this dataset finishes.
+ *
+ * The job store is the only place that knows a job ended: a pipeline's own
+ * artifacts cannot say it, because a deterministic re-run writes byte-identical
+ * output and a job that fails writes none at all. Both look exactly like "still
+ * running" to anything watching the output.
+ *
+ * Only jobs starting at or after this call are considered, so an earlier run of
+ * the same pipe on the same dataset (still in the history) is never mistaken for
+ * this one. Resolution waits out the queue: `runPipeline` enqueues, so the job
+ * may not exist for as long as the jobs ahead of it take.
+ */
+function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJobResult> {
+  const startedAt = Date.now();
+  return new Promise<PipelineJobResult>((resolve) => {
+    let key: string | null = null;
+    const stop = watch(jobHistory, () => {
+      const entries = Object.values(jobHistory.value);
+      if (key === null) {
+        const match = entries.find((entry) => entry.job.jobType === 'pipeline'
+          && 'pipeline' in entry.job.args
+          && entry.job.args.pipeline.pipe === pipeline.pipe
+          && entry.job.datasetIds.includes(datasetId)
+          // A job update carries the start time as an ISO string once it has
+          // crossed the IPC boundary, so normalize before comparing.
+          && new Date(entry.job.startTime).getTime() >= startedAt);
+        if (!match) {
+          return;
+        }
+        key = match.job.key;
+      }
+      const job = jobHistory.value[key]?.job;
+      if (!job || job.endTime === undefined) {
+        return;
+      }
+      stop();
+      if (job.cancelledJob) {
+        resolve({ ok: false, message: 'The job was cancelled.' });
+      } else if (job.exitCode === 0) {
+        resolve({ ok: true });
+      } else {
+        resolve({
+          ok: false,
+          message: `The job exited with code ${job.exitCode}; see its log in the Jobs tab.`,
+        });
+      }
+    }, { deep: true, immediate: true });
+  });
 }
 
 async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<void> {
@@ -775,6 +828,7 @@ export {
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,
+  watchPipelineJob,
   exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,

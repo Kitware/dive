@@ -92,6 +92,15 @@ export interface AutoRegisterJobDeps {
     kwiverParams?: Record<string, string>;
     runtimeParams?: { imagePairs?: Record<string, string[]> };
   }): Promise<unknown>;
+  /**
+   * Resolve when the launched job reaches a terminal state, where the platform
+   * can report that. Preferred over watching the dataset for the job's output:
+   * the matcher is deterministic, so re-running it over the same frames merges
+   * byte-identical observations, and a registration that never changes is
+   * indistinguishable from a job that is still running (or one that failed and
+   * wrote nothing at all).
+   */
+  watchJob?(datasetId: string, pipe: AlignPipe): Promise<{ ok: boolean; message?: string }>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   loadMetadata(datasetId: string): Promise<any>;
   registration: CameraRegistrationStore;
@@ -144,14 +153,71 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
   }
 
   /**
-   * Watch the dataset's persisted registration until the job's collector
-   * merges the pipeline output in (there is no cross-platform job-completion
-   * event; the artifact itself is the signal). Unsaved in-app edits are
-   * never clobbered silently -- the user confirms first.
+   * Take the job's merged output into the store. Unsaved in-app edits are never
+   * clobbered silently -- the user confirms first. Returns false when the user
+   * declined, so the caller can leave its own message up.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  async function adoptResult(meta: any): Promise<boolean> {
+    if (deps.registration.dirty.value) {
+      // The confirm is modal and can sit unanswered indefinitely; say so,
+      // rather than leaving the panel claiming the job is still matching
+      // frames while it is really waiting on the user.
+      status.value = 'Auto Register finished — confirm loading the results';
+      const confirmed = await deps.confirmReload();
+      if (!confirmed) {
+        status.value = null;
+        error.value = 'Auto Register finished; reload the dataset to see its results.';
+        return false;
+      }
+    }
+    rehydrate(meta);
+    status.value = 'Auto Register complete: review the registration frames below.';
+    return true;
+  }
+
+  /**
+   * Completion by job state: the platform tells us the job ended, and only then
+   * do we look at what it left behind. A run whose results match what is already
+   * stored still completes -- that is a real outcome, not a reason to keep
+   * waiting.
+   */
+  async function awaitJobResult(baseline: string): Promise<void> {
+    const watchJob = deps.watchJob as NonNullable<AutoRegisterJobDeps['watchJob']>;
+    const outcome = await watchJob(deps.datasetId.value, alignPipe.value as AlignPipe);
+    if (disposed) {
+      return;
+    }
+    if (!outcome.ok) {
+      status.value = null;
+      error.value = `Auto Register job did not finish: ${outcome.message ?? 'unknown error'}`;
+      return;
+    }
+    let meta;
+    try {
+      meta = await deps.loadMetadata(deps.datasetId.value);
+    } catch (err) {
+      status.value = null;
+      error.value = 'Auto Register finished, but the dataset could not be reloaded; reopen it to see the results.';
+      return;
+    }
+    if (JSON.stringify(meta.cameraCorrespondences ?? {}) === baseline) {
+      // Same frames, same weights, same points: the merge was a no-op. Say so
+      // instead of implying the run did nothing at all.
+      status.value = 'Auto Register complete: the results matched the registration already stored.';
+      return;
+    }
+    await adoptResult(meta);
+  }
+
+  /**
+   * Fallback for platforms that cannot report job state: watch the dataset's
+   * persisted registration until the job's collector merges the pipeline output
+   * in. This cannot see a job that failed or one whose output was identical, so
+   * it is only used when {@link AutoRegisterJobDeps.watchJob} is absent.
    */
   async function pollForResult(baseline: string) {
     const started = Date.now();
-    status.value = 'Auto Register job running… matching frames';
     for (;;) {
       // eslint-disable-next-line no-await-in-loop
       await new Promise((resolve) => { setTimeout(resolve, POLL_INTERVAL_MS); });
@@ -176,21 +242,8 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
         // eslint-disable-next-line no-continue
         continue;
       }
-      if (deps.registration.dirty.value) {
-        // The confirm is modal and can sit unanswered indefinitely; say so,
-        // rather than leaving the panel claiming the job is still matching
-        // frames while it is really waiting on the user.
-        status.value = 'Auto Register finished — confirm loading the results';
-        // eslint-disable-next-line no-await-in-loop
-        const confirmed = await deps.confirmReload();
-        if (!confirmed) {
-          status.value = null;
-          error.value = 'Auto Register finished; reload the dataset to see its results.';
-          return;
-        }
-      }
-      rehydrate(meta);
-      status.value = 'Auto Register complete: review the registration frames below.';
+      // eslint-disable-next-line no-await-in-loop
+      await adoptResult(meta);
       return;
     }
   }
@@ -259,7 +312,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
           : 'No candidate frames could be proposed for this dataset.');
       }
       status.value = queued
-        ? `Matching ${frames.length} queued frame(s)…`
+        ? `Preparing ${frames.length} queued frame(s)…`
         : `Proposing ${frames.length} candidate frames…`;
       const imagePairs: Record<string, string[]> = {};
       // eslint-disable-next-line no-restricted-syntax
@@ -308,11 +361,20 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
       }
       const meta = await deps.loadMetadata(deps.datasetId.value);
       const baseline = JSON.stringify(meta.cameraCorrespondences ?? {});
+      // Queueing the job is not the same as the job starting: video frames are
+      // extracted to stills first, which is the slowest part of a rig-wide run.
+      // Say so, since until that finishes there is no pipeline output to watch.
+      status.value = `Starting Auto Register on ${frames.length} frame(s) — preparing inputs…`;
       await deps.runPipeline(deps.datasetId.value, pipe, {
         kwiverParams,
         runtimeParams: { imagePairs },
       });
-      await pollForResult(baseline);
+      status.value = 'Auto Register job running — see the Jobs tab for progress';
+      if (deps.watchJob) {
+        await awaitJobResult(baseline);
+      } else {
+        await pollForResult(baseline);
+      }
     } catch (err) {
       status.value = null;
       error.value = err instanceof Error ? err.message : String(err);

@@ -380,9 +380,25 @@ interface DatasetCalibrationResult {
   conversionError?: string;
 }
 
+/** Terminal state of a pipeline job, as reported by {@link Api.watchPipelineJob}. */
+export interface PipelineJobResult {
+  /** True when the job exited successfully. */
+  ok: boolean;
+  /** Human-readable reason when `ok` is false. */
+  message?: string;
+}
+
 interface Api {
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
+  /**
+   * Resolve once the pipeline job this dataset just launched reaches a terminal
+   * state, so a caller can key completion off the job instead of off whatever
+   * the job was expected to write. Optional: a platform without a job feed
+   * leaves it undefined and callers fall back to watching for the artifact,
+   * which cannot tell "finished, output identical" from "still running".
+   */
+  watchPipelineJob?(datasetId: string, pipeline: Pipe): Promise<PipelineJobResult>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
   getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null>;

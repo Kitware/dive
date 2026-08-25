@@ -339,7 +339,7 @@ describe('status while the completion confirm is open', () => {
 
       // Launch settles, then the 5s poll tick fires.
       await vi.advanceTimersByTimeAsync(0);
-      expect(service.status.value).toMatch(/matching frames/);
+      expect(service.status.value).toMatch(/see the Jobs tab/);
       await vi.advanceTimersByTimeAsync(5000);
 
       expect(confirmOpened).toBe(true);
@@ -352,5 +352,88 @@ describe('status while the completion confirm is open', () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+/**
+ * Completion has to come from the job, not from its output. The matcher is
+ * deterministic: re-running it over the same frames merges byte-identical
+ * observations, so "the registration changed" never fires and the panel used
+ * to sit on "job running" until the 30-minute timeout. A failed job wrote no
+ * output at all and looked exactly the same.
+ */
+describe('completion by job state', () => {
+  const timeline = buildAlignedTimeline(IMAGES);
+  const { slots } = (timeline as { aligned: true; slots: AlignedSlot[] });
+
+  function buildJobService(
+    outcome: { ok: boolean; message?: string },
+    // What the dataset holds after the job merged: same object as the
+    // pre-launch baseline means the run produced nothing new.
+    correspondences: Record<string, unknown>,
+  ) {
+    const hydrated: unknown[] = [];
+    let loads = 0;
+    const service = createAutoRegisterJobService({
+      datasetId: ref('ds1'),
+      cameras: ref(CAMERAS),
+      frameCount: (camera: string) => IMAGES[camera].length,
+      timestampsFor: (camera: string) => IMAGES[camera].map((frame) => frame.timestamp),
+      alignedSlots: () => slots,
+      resolveImagePaths: async (camera: string, frames: number[]) => (
+        frames.map((n) => IMAGES[camera][n].filename)
+      ),
+      getPipelineList: async () => ({ utility: { pipes: [ALIGN_PIPE] } }),
+      runPipeline: async () => undefined,
+      watchJob: async () => outcome,
+      loadMetadata: async () => {
+        loads += 1;
+        // First read is the pre-launch baseline; later reads are post-job.
+        return { cameraCorrespondences: loads > 1 ? correspondences : {} };
+      },
+      registration: {
+        observations: ref({}),
+        dirty: ref(false),
+        activePair: ref(null),
+        hydrate: (...args: unknown[]) => { hydrated.push(args); },
+        setActivePair: () => undefined,
+      } as unknown as CameraRegistrationStore,
+      confirmReload: async () => true,
+    });
+    return { service, hydrated };
+  }
+
+  it('finishes an idempotent re-run instead of waiting for a change', async () => {
+    // The dataset already holds exactly what this run produced.
+    const { service, hydrated } = buildJobService({ ok: true }, {});
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.running.value).toBe(false);
+    expect(service.error.value).toBeNull();
+    expect(service.status.value).toMatch(/matched the registration already stored/);
+    expect(hydrated).toEqual([]);
+  });
+
+  it('adopts results when the registration did change', async () => {
+    const { service, hydrated } = buildJobService({ ok: true }, { 'rgb::ir': [1] });
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.status.value).toMatch(/complete: review the registration frames/);
+    expect(hydrated).toHaveLength(1);
+  });
+
+  it('surfaces a failed job instead of spinning', async () => {
+    const { service } = buildJobService(
+      { ok: false, message: 'The job exited with code 1; see its log in the Jobs tab.' },
+      {},
+    );
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.running.value).toBe(false);
+    expect(service.status.value).toBeNull();
+    expect(service.error.value).toMatch(/exited with code 1/);
   });
 });
