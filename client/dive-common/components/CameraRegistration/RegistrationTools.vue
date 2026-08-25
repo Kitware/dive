@@ -1026,6 +1026,26 @@ export default defineComponent({
           @click="openAutoRegisterDialog"
         />
       </div>
+      <!-- Running state for the matcher job. It lives in the section, not on
+           a button: the buttons come and go with the frame list, and a run
+           has to still read as running when the user leaves this tab and
+           comes back (the job service owns `running`, this component does
+           not). A linear bar also cannot overflow the way a circular spinner
+           stuffed into an x-small button does. -->
+      <div
+        v-if="autoRegistering"
+        class="ml-2 mb-2"
+      >
+        <v-progress-linear
+          indeterminate
+          height="3"
+          rounded
+          color="primary"
+        />
+        <span class="text-caption grey--text d-block mt-1">
+          {{ autoRegisterStatus || 'Auto Register running…' }}
+        </span>
+      </div>
       <registration-frame-list
         :rows="autoRows"
         @toggle="toggleFrameRow"
@@ -1046,16 +1066,8 @@ export default defineComponent({
           color="primary"
           class="mt-1"
           :disabled="cameras.length < 2 || autoRegistering"
-          :loading="autoRegistering"
           @click="openAutoRegisterDialog"
         >
-          <template #loader>
-            <v-progress-circular
-              indeterminate
-              size="14"
-              width="2"
-            />
-          </template>
           <v-icon
             x-small
             left
@@ -1104,16 +1116,8 @@ export default defineComponent({
           color="primary"
           class="flex-grow-1"
           :disabled="autoRegistering"
-          :loading="autoRegistering"
           @click="runQueuedFrames"
         >
-          <template #loader>
-            <v-progress-circular
-              indeterminate
-              size="14"
-              width="2"
-            />
-          </template>
           Run matcher on {{ queuedSlots.length }} frame(s)
         </v-btn>
         <tooltip-btn
@@ -1186,7 +1190,7 @@ export default defineComponent({
       {{ autoRegisterError }}
     </span>
     <span
-      v-else-if="autoRegisterStatus"
+      v-else-if="autoRegisterStatus && !autoRegistering"
       class="text-caption success--text d-block mt-1"
     >
       {{ autoRegisterStatus }}
