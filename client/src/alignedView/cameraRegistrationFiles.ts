@@ -215,9 +215,17 @@ export function unknownCameraWarning(
     + 'transforms will not take effect unless camera names match.';
 }
 
-/** Identity of one observation within a pair: the image pair plus producer. */
+/**
+ * Identity of one observation within a pair: the image pair plus producer.
+ *
+ * NUL separates the parts because it is the one character that cannot occur
+ * in a filename, so no combination of names can collide by straddling a
+ * delimiter. Write it as the `\0` escape, never as a literal control
+ * character -- an actual NUL byte in the source makes the file read as
+ * binary, and tools quietly skip it (grep needs -a, diffs degrade).
+ */
 function observationIdentity(obs: CorrespondenceObservation): string {
-  return `${obs.imageA} ${obs.imageB} ${obs.source}`;
+  return `${obs.imageA}\0${obs.imageB}\0${obs.source}`;
 }
 
 /**
