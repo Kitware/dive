@@ -134,7 +134,10 @@ export default defineComponent({
                     </tr>
                     <tr>
                       <td>PID</td>
-                      <td>{{ job.job.pid }}</td>
+                      <!-- A negative pid is the placeholder a job carries
+                           while its inputs are being prepared and no process
+                           exists yet. -->
+                      <td>{{ job.job.pid >= 0 ? job.job.pid : 'starting…' }}</td>
                     </tr>
                     <tr v-if="job.job.datasetIds.length > 0">
                       <td>datasets</td>

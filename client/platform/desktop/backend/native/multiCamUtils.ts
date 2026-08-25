@@ -24,6 +24,13 @@ export interface MultiCamRuntimeSubset {
    */
   imagePairs?: Record<string, string[]>;
   frameRange?: [number, number];
+  /**
+   * Progress sink for the slow part of writing these args: extracting a video
+   * camera's subset frames to stills, which for a rig-wide registration run
+   * takes longer than the pipeline itself. Without it the caller has nothing
+   * to report between "job accepted" and "process spawned".
+   */
+  onProgress?: (message: string) => void;
 }
 
 /**
@@ -39,6 +46,7 @@ async function extractVideoFrames(
   fps: number,
   outDir: string,
   camera: string,
+  onProgress?: (done: number, total: number) => void,
 ): Promise<string[]> {
   await fs.ensureDir(outDir);
   const results: string[] = [];
@@ -65,6 +73,7 @@ async function extractVideoFrames(
       throw new Error(`Could not extract frame ${frameNum} from ${videoPath}: ${result.error || 'no output'}`);
     }
     results.push(dest);
+    onProgress?.(results.length, frames.length);
   }
   return results;
 }
@@ -145,6 +154,7 @@ async function writeMultiCamStereoPipelineArgs(
   forceTranscoded = false,
   runtime: MultiCamRuntimeSubset = {},
 ) {
+  const { onProgress } = runtime;
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
   if (meta.multiCam && meta.multiCam.cameras) {
@@ -208,6 +218,7 @@ async function writeMultiCamStereoPipelineArgs(
           meta.fps,
           npath.join(jobWorkDir, `extracted_${key}`),
           key,
+          (done, total) => onProgress?.(`Extracting frames from ${key}: ${done}/${total}`),
         );
         const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
         const inputFile = fs.createWriteStream(inputFileName);

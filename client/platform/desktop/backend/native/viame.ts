@@ -203,6 +203,41 @@ async function runPipeline(
   // path rather than a bare filename.
   const jobWorkDir = await createWorkingDirectory(settings, [meta], splitExt(pipeline.pipe)[0]);
 
+  // The key must not depend on the pid: the renderer is told this job exists
+  // before any process does, so that preparing the inputs (extracting a
+  // multi-camera frame subset from video takes longer than the pipeline run
+  // itself) shows up in the Jobs tab instead of looking like nothing
+  // happened. Both updates have to land on the same history entry, and
+  // jobWorkDir is already unique per run.
+  const jobKey = `pipeline_${jobWorkDir}`;
+  const preparingJob: DesktopJob = {
+    key: jobKey,
+    command: '',
+    jobType: 'pipeline',
+    // No process yet. The UI reads a negative pid as "still starting" and
+    // leaves it out of the job's detail table.
+    pid: -1,
+    args: runPipelineArgs,
+    title: runPipelineArgs.pipeline.name,
+    workingDir: jobWorkDir,
+    datasetIds: [datasetId],
+    exitCode: null,
+    startTime: new Date(),
+  };
+  const reportPreparing = (message: string) => updater({ ...preparingJob, body: [message] });
+  // Closes out the placeholder entry when the job dies before it ever spawns;
+  // otherwise the Jobs tab keeps a job that can never finish, and its badge
+  // spins forever.
+  const failedToStart = (err: unknown) => {
+    updater({
+      ...preparingJob,
+      body: [`Job failed to start: ${err instanceof Error ? err.message : String(err)}`],
+      exitCode: 1,
+      endTime: new Date(),
+    });
+  };
+  reportPreparing('Preparing job inputs...');
+
   const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
   let cameraLogLine: string | null = null;
   if (cameraName) {
@@ -368,7 +403,14 @@ async function runPipeline(
 
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
-    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, { imagePairs, frameRange });
+    let multiCamArgs;
+    try {
+      multiCamArgs = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, { imagePairs, frameRange, onProgress: reportPreparing });
+    } catch (err) {
+      failedToStart(err);
+      throw err;
+    }
+    const { argFilePair, outFiles } = multiCamArgs;
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
@@ -446,11 +488,13 @@ async function runPipeline(
     cwd: jobWorkDir,
   }));
   if (job.pid === undefined) {
-    throw new Error('Failed to spawn pipeline process');
+    const err = new Error('Failed to spawn pipeline process');
+    failedToStart(err);
+    throw err;
   }
 
   const jobBase: DesktopJob = {
-    key: `pipeline_${job.pid}_${jobWorkDir}`,
+    key: jobKey,
     command: command.join(' '),
     jobType: 'pipeline',
     pid: job.pid,
@@ -602,7 +646,15 @@ async function runPipeline(
           );
         }
       } catch (err) {
+        // Post-run collection (annotation ingest, registration merge, dataset
+        // creation) failing used to be swallowed to the main-process console:
+        // the job still reported success while its results never reached the
+        // dataset, which reads as "the pipeline did nothing". Put it where the
+        // user looks instead.
+        const message = `Post-run processing failed: ${err instanceof Error ? err.message : String(err)}`;
         console.error(err);
+        await fs.appendFile(joblog, `\n${message}\n`).catch(() => undefined);
+        updater({ ...jobBase, body: [message] });
       }
     }
     updater({
