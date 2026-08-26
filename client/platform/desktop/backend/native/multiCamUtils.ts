@@ -14,6 +14,7 @@ import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { getBinaryPath, spawnResult } from './utils';
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+const ffprobePath = getBinaryPath('ffmpeg-ffprobe-static/ffprobe');
 
 /** Frame subset / range inputs for multicam pipeline arg writing. */
 export interface MultiCamRuntimeSubset {
@@ -113,10 +114,10 @@ async function extractVideoFrames(
  * is offset, so an uncorrected dataset takes exactly the previous path.
  */
 export function pairedStartFrames(
-  cameras: [string, { originalImageFiles: string[] }][],
+  frameCounts: Record<string, number>,
   offsets: Record<string, number> | undefined,
 ): { start: Record<string, number>; length: number } | null {
-  const names = cameras.map(([name]) => name);
+  const names = Object.keys(frameCounts);
   if (!offsets || !names.some((name) => (offsets[name] ?? 0) !== 0)) {
     return null;
   }
@@ -124,13 +125,35 @@ export function pairedStartFrames(
   const start = Object.fromEntries(
     names.map((name) => [name, firstSlot + (offsets[name] ?? 0)]),
   );
-  // Every list must also END together, or the trailing rows of the longest
-  // pair against nothing. Only meaningful for image sequences, where the
-  // counts are known here.
-  const lengths = cameras
-    .filter(([, list]) => list.originalImageFiles.length)
-    .map(([name, list]) => list.originalImageFiles.length - start[name]);
-  return { start, length: lengths.length ? Math.min(...lengths) : 0 };
+  // Every camera must also STOP together, or the trailing frames of the
+  // longest pair against nothing. For video that is not merely wasted work:
+  // one input completing while another still has frames desynchronizes the
+  // pipeline, and a writer takes a 'complete' datum where it expects data.
+  const spans = names
+    .filter((name) => frameCounts[name] > 0)
+    .map((name) => frameCounts[name] - start[name]);
+  return { start, length: spans.length ? Math.min(...spans) : 0 };
+}
+
+/**
+ * Frames in a video, from the container header.
+ *
+ * Deliberately the declared count rather than a decode: counting frames for
+ * real means decoding the whole file, which would add tens of seconds per
+ * camera to every pipeline launch. On intact media the two agree. A damaged
+ * stream can overstate here, leaving the bound slightly generous -- no worse
+ * than the unbounded behaviour this replaces, and one more reason to
+ * re-encode damaged captures before processing them.
+ */
+async function videoFrameCount(videoPath: string): Promise<number> {
+  const result = await spawnResult(ffprobePath, [
+    '-v', 'error', '-select_streams', 'v:0',
+    '-show_entries', 'stream=nb_frames',
+    '-of', 'default=nokey=1:noprint_wrappers=1',
+    videoPath,
+  ]);
+  const parsed = Number.parseInt((result.output ?? '').trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 /** frame://N pseudo-name to frame number, or null for real image names. */
@@ -261,7 +284,26 @@ async function writeMultiCamStereoPipelineArgs(
       ? cameraOrder.filter((name) => name in cameras)
       : orderedMultiCamCameraNames(meta.multiCam);
     const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
-    const startFrames = pairedStartFrames(cameraList, meta.cameraFrameOffsets);
+    // Videos are probed for a frame count only when an offset is set.
+    const frameCounts: Record<string, number> = {};
+    if (meta.cameraFrameOffsets
+      && cameraList.some(([name]) => (meta.cameraFrameOffsets?.[name] ?? 0) !== 0)) {
+      // eslint-disable-next-line no-restricted-syntax
+      for (const [name, list] of cameraList) {
+        if (list.originalImageFiles.length) {
+          frameCounts[name] = list.originalImageFiles.length;
+        } else if (list.originalVideoFile) {
+          const vidFile = (list.transcodedVideoFile && forceTranscoded) || list.transcodedMisalign
+            ? list.transcodedVideoFile : list.originalVideoFile;
+          frameCounts[name] = await videoFrameCount(
+            npath.join(list.originalBasePath, vidFile),
+          );
+        } else {
+          frameCounts[name] = 0;
+        }
+      }
+    }
+    const startFrames = pairedStartFrames(frameCounts, meta.cameraFrameOffsets);
     if (startFrames && startFrames.length <= 0) {
       // Empty input lists would fail deep inside the pipeline; say why here.
       throw new Error(
@@ -362,7 +404,11 @@ async function writeMultiCamStereoPipelineArgs(
         if (startFrames) {
           // Same correction as the image-list slice, expressed as a seek:
           // start_at_frame counts from 1, and 0 would mean "the beginning".
-          argFilePair[`input${i + 1}:start_at_frame`] = String(startFrames.start[key] + 1);
+          const from = startFrames.start[key];
+          argFilePair[`input${i + 1}:start_at_frame`] = String(from + 1);
+          // ...and stop where the shortest camera does, so the inputs end
+          // together too. Also 1-based, and inclusive of the named frame.
+          argFilePair[`input${i + 1}:stop_after_frame`] = String(from + startFrames.length);
         }
         const videoFileName = npath.join(originalBasePath, vidFile);
         argFilePair[inputArg] = videoFileName;
