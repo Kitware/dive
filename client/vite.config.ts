@@ -9,6 +9,16 @@ import { defineConfig } from 'vitest/config';
 import packageJson from './package.json';
 import { cssConfig } from './vite.css';
 
+const testExcludes = ['**/node_modules/**', '**/bin/**'];
+const domTests = [
+  'src/components/**/*.spec.ts',
+  'dive-common/components/**/*.spec.ts',
+  'platform/web-girder/api/multicamResolve.spec.ts',
+  'platform/web-girder/store/webGirderStoreComposables.spec.ts',
+  'platform/web-girder/views/Upload.spec.ts',
+  'platform/web-girder/views/UploadGirder.spec.ts',
+];
+
 function getGitHash() {
   try {
     return execSync('git rev-parse --short HEAD', { stdio: ['ignore', 'pipe', 'ignore'] })
@@ -108,7 +118,25 @@ export default defineConfig(({ mode }) => {
     base: '/',
     test: {
       globals: true,
-      exclude: ['**/node_modules/**', '**/bin/**'],
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'node',
+            environment: 'node',
+            exclude: [...testExcludes, ...domTests],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'dom',
+            environment: 'jsdom',
+            include: domTests,
+            exclude: testExcludes,
+          },
+        },
+      ],
     },
   };
 

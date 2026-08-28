@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import Vue, { watchEffect } from 'vue';
 import TrackStore from './TrackStore';
 

@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-/// <reference types="vitest" />
 import { defineComponent, h, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import Track from 'vue-media-annotator/track';

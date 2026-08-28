@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-/// <reference types="vitest" />
 /* eslint-disable max-classes-per-file -- lightweight layer doubles */
 import {
   defineComponent, h, ref,

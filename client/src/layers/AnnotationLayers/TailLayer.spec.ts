@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import Track from '../../track';
 import { FrameDataTrack } from '../LayerTypes';
 import TailLayer from './TailLayer';

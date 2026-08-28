@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import CameraRegistrationStore, { CameraCorrespondences } from './CameraRegistrationStore';
 import { buildPerCameraRegistrationFiles } from './cameraRegistrationFiles';
 

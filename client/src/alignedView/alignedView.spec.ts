@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import {
   IDENTITY3,
   isIdentityMatrix3,

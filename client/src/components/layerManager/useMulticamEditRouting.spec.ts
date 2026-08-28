@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { ref } from 'vue';
 import CameraStore from '../../CameraStore';
 import type { Handler } from '../../provides';

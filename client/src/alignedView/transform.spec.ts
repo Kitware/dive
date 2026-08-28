@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { applyHomography, solveHomography, Matrix3 } from './homography';
 import {
   TransformType,

@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { ref, Ref } from 'vue';
 import type { AnnotationWithContext } from '../BaseFilterControls';
 import type { SortedAnnotation } from '../BaseAnnotationStore';

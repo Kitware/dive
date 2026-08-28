@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 /**
  * Functional tests for the Align View cross-camera mirror: drawing/editing a
  * track on one camera while the aligned view is active re-projects the

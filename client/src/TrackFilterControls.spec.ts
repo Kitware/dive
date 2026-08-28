@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { nextTick, ref } from 'vue';
 import Track, { Feature } from './track';
 import TrackFilterControls from './TrackFilterControls';

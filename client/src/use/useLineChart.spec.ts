@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { ref, Ref } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import type { TrackWithContext } from '../BaseFilterControls';
