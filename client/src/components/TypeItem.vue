@@ -28,6 +28,30 @@ export default defineComponent({
       type: Boolean,
       required: true,
     },
+    indeterminate: {
+      type: Boolean,
+      default: false,
+    },
+    tree: {
+      type: Boolean,
+      default: false,
+    },
+    depth: {
+      type: Number,
+      default: 0,
+    },
+    hasChildren: {
+      type: Boolean,
+      default: false,
+    },
+    expanded: {
+      type: Boolean,
+      default: false,
+    },
+    disclosureVisible: {
+      type: Boolean,
+      default: true,
+    },
     width: {
       type: Number,
       default: 300,
@@ -58,7 +82,14 @@ export default defineComponent({
       }
       return 42 + 14 + 20 + 30;
     });
-    const cssVars = computed(() => ({ '--content-width': `${props.width - HorizontalPadding.value}px` }));
+    const HierarchyPadding = computed(() => (props.tree ? (props.depth * 16) + 24 : 0));
+    const cssVars = computed(() => ({
+      '--content-width': `${Math.max(
+        0,
+        props.width - HorizontalPadding.value - HierarchyPadding.value,
+      )}px`,
+      '--tree-depth': `${props.depth * 16}px`,
+    }));
     const effectiveOverlapPercent = computed(() => {
       const p = Number(props.suppressionThreshold);
       if (!Number.isFinite(p) || p <= 0 || p > 100) {
@@ -83,10 +114,35 @@ export default defineComponent({
     :style="cssVars"
     align="center"
     class="hover-show-parent"
+    :role="tree ? 'listitem' : undefined"
+    :aria-level="tree ? depth + 1 : undefined"
   >
     <v-col class="d-flex flex-row py-0 align-center">
+      <div
+        v-if="tree"
+        class="tree-prefix d-flex align-center justify-center"
+      >
+        <button
+          v-if="hasChildren && disclosureVisible"
+          type="button"
+          class="tree-disclosure"
+          :aria-label="`${expanded ? 'Collapse' : 'Expand'} descendants of ${type}`"
+          :aria-expanded="expanded"
+          @click="$emit('toggleExpanded')"
+        >
+          <v-icon small>
+            {{ expanded ? 'mdi-chevron-down' : 'mdi-chevron-right' }}
+          </v-icon>
+        </button>
+        <span
+          v-else
+          class="tree-disclosure-spacer"
+          aria-hidden="true"
+        />
+      </div>
       <v-checkbox
-        :input-value="checked"
+        :input-value="checked || indeterminate"
+        :indeterminate="indeterminate"
         :color="color"
         :disabled="disabled"
         dense
@@ -109,7 +165,7 @@ export default defineComponent({
                   {{ displayText }}
                 </span>
               </template>
-              <span>{{ displayText }} </span>
+              <span>{{ displayText }}</span>
             </v-tooltip>
             <v-tooltip
               v-if="confidenceFilterNum"
@@ -206,6 +262,8 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+@import 'src/components/styles/hover-reveal.scss';
+
 .nowrap {
   white-space: nowrap;
   overflow: hidden;
@@ -213,17 +271,34 @@ export default defineComponent({
   text-overflow: ellipsis;
 }
 
-.hover-show-parent {
-  .hover-show-child {
-    display: none;
-  }
-
-  &:hover {
-    .hover-show-child {
-      display: inherit;
-    }
-  }
+.tree-prefix {
+  flex: 0 0 24px;
+  height: 30px;
+  margin-left: var(--tree-depth);
 }
+
+.tree-disclosure {
+  min-width: 24px;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tree-disclosure:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.tree-disclosure-spacer {
+  display: inline-block;
+  width: 24px;
+}
+
 .outlined {
   background-color: gray;
   color: #222;

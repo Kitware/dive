@@ -32,8 +32,6 @@ export interface FilterControlsParams<T extends Track | Group> {
   sorted: Ref<SortedAnnotation<T>[]>;
   markChangesPending: MarkChangesPendingFilter;
   remove: (id: AnnotationId) => void;
-  setType: (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => void;
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
   getTrack?: (trackId: Readonly<AnnotationId>, cameraName?: string) => T;
 }
@@ -81,9 +79,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
   remove: (id: AnnotationId) => void;
 
-  setType: (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => void;
-
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
 
   disableAnnotationFilters: Ref<boolean>;
@@ -100,8 +95,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     this.sorted = params.sorted;
 
     this.remove = params.remove;
-
-    this.setType = params.setType;
 
     this.removeTypes = params.removeTypes;
 
@@ -174,6 +167,19 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     }
   }
 
+  /**
+   * Carry a renamed type's confidence threshold over to its new name, unless
+   * the new name already carries one of its own.
+   */
+  protected carryConfidenceFilter(currentType: string, newType: string) {
+    if (!(newType in this.confidenceFilters.value) && currentType in this.confidenceFilters.value) {
+      this.setConfidenceFilters({
+        ...this.confidenceFilters.value,
+        [newType]: this.confidenceFilters.value[currentType],
+      });
+    }
+  }
+
   protected deleteTypeConfiguration(type: string) {
     if (this.configuredTypes.value.includes(type)) {
       this.configuredTypes.value.splice(this.configuredTypes.value.indexOf(type), 1);
@@ -197,25 +203,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     this.timeFilters.value = val;
   }
 
-  updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
-    //Go through the entire list and replace the oldType with the new Type
-    this.sorted.value.forEach((annotation) => {
-      for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
-        const [name, confidenceVal] = annotation.confidencePairs[i];
-        if (name === currentType) {
-          this.setType(annotation.id, newType, confidenceVal, currentType);
-          break;
-        }
-      }
-    });
-    if (!(newType in this.confidenceFilters.value) && currentType in this.confidenceFilters.value) {
-      this.setConfidenceFilters({
-        ...this.confidenceFilters.value,
-        [newType]: this.confidenceFilters.value[currentType],
-      });
-    }
-    this.deleteType(currentType);
-  }
+  abstract updateTypeName(params: { currentType: string; newType: string }): void;
 
   removeTypeAnnotations(types: string[]) {
     const processedIds = new Set<AnnotationId>();

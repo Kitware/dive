@@ -67,7 +67,7 @@ function makeCameraStore() {
 }
 
 function makeGroupFilterControls(store: CameraStore) {
-  const setTrackType = (
+  const setGroupType = (
     id: AnnotationId,
     newType: string,
     confidenceVal?: number,
@@ -83,7 +83,7 @@ function makeGroupFilterControls(store: CameraStore) {
     sorted: store.sortedGroups,
     remove,
     markChangesPending,
-    setType: setTrackType,
+    setGroupType,
     removeTypes,
   });
 }
@@ -91,14 +91,6 @@ function makeGroupFilterControls(store: CameraStore) {
 function makeTrackFilterControls(markPending: MarkChangesPendingFilter = markChangesPending) {
   const cameraStore = makeCameraStore();
   const groupFilterControls = makeGroupFilterControls(cameraStore);
-  const setTrackType = (
-    id: AnnotationId,
-    newType: string,
-    confidenceVal?: number,
-    currentType?: string,
-  ) => {
-    cameraStore.setTrackType(id, newType, confidenceVal, currentType);
-  };
   const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
 
   const remove = (id: AnnotationId) => {
@@ -115,7 +107,6 @@ function makeTrackFilterControls(markPending: MarkChangesPendingFilter = markCha
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
     ),
-    setType: setTrackType,
     removeTypes,
   });
 }
@@ -140,9 +131,6 @@ function makePairFixture(
     getTracks: (id) => cameraStore.getTrackAll(id),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
-    ),
-    setType: (id, type, confidence, current) => (
-      cameraStore.setTrackType(id, type, confidence, current)
     ),
     removeTypes: (id, types) => cameraStore.removeTypes(id, types),
   });
@@ -527,6 +515,20 @@ describe('useAnnotationFilters', () => {
     expect(withoutPrevent).toBe(1);
   });
 
+  it('does not synthesize an unstored parent when the stored child cannot qualify', () => {
+    const { cameraStore, filters } = makePairFixture([[['leaf', 0.8]]]);
+    filters.setTypeHierarchy({ leaf: 'root' });
+
+    filters.updateCheckedTypes(['root']);
+    expect(filters.displayPairIndex(cameraStore.getTrack(0), 0)).toBe(-1);
+    expect(filters.filteredAnnotations.value).toEqual([]);
+
+    filters.updateCheckedTypes(['root', 'leaf']);
+    filters.setConfidenceFilters({ leaf: 0.9, default: 0.1 });
+    expect(filters.displayPairIndex(cameraStore.getTrack(0), 0)).toBe(-1);
+    expect(filters.filteredAnnotations.value).toEqual([]);
+  });
+
   it('keeps empty flat-mode annotations when Prevent Cascade is enabled', () => {
     const { filters } = makePairFixture([[]]);
     clientSettings.typeSettings.preventCascadeTypes = true;
@@ -643,9 +645,6 @@ describe('useAnnotationFilters', () => {
       renameTrackPair: (id, currentType, newType) => (
         cameraStore.renameTrackPair(id, currentType, newType)
       ),
-      setType: (id, type, confidence, current) => (
-        cameraStore.setTrackType(id, type, confidence, current)
-      ),
       removeTypes: (id, types) => cameraStore.removeTypes(id, types),
     });
     filters.loadTrackAttributesFilter([{
@@ -747,6 +746,29 @@ describe('useAnnotationFilters', () => {
     groupFilters.updateTypeName({ currentType: 'unused group', newType: 'renamed group' });
     expect(groupFilters.configuredTypes.value).not.toContain('unused group');
     expect(groupFilters.configuredTypes.value).not.toContain('renamed group');
+  });
+
+  it('renames assigned group pairs across camera replicas without collapsing the vector', () => {
+    const cameraStore = new CameraStore({ markChangesPending });
+    cameraStore.removeCamera('singleCam');
+    cameraStore.addCamera('left');
+    cameraStore.addCamera('right');
+    cameraStore.camMap.value.forEach(({ groupStore }) => {
+      groupStore.insert(new Group(7, {
+        confidencePairs: [['school', 0.7], ['other', 0.4]],
+        members: {},
+      }), { imported: true });
+      groupStore.setEnableSorting();
+    });
+    const groupFilters = makeGroupFilterControls(cameraStore);
+
+    groupFilters.updateTypeName({ currentType: 'school', newType: 'shoal' });
+
+    cameraStore.camMap.value.forEach(({ groupStore }) => {
+      expect(groupStore.get(7).confidencePairs).toEqual([
+        ['shoal', 0.7], ['other', 0.4],
+      ]);
+    });
   });
 
   it('renames a flat confidence-1 pair without collapsing the vector', () => {

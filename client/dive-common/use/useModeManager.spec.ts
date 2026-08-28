@@ -51,7 +51,7 @@ function makeHarness(markChangesPending: MarkChangesPending = () => undefined) {
     sorted: cameraStore.sortedGroups,
     remove: () => undefined,
     markChangesPending: () => undefined,
-    setType: () => undefined,
+    setGroupType: () => undefined,
     removeTypes: () => [],
   });
   const trackFilterControls = new TrackFilterControls({
@@ -64,7 +64,6 @@ function makeHarness(markChangesPending: MarkChangesPending = () => undefined) {
       cameraStore.renameTrackPair(id, currentType, newType)
     ),
     groupFilterControls,
-    setType: () => undefined,
     removeTypes: () => [],
   });
 
@@ -190,7 +189,7 @@ function makeSingleCamHarness() {
     sorted: cameraStore.sortedGroups,
     remove: () => undefined,
     markChangesPending: () => undefined,
-    setType: () => undefined,
+    setGroupType: () => undefined,
     removeTypes: () => [],
   });
   const trackFilterControls = new TrackFilterControls({
@@ -203,7 +202,6 @@ function makeSingleCamHarness() {
       cameraStore.renameTrackPair(id, currentType, newType)
     ),
     groupFilterControls,
-    setType: () => undefined,
     removeTypes: () => [],
   });
   const modeManager = useModeManager({

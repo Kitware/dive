@@ -639,14 +639,6 @@ export default defineComponent({
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
     };
-    const setTrackType = (
-      id: AnnotationId,
-      newType: string,
-      confidenceVal?: number,
-      currentType?: string,
-    ) => {
-      cameraStore.setTrackType(id, newType, confidenceVal, currentType);
-    };
     const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
     const setGroupType = (
       id: AnnotationId,
@@ -664,7 +656,7 @@ export default defineComponent({
       sorted: cameraStore.sortedGroups,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       remove: removeGroups,
-      setType: setGroupType,
+      setGroupType,
       removeTypes: removeGroupTypes,
     });
 
@@ -682,7 +674,6 @@ export default defineComponent({
         cameraStore.renameTrackPair(id, currentType, newType)
       ),
       groupFilterControls: groupFilters,
-      setType: setTrackType,
       removeTypes,
     });
 
