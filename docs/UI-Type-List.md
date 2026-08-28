@@ -10,6 +10,7 @@ Each dataset maintains its own list of types, and types can be defined on-the-fl
 
 The Type List is used to control visual styles of the different types as well as filter out types that don't need to be displayed.
 
+* Rows show *frame count* **/** *total count* before the type name, for example `3 / 12  red-snapper`. Either count can be hidden in type settings.
 * The checkbox next to each type name can be used to toggle types on and off.
 * ==:material-sort-alphabetical-ascending:== toggles the sort order between alphabetical and by number of annotations of each type.
 * ==:material-cog:== opens the type settings menu.
@@ -39,6 +40,8 @@ have each viewer's checked types and confidence thresholds. Viewer counts and fi
 hierarchy-resolved displayed type.
 
 Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants. The Type List does not offer hierarchy editing.
+
+**Compact Parents** folds unused shared parent rows into a breadcrumb. Used or configured parents remain as rows. **Expand Parents** restores the full chain, and searching shows a match's complete path.
 
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
 
@@ -93,6 +96,7 @@ In ad-hoc mode, new object classes are added as you annotate.  The type list upd
 
 * Set **Lock Types** to off for ad-hoc type creation.
 * Set **Show Empty** to still show manually defined types with no track/detection examples in the type list.
+* Use **Show Total Count** and **Show Frame Count** to choose which counts appear in each row.
 
 <div style="clear: both;"/>
 

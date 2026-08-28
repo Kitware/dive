@@ -22,6 +22,8 @@ interface AnnotationSettings {
     preventCascadeTypes?: boolean;
     filterTypesByFrame?: boolean;
     maxCountButton?: boolean;
+    showTotalCount?: boolean;
+    showFrameCount?: boolean;
     // Region of this type: detections whose geometry lies at least
     // suppressionThreshold percent under it are hidden and excluded from
     // counts. Attribute of this name set true: detection stays visible with
@@ -141,6 +143,8 @@ const defaultSettings: AnnotationSettings = {
     lockTypes: false,
     preventCascadeTypes: false,
     maxCountButton: false,
+    showTotalCount: true,
+    showFrameCount: true,
     suppressionType: 'Suppressed',
     suppressionThreshold: 99,
     colorScope: 'shared',
