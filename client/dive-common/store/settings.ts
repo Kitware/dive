@@ -140,6 +140,7 @@ const defaultSettings: AnnotationSettings = {
     showEmptyTypes: false,
     lockTypes: false,
     preventCascadeTypes: false,
+    filterTypesByFrame: false,
     maxCountButton: false,
     suppressionType: 'Suppressed',
     suppressionThreshold: 99,

@@ -167,21 +167,24 @@ export function buildTypeListModel({
     (type) => (children.get(type)?.length || 0) > 0,
   );
   const normalizedQuery = query.toLowerCase();
+  const searchActive = normalizedQuery.length > 0;
+  const hiddenSharedLineage = !searchActive && compactSharedLineage
+    ? new Set(sharedLineage)
+    : new Set<string>();
   const showEmptyCandidates = showEmpty
     ? knownTypes
     : new Set([...usedTypes, ...structuralParents]);
   const queryCandidates = normalizedQuery
     ? [...showEmptyCandidates].filter((type) => type.toLowerCase().includes(normalizedQuery))
     : [...showEmptyCandidates];
-  const actionableSet = new Set(queryCandidates);
   const displayedCandidates = filterTypesByFrame
     ? queryCandidates.filter((type) => (frameCounts.get(type) || 0) > 0)
     : queryCandidates;
+  /* The header bulk toggle acts on displayed candidates that survive into the
+     final row model. Intersecting after flattening excludes ancestor context,
+     breadcrumbed ancestors, and descendants hidden by a collapsed row. */
+  const actionableSet = new Set(displayedCandidates);
   const displayedSet = withAncestorPath(displayedCandidates, hierarchyIndex);
-  const searchActive = normalizedQuery.length > 0;
-  const hiddenSharedLineage = !searchActive && compactSharedLineage
-    ? new Set(sharedLineage)
-    : new Set<string>();
   const rows: TypeListRow[] = [];
   const flatten = (type: string, rowDepth: number) => {
     if (!displayedSet.has(type)) return;
@@ -210,9 +213,7 @@ export function buildTypeListModel({
     subtree,
     checkState,
     sharedLineage,
-    actionableTypes: roots
-      .flatMap((root) => subtree.get(root) || [root])
-      .filter((type) => actionableSet.has(type)),
+    actionableTypes: rows.map(({ type }) => type).filter((type) => actionableSet.has(type)),
     rows,
   };
 }

@@ -194,6 +194,9 @@ describe('typeListHierarchy', () => {
     const restoredModel = build({ collapsed });
 
     expect(collapsedModel.rows.map(({ type }) => type)).not.toContain('leaf');
+    expect(collapsedModel.actionableTypes).toEqual(
+      collapsedModel.rows.map(({ type }) => type),
+    );
     expect(searchModel.rows.map(({ type }) => type)).toContain('leaf');
     expect(searchModel.rows.find(({ type }) => type === 'root')?.expanded).toBe(true);
     expect(restoredModel.rows.map(({ type }) => type)).not.toContain('leaf');
@@ -241,6 +244,29 @@ describe('typeListHierarchy', () => {
     const searched = build({ ...options, query: 'domain' });
     expect(searched.rows.map(({ type }) => type)).toEqual(['domain']);
     expect(searched.rows[0].depth).toBe(0);
+  });
+
+  it('leaves breadcrumb-compacted ancestors out of the actionable set', () => {
+    const deepIndex = compileHierarchy({
+      speciesA: 'genus', speciesB: 'genus', genus: 'family', family: 'order', order: 'class',
+    });
+    const options = {
+      hierarchyIndex: deepIndex,
+      allTypes: [],
+      usedTypes: ['speciesA', 'speciesB'],
+      checkedTypes: [],
+      compactSharedLineage: true,
+    };
+
+    /* The lineage is on screen only as breadcrumb text, so the header checkbox -
+       and the delete button reading its result - must not reach it. */
+    const compact = build(options);
+    expect(compact.sharedLineage.length).toBeGreaterThan(1);
+    expect(compact.actionableTypes).toEqual(compact.rows.map(({ type }) => type));
+
+    /* Expanding the breadcrumb gives the lineage rows, and rows are actionable. */
+    const expanded = build({ ...options, compactSharedLineage: false });
+    expect(expanded.actionableTypes).toEqual(expect.arrayContaining(['order', 'family']));
   });
 
   it('preserves depth in unrelated trees while compacting a shared lineage', () => {
@@ -303,7 +329,40 @@ describe('typeListHierarchy', () => {
     expect(model.rows.map(({ type }) => type)).toEqual(['root', 'branch', 'leaf']);
     expect(model.rows.map(({ type }) => type)).not.toContain('otherRoot');
     expect(model.rows.map(({ type }) => type)).not.toContain('sibling');
-    expect(model.actionableTypes).toContain('flat');
+    /* `root` is only on screen as ancestor context, and `flat` is off frame. */
+    expect(model.actionableTypes).toEqual(['branch', 'leaf']);
+  });
+
+  it('keeps a parent actionable while one of its descendants is on the frame', () => {
+    const model = build({
+      /* `countResolvedTypes` rolls a leaf's frame count up into its ancestors. */
+      frameCounts: new Map([['root', 2], ['branch', 2], ['leaf', 2]]),
+      filterTypesByFrame: true,
+    });
+
+    expect(model.actionableTypes).toEqual(['root', 'branch', 'leaf']);
+  });
+
+  it('narrows actionable flat types by the frame filter and the search box alike', () => {
+    const common = {
+      hierarchyIndex: compileHierarchy({}),
+      allTypes: ['zebra', 'alpha', 'antelope'],
+      usedTypes: ['zebra', 'alpha', 'antelope'],
+      checkedTypes: [],
+      counts: new Map([['zebra', 2], ['alpha', 2], ['antelope', 1]]),
+      frameCounts: new Map([['alpha', 1], ['antelope', 1]]),
+      showEmpty: true,
+      sort: 'a-z' as const,
+      collapsed: new Set<string>(),
+      query: '',
+    };
+
+    expect(buildTypeListModel({ ...common, filterTypesByFrame: false }).actionableTypes)
+      .toEqual(['alpha', 'antelope', 'zebra']);
+    expect(buildTypeListModel({ ...common, filterTypesByFrame: true }).actionableTypes)
+      .toEqual(['alpha', 'antelope']);
+    expect(buildTypeListModel({ ...common, filterTypesByFrame: true, query: 'ant' })
+      .actionableTypes).toEqual(['antelope']);
   });
 
   it('includes the parent bit when computing checked and indeterminate state', () => {

@@ -494,7 +494,7 @@ describe('FilterList hierarchy members', () => {
     expect(updateCheckedTypes).toHaveBeenCalledTimes(2);
   });
 
-  it('rolls total and frame counts into ancestors and keeps frame filtering header-independent', async () => {
+  it('rolls total and frame counts into ancestors and scopes the header to the frame', async () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = true;
     clientSettings.typeSettings.suppressionType = '';
@@ -522,7 +522,7 @@ describe('FilterList hierarchy members', () => {
       '2 : 1\u00A0 branch',
       '1 : 1\u00A0 leaf',
     ]);
-    expect(vm.visibleTypes).toEqual(['root', 'branch', 'leaf', 'sibling']);
+    expect(vm.visibleTypes).toEqual(['root', 'branch', 'leaf']);
 
     provideMocks.seekFrame.mockClear();
     vm.goToPeakTrackFrame('branch');
@@ -660,6 +660,83 @@ describe('FilterList hierarchy members', () => {
 
     expect(vm.virtualTypes.find(({ type }) => type === 'root')?.displayText)
       .toBe('3 : 1\u00A0 root');
+  });
+
+  it.each([
+    ['a flat dataset', null, ['leaf'], ['branch', 'sibling']],
+    [
+      'a hierarchy',
+      { leaf: 'branch', branch: 'root', sibling: 'root' },
+      ['root', 'branch', 'leaf'],
+      ['sibling'],
+    ],
+  ] as const)('scopes the header toggle to the frame filter on %s', async (
+    _view,
+    hierarchy,
+    onFrame,
+    offFrame,
+  ) => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = true;
+    clientSettings.typeSettings.suppressionType = '';
+    /* Only track 1, typed `leaf`, has a detection on frame 0. */
+    provideMocks.intervalSearch.mockImplementation(([frame]: [number, number]) => (
+      frame === 0 ? ['1'] : ['1', '2', '3']
+    ));
+    const {
+      checkedTypes, filterControls, styleManager, tracks, updateCheckedTypes,
+    } = makeCountHierarchyFixture({
+      hierarchy,
+      checkedTypes: [...onFrame, ...offFrame],
+    });
+    provideMocks.getPossible.mockImplementation((id: number) => (
+      tracks.find((track) => track.id === id)
+    ));
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.visibleTypes).toEqual([...onFrame]);
+    expect(vm.headCheckState).toBe(1);
+
+    vm.headCheckClicked();
+    expect(updateCheckedTypes).toHaveBeenCalledTimes(1);
+    expect(checkedTypes.value).toEqual([...offFrame]);
+
+    /* Frame counts are tallied from the filtered annotations, so unchecking a
+       displayed type drops its row exactly as unchecking it from its own row
+       does. Turning the frame filter off brings every type back. */
+    expect(vm.visibleTypes).toEqual([]);
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    await nextTick();
+    expect(vm.visibleTypes).toEqual(expect.arrayContaining([...onFrame, ...offFrame]));
+  });
+
+  it('leaves the header unchecked and disabled on a frame with no types', () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = true;
+    clientSettings.typeSettings.suppressionType = '';
+    provideMocks.intervalSearch.mockReturnValue([]);
+    const { filterControls, styleManager, tracks } = makeCountHierarchyFixture();
+    provideMocks.getPossible.mockImplementation((id: number) => (
+      tracks.find((track) => track.id === id)
+    ));
+    const { wrapper, vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes).toEqual([]);
+    expect(vm.visibleTypes).toEqual([]);
+    expect(vm.headCheckState).toBe(0);
+    expect(wrapper.find('.type-checkbox').attributes('disabled')).toBe('true');
   });
 
   it('does not restore attribute-suppressed descendants through ancestor roll-up', () => {

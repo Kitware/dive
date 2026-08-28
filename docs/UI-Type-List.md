@@ -11,6 +11,7 @@ Each dataset maintains its own list of types, and types can be defined on-the-fl
 The Type List is used to control visual styles of the different types as well as filter out types that don't need to be displayed.
 
 * The checkbox next to each type name can be used to toggle types on and off.
+* The checkbox in the list heading toggles every type the list is currently showing, after **Show Empty**, the search box, and **Filter Types by Frame** have narrowed it. Types that are checked but filtered out of view keep their checked state. It is disabled while the list is empty.
 * ==:material-sort-alphabetical-ascending:== toggles the sort order between alphabetical and by number of annotations of each type.
 * ==:material-cog:== opens the type settings menu.
 * ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type.
@@ -39,6 +40,8 @@ have each viewer's checked types and confidence thresholds. Viewer counts and fi
 hierarchy-resolved displayed type.
 
 Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants. The Type List does not offer hierarchy editing.
+
+A parent row's checkbox and the heading checkbox are deliberately different affordances. The row means "this branch": it toggles the parent's complete subtree, including descendants hidden by a collapsed branch or by **Filter Types by Frame**. The heading means "what I can see": it toggles only the rows on screen. A parent that is on screen only as ancestor context for a search or frame-filter match below it is not itself toggled by the heading checkbox.
 
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
 

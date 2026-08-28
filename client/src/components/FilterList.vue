@@ -374,12 +374,11 @@ export default defineComponent({
     });
     const headCheckState = computed(() => {
       const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
-      if (uncheckedTypes.length === 0) {
-        return 1;
-      } if (uncheckedTypes.length === visibleTypes.value.length) {
+      /* An empty list lands here too: nothing to act on reads as unchecked. */
+      if (uncheckedTypes.length === visibleTypes.value.length) {
         return 0;
       }
-      return -1;
+      return uncheckedTypes.length === 0 ? 1 : -1;
     });
 
     function headCheckClicked() {
@@ -542,7 +541,7 @@ export default defineComponent({
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
-            :disabled="disableAnnotationFilters"
+            :disabled="disableAnnotationFilters || visibleTypes.length === 0"
             dense
             shrink
             hide-details
