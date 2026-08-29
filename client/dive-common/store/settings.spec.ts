@@ -1,6 +1,3 @@
-// @vitest-environment jsdom
-/// <reference types="vitest" />
-
 describe('clientSettings hydration', () => {
   it('keeps every type-list switch a reactive key when nothing is stored', async () => {
     localStorage.removeItem('Settings');
