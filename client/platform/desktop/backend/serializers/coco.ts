@@ -40,7 +40,7 @@ const PROB_DUPLICATE_CATEGORY_WARNING = (
   + 'imported instead.'
 );
 const DIVE_CONFIDENCE_PAIRS_INVALID_WARNING = (
-  'Some annotations had malformed "dive_confidence_pairs" values. Those values were '
+  'Some annotations had malformed "confidence_pairs" values. Those values were '
   + 'ignored; a valid "prob" vector or the primary category and score were imported instead.'
 );
 const SUPERCATEGORY_MULTI_PARENT_WARNING = (
@@ -212,6 +212,7 @@ type CocoAnnotation = {
   score?: number;
   track_id?: number;
   prob?: unknown;
+  confidence_pairs?: unknown;
   dive_confidence_pairs?: unknown;
   /**
    * COCO `iscrowd` flag (0 or 1). In the COCO spec, 0 means a single instance with
@@ -413,15 +414,15 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
     const category = categoriesById[annotation.category_id];
     const categoryName = category?.name || 'unknown';
     let confidencePairs: [string, number][] = [[categoryName, annotation.score ?? 1.0]];
-    const hasDiveConfidencePairs = Object.prototype.hasOwnProperty.call(
-      annotation,
-      'dive_confidence_pairs',
+    const hasExactPairs = Object.prototype.hasOwnProperty.call(annotation, 'confidence_pairs')
+      || Object.prototype.hasOwnProperty.call(annotation, 'dive_confidence_pairs');
+    const exactPairs = confidencePairsFromDiveExtension(
+      annotation.confidence_pairs ?? annotation.dive_confidence_pairs,
     );
-    const exactPairs = confidencePairsFromDiveExtension(annotation.dive_confidence_pairs);
     if (exactPairs !== undefined) {
       confidencePairs = exactPairs;
     } else {
-      if (hasDiveConfidencePairs) {
+      if (hasExactPairs) {
         diveConfidencePairsInvalid = true;
       }
       if (Array.isArray(annotation.prob)) {
@@ -448,7 +449,7 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
       };
     }
     const track = tracks[trackId];
-    const trackAttributes = annotation.dive_track_attributes || annotation.track_attributes;
+    const trackAttributes = annotation.track_attributes || annotation.dive_track_attributes;
     if (trackAttributes && typeof trackAttributes === 'object') {
       track.attributes = { ...track.attributes, ...trackAttributes };
     }
@@ -458,11 +459,11 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
       frame,
       bounds,
     };
-    const featureAttributes = annotation.dive_detection_attributes || annotation.attributes;
+    const featureAttributes = annotation.attributes || annotation.dive_detection_attributes;
     if (featureAttributes && typeof featureAttributes === 'object') {
       feature.attributes = featureAttributes;
     }
-    const noteField = annotation.dive_notes ?? annotation.notes;
+    const noteField = annotation.notes ?? annotation.dive_notes;
     if (Array.isArray(noteField)) {
       const normalized = noteField
         .map((entry) => `${entry}`.trim())
@@ -597,10 +598,10 @@ async function serializeFile(
         bbox: [x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1)],
         score,
         prob,
-        dive_confidence_pairs: pairs.map(([name, confidence]) => [name, confidence]),
-        ...(feature.attributes ? { dive_detection_attributes: feature.attributes } : {}),
-        ...(track.attributes ? { dive_track_attributes: track.attributes } : {}),
-        ...(feature.notes && feature.notes.length > 0 ? { dive_notes: feature.notes } : {}),
+        confidence_pairs: pairs.map(([name, confidence]) => [name, confidence]),
+        ...(feature.attributes ? { attributes: feature.attributes } : {}),
+        ...(track.attributes ? { track_attributes: track.attributes } : {}),
+        ...(feature.notes && feature.notes.length > 0 ? { notes: feature.notes } : {}),
       });
       annotationId += 1;
     });
@@ -617,10 +618,10 @@ async function serializeFile(
   const info: CocoDocument['info'] = {
     description: `DIVE export for ${meta.name}`,
     dive_extensions: [
-      'dive_detection_attributes',
-      'dive_track_attributes',
-      'dive_notes',
-      'dive_confidence_pairs',
+      'attributes',
+      'track_attributes',
+      'notes',
+      'confidence_pairs',
       ...(datasetInfo ? ['dive_dataset_info'] : []),
     ],
     ...(datasetInfo ? { dive_dataset_info: datasetInfo } : {}),

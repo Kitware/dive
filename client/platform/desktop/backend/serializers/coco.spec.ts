@@ -257,15 +257,15 @@ describe('COCO serializer', () => {
     await serializeFile('/output/out.coco.json', annotationSchema, imageMeta);
     const out = await fs.readJSON('/output/out.coco.json');
     expect(out.info.dive_extensions).toEqual([
-      'dive_detection_attributes',
-      'dive_track_attributes',
-      'dive_notes',
-      'dive_confidence_pairs',
+      'attributes',
+      'track_attributes',
+      'notes',
+      'confidence_pairs',
     ]);
     expect(out.annotations).toHaveLength(1);
-    expect(out.annotations[0].dive_detection_attributes).toEqual({ visibility: 'poor' });
-    expect(out.annotations[0].dive_track_attributes).toEqual({ reviewer: 'alice' });
-    expect(out.annotations[0].dive_notes).toEqual(['exported note']);
+    expect(out.annotations[0].attributes).toEqual({ visibility: 'poor' });
+    expect(out.annotations[0].track_attributes).toEqual({ reviewer: 'alice' });
+    expect(out.annotations[0].notes).toEqual(['exported note']);
   });
 
   // --- datasetInfo passthrough ---
@@ -670,13 +670,13 @@ describe('COCO serializer', () => {
       .map(({ name, supercategory }: { name: string; supercategory: string }) => (
         [name, supercategory]
       )))).toEqual(profile.expectedParents);
-    expect(out.info.dive_extensions).toContain('dive_confidence_pairs');
+    expect(out.info.dive_extensions).toContain('confidence_pairs');
     expect(out.annotations[0]).toMatchObject({
       category_id: 2,
       track_id: profileTrack.id,
       score: 0.75,
       prob: profile.expectedProb,
-      dive_confidence_pairs: profile.expectedPairs,
+      confidence_pairs: profile.expectedPairs,
     });
     expect(source.tracks[profileTrack.id].confidencePairs).toEqual(originalPairs);
 
@@ -706,7 +706,7 @@ describe('COCO serializer', () => {
     }, new Set(['root']));
     const out = await fs.readJSON('/output/filtered.json');
     // Export filters raw stored names even though hierarchy display resolves this track to leaf.
-    expect(out.annotations[0].dive_confidence_pairs).toEqual([['root', 0.2]]);
+    expect(out.annotations[0].confidence_pairs).toEqual([['root', 0.2]]);
     expect(out.annotations[0].prob).toEqual([0.2, 0]);
     expect(source.tracks[4].confidencePairs).toEqual([['root', 0.2], ['leaf', 0.8]]);
 
@@ -745,6 +745,45 @@ describe('COCO serializer', () => {
     expect(zeroMeta.fps).toBeUndefined();
     const [, stringMeta] = await parseFile('/input/not-a-number.json');
     expect(stringMeta.fps).toBeUndefined();
+  });
+
+  it('reads generic attribute, note and confidence keys, and the older prefixed ones', async () => {
+    const document = (extra: Record<string, unknown>) => JSON.stringify({
+      images: [{ id: 1, file_name: 'frame_000000.png', frame_index: 0 }],
+      annotations: [{
+        id: 1, image_id: 1, category_id: 1, bbox: [0, 0, 1, 1], track_id: 1, ...extra,
+      }],
+      categories: [{ id: 1, name: 'fish' }, { id: 2, name: 'shark' }],
+    });
+    mockfs({
+      '/input': {
+        'generic.json': document({
+          attributes: { occluded: true },
+          track_attributes: { gear: 'trawl' },
+          notes: ['a note'],
+          confidence_pairs: [['shark', 0.6], ['fish', 0.4]],
+        }),
+        'prefixed.json': document({
+          dive_detection_attributes: { occluded: true },
+          dive_track_attributes: { gear: 'trawl' },
+          dive_notes: ['a note'],
+          dive_confidence_pairs: [['shark', 0.6], ['fish', 0.4]],
+        }),
+      },
+    });
+
+    const expectImported = async (name: string) => {
+      const [parsed] = await parseFile(`/input/${name}`);
+      expect(parsed.tracks[1].features[0].attributes).toEqual({ occluded: true });
+      expect(parsed.tracks[1].attributes).toEqual({ gear: 'trawl' });
+      expect(parsed.tracks[1].features[0].notes).toEqual(['a note']);
+      expect(parsed.tracks[1].confidencePairs).toEqual([['shark', 0.6], ['fish', 0.4]]);
+    };
+
+    // Attributes and notes are not DIVE concepts, so the plain names are read;
+    // files DIVE wrote before the rename keep importing.
+    await expectImported('generic.json');
+    await expectImported('prefixed.json');
   });
 });
 
