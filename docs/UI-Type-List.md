@@ -12,9 +12,10 @@ The Type List is used to control visual styles of the different types as well as
 
 * Rows show *frame count* **/** *total count* before the type name, for example `3 / 12  red-snapper`. Either count can be hidden in type settings.
 * The checkbox next to each type name can be used to toggle types on and off.
+* The checkbox in the list heading toggles only the types the list is currently showing. A checked type that a filter has hidden keeps its checked state.
 * ==:material-sort-alphabetical-ascending:== toggles the sort order between alphabetical and by number of annotations of each type.
 * ==:material-cog:== opens the type settings menu.
-* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type.
+* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type. Like the heading checkbox, it acts only on the types the list is showing.
 * ==:material-swap-horizontal:== will switch the left sidebar panel to show the track attribute editor (and group editor) view.
 
 <div style="clear: both;"/>
@@ -40,6 +41,8 @@ have each viewer's checked types and confidence thresholds. Viewer counts and fi
 hierarchy-resolved displayed type.
 
 Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants. The Type List does not offer hierarchy editing.
+
+A parent row's checkbox always toggles its complete subtree. The heading checkbox is narrower: it skips a parent shown only as ancestor context for a match below it.
 
 **Compact Parents** folds unused shared parent rows into a breadcrumb. Used or configured parents remain as rows. **Expand Parents** restores the full chain, and searching shows a match's complete path.
 
@@ -95,7 +98,7 @@ Click the ==:material-cog:== button in the type list heading to open type settin
 In ad-hoc mode, new object classes are added as you annotate.  The type list updates automatically when new classes are added or the last member of a class is deleted.
 
 * Set **Lock Types** to off for ad-hoc type creation.
-* Set **Show Empty** to still show manually defined types with no track/detection examples in the type list.
+* Set **Show Empty** to still show manually defined types with no track/detection examples in the type list. Hierarchy parents appear only when something in their branch is annotated.
 * Use **Show Total Count** and **Show Frame Count** to choose which counts appear in each row.
 
 <div style="clear: both;"/>

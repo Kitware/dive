@@ -6,10 +6,11 @@ describe('clientSettings hydration', () => {
     const { clientSettings } = await import('./settings');
 
     expect(Object.keys(clientSettings.typeSettings)).toEqual(expect.arrayContaining([
-      'showTotalCount', 'showFrameCount',
+      'showTotalCount', 'showFrameCount', 'filterTypesByFrame',
     ]));
     expect(clientSettings.typeSettings.showTotalCount).toBe(true);
     expect(clientSettings.typeSettings.showFrameCount).toBe(true);
+    expect(clientSettings.typeSettings.filterTypesByFrame).toBe(false);
   });
 
   it('hydrates count switches on unless a stored blob turned one off', async () => {

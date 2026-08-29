@@ -176,34 +176,6 @@ export default defineComponent({
       clientSettings.typeSettings.trackSortDir = sortingMethods[data.sortingMethod];
     }
 
-    async function clickDelete() {
-      const typeDisplay: string[] = [];
-      let text: string[] = [];
-      if (props.group) {
-        text = [
-          'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:',
-        ];
-      } else {
-        text = [
-          'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:',
-        ];
-      }
-      text.push('-------');
-      checkedTypesRef.value.forEach((item) => {
-        typeDisplay.push(item);
-        text.push(item.toString());
-      });
-
-      const result = await prompt({
-        title: 'Really delete types?',
-        text,
-        confirm: true,
-      });
-      if (result) {
-        trackFilters.removeTypeAnnotations([...checkedTypesRef.value]);
-      }
-    }
-
     /**
      * Ids of tracks whose every keyframe detection is suppressed - covered by
      * a region on each frame it appears, or flagged with the suppression
@@ -383,6 +355,24 @@ export default defineComponent({
     const sharedLineage = computed(() => typeListModel.value.sharedLineage);
     const sharedLineageText = computed(() => sharedLineage.value.join(' › '));
     const visibleTypes = computed(() => typeListModel.value.actionableTypes);
+    /* The delete button carries out what the header selected, so it reads the
+       same displayed rows rather than every type that happens to be checked. */
+    const deletableTypes = computed(() => typeListModel.value.actionableCheckedTypes);
+    async function clickDelete() {
+      const preamble = props.group
+        ? 'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:'
+        : 'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:';
+
+      const result = await prompt({
+        title: 'Really delete types?',
+        text: [preamble, '-------', ...deletableTypes.value],
+        confirm: true,
+      });
+      if (result) {
+        trackFilters.removeTypeAnnotations([...deletableTypes.value]);
+      }
+    }
+
     const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
       const confidenceFiltersDeRef = confidenceFiltersRef.value;
       const typeCountsDeRef = typeCounts.value;
@@ -409,31 +399,30 @@ export default defineComponent({
         suppressionThreshold: suppressionThreshold ?? 99,
       }));
     });
+    /* An empty list is ambiguous on its own: the dataset may define nothing, or
+       the filters may have excluded everything it does define. */
+    const emptyListText = computed(() => {
+      const model = typeListModel.value;
+      if (model.rows.length > 0) return '';
+      return model.hasDefinedTypes ? 'No types match the current filters' : 'No types yet';
+    });
     const headCheckState = computed(() => {
-      const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
-      if (uncheckedTypes.length === 0) {
-        return 1;
-      } if (uncheckedTypes.length === visibleTypes.value.length) {
+      /* An empty list lands here too: nothing to act on reads as unchecked. */
+      if (deletableTypes.value.length === 0) {
         return 0;
       }
-      return -1;
+      return deletableTypes.value.length === visibleTypes.value.length ? 1 : -1;
     });
 
+    /* Checked types the list is not showing are left alone by the header. */
+    const offscreenCheckedTypes = computed(
+      () => difference(checkedTypesRef.value, visibleTypes.value),
+    );
+
     function headCheckClicked() {
-      if (headCheckState.value === 0) {
-        /* Enable only what is filtered AND don't change what isn't filtered */
-        const allVisibleAndCheckedInvisible = union(
-          /* What was already checked and is currently not visible */
-          difference(checkedTypesRef.value, visibleTypes.value),
-          /* What is visible */
-          visibleTypes.value,
-        );
-        trackFilters.updateCheckedTypes(allVisibleAndCheckedInvisible);
-      } else {
-        /* Disable whatever is both checked and filtered */
-        const invisible = difference(checkedTypesRef.value, visibleTypes.value);
-        trackFilters.updateCheckedTypes(invisible);
-      }
+      trackFilters.updateCheckedTypes(headCheckState.value === 0
+        ? union(offscreenCheckedTypes.value, visibleTypes.value)
+        : offscreenCheckedTypes.value);
     }
 
     function updateCheckedType(type: string) {
@@ -556,6 +545,8 @@ export default defineComponent({
       headCheckState,
       headerTooltip,
       visibleTypes,
+      deletableTypes,
+      emptyListText,
       usedTypesRef,
       checkedTypesRef,
       confidenceFiltersRef,
@@ -600,7 +591,7 @@ export default defineComponent({
           <v-checkbox
             :input-value="headCheckState !== -1 ? headCheckState : false"
             :indeterminate="headCheckState === -1"
-            :disabled="disableAnnotationFilters"
+            :disabled="disableAnnotationFilters || visibleTypes.length === 0"
             dense
             shrink
             hide-details
@@ -648,7 +639,7 @@ export default defineComponent({
               <template #activator="{ on }">
                 <v-btn
                   class="hover-show-child"
-                  :disabled="checkedTypesRef.length === 0 || readOnlyMode"
+                  :disabled="deletableTypes.length === 0 || readOnlyMode"
                   icon
                   small
                   v-on="on"
@@ -699,7 +690,14 @@ export default defineComponent({
       ref="virtualScrollWrapper"
       class="type-list-viewport py-2 overflow-y-hidden"
     >
+      <div
+        v-if="emptyListText"
+        class="empty-list text-body-2 grey--text text--lighten-1 mx-2"
+      >
+        {{ emptyListText }}
+      </div>
       <v-virtual-scroll
+        v-else
         class="tracks"
         :items="virtualTypes"
         :item-height="rowHeight"

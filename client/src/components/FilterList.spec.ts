@@ -528,7 +528,51 @@ describe('FilterList hierarchy members', () => {
     expect(updateCheckedTypes).toHaveBeenCalledTimes(2);
   });
 
-  it('rolls total and frame counts into ancestors and keeps frame filtering header-independent', async () => {
+  it('offers only displayed rows for deletion, not every checked type', async () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { checkedTypes, filterControls, styleManager } = makeHierarchyFixture();
+    checkedTypes.value = ['leaf', 'root', 'branch', 'sibling'];
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: true,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.deletableTypes).toEqual(['root', 'branch', 'leaf', 'sibling']);
+
+    vm.data.filterText = 'leaf';
+    await nextTick();
+    expect(vm.deletableTypes).toEqual(['leaf']);
+  });
+
+  it('reaches the whole branch through a collapsed row', async () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { checkedTypes, filterControls, styleManager } = makeHierarchyFixture();
+    checkedTypes.value = [];
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: true,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    vm.toggleExpanded('root');
+    await nextTick();
+    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['root']);
+
+    vm.headCheckClicked();
+    await nextTick();
+    expect(checkedTypes.value).toEqual(['root', 'branch', 'leaf', 'sibling']);
+    expect(vm.virtualTypes[0]).toMatchObject({ checked: true, indeterminate: false });
+    expect(vm.deletableTypes).toEqual(['root', 'branch', 'leaf', 'sibling']);
+  });
+
+  it('rolls total and frame counts into ancestors and scopes the header to the frame', async () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = true;
     clientSettings.typeSettings.suppressionType = '';
@@ -556,7 +600,7 @@ describe('FilterList hierarchy members', () => {
       '1 / 2\u00A0 branch',
       '1 / 1\u00A0 leaf',
     ]);
-    expect(vm.visibleTypes).toEqual(['root', 'branch', 'leaf', 'sibling']);
+    expect(vm.visibleTypes).toEqual(['root', 'branch', 'leaf']);
 
     provideMocks.seekFrame.mockClear();
     vm.goToPeakTrackFrame('branch');
@@ -801,6 +845,125 @@ describe('FilterList hierarchy members', () => {
       const [frame, total] = displayText.split('\u00A0')[0].split('/').map(Number);
       expect(frame).toBeLessThanOrEqual(total);
     });
+  });
+
+  it.each([
+    ['a flat dataset', null, ['leaf'], ['branch', 'sibling']],
+    [
+      'a hierarchy',
+      { leaf: 'branch', branch: 'root', sibling: 'root' },
+      ['root', 'branch', 'leaf'],
+      ['sibling'],
+    ],
+  ] as const)('scopes the header toggle to the frame filter on %s', async (
+    _view,
+    hierarchy,
+    onFrame,
+    offFrame,
+  ) => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = true;
+    clientSettings.typeSettings.suppressionType = '';
+    /* Only track 1, typed `leaf`, has a detection on frame 0. */
+    provideMocks.intervalSearch.mockImplementation(([frame]: [number, number]) => (
+      frame === 0 ? ['1'] : ['1', '2', '3']
+    ));
+    const {
+      checkedTypes, filterControls, styleManager, tracks, updateCheckedTypes,
+    } = makeCountHierarchyFixture({
+      hierarchy,
+      checkedTypes: [...onFrame, ...offFrame],
+    });
+    provideMocks.getPossible.mockImplementation((id: number) => (
+      tracks.find((track) => track.id === id)
+    ));
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.visibleTypes).toEqual([...onFrame]);
+    expect(vm.headCheckState).toBe(1);
+
+    vm.headCheckClicked();
+    expect(updateCheckedTypes).toHaveBeenCalledTimes(1);
+    expect(checkedTypes.value).toEqual([...offFrame]);
+
+    /* Frame counts are tallied from the filtered annotations, so unchecking a
+       displayed type drops its row exactly as unchecking it from its own row
+       does. Turning the frame filter off brings every type back. */
+    expect(vm.visibleTypes).toEqual([]);
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    await nextTick();
+    expect(vm.visibleTypes).toEqual(expect.arrayContaining([...onFrame, ...offFrame]));
+  });
+
+  it('leaves the header unchecked and disabled on a frame with no types', () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = true;
+    clientSettings.typeSettings.suppressionType = '';
+    provideMocks.intervalSearch.mockReturnValue([]);
+    const { filterControls, styleManager, tracks } = makeCountHierarchyFixture();
+    provideMocks.getPossible.mockImplementation((id: number) => (
+      tracks.find((track) => track.id === id)
+    ));
+    const { wrapper, vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes).toEqual([]);
+    expect(vm.visibleTypes).toEqual([]);
+    expect(vm.headCheckState).toBe(0);
+    expect(wrapper.find('.type-checkbox').attributes('disabled')).toBe('true');
+    expect(vm.emptyListText).toBe('No types match the current filters');
+  });
+
+  it('separates a dataset with no types from one the filters emptied', () => {
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { filterControls, styleManager } = makeFilterListFixture({
+      tracks: [],
+      checkedTypes: [],
+    });
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes).toEqual([]);
+    expect(vm.emptyListText).toBe('No types yet');
+  });
+
+  it('counts hierarchy-only types as defined when a search empties the list', async () => {
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { filterControls, styleManager } = makeFilterListFixture({
+      tracks: [],
+      hierarchy: { leaf: 'branch' },
+      checkedTypes: [],
+    });
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: true,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['branch', 'leaf']);
+
+    vm.data.filterText = 'zzz';
+    await nextTick();
+    expect(vm.virtualTypes).toEqual([]);
+    expect(vm.emptyListText).toBe('No types match the current filters');
   });
 
   it('does not restore attribute-suppressed descendants through ancestor roll-up', () => {

@@ -18,9 +18,11 @@ export interface TypeListRow {
 }
 
 export interface TypeListModel {
+  hasDefinedTypes: boolean;
   subtree: ReadonlyMap<string, readonly string[]>;
   checkState: ReadonlyMap<string, TypeListCheckState>;
   actionableTypes: readonly string[];
+  actionableCheckedTypes: readonly string[];
   sharedLineage: readonly string[];
   rows: readonly TypeListRow[];
 }
@@ -163,27 +165,25 @@ export function buildTypeListModel({
   };
   roots.forEach(visit);
 
-  /* Every ancestor of a used type is itself a structural parent, so this set
-     already carries the full path back to each root. */
-  const structuralParents = [...knownTypes].filter(
-    (type) => (children.get(type)?.length || 0) > 0,
-  );
   const normalizedQuery = query.toLowerCase();
-  const showEmptyCandidates = showEmpty
-    ? knownTypes
-    : new Set([...usedTypes, ...structuralParents]);
-  const queryCandidates = normalizedQuery
-    ? [...showEmptyCandidates].filter((type) => type.toLowerCase().includes(normalizedQuery))
-    : [...showEmptyCandidates];
-  const actionableSet = new Set(queryCandidates);
-  const displayedCandidates = filterTypesByFrame
-    ? queryCandidates.filter((type) => (frameCounts.get(type) || 0) > 0)
-    : queryCandidates;
-  const displayedSet = withAncestorPath(displayedCandidates, hierarchyIndex);
   const searchActive = normalizedQuery.length > 0;
   const hiddenSharedLineage = !searchActive && compactSharedLineage
     ? new Set(sharedLineage)
     : new Set<string>();
+  /* Show Empty off keeps the path back to each root, so ancestors of a used
+     type stay actionable rows; a branch with no annotations anywhere has
+     nothing to lead to and drops out entirely. */
+  const showEmptyCandidates = showEmpty
+    ? knownTypes
+    : withAncestorPath(usedTypes, hierarchyIndex);
+  const queryCandidates = normalizedQuery
+    ? [...showEmptyCandidates].filter((type) => type.toLowerCase().includes(normalizedQuery))
+    : [...showEmptyCandidates];
+  const displayedCandidates = filterTypesByFrame
+    ? queryCandidates.filter((type) => (frameCounts.get(type) || 0) > 0)
+    : queryCandidates;
+  const actionableSet = new Set(displayedCandidates);
+  const displayedSet = withAncestorPath(displayedCandidates, hierarchyIndex);
   const rows: TypeListRow[] = [];
   const flatten = (type: string, rowDepth: number) => {
     if (!displayedSet.has(type)) return;
@@ -208,13 +208,21 @@ export function buildTypeListModel({
   };
   roots.forEach((root) => flatten(root, 0));
 
+  /* The set the header checkbox and the delete button act on: every type the
+     filters kept, minus the ancestors a breadcrumb replaced. Deliberately not
+     the row list, which adds ancestors shown only as context for a match below
+     them and drops the descendants a collapsed row hides. */
+  const actionableTypes = roots
+    .flatMap((root) => subtree.get(root) ?? [root])
+    .filter((type) => actionableSet.has(type) && !hiddenSharedLineage.has(type));
+
   return {
+    hasDefinedTypes: knownTypes.size > 0,
     subtree,
     checkState,
     sharedLineage,
-    actionableTypes: roots
-      .flatMap((root) => subtree.get(root) || [root])
-      .filter((type) => actionableSet.has(type)),
+    actionableTypes,
+    actionableCheckedTypes: actionableTypes.filter((type) => checkedSet.has(type)),
     rows,
   };
 }

@@ -95,12 +95,12 @@ describe('typeListHierarchy', () => {
   });
 
   it('hides disclosure controls when all children are filtered out', () => {
-    const model = build({ showEmpty: false });
+    const model = build({ showEmpty: false, usedTypes: ['branch', 'flat'] });
 
-    expect(model.rows.find(({ type }) => type === 'otherRoot')).toEqual(expect.objectContaining({
+    expect(model.rows.find(({ type }) => type === 'branch')).toEqual(expect.objectContaining({
       hasChildren: false,
     }));
-    expect(model.rows.some(({ type }) => type === 'otherLeaf')).toBe(false);
+    expect(model.rows.some(({ type }) => type === 'leaf')).toBe(false);
   });
 
   it('sorts roots and siblings recursively in every mode with alphabetical ties', () => {
@@ -161,7 +161,7 @@ describe('typeListHierarchy', () => {
       .toEqual(['twig', 'leaf', 'bud']);
   });
 
-  it('keeps unused structural parents but hides empty leaves and configured flat types', () => {
+  it('keeps ancestors of used types but hides branches with no annotations', () => {
     const model = build({
       allTypes: [
         'leaf', 'branch', 'root', 'sibling', 'otherLeaf', 'otherRoot', 'flat', 'configured',
@@ -170,7 +170,8 @@ describe('typeListHierarchy', () => {
       showEmpty: false,
     });
 
-    expect(model.rows.map(({ type }) => type)).toEqual(['flat', 'otherRoot', 'root', 'branch', 'leaf']);
+    expect(model.rows.map(({ type }) => type)).toEqual(['flat', 'root', 'branch', 'leaf']);
+    expect(model.actionableTypes).not.toContain('otherRoot');
     expect(model.rows.map(({ type }) => type)).not.toContain('otherLeaf');
     expect(model.rows.map(({ type }) => type)).not.toContain('sibling');
     expect(model.rows.map(({ type }) => type)).not.toContain('configured');
@@ -184,6 +185,32 @@ describe('typeListHierarchy', () => {
       'otherRoot', 'otherLeaf', 'root', 'branch', 'leaf',
     ]);
     expect(model.rows.map(({ type }) => type)).not.toContain('sibling');
+  });
+
+  it('narrows the checked set to the rows the header can act on', () => {
+    const model = build({ query: 'leaf', checkedTypes: ['leaf', 'root', 'sibling'] });
+
+    expect(model.rows.map(({ type }) => type)).toContain('root');
+    expect(model.actionableCheckedTypes).toEqual(['leaf']);
+  });
+
+  it('lets a collapsed row stand in for the branch its checkbox owns', () => {
+    const model = build({ collapsed: new Set(['root']) });
+
+    expect(model.rows.map(({ type }) => type)).toEqual([
+      'flat', 'otherRoot', 'otherLeaf', 'root',
+    ]);
+    expect(model.actionableTypes).toEqual([
+      'flat', 'otherRoot', 'otherLeaf', 'root', 'branch', 'leaf', 'sibling',
+    ]);
+  });
+
+  it('keeps a filtered-out descendant out of a collapsed row', () => {
+    const model = build({ collapsed: new Set(['root']), filterTypesByFrame: true });
+
+    expect(model.actionableTypes).toEqual([
+      'flat', 'otherRoot', 'otherLeaf', 'root', 'branch', 'leaf',
+    ]);
   });
 
   it('reveals search paths without mutating or applying saved collapse state', () => {
@@ -281,6 +308,29 @@ describe('typeListHierarchy', () => {
     expect(used.rows[0]).toEqual(expect.objectContaining({ type: 'family', depth: 0 }));
   });
 
+  it('leaves breadcrumb-compacted ancestors out of the actionable set', () => {
+    const deepIndex = compileHierarchy({
+      speciesA: 'genus', speciesB: 'genus', genus: 'family', family: 'order', order: 'class',
+    });
+    const options = {
+      hierarchyIndex: deepIndex,
+      allTypes: [],
+      usedTypes: ['speciesA', 'speciesB'],
+      checkedTypes: [],
+      compactSharedLineage: true,
+    };
+
+    /* The lineage is on screen only as breadcrumb text, so the header checkbox -
+       and the delete button reading its result - must not reach it. */
+    const compact = build(options);
+    expect(compact.sharedLineage.length).toBeGreaterThan(1);
+    expect(compact.actionableTypes).toEqual(compact.rows.map(({ type }) => type));
+
+    /* Expanding the breadcrumb gives the lineage rows, and rows are actionable. */
+    const expanded = build({ ...options, compactSharedLineage: false });
+    expect(expanded.actionableTypes).toEqual(expect.arrayContaining(['order', 'family']));
+  });
+
   it('preserves depth in unrelated trees while compacting a shared lineage', () => {
     const forestIndex = compileHierarchy({
       species: 'genus',
@@ -341,7 +391,40 @@ describe('typeListHierarchy', () => {
     expect(model.rows.map(({ type }) => type)).toEqual(['root', 'branch', 'leaf']);
     expect(model.rows.map(({ type }) => type)).not.toContain('otherRoot');
     expect(model.rows.map(({ type }) => type)).not.toContain('sibling');
-    expect(model.actionableTypes).toContain('flat');
+    /* `root` is only on screen as ancestor context, and `flat` is off frame. */
+    expect(model.actionableTypes).toEqual(['branch', 'leaf']);
+  });
+
+  it('keeps a parent actionable while one of its descendants is on the frame', () => {
+    const model = build({
+      /* `countResolvedTypes` rolls a leaf's frame count up into its ancestors. */
+      frameCounts: new Map([['root', 2], ['branch', 2], ['leaf', 2]]),
+      filterTypesByFrame: true,
+    });
+
+    expect(model.actionableTypes).toEqual(['root', 'branch', 'leaf']);
+  });
+
+  it('narrows actionable flat types by the frame filter and the search box alike', () => {
+    const common = {
+      hierarchyIndex: compileHierarchy({}),
+      allTypes: ['zebra', 'alpha', 'antelope'],
+      usedTypes: ['zebra', 'alpha', 'antelope'],
+      checkedTypes: [],
+      counts: new Map([['zebra', 2], ['alpha', 2], ['antelope', 1]]),
+      frameCounts: new Map([['alpha', 1], ['antelope', 1]]),
+      showEmpty: true,
+      sort: 'a-z' as const,
+      collapsed: new Set<string>(),
+      query: '',
+    };
+
+    expect(buildTypeListModel({ ...common, filterTypesByFrame: false }).actionableTypes)
+      .toEqual(['alpha', 'antelope', 'zebra']);
+    expect(buildTypeListModel({ ...common, filterTypesByFrame: true }).actionableTypes)
+      .toEqual(['alpha', 'antelope']);
+    expect(buildTypeListModel({ ...common, filterTypesByFrame: true, query: 'ant' })
+      .actionableTypes).toEqual(['antelope']);
   });
 
   it('includes the parent bit when computing checked and indeterminate state', () => {
