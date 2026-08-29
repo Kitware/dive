@@ -96,12 +96,12 @@ describe('typeListHierarchy', () => {
   });
 
   it('hides disclosure controls when all children are filtered out', () => {
-    const model = build({ showEmpty: false });
+    const model = build({ showEmpty: false, usedTypes: ['branch', 'flat'] });
 
-    expect(model.rows.find(({ type }) => type === 'otherRoot')).toEqual(expect.objectContaining({
+    expect(model.rows.find(({ type }) => type === 'branch')).toEqual(expect.objectContaining({
       hasChildren: false,
     }));
-    expect(model.rows.some(({ type }) => type === 'otherLeaf')).toBe(false);
+    expect(model.rows.some(({ type }) => type === 'leaf')).toBe(false);
   });
 
   it('sorts roots and siblings recursively in every mode with alphabetical ties', () => {
@@ -162,7 +162,7 @@ describe('typeListHierarchy', () => {
       .toEqual(['twig', 'leaf', 'bud']);
   });
 
-  it('keeps unused structural parents but hides empty leaves and configured flat types', () => {
+  it('keeps ancestors of used types but hides branches with no annotations', () => {
     const model = build({
       allTypes: [
         'leaf', 'branch', 'root', 'sibling', 'otherLeaf', 'otherRoot', 'flat', 'configured',
@@ -171,7 +171,8 @@ describe('typeListHierarchy', () => {
       showEmpty: false,
     });
 
-    expect(model.rows.map(({ type }) => type)).toEqual(['flat', 'otherRoot', 'root', 'branch', 'leaf']);
+    expect(model.rows.map(({ type }) => type)).toEqual(['flat', 'root', 'branch', 'leaf']);
+    expect(model.actionableTypes).not.toContain('otherRoot');
     expect(model.rows.map(({ type }) => type)).not.toContain('otherLeaf');
     expect(model.rows.map(({ type }) => type)).not.toContain('sibling');
     expect(model.rows.map(({ type }) => type)).not.toContain('configured');

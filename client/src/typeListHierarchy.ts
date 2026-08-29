@@ -161,10 +161,11 @@ export function buildTypeListModel({
   };
   roots.forEach(visit);
 
-  /* Every ancestor of a used type is itself a structural parent, so this set
-     already carries the full path back to each root. */
-  const structuralParents = [...knownTypes].filter(
-    (type) => (children.get(type)?.length || 0) > 0,
+  /* Show Empty off keeps the path back to each root, but a branch with no
+     annotations anywhere has nothing to lead to and stays hidden. */
+  const usedAncestors = new Set<string>();
+  usedTypes.forEach(
+    (type) => ancestorsOf(hierarchyIndex, type).forEach((ancestor) => usedAncestors.add(ancestor)),
   );
   const normalizedQuery = query.toLowerCase();
   const searchActive = normalizedQuery.length > 0;
@@ -173,7 +174,7 @@ export function buildTypeListModel({
     : new Set<string>();
   const showEmptyCandidates = showEmpty
     ? knownTypes
-    : new Set([...usedTypes, ...structuralParents]);
+    : new Set([...usedTypes, ...usedAncestors]);
   const queryCandidates = normalizedQuery
     ? [...showEmptyCandidates].filter((type) => type.toLowerCase().includes(normalizedQuery))
     : [...showEmptyCandidates];

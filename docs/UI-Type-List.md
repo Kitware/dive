@@ -95,7 +95,7 @@ Click the ==:material-cog:== button in the type list heading to open type settin
 In ad-hoc mode, new object classes are added as you annotate.  The type list updates automatically when new classes are added or the last member of a class is deleted.
 
 * Set **Lock Types** to off for ad-hoc type creation.
-* Set **Show Empty** to still show manually defined types with no track/detection examples in the type list.
+* Set **Show Empty** to still show manually defined types with no track/detection examples in the type list. A hierarchy parent appears only when something in its branch is annotated; the ancestors leading to an annotated type are always shown.
 
 <div style="clear: both;"/>
 
