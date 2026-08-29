@@ -15,6 +15,7 @@ const testExcludes = ['**/node_modules/**', '**/bin/**'];
 const domTests = [
   'src/components/**/*.spec.ts',
   'dive-common/components/**/*.spec.ts',
+  'dive-common/store/**/*.spec.ts',
   'platform/web-girder/**/*.spec.ts',
 ];
 
