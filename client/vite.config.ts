@@ -10,13 +10,12 @@ import packageJson from './package.json';
 import { cssConfig } from './vite.css';
 
 const testExcludes = ['**/node_modules/**', '**/bin/**'];
+// Component specs mount Vue, and the web-girder plugin layer reads `window` at
+// import time, so anything reaching it needs a DOM.
 const domTests = [
   'src/components/**/*.spec.ts',
   'dive-common/components/**/*.spec.ts',
-  'platform/web-girder/api/multicamResolve.spec.ts',
-  'platform/web-girder/store/webGirderStoreComposables.spec.ts',
-  'platform/web-girder/views/Upload.spec.ts',
-  'platform/web-girder/views/UploadGirder.spec.ts',
+  'platform/web-girder/**/*.spec.ts',
 ];
 
 function getGitHash() {
