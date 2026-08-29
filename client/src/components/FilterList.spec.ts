@@ -737,6 +737,25 @@ describe('FilterList hierarchy members', () => {
     expect(vm.visibleTypes).toEqual([]);
     expect(vm.headCheckState).toBe(0);
     expect(wrapper.find('.type-checkbox').attributes('disabled')).toBe('true');
+    expect(vm.emptyListText).toBe('No types match the current filters');
+  });
+
+  it('separates a dataset with no types from one the filters emptied', () => {
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { filterControls, styleManager } = makeFilterListFixture({
+      tracks: [],
+      checkedTypes: [],
+    });
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes).toEqual([]);
+    expect(vm.emptyListText).toBe('No types yet');
   });
 
   it('does not restore attribute-suppressed descendants through ancestor roll-up', () => {

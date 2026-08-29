@@ -372,6 +372,14 @@ export default defineComponent({
         suppressionThreshold: suppressionThreshold ?? 99,
       }));
     });
+    /* An empty list is ambiguous on its own: the dataset may define nothing, or
+       the filters may have excluded everything it does define. */
+    const emptyListText = computed(() => {
+      if (virtualTypes.value.length > 0) return '';
+      const noun = props.group ? 'groups' : 'types';
+      const anyDefined = allTypesRef.value.length > 0 || usedTypesRef.value.length > 0;
+      return anyDefined ? `No ${noun} match the current filters` : `No ${noun} yet`;
+    });
     const headCheckState = computed(() => {
       const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
       /* An empty list lands here too: nothing to act on reads as unchecked. */
@@ -497,6 +505,7 @@ export default defineComponent({
       showSharedLineageControl,
       headCheckState,
       visibleTypes,
+      emptyListText,
       usedTypesRef,
       checkedTypesRef,
       confidenceFiltersRef,
@@ -639,7 +648,14 @@ export default defineComponent({
       </v-btn>
     </div>
     <div class="py-2 overflow-y-hidden">
+      <div
+        v-if="emptyListText"
+        class="empty-list text-body-2 grey--text text--lighten-1 mx-2"
+      >
+        {{ emptyListText }}
+      </div>
       <v-virtual-scroll
+        v-else
         class="tracks"
         :items="virtualTypes"
         :item-height="rowHeight"
