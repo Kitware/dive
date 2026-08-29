@@ -377,21 +377,15 @@ export default defineComponent({
       return deletableTypes.value.length === visibleTypes.value.length ? 1 : -1;
     });
 
+    /* Checked types the list is not showing are left alone by the header. */
+    const offscreenCheckedTypes = computed(
+      () => difference(checkedTypesRef.value, visibleTypes.value),
+    );
+
     function headCheckClicked() {
-      if (headCheckState.value === 0) {
-        /* Enable only what is filtered AND don't change what isn't filtered */
-        const allVisibleAndCheckedInvisible = union(
-          /* What was already checked and is currently not visible */
-          difference(checkedTypesRef.value, visibleTypes.value),
-          /* What is visible */
-          visibleTypes.value,
-        );
-        trackFilters.updateCheckedTypes(allVisibleAndCheckedInvisible);
-      } else {
-        /* Disable whatever is both checked and filtered */
-        const invisible = difference(checkedTypesRef.value, visibleTypes.value);
-        trackFilters.updateCheckedTypes(invisible);
-      }
+      trackFilters.updateCheckedTypes(headCheckState.value === 0
+        ? union(offscreenCheckedTypes.value, visibleTypes.value)
+        : offscreenCheckedTypes.value);
     }
 
     function updateCheckedType(type: string) {
