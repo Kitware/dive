@@ -188,6 +188,13 @@ describe('typeListHierarchy', () => {
     expect(model.rows.map(({ type }) => type)).not.toContain('sibling');
   });
 
+  it('narrows the checked set to the rows the header can act on', () => {
+    const model = build({ query: 'leaf', checkedTypes: ['leaf', 'root', 'sibling'] });
+
+    expect(model.rows.map(({ type }) => type)).toContain('root');
+    expect(model.actionableCheckedTypes).toEqual(['leaf']);
+  });
+
   it('reveals search paths without mutating or applying saved collapse state', () => {
     const collapsed = new Set(['root']);
     const collapsedModel = build({ collapsed });

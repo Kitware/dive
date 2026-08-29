@@ -4,7 +4,7 @@ import {
   watch,
 } from 'vue';
 import {
-  debounce, difference, intersection, union,
+  debounce, difference, union,
 } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -328,9 +328,7 @@ export default defineComponent({
     const visibleTypes = computed(() => typeListModel.value.actionableTypes);
     /* The delete button carries out what the header selected, so it reads the
        same displayed rows rather than every type that happens to be checked. */
-    const deletableTypes = computed(
-      () => intersection(visibleTypes.value, checkedTypesRef.value),
-    );
+    const deletableTypes = computed(() => typeListModel.value.actionableCheckedTypes);
     async function clickDelete() {
       const preamble = props.group
         ? 'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:'
@@ -372,12 +370,11 @@ export default defineComponent({
       return model.hasDefinedTypes ? 'No types match the current filters' : 'No types yet';
     });
     const headCheckState = computed(() => {
-      const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);
       /* An empty list lands here too: nothing to act on reads as unchecked. */
-      if (uncheckedTypes.length === visibleTypes.value.length) {
+      if (deletableTypes.value.length === 0) {
         return 0;
       }
-      return uncheckedTypes.length === 0 ? 1 : -1;
+      return deletableTypes.value.length === visibleTypes.value.length ? 1 : -1;
     });
 
     function headCheckClicked() {

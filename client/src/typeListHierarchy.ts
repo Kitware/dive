@@ -22,6 +22,7 @@ export interface TypeListModel {
   subtree: ReadonlyMap<string, readonly string[]>;
   checkState: ReadonlyMap<string, TypeListCheckState>;
   actionableTypes: readonly string[];
+  actionableCheckedTypes: readonly string[];
   sharedLineage: readonly string[];
   rows: readonly TypeListRow[];
 }
@@ -208,12 +209,15 @@ export function buildTypeListModel({
   };
   roots.forEach((root) => flatten(root, 0));
 
+  const actionableTypes = rows.map(({ type }) => type).filter((type) => actionableSet.has(type));
+
   return {
     hasDefinedTypes: knownTypes.size > 0,
     subtree,
     checkState,
     sharedLineage,
-    actionableTypes: rows.map(({ type }) => type).filter((type) => actionableSet.has(type)),
+    actionableTypes,
+    actionableCheckedTypes: actionableTypes.filter((type) => checkedSet.has(type)),
     rows,
   };
 }
