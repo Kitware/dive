@@ -716,7 +716,5 @@ def export_dive_as_coco(
         'categories': categories_doc,
     }
     if emit_video:
-        coco['videos'] = [
-            {'id': 1, 'name': dataset_name, 'annotation_fps': float(fps)}
-        ]
+        coco['videos'] = [{'id': 1, 'name': dataset_name, 'annotation_fps': float(fps)}]
     return coco
