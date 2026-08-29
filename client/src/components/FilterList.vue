@@ -153,34 +153,6 @@ export default defineComponent({
       clientSettings.typeSettings.trackSortDir = sortingMethods[data.sortingMethod];
     }
 
-    async function clickDelete() {
-      const typeDisplay: string[] = [];
-      let text: string[] = [];
-      if (props.group) {
-        text = [
-          'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:',
-        ];
-      } else {
-        text = [
-          'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:',
-        ];
-      }
-      text.push('-------');
-      checkedTypesRef.value.forEach((item) => {
-        typeDisplay.push(item);
-        text.push(item.toString());
-      });
-
-      const result = await prompt({
-        title: 'Really delete types?',
-        text,
-        confirm: true,
-      });
-      if (result) {
-        trackFilters.removeTypeAnnotations([...checkedTypesRef.value]);
-      }
-    }
-
     /**
      * Ids of tracks whose every keyframe detection is suppressed - covered by
      * a region on each frame it appears, or flagged with the suppression
@@ -354,6 +326,29 @@ export default defineComponent({
     const sharedLineage = computed(() => typeListModel.value.sharedLineage);
     const sharedLineageText = computed(() => sharedLineage.value.join(' › '));
     const visibleTypes = computed(() => typeListModel.value.actionableTypes);
+    /* The delete button carries out what the header selected, so it reads the
+       same displayed rows rather than every type that happens to be checked. */
+    const deletableTypes = computed(() => {
+      const checked = new Set(checkedTypesRef.value);
+      return visibleTypes.value.filter((type) => checked.has(type));
+    });
+    async function clickDelete() {
+      const text: string[] = props.group
+        ? ['This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:']
+        : ['This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:'];
+      text.push('-------');
+      deletableTypes.value.forEach((item) => text.push(item.toString()));
+
+      const result = await prompt({
+        title: 'Really delete types?',
+        text,
+        confirm: true,
+      });
+      if (result) {
+        trackFilters.removeTypeAnnotations([...deletableTypes.value]);
+      }
+    }
+
     const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
       const confidenceFiltersDeRef = confidenceFiltersRef.value;
       const typeCountsDeRef = typeCounts.value;
@@ -505,6 +500,7 @@ export default defineComponent({
       showSharedLineageControl,
       headCheckState,
       visibleTypes,
+      deletableTypes,
       emptyListText,
       usedTypesRef,
       checkedTypesRef,
@@ -598,7 +594,7 @@ export default defineComponent({
               <template #activator="{ on }">
                 <v-btn
                   class="hover-show-child"
-                  :disabled="checkedTypesRef.length === 0 || readOnlyMode"
+                  :disabled="deletableTypes.length === 0 || readOnlyMode"
                   icon
                   small
                   v-on="on"

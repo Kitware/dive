@@ -14,7 +14,7 @@ The Type List is used to control visual styles of the different types as well as
 * The checkbox in the list heading toggles every type the list is currently showing, after **Show Empty**, the search box, and **Filter Types by Frame** have narrowed it. Types that are checked but filtered out of view keep their checked state. It is disabled while the list is empty, and the list says whether it is empty because nothing is defined or because the filters excluded everything.
 * ==:material-sort-alphabetical-ascending:== toggles the sort order between alphabetical and by number of annotations of each type.
 * ==:material-cog:== opens the type settings menu.
-* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type.
+* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type. It acts on the checked types the list is showing, so a checked type filtered out of view is left alone, and the button is disabled when the list shows no checked type.
 * ==:material-swap-horizontal:== will switch the left sidebar panel to show the track attribute editor (and group editor) view.
 
 <div style="clear: both;"/>

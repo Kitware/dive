@@ -494,6 +494,26 @@ describe('FilterList hierarchy members', () => {
     expect(updateCheckedTypes).toHaveBeenCalledTimes(2);
   });
 
+  it('offers only displayed rows for deletion, not every checked type', async () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { checkedTypes, filterControls, styleManager } = makeHierarchyFixture();
+    checkedTypes.value = ['leaf', 'root', 'branch', 'sibling'];
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: true,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.deletableTypes).toEqual(['root', 'branch', 'leaf', 'sibling']);
+
+    vm.data.filterText = 'leaf';
+    await nextTick();
+    expect(vm.deletableTypes).toEqual(['leaf']);
+  });
+
   it('rolls total and frame counts into ancestors and scopes the header to the frame', async () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = true;
