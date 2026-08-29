@@ -4,7 +4,7 @@ import {
   watch,
 } from 'vue';
 import {
-  debounce, difference, union,
+  debounce, difference, intersection, union,
 } from 'lodash';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -328,20 +328,17 @@ export default defineComponent({
     const visibleTypes = computed(() => typeListModel.value.actionableTypes);
     /* The delete button carries out what the header selected, so it reads the
        same displayed rows rather than every type that happens to be checked. */
-    const deletableTypes = computed(() => {
-      const checked = new Set(checkedTypesRef.value);
-      return visibleTypes.value.filter((type) => checked.has(type));
-    });
+    const deletableTypes = computed(
+      () => intersection(visibleTypes.value, checkedTypesRef.value),
+    );
     async function clickDelete() {
-      const text: string[] = props.group
-        ? ['This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:']
-        : ['This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:'];
-      text.push('-------');
-      deletableTypes.value.forEach((item) => text.push(item.toString()));
+      const preamble = props.group
+        ? 'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:'
+        : 'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:';
 
       const result = await prompt({
         title: 'Really delete types?',
-        text,
+        text: [preamble, '-------', ...deletableTypes.value],
         confirm: true,
       });
       if (result) {
@@ -370,10 +367,9 @@ export default defineComponent({
     /* An empty list is ambiguous on its own: the dataset may define nothing, or
        the filters may have excluded everything it does define. */
     const emptyListText = computed(() => {
-      if (virtualTypes.value.length > 0) return '';
-      const noun = props.group ? 'groups' : 'types';
-      const anyDefined = allTypesRef.value.length > 0 || usedTypesRef.value.length > 0;
-      return anyDefined ? `No ${noun} match the current filters` : `No ${noun} yet`;
+      const model = typeListModel.value;
+      if (model.rows.length > 0) return '';
+      return model.hasDefinedTypes ? 'No types match the current filters' : 'No types yet';
     });
     const headCheckState = computed(() => {
       const uncheckedTypes = difference(visibleTypes.value, checkedTypesRef.value);

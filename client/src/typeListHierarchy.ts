@@ -18,6 +18,7 @@ export interface TypeListRow {
 }
 
 export interface TypeListModel {
+  hasDefinedTypes: boolean;
   subtree: ReadonlyMap<string, readonly string[]>;
   checkState: ReadonlyMap<string, TypeListCheckState>;
   actionableTypes: readonly string[];
@@ -161,20 +162,17 @@ export function buildTypeListModel({
   };
   roots.forEach(visit);
 
-  /* Show Empty off keeps the path back to each root, but a branch with no
-     annotations anywhere has nothing to lead to and stays hidden. */
-  const usedAncestors = new Set<string>();
-  usedTypes.forEach(
-    (type) => ancestorsOf(hierarchyIndex, type).forEach((ancestor) => usedAncestors.add(ancestor)),
-  );
   const normalizedQuery = query.toLowerCase();
   const searchActive = normalizedQuery.length > 0;
   const hiddenSharedLineage = !searchActive && compactSharedLineage
     ? new Set(sharedLineage)
     : new Set<string>();
+  /* Show Empty off keeps the path back to each root, so ancestors of a used
+     type stay actionable rows; a branch with no annotations anywhere has
+     nothing to lead to and drops out entirely. */
   const showEmptyCandidates = showEmpty
     ? knownTypes
-    : new Set([...usedTypes, ...usedAncestors]);
+    : withAncestorPath(usedTypes, hierarchyIndex);
   const queryCandidates = normalizedQuery
     ? [...showEmptyCandidates].filter((type) => type.toLowerCase().includes(normalizedQuery))
     : [...showEmptyCandidates];
@@ -211,6 +209,7 @@ export function buildTypeListModel({
   roots.forEach((root) => flatten(root, 0));
 
   return {
+    hasDefinedTypes: knownTypes.size > 0,
     subtree,
     checkState,
     sharedLineage,

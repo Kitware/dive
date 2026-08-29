@@ -778,6 +778,29 @@ describe('FilterList hierarchy members', () => {
     expect(vm.emptyListText).toBe('No types yet');
   });
 
+  it('counts hierarchy-only types as defined when a search empties the list', async () => {
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { filterControls, styleManager } = makeFilterListFixture({
+      tracks: [],
+      hierarchy: { leaf: 'branch' },
+      checkedTypes: [],
+    });
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: true,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['branch', 'leaf']);
+
+    vm.data.filterText = 'zzz';
+    await nextTick();
+    expect(vm.virtualTypes).toEqual([]);
+    expect(vm.emptyListText).toBe('No types match the current filters');
+  });
+
   it('does not restore attribute-suppressed descendants through ancestor roll-up', () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = false;
