@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { compileHierarchy } from 'dive-common/typeHierarchy';
 import {
   buildTypeListModel,

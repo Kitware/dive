@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 /* eslint-disable vue/one-component-per-file -- harness Host components for mount() */
 import {
   defineComponent, ref, shallowRef, nextTick,

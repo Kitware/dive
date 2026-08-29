@@ -1,6 +1,4 @@
-// @vitest-environment jsdom
 /* eslint-disable vue/one-component-per-file -- harness components for shallow mounting */
-/// <reference types="vitest" />
 import {
   defineComponent, h, reactive, ref,
 } from 'vue';

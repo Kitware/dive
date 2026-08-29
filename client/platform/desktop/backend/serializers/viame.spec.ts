@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
 import parseSync from 'csv-parse/lib/sync';
 import fs from 'fs-extra';

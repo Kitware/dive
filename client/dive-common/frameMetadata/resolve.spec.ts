@@ -1,5 +1,3 @@
-/// <reference types="vitest" />
-
 import { buildFrameAlignmentIndex, resolveCameraAttachment } from './resolve';
 import type { FrameMetadataFrameContext } from './resolve';
 
