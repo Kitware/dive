@@ -29,6 +29,8 @@ export default defineComponent({
       lockTypes: 'Only allows the use of defined types.',
       preventCascadeTypes: 'When a track has multiple types, this will prevent the type from displaying if the max type is not visible in the type list',
       filterTypesByFrame: 'Filters the type list by only types that are visible in the current frame',
+      showTotalCount: 'Show each type\'s count for the whole dataset. Rows read frame count / total count.',
+      showFrameCount: 'Show each type\'s count on the current frame. Rows read frame count / total count.',
       maxCountButton: 'Show a max count button that will jump to the frame with the max count for the type',
       suppressionType: 'Detections lying at least the Suppression Overlap percent under an annotation of this type are hidden and excluded from counts. A detection carrying an attribute of this name set to true stays visible with its real type (optional dashed/fill styling and an eye-off tag) and is excluded from its own type\'s counts. Leave empty to disable.',
       suppressionThreshold: 'Minimum percent of a detection that must lie under suppression regions for it to be hidden (default 99).',
@@ -266,6 +268,70 @@ export default defineComponent({
                   </v-icon>
                 </template>
                 <span>{{ help.filterTypesByFrame }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-switch
+                v-model="clientSettings.typeSettings.showTotalCount"
+                label="Show Total Count"
+                class="my-0 ml-1 pt-0"
+                dense
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+                max-width="200"
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.showTotalCount }}</span>
+              </v-tooltip>
+            </v-col>
+          </v-row>
+          <v-row>
+            <v-col class="py-1">
+              <v-switch
+                v-model="clientSettings.typeSettings.showFrameCount"
+                label="Show Frame Count"
+                class="my-0 ml-1 pt-0"
+                dense
+                hide-details
+              />
+            </v-col>
+            <v-col
+              cols="2"
+              class="py-1"
+              align="right"
+            >
+              <v-tooltip
+                open-delay="200"
+                bottom
+                max-width="200"
+              >
+                <template #activator="{ on }">
+                  <v-icon
+                    small
+                    v-on="on"
+                  >
+                    mdi-help
+                  </v-icon>
+                </template>
+                <span>{{ help.showFrameCount }}</span>
               </v-tooltip>
             </v-col>
           </v-row>

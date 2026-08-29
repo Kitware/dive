@@ -635,9 +635,7 @@ def export_tracks_as_csv(
         if not confidence_pairs:
             continue
 
-        sorted_confidence_pairs = sorted(
-            confidence_pairs, key=lambda item: item[1], reverse=True
-        )
+        sorted_confidence_pairs = sorted(confidence_pairs, key=lambda item: item[1], reverse=True)
 
         for index, keyframe in enumerate(track.features):
             features = [keyframe]
@@ -709,8 +707,7 @@ def export_tracks_as_csv(
                                     for item in sublist  # type: ignore
                                 ]
                                 columns.append(
-                                    "(poly) "
-                                    + ' '.join(map(lambda x: str(round(x)), outer_coords))
+                                    "(poly) " + ' '.join(map(lambda x: str(round(x)), outer_coords))
                                 )
 
                                 # Write holes (additional rings)

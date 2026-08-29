@@ -2,6 +2,11 @@
 import { computed, defineComponent } from 'vue';
 import TooltipBtn from './TooltipButton.vue';
 
+const INDENT_STEP_PX = 12;
+const TREE_PREFIX_PX = 20;
+const CHECKBOX_LEFT_PAD_PX = 8;
+const CHECKBOX_LABEL_GAP_TRIM_PX = 4;
+
 export default defineComponent({
   name: 'TypeItem',
 
@@ -15,6 +20,10 @@ export default defineComponent({
     displayText: {
       type: String,
       required: true,
+    },
+    displayTooltip: {
+      type: String,
+      default: '',
     },
     confidenceFilterNum: {
       type: Number,
@@ -82,13 +91,16 @@ export default defineComponent({
       }
       return 42 + 14 + 20 + 30;
     });
-    const HierarchyPadding = computed(() => (props.tree ? (props.depth * 16) + 24 : 0));
+    const HierarchyPadding = computed(() => (props.tree
+      ? (props.depth * INDENT_STEP_PX) + TREE_PREFIX_PX
+        - CHECKBOX_LEFT_PAD_PX - CHECKBOX_LABEL_GAP_TRIM_PX
+      : 0));
     const cssVars = computed(() => ({
       '--content-width': `${Math.max(
         0,
         props.width - HorizontalPadding.value - HierarchyPadding.value,
       )}px`,
-      '--tree-depth': `${props.depth * 16}px`,
+      '--tree-depth': `${props.depth * INDENT_STEP_PX}px`,
     }));
     const effectiveOverlapPercent = computed(() => {
       const p = Number(props.suppressionThreshold);
@@ -113,7 +125,7 @@ export default defineComponent({
   <v-row
     :style="cssVars"
     align="center"
-    class="hover-show-parent"
+    :class="['hover-show-parent', { 'tree-row': tree }]"
     :role="tree ? 'listitem' : undefined"
     :aria-level="tree ? depth + 1 : undefined"
   >
@@ -148,7 +160,7 @@ export default defineComponent({
         dense
         shrink
         hide-details
-        class="my-1 pl-2"
+        :class="['my-1', { 'pl-2': !tree }]"
         @change="$emit('setCheckedTypes', $event)"
       >
         <template #label>
@@ -165,7 +177,7 @@ export default defineComponent({
                   {{ displayText }}
                 </span>
               </template>
-              <span>{{ displayText }}</span>
+              <span>{{ displayTooltip || displayText }}</span>
             </v-tooltip>
             <v-tooltip
               v-if="confidenceFilterNum"
@@ -264,6 +276,9 @@ export default defineComponent({
 <style lang="scss" scoped>
 @import 'src/components/styles/hover-reveal.scss';
 
+/* Keep in sync with `TREE_PREFIX_PX`. */
+$tree-prefix-width: 20px;
+
 .nowrap {
   white-space: nowrap;
   overflow: hidden;
@@ -271,15 +286,19 @@ export default defineComponent({
   text-overflow: ellipsis;
 }
 
+.tree-row ::v-deep .v-input--selection-controls__input {
+  margin-right: 4px;
+}
+
 .tree-prefix {
-  flex: 0 0 24px;
+  flex: 0 0 $tree-prefix-width;
   height: 30px;
   margin-left: var(--tree-depth);
 }
 
 .tree-disclosure {
-  min-width: 24px;
-  width: 24px;
+  min-width: $tree-prefix-width;
+  width: $tree-prefix-width;
   height: 24px;
   padding: 0;
   border: 0;
@@ -296,7 +315,7 @@ export default defineComponent({
 
 .tree-disclosure-spacer {
   display: inline-block;
-  width: 24px;
+  width: $tree-prefix-width;
 }
 
 .outlined {

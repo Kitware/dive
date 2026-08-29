@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-/// <reference types="vitest" />
 import {
   defineComponent, h, nextTick, ref, reactive,
 } from 'vue';
@@ -184,6 +182,8 @@ describe('FilterList hierarchy members', () => {
     provideMocks.annotationMap.clear();
     provideMocks.selectedCameraValue = 'singleCam';
     provideMocks.selectedCameraRef = undefined;
+    clientSettings.typeSettings.showTotalCount = true;
+    clientSettings.typeSettings.showFrameCount = true;
   });
 
   it('keeps members as ordinary, independently checked flat rows', async () => {
@@ -231,6 +231,40 @@ describe('FilterList hierarchy members', () => {
     expect(checkedTypes.value).toEqual(['leaf', 'heading']);
   });
 
+  it('sizes the virtual list from the flex viewport content box', async () => {
+    let resizeCallback: ResizeObserverCallback | undefined;
+    const observe = vi.fn();
+    const disconnect = vi.fn();
+    vi.stubGlobal('ResizeObserver', class {
+      constructor(callback: ResizeObserverCallback) {
+        resizeCallback = callback;
+      }
+
+      observe = observe;
+
+      disconnect = disconnect;
+    });
+    const { filterControls, styleManager } = makeHierarchyFixture();
+    const { wrapper, vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 320,
+      headerHeight: 80,
+    });
+    const viewport = wrapper.find('.type-list-viewport').element as HTMLElement;
+    expect(observe).toHaveBeenCalledWith(viewport);
+    resizeCallback?.([{
+      contentRect: { height: 236 } as DOMRectReadOnly,
+    } as ResizeObserverEntry], {} as ResizeObserver);
+    await nextTick();
+
+    expect(vm.virtualHeight).toBe(236);
+    wrapper.destroy();
+    expect(disconnect).toHaveBeenCalledOnce();
+    vi.unstubAllGlobals();
+  });
+
   it('counts the type selected by each filtered annotation context', () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = false;
@@ -273,11 +307,11 @@ describe('FilterList hierarchy members', () => {
     });
 
     expect(vm.virtualTypes.find(({ type }) => type === 'leaf')).toEqual(expect.objectContaining({
-      displayText: '1 : 0\u00A0 leaf',
+      displayText: '0 / 1\u00A0 leaf',
       color: 'color:leaf',
     }));
     expect(vm.virtualTypes.find(({ type }) => type === 'root')?.displayText)
-      .toBe('0 : 0\u00A0 root');
+      .toBe('0 / 0\u00A0 root');
   });
 
   it('renders an expanded hierarchy with depth, tri-state, and structural parents', async () => {
@@ -351,16 +385,16 @@ describe('FilterList hierarchy members', () => {
       headerHeight: 80,
     });
 
-    expect(vm.sharedLineage).toEqual(['domain', 'kingdom', 'phylum', 'class']);
-    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['branch', 'leaf']);
+    expect(vm.sharedLineage).toEqual(['domain', 'kingdom', 'phylum', 'class', 'branch']);
+    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['leaf']);
     expect(vm.virtualTypes[0].depth).toBe(0);
     expect(vm.virtualHeight).toBe(130);
-    expect(wrapper.find('.shared-lineage-text').text()).toBe(
-      'domain › kingdom › phylum › class',
-    );
     expect(wrapper.find('.shared-lineage-text').classes()).toEqual(expect.arrayContaining([
       'text-body-2', 'grey--text', 'text--lighten-1',
     ]));
+    expect(wrapper.find('.shared-lineage-text-inner').text()).toBe(
+      'domain › kingdom › phylum › class › branch',
+    );
     expect(wrapper.find('.shared-lineage-action').text()).toBe('Expand Parents');
 
     await wrapper.find('.shared-lineage-action').trigger('click');
@@ -374,7 +408,7 @@ describe('FilterList hierarchy members', () => {
     vm.toggleExpanded('branch');
     vm.toggleSharedLineage();
     await nextTick();
-    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['branch']);
+    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['leaf']);
 
     vm.toggleSharedLineage();
     await nextTick();
@@ -562,9 +596,9 @@ describe('FilterList hierarchy members', () => {
     ]));
     expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['root', 'branch', 'leaf']);
     expect(vm.virtualTypes.map(({ displayText }) => displayText)).toEqual([
-      '3 : 1\u00A0 root',
-      '2 : 1\u00A0 branch',
-      '1 : 1\u00A0 leaf',
+      '1 / 3\u00A0 root',
+      '1 / 2\u00A0 branch',
+      '1 / 1\u00A0 leaf',
     ]);
     expect(vm.visibleTypes).toEqual(['root', 'branch', 'leaf']);
 
@@ -617,7 +651,7 @@ describe('FilterList hierarchy members', () => {
     });
 
     expect(vm.virtualTypes.find(({ type }) => type === targetType)?.displayText)
-      .toBe(`3 : 1\u00A0 ${targetType}`);
+      .toBe(`1 / 3\u00A0 ${targetType}`);
     const intervalSearchCalls = provideMocks.intervalSearch.mock.calls.length;
 
     vm.goToPeakTrackFrame(targetType);
@@ -666,7 +700,7 @@ describe('FilterList hierarchy members', () => {
     });
 
     expect(vm.virtualTypes.find(({ type }) => type === 'leaf')?.displayText)
-      .toBe('3 : 0\u00A0 leaf');
+      .toBe('0 / 3\u00A0 leaf');
     const intervalSearchCalls = provideMocks.intervalSearch.mock.calls.length;
 
     vm.goToPeakTrackFrame('leaf');
@@ -694,7 +728,7 @@ describe('FilterList hierarchy members', () => {
     });
 
     expect(vm.virtualTypes.find(({ type }) => type === 'root')?.displayText)
-      .toBe('3 : 0\u00A0 root');
+      .toBe('0 / 3\u00A0 root');
 
     if (!provideMocks.selectedCameraRef) {
       throw new Error('selected camera ref was not captured');
@@ -703,7 +737,114 @@ describe('FilterList hierarchy members', () => {
     await nextTick();
 
     expect(vm.virtualTypes.find(({ type }) => type === 'root')?.displayText)
-      .toBe('3 : 1\u00A0 root');
+      .toBe('1 / 3\u00A0 root');
+  });
+
+  it.each([
+    [true, true, ['1 / 3\u00A0 root', '1 / 2\u00A0 branch', '1 / 1\u00A0 leaf', '0 / 1\u00A0 sibling'],
+      '1 / 3\u00A0 root'],
+    [true, false, ['3\u00A0 root', '2\u00A0 branch', '1\u00A0 leaf', '1\u00A0 sibling'],
+      'root - 3 in the dataset'],
+    [false, true, ['1\u00A0 root', '1\u00A0 branch', '1\u00A0 leaf', '0\u00A0 sibling'],
+      'root - 1 on this frame'],
+    [false, false, ['root', 'branch', 'leaf', 'sibling'], 'root'],
+  ] as const)('renders rows with total=%s frame=%s', (
+    showTotalCount,
+    showFrameCount,
+    displayTexts,
+    rootTooltip,
+  ) => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    clientSettings.typeSettings.suppressionType = '';
+    clientSettings.typeSettings.showTotalCount = showTotalCount;
+    clientSettings.typeSettings.showFrameCount = showFrameCount;
+    provideMocks.intervalSearch.mockImplementation(([frame]: [number, number]) => (
+      frame === 0 ? ['1'] : ['1', '2', '3']
+    ));
+    const { filterControls, styleManager, tracks } = makeCountHierarchyFixture();
+    provideMocks.getPossible.mockImplementation((id: number) => (
+      tracks.find((track) => track.id === id)
+    ));
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes.map(({ displayText }) => displayText)).toEqual([...displayTexts]);
+    expect(vm.virtualTypes.find(({ type }) => type === 'root')?.displayTooltip)
+      .toBe(rootTooltip);
+  });
+
+  it('skips the per-frame scan when no frame count is displayed, sorted on, or filtered by', async () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    clientSettings.typeSettings.suppressionType = '';
+    clientSettings.typeSettings.showFrameCount = false;
+    provideMocks.intervalSearch.mockImplementation(([frame]: [number, number]) => (
+      frame === 0 ? ['1'] : ['1', '2', '3']
+    ));
+    const { filterControls, styleManager, tracks } = makeCountHierarchyFixture();
+    provideMocks.getPossible.mockImplementation((id: number) => (
+      tracks.find((track) => track.id === id)
+    ));
+    await nextTick();
+    provideMocks.intervalSearch.mockClear();
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes.map(({ displayText }) => displayText)).toEqual([
+      '3\u00A0 root', '2\u00A0 branch', '1\u00A0 leaf', '1\u00A0 sibling',
+    ]);
+    expect(provideMocks.intervalSearch).not.toHaveBeenCalled();
+
+    clientSettings.typeSettings.showFrameCount = true;
+    await nextTick();
+
+    expect(vm.virtualTypes.map(({ displayText }) => displayText)).toEqual([
+      '1 / 3\u00A0 root', '1 / 2\u00A0 branch', '1 / 1\u00A0 leaf', '0 / 1\u00A0 sibling',
+    ]);
+  });
+
+  it('never prints a frame count above the total the fraction is read against', () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    clientSettings.typeSettings.suppressionType = 'Suppressed';
+    provideMocks.intervalSearch.mockReturnValue(['1', '2', '3']);
+    const tracks = [
+      new Track(1, { confidencePairs: [['leaf', 1]], features: featuresAt([0, 5]) }),
+      /* Present on frame 0 but suppressed there, and unsuppressed on frame 5. */
+      new Track(2, { confidencePairs: [['branch', 1]], features: featuresAt([0, 5], [0]) }),
+      new Track(3, { confidencePairs: [['sibling', 1]], features: featuresAt([0]) }),
+    ];
+    tracks.forEach((track) => provideMocks.annotationMap.set(track.id, track));
+    const { filterControls, styleManager } = makeCountHierarchyFixture({ tracks });
+    provideMocks.getPossible.mockImplementation((id: number) => (
+      tracks.find((track) => track.id === id)
+    ));
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: false,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    expect(vm.virtualTypes.map(({ displayText }) => displayText)).toEqual([
+      '2 / 3\u00A0 root', '1 / 2\u00A0 branch', '1 / 1\u00A0 leaf', '1 / 1\u00A0 sibling',
+    ]);
+    vm.virtualTypes.forEach(({ displayText }) => {
+      const [frame, total] = displayText.split('\u00A0')[0].split('/').map(Number);
+      expect(frame).toBeLessThanOrEqual(total);
+    });
   });
 
   it.each([
@@ -844,10 +985,10 @@ describe('FilterList hierarchy members', () => {
       ['branch', 1], ['root', 2], ['sibling', 1],
     ]));
     expect(vm.virtualTypes.map(({ displayText }) => displayText)).toEqual([
-      '2 : 0\u00A0 root',
-      '1 : 0\u00A0 branch',
-      '0 : 0\u00A0 leaf',
-      '1 : 0\u00A0 sibling',
+      '0 / 2\u00A0 root',
+      '0 / 1\u00A0 branch',
+      '0 / 0\u00A0 leaf',
+      '0 / 1\u00A0 sibling',
     ]);
   });
 });

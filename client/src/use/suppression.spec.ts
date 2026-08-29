@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import Track, { TrackData } from '../track';
 import { clientSettings } from '../../dive-common/store/settings';
 import {

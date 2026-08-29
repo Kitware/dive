@@ -1,5 +1,3 @@
-/// <reference types="vitest" />
-
 import { isFrameMetadataReadableName } from './readability';
 
 describe('isFrameMetadataReadableName', () => {

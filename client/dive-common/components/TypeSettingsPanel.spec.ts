@@ -1,5 +1,3 @@
-// @vitest-environment jsdom
-/// <reference types="vitest" />
 import {
   defineComponent, h, nextTick, reactive,
 } from 'vue';

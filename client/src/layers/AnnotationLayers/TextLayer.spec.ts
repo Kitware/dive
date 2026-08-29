@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import Group from '../../Group';
 import Track from '../../track';
 import { FrameDataTrack } from '../LayerTypes';
