@@ -206,10 +206,10 @@ export function buildTypeListModel({
   };
   roots.forEach((root) => flatten(root, 0));
 
-  /* The header bulk toggle acts on every candidate the filters allowed. A type
-     on screen only as ancestor context never was a candidate; a breadcrumb
-     hides its ancestors outright; and a collapsed row keeps its branch, which
-     is what that row's own checkbox owns. */
+  /* The set the header checkbox and the delete button act on: every type the
+     filters kept, minus the ancestors a breadcrumb replaced. Deliberately not
+     the row list, which adds ancestors shown only as context for a match below
+     them and drops the descendants a collapsed row hides. */
   const actionableTypes = roots
     .flatMap((root) => subtree.get(root) ?? [root])
     .filter((type) => actionableSet.has(type) && !hiddenSharedLineage.has(type));
