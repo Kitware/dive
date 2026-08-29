@@ -11,10 +11,10 @@ Each dataset maintains its own list of types, and types can be defined on-the-fl
 The Type List is used to control visual styles of the different types as well as filter out types that don't need to be displayed.
 
 * The checkbox next to each type name can be used to toggle types on and off.
-* The checkbox in the list heading toggles every type the list is currently showing, after **Show Empty**, the search box, and **Filter Types by Frame** have narrowed it. Types that are checked but filtered out of view keep their checked state. It is disabled while the list is empty, and the list says whether it is empty because nothing is defined or because the filters excluded everything.
+* The checkbox in the list heading toggles only the types the list is currently showing. A checked type that a filter has hidden keeps its checked state.
 * ==:material-sort-alphabetical-ascending:== toggles the sort order between alphabetical and by number of annotations of each type.
 * ==:material-cog:== opens the type settings menu.
-* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type. It acts on the checked types the list is showing — including those inside a collapsed branch — so a checked type filtered out of view is left alone, and the button is disabled when the list shows no checked type.
+* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type. Like the heading checkbox, it acts only on the types the list is showing.
 * ==:material-swap-horizontal:== will switch the left sidebar panel to show the track attribute editor (and group editor) view.
 
 <div style="clear: both;"/>
@@ -41,7 +41,7 @@ hierarchy-resolved displayed type.
 
 Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants. The Type List does not offer hierarchy editing.
 
-A parent row's checkbox and the heading checkbox are deliberately different affordances. The row means "this branch": it toggles the parent's complete subtree, including descendants hidden by a collapsed branch or by **Filter Types by Frame**. The heading means "what I can see": it toggles only the rows on screen. A collapsed row is the only thing on screen for its branch, so the heading reaches the types under it that the filters still allow. A parent that is on screen only as ancestor context for a search or frame-filter match below it is not itself toggled by the heading checkbox.
+A parent row's checkbox always toggles its complete subtree. The heading checkbox is narrower: it skips a parent shown only as ancestor context for a match below it.
 
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
 
@@ -95,7 +95,7 @@ Click the ==:material-cog:== button in the type list heading to open type settin
 In ad-hoc mode, new object classes are added as you annotate.  The type list updates automatically when new classes are added or the last member of a class is deleted.
 
 * Set **Lock Types** to off for ad-hoc type creation.
-* Set **Show Empty** to still show manually defined types with no track/detection examples in the type list. A hierarchy parent appears only when something in its branch is annotated; the ancestors leading to an annotated type are always shown.
+* Set **Show Empty** to still show manually defined types with no track/detection examples in the type list. Hierarchy parents appear only when something in their branch is annotated.
 
 <div style="clear: both;"/>
 
