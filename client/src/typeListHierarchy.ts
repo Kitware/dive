@@ -180,9 +180,6 @@ export function buildTypeListModel({
   const displayedCandidates = filterTypesByFrame
     ? queryCandidates.filter((type) => (frameCounts.get(type) || 0) > 0)
     : queryCandidates;
-  /* The header bulk toggle acts on displayed candidates that survive into the
-     final row model, which excludes ancestor context and breadcrumbed
-     ancestors. */
   const actionableSet = new Set(displayedCandidates);
   const displayedSet = withAncestorPath(displayedCandidates, hierarchyIndex);
   const rows: TypeListRow[] = [];
@@ -209,12 +206,13 @@ export function buildTypeListModel({
   };
   roots.forEach((root) => flatten(root, 0));
 
-  /* An expanded row speaks only for itself because its children have rows of
-     their own; a collapsed row is the sole stand-in for the branch its own
-     checkbox owns. A type a filter excluded stays out either way. */
-  const actionableTypes = rows
-    .flatMap(({ type, expanded }) => (expanded ? [type] : subtree.get(type) ?? [type]))
-    .filter((type) => actionableSet.has(type));
+  /* The header bulk toggle acts on every candidate the filters allowed. A type
+     on screen only as ancestor context never was a candidate; a breadcrumb
+     hides its ancestors outright; and a collapsed row keeps its branch, which
+     is what that row's own checkbox owns. */
+  const actionableTypes = roots
+    .flatMap((root) => subtree.get(root) ?? [root])
+    .filter((type) => actionableSet.has(type) && !hiddenSharedLineage.has(type));
 
   return {
     hasDefinedTypes: knownTypes.size > 0,
