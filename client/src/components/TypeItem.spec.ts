@@ -37,7 +37,7 @@ describe('TypeItem hierarchy row', () => {
   it('exposes hierarchy semantics and keeps the type color active while indeterminate', async () => {
     const { wrapper, vm, toggleExpanded } = mountTypeItem({
       type: 'fish',
-      displayText: '3 : 1\u00A0 fish',
+      displayText: '1 / 3\u00A0 fish',
       confidenceFilterNum: 0.4,
       color: '#abc',
       checked: false,
@@ -77,30 +77,61 @@ describe('TypeItem hierarchy row', () => {
     }));
     expect(vm.cssVars)
       .toEqual(expect.objectContaining({
-        '--content-width': '138px',
-        '--tree-depth': '32px',
+        '--content-width': '162px',
+        '--tree-depth': '24px',
       }));
     expect(wrapper.find('.row-help').exists()).toBe(false);
   });
 
-  it('keeps flat rows free of hierarchy roles and disclosure controls', () => {
-    const { wrapper } = mountTypeItem({
+  it('keeps flat rows free of hierarchy roles, disclosure controls, and tree spacing', () => {
+    const { wrapper, vm } = mountTypeItem({
       type: 'fish',
-      displayText: '3 : 1\u00A0 fish',
+      displayText: '1 / 3\u00A0 fish',
       confidenceFilterNum: 0,
       color: '#abc',
       checked: true,
+      width: 300,
     });
 
     expect(wrapper.find('v-row').attributes('role')).toBeUndefined();
     expect(wrapper.find('[aria-label*="descendants of fish"]').exists()).toBe(false);
     expect(wrapper.find('v-checkbox').attributes('indeterminate')).toBeUndefined();
+    expect(wrapper.find('.tree-prefix').exists()).toBe(false);
+    expect(wrapper.find('v-checkbox').classes()).toContain('pl-2');
+    expect(wrapper.find('v-row').classes()).not.toContain('tree-row');
+    expect(vm.cssVars).toEqual({ '--content-width': '224px', '--tree-depth': '0px' });
+  });
+
+  it.each([
+    [0, '0px', '216px'],
+    [1, '12px', '204px'],
+    [3, '36px', '180px'],
+  ])('indents a depth %i tree row by the shared step and budgets the label to match', (
+    depth,
+    treeDepth,
+    contentWidth,
+  ) => {
+    const { wrapper, vm } = mountTypeItem({
+      type: 'fish',
+      displayText: '1 / 3\u00A0 fish',
+      confidenceFilterNum: 0,
+      color: '#abc',
+      checked: true,
+      tree: true,
+      depth,
+      width: 300,
+    });
+
+    expect(vm.cssVars).toEqual({ '--content-width': contentWidth, '--tree-depth': treeDepth });
+    expect(wrapper.find('.tree-prefix').exists()).toBe(true);
+    expect(wrapper.find('v-checkbox').classes()).not.toContain('pl-2');
+    expect(wrapper.find('v-row').classes()).toContain('tree-row');
   });
 
   it('uses an indentation spacer while search forces a parent open', () => {
     const { wrapper } = mountTypeItem({
       type: 'fish',
-      displayText: '3 : 1\u00A0 fish',
+      displayText: '1 / 3\u00A0 fish',
       confidenceFilterNum: 0,
       color: '#abc',
       checked: true,

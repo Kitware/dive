@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, PropType, reactive, ref, Ref,
+  computed, defineComponent, onBeforeUnmount, onMounted, PropType, reactive, ref, Ref,
   watch,
 } from 'vue';
 import {
@@ -39,10 +39,33 @@ const EMPTY_HIERARCHY_INDEX = compileHierarchy({});
 interface VirtualTypeItem extends TypeListRow {
   confidenceFilterNum: number;
   displayText: string;
+  displayTooltip: string;
   color: string;
   tree: boolean;
   isSuppressionType: boolean;
   suppressionThreshold: number;
+}
+
+function countPair(frame: string, total: string, showFrame: boolean, showTotal: boolean): string {
+  return [showFrame ? frame : '', showTotal ? total : ''].filter((part) => part).join(' / ');
+}
+
+function typeRowLabels(
+  type: string,
+  total: number,
+  frame: number,
+  showTotal: boolean,
+  showFrame: boolean,
+): { displayText: string; displayTooltip: string } {
+  const counts = countPair(`${frame}`, `${total}`, showFrame, showTotal);
+  const displayText = counts ? `${counts}\u00A0 ${type}` : type;
+  if (showTotal && !showFrame) {
+    return { displayText, displayTooltip: `${type} - ${total} in the dataset` };
+  }
+  if (showFrame && !showTotal) {
+    return { displayText, displayTooltip: `${type} - ${frame} on this frame` };
+  }
+  return { displayText, displayTooltip: displayText };
 }
 
 export default defineComponent({
@@ -329,12 +352,18 @@ export default defineComponent({
       filterTypesByFrame.value = newValue;
     });
     const noFrameCounts = new Map<string, number>();
+    const showTotalCount = computed(() => clientSettings.typeSettings.showTotalCount ?? true);
+    const showFrameCount = computed(() => clientSettings.typeSettings.showFrameCount ?? true);
+    // Avoid interval-tree and suppression passes unless a consumer needs frame counts.
+    const frameCountsRef = computed(() => {
+      const needed = filterTypesByFrame.value
+        || sortingMethods[data.sortingMethod] === 'frame count'
+        || showFrameCount.value;
+      return needed ? currentFrameTrackTypes.value : noFrameCounts;
+    });
     const typeListModel: Ref<TypeListModel> = computed(() => {
       const sort = sortingMethods[data.sortingMethod];
       const byFrame = filterTypesByFrame.value ?? false;
-      // The model needs frame counts only when they affect row visibility or order.
-      // Otherwise playback can update displayed counts without rebuilding the tree.
-      const usesFrameCounts = byFrame || sort === 'frame count';
       return buildTypeListModel({
         hierarchyIndex: hierarchyIndexRef.value || EMPTY_HIERARCHY_INDEX,
         allTypes: allTypesRef.value,
@@ -342,7 +371,7 @@ export default defineComponent({
         configuredTypes: trackFilters.configuredTypes.value,
         checkedTypes: checkedTypesRef.value,
         counts: typeCounts.value,
-        frameCounts: usesFrameCounts ? currentFrameTrackTypes.value : noFrameCounts,
+        frameCounts: frameCountsRef.value,
         showEmpty: props.showEmptyTypes,
         query: data.filterText,
         filterTypesByFrame: byFrame,
@@ -358,14 +387,22 @@ export default defineComponent({
       const confidenceFiltersDeRef = confidenceFiltersRef.value;
       const typeCountsDeRef = typeCounts.value;
       const typeStylingDeRef = typeStylingRef.value;
-      const frameTrackTypesDeRef = currentFrameTrackTypes.value;
+      const frameTrackTypesDeRef = frameCountsRef.value;
+      const showTotalDeRef = showTotalCount.value;
+      const showFrameDeRef = showFrameCount.value;
       const { suppressionType, suppressionThreshold } = clientSettings.typeSettings;
       const { rows } = typeListModel.value;
       return rows.map(({ type, ...row }) => ({
         ...row,
         type,
         confidenceFilterNum: confidenceFiltersDeRef[type] || 0,
-        displayText: `${typeCountsDeRef.get(type) || 0} : ${frameTrackTypesDeRef.get(type) || 0}\u00A0 ${type}`,
+        ...typeRowLabels(
+          type,
+          typeCountsDeRef.get(type) || 0,
+          frameTrackTypesDeRef.get(type) || 0,
+          showTotalDeRef,
+          showFrameDeRef,
+        ),
         color: typeStylingDeRef.color(type),
         tree: hierarchyActive.value,
         isSuppressionType: !!suppressionType && type === suppressionType,
@@ -430,8 +467,22 @@ export default defineComponent({
     const showSharedLineageControl = computed(() => (
       sharedLineage.value.length > 0 && data.filterText.length === 0
     ));
+    const virtualScrollWrapper = ref<HTMLElement | null>(null);
+    const measuredVirtualHeight = ref<number | null>(null);
+    let resizeObserver: ResizeObserver | null = null;
+
+    onMounted(() => {
+      if (typeof ResizeObserver !== 'undefined' && virtualScrollWrapper.value) {
+        resizeObserver = new ResizeObserver(([entry]) => {
+          measuredVirtualHeight.value = Math.max(0, Math.floor(entry.contentRect.height));
+        });
+        resizeObserver.observe(virtualScrollWrapper.value);
+      }
+    });
+    onBeforeUnmount(() => resizeObserver?.disconnect());
     const virtualHeight = computed(() => (
-      props.height - props.headerHeight - (showSharedLineageControl.value ? ROW_HEIGHT : 0)
+      measuredVirtualHeight.value
+      ?? props.height - props.headerHeight - (showSharedLineageControl.value ? ROW_HEIGHT : 0)
     ));
 
     const goToPeakTrackFrame = (trackType: string) => {
@@ -481,6 +532,11 @@ export default defineComponent({
 
     const showMaxFrameButton = computed(() => clientSettings.typeSettings.maxCountButton);
 
+    const headerTooltip = computed(() => {
+      const counts = countPair('FrameCount', 'TotalCount', showFrameCount.value, showTotalCount.value);
+      return `Toggle Type. Rows read ${counts && `${counts} `}Type Name`;
+    });
+
     const disableAnnotationFilters = computed({
       get: () => props.filterControls.disableAnnotationFilters.value,
       set: (val: boolean) => {
@@ -496,7 +552,9 @@ export default defineComponent({
       sharedLineage,
       sharedLineageText,
       showSharedLineageControl,
+      virtualScrollWrapper,
       headCheckState,
+      headerTooltip,
       visibleTypes,
       usedTypesRef,
       checkedTypesRef,
@@ -528,7 +586,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="d-flex flex-column">
+  <div class="type-list-root d-flex flex-column">
     <v-container
       dense
     >
@@ -574,7 +632,7 @@ export default defineComponent({
             <template #activator="{ on }">
               <b v-on="on">Type Filter</b>
             </template>
-            <span>Toggle Type TotalCount:FrameCount Type Name</span>
+            <span>{{ headerTooltip }}</span>
           </v-tooltip>
           <div class="type-header-actions d-flex align-center ml-auto">
             <tooltip-btn
@@ -626,9 +684,7 @@ export default defineComponent({
         v-if="compactSharedLineage"
         class="shared-lineage-text text-body-2 grey--text text--lighten-1"
         :title="sharedLineageText"
-      >
-        {{ sharedLineageText }}
-      </span>
+      ><span class="shared-lineage-text-inner">{{ sharedLineageText }}</span></span>
       <v-btn
         text
         small
@@ -639,7 +695,10 @@ export default defineComponent({
         {{ compactSharedLineage ? 'Expand Parents' : 'Compact Parents' }}
       </v-btn>
     </div>
-    <div class="py-2 overflow-y-hidden">
+    <div
+      ref="virtualScrollWrapper"
+      class="type-list-viewport py-2 overflow-y-hidden"
+    >
       <v-virtual-scroll
         class="tracks"
         :items="virtualTypes"
@@ -661,6 +720,7 @@ export default defineComponent({
             :disclosure-visible="data.filterText.length === 0"
             :color="item.color"
             :display-text="item.displayText"
+            :display-tooltip="item.displayTooltip"
             :confidence-filter-num="item.confidenceFilterNum"
             :width="width"
             :display-max-button="showMaxFrameButton"
@@ -695,6 +755,16 @@ export default defineComponent({
 
 $row-height: 30px;
 
+.type-list-root {
+  min-height: 0;
+  overflow: hidden;
+}
+
+.type-list-viewport {
+  flex: 1 1 0;
+  min-height: 0;
+}
+
 .border-highlight {
    border-bottom: 1px solid gray;
  }
@@ -718,6 +788,14 @@ $row-height: 30px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  /* Preserve the most specific end when the breadcrumb overflows. */
+  direction: rtl;
+}
+
+/* Keep names in logical order under the RTL wrapper. */
+.shared-lineage-text-inner {
+  direction: ltr;
+  unicode-bidi: bidi-override;
 }
 
 .outlined {

@@ -222,11 +222,11 @@ describe('typeListHierarchy', () => {
     };
 
     const compact = build(options);
-    expect(compact.sharedLineage).toEqual(['domain', 'kingdom', 'phylum']);
+    expect(compact.sharedLineage).toEqual(['domain', 'kingdom', 'phylum', 'class']);
     expect(compact.rows.slice(0, 3).map(({ type, depth }) => ({ type, depth }))).toEqual([
-      { type: 'class', depth: 0 },
-      { type: 'orderA', depth: 1 },
-      { type: 'familyA', depth: 2 },
+      { type: 'orderA', depth: 0 },
+      { type: 'familyA', depth: 1 },
+      { type: 'genusA', depth: 2 },
     ]);
 
     const shown = build({ ...options, compactSharedLineage: false });
@@ -240,6 +240,45 @@ describe('typeListHierarchy', () => {
     const searched = build({ ...options, query: 'domain' });
     expect(searched.rows.map(({ type }) => type)).toEqual(['domain']);
     expect(searched.rows[0].depth).toBe(0);
+
+    const searchedBranchPoint = build({ ...options, query: 'class' });
+    expect(searchedBranchPoint.rows.map(({ type, depth }) => ({ type, depth }))).toEqual([
+      { type: 'domain', depth: 0 },
+      { type: 'kingdom', depth: 1 },
+      { type: 'phylum', depth: 2 },
+      { type: 'class', depth: 3 },
+    ]);
+  });
+
+  it('absorbs the deepest common ancestor unless it is used or configured', () => {
+    const deepIndex = compileHierarchy({
+      speciesA: 'genusA',
+      speciesB: 'genusB',
+      genusA: 'family',
+      genusB: 'family',
+      family: 'order',
+      order: 'class',
+    });
+    const options = {
+      hierarchyIndex: deepIndex,
+      allTypes: [],
+      checkedTypes: [],
+      usedTypes: ['speciesA', 'speciesB'],
+      compactSharedLineage: true,
+    };
+
+    const absorbed = build(options);
+    expect(absorbed.sharedLineage).toEqual(['class', 'order', 'family']);
+    expect(absorbed.rows.map(({ type, depth }) => ({ type, depth }))).toEqual([
+      { type: 'genusA', depth: 0 },
+      { type: 'speciesA', depth: 1 },
+      { type: 'genusB', depth: 0 },
+      { type: 'speciesB', depth: 1 },
+    ]);
+
+    const used = build({ ...options, usedTypes: ['speciesA', 'speciesB', 'family'] });
+    expect(used.sharedLineage).toEqual(['class', 'order']);
+    expect(used.rows[0]).toEqual(expect.objectContaining({ type: 'family', depth: 0 }));
   });
 
   it('preserves depth in unrelated trees while compacting a shared lineage', () => {

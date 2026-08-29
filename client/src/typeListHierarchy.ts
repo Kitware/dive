@@ -132,8 +132,10 @@ export function buildTypeListModel({
     let current = [...targetRoots][0];
     while (!directlyMeaningfulTypes.has(current)) {
       const childTypes = children.get(current) || [];
-      if (childTypes.length !== 1) break;
+      if (childTypes.length === 0) break;
+      /* Absorb an unused branch point so it does not indent every row below it. */
       unusedLeadingParents.push(current);
+      if (childTypes.length > 1) break;
       [current] = childTypes;
     }
   }
