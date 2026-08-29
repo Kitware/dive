@@ -195,6 +195,25 @@ describe('typeListHierarchy', () => {
     expect(model.actionableCheckedTypes).toEqual(['leaf']);
   });
 
+  it('lets a collapsed row stand in for the branch its checkbox owns', () => {
+    const model = build({ collapsed: new Set(['root']) });
+
+    expect(model.rows.map(({ type }) => type)).toEqual([
+      'flat', 'otherRoot', 'otherLeaf', 'root',
+    ]);
+    expect(model.actionableTypes).toEqual([
+      'flat', 'otherRoot', 'otherLeaf', 'root', 'branch', 'leaf', 'sibling',
+    ]);
+  });
+
+  it('keeps a filtered-out descendant out of a collapsed row', () => {
+    const model = build({ collapsed: new Set(['root']), filterTypesByFrame: true });
+
+    expect(model.actionableTypes).toEqual([
+      'flat', 'otherRoot', 'otherLeaf', 'root', 'branch', 'leaf',
+    ]);
+  });
+
   it('reveals search paths without mutating or applying saved collapse state', () => {
     const collapsed = new Set(['root']);
     const collapsedModel = build({ collapsed });
@@ -202,9 +221,6 @@ describe('typeListHierarchy', () => {
     const restoredModel = build({ collapsed });
 
     expect(collapsedModel.rows.map(({ type }) => type)).not.toContain('leaf');
-    expect(collapsedModel.actionableTypes).toEqual(
-      collapsedModel.rows.map(({ type }) => type),
-    );
     expect(searchModel.rows.map(({ type }) => type)).toContain('leaf');
     expect(searchModel.rows.find(({ type }) => type === 'root')?.expanded).toBe(true);
     expect(restoredModel.rows.map(({ type }) => type)).not.toContain('leaf');

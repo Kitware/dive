@@ -514,6 +514,30 @@ describe('FilterList hierarchy members', () => {
     expect(vm.deletableTypes).toEqual(['leaf']);
   });
 
+  it('reaches the whole branch through a collapsed row', async () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    const { checkedTypes, filterControls, styleManager } = makeHierarchyFixture();
+    checkedTypes.value = [];
+    const { vm } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: true,
+      height: 240,
+      headerHeight: 80,
+    });
+
+    vm.toggleExpanded('root');
+    await nextTick();
+    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['root']);
+
+    vm.headCheckClicked();
+    await nextTick();
+    expect(checkedTypes.value).toEqual(['root', 'branch', 'leaf', 'sibling']);
+    expect(vm.virtualTypes[0]).toMatchObject({ checked: true, indeterminate: false });
+    expect(vm.deletableTypes).toEqual(['root', 'branch', 'leaf', 'sibling']);
+  });
+
   it('rolls total and frame counts into ancestors and scopes the header to the frame', async () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = true;
