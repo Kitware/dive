@@ -21,6 +21,7 @@ import {
   multiCamPipelineMarkers,
 } from 'dive-common/constants';
 import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   isDisparityImagePipeline,
   isFilterPipeline,
@@ -169,7 +170,7 @@ async function importNewMedia(
  * cameras), else the dataset's camera order as stored.
  */
 function multiCamOrderFor(meta: JsonConfig, confirmed?: string[]): string[] {
-  const cameras = Object.keys(meta.multiCam?.cameras ?? {});
+  const cameras = orderedMultiCamCameraNames(meta.multiCam);
   if (!confirmed?.length) {
     return cameras;
   }

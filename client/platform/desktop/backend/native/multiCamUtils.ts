@@ -10,6 +10,7 @@ import { JsonConfig, Settings } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 
 /**
  * Figure out the destination location
@@ -89,7 +90,7 @@ async function writeMultiCamStereoPipelineArgs(
     const { cameras } = meta.multiCam;
     const cameraNames = cameraOrder
       ? cameraOrder.filter((name) => name in cameras)
-      : Object.keys(cameras);
+      : orderedMultiCamCameraNames(meta.multiCam);
     const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
     for (let i = 0; i < cameraList.length; i += 1) {
       const [key, list] = cameraList[i];
