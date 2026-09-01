@@ -40,7 +40,7 @@ highest-confidence pair, keeping the first stored pair when scores tie, because 
 have each viewer's checked types and confidence thresholds. Viewer counts and filtering use the
 hierarchy-resolved displayed type.
 
-Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants. The Type List does not offer hierarchy editing.
+Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants. To edit a type's hierarchy relationship, open its existing pencil editor and select its immediate **Parent Type**. The searchable list includes existing configured, used, and hierarchy-only track types. If the parent does not exist yet, add it through **+ Types** in Type Settings first. Clear **Parent Type** to make the edited type top-level.
 
 A parent row's checkbox always toggles its complete subtree. The heading checkbox is narrower: it skips a parent shown only as ancestor context for a match below it.
 
@@ -48,7 +48,9 @@ A parent row's checkbox always toggles its complete subtree. The heading checkbo
 
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
 
-Renaming a hierarchy member updates exact hierarchy references only after the complete result passes validation. A rename that would create a self-edge, conflicting parent, cycle, or duplicate type pair on one track is rejected without changing types. Deleting an unused type clears only its optional filter and style settings. The hierarchy member, edges, checked state, and any children remain unchanged, so hierarchy-only rows stay available under **Show Empty** and use default styling and thresholds.
+Changes to **Type Name** and **Parent Type** are staged together and applied by one Save after the complete result passes validation. A rename involved in a hierarchy is rejected if one track already contains both the old and new type names. An invalid final hierarchy, such as a self-edge, conflicting parent, or cycle, is also rejected without applying either the name or parent change.
+
+Deleting an unused hierarchy heading removes that heading while preserving its descendants. Its immediate children move under the deleted heading's parent, or become top-level when the deleted heading had no parent. This promotion does not rename descendants or rewrite their stored annotation confidence pairs.
 
 ## Type Style Editor
 
@@ -58,6 +60,7 @@ The type style editor controls the visual appearance of annotations in all other
 
 
 * **Type Name** - You can change the name for the type and it will update all subsequent tracks that are using that Type.
+* **Parent Type** - Search for and select the type's immediate parent. Clear the field to make the type top-level. Add a missing parent through **+ Types** in Type Settings before selecting it.
 * **Show Label** - show the type name label in the text above each box.
 * **Show Confidence** - show the confidence value in the text above each box.
 * **Box Border Thickness** - the line thickness can be changed to make a type stand out more or less
