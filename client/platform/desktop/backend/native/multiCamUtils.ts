@@ -6,7 +6,7 @@ import {
   MultiCamMedia,
 } from 'dive-common/apispec';
 
-import { JsonConfig, Settings } from 'platform/desktop/constants';
+import { Camera, JsonConfig, Settings } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
@@ -84,6 +84,43 @@ function pseudoFrameNumber(entry: string): number | null {
   return match ? Number(match[1]) : null;
 }
 
+/** Strip extension for stem matching (e.g. .tif source -> .png transcode). */
+function imageStem(filename: string): string {
+  return filename.replace(npath.extname(filename), '');
+}
+
+/**
+ * Resolve a viewer/subset image identifier to the absolute path VIAME should read.
+ * Subset jobs receive the same basenames the viewer uses; when IR/UV TIFFs were
+ * transcoded to PNG in the project directory, those names must not be joined
+ * against the import source folder (where the originals still live).
+ */
+export function resolveMultiCamImagePath(
+  cameraKey: string,
+  camera: Camera,
+  projectBasePath: string,
+  entry: string,
+): string {
+  if (npath.isAbsolute(entry)) {
+    return entry;
+  }
+  const { originalBasePath, originalImageFiles, transcodedImageFiles } = camera;
+  if (transcodedImageFiles?.length) {
+    if (transcodedImageFiles.includes(entry)) {
+      return npath.join(projectBasePath, cameraKey, entry);
+    }
+    const stem = imageStem(entry);
+    const transcoded = transcodedImageFiles.find((name) => imageStem(name) === stem);
+    if (transcoded) {
+      return npath.join(projectBasePath, cameraKey, transcoded);
+    }
+  }
+  if (originalImageFiles.includes(entry)) {
+    return npath.join(originalBasePath, entry);
+  }
+  return npath.join(originalBasePath, entry);
+}
+
 /**
  * Figure out the destination location
  */
@@ -157,6 +194,9 @@ async function writeMultiCamStereoPipelineArgs(
   const { onProgress } = runtime;
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
+  const projectBasePath = runtime.imagePairs
+    ? (await getValidatedProjectDir(settings, meta.id)).basePath
+    : '';
   if (meta.multiCam && meta.multiCam.cameras) {
     const cameraList = Object.entries(meta.multiCam.cameras);
     for (let i = 0; i < cameraList.length; i += 1) {
@@ -181,8 +221,18 @@ async function writeMultiCamStereoPipelineArgs(
           // A registration subset job: ONLY the selected frames, keeping the
           // ordering contract (row i of each camera's list pairs with row i
           // of every other camera's).
-          images = subset.map((entry) => (
-            npath.isAbsolute(entry) ? entry : npath.join(originalBasePath, entry)));
+          images = subset.map((entry) => resolveMultiCamImagePath(
+            key,
+            list,
+            projectBasePath,
+            entry,
+          ));
+          // eslint-disable-next-line no-restricted-syntax
+          for (const image of images) {
+            if (!await fs.pathExists(image)) {
+              throw new Error(`Image file not found: ${image}`);
+            }
+          }
         } else if (runtime.frameRange) {
           // The single-camera path filters image lists by frameRange;
           // multicam silently ignored it (a pre-existing no-op) -- apply it
