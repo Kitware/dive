@@ -4,13 +4,14 @@ import { clientSettings } from 'dive-common/store/settings';
 import {
   compileHierarchy,
   normalizeTypeHierarchy,
+  removeHierarchyType,
   resolveConfidenceThreshold,
   selectFlatPairIndex,
-  rewriteHierarchyType,
   selectPairIndex,
   TypeHierarchy,
   TypeHierarchyError,
   TypeHierarchyIndex,
+  updateHierarchyTypeDefinition,
 } from 'dive-common/typeHierarchy';
 import { AnnotationId } from './BaseAnnotation';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
@@ -260,60 +261,141 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       this.deleteType(currentType);
       return;
     }
-    const tracks = this.sorted.value.flatMap((annotation) => this.getTracks(annotation.id));
-    const collision = tracks.find((track) => {
-      const names = new Set(track.confidencePairs.map(([name]) => name));
-      return names.has(currentType) && names.has(newType);
+    this.updateTypeDefinition({
+      currentType,
+      newType,
+      parent: this.typeHierarchy.value?.[currentType],
     });
-    if (collision) {
+  }
+
+  updateTypeDefinition({
+    currentType,
+    newType,
+    parent,
+  }: {
+    currentType: string;
+    newType: string;
+    parent: string | undefined;
+  }) {
+    if (parent === currentType && currentType !== newType) {
       throw new TypeHierarchyError(
-        `track ${collision.id} already contains both "${currentType}" and "${newType}"`,
+        `the original type "${currentType}" cannot be its renamed type's parent`,
+        'conflict',
+      );
+    }
+    if (parent !== undefined && !this.allTypes.value.includes(parent)) {
+      throw new TypeHierarchyError(
+        `parent "${parent}" is not an existing type`,
         'conflict',
       );
     }
 
-    const currentHierarchy = this.typeHierarchy.value as TypeHierarchy;
-    const rewritten = rewriteHierarchyType(currentHierarchy, currentType, newType);
-    const hierarchyChanged = !isEqual(currentHierarchy, rewritten);
+    const currentHierarchy = this.typeHierarchy.value;
+    const currentHasParent = currentHierarchy !== undefined
+      && Object.prototype.hasOwnProperty.call(currentHierarchy, currentType);
+    const destinationHasParent = currentHierarchy !== undefined
+      && Object.prototype.hasOwnProperty.call(currentHierarchy, newType);
+    const currentParent = currentHasParent ? currentHierarchy?.[currentType] : undefined;
+    let destinationParent = destinationHasParent ? currentHierarchy?.[newType] : undefined;
+    if (destinationParent === currentType) {
+      destinationParent = newType;
+    }
+    const parentChanged = parent !== currentParent;
+    let finalParent = parent;
+    if (currentType !== newType && destinationHasParent && !parentChanged) {
+      if (currentHasParent && currentParent !== destinationParent) {
+        throw new TypeHierarchyError(
+          `conflicting parents for "${newType}": "${destinationParent}" and "${currentParent}"`,
+          'conflict',
+        );
+      }
+      if (!currentHasParent) {
+        finalParent = destinationParent;
+      }
+    }
+    const nextHierarchy = updateHierarchyTypeDefinition(
+      currentHierarchy,
+      currentType,
+      newType,
+      finalParent,
+    );
+    const nameChanged = currentType !== newType;
+    const hierarchyChanged = !isEqual(currentHierarchy, nextHierarchy)
+      || (this.invalidHierarchyReason.value !== null && finalParent !== undefined);
+    const hierarchyInvolved = currentHierarchy !== undefined || nextHierarchy !== undefined;
+    if (!nameChanged && !hierarchyChanged) {
+      return;
+    }
+    if (!hierarchyInvolved) {
+      this.updateTypeName({ currentType, newType });
+      return;
+    }
+
+    if (nameChanged) {
+      const collision = this.sorted.value
+        .flatMap((annotation) => this.getTracks(annotation.id))
+        .find((track) => {
+          const names = new Set(track.confidencePairs.map(([name]) => name));
+          return names.has(currentType) && names.has(newType);
+        });
+      if (collision) {
+        throw new TypeHierarchyError(
+          `track ${collision.id} already contains both "${currentType}" and "${newType}"`,
+          'conflict',
+        );
+      }
+    }
+
     const currentWasChecked = this.checkedTypes.value.includes(currentType);
     const newWasChecked = this.checkedTypes.value.includes(newType);
+    const currentWasConfigured = this.configuredTypes.value.includes(currentType);
 
-    this.sorted.value.forEach((annotation) => {
-      if (this.getTracks(annotation.id)
-        .some((track) => track.confidencePairs.some(([name]) => name === currentType))) {
-        this.renameTrackPair(annotation.id, currentType, newType);
+    if (nameChanged) {
+      this.sorted.value.forEach((annotation) => {
+        if (this.getTracks(annotation.id)
+          .some((track) => track.confidencePairs.some(([name]) => name === currentType))) {
+          this.renameTrackPair(annotation.id, currentType, newType);
+        }
+      });
+      this.carryConfidenceFilter(currentType, newType);
+      if (currentWasConfigured && !this.configuredTypes.value.includes(newType)) {
+        this.configuredTypes.value.push(newType);
       }
-    });
-    this.carryConfidenceFilter(currentType, newType);
-    if (this.configuredTypes.value.includes(currentType)
-      && !this.configuredTypes.value.includes(newType)) {
-      this.configuredTypes.value.push(newType);
+      this.deleteTypeConfiguration(currentType);
     }
-    this.deleteTypeConfiguration(currentType);
     if (hierarchyChanged) {
-      this.installTypeHierarchy(rewritten, true);
+      this.installTypeHierarchy(nextHierarchy, true);
     }
 
     const checked = new Set(this.checkedTypes.value);
-    if (!currentWasChecked && !newWasChecked) {
-      checked.delete(newType);
-    } else if (currentWasChecked) {
-      checked.add(newType);
-    }
-    if (!this.allTypes.value.includes(currentType)) {
-      checked.delete(currentType);
+    if (nameChanged) {
+      if (!currentWasChecked && !newWasChecked) {
+        checked.delete(newType);
+      } else if (currentWasChecked) {
+        checked.add(newType);
+      }
+      if (!this.allTypes.value.includes(currentType)) {
+        checked.delete(currentType);
+      }
     }
     this.checkedTypes.value = Array.from(checked);
     this.markChangesPending({ action: 'meta' });
   }
 
   deleteType(type: string): boolean {
-    if (!this.hierarchyActive.value) {
+    const currentHierarchy = this.typeHierarchy.value;
+    const hierarchyMember = currentHierarchy !== undefined
+      && (Object.prototype.hasOwnProperty.call(currentHierarchy, type)
+        || Object.values(currentHierarchy).includes(type));
+    if (!hierarchyMember) {
       return super.deleteType(type);
     }
     if (this.typeInUseOnAnyCamera(type)) {
       return false;
     }
+    const nextHierarchy = removeHierarchyType(currentHierarchy, type);
+    this.installTypeHierarchy(nextHierarchy, true);
+    this.checkedTypes.value = this.checkedTypes.value.filter((name) => name !== type);
     this.deleteTypeConfiguration(type);
     this.markChangesPending({ action: 'meta' });
     return true;

@@ -1,18 +1,22 @@
 import fs from 'fs-extra';
 import {
   acceptPairAsCorrect,
+  compareTypeNames,
   compileHierarchy,
   mergePairs,
   normalizeTypeHierarchy,
   reassignPairs,
+  removeHierarchyType,
   removePair,
   resolveConfidenceThreshold,
   resolveTypeHierarchy,
   rewriteHierarchyType,
   selectFlatPairIndex,
   selectPairIndex,
+  setHierarchyParent,
   setPairConfidence,
   TypeHierarchyError,
+  updateHierarchyTypeDefinition,
 } from './typeHierarchy';
 
 interface ErrorExpectation {
@@ -247,6 +251,154 @@ describe('type hierarchy index', () => {
     results.forEach((result) => {
       expect(result).not.toBe(pairs);
       result.forEach((pair) => expect(pairs).not.toContain(pair));
+    });
+  });
+});
+
+describe('hierarchy editing transformations', () => {
+  describe('setHierarchyParent', () => {
+    it('sets the first edge from an absent hierarchy', () => {
+      expect(setHierarchyParent(undefined, 'cod', 'fish')).toEqual({ cod: 'fish' });
+    });
+
+    it('reparents a child and clears an edge without disturbing other branches', () => {
+      const hierarchy = { cod: 'fish', tern: 'bird' };
+      expect(setHierarchyParent(hierarchy, 'cod', 'animal')).toEqual({
+        cod: 'animal',
+        tern: 'bird',
+      });
+      expect(setHierarchyParent(hierarchy, 'cod', undefined)).toEqual({ tern: 'bird' });
+    });
+
+    it('returns undefined after clearing the final edge', () => {
+      expect(setHierarchyParent({ cod: 'fish' }, 'cod', undefined)).toBeUndefined();
+    });
+
+    it('rejects blank names, self edges, and cycles', () => {
+      expectHierarchyError(
+        () => setHierarchyParent(undefined, ' ', 'fish'),
+        'empty child',
+        'malformed',
+      );
+      expectHierarchyError(
+        () => setHierarchyParent(undefined, 'cod', '\u001c'),
+        'empty parent for "cod"',
+        'malformed',
+      );
+      expectHierarchyError(
+        () => setHierarchyParent(undefined, 'cod', 'cod'),
+        'self edge "cod -> cod"',
+        'malformed',
+      );
+      expectHierarchyError(
+        () => setHierarchyParent({ cod: 'fish' }, 'fish', 'cod'),
+        'cycle cod -> fish -> cod',
+        'malformed',
+      );
+    });
+
+    it('returns a fresh map without changing its input', () => {
+      const hierarchy = Object.freeze({ cod: 'fish', tern: 'bird' });
+      const result = setHierarchyParent(hierarchy, 'cod', 'fish');
+      expect(result).toEqual(hierarchy);
+      expect(result).not.toBe(hierarchy);
+      expect(hierarchy).toEqual({ cod: 'fish', tern: 'bird' });
+    });
+
+    it('orders keys by code point', () => {
+      const bmp = '\uE000';
+      const astral = '\u{10000}';
+      const result = setHierarchyParent({ [astral]: 'root' }, bmp, 'root');
+      expect(compareTypeNames(bmp, astral)).toBeLessThan(0);
+      expect(Object.keys(result || {})).toEqual([bmp, astral]);
+    });
+  });
+
+  describe('removeHierarchyType', () => {
+    it('removes a middle node and promotes all of its children', () => {
+      expect(removeHierarchyType({
+        cod: 'fish',
+        haddock: 'fish',
+        fish: 'animal',
+        tern: 'bird',
+      }, 'fish')).toEqual({
+        cod: 'animal',
+        haddock: 'animal',
+        tern: 'bird',
+      });
+    });
+
+    it('makes children of a removed top-level node top level', () => {
+      expect(removeHierarchyType({
+        cod: 'fish',
+        haddock: 'fish',
+        tern: 'bird',
+      }, 'fish')).toEqual({ tern: 'bird' });
+    });
+
+    it('removes a leaf and returns undefined when the final edge is removed', () => {
+      expect(removeHierarchyType({ cod: 'fish', tern: 'bird' }, 'cod'))
+        .toEqual({ tern: 'bird' });
+      expect(removeHierarchyType({ cod: 'fish' }, 'cod')).toBeUndefined();
+    });
+
+    it('normalizes an absent-type no-op into a fresh map', () => {
+      const hierarchy = Object.freeze({ cod: 'fish', tern: 'bird' });
+      const result = removeHierarchyType(hierarchy, 'shark');
+      expect(result).toEqual(hierarchy);
+      expect(result).not.toBe(hierarchy);
+      expect(hierarchy).toEqual({ cod: 'fish', tern: 'bird' });
+    });
+  });
+
+  describe('updateHierarchyTypeDefinition', () => {
+    it('builds a valid rename and reparent result without validating an invalid intermediate map', () => {
+      const hierarchy = {
+        cod: 'fish',
+        haddock: 'animal',
+        sole: 'cod',
+        tern: 'bird',
+      };
+      expect(() => rewriteHierarchyType(hierarchy, 'cod', 'haddock'))
+        .toThrow('conflicting parents for "haddock": "animal" and "fish"');
+
+      expect(updateHierarchyTypeDefinition(
+        hierarchy,
+        'cod',
+        'haddock',
+        'fish',
+      )).toEqual({
+        haddock: 'fish',
+        sole: 'haddock',
+        tern: 'bird',
+      });
+    });
+
+    it('rewrites child references while applying the final edited parent', () => {
+      expect(updateHierarchyTypeDefinition(
+        { cod: 'fish', fish: 'animal' },
+        'fish',
+        'vertebrate',
+        'life',
+      )).toEqual({ cod: 'vertebrate', vertebrate: 'life' });
+    });
+
+    it('validates the complete final map and leaves its input unchanged', () => {
+      const hierarchy = Object.freeze({ cod: 'fish', fish: 'animal' });
+      expectHierarchyError(
+        () => updateHierarchyTypeDefinition(hierarchy, 'fish', 'fish', 'cod'),
+        'cycle cod -> fish -> cod',
+        'malformed',
+      );
+      expect(hierarchy).toEqual({ cod: 'fish', fish: 'animal' });
+    });
+
+    it('rejects a blank final name even when it would have no edge', () => {
+      expectHierarchyError(
+        () => updateHierarchyTypeDefinition(undefined, 'cod', ' ', undefined),
+        'empty child',
+        'malformed',
+      );
     });
   });
 });

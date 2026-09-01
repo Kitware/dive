@@ -64,7 +64,7 @@ export function selectFlatPairIndex(
 
 // Python orders strings by code point; JS compares UTF-16 units, which sorts astral
 // names before U+E000-U+FFFF. Compare code points so both platforms agree.
-function codePointCompare(left: string, right: string): number {
+export function compareTypeNames(left: string, right: string): number {
   const leftPoints = [...left].map((char) => char.codePointAt(0) as number);
   const rightPoints = [...right].map((char) => char.codePointAt(0) as number);
   const sharedLength = Math.min(leftPoints.length, rightPoints.length);
@@ -77,7 +77,7 @@ function codePointCompare(left: string, right: string): number {
 }
 
 function sortedNames(names: readonly string[]): string[] {
-  return [...names].sort(codePointCompare);
+  return [...names].sort(compareTypeNames);
 }
 
 function hasOwn(hierarchy: TypeHierarchy, type: string): boolean {
@@ -115,7 +115,7 @@ function cycleReason(hierarchy: TypeHierarchy): string | undefined {
       const cycle = path.slice(positions.get(current) as number);
       let smallestIndex = 0;
       cycle.forEach((name, index) => {
-        if (codePointCompare(name, cycle[smallestIndex]) < 0) {
+        if (compareTypeNames(name, cycle[smallestIndex]) < 0) {
           smallestIndex = index;
         }
       });
@@ -128,7 +128,7 @@ function cycleReason(hierarchy: TypeHierarchy): string | undefined {
   if (renderedCycles.length === 0) {
     return undefined;
   }
-  renderedCycles.sort(codePointCompare);
+  renderedCycles.sort(compareTypeNames);
   return `cycle ${renderedCycles[0]}`;
 }
 
@@ -317,6 +317,72 @@ export function rewriteHierarchyType(
   }
 }
 
+export function setHierarchyParent(
+  hierarchy: TypeHierarchy | undefined,
+  child: string,
+  parent: string | undefined,
+): TypeHierarchy | undefined {
+  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
+  if (isBlankName(child)) {
+    throw new TypeHierarchyError('empty child');
+  }
+
+  const updated = new Map(Object.entries(normalized));
+  updated.delete(child);
+  if (parent !== undefined) {
+    updated.set(child, parent);
+  }
+  return normalizeTypeHierarchy(Object.fromEntries(updated));
+}
+
+export function removeHierarchyType(
+  hierarchy: TypeHierarchy,
+  type: string,
+): TypeHierarchy | undefined {
+  const normalized = normalizeTypeHierarchy(hierarchy) || {};
+  const parent = hasOwn(normalized, type) ? normalized[type] : undefined;
+  const updated = new Map<string, string>();
+
+  sortedNames(Object.keys(normalized)).forEach((child) => {
+    if (child === type) {
+      return;
+    }
+    const currentParent = normalized[child];
+    if (currentParent !== type) {
+      updated.set(child, currentParent);
+    } else if (parent !== undefined) {
+      updated.set(child, parent);
+    }
+  });
+  return normalizeTypeHierarchy(Object.fromEntries(updated));
+}
+
+/** Build the final hierarchy for an atomic type rename and parent edit. */
+export function updateHierarchyTypeDefinition(
+  hierarchy: TypeHierarchy | undefined,
+  currentType: string,
+  newType: string,
+  parent: string | undefined,
+): TypeHierarchy | undefined {
+  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
+  if (isBlankName(currentType) || isBlankName(newType)) {
+    throw new TypeHierarchyError('empty child');
+  }
+
+  const updated = new Map<string, string>();
+  sortedNames(Object.keys(normalized)).forEach((child) => {
+    if (child === currentType || child === newType) {
+      return;
+    }
+    const currentParent = normalized[child];
+    updated.set(child, currentParent === currentType ? newType : currentParent);
+  });
+  if (parent !== undefined) {
+    updated.set(newType, parent);
+  }
+  return normalizeTypeHierarchy(Object.fromEntries(updated));
+}
+
 // Assignment replaces the selected claim's lineage while retaining unrelated claims and the
 // stored ancestors still implied by the new type. No missing hierarchy members are synthesized.
 export function reassignPairs(
@@ -381,7 +447,7 @@ export function mergePairs(
     });
   });
   return Array.from(confidenceByType.entries())
-    .sort((left, right) => (right[1] - left[1]) || codePointCompare(left[0], right[0]));
+    .sort((left, right) => (right[1] - left[1]) || compareTypeNames(left[0], right[0]));
 }
 
 export function selectPairIndex(
