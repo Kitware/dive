@@ -6,6 +6,7 @@ import {
   normalizeTypeHierarchy,
   removeHierarchyType,
   resolveConfidenceThreshold,
+  rewriteHierarchyType,
   selectFlatPairIndex,
   selectPairIndex,
   TypeHierarchy,
@@ -32,6 +33,21 @@ interface TrackFilterControlsParams extends FilterControlsParams<Track> {
     currentType: string,
     newType: string,
   ) => [string, number][];
+}
+
+function hierarchyIncludesType(hierarchy: TypeHierarchy | undefined, type: string): boolean {
+  return hierarchy !== undefined
+    && (Object.prototype.hasOwnProperty.call(hierarchy, type)
+      || Object.values(hierarchy).includes(type));
+}
+
+function hierarchyTypes(hierarchy: TypeHierarchy | undefined): Set<string> {
+  const types = new Set<string>();
+  Object.entries(hierarchy || {}).forEach(([child, parent]) => {
+    types.add(child);
+    types.add(parent);
+  });
+  return types;
 }
 
 export default class TrackFilterControls extends BaseFilterControls<Track> {
@@ -73,14 +89,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     this.typeHierarchy = ref(undefined);
     this.hierarchyIndex = ref(undefined);
     this.invalidHierarchyReason = ref(null);
-    this.hierarchyMembers = computed(() => {
-      const members = new Set<string>();
-      Object.entries(this.typeHierarchy.value || {}).forEach(([child, parent]) => {
-        members.add(child);
-        members.add(parent);
-      });
-      return Array.from(members);
-    });
+    this.hierarchyMembers = computed(() => Array.from(hierarchyTypes(this.typeHierarchy.value)));
     this.hierarchyActive = computed(() => this.hierarchyIndex.value !== undefined);
     this.allTypes = computed(() => Array.from(new Set([
       ...flatAllTypes.value,
@@ -249,6 +258,20 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       .some((track) => track.confidencePairs.some(([name]) => name === type)));
   }
 
+  private configureStandaloneTypes(
+    types: ReadonlySet<string>,
+    hierarchy: TypeHierarchy | undefined,
+  ) {
+    const hierarchyMembers = hierarchyTypes(hierarchy);
+    const retainedTypes = new Set(this.usedPlusConfiguredTypes.value);
+    types.forEach((type) => {
+      if (!hierarchyMembers.has(type) && !retainedTypes.has(type)) {
+        this.configuredTypes.value.push(type);
+        retainedTypes.add(type);
+      }
+    });
+  }
+
   updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
     if (!this.hierarchyActive.value) {
       this.sorted.value.forEach((annotation) => {
@@ -291,37 +314,17 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     }
 
     const currentHierarchy = this.typeHierarchy.value;
-    const currentHasParent = currentHierarchy !== undefined
-      && Object.prototype.hasOwnProperty.call(currentHierarchy, currentType);
-    const destinationHasParent = currentHierarchy !== undefined
-      && Object.prototype.hasOwnProperty.call(currentHierarchy, newType);
-    const currentParent = currentHasParent ? currentHierarchy?.[currentType] : undefined;
-    let destinationParent = destinationHasParent ? currentHierarchy?.[newType] : undefined;
-    if (destinationParent === currentType) {
-      destinationParent = newType;
-    }
-    const parentChanged = parent !== currentParent;
-    let finalParent = parent;
-    if (currentType !== newType && destinationHasParent && !parentChanged) {
-      if (currentHasParent && currentParent !== destinationParent) {
-        throw new TypeHierarchyError(
-          `conflicting parents for "${newType}": "${destinationParent}" and "${currentParent}"`,
-          'conflict',
-        );
-      }
-      if (!currentHasParent) {
-        finalParent = destinationParent;
-      }
-    }
-    const nextHierarchy = updateHierarchyTypeDefinition(
-      currentHierarchy,
-      currentType,
-      newType,
-      finalParent,
-    );
+    const currentParent = currentHierarchy?.[currentType];
     const nameChanged = currentType !== newType;
-    const hierarchyChanged = !isEqual(currentHierarchy, nextHierarchy)
-      || (this.invalidHierarchyReason.value !== null && finalParent !== undefined);
+    const parentChanged = parent !== currentParent;
+    const survivingHierarchyTypes = hierarchyTypes(currentHierarchy);
+    if (nameChanged && survivingHierarchyTypes.delete(currentType)) {
+      survivingHierarchyTypes.add(newType);
+    }
+    const nextHierarchy = nameChanged && !parentChanged && currentHierarchy !== undefined
+      ? rewriteHierarchyType(currentHierarchy, currentType, newType)
+      : updateHierarchyTypeDefinition(currentHierarchy, currentType, newType, parent);
+    const hierarchyChanged = !isEqual(currentHierarchy, nextHierarchy);
     const hierarchyInvolved = currentHierarchy !== undefined || nextHierarchy !== undefined;
     if (!nameChanged && !hierarchyChanged) {
       return;
@@ -363,6 +366,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       }
       this.deleteTypeConfiguration(currentType);
     }
+    this.configureStandaloneTypes(survivingHierarchyTypes, nextHierarchy);
     if (hierarchyChanged) {
       this.installTypeHierarchy(nextHierarchy, true);
     }
@@ -384,16 +388,16 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   deleteType(type: string): boolean {
     const currentHierarchy = this.typeHierarchy.value;
-    const hierarchyMember = currentHierarchy !== undefined
-      && (Object.prototype.hasOwnProperty.call(currentHierarchy, type)
-        || Object.values(currentHierarchy).includes(type));
-    if (!hierarchyMember) {
+    if (currentHierarchy === undefined || !hierarchyIncludesType(currentHierarchy, type)) {
       return super.deleteType(type);
     }
     if (this.typeInUseOnAnyCamera(type)) {
       return false;
     }
     const nextHierarchy = removeHierarchyType(currentHierarchy, type);
+    const survivingHierarchyTypes = hierarchyTypes(currentHierarchy);
+    survivingHierarchyTypes.delete(type);
+    this.configureStandaloneTypes(survivingHierarchyTypes, nextHierarchy);
     this.installTypeHierarchy(nextHierarchy, true);
     this.checkedTypes.value = this.checkedTypes.value.filter((name) => name !== type);
     this.deleteTypeConfiguration(type);

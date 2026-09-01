@@ -105,18 +105,13 @@ export default defineComponent({
       prefixMatches.sort(compareTypeNames);
       substringMatches.sort(compareTypeNames);
 
-      const options: string[] = [];
       const currentParent = data.editingParent;
+      const options = [...prefixMatches, ...substringMatches]
+        .filter((type) => type !== currentParent);
       if (currentParent !== null && !excluded.has(currentParent)) {
-        options.push(currentParent);
+        options.unshift(currentParent);
       }
-      [...prefixMatches, ...substringMatches].some((type) => {
-        if (!options.includes(type)) {
-          options.push(type);
-        }
-        return options.length >= MAX_PARENT_OPTIONS;
-      });
-      return options;
+      return options.slice(0, MAX_PARENT_OPTIONS);
     });
     const parentSearchUnresolved = computed(() => {
       const search = data.parentSearch;
@@ -297,7 +292,7 @@ export default defineComponent({
                 :label="readOnlyMode
                   ? 'Type Name (disabled in ReadOnly Mode)'
                   : (isStyleOnly ? 'Style Name' : 'Type Name')"
-                hide-details
+                hide-details="auto"
               />
             </v-col>
           </v-row>
@@ -307,6 +302,7 @@ export default defineComponent({
                 v-model="data.editingParent"
                 :search-input.sync="data.parentSearch"
                 :items="parentOptions"
+                no-filter
                 :disabled="readOnlyMode"
                 label="Parent Type"
                 placeholder="Top level"

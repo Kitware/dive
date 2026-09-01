@@ -129,9 +129,11 @@ describe('TypeEditor hierarchy editing', () => {
     const autocomplete = track.wrapper.find('v-autocomplete');
     expect(autocomplete.exists()).toBe(true);
     expect(autocomplete.attributes('auto-select-first')).toBe('');
+    expect(autocomplete.attributes('no-filter')).toBe('');
     expect(autocomplete.attributes('no-data-text')).toBe(
       'No matching type. Add it from Type Settings first.',
     );
+    expect(track.wrapper.find('v-text-field').attributes('hide-details')).toBe('auto');
 
     const group = mountEditor({ filters: makeGroupFilters(), group: true });
     expect(group.vm.showParentType).toBe(false);
@@ -193,14 +195,6 @@ describe('TypeEditor hierarchy editing', () => {
     expect(filters.updateTypeDefinition).not.toHaveBeenCalled();
     expect(styleManager.updateTypeStyle).not.toHaveBeenCalled();
     expect(closeEvents).toHaveLength(0);
-  });
-
-  it('accepts a cleared parent draft without pointer input', () => {
-    const { vm } = mountEditor();
-    vm.data.editingParent = null;
-    vm.data.parentSearch = null;
-    expect(vm.data.editingParent).toBeNull();
-    expect(vm.data.parentSearch).toBeNull();
   });
 
   it('saves name and parent through one atomic operation', () => {

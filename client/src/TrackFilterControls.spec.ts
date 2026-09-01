@@ -801,6 +801,23 @@ describe('useAnnotationFilters', () => {
     expect(markPending).toHaveBeenCalledTimes(2);
   });
 
+  it('keeps a hierarchy-only leaf when detaching its final parent edge', () => {
+    const { filters } = makePairFixture([[['used', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'root' });
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'leaf',
+      parent: undefined,
+    });
+
+    expect(filters.typeHierarchy.value).toBeUndefined();
+    expect(filters.configuredTypes.value).toContain('leaf');
+    expect(filters.configuredTypes.value).toContain('root');
+    expect(filters.allTypes.value).toContain('leaf');
+    expect(filters.allTypes.value).toContain('root');
+  });
+
   it('renames and reparents through one validated update', () => {
     const markPending = vi.fn();
     const { cameraStore, filters } = makePairFixture([
@@ -1105,6 +1122,17 @@ describe('useAnnotationFilters', () => {
     expect(cameraStore.getTrack(0).confidencePairs).toEqual([['leaf', 1]]);
   });
 
+  it('keeps a hierarchy-only child when deleting its top-level parent', () => {
+    const { filters } = makePairFixture([[['used', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'root' });
+
+    expect(filters.deleteType('root')).toBe(true);
+    expect(filters.typeHierarchy.value).toBeUndefined();
+    expect(filters.configuredTypes.value).toContain('leaf');
+    expect(filters.allTypes.value).toContain('leaf');
+    expect(filters.allTypes.value).not.toContain('root');
+  });
+
   it('keeps flat deletion behavior for a configured type outside the hierarchy', () => {
     const markPending = vi.fn();
     const { filters } = makePairFixture([[['leaf', 1]]], markPending);
@@ -1149,6 +1177,8 @@ describe('useAnnotationFilters', () => {
     expect(filters.deleteType('leaf')).toBe(true);
     expect(filters.hierarchyActive.value).toBe(false);
     expect(filters.typeHierarchy.value).toBeUndefined();
+    expect(filters.configuredTypes.value).toContain('root');
+    expect(filters.allTypes.value).toContain('root');
     expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
   });
 });

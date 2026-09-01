@@ -317,24 +317,6 @@ export function rewriteHierarchyType(
   }
 }
 
-export function setHierarchyParent(
-  hierarchy: TypeHierarchy | undefined,
-  child: string,
-  parent: string | undefined,
-): TypeHierarchy | undefined {
-  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
-  if (isBlankName(child)) {
-    throw new TypeHierarchyError('empty child');
-  }
-
-  const updated = new Map(Object.entries(normalized));
-  updated.delete(child);
-  if (parent !== undefined) {
-    updated.set(child, parent);
-  }
-  return normalizeTypeHierarchy(Object.fromEntries(updated));
-}
-
 export function removeHierarchyType(
   hierarchy: TypeHierarchy,
   type: string,

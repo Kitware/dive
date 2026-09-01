@@ -13,7 +13,6 @@ import {
   rewriteHierarchyType,
   selectFlatPairIndex,
   selectPairIndex,
-  setHierarchyParent,
   setPairConfidence,
   TypeHierarchyError,
   updateHierarchyTypeDefinition,
@@ -256,64 +255,6 @@ describe('type hierarchy index', () => {
 });
 
 describe('hierarchy editing transformations', () => {
-  describe('setHierarchyParent', () => {
-    it('sets the first edge from an absent hierarchy', () => {
-      expect(setHierarchyParent(undefined, 'cod', 'fish')).toEqual({ cod: 'fish' });
-    });
-
-    it('reparents a child and clears an edge without disturbing other branches', () => {
-      const hierarchy = { cod: 'fish', tern: 'bird' };
-      expect(setHierarchyParent(hierarchy, 'cod', 'animal')).toEqual({
-        cod: 'animal',
-        tern: 'bird',
-      });
-      expect(setHierarchyParent(hierarchy, 'cod', undefined)).toEqual({ tern: 'bird' });
-    });
-
-    it('returns undefined after clearing the final edge', () => {
-      expect(setHierarchyParent({ cod: 'fish' }, 'cod', undefined)).toBeUndefined();
-    });
-
-    it('rejects blank names, self edges, and cycles', () => {
-      expectHierarchyError(
-        () => setHierarchyParent(undefined, ' ', 'fish'),
-        'empty child',
-        'malformed',
-      );
-      expectHierarchyError(
-        () => setHierarchyParent(undefined, 'cod', '\u001c'),
-        'empty parent for "cod"',
-        'malformed',
-      );
-      expectHierarchyError(
-        () => setHierarchyParent(undefined, 'cod', 'cod'),
-        'self edge "cod -> cod"',
-        'malformed',
-      );
-      expectHierarchyError(
-        () => setHierarchyParent({ cod: 'fish' }, 'fish', 'cod'),
-        'cycle cod -> fish -> cod',
-        'malformed',
-      );
-    });
-
-    it('returns a fresh map without changing its input', () => {
-      const hierarchy = Object.freeze({ cod: 'fish', tern: 'bird' });
-      const result = setHierarchyParent(hierarchy, 'cod', 'fish');
-      expect(result).toEqual(hierarchy);
-      expect(result).not.toBe(hierarchy);
-      expect(hierarchy).toEqual({ cod: 'fish', tern: 'bird' });
-    });
-
-    it('orders keys by code point', () => {
-      const bmp = '\uE000';
-      const astral = '\u{10000}';
-      const result = setHierarchyParent({ [astral]: 'root' }, bmp, 'root');
-      expect(compareTypeNames(bmp, astral)).toBeLessThan(0);
-      expect(Object.keys(result || {})).toEqual([bmp, astral]);
-    });
-  });
-
   describe('removeHierarchyType', () => {
     it('removes a middle node and promotes all of its children', () => {
       expect(removeHierarchyType({
@@ -352,6 +293,20 @@ describe('hierarchy editing transformations', () => {
   });
 
   describe('updateHierarchyTypeDefinition', () => {
+    it('sets, reparents, and clears edges without mutating unrelated branches', () => {
+      expect(updateHierarchyTypeDefinition(undefined, 'cod', 'cod', 'fish'))
+        .toEqual({ cod: 'fish' });
+      const hierarchy = { cod: 'fish', tern: 'bird' };
+      expect(updateHierarchyTypeDefinition(hierarchy, 'cod', 'cod', 'animal')).toEqual({
+        cod: 'animal',
+        tern: 'bird',
+      });
+      expect(updateHierarchyTypeDefinition(hierarchy, 'cod', 'cod', undefined))
+        .toEqual({ tern: 'bird' });
+      expect(updateHierarchyTypeDefinition({ cod: 'fish' }, 'cod', 'cod', undefined))
+        .toBeUndefined();
+    });
+
     it('builds a valid rename and reparent result without validating an invalid intermediate map', () => {
       const hierarchy = {
         cod: 'fish',
@@ -391,6 +346,30 @@ describe('hierarchy editing transformations', () => {
         'malformed',
       );
       expect(hierarchy).toEqual({ cod: 'fish', fish: 'animal' });
+    });
+
+    it('rejects blank parents and self edges', () => {
+      expectHierarchyError(
+        () => updateHierarchyTypeDefinition(undefined, 'cod', 'cod', '\u001c'),
+        'empty parent for "cod"',
+        'malformed',
+      );
+      expectHierarchyError(
+        () => updateHierarchyTypeDefinition(undefined, 'cod', 'cod', 'cod'),
+        'self edge "cod -> cod"',
+        'malformed',
+      );
+    });
+
+    it('returns a fresh map ordered by code point', () => {
+      const bmp = '\uE000';
+      const astral = '\u{10000}';
+      const hierarchy = Object.freeze({ [astral]: 'root' });
+      const result = updateHierarchyTypeDefinition(hierarchy, bmp, bmp, 'root');
+      expect(compareTypeNames(bmp, astral)).toBeLessThan(0);
+      expect(Object.keys(result || {})).toEqual([bmp, astral]);
+      expect(result).not.toBe(hierarchy);
+      expect(hierarchy).toEqual({ [astral]: 'root' });
     });
 
     it('rejects a blank final name even when it would have no edge', () => {
