@@ -117,6 +117,33 @@ export default defineComponent({
       const search = data.parentSearch;
       return search !== null && search !== '' && search !== data.editingParent;
     });
+    const definitionValidation = computed(() => {
+      const controls = trackFilters.value;
+      if (!controls || !data.editingType.trim() || parentSearchUnresolved.value) {
+        return undefined;
+      }
+      return controls.validateTypeDefinition({
+        currentType: data.selectedType,
+        newType: data.editingType,
+        parent: data.editingParent ?? undefined,
+      });
+    });
+    const nameDefinitionError = computed(() => (
+      definitionValidation.value?.field === 'name'
+        ? `Type hierarchy is invalid: ${definitionValidation.value.reason}.`
+        : ''
+    ));
+    const parentDefinitionError = computed(() => {
+      if (parentSearchUnresolved.value) {
+        return 'Select an existing type from the list, or clear the field.';
+      }
+      return definitionValidation.value?.field === 'parent'
+        ? `Type hierarchy is invalid: ${definitionValidation.value.reason}.`
+        : '';
+    });
+    const saveDisabled = computed(() => (
+      !data.valid || nameDefinitionError.value !== '' || parentDefinitionError.value !== ''
+    ));
 
     const currentStyleValue = () => ({
       color: data.editingColor,
@@ -129,7 +156,7 @@ export default defineComponent({
     let styleSnapshot = currentStyleValue();
 
     function acceptChanges() {
-      if (!data.valid || parentSearchUnresolved.value) {
+      if (saveDisabled.value) {
         return;
       }
       data.definitionError = '';
@@ -233,6 +260,9 @@ export default defineComponent({
       readOnlyMode,
       parentOptions,
       parentSearchUnresolved,
+      nameDefinitionError,
+      parentDefinitionError,
+      saveDisabled,
       acceptChanges,
       clickDeleteType,
       nameRules,
@@ -289,6 +319,7 @@ export default defineComponent({
                 v-model="data.editingType"
                 :disabled="readOnlyMode"
                 :rules="nameRules"
+                :error-messages="nameDefinitionError"
                 :label="readOnlyMode
                   ? 'Type Name (disabled in ReadOnly Mode)'
                   : (isStyleOnly ? 'Style Name' : 'Type Name')"
@@ -308,6 +339,7 @@ export default defineComponent({
                 placeholder="Top level"
                 hint="Select the immediate parent. Clear to make this type top-level."
                 no-data-text="No matching type. Add it from Type Settings first."
+                :error-messages="parentDefinitionError"
                 clearable
                 auto-select-first
                 persistent-hint
@@ -422,7 +454,7 @@ export default defineComponent({
         <v-btn
           color="primary"
           depressed
-          :disabled="!data.valid || parentSearchUnresolved"
+          :disabled="saveDisabled"
           @click="acceptChanges"
         >
           Save

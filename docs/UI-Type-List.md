@@ -49,6 +49,7 @@ A parent row's checkbox always toggles its complete subtree. The heading checkbo
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
 
 Changes to **Type Name** and **Parent Type** are staged together and applied by one Save after the complete result passes validation. A rename involved in a hierarchy is rejected if one track already contains both the old and new type names. An invalid final hierarchy, such as a self-edge, conflicting parent, or cycle, is also rejected without applying either the name or parent change.
+Restrictions that can be determined from the draft are shown directly under the affected field as soon as they are known, and Save remains disabled until the draft is valid. Save still validates the complete result again before applying it.
 
 Deleting an unused hierarchy heading removes that heading while preserving its descendants. Its immediate children move under the deleted heading's parent, or become top-level when the deleted heading had no parent. This promotion does not rename descendants or rewrite their stored annotation confidence pairs.
 

@@ -27,6 +27,7 @@ function makeFilters({
   filters.usedTypes = ref([]);
   filters.typeHierarchy = ref(hierarchy);
   filters.typeInUseOnAnyCamera = vi.fn(() => false);
+  filters.validateTypeDefinition = vi.fn(() => undefined);
   filters.updateTypeDefinition = vi.fn();
   filters.updateTypeName = vi.fn();
   filters.importTypes = vi.fn();
@@ -195,6 +196,49 @@ describe('TypeEditor hierarchy editing', () => {
     expect(filters.updateTypeDefinition).not.toHaveBeenCalled();
     expect(styleManager.updateTypeStyle).not.toHaveBeenCalled();
     expect(closeEvents).toHaveLength(0);
+  });
+
+  it('shows every known preflight restriction inline and disables Save', async () => {
+    const parent = mountEditor();
+    vi.mocked(parent.filters.validateTypeDefinition).mockReturnValue({
+      field: 'parent',
+      reason: 'cycle leaf -> branch -> leaf',
+    });
+    parent.vm.data.editingParent = 'branch';
+    parent.vm.data.parentSearch = 'branch';
+    await nextTick();
+    expect(parent.vm.parentDefinitionError).toBe(
+      'Type hierarchy is invalid: cycle leaf -> branch -> leaf.',
+    );
+    expect(parent.wrapper.find('v-autocomplete').attributes('error-messages')).toBe(
+      'Type hierarchy is invalid: cycle leaf -> branch -> leaf.',
+    );
+    expect(parent.vm.saveDisabled).toBe(true);
+    parent.vm.acceptChanges();
+    expect(parent.filters.updateTypeDefinition).not.toHaveBeenCalled();
+
+    const name = mountEditor();
+    vi.mocked(name.filters.validateTypeDefinition).mockReturnValue({
+      field: 'name',
+      reason: 'track 4 already contains both "leaf" and "root"',
+    });
+    name.vm.data.editingType = 'root';
+    await nextTick();
+    expect(name.vm.nameDefinitionError).toBe(
+      'Type hierarchy is invalid: track 4 already contains both "leaf" and "root".',
+    );
+    expect(name.wrapper.find('v-text-field').attributes('error-messages')).toBe(
+      'Type hierarchy is invalid: track 4 already contains both "leaf" and "root".',
+    );
+    expect(name.vm.saveDisabled).toBe(true);
+
+    const unresolved = mountEditor();
+    unresolved.vm.data.parentSearch = 'missing';
+    await nextTick();
+    expect(unresolved.vm.parentDefinitionError).toBe(
+      'Select an existing type from the list, or clear the field.',
+    );
+    expect(unresolved.vm.saveDisabled).toBe(true);
   });
 
   it('saves name and parent through one atomic operation', () => {

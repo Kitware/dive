@@ -1058,6 +1058,50 @@ describe('useAnnotationFilters', () => {
     expect(markPending).not.toHaveBeenCalled();
   });
 
+  it('preflights all type-definition restrictions without changing state', () => {
+    const markPending = vi.fn();
+    const { cameraStore, filters } = makePairFixture([
+      [['leaf', 0.8], ['fin', 0.7]],
+    ], markPending);
+    filters.setTypeHierarchy({ leaf: 'root', child: 'leaf' });
+    markPending.mockClear();
+
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'leaf', parent: 'child',
+    })).toEqual({
+      field: 'parent', reason: 'cycle child -> leaf -> child',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'fin', parent: 'root',
+    })).toEqual({
+      field: 'name', reason: 'track 0 already contains both "leaf" and "fin"',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'renamed', parent: 'missing',
+    })).toEqual({
+      field: 'parent', reason: 'parent "missing" is not an existing type',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'renamed', parent: 'leaf',
+    })).toEqual({
+      field: 'parent',
+      reason: 'the original type "leaf" cannot be its renamed type\'s parent',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'root', parent: 'root',
+    })).toEqual({
+      field: 'name', reason: 'self edge "root -> root"',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'leaf', parent: 'root',
+    })).toBeUndefined();
+
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['leaf', 0.8], ['fin', 0.7]]);
+    expect(filters.typeHierarchy.value).toEqual({ child: 'leaf', leaf: 'root' });
+    expect(filters.typeHierarchySavePatch()).toEqual({});
+    expect(markPending).not.toHaveBeenCalled();
+  });
+
   it('rejects a rename when one track already has both names', () => {
     const markPending = vi.fn();
     const { cameraStore, filters } = makePairFixture([

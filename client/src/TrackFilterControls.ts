@@ -24,6 +24,29 @@ export interface TypeHierarchySavePatch {
   typeHierarchy?: Record<string, string> | null;
 }
 
+export interface TypeDefinitionParams {
+  currentType: string;
+  newType: string;
+  parent: string | undefined;
+}
+
+export interface TypeDefinitionValidationError {
+  field: 'name' | 'parent';
+  reason: string;
+}
+
+interface PreparedTypeDefinition {
+  nextHierarchy: TypeHierarchy | undefined;
+  nameChanged: boolean;
+  hierarchyChanged: boolean;
+  hierarchyInvolved: boolean;
+  survivingHierarchyTypes: Set<string>;
+}
+
+type TypeDefinitionPreflight =
+  | { prepared: PreparedTypeDefinition; error?: undefined }
+  | { prepared?: undefined; error: TypeDefinitionValidationError & { cause: TypeHierarchyError } };
+
 interface TrackFilterControlsParams extends FilterControlsParams<Track> {
   lookupGroups: (annotationId: AnnotationId) => Group[];
   groupFilterControls: BaseFilterControls<Group>;
@@ -291,50 +314,56 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     });
   }
 
-  updateTypeDefinition({
+  private preflightTypeDefinition({
     currentType,
     newType,
     parent,
-  }: {
-    currentType: string;
-    newType: string;
-    parent: string | undefined;
-  }) {
-    if (parent === currentType && currentType !== newType) {
-      throw new TypeHierarchyError(
-        `the original type "${currentType}" cannot be its renamed type's parent`,
-        'conflict',
-      );
-    }
-    if (parent !== undefined && !this.allTypes.value.includes(parent)) {
-      throw new TypeHierarchyError(
-        `parent "${parent}" is not an existing type`,
-        'conflict',
-      );
+  }: TypeDefinitionParams): TypeDefinitionPreflight {
+    let prepared: PreparedTypeDefinition;
+    let structuralErrorField: TypeDefinitionValidationError['field'] = 'parent';
+    try {
+      if (parent === currentType && currentType !== newType) {
+        throw new TypeHierarchyError(
+          `the original type "${currentType}" cannot be its renamed type's parent`,
+          'conflict',
+        );
+      }
+      if (parent !== undefined && !this.allTypes.value.includes(parent)) {
+        throw new TypeHierarchyError(
+          `parent "${parent}" is not an existing type`,
+          'conflict',
+        );
+      }
+
+      const currentHierarchy = this.typeHierarchy.value;
+      const currentParent = currentHierarchy?.[currentType];
+      const nameChanged = currentType !== newType;
+      const parentChanged = parent !== currentParent;
+      structuralErrorField = nameChanged && !parentChanged ? 'name' : 'parent';
+      const survivingHierarchyTypes = hierarchyTypes(currentHierarchy);
+      if (nameChanged && survivingHierarchyTypes.delete(currentType)) {
+        survivingHierarchyTypes.add(newType);
+      }
+      const nextHierarchy = nameChanged && !parentChanged && currentHierarchy !== undefined
+        ? rewriteHierarchyType(currentHierarchy, currentType, newType)
+        : updateHierarchyTypeDefinition(currentHierarchy, currentType, newType, parent);
+      prepared = {
+        nextHierarchy,
+        nameChanged,
+        hierarchyChanged: !isEqual(currentHierarchy, nextHierarchy),
+        hierarchyInvolved: currentHierarchy !== undefined || nextHierarchy !== undefined,
+        survivingHierarchyTypes,
+      };
+    } catch (error) {
+      if (error instanceof TypeHierarchyError) {
+        return {
+          error: { field: structuralErrorField, reason: error.reason, cause: error },
+        };
+      }
+      throw error;
     }
 
-    const currentHierarchy = this.typeHierarchy.value;
-    const currentParent = currentHierarchy?.[currentType];
-    const nameChanged = currentType !== newType;
-    const parentChanged = parent !== currentParent;
-    const survivingHierarchyTypes = hierarchyTypes(currentHierarchy);
-    if (nameChanged && survivingHierarchyTypes.delete(currentType)) {
-      survivingHierarchyTypes.add(newType);
-    }
-    const nextHierarchy = nameChanged && !parentChanged && currentHierarchy !== undefined
-      ? rewriteHierarchyType(currentHierarchy, currentType, newType)
-      : updateHierarchyTypeDefinition(currentHierarchy, currentType, newType, parent);
-    const hierarchyChanged = !isEqual(currentHierarchy, nextHierarchy);
-    const hierarchyInvolved = currentHierarchy !== undefined || nextHierarchy !== undefined;
-    if (!nameChanged && !hierarchyChanged) {
-      return;
-    }
-    if (!hierarchyInvolved) {
-      this.updateTypeName({ currentType, newType });
-      return;
-    }
-
-    if (nameChanged) {
+    if (prepared.nameChanged && prepared.hierarchyInvolved) {
       const collision = this.sorted.value
         .flatMap((annotation) => this.getTracks(annotation.id))
         .find((track) => {
@@ -342,11 +371,42 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           return names.has(currentType) && names.has(newType);
         });
       if (collision) {
-        throw new TypeHierarchyError(
+        const cause = new TypeHierarchyError(
           `track ${collision.id} already contains both "${currentType}" and "${newType}"`,
           'conflict',
         );
+        return {
+          error: { field: 'name', reason: cause.reason, cause },
+        };
       }
+    }
+    return { prepared };
+  }
+
+  validateTypeDefinition(params: TypeDefinitionParams): TypeDefinitionValidationError | undefined {
+    const { error } = this.preflightTypeDefinition(params);
+    return error && { field: error.field, reason: error.reason };
+  }
+
+  updateTypeDefinition(params: TypeDefinitionParams) {
+    const preflight = this.preflightTypeDefinition(params);
+    if (preflight.error) {
+      throw preflight.error.cause;
+    }
+    const {
+      nextHierarchy,
+      nameChanged,
+      hierarchyChanged,
+      hierarchyInvolved,
+      survivingHierarchyTypes,
+    } = preflight.prepared;
+    const { currentType, newType } = params;
+    if (!nameChanged && !hierarchyChanged) {
+      return;
+    }
+    if (!hierarchyInvolved) {
+      this.updateTypeName({ currentType, newType });
+      return;
     }
 
     const currentWasChecked = this.checkedTypes.value.includes(currentType);
