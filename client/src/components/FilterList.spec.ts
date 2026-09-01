@@ -9,6 +9,7 @@ import BaseFilterControls from '../BaseFilterControls';
 import Group from '../Group';
 import CameraStore from '../CameraStore';
 import FilterList from './FilterList.vue';
+import TypeEditor from './TypeEditor.vue';
 
 vi.mock('dive-common/vue-utilities/prompt-service', () => ({
   usePrompt: () => ({ prompt: vi.fn(), visible: () => false }),
@@ -21,6 +22,7 @@ const provideMocks = vi.hoisted(() => ({
   annotationMap: new Map<number, unknown>(),
   selectedCameraValue: 'singleCam',
   selectedCameraRef: undefined as { value: string } | undefined,
+  datasetIdRef: undefined as { value: string } | undefined,
 }));
 
 /**
@@ -64,6 +66,11 @@ vi.mock('../provides', () => ({
     }]])),
   }),
   useHandler: () => ({ seekFrame: provideMocks.seekFrame }),
+  useDatasetId: () => {
+    const datasetId = ref('dataset-a');
+    provideMocks.datasetIdRef = datasetId;
+    return datasetId;
+  },
   useReadOnlyMode: () => ref(false),
   useSelectedCamera: () => {
     const selectedCamera = ref(provideMocks.selectedCameraValue);
@@ -182,8 +189,33 @@ describe('FilterList hierarchy members', () => {
     provideMocks.annotationMap.clear();
     provideMocks.selectedCameraValue = 'singleCam';
     provideMocks.selectedCameraRef = undefined;
+    provideMocks.datasetIdRef = undefined;
     clientSettings.typeSettings.showTotalCount = true;
     clientSettings.typeSettings.showFrameCount = true;
+  });
+
+  it('discards an open Type Editor draft when the dataset changes', async () => {
+    const { filterControls, styleManager } = makeHierarchyFixture();
+    const { vm, wrapper } = mountFilterList({
+      filterControls,
+      styleManager,
+      showEmptyTypes: true,
+      height: 240,
+      headerHeight: 80,
+    });
+    vm.clickEdit('leaf');
+    await nextTick();
+    expect(vm.data.showPicker).toBe(true);
+    expect(wrapper.findComponent(TypeEditor).exists()).toBe(true);
+
+    if (!provideMocks.datasetIdRef) {
+      throw new Error('Dataset ID ref was not initialized');
+    }
+    provideMocks.datasetIdRef.value = 'dataset-b';
+    await nextTick();
+    expect(vm.data.showPicker).toBe(false);
+    expect(vm.data.selectedType).toBe('');
+    expect(wrapper.findComponent(TypeEditor).exists()).toBe(false);
   });
 
   it('keeps members as ordinary, independently checked flat rows', async () => {
