@@ -31,6 +31,7 @@ import {
   FrameMetadataSourcesResponse,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { parseCameraOrderHeader } from 'dive-common/pipelineCameraOrder';
 import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
 import {
   METADATA_ATTACHMENT_UNAVAILABLE, isFrameMetadataReadableName,
@@ -284,10 +285,24 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
     const lines = await readLines(filePath);
     let inDescription = false;
     let fullDescription = '';
+    // `process warpN` followed by `:: warp_detections|warp_image` marks an
+    // input whose camera must be registered onto camera 1.
+    let lastProcessName: string | null = null;
+    const registrationWarps: number[] = [];
 
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
+
+      const processMatch = trimmed.match(/^process\s+(\S+)/);
+      if (processMatch) {
+        [, lastProcessName] = processMatch;
+      } else if (/^::\s*(warp_detections|warp_image)\b/.test(trimmed) && lastProcessName) {
+        const warpMatch = lastProcessName.match(/^warp(\d+)$/);
+        if (warpMatch) {
+          registrationWarps.push(Number.parseInt(warpMatch[1], 10));
+        }
+      }
 
       // --- Description extraction (Multiline) ---
       if (/^#\s*Description:\s*/i.test(line)) {
@@ -297,7 +312,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
@@ -353,7 +368,20 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
           metadata.calibrationKeys = keys;
         }
       }
+
+      // `# Camera Order: EO, UV, IR` names the camera role fed to each inputN of
+      // a 2-cam/3-cam pipe; DIVE matches dataset cameras onto it by name.
+      const cameraOrderMatch = line.match(/^#\s*Camera\s+Order:\s*(.+)/i);
+      if (cameraOrderMatch) {
+        const slots = parseCameraOrderHeader(cameraOrderMatch[1]);
+        if (slots.length) {
+          metadata.cameraOrder = slots;
+        }
+      }
     });
+    if (registrationWarps.length) {
+      metadata.registrationWarps = [...new Set(registrationWarps)].sort((a, b) => a - b);
+    }
     metadata.description = fullDescription.trim() || undefined;
   } catch (error) {
     console.error(`Error while reading ${filePath} metadata`, error);
@@ -1274,11 +1302,16 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     );
     const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
     const hierarchyPresent = Object.prototype.hasOwnProperty.call(args, 'typeHierarchy');
+    const cameraRolesPresent = Object.prototype.hasOwnProperty.call(args, 'cameraRoles');
     if (cameraName) {
       if (hierarchyPresent) {
         await saveConfig(settings, parentId, { typeHierarchy: args.typeHierarchy });
       }
+      if (cameraRolesPresent) {
+        await saveConfig(settings, parentId, { cameraRoles: args.cameraRoles });
+      }
       delete existing.typeHierarchy;
+      delete existing.cameraRoles;
     }
     let hierarchyWrite: HierarchyWrite;
     try {
@@ -1322,6 +1355,9 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     }
     if (args.datasetInfo) {
       existing.datasetInfo = args.datasetInfo;
+    }
+    if (cameraRolesPresent && !cameraName) {
+      existing.cameraRoles = args.cameraRoles;
     }
 
     // Registration files remain separate so each camera pair has one persisted owner.

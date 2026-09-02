@@ -17,6 +17,7 @@ from dive_tasks.multicam_pipeline import (
     append_metadata_file_kwiver_settings,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
+    build_registration_kwiver_settings,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
 )
@@ -329,6 +330,14 @@ def run_pipeline(self: Task, params: PipelineJob):
                     )
             for arg, file_name in arg_file_pair.items():
                 command.append(f"-s {shlex.quote(arg)}={shlex.quote(file_name)}")
+
+            multicam_registration = multicam_params.get('multicam_registration')
+            if multicam_registration:
+                registration_settings = build_registration_kwiver_settings(
+                    _working_directory_path, multicam_cameras, multicam_registration
+                )
+                for arg, value in registration_settings.items():
+                    command.append(f'-s {shlex.quote(arg)}={shlex.quote(value)}')
 
             transcoded_video: Optional[str] = None
             if creates_new_dataset:

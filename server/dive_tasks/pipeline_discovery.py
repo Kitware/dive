@@ -181,6 +181,10 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
 
     in_description = False
     full_description_parts: List[str] = []
+    # `process warpN` followed by `:: warp_detections|warp_image` marks an
+    # input whose camera must be registered onto camera 1.
+    last_process_name: Optional[str] = None
+    registration_warps: List[int] = []
 
     try:
         with open(file_path, 'r', encoding='utf-8') as f:
@@ -189,6 +193,16 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                 trimmed = line_raw.strip()
                 if not trimmed:
                     continue
+
+                process_match = re.match(r'^process\s+(\S+)', trimmed)
+                if process_match:
+                    last_process_name = process_match.group(1)
+                elif (
+                    re.match(r'^::\s*(warp_detections|warp_image)\b', trimmed) and last_process_name
+                ):
+                    warp_match = re.match(r'^warp(\d+)$', last_process_name)
+                    if warp_match:
+                        registration_warps.append(int(warp_match.group(1)))
 
                 # --- Description extraction (Multiline) ---
                 desc_start_match = re.match(r'^#\s*Description:\s*(.*)', line_raw, re.IGNORECASE)
@@ -205,7 +219,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
                             r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
-                            r'|Image\s+List\s+Keys?|Calibration\s+Keys?):',
+                            r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
                             line_raw,
                             re.IGNORECASE,
                         )
@@ -276,6 +290,22 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     ]
                     if keys:
                         metadata["calibrationKeys"] = keys
+
+                # `# Camera Order: EO, UV, IR` names the camera role fed to each
+                # inputN of a 2-cam/3-cam pipe; DIVE matches dataset cameras onto
+                # it by name at run time (multicam_pipeline.resolve_pipeline_camera_order).
+                camera_order_match = re.match(
+                    r'^#\s*Camera\s+Order:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if camera_order_match:
+                    slots = [
+                        s for s in re.split(r'[\s,]+', camera_order_match.group(1).strip()) if s
+                    ]
+                    if slots:
+                        metadata["cameraOrder"] = slots
+
+        if registration_warps:
+            metadata["registrationWarps"] = sorted(set(registration_warps))
 
         if full_description_parts:
             metadata["description"] = " ".join(full_description_parts)

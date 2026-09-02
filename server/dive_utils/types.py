@@ -92,6 +92,14 @@ class PipeMetadata(TypedDict):
     # not the conventional `measurer`/`calibration_reader` declare their own keys
     # here; when unset the two conventional keys are used.
     calibrationKeys: NotRequired[Optional[list[str]]]
+    # Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]),
+    # parsed from `# Camera Order: <cam> [cam...]`. Labels the slots of the client's
+    # pre-run camera-assignment step; pipes without it show bare input1..N slots.
+    cameraOrder: NotRequired[Optional[list[str]]]
+    # Input positions the pipe warps onto camera 1 (`process warpN :: warp_detections |
+    # warp_image`), e.g. [2, 3]; each such camera needs a fitted registration onto
+    # camera 1, checked before the run.
+    registrationWarps: NotRequired[Optional[list[int]]]
 
 
 class PipelineDescription(TypedDict):
@@ -118,6 +126,10 @@ class PipelineRuntimeParams(TypedDict, total=False):
 class PipelineParams(TypedDict, total=False):
     kwiverParams: Dict[str, str]
     runtimeParams: PipelineRuntimeParams
+    # 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
+    # confirmed by the user before the run. When omitted (API callers) the
+    # dataset's stored camera order is used.
+    cameraOrder: List[str]
     # Name for the newly created dataset (filter / transcode / disparity).
     outputDatasetName: str
     # Optional Girder folder that should own the new dataset (else sibling of input).
@@ -159,6 +171,17 @@ class PipelineJob(TypedDict):
     output_parent_folder_id: NotRequired[Optional[str]]
 
 
+class MulticamRegistrationJob(TypedDict):
+    """Camera registration handed to a 2-cam/3-cam pipeline's warp processes.
+
+    Pairs use the dive-camera-registration file layout: left/right camera
+    names, correspondence points, and leftToRight/rightToLeft 3x3 matrices.
+    """
+
+    reference: str
+    pairs: List[dict]
+
+
 class MulticamPipelineJob(PipelineJob, total=False):
     """Pipeline job fields set when running stereo/multicam pipelines on a multi dataset."""
 
@@ -166,6 +189,7 @@ class MulticamPipelineJob(PipelineJob, total=False):
     multicam_default_display: str
     calibration_item_id: Optional[str]
     multicam_requires_input: bool
+    multicam_registration: Optional[MulticamRegistrationJob]
 
 
 class TrainingJob(TypedDict):

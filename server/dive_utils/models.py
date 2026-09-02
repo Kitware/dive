@@ -260,6 +260,9 @@ class PairHomography(BaseModel):
 CameraTransformType = Literal['translation', 'rigid', 'similarity', 'affine', 'homography']
 TypeHierarchy = Dict[StrictStr, StrictStr]
 
+# Sensor modality of a multicam camera; see dive_tasks.multicam_pipeline.CAMERA_ROLE_ALIASES.
+CameraRole = Literal['eo', 'ir', 'uv']
+
 
 class MetadataMutable(BaseModel):
     version = (
@@ -291,6 +294,10 @@ class MetadataMutable(BaseModel):
     # DIVE; preserved verbatim so refined calibrations can be traced back to the
     # model version they were made against.
     cameraRegistrationSource: Optional[Dict[str, Any]]
+    # Sensor role per multicam camera name, inferred at import from the camera
+    # and image names and editable afterwards; used to place cameras onto a
+    # pipeline's declared camera slots. Cameras with no known role are absent.
+    cameraRoles: Optional[Dict[str, CameraRole]]
     fps: Optional[float]
 
     @staticmethod

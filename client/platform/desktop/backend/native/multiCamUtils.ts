@@ -11,6 +11,7 @@ import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'plat
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 import { getBinaryPath, spawnResult } from './utils';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
 
@@ -189,6 +190,9 @@ async function writeMultiCamStereoPipelineArgs(
   settings: Settings,
   utility = false,
   forceTranscoded = false,
+  // Explicit input1..N camera order for 2-cam/3-cam pipes; stereo
+  // measurement keeps the stored left/right order when omitted.
+  cameraOrder: string[] | undefined = undefined,
   runtime: MultiCamRuntimeSubset = {},
 ) {
   const { onProgress } = runtime;
@@ -198,7 +202,11 @@ async function writeMultiCamStereoPipelineArgs(
     ? (await getValidatedProjectDir(settings, meta.id)).basePath
     : '';
   if (meta.multiCam && meta.multiCam.cameras) {
-    const cameraList = Object.entries(meta.multiCam.cameras);
+    const { cameras } = meta.multiCam;
+    const cameraNames = cameraOrder
+      ? cameraOrder.filter((name) => name in cameras)
+      : orderedMultiCamCameraNames(meta.multiCam);
+    const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
     for (let i = 0; i < cameraList.length; i += 1) {
       const [key, list] = cameraList[i];
       const { originalBasePath } = list;
@@ -326,6 +334,7 @@ function getMultiCamUrls(
     }
     const multiCamMedia: MultiCamMedia = {
       cameras: {},
+      cameraOrder: projectMetaData.multiCam.cameraOrder,
       defaultDisplay: projectMetaData.multiCam.defaultDisplay,
     };
 
