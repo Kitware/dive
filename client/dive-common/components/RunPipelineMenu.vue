@@ -42,7 +42,7 @@ import PipelineCameraAssignDialog, {
 } from 'dive-common/components/PipelineCameraAssignDialog.vue';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
-  CameraRole, pipelineCameraSlots, proposedPipelineCameraOrder,
+  CameraRole, fittedRegistrationPairs, pipelineCameraSlots, proposedPipelineCameraOrder,
 } from 'dive-common/pipelineCameraOrder';
 import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
 
@@ -330,7 +330,7 @@ export default defineComponent({
           proposed: proposedPipelineCameraOrder(cameras),
           roles,
           registrationWarps: pipeline.metadata?.registrationWarps ?? [],
-          fittedPairs: Object.keys(config.cameraHomographies ?? {}),
+          fittedPairs: fittedRegistrationPairs(config.cameraHomographies),
         });
         if (!result) {
           return null;

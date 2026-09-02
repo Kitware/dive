@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  camerasForSlot, inferCameraRole, inferCameraRoles, missingRegistrations,
-  parseCameraOrderHeader, pipelineCameraSlots, prefillPipelineCameraOrder,
-  proposedPipelineCameraOrder,
+  camerasForSlot, fittedRegistrationPairs, inferCameraRole, inferCameraRoles,
+  missingRegistrations, parseCameraOrderHeader, pipelineCameraSlots,
+  prefillPipelineCameraOrder, proposedPipelineCameraOrder,
 } from './pipelineCameraOrder';
 
 describe('pipelineCameraOrder', () => {
@@ -54,6 +54,16 @@ describe('pipelineCameraOrder', () => {
       .toStrictEqual([null, null]);
     expect(pipelineCameraSlots(['EO', 'IR'], 2)).toStrictEqual(['EO', 'IR']);
     expect(pipelineCameraSlots(undefined, 3)).toStrictEqual(['input1', 'input2', 'input3']);
+  });
+
+  it('lists only homography pairs with a fitted matrix', () => {
+    const fitted = [[1, 0, 0], [0, 1, 0], [0, 0, 1]];
+    expect(fittedRegistrationPairs({
+      'rgb::ir': { AtoB: fitted, BtoA: fitted },
+      'uv::rgb': { AtoB: [], BtoA: [] },
+      'eo::ir': {},
+    })).toStrictEqual(['rgb::ir']);
+    expect(fittedRegistrationPairs(undefined)).toStrictEqual([]);
   });
 
   it('reports warped cameras with no fitted registration onto camera 1', () => {

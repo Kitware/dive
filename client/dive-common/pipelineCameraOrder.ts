@@ -163,6 +163,36 @@ export interface MissingRegistration {
   target: string;
 }
 
+/** Match Python truthiness for registration matrix checks (see crud_rpc.py). */
+function registrationValueTruthy(value: unknown): boolean {
+  if (value == null) {
+    return false;
+  }
+  if (Array.isArray(value)) {
+    return value.length > 0;
+  }
+  if (typeof value === 'object') {
+    return Object.keys(value).length > 0;
+  }
+  return Boolean(value);
+}
+
+type HomographyPair = { AtoB?: unknown; BtoA?: unknown };
+
+/**
+ * Pair keys that have a fitted AtoB or BtoA matrix. Mirrors the server's
+ * `fitted_pairs` filter so the camera-assignment dialog agrees with the
+ * run-time registration check.
+ */
+export function fittedRegistrationPairs(
+  homographies: Record<string, HomographyPair> | null | undefined,
+): string[] {
+  return Object.entries(homographies ?? {})
+    .filter(([, value]) => registrationValueTruthy(value)
+      && (registrationValueTruthy(value.AtoB) || registrationValueTruthy(value.BtoA)))
+    .map(([key]) => key);
+}
+
 /**
  * Cameras a pipe will warp (its `warpN` processes) that have no fitted
  * registration onto camera 1 of the given order. `fittedPairs` are the
