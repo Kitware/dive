@@ -33,12 +33,11 @@ import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
 } from './utils';
-import { buildRegistrationPipelineArgs } from './cameraRegistration';
+import { buildRegistrationPipelineArgs, ingestPipelineRegistration } from './cameraRegistration';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
-import { ingestPipelineRegistration } from './cameraRegistration';
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -434,6 +433,11 @@ async function runPipeline(
       requiresInput,
       false,
       multiCamOrder,
+      {
+        imagePairs,
+        frameRange,
+        onProgress: reportPreparing,
+      },
     );
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);

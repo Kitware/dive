@@ -10,8 +10,8 @@ import { Camera, JsonConfig, Settings } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
-import { getBinaryPath, spawnResult } from './utils';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { getBinaryPath, spawnResult } from './utils';
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
 
