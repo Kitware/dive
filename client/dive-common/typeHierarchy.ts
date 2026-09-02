@@ -297,7 +297,7 @@ export function rewriteHierarchyType(
     rewritten.set(child, parent);
   };
 
-  sortedNames(Object.keys(normalized))
+  Object.keys(normalized)
     .filter((child) => child !== currentType)
     .forEach((child) => {
       const parent = normalized[child] === currentType ? newType : normalized[child];
@@ -325,7 +325,7 @@ export function removeHierarchyType(
   const parent = hasOwn(normalized, type) ? normalized[type] : undefined;
   const updated = new Map<string, string>();
 
-  sortedNames(Object.keys(normalized)).forEach((child) => {
+  Object.keys(normalized).forEach((child) => {
     if (child === type) {
       return;
     }
@@ -352,7 +352,7 @@ export function updateHierarchyTypeDefinition(
   }
 
   const updated = new Map<string, string>();
-  sortedNames(Object.keys(normalized)).forEach((child) => {
+  Object.keys(normalized).forEach((child) => {
     if (child === currentType || child === newType) {
       return;
     }

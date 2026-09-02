@@ -113,10 +113,7 @@ export default defineComponent({
       }
       return options.slice(0, MAX_PARENT_OPTIONS);
     });
-    const parentSearchUnresolved = computed(() => {
-      const search = data.parentSearch;
-      return search !== null && search !== '' && search !== data.editingParent;
-    });
+    const parentSearchUnresolved = computed(() => parentQuery.value !== '');
     const definitionValidation = computed(() => {
       const controls = trackFilters.value;
       if (!controls || !data.editingType.trim() || parentSearchUnresolved.value) {

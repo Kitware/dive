@@ -58,12 +58,6 @@ interface TrackFilterControlsParams extends FilterControlsParams<Track> {
   ) => [string, number][];
 }
 
-function hierarchyIncludesType(hierarchy: TypeHierarchy | undefined, type: string): boolean {
-  return hierarchy !== undefined
-    && (Object.prototype.hasOwnProperty.call(hierarchy, type)
-      || Object.values(hierarchy).includes(type));
-}
-
 function hierarchyTypes(hierarchy: TypeHierarchy | undefined): Set<string> {
   const types = new Set<string>();
   Object.entries(hierarchy || {}).forEach(([child, parent]) => {
@@ -290,7 +284,6 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     types.forEach((type) => {
       if (!hierarchyMembers.has(type) && !retainedTypes.has(type)) {
         this.configuredTypes.value.push(type);
-        retainedTypes.add(type);
       }
     });
   }
@@ -448,7 +441,7 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   deleteType(type: string): boolean {
     const currentHierarchy = this.typeHierarchy.value;
-    if (currentHierarchy === undefined || !hierarchyIncludesType(currentHierarchy, type)) {
+    if (currentHierarchy === undefined || !this.hierarchyMembers.value.includes(type)) {
       return super.deleteType(type);
     }
     if (this.typeInUseOnAnyCamera(type)) {
