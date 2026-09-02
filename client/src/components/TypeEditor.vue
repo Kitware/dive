@@ -4,7 +4,7 @@ import {
 } from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { compareTypeNames, TypeHierarchyError } from 'dive-common/typeHierarchy';
+import { TypeHierarchyError } from 'dive-common/typeHierarchy';
 
 import TrackFilterControls from '../TrackFilterControls';
 import BaseFilterControls from '../BaseFilterControls';
@@ -12,11 +12,12 @@ import type Group from '../Group';
 import type StyleManager from '../StyleManager';
 import type Track from '../track';
 import { useReadOnlyMode } from '../provides';
-
-const MAX_PARENT_OPTIONS = 50;
+import ParentTypePicker from './ParentTypePicker.vue';
 
 export default defineComponent({
   name: 'TypeEditor',
+
+  components: { ParentTypePicker },
 
   props: {
     selectedType: {
@@ -67,7 +68,7 @@ export default defineComponent({
       selectedType: '',
       editingType: '',
       editingParent: null as string | null,
-      parentSearch: null as string | null,
+      parentSearchValid: true,
       editingColor: '',
       editingThickness: 5,
       editingFill: false,
@@ -78,45 +79,9 @@ export default defineComponent({
       definitionError: '',
     });
 
-    const parentQuery = computed(() => {
-      const search = data.parentSearch ?? '';
-      return search === data.editingParent ? '' : search;
-    });
-    const parentOptions = computed(() => {
-      const controls = trackFilters.value;
-      if (!controls) {
-        return [];
-      }
-      const excluded = new Set([data.selectedType, data.editingType]);
-      const query = parentQuery.value.toLowerCase();
-      const prefixMatches: string[] = [];
-      const substringMatches: string[] = [];
-      controls.allTypes.value.forEach((type) => {
-        if (excluded.has(type)) {
-          return;
-        }
-        const candidate = type.toLowerCase();
-        if (candidate.startsWith(query)) {
-          prefixMatches.push(type);
-        } else if (candidate.includes(query)) {
-          substringMatches.push(type);
-        }
-      });
-      prefixMatches.sort(compareTypeNames);
-      substringMatches.sort(compareTypeNames);
-
-      const currentParent = data.editingParent;
-      const options = [...prefixMatches, ...substringMatches]
-        .filter((type) => type !== currentParent);
-      if (currentParent !== null && !excluded.has(currentParent)) {
-        options.unshift(currentParent);
-      }
-      return options.slice(0, MAX_PARENT_OPTIONS);
-    });
-    const parentSearchUnresolved = computed(() => parentQuery.value !== '');
     const definitionValidation = computed(() => {
       const controls = trackFilters.value;
-      if (!controls || !data.editingType.trim() || parentSearchUnresolved.value) {
+      if (!controls || !data.editingType.trim() || !data.parentSearchValid) {
         return undefined;
       }
       return controls.validateTypeDefinition({
@@ -130,16 +95,14 @@ export default defineComponent({
         ? `Type hierarchy is invalid: ${definitionValidation.value.reason}.`
         : ''
     ));
-    const parentDefinitionError = computed(() => {
-      if (parentSearchUnresolved.value) {
-        return 'Select an existing type from the list, or clear the field.';
-      }
-      return definitionValidation.value?.field === 'parent'
+    const parentDefinitionError = computed(() => (
+      definitionValidation.value?.field === 'parent'
         ? `Type hierarchy is invalid: ${definitionValidation.value.reason}.`
-        : '';
-    });
+        : ''
+    ));
     const saveDisabled = computed(() => (
-      !data.valid || nameDefinitionError.value !== '' || parentDefinitionError.value !== ''
+      !data.valid || !data.parentSearchValid
+      || nameDefinitionError.value !== '' || parentDefinitionError.value !== ''
     ));
 
     const currentStyleValue = () => ({
@@ -232,7 +195,7 @@ export default defineComponent({
       data.selectedType = props.selectedType;
       data.editingType = props.selectedType;
       data.editingParent = trackFilters.value?.typeHierarchy.value?.[props.selectedType] ?? null;
-      data.parentSearch = data.editingParent;
+      data.parentSearchValid = true;
       const typeStyling = props.styleManager.typeStyling.value;
       data.editingColor = typeStyling.color(props.selectedType);
       data.editingThickness = typeStyling.strokeWidth(props.selectedType);
@@ -255,8 +218,7 @@ export default defineComponent({
       isStyleOnly,
       showParentType,
       readOnlyMode,
-      parentOptions,
-      parentSearchUnresolved,
+      parentTypes: computed(() => trackFilters.value?.allTypes.value ?? []),
       nameDefinitionError,
       parentDefinitionError,
       saveDisabled,
@@ -326,20 +288,14 @@ export default defineComponent({
           </v-row>
           <v-row v-if="showParentType">
             <v-col>
-              <v-autocomplete
+              <ParentTypePicker
+                :key="data.selectedType"
                 v-model="data.editingParent"
-                :search-input.sync="data.parentSearch"
-                :items="parentOptions"
-                no-filter
+                :all-types="parentTypes"
+                :excluded-types="[data.selectedType, data.editingType]"
                 :disabled="readOnlyMode"
-                label="Parent Type"
-                placeholder="Top level"
-                hint="Select the immediate parent. Clear to make this type top-level."
-                no-data-text="No matching type. Add it from Type Settings first."
-                :error-messages="parentDefinitionError"
-                clearable
-                auto-select-first
-                persistent-hint
+                :error-message="parentDefinitionError"
+                @search-valid="data.parentSearchValid = $event"
               />
             </v-col>
           </v-row>

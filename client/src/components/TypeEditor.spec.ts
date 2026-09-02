@@ -5,6 +5,7 @@ import { shallowMount } from '@vue/test-utils';
 import { TypeHierarchyError } from 'dive-common/typeHierarchy';
 import BaseFilterControls from '../BaseFilterControls';
 import TrackFilterControls from '../TrackFilterControls';
+import ParentTypePicker from './ParentTypePicker.vue';
 import TypeEditor from './TypeEditor.vue';
 
 const promptMock = vi.hoisted(() => vi.fn());
@@ -99,7 +100,7 @@ function mountEditor({
       },
     }),
   });
-  const wrapper = shallowMount(Host, { stubs: { TypeEditor: false } });
+  const wrapper = shallowMount(Host, { stubs: { TypeEditor: false, ParentTypePicker: false } });
   if (!child) {
     throw new Error('TypeEditor did not mount');
   }
@@ -127,75 +128,40 @@ describe('TypeEditor hierarchy editing', () => {
     const track = mountEditor();
     expect(track.vm.showParentType).toBe(true);
     expect(track.vm.data.editingParent).toBe('root');
-    const autocomplete = track.wrapper.find('v-autocomplete');
-    expect(autocomplete.exists()).toBe(true);
-    expect(autocomplete.attributes('auto-select-first')).toBe('');
-    expect(autocomplete.attributes('no-filter')).toBe('');
-    expect(autocomplete.attributes('no-data-text')).toBe(
-      'No matching type. Add it from Type Settings first.',
-    );
+    expect(track.wrapper.findComponent(ParentTypePicker).props('value')).toBe('root');
     expect(track.wrapper.find('v-text-field').attributes('hide-details')).toBe('auto');
 
     const group = mountEditor({ filters: makeGroupFilters(), group: true });
     expect(group.vm.showParentType).toBe(false);
-    expect(group.wrapper.find('v-autocomplete').exists()).toBe(false);
+    expect(group.wrapper.findComponent(ParentTypePicker).exists()).toBe(false);
 
     const savedStyle = mountEditor({ filters: null, styleOnly: true });
     expect(savedStyle.vm.showParentType).toBe(false);
-    expect(savedStyle.wrapper.find('v-autocomplete').exists()).toBe(false);
+    expect(savedStyle.wrapper.findComponent(ParentTypePicker).exists()).toBe(false);
   });
 
-  it('bounds empty-query choices with the selected parent first', () => {
-    const names = [
-      'leaf',
-      'current',
-      ...Array.from({ length: 100 }, (_, i) => `type${i.toString().padStart(3, '0')}`),
-    ];
-    const { vm } = mountEditor({
-      filters: makeFilters({ allTypes: names, hierarchy: { leaf: 'current' } }),
-    });
-    expect(vm.parentOptions).toHaveLength(50);
-    expect(vm.parentOptions[0]).toBe('current');
-    expect(vm.parentOptions.slice(1)).toEqual([...vm.parentOptions.slice(1)].sort());
-  });
-
-  it('orders prefix matches before substring matches and excludes old and final names', async () => {
-    const { vm } = mountEditor({
-      filters: makeFilters({
-        allTypes: ['leaf', 'fin', 'current', 'alpine', 'alpha', 'coral'],
-        hierarchy: { leaf: 'current' },
-      }),
-    });
+  it('passes available types and both edited names to the picker', async () => {
+    const { vm, wrapper, filters } = mountEditor();
     vm.data.editingType = 'fin';
-    vm.data.parentSearch = 'al';
     await nextTick();
-    expect(vm.parentOptions).toEqual(['current', 'alpha', 'alpine', 'coral']);
-    expect(vm.parentOptions).not.toContain('leaf');
-    expect(vm.parentOptions).not.toContain('fin');
+    const picker = wrapper.findComponent(ParentTypePicker);
+    expect(picker.props('allTypes')).toEqual(filters.allTypes.value);
+    expect(picker.props('excludedTypes')).toEqual(['leaf', 'fin']);
   });
 
-  it('sorts parent choices by Unicode code point', () => {
-    const privateUse = '\uE000';
-    const astral = '\u{10000}';
-    const { vm } = mountEditor({
-      filters: makeFilters({
-        allTypes: ['leaf', 'current', astral, privateUse],
-        hierarchy: { leaf: 'current' },
-      }),
-    });
-    expect(vm.parentOptions).toEqual(['current', privateUse, astral]);
-  });
-
-  it('does not save free text that was not selected', () => {
+  it('blocks saving while the picker reports unresolved text and recovers when resolved', () => {
     const {
-      filters, styleManager, vm, closeEvents,
+      filters, styleManager, vm, closeEvents, wrapper,
     } = mountEditor();
-    vm.data.parentSearch = 'not an existing type';
+    const picker = wrapper.findComponent(ParentTypePicker);
+    picker.vm.$emit('search-valid', false);
     vm.acceptChanges();
-    expect(vm.parentSearchUnresolved).toBe(true);
+    expect(vm.saveDisabled).toBe(true);
     expect(filters.updateTypeDefinition).not.toHaveBeenCalled();
     expect(styleManager.updateTypeStyle).not.toHaveBeenCalled();
     expect(closeEvents).toHaveLength(0);
+    picker.vm.$emit('search-valid', true);
+    expect(vm.saveDisabled).toBe(false);
   });
 
   it('shows every known preflight restriction inline and disables Save', async () => {
@@ -205,12 +171,11 @@ describe('TypeEditor hierarchy editing', () => {
       reason: 'cycle leaf -> branch -> leaf',
     });
     parent.vm.data.editingParent = 'branch';
-    parent.vm.data.parentSearch = 'branch';
     await nextTick();
     expect(parent.vm.parentDefinitionError).toBe(
       'Type hierarchy is invalid: cycle leaf -> branch -> leaf.',
     );
-    expect(parent.wrapper.find('v-autocomplete').attributes('error-messages')).toBe(
+    expect(parent.wrapper.findComponent(ParentTypePicker).props('errorMessage')).toBe(
       'Type hierarchy is invalid: cycle leaf -> branch -> leaf.',
     );
     expect(parent.vm.saveDisabled).toBe(true);
@@ -231,21 +196,14 @@ describe('TypeEditor hierarchy editing', () => {
       'Type hierarchy is invalid: track 4 already contains both "leaf" and "root".',
     );
     expect(name.vm.saveDisabled).toBe(true);
-
-    const unresolved = mountEditor();
-    unresolved.vm.data.parentSearch = 'missing';
-    await nextTick();
-    expect(unresolved.vm.parentDefinitionError).toBe(
-      'Select an existing type from the list, or clear the field.',
-    );
-    expect(unresolved.vm.saveDisabled).toBe(true);
   });
 
   it('saves name and parent through one atomic operation', () => {
-    const { filters, vm, closeEvents } = mountEditor();
+    const {
+      filters, vm, closeEvents, wrapper,
+    } = mountEditor();
     vm.data.editingType = 'fin';
-    vm.data.editingParent = 'branch';
-    vm.data.parentSearch = 'branch';
+    wrapper.findComponent(ParentTypePicker).vm.$emit('input', 'branch');
     vm.acceptChanges();
     expect(filters.updateTypeDefinition).toHaveBeenCalledTimes(1);
     expect(filters.updateTypeDefinition).toHaveBeenCalledWith({
@@ -258,16 +216,14 @@ describe('TypeEditor hierarchy editing', () => {
     const first = mountEditor({
       filters: makeFilters({ allTypes: ['leaf', 'root'], hierarchy: undefined }),
     });
-    first.vm.data.editingParent = 'root';
-    first.vm.data.parentSearch = 'root';
+    first.wrapper.findComponent(ParentTypePicker).vm.$emit('input', 'root');
     first.vm.acceptChanges();
     expect(first.filters.updateTypeDefinition).toHaveBeenCalledWith({
       currentType: 'leaf', newType: 'leaf', parent: 'root',
     });
 
     const final = mountEditor();
-    final.vm.data.editingParent = null;
-    final.vm.data.parentSearch = null;
+    final.wrapper.findComponent(ParentTypePicker).vm.$emit('input', null);
     final.vm.acceptChanges();
     expect(final.filters.updateTypeDefinition).toHaveBeenCalledWith({
       currentType: 'leaf', newType: 'leaf', parent: undefined,
@@ -283,7 +239,6 @@ describe('TypeEditor hierarchy editing', () => {
     });
     vm.data.editingType = 'root';
     vm.data.editingParent = 'root';
-    vm.data.parentSearch = 'root';
     vm.data.editingColor = '#abcdef';
     vm.acceptChanges();
     expect(vm.data.definitionError).toBe(
@@ -375,23 +330,25 @@ describe('TypeEditor hierarchy editing', () => {
     const { vm, wrapper } = mountEditor({ filters });
     expect(vm.deleteBlocked).toBe(true);
     expect(wrapper.text()).toContain('Only types without annotations can be deleted.');
-    expect(wrapper.find('v-autocomplete').attributes('disabled')).toBe('true');
+    expect(wrapper.findComponent(ParentTypePicker).props('disabled')).toBe(true);
     expect(wrapper.find('v-text-field').attributes('disabled')).toBe('true');
   });
 
-  it('reinitializes the complete draft when the selected type changes', async () => {
+  it('reinitializes the draft and picker when types change, even with the same parent', async () => {
     const filters = makeFilters({
       allTypes: ['leaf', 'root', 'other', 'branch'],
-      hierarchy: { leaf: 'root', other: 'branch' },
+      hierarchy: { leaf: 'root', other: 'root' },
     });
-    const { vm, setProps } = mountEditor({ filters });
-    vm.data.editingParent = 'branch';
+    const { vm, setProps, wrapper } = mountEditor({ filters });
+    const previousPicker = wrapper.findComponent(ParentTypePicker).vm;
+    previousPicker.$emit('search-valid', false);
     vm.data.editingColor = '#abcdef';
     await setProps({ selectedType: 'other' });
     expect(vm.data.selectedType).toBe('other');
     expect(vm.data.editingType).toBe('other');
-    expect(vm.data.editingParent).toBe('branch');
-    expect(vm.data.parentSearch).toBe('branch');
+    expect(vm.data.editingParent).toBe('root');
+    expect(wrapper.findComponent(ParentTypePicker).vm).not.toBe(previousPicker);
+    expect(vm.data.parentSearchValid).toBe(true);
     expect(vm.data.editingColor).toBe('color:other');
   });
 
