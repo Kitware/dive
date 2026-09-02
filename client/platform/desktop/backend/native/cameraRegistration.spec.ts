@@ -49,7 +49,7 @@ const irToRgb = [[1, 0, 5], [0, 1, -3], [0, 0, 1]];
 const uvToRgb = [[1, 0, -8], [0, 1, 2], [0, 0, 1]];
 
 function registrationFile(pairs: unknown[]) {
-  return JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs });
+  return JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs });
 }
 
 const projectFiles = { 'meta.json': '{}', 'result_1.json': '{}' };
@@ -60,12 +60,12 @@ mockfs({
       ...projectFiles,
       'ir_to_rgb_registration.json': registrationFile([
         {
-          left: 'ir', right: 'rgb', points: [], leftToRight: irToRgb, rightToLeft: identity,
+          left: 'ir', right: 'rgb', observations: [], leftToRight: irToRgb, rightToLeft: identity,
         },
       ]),
       'uv_to_rgb_registration.json': registrationFile([
         {
-          left: 'uv', right: 'rgb', points: [], leftToRight: uvToRgb, rightToLeft: identity,
+          left: 'uv', right: 'rgb', observations: [], leftToRight: uvToRgb, rightToLeft: identity,
         },
       ]),
     },
@@ -73,14 +73,14 @@ mockfs({
       ...projectFiles,
       'ir_to_rgb_registration.json': registrationFile([
         {
-          left: 'ir', right: 'rgb', points: [], leftToRight: irToRgb, rightToLeft: identity,
+          left: 'ir', right: 'rgb', observations: [], leftToRight: irToRgb, rightToLeft: identity,
         },
       ]),
       // Non-star pair (two non-reference cameras): explicitly unsupported
       // for pipelines even though fitted.
       'uv_to_ir_registration.json': registrationFile([
         {
-          left: 'uv', right: 'ir', points: [], leftToRight: uvToRgb, rightToLeft: identity,
+          left: 'uv', right: 'ir', observations: [], leftToRight: uvToRgb, rightToLeft: identity,
         },
       ]),
     },
