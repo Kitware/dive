@@ -90,6 +90,8 @@ export interface PendingUpload {
   annotationFile: File | null;
   /** Optional DIVE Configuration File (JSON attributes, styles, FPS, …). */
   configFile: File | null;
+  /** Optional KWCOCO species list declaring the types readers may choose from. */
+  speciesFile: File | null;
   /** Optional dataset-level attachment used by pipelines and, for TXT/CSV, frame metadata. */
   metadataFile: File | null;
   /** Media/annotation/config package the server validated for upload (rebuilt at start). */
@@ -275,6 +277,7 @@ export default defineComponent({
         mediaList: allFiles,
         annotationFile: null,
         configFile: null,
+        speciesFile: null,
         metadataFile: null,
         uploadFiles: allFiles,
         unslotted: [],
@@ -289,8 +292,10 @@ export default defineComponent({
     // Accept filters per slot, mirroring the file dialog's own filters.
     // 'config' is the DIVE JSON configuration file; 'metadata' is the optional
     // pipeline sidecar — keep these names distinct from each other.
-    const filterFileUpload = (type: DatasetType | 'config' | 'annotation' | 'metadata') => {
-      if (type === 'config') {
+    const filterFileUpload = (
+      type: DatasetType | 'config' | 'annotation' | 'metadata' | 'species',
+    ) => {
+      if (type === 'config' || type === 'species') {
         return '.json';
       }
       if (type === 'annotation') {
@@ -325,6 +330,7 @@ export default defineComponent({
       ...pendingUpload.mediaList,
       ...(pendingUpload.annotationFile ? [pendingUpload.annotationFile] : []),
       ...(pendingUpload.configFile ? [pendingUpload.configFile] : []),
+      ...(pendingUpload.speciesFile ? [pendingUpload.speciesFile] : []),
     ];
 
     const addPendingUpload = async (
@@ -342,6 +348,7 @@ export default defineComponent({
         mediaList: slots.mediaList,
         annotationFile: slots.annotationFile,
         configFile: slots.configFile,
+        speciesFile: slots.speciesFile,
         metadataFile: slots.metadataFile,
         uploadFiles: [],
         unslotted: slots.unslotted,
@@ -1178,6 +1185,18 @@ export default defineComponent({
                     hint="Optional"
                     :disabled="pendingUpload.uploading"
                     :accept="filterFileUpload('config')"
+                  />
+                </v-row>
+                <v-row>
+                  <v-file-input
+                    v-model="pendingUpload.speciesFile"
+                    show-size
+                    counter
+                    prepend-icon="mdi-format-list-bulleted-type"
+                    label="Species List (Optional)"
+                    hint="KWCOCO categories declaring the types readers can choose from."
+                    :disabled="pendingUpload.uploading"
+                    :accept="filterFileUpload('species')"
                   />
                 </v-row>
                 <!--

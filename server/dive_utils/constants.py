@@ -71,6 +71,10 @@ stereoCalibrationRegex = re.compile(r"\.(?:npz|json|cam|yml|zip)$", re.IGNORECAS
 # Optional per-dataset metadata file uploads (aligned with dive-common metadataFileTypes)
 metadataFileRegex = re.compile(r"\.(?:json|txt|csv)$", re.IGNORECASE)
 metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
+# A KWCOCO species list travels beside the media as configuration, not as annotations.
+# Kept separate from metaRegex: the zip-import meta discovery and the desktop
+# exported-dataset test both key off that pattern and must not see a species list.
+speciesRegex = re.compile(r"^.*\.?species\.json$", re.IGNORECASE)
 # .json or .csv file
 possibleAnnotationRegex = re.compile(r"\.(json|csv)$", re.IGNORECASE)
 

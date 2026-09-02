@@ -241,3 +241,36 @@ def test_ignored_is_the_exact_complement_of_the_accepted_roles():
     classified = [name for role in result['roles'].values() for name in role]
     assert sorted(classified) == sorted(files)
     assert set(result['reasons']) == set(result['roles']['ignored'])
+
+
+def test_species_list_json_is_dataset_config_not_annotations():
+    result = validate_files(['image_0001.jpg', 'rockfish.species.json'])
+
+    assert result['ok'] is True
+    assert 'rockfish.species.json' in result['roles']['datasetConfig']
+    assert 'rockfish.species.json' not in result['roles']['annotations']
+    assert 'rockfish.species.json' not in result['roles']['ignored']
+
+
+def test_species_list_uploads_alongside_annotations_and_a_configuration():
+    # A species list has its own slot, so it competes with neither the dataset's own
+    # configuration nor its annotations for a place in the upload.
+    result = validate_files(['image_0001.jpg', 'tracks.json', 'config.json', 'species.json'])
+
+    assert result['ok'] is True
+    assert set(result['roles']['datasetConfig']) == {'config.json', 'species.json'}
+    assert result['roles']['annotations'] == ['tracks.json']
+
+
+def test_two_species_lists_are_rejected():
+    result = validate_files(['image_0001.jpg', 'a.species.json', 'b.species.json'])
+
+    assert result['ok'] is False
+    assert result['message'] == "Can only upload a single species list JSON per import"
+
+
+def test_two_configuration_jsons_are_still_rejected_beside_a_species_list():
+    result = validate_files(['image_0001.jpg', 'config.json', 'other.meta.json', 'species.json'])
+
+    assert result['ok'] is False
+    assert result['message'] == "Can only upload a single configuration JSON per import"

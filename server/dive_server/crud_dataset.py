@@ -1886,6 +1886,17 @@ def validate_files(files: List[str]):
     dataset_config = [
         f for f in files if constants.jsonRegex.search(f) and constants.metaRegex.search(f)
     ]
+    # A KWCOCO species list is configuration too: it declares the classes a dataset may use.
+    # It rides the configuration slot rather than the annotation slot so a dataset can be
+    # uploaded with both its annotations and the list the reader picks from.
+    species_lists = [
+        f
+        for f in files
+        if constants.jsonRegex.search(f)
+        and constants.speciesRegex.search(f)
+        and f not in set(dataset_config)
+    ]
+    dataset_config = dataset_config + species_lists
     dataset_config_set = set(dataset_config)
 
     annotation_csvs = [f for f in files if constants.csvRegex.search(f) and f not in frame_meta_set]
@@ -1920,7 +1931,10 @@ def validate_files(files: List[str]):
     elif len(frame_meta) > 1:
         ok = False
         message = "More than one metadata file was selected. Choose one file and try again."
-    elif len(dataset_config) > 1:
+    elif len(species_lists) > 1:
+        ok = False
+        message = "Can only upload a single species list JSON per import"
+    elif len(dataset_config) - len(species_lists) > 1:
         ok = False
         message = "Can only upload a single configuration JSON per import"
     elif len(annotation_jsons) > 1:

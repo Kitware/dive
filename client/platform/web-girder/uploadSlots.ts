@@ -1,16 +1,18 @@
 import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
-import { JsonConfigRegEx } from 'dive-common/constants';
+import { JsonConfigRegEx, JsonSpeciesRegEx } from 'dive-common/constants';
 import type { IgnoredUploadFile } from './api/dataset.service';
 
 export interface SuggestedUploadSlots {
   mediaList: File[];
   annotationFile: File | null;
   configFile: File | null;
+  speciesFile: File | null;
   metadataFile: File | null;
   /**
    * Picked files no slot can hold, each with the reason. A dataset takes at most one
-   * annotation source and one metadata attachment, so the extras are reported to the user
-   * instead of being placed in a slot that would make the whole selection fail validation.
+   * annotation source, one species list, and one metadata attachment, so the extras are
+   * reported to the user instead of being placed in a slot that would make the whole
+   * selection fail validation.
    */
   unslotted: IgnoredUploadFile[];
 }
@@ -18,11 +20,12 @@ export interface SuggestedUploadSlots {
 const ONE_ANNOTATION_REASON = 'Only one annotation file can be uploaded per dataset';
 const ONE_CONFIG_REASON = 'Only one configuration file can be uploaded per dataset';
 const ONE_METADATA_REASON = 'Only one metadata file can be uploaded per dataset';
+const ONE_SPECIES_REASON = 'Only one species list can be uploaded per dataset';
 
 /** Files the server classifies as annotation sources, in the order this split prefers them. */
-function annotationCandidates(files: File[], configFiles: File[]): File[] {
+function annotationCandidates(files: File[], configurationFiles: File[]): File[] {
   const matching = (test: (name: string) => boolean) => files.filter(
-    (file) => !configFiles.includes(file) && test(file.name),
+    (file) => !configurationFiles.includes(file) && test(file.name),
   );
   return [
     ...matching((name) => name.includes('.csv')),
@@ -45,9 +48,16 @@ export default function suggestUploadSlots(fileList: File[]): SuggestedUploadSlo
   const [metadataFile = null, ...extraMetadata] = fileList.filter(isMetadata);
   const configFiles = rest.filter((f) => JsonConfigRegEx.test(f.name));
   const [configFile = null, ...extraConfigs] = configFiles;
-  const [annotationFile = null, ...extraAnnotations] = annotationCandidates(rest, configFiles);
+  // A species list is configuration with its own slot, so it never competes with the
+  // dataset's own config.json or with its annotations for a place in the upload.
+  const speciesFiles = rest.filter(
+    (f) => !configFiles.includes(f) && JsonSpeciesRegEx.test(f.name),
+  );
+  const [speciesFile = null, ...extraSpecies] = speciesFiles;
+  const nonAnnotation = [...configFiles, ...speciesFiles];
+  const [annotationFile = null, ...extraAnnotations] = annotationCandidates(rest, nonAnnotation);
   const claimed = new Set<File>([
-    ...configFiles,
+    ...nonAnnotation,
     ...(annotationFile ? [annotationFile] : []),
     ...extraAnnotations,
   ]);
@@ -55,10 +65,12 @@ export default function suggestUploadSlots(fileList: File[]): SuggestedUploadSlo
     mediaList: rest.filter((f) => !claimed.has(f)),
     annotationFile,
     configFile,
+    speciesFile,
     metadataFile,
     unslotted: [
       ...extraAnnotations.map((f) => ({ name: f.name, reason: ONE_ANNOTATION_REASON })),
       ...extraConfigs.map((f) => ({ name: f.name, reason: ONE_CONFIG_REASON })),
+      ...extraSpecies.map((f) => ({ name: f.name, reason: ONE_SPECIES_REASON })),
       ...extraMetadata.map((f) => ({ name: f.name, reason: ONE_METADATA_REASON })),
     ],
   };
