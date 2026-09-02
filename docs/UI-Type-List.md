@@ -46,7 +46,7 @@ A parent row's checkbox always toggles its complete subtree. The heading checkbo
 
 **Compact Parents** folds unused shared parent rows into a breadcrumb. Used or configured parents remain as rows. **Expand Parents** restores the full chain, and searching shows a match's complete path.
 
-While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
+While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.`
 
 ## Type Style Editor
 
