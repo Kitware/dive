@@ -11,6 +11,7 @@ be uploaded or imported alongside your media and will be automatically parsed.
 
 * DIVE Annotation JSON (default annotation format)
 * DIVE Configuration JSON
+* KWCOCO Species List (configuration: the classes a dataset may use)
 * VIAME CSV
 * KPF (KWIVER Packet Format)
 * COCO and KWCOCO
@@ -284,6 +285,68 @@ interface FrameImage {
   timestamp?: number; // capture time in epoch seconds, when parseable from filename
 }
 ```
+
+## KWCOCO Species List
+
+A species list pre-loads the classes readers pick from, so a dataset opens with the whole list
+already in the [Type List](UI-Type-List.md) instead of being typed in one video at a time.
+
+The format is a KWCOCO `categories` block and nothing else — no `images`, no `annotations`:
+
+```json
+{
+  "categories": [
+    { "id": 1, "name": "Sebastes" },
+    { "id": 2, "name": "Sebastes melanops", "supercategory": "Sebastes" },
+    { "id": 3, "name": "Sebastes flavidus",  "supercategory": "Sebastes" }
+  ]
+}
+```
+
+This is the only species-list format DIVE reads. A file that carries media or annotations is an
+ordinary [COCO / KWCOCO](#coco-and-kwcoco) annotation import, even when its annotation list is
+empty.
+
+* Each `name` becomes a type the dataset declares, listed in the Type List under **Show Empty**
+  and selectable in [locked mode](UI-Type-List.md#locked-mode).
+* `supercategory` — or a one-element `parents` array — becomes a
+  [type hierarchy](UI-Type-List.md#hierarchical-types) edge, read exactly as it is for an
+  annotation import.
+* Nameless category slots and repeated names are skipped, with the same warnings a COCO import
+  reports. Repeated names also cost the file its hierarchy.
+* A species list never creates, changes, or removes annotations.
+
+### Importing a species list
+
+* **In the viewer**, use **Import** and choose the file, on Web and on Desktop.
+* **At upload**, put it in the **Species List** field on the Web upload page or the Desktop
+  import dialog. On Web it may be uploaded together with an annotation file and a DIVE
+  Configuration JSON; one species list per dataset.
+* **Beside the media**, name it to end in `species.json` (for example, `rockfish.species.json`)
+  and it is picked up automatically when the folder is imported.
+
+### Overwrite and additive imports
+
+The import dialog's **Overwrite** checkbox decides how a list meets what the dataset already
+declares:
+
+* **Overwrite** (the default) makes the file the whole declaration. Types it omits stop being
+  declared and the hierarchy is replaced; a list with no `supercategory` clears the stored
+  hierarchy. Styles are kept for the types the file names.
+* **Additive** adds the file's species and hierarchy edges and keeps everything already declared.
+  A list with no `supercategory` leaves the stored hierarchy alone.
+
+Neither mode can orphan annotations: a type a track actually uses is listed from that track's
+confidence pairs whether or not it is declared. Removing it from the declaration only drops its
+saved color, which falls back to the default palette.
+
+A list whose hierarchy cannot be applied — a cycle, a self-edge, or a child given two different
+parents — fails the import with `Type hierarchy is invalid: {reason}. No configuration was
+changed.` rather than importing a flat list. Unlike the category block of an annotation file,
+which degrades to a warning, a species list is imported for its classes.
+
+For a multicamera dataset the declared types and the hierarchy are stored on the parent, so a
+species list imported against one camera updates the whole dataset.
 
 ## VIAME CSV
 

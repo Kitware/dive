@@ -113,6 +113,19 @@ In locked mode, only a specified list of classes can be used, and must be select
 
 <div style="clear: both;"/>
 
+### Pre-loading a species list
+
+Typing a long list into ==:material-plus: Types== for every video does not scale. To pre-load the
+same classes everywhere, import a [KWCOCO Species List](DataFormats.md#kwcoco-species-list) — a
+KWCOCO `categories` block with no images or annotations. Every `name` becomes a declared type and
+every `supercategory` becomes a [hierarchy](#hierarchical-types) edge, so a taxonomy arrives as a
+tree rather than a flat list.
+
+Import it from **Import** in the viewer, from the **Species List** field at upload, or by naming
+it to end in `species.json` and placing it beside the media. **Overwrite** replaces the declared
+list; an additive import adds to it. Turning **Lock Types** on is a separate choice: the file
+supplies the list, the setting decides whether readers may go outside it.
+
 ### Suppression
 
 Type settings also configure [suppression](UI-Suppression.md):
