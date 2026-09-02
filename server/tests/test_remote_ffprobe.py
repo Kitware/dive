@@ -84,7 +84,7 @@ def test_sanitize_subprocess_args_keeps_header_file_path():
 def test_sanitize_subprocess_args_keeps_shell_command_string():
     cmd = (
         '. /opt/noaa/viame/setup_viame.sh && KWIVER_DEFAULT_LOG_LEVEL=warn '
-        '/opt/noaa/viame/bin/viame train --no-query --no-embedded-pipe'
+        '/opt/noaa/viame/bin/viame train --no-query'
     )
     assert utils.sanitize_subprocess_args_for_log(cmd) == cmd
 
