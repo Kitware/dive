@@ -469,8 +469,8 @@ async function runPipeline(
 
     if (pipeline.pipe.toLowerCase().includes('align_cameras')) {
       // Camera names for the output JSON, aligned with the input{i} order
-      // the arg writer uses (Object.entries over meta.multiCam.cameras).
-      const cameraNames = Object.keys(meta.multiCam.cameras).join(',');
+      // writeMultiCamStereoPipelineArgs uses (multiCamOrder or cameraOrder).
+      const cameraNames = (multiCamOrder ?? orderedMultiCamCameraNames(meta.multiCam)).join(',');
       command.push(`-s register:camera_names="${cameraNames}"`);
       command.push(`-s register:output_directory="${jobWorkDir}"`);
     }
