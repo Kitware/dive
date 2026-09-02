@@ -36,7 +36,7 @@ import {
 import { buildRegistrationPipelineArgs, ingestPipelineRegistration } from './cameraRegistration';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
-  writeMultiCamStereoPipelineArgs,
+  videoSubsetCameras, writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
 
 const PipelineRelativeDir = 'configs/pipelines';
@@ -327,6 +327,14 @@ async function runPipeline(
   // camera (single-cam: one entry).
   let inputImageLists: string[] = [];
 
+  // A frame-subset run extracts each video camera's chosen frames to stills, so
+  // every input below is an image list and no video reader is left to configure
+  // — binding one would point vidl_ffmpeg at a .txt manifest, and the
+  // downsampler settings describe a video timeline the run no longer reads.
+  // writeMultiCamStereoPipelineArgs does the extracting, but the reader type is
+  // bound here, before it runs, so the set has to be known up front.
+  const feedsVideoReader = !videoSubsetCameras(meta, imagePairs).length;
+
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     if (meta.type === MultiType) {
@@ -337,11 +345,11 @@ async function runPipeline(
     command = [
       `${viameConstants.setupScriptAbs} &&`,
       `"${viameConstants.viameExe}" runner`,
-      '-s "input:video_reader:type=vidl_ffmpeg"',
+      ...(feedsVideoReader ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
       `-p "${pipelinePath}"`,
-      `-s downsampler:target_frame_rate=${meta.fps}`,
+      ...(feedsVideoReader ? [`-s downsampler:target_frame_rate=${meta.fps}`] : []),
     ];
-    if (frameRange) {
+    if (frameRange && feedsVideoReader) {
       command.push(`-s downsampler:start_frame=${frameRange[0]}`);
       command.push(`-s downsampler:end_frame=${frameRange[1]}`);
       const isNative = !meta.originalFps || meta.fps >= meta.originalFps;

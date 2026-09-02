@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from dive_tasks import multicam_pipeline
 from dive_tasks.multicam_pipeline import (
     DEFAULT_CALIBRATION_KEYS,
     append_stereo_calibration_kwiver_settings,
@@ -14,7 +17,9 @@ from dive_tasks.multicam_pipeline import (
     is_stereo_or_multicam_pipeline,
     missing_registrations,
     pipeline_requires_input,
+    pseudo_frame_number,
     stereo_calibration_keys,
+    video_subset_cameras,
 )
 from dive_utils import constants
 
@@ -316,3 +321,88 @@ def test_build_multicam_kwiver_settings_video(tmp_path: Path):
     assert arg_pair['input:video_filename'] == '/tmp/left.mp4'
     assert arg_pair['input2:video_reader:type'] == 'vidl_ffmpeg'
     assert out_files['right'] == 'computed_tracks_right.csv'
+
+
+def _video_cameras():
+    return [
+        {'name': 'left', 'folder_id': 'l', 'media_type': constants.VideoType},
+        {'name': 'right', 'folder_id': 'r', 'media_type': constants.VideoType},
+    ]
+
+
+def _video_media():
+    return {
+        'left': (['/tmp/left.mp4'], constants.VideoType),
+        'right': (['/tmp/right.mp4'], constants.VideoType),
+    }
+
+
+def test_pseudo_frame_number():
+    assert pseudo_frame_number('frame://12') == 12
+    assert pseudo_frame_number('frame://0') == 0
+    assert pseudo_frame_number('000.png') is None
+    assert pseudo_frame_number('frame://x') is None
+
+
+def test_video_subset_cameras():
+    camera_media = {
+        'left': ([], constants.VideoType),
+        'right': ([], constants.ImageSequenceType),
+    }
+    assert video_subset_cameras(camera_media, None) == []
+    assert video_subset_cameras(camera_media, {'right': ['000.png']}) == []
+    assert video_subset_cameras(camera_media, {'left': ['frame://1']}) == ['left']
+
+
+def test_build_multicam_kwiver_settings_video_subset(tmp_path: Path, monkeypatch):
+    """A video camera's subset is extracted to stills and fed as an image list."""
+    calls = []
+
+    def fake_extract(video_path, frames, fps, out_dir, camera, on_progress=None):
+        calls.append((video_path, frames, fps, out_dir, camera))
+        paths = [str(out_dir / f'{camera}.frame_{frame}.png') for frame in frames]
+        if on_progress is not None:
+            for index in range(len(paths)):
+                on_progress(index + 1, len(paths))
+        return paths
+
+    monkeypatch.setattr(multicam_pipeline, 'extract_video_frames', fake_extract)
+    messages = []
+    arg_pair, _ = build_multicam_kwiver_settings(
+        tmp_path,
+        _video_cameras(),
+        _video_media(),
+        image_pairs={'left': ['frame://0', 'frame://7'], 'right': ['frame://1', 'frame://8']},
+        fps=5.0,
+        on_progress=messages.append,
+    )
+
+    assert [call[1] for call in calls] == [[0, 7], [1, 8]]
+    assert [call[2] for call in calls] == [5.0, 5.0]
+    # Image-list input on both cameras; no video reader is bound.
+    assert arg_pair['input:video_filename'] == str(tmp_path / 'input1_images.txt')
+    assert arg_pair['input2:video_filename'] == str(tmp_path / 'input2_images.txt')
+    assert 'input2:video_reader:type' not in arg_pair
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8').splitlines() == [
+        str(tmp_path / 'extracted_left' / 'left.frame_0.png'),
+        str(tmp_path / 'extracted_left' / 'left.frame_7.png'),
+    ]
+    # Progress is per camera, so a stalled rig-wide run says which one it is on.
+    assert 'Extracting frames from left: 1/2' in messages
+    assert 'Extracting frames from right: 2/2' in messages
+
+
+def test_build_multicam_kwiver_settings_video_subset_requires_pseudo_frames(tmp_path: Path):
+    with pytest.raises(ValueError, match='frame://N'):
+        build_multicam_kwiver_settings(
+            tmp_path,
+            _video_cameras(),
+            _video_media(),
+            image_pairs={'left': ['000.png']},
+            fps=5.0,
+        )
+
+
+def test_extract_video_frames_requires_fps(tmp_path: Path):
+    with pytest.raises(ValueError, match='frame rate'):
+        multicam_pipeline.extract_video_frames('/tmp/left.mp4', [1], 0, tmp_path, 'left')

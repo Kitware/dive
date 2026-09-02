@@ -6,13 +6,106 @@ import json
 from pathlib import Path
 import re
 import shlex
-from typing import Dict, List, Optional, Tuple
+import subprocess
+from typing import Callable, Dict, List, Optional, Tuple
 
 from dive_tasks.pipeline_creates_dataset import is_disparity_image_pipeline
 from dive_utils import constants
 from dive_utils.types import MulticamCameraJob, MulticamRegistrationJob, PipelineDescription
 
 _PIPELINE_INPUT_PATTERN = re.compile(r'utility_|filter_|transcode_|measurement_')
+_PSEUDO_FRAME_PATTERN = re.compile(r'^frame://(\d+)$')
+
+
+def pseudo_frame_number(entry: str) -> Optional[int]:
+    """frame://N pseudo-name to frame number, or None for a real image name."""
+    match = _PSEUDO_FRAME_PATTERN.match(entry)
+    return int(match.group(1)) if match else None
+
+
+def video_subset_cameras(
+    camera_media: Dict[str, Tuple[List[str], str]],
+    image_pairs: Optional[Dict[str, List[str]]],
+) -> List[str]:
+    """
+    Names of the cameras a frame-subset run feeds from video, i.e. the ones
+    whose subset is extracted to stills by build_multicam_kwiver_settings.
+
+    Two callers outside the settings builder need this same answer: the run
+    must not also hand the pipe a video reader type once every input is an
+    image list, and registration ingest must map the extracted still names
+    back to the frame://N identities the client sent.
+    """
+    return [
+        name
+        for name in (image_pairs or {})
+        if (camera_media.get(name) or (None, None))[1] == constants.VideoType
+    ]
+
+
+def extract_video_frames(
+    video_path: str,
+    frames: List[int],
+    fps: float,
+    out_dir: Path,
+    camera: str,
+    on_progress: Optional[Callable[[int, int], None]] = None,
+) -> List[str]:
+    """
+    Extract specific frames of a video to still images so a frame-subset job
+    can consume one uniform image-list input (no vidl_ffmpeg in the pipe, no
+    video-decode variability in the matcher's input). The frame number is kept
+    in the file name (<camera>.frame_<N>.png) so job outputs can be mapped
+    back to frame://N identities on ingest.
+
+    The name pattern is a contract shared with the desktop backend's
+    extractVideoFrames: both ingest paths parse it to recover the frame.
+    """
+    if not fps or fps <= 0:
+        raise ValueError(
+            f'Camera "{camera}" needs a frame rate to turn registration frame numbers '
+            f'into video timestamps, but the dataset reports fps={fps}'
+        )
+    out_dir.mkdir(parents=True, exist_ok=True)
+    results: List[str] = []
+    for frame_number in frames:
+        # The viewer seeks video by frame/fps seconds, so a frame number means
+        # that instant; ffmpeg lands on the frame covering it.
+        seconds = frame_number / fps
+        dest = out_dir / f'{camera}.frame_{frame_number}.png'
+        completed = subprocess.run(
+            [
+                'ffmpeg',
+                '-ss',
+                f'{seconds:.6f}',
+                '-i',
+                video_path,
+                '-frames:v',
+                '1',
+                # Without -update, ffmpeg's image2 muxer reads any digit-bearing
+                # output name as an ambiguous sequence pattern and refuses to
+                # write it; -update 1 says this is one literal file.
+                '-update',
+                '1',
+                '-y',
+                str(dest),
+            ],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        # stderr is ffmpeg's own banner/progress logging even on success; the
+        # exit code and the output file are the actual success signal.
+        if completed.returncode != 0 or not dest.exists():
+            detail = (completed.stderr or '').strip().splitlines()
+            raise ValueError(
+                f'Could not extract frame {frame_number} from {video_path}: '
+                f'{detail[-1] if detail else "no output"}'
+            )
+        results.append(str(dest))
+        if on_progress is not None:
+            on_progress(len(results), len(frames))
+    return results
 
 
 def pipeline_requires_input(pipeline: PipelineDescription) -> bool:
@@ -307,6 +400,8 @@ def build_multicam_kwiver_settings(
     *,
     requires_input: bool = False,
     image_pairs: Optional[Dict[str, List[str]]] = None,
+    fps: Optional[float] = None,
+    on_progress: Optional[Callable[[str], None]] = None,
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
     Build KWIVER -s key/value pairs for per-camera inputs/outputs.
@@ -314,7 +409,11 @@ def build_multicam_kwiver_settings(
     image_pairs is the registration frame subset (camera name -> ordered
     image names): when present for a camera, ONLY those images are written
     to its input list, in the given order -- row i of one camera's list
-    pairs with row i of every other's.
+    pairs with row i of every other's. A video camera's subset arrives as
+    frame://N pseudo-names and is extracted to stills at `fps`, so both media
+    types reach the pipe through the identical image-list input; the caller
+    must then drop any video reader type it would otherwise set (see
+    video_subset_cameras).
 
     Returns (arg_file_pair, out_files) where out_files maps camera name -> output csv basename.
     """
@@ -325,19 +424,50 @@ def build_multicam_kwiver_settings(
         key = camera['name']
         media_list, media_type = camera_media[key]
         subset = (image_pairs or {}).get(key)
+        # Set once a video camera's subset has been extracted: from here on it
+        # is fed as an image list, not as a video.
+        extracted_subset = False
         if subset is not None:
-            if media_type != constants.ImageSequenceType:
+            if media_type == constants.ImageSequenceType:
+                by_name = {Path(path).name: path for path in media_list}
+                missing = [name for name in subset if name not in by_name]
+                if missing:
+                    raise ValueError(
+                        f'Camera "{key}" media does not include requested frames: {missing[:5]}'
+                    )
+                media_list = [by_name[name] for name in subset]
+            elif media_type == constants.VideoType:
+                frames: List[int] = []
+                for entry in subset:
+                    frame_number = pseudo_frame_number(entry)
+                    if frame_number is None:
+                        raise ValueError(
+                            f'Expected frame://N identifiers for video camera "{key}", '
+                            f'got "{entry}"'
+                        )
+                    frames.append(frame_number)
+                assert len(media_list) == 1, 'Expected exactly one video per camera'
+
+                def camera_progress(done: int, total: int, name: str = key) -> None:
+                    # Named per camera: a rig-wide run spends most of its time
+                    # here, and "which camera" is the useful half of progress.
+                    if on_progress is not None:
+                        on_progress(f'Extracting frames from {name}: {done}/{total}')
+
+                media_list = extract_video_frames(
+                    media_list[0],
+                    frames,
+                    fps or 0,
+                    work_dir / f'extracted_{key}',
+                    key,
+                    camera_progress if on_progress is not None else None,
+                )
+                extracted_subset = True
+            else:
                 raise ValueError(
-                    'Image-pair subsets are only supported for image-sequence cameras '
+                    f'Image-pair subsets are not supported for "{media_type}" media '
                     f'(camera "{key}")'
                 )
-            by_name = {Path(path).name: path for path in media_list}
-            missing = [name for name in subset if name not in by_name]
-            if missing:
-                raise ValueError(
-                    f'Camera "{key}" media does not include requested frames: {missing[:5]}'
-                )
-            media_list = [by_name[name] for name in subset]
         output_file_name = f'computed_tracks_{key}.csv'
         output_arg = f'detector_writer{i + 1}:file_name'
         output_arg_tracks = f'track_writer{i + 1}:file_name'
@@ -350,7 +480,7 @@ def build_multicam_kwiver_settings(
             arg_file_pair['detector_writer:file_name'] = output_file_name
             arg_file_pair['track_writer:file_name'] = output_file_name
 
-        if media_type == constants.ImageSequenceType:
+        if media_type == constants.ImageSequenceType or extracted_subset:
             input_file_name = str(work_dir / f'input{i + 1}_images.txt')
             with open(input_file_name, 'w', encoding='utf-8') as img_list_file:
                 img_list_file.write('\n'.join(media_list))

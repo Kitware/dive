@@ -20,6 +20,7 @@ from dive_tasks.multicam_pipeline import (
     build_registration_kwiver_settings,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
+    video_subset_cameras,
 )
 from dive_tasks.pipeline_creates_dataset import (
     append_new_dataset_media_writers,
@@ -289,10 +290,15 @@ def run_pipeline(self: Task, params: PipelineJob):
             creates_new_dataset = pipeline_creates_new_dataset(pipeline)
             camera_media: Dict[str, Tuple[List[str], str]] = {}
 
+            # A frame subset names frames by the timeline the viewer showed the
+            # user, which for web video is the transcoded file (useDataset reads
+            # media.video); extracting from the source instead would pair frame
+            # numbers against a different timeline wherever a transcode shifted it.
+            multicam_force_transcoded = force_transcoded or bool(image_pairs)
             for cam_index, camera in enumerate(multicam_cameras, start=1):
                 cam_input_path = utils.make_directory(input_path / camera['name'])
                 media_list, media_type = utils.download_source_media(
-                    gc, camera['folder_id'], cam_input_path, force_transcoded
+                    gc, camera['folder_id'], cam_input_path, multicam_force_transcoded
                 )
                 if frame_range is not None and media_type == constants.ImageSequenceType:
                     media_list = filter_image_list_by_frame_range(media_list, frame_range)
@@ -303,12 +309,32 @@ def run_pipeline(self: Task, params: PipelineJob):
                         gc, camera['folder_id'], camera['input_revision'], gt_path
                     )
 
+            # Video cameras in a frame-subset run are extracted to stills below,
+            # so the run feeds image lists only -- see the reader-type skip.
+            extracted_cameras = video_subset_cameras(camera_media, image_pairs)
+            if extracted_cameras:
+                manager.write(
+                    'Extracting registration frames from video for: '
+                    f'{", ".join(extracted_cameras)}\n'
+                )
+
+            def report_extraction(message: str) -> None:
+                # Extraction is a plain loop of short ffmpeg calls, so unlike a
+                # streamed subprocess nothing else notices a cancel while it runs.
+                if utils.check_canceled(self, context, force=False):
+                    manager.write('\nCanceled during frame extraction.\n')
+                    manager.updateStatus(JobStatus.CANCELED)
+                    raise utils.CanceledError('Job was canceled')
+                manager.write(f'{message}\n')
+
             arg_file_pair, out_files = build_multicam_kwiver_settings(
                 _working_directory_path,
                 multicam_cameras,
                 camera_media,
                 requires_input=requires_input,
                 image_pairs=image_pairs,
+                fps=input_fps,
+                on_progress=report_extraction if extracted_cameras else None,
             )
 
             command = [
@@ -317,7 +343,10 @@ def run_pipeline(self: Task, params: PipelineJob):
                 "viame runner",
                 f"-p {shlex.quote(str(pipeline_path))}",
             ]
-            if input_type == constants.VideoType:
+            # An extracted subset replaced every video input with an image list;
+            # leaving the video reader type (or the downsampler) bound would
+            # point a vidl_ffmpeg reader at a .txt manifest.
+            if input_type == constants.VideoType and not extracted_cameras:
                 command.extend(
                     [
                         '-s input:video_reader:type=vidl_ffmpeg',
@@ -474,7 +503,9 @@ def run_pipeline(self: Task, params: PipelineJob):
                 # merge it into the saved registration meta.
                 newfile = gc.uploadFileToFolder(input_folder_id, str(registration_path))
                 gc.addMetadataToItem(str(newfile['itemId']), {'pipeline': pipeline})
-                merged = ingest_registration_output(gc, input_folder_id, registration_path)
+                merged = ingest_registration_output(
+                    gc, input_folder_id, registration_path, extracted_cameras
+                )
                 manager.write(f'Merged camera registration for {merged} pair(s) into the dataset\n')
                 return
             for camera in multicam_cameras:
