@@ -9,9 +9,9 @@ import {
 /**
  * One request for the user to place a dataset's cameras onto a multicam
  * pipeline's inputs. Slots come from the pipe's `# Camera Order:` header
- * (`EO`, `UV`, `IR`) or are bare `input1..N`; the proposal comes from the
- * dataset's camera roles / names and is what runs when the user confirms
- * without changes.
+ * (`EO`, `UV`, `IR`) or are bare `input1..N`; the proposal follows the
+ * dataset's display order and is what runs when the user confirms without
+ * changes.
  */
 export interface PipelineCameraAssignRequest {
   datasetName: string;

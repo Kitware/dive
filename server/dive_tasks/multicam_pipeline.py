@@ -103,7 +103,8 @@ def infer_camera_role(camera_name: str) -> Optional[str]:
     """
     The sensor role (eo / ir / uv) a camera name denotes, or None when it names
     none or more than one. Set once at multicam import; the pipeline
-    camera-assignment step prefills from it and lets the user correct it.
+    camera-assignment step shows display order by default and lets the user
+    correct it.
     """
     segments = [seg for seg in re.split(r'[^a-z0-9]+', camera_name.lower()) if seg]
     roles = {

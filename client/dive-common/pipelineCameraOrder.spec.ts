@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   camerasForSlot, inferCameraRole, inferCameraRoles, missingRegistrations,
   parseCameraOrderHeader, pipelineCameraSlots, prefillPipelineCameraOrder,
+  proposedPipelineCameraOrder,
 } from './pipelineCameraOrder';
 
 describe('pipelineCameraOrder', () => {
@@ -33,6 +34,10 @@ describe('pipelineCameraOrder', () => {
     expect(inferCameraRole('center', ['0001.png'])).toBeNull();
     expect(inferCameraRoles({ rgb: [], center: ['x_ir.tif'], other: ['a.png'] }))
       .toStrictEqual({ rgb: 'eo', center: 'ir' });
+  });
+
+  it('maps display order 1:1 to pipeline inputs for the dialog default', () => {
+    expect(proposedPipelineCameraOrder(['eo', 'uv', 'ir'])).toStrictEqual(['eo', 'uv', 'ir']);
   });
 
   it('assigned roles beat name matching, and prefill leaves ambiguity open', () => {

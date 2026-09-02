@@ -10,9 +10,8 @@
  *
  * Datasets carry a role per camera (`cameraRoles`, inferred once at import
  * from the camera / image names and editable afterwards). Before a run the
- * user is shown each slot with the camera DIVE proposes for it -- by role
- * when both sides have one, else by name -- and confirms or corrects it; the
- * confirmed order is what the job runs with.
+ * user is shown each slot prefilled from the dataset's display order and
+ * confirms or corrects it; the confirmed order is what the job runs with.
  *
  * Role inference is mirrored in server/dive_tasks/multicam_pipeline.py.
  */
@@ -114,8 +113,17 @@ export function camerasForSlot(
 }
 
 /**
- * Propose a camera for every slot for the confirmation step. Never fails: a
- * slot with no unique candidate is proposed as null and left for the user.
+ * Initial assignment for the camera dialog: inputN gets the Nth camera in
+ * persisted display order (`cameraOrder`, via orderedMultiCamCameraNames).
+ */
+export function proposedPipelineCameraOrder(cameras: readonly string[]): string[] {
+  return [...cameras];
+}
+
+/**
+ * Propose a camera for every slot by matching slot tokens to camera roles /
+ * names. A slot with no unique candidate is proposed as null. Used when role
+ * alignment matters more than display order (not the default dialog prefill).
  */
 export function prefillPipelineCameraOrder(
   slots: string[],
