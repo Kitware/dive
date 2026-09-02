@@ -920,7 +920,6 @@ async function train(
     `--config "${configFilePath}"`,
     '--no-query',
     '--no-adv-prints',
-    '--no-embedded-pipe',
   ];
 
   if (resumeDir) {

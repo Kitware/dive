@@ -152,7 +152,6 @@ def train_pipeline(self: Task, params: TrainingJob):
             "--config",
             shlex.quote(str(config_file)),
             "--no-query",
-            "--no-embedded-pipe",
         ]
 
         if annotated_frames_only:
