@@ -11,8 +11,10 @@ import {
   SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
   SUPERCATEGORY_MULTI_PARENT_WARNING,
   isCocoJson,
+  isCocoSpeciesList,
   parseFile,
   serializeFile,
+  speciesListFromCategories,
   typeHierarchyFromCategories,
 } from 'platform/desktop/backend/serializers/coco';
 
@@ -745,6 +747,60 @@ describe('COCO serializer', () => {
     expect(zeroMeta.fps).toBeUndefined();
     const [, stringMeta] = await parseFile('/input/not-a-number.json');
     expect(stringMeta.fps).toBeUndefined();
+  });
+});
+
+describe('KWCOCO species list', () => {
+  it('is a category block with no media behind it', () => {
+    // The list declares what a dataset may use; it asserts nothing was observed.
+    expect(isCocoSpeciesList({ categories: [{ id: 1, name: 'fish' }] })).toBe(true);
+    expect(isCocoSpeciesList({
+      images: [], annotations: [], categories: [{ id: 1, name: 'fish' }],
+    })).toBe(true);
+  });
+
+  it('is not a COCO document that carries media or annotations', () => {
+    expect(isCocoSpeciesList({
+      images: [{ id: 1, file_name: 'a.png' }], categories: [{ id: 1, name: 'fish' }],
+    })).toBe(false);
+    expect(isCocoSpeciesList({
+      annotations: [{ id: 1 }], categories: [{ id: 1, name: 'fish' }],
+    })).toBe(false);
+  });
+
+  it('is not a document without usable category names', () => {
+    expect(isCocoSpeciesList({ categories: [] })).toBe(false);
+    expect(isCocoSpeciesList({ categories: [{ id: 1 }] })).toBe(false);
+    expect(isCocoSpeciesList({ categories: [{ id: 1, name: '' }] })).toBe(false);
+    expect(isCocoSpeciesList({ categories: ['fish'] })).toBe(false);
+    expect(isCocoSpeciesList({ tracks: {}, groups: {} })).toBe(false);
+    expect(isCocoSpeciesList([{ name: 'fish' }])).toBe(false);
+    expect(isCocoSpeciesList(null)).toBe(false);
+  });
+
+  it('reads names in file order without repeats, skipping nameless slots', () => {
+    const document = {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3 },
+        { id: 4, name: '' },
+        { id: 5, name: 'Sebastes' },
+        { id: 6, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    };
+    expect(speciesListFromCategories(document)).toEqual([
+      'Sebastes', 'Sebastes melanops', 'Sebastes flavidus',
+    ]);
+    // The nameless slots are reported once, by the hierarchy reader both callers use.
+    // Repeats also cost the file its hierarchy, which that same reader reports; the
+    // de-duplicated names are still declared.
+    const { hierarchy, warnings } = typeHierarchyFromCategories(document);
+    expect(hierarchy).toBeUndefined();
+    expect(warnings).toEqual([
+      CATEGORY_MISSING_NAME_WARNING,
+      SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
+    ]);
   });
 });
 

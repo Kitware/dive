@@ -7,7 +7,7 @@ KWCOCO-compatible extensions when they are present.
 
 import functools
 import math
-from typing import Any, Dict, Iterable, List, Optional, Tuple
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
@@ -145,6 +145,49 @@ def type_hierarchy_from_categories(
         if isinstance(name, str) and name and parent and name != parent:
             hierarchy[name] = parent
     return hierarchy or None, warnings
+
+
+def is_coco_species_list(coco: Dict[str, Any]) -> bool:
+    """Whether a document is a DIVE species list: a KWCOCO category block and nothing else.
+
+    A species list is the ``categories`` array of a KWCOCO file with no media and no
+    annotations behind it, so it declares which classes a dataset may use without
+    asserting that any of them were observed. ``is_coco_json`` requires ``images`` and
+    ``annotations``, so a curated list is not a COCO document by that test; callers must
+    check this predicate first. A file that carries media or annotations is an ordinary
+    COCO document even when its annotation list is empty.
+    """
+    if not isinstance(coco, dict):
+        return False
+    categories = coco.get('categories')
+    if not isinstance(categories, list) or not categories:
+        return False
+    if not all(isinstance(category, dict) for category in categories):
+        return False
+    if not any(
+        isinstance(category.get('name'), str) and category.get('name') for category in categories
+    ):
+        return False
+    return not coco.get('images') and not coco.get('annotations')
+
+
+def species_list_from_categories(coco: Dict[str, Any]) -> List[str]:
+    """Species names a KWCOCO category block declares, in file order without repeats.
+
+    Nameless category slots are skipped; ``type_hierarchy_from_categories`` reports them,
+    so this does not warn a second time for the same file.
+    """
+    names: List[str] = []
+    seen: Set[str] = set()
+    for category in coco.get('categories', []):
+        if not isinstance(category, dict):
+            continue
+        name = category.get('name')
+        if not isinstance(name, str) or not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
 
 
 def _has_valid_bbox(annotation: dict) -> bool:

@@ -237,11 +237,15 @@ type CocoVideo = {
   annotation_fps?: unknown;
 };
 
-type CocoDocument = {
+/** Any KWCOCO document that carries a category block, with or without media behind it. */
+type CocoCategoryDocument = {
+  categories: CocoCategory[];
+};
+
+type CocoDocument = CocoCategoryDocument & {
   info?: Record<string, unknown>;
   images: CocoImage[];
   annotations: CocoAnnotation[];
-  categories: CocoCategory[];
   videos?: CocoVideo[];
 };
 
@@ -348,8 +352,49 @@ function isCocoJson(value: unknown): value is CocoDocument {
     && Array.isArray(document.categories);
 }
 
+/**
+ * Whether a document is a DIVE species list: a KWCOCO category block and nothing else.
+ *
+ * A species list is the `categories` array of a KWCOCO file with no media and no annotations
+ * behind it, so it declares which classes a dataset may use without asserting that any of them
+ * were observed. `isCocoJson` requires `images` and `annotations`, so a curated list is not a
+ * COCO document by that test and callers must check this predicate first. A file that carries
+ * media or annotations is an ordinary COCO document even when its annotation list is empty.
+ */
+function isCocoSpeciesList(value: unknown): value is CocoCategoryDocument {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const document = value as Record<string, unknown>;
+  const { categories } = document;
+  if (!Array.isArray(categories) || !categories.length) return false;
+  if (!categories.every((c) => !!c && typeof c === 'object' && !Array.isArray(c))) return false;
+  if (!categories.some((c) => {
+    const { name } = c as CocoCategory;
+    return typeof name === 'string' && !!name;
+  })) return false;
+  const hasMedia = Array.isArray(document.images) && document.images.length > 0;
+  const hasAnnotations = Array.isArray(document.annotations) && document.annotations.length > 0;
+  return !hasMedia && !hasAnnotations;
+}
+
+/**
+ * Species names a KWCOCO category block declares, in file order without repeats.
+ * Nameless category slots are skipped; `typeHierarchyFromCategories` reports them, so this
+ * does not warn a second time for the same file.
+ */
+function speciesListFromCategories(document: CocoCategoryDocument): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  document.categories.forEach((category) => {
+    const { name } = category;
+    if (typeof name !== 'string' || !name || seen.has(name)) return;
+    seen.add(name);
+    names.push(name);
+  });
+  return names;
+}
+
 function typeHierarchyFromCategories(
-  document: CocoDocument,
+  document: CocoDocument | CocoCategoryDocument,
 ): { hierarchy?: Record<string, string>; warnings: string[] } {
   const warnings: string[] = [];
   if (document.categories.some((category) => Array.isArray(category.parents)
@@ -648,7 +693,9 @@ export {
   SUPERCATEGORY_MULTI_PARENT_WARNING,
   invalidCocoHierarchyMessage,
   isCocoJson,
+  isCocoSpeciesList,
   parseFile,
   serializeFile,
+  speciesListFromCategories,
   typeHierarchyFromCategories,
 };

@@ -1243,3 +1243,61 @@ def test_frame_rate_absent_or_unusable():
         assert (
             kwcoco.frame_rate_from_coco(_fps_document([{'id': 1, 'annotation_fps': fps}])) is None
         )
+
+
+def test_species_list_is_a_category_block_with_no_media_behind_it():
+    """The list declares what a dataset may use; it asserts nothing was observed."""
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1, 'name': 'fish'}]}) is True
+    # A KWCOCO document that spells its empty media out is still only a declaration.
+    assert (
+        kwcoco.is_coco_species_list(
+            {'images': [], 'annotations': [], 'categories': [{'id': 1, 'name': 'fish'}]}
+        )
+        is True
+    )
+
+
+def test_documents_that_are_not_species_lists():
+    document = {'images': [{'id': 1, 'file_name': 'a.png'}], 'categories': [{'id': 1, 'name': 'f'}]}
+    # Media present: an ordinary COCO document, even with nothing annotated on it.
+    assert kwcoco.is_coco_species_list(document) is False
+    assert (
+        kwcoco.is_coco_species_list(
+            {'annotations': [{'id': 1}], 'categories': [{'id': 1, 'name': 'f'}]}
+        )
+        is False
+    )
+    assert kwcoco.is_coco_species_list({'categories': []}) is False
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1}]}) is False
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1, 'name': ''}]}) is False
+    assert kwcoco.is_coco_species_list({'categories': ['fish']}) is False
+    assert kwcoco.is_coco_species_list({'tracks': {}, 'groups': {}}) is False
+    assert kwcoco.is_coco_species_list([{'name': 'fish'}]) is False
+
+
+def test_species_names_keep_file_order_without_repeats():
+    document = {
+        'categories': [
+            {'id': 1, 'name': 'Sebastes'},
+            {'id': 2, 'name': 'Sebastes melanops', 'supercategory': 'Sebastes'},
+            {'id': 3},
+            {'id': 4, 'name': ''},
+            {'id': 5, 'name': 'Sebastes'},
+            {'id': 6, 'name': 'Sebastes flavidus', 'supercategory': 'Sebastes'},
+        ]
+    }
+
+    assert kwcoco.species_list_from_categories(document) == [
+        'Sebastes',
+        'Sebastes melanops',
+        'Sebastes flavidus',
+    ]
+    # The nameless slots are reported once, by the hierarchy reader both callers use.
+    # Repeats also cost the file its hierarchy, which that same reader reports; the
+    # de-duplicated names are still declared.
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(document)
+    assert hierarchy is None
+    assert warnings == [
+        kwcoco.CATEGORY_MISSING_NAME_WARNING,
+        kwcoco.SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
+    ]
