@@ -553,6 +553,19 @@ def download_source_media(
             url = urljoin(girder_client.urlBase, frameImage.url)
             request.urlretrieve(url, filename=destination_path)
         return [str(dest / image.filename) for image in media.imageData], dataset.type
+    elif dataset.type == constants.LargeImageType:
+        # These carry a tile-metadata URL in imageData (the viewer renders them
+        # through girder's tile server), so ask for the item's own file instead
+        # -- same route the image-sequence urls above use. The bytes are the
+        # original image either way: large-image conversion only adds tile views
+        # beside the file, it does not replace it.
+        for image in media.imageData:
+            url = urljoin(
+                girder_client.urlBase,
+                f'dive_dataset/{datasetId}/media/{image.id}/download',
+            )
+            request.urlretrieve(url, filename=dest / image.filename)
+        return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
         if media.video and media.sourceVideo and not force_transcoded:
             destination_path = dest / media.sourceVideo.filename

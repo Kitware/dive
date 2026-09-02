@@ -1,6 +1,9 @@
 import json
 from pathlib import Path
 
+import pytest
+
+from dive_tasks import multicam_pipeline
 from dive_tasks.multicam_pipeline import (
     DEFAULT_CALIBRATION_KEYS,
     append_stereo_calibration_kwiver_settings,
@@ -14,7 +17,9 @@ from dive_tasks.multicam_pipeline import (
     is_stereo_or_multicam_pipeline,
     missing_registrations,
     pipeline_requires_input,
+    pseudo_frame_number,
     stereo_calibration_keys,
+    video_subset_cameras,
 )
 from dive_utils import constants
 
@@ -316,3 +321,124 @@ def test_build_multicam_kwiver_settings_video(tmp_path: Path):
     assert arg_pair['input:video_filename'] == '/tmp/left.mp4'
     assert arg_pair['input2:video_reader:type'] == 'vidl_ffmpeg'
     assert out_files['right'] == 'computed_tracks_right.csv'
+
+
+def _video_cameras():
+    return [
+        {'name': 'left', 'folder_id': 'l', 'media_type': constants.VideoType},
+        {'name': 'right', 'folder_id': 'r', 'media_type': constants.VideoType},
+    ]
+
+
+def _video_media():
+    return {
+        'left': (['/tmp/left.mp4'], constants.VideoType),
+        'right': (['/tmp/right.mp4'], constants.VideoType),
+    }
+
+
+def test_pseudo_frame_number():
+    assert pseudo_frame_number('frame://12') == 12
+    assert pseudo_frame_number('frame://0') == 0
+    assert pseudo_frame_number('000.png') is None
+    assert pseudo_frame_number('frame://x') is None
+
+
+def test_video_subset_cameras():
+    camera_media = {
+        'left': ([], constants.VideoType),
+        'right': ([], constants.ImageSequenceType),
+    }
+    assert video_subset_cameras(camera_media, None) == []
+    assert video_subset_cameras(camera_media, {'right': ['000.png']}) == []
+    assert video_subset_cameras(camera_media, {'left': ['frame://1']}) == ['left']
+
+
+def test_build_multicam_kwiver_settings_video_subset(tmp_path: Path, monkeypatch):
+    """A video camera's subset is extracted to stills and fed as an image list."""
+    calls = []
+
+    def fake_extract(video_path, frames, fps, out_dir, camera, on_progress=None):
+        calls.append((video_path, frames, fps, out_dir, camera))
+        paths = [str(out_dir / f'{camera}.frame_{frame}.png') for frame in frames]
+        if on_progress is not None:
+            for index in range(len(paths)):
+                on_progress(index + 1, len(paths))
+        return paths
+
+    monkeypatch.setattr(multicam_pipeline, 'extract_video_frames', fake_extract)
+    messages = []
+    arg_pair, _ = build_multicam_kwiver_settings(
+        tmp_path,
+        _video_cameras(),
+        _video_media(),
+        image_pairs={'left': ['frame://0', 'frame://7'], 'right': ['frame://1', 'frame://8']},
+        fps=5.0,
+        on_progress=messages.append,
+    )
+
+    assert [call[1] for call in calls] == [[0, 7], [1, 8]]
+    assert [call[2] for call in calls] == [5.0, 5.0]
+    # Image-list input on both cameras; no video reader is bound.
+    assert arg_pair['input:video_filename'] == str(tmp_path / 'input1_images.txt')
+    assert arg_pair['input2:video_filename'] == str(tmp_path / 'input2_images.txt')
+    assert 'input2:video_reader:type' not in arg_pair
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8').splitlines() == [
+        str(tmp_path / 'extracted_left' / 'left.frame_0.png'),
+        str(tmp_path / 'extracted_left' / 'left.frame_7.png'),
+    ]
+    # Progress is per camera, so a stalled rig-wide run says which one it is on.
+    assert 'Extracting frames from left: 1/2' in messages
+    assert 'Extracting frames from right: 2/2' in messages
+
+
+def test_build_multicam_kwiver_settings_video_subset_requires_pseudo_frames(tmp_path: Path):
+    with pytest.raises(ValueError, match='frame://N'):
+        build_multicam_kwiver_settings(
+            tmp_path,
+            _video_cameras(),
+            _video_media(),
+            image_pairs={'left': ['000.png']},
+            fps=5.0,
+        )
+
+
+def test_extract_video_frames_requires_fps(tmp_path: Path):
+    with pytest.raises(ValueError, match='frame rate'):
+        multicam_pipeline.extract_video_frames('/tmp/left.mp4', [1], 0, tmp_path, 'left')
+
+
+def test_build_multicam_kwiver_settings_large_image(tmp_path: Path):
+    """A rig's TIFF camera is typed large-image; it still feeds an image list."""
+    cameras = [
+        {'name': 'rgb', 'folder_id': 'r', 'media_type': constants.ImageSequenceType},
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.LargeImageType},
+    ]
+    camera_media = {
+        'rgb': (['/tmp/rgb/000.jpg'], constants.ImageSequenceType),
+        'ir': (['/tmp/ir/000.tif', '/tmp/ir/001.tif'], constants.LargeImageType),
+    }
+    arg_pair, out_files = build_multicam_kwiver_settings(tmp_path, cameras, camera_media)
+
+    assert arg_pair['input2:video_filename'] == str(tmp_path / 'input2_images.txt')
+    # No video reader: large-image media is read off the list like any other.
+    assert 'input2:video_reader:type' not in arg_pair
+    assert (tmp_path / 'input2_images.txt').read_text(encoding='utf-8') == (
+        '/tmp/ir/000.tif\n/tmp/ir/001.tif'
+    )
+    assert out_files['ir'] == 'computed_tracks_ir.csv'
+
+
+def test_build_multicam_kwiver_settings_large_image_subset(tmp_path: Path):
+    """Registration frame subsets resolve by name on large-image cameras too."""
+    cameras = [
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.LargeImageType},
+    ]
+    camera_media = {'ir': (['/tmp/ir/000.tif', '/tmp/ir/001.tif'], constants.LargeImageType)}
+
+    arg_pair, _ = build_multicam_kwiver_settings(
+        tmp_path, cameras, camera_media, image_pairs={'ir': ['001.tif']}
+    )
+
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == '/tmp/ir/001.tif'
+    assert arg_pair['input:video_filename'] == str(tmp_path / 'input1_images.txt')

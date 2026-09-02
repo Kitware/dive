@@ -35,6 +35,25 @@ export interface MultiCamRuntimeSubset {
 }
 
 /**
+ * Cameras a frame-subset run feeds from video, i.e. the ones whose subset
+ * writeMultiCamStereoPipelineArgs extracts to stills below.
+ *
+ * runPipeline binds the video reader type before it writes any per-camera
+ * args, so it needs this answer up front: once a camera's input is an image
+ * list, pointing vidl_ffmpeg at it would hand the reader a .txt manifest.
+ */
+export function videoSubsetCameras(
+  meta: JsonConfig,
+  imagePairs: Record<string, string[]> | undefined,
+): string[] {
+  const cameras = meta.multiCam?.cameras;
+  if (!cameras || !imagePairs) {
+    return [];
+  }
+  return Object.keys(imagePairs).filter((name) => cameras[name]?.type === 'video');
+}
+
+/**
  * Extract specific frames of a video to still images so a frame-subset job
  * can consume one uniform image-list input (no vidl_ffmpeg in the pipe, no
  * video-decode variability in the matcher's input). The frame number is

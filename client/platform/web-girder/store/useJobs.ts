@@ -12,6 +12,21 @@ const NonRunningStates = [
   JobStatus.SUCCESS.value,
 ];
 
+/** True once a job reached a terminal state (success, error or canceled). */
+export function isJobFinished(status: number): boolean {
+  return NonRunningStates.includes(status);
+}
+
+/** True for the one terminal state that is not a failure. */
+export function jobSucceeded(status: number): boolean {
+  return status === JobStatus.SUCCESS.value;
+}
+
+/** True when the job ended because someone canceled it. */
+export function jobCanceled(status: number): boolean {
+  return status === JobStatus.CANCELED.value;
+}
+
 const jobIds = ref<Record<string, number>>({});
 const datasetStatus = ref<Record<string, { status: number; jobId: string }>>({});
 const completeJobsInfo = ref<Record<string, { type: string; title: string; success: boolean }>>({});

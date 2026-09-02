@@ -13,11 +13,41 @@ job didn't cover survive, and pairs the job didn't name are untouched.
 
 import json
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+import re
+from typing import Any, Dict, Iterable, List, Optional
 
 from girder_client import GirderClient
 
 MANUAL_SOURCE = 'manual'
+# <camera>.frame_<N>.<ext>, the names multicam_pipeline.extract_video_frames
+# gives a video camera's extracted registration stills.
+_EXTRACTED_FRAME_PATTERN = re.compile(r'\.frame_(\d+)\.\w+$')
+
+
+def _remap_video_frame_names(pairs: List[Dict[str, Any]], video_cameras: Iterable[str]) -> None:
+    """
+    Rewrite observation image names on video cameras back to frame://N.
+
+    A frame-subset run on a video camera feeds the pipeline stills extracted
+    to <camera>.frame_<N>.png, so the pipeline names its observations after
+    files that exist only in the job's work dir. The client identifies a video
+    camera's frames as frame://N, so store that instead; image-sequence names
+    pass through, being the dataset's own image names.
+    """
+    video_set = set(video_cameras)
+    if not video_set:
+        return
+
+    def remap(name: Any, camera: Any) -> Any:
+        if not isinstance(name, str) or camera not in video_set:
+            return name
+        match = _EXTRACTED_FRAME_PATTERN.search(name)
+        return f'frame://{int(match.group(1))}' if match else name
+
+    for pair in pairs:
+        for obs in pair.get('observations') or []:
+            obs['imageLeft'] = remap(obs.get('imageLeft'), pair.get('left'))
+            obs['imageRight'] = remap(obs.get('imageRight'), pair.get('right'))
 
 
 def _invert3(m: Optional[List[List[float]]]) -> Optional[List[List[float]]]:
@@ -90,8 +120,12 @@ def ingest_registration_output(
     gc: GirderClient,
     folder_id: str,
     registration_path: Path,
+    video_cameras: Optional[Iterable[str]] = None,
 ) -> int:
     """Merge a pipeline registration JSON into the dataset meta.
+
+    video_cameras are the cameras the run fed from extracted video stills;
+    their observation image names are mapped back to frame://N identities.
 
     Returns the number of pairs merged. Raises ValueError on a malformed or
     non-v2 file (one format, one loader -- a pre-v2 file would otherwise
@@ -105,6 +139,8 @@ def ingest_registration_output(
         raise ValueError(
             f"Unsupported registration file version {data.get('version')!r} (expected 2)"
         )
+
+    _remap_video_frame_names(data['pairs'], video_cameras or [])
 
     current = gc.get(f'dive_dataset/{folder_id}')
     homographies = dict(current.get('cameraHomographies') or {})

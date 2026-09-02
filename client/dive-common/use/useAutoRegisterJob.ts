@@ -104,6 +104,13 @@ export interface AutoRegisterJobDeps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   loadMetadata(datasetId: string): Promise<any>;
   registration: CameraRegistrationStore;
+  /**
+   * Persist the panel's unsaved registration edits -- the same write its Save
+   * button does, and a no-op when the store is clean. Run before the job is
+   * launched: see the call site for why the job cannot be started over unsaved
+   * state.
+   */
+  saveRegistration(): Promise<void>;
   /** Confirm replacing unsaved in-app edits with the job's result. */
   confirmReload(): Promise<boolean>;
 }
@@ -134,6 +141,94 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     } catch {
       alignPipe.value = null;
     }
+  }
+
+  /** What a finished run left behind, read back off the persisted registration. */
+  interface RunSummary {
+    /** Camera pairs the matcher produced observations for. */
+    pairs: number;
+    /** Of those, the ones that came out with a transform. */
+    fitted: number;
+    /** Rejected-frame counts, keyed by the producer's reason. */
+    skipped: Record<string, number>;
+  }
+
+  /**
+   * Summarize the run from the merged registration.
+   *
+   * The pipeline already records why it discarded a candidate -- stats.skipped,
+   * e.g. low_texture over flat ice or open water -- and DIVE persists that per
+   * observation, but nothing read it back: a run that rejected every frame and
+   * fitted nothing reported the same "complete" as one that fitted the whole
+   * rig, leaving the reason visible only in the job log.
+   *
+   * Reason counts are per pair rather than summed. Every pair sees the same
+   * candidate spread, so summing would report a 14-frame run as 42 rejections
+   * on a triplet.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function summarizeRun(meta: any): RunSummary {
+    const homographies = meta?.cameraHomographies ?? {};
+    const correspondences = meta?.cameraCorrespondences ?? {};
+    const summary: RunSummary = { pairs: 0, fitted: 0, skipped: {} };
+    Object.entries(correspondences).forEach(([key, rows]) => {
+      const matcher = (Array.isArray(rows) ? rows : [])
+        .filter((obs) => obs?.source === MATCHER_SOURCE);
+      if (!matcher.length) {
+        return;
+      }
+      summary.pairs += 1;
+      if (homographies[key]) {
+        summary.fitted += 1;
+      }
+      const perPair: Record<string, number> = {};
+      matcher.forEach((obs) => {
+        const reason = obs?.stats?.skipped;
+        if (obs?.enabled === false && typeof reason === 'string') {
+          perPair[reason] = (perPair[reason] ?? 0) + 1;
+        }
+      });
+      Object.entries(perPair).forEach(([reason, count]) => {
+        summary.skipped[reason] = Math.max(summary.skipped[reason] ?? 0, count);
+      });
+    });
+    return summary;
+  }
+
+  /** "14 low_texture, 2 low_overlap", commonest first; empty when nothing was rejected. */
+  function describeSkips(skipped: Record<string, number>): string {
+    return Object.entries(skipped)
+      .sort(([, a], [, b]) => b - a)
+      .map(([reason, count]) => `${count} ${reason}`)
+      .join(', ');
+  }
+
+  /**
+   * Say what the run actually achieved. A run that fitted nothing is a failure
+   * however cleanly the job exited, so it reports through `error` -- including
+   * on a re-run, where the matcher is deterministic and the merge changes
+   * nothing (`unchanged`), which otherwise reads as "already up to date".
+   */
+  function reportOutcome(summary: RunSummary, unchanged = false) {
+    const skips = describeSkips(summary.skipped);
+    if (summary.pairs > 0 && summary.fitted === 0) {
+      status.value = null;
+      error.value = skips
+        ? 'Auto Register fitted no camera pairs: every candidate frame was rejected '
+          + `(${skips}). Try frames with more visible structure.`
+        : 'Auto Register fitted no camera pairs; see the job log for details.';
+      return;
+    }
+    if (unchanged) {
+      status.value = 'Auto Register complete: the results matched the registration already stored.';
+      return;
+    }
+    // "N of M fitted" rather than "fitted N of M": a pair may carry a transform
+    // this run had no hand in, and claiming it would misreport a partial run.
+    status.value = skips
+      ? `Auto Register complete: ${summary.fitted} of ${summary.pairs} pair(s) fitted, `
+        + `${skips} rejected. Review the registration frames below.`
+      : 'Auto Register complete: review the registration frames below.';
   }
 
   /** Re-hydrate the store from freshly persisted meta, keeping the panel's pair. */
@@ -172,7 +267,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
       }
     }
     rehydrate(meta);
-    status.value = 'Auto Register complete: review the registration frames below.';
+    reportOutcome(summarizeRun(meta));
     return true;
   }
 
@@ -203,8 +298,9 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     }
     if (JSON.stringify(meta.cameraCorrespondences ?? {}) === baseline) {
       // Same frames, same weights, same points: the merge was a no-op. Say so
-      // instead of implying the run did nothing at all.
-      status.value = 'Auto Register complete: the results matched the registration already stored.';
+      // instead of implying the run did nothing at all -- unless nothing was
+      // fitted, in which case the run failed the same way it did last time.
+      reportOutcome(summarizeRun(meta), true);
       return;
     }
     await adoptResult(meta);
@@ -359,6 +455,20 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
       if (options.minInliers !== undefined) {
         kwiverParams['register:min_inliers'] = String(options.minInliers);
       }
+      // Launch from saved state, for two independent reasons.
+      // Navigation: the status line below sends the user to the Jobs tab, but
+      // the viewer's guard stops them leaving with unsaved registration edits,
+      // and the dataset is read-only for the job's duration -- so the prompt
+      // would offer only "discard" for work they cannot save.
+      // Correctness: the job's output is merged into the SAVED registration
+      // (server-side ingest, or the desktop collector), and the result is then
+      // rehydrated over the store. Replace mode's local removal of prior
+      // matcher observations would be undone by that reload unless it is
+      // persisted first.
+      status.value = 'Saving registration edits…';
+      await deps.saveRegistration();
+      // Read the baseline only after the save, or the save itself would look
+      // like the job's first result.
       const meta = await deps.loadMetadata(deps.datasetId.value);
       const baseline = JSON.stringify(meta.cameraCorrespondences ?? {});
       // Queueing the job is not the same as the job starting: video frames are
