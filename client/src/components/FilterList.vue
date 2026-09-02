@@ -11,7 +11,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { compileHierarchy } from 'dive-common/typeHierarchy';
 import {
-  useCameraStore, useHandler, useReadOnlyMode, useSelectedCamera, useTime,
+  useCameraStore, useDatasetId, useHandler, useReadOnlyMode, useSelectedCamera, useTime,
   usePendingSaveCount,
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
@@ -109,6 +109,7 @@ export default defineComponent({
     const { prompt } = usePrompt();
     const handler = useHandler();
     const readOnlyMode = useReadOnlyMode();
+    const datasetId = useDatasetId();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
     const { frame } = useTime();
@@ -160,6 +161,10 @@ export default defineComponent({
         compactSharedLineage.value = true;
       });
     }
+    watch(datasetId, () => {
+      data.showPicker = false;
+      data.selectedType = '';
+    });
 
     function clickEdit(type: string) {
       data.selectedType = type;
@@ -738,6 +743,7 @@ export default defineComponent({
       width="350"
     >
       <TypeEditor
+        v-if="data.showPicker"
         :selected-type="data.selectedType"
         :filter-controls="filterControls"
         :style-manager="styleManager"

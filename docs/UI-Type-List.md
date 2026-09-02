@@ -40,15 +40,13 @@ highest-confidence pair, keeping the first stored pair when scores tie, because 
 have each viewer's checked types and confidence thresholds. Viewer counts and filtering use the
 hierarchy-resolved displayed type.
 
-Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants. The Type List does not offer hierarchy editing.
+Hierarchy members render as an expandable tree rather than ordinary flat rows. Parent checkboxes control their complete subtrees, and parent counts include descendants.
 
 A parent row's checkbox always toggles its complete subtree. The heading checkbox is narrower: it skips a parent shown only as ancestor context for a match below it.
 
 **Compact Parents** folds unused shared parent rows into a breadcrumb. Used or configured parents remain as rows. **Expand Parents** restores the full chain, and searching shows a match's complete path.
 
-While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.` Its saved value is preserved and becomes active again when the hierarchy is removed.
-
-Renaming a hierarchy member updates exact hierarchy references only after the complete result passes validation. A rename that would create a self-edge, conflicting parent, cycle, or duplicate type pair on one track is rejected without changing types. Deleting an unused type clears only its optional filter and style settings. The hierarchy member, edges, checked state, and any children remain unchanged, so hierarchy-only rows stay available under **Show Empty** and use default styling and thresholds.
+While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.`
 
 ## Type Style Editor
 
@@ -58,6 +56,7 @@ The type style editor controls the visual appearance of annotations in all other
 
 
 * **Type Name** - You can change the name for the type and it will update all subsequent tracks that are using that Type.
+* **Parent Type** - Select a parent for the type, or clear it to make the type top-level.
 * **Show Label** - show the type name label in the text above each box.
 * **Show Confidence** - show the confidence value in the text above each box.
 * **Box Border Thickness** - the line thickness can be changed to make a type stand out more or less

@@ -747,6 +747,162 @@ describe('useAnnotationFilters', () => {
     expect(groupFilters.configuredTypes.value).not.toContain('renamed group');
   });
 
+  it('creates the first parent edge without changing stored pairs', () => {
+    const markPending = vi.fn();
+    const { cameraStore, filters } = makePairFixture([
+      [['leaf', 0.8], ['root', 0.4]],
+    ], markPending);
+    markPending.mockClear();
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'leaf',
+      parent: 'root',
+    });
+
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([
+      ['leaf', 0.8], ['root', 0.4],
+    ]);
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { leaf: 'root' } });
+    expect(markPending).toHaveBeenCalledTimes(1);
+    expect(markPending).toHaveBeenCalledWith({ action: 'meta' });
+  });
+
+  it('reparents a used type without changing stored pairs and can detach the final edge', () => {
+    const markPending = vi.fn();
+    const { cameraStore, filters } = makePairFixture([
+      [['leaf', 0.8], ['root', 0.4], ['animal', 0.2]],
+    ], markPending);
+    filters.setTypeHierarchy({ leaf: 'root' });
+    markPending.mockClear();
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'leaf',
+      parent: 'animal',
+    });
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'animal' });
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([
+      ['leaf', 0.8], ['root', 0.4], ['animal', 0.2],
+    ]);
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'leaf',
+      parent: undefined,
+    });
+    expect(filters.typeHierarchy.value).toBeUndefined();
+    expect(filters.hierarchyActive.value).toBe(false);
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([
+      ['leaf', 0.8], ['root', 0.4], ['animal', 0.2],
+    ]);
+    expect(markPending).toHaveBeenCalledTimes(2);
+  });
+
+  it('keeps a hierarchy-only leaf when detaching its final parent edge', () => {
+    const { filters } = makePairFixture([[['used', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'root' });
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'leaf',
+      parent: undefined,
+    });
+
+    expect(filters.typeHierarchy.value).toBeUndefined();
+    expect(filters.configuredTypes.value).toContain('leaf');
+    expect(filters.configuredTypes.value).toContain('root');
+    expect(filters.allTypes.value).toContain('leaf');
+    expect(filters.allTypes.value).toContain('root');
+  });
+
+  it('renames and reparents through one validated update', () => {
+    const markPending = vi.fn();
+    const { cameraStore, filters } = makePairFixture([
+      [['leaf', 0.8], ['root', 0.4], ['animal', 0.2]],
+    ], markPending);
+    filters.importTypes(['leaf'], false);
+    filters.setConfidenceFilters({ leaf: 0.5, default: 0.1 });
+    filters.setTypeHierarchy({ leaf: 'root' });
+    markPending.mockClear();
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'fin',
+      parent: 'animal',
+    });
+
+    expect(filters.typeHierarchy.value).toEqual({ fin: 'animal' });
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([
+      ['fin', 0.8], ['root', 0.4], ['animal', 0.2],
+    ]);
+    expect(filters.configuredTypes.value).toEqual(['fin']);
+    expect(filters.confidenceFilters.value).toEqual({ fin: 0.5, default: 0.1 });
+    expect(filters.checkedTypes.value).toContain('fin');
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { fin: 'animal' } });
+    expect(markPending.mock.calls.filter(([data]) => data?.action === 'meta')).toHaveLength(1);
+  });
+
+  it('validates only the final map when a parent edit resolves a rename conflict', () => {
+    const { filters } = makePairFixture([
+      [['cod', 0.8], ['bird', 0.2]],
+      [['haddock', 0.7]],
+    ]);
+    filters.setTypeHierarchy({
+      cod: 'fish',
+      haddock: 'animal',
+      sole: 'cod',
+    });
+
+    filters.updateTypeDefinition({
+      currentType: 'cod',
+      newType: 'haddock',
+      parent: 'bird',
+    });
+
+    expect(filters.typeHierarchy.value).toEqual({
+      haddock: 'bird',
+      sole: 'haddock',
+    });
+  });
+
+  it('does nothing when the name and parent are unchanged', () => {
+    const markPending = vi.fn();
+    const { filters } = makePairFixture([[['leaf', 1], ['root', 0.8]]], markPending);
+    filters.setTypeHierarchy({ leaf: 'root' });
+    markPending.mockClear();
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'leaf',
+      parent: 'root',
+    });
+
+    expect(filters.typeHierarchySavePatch()).toEqual({});
+    expect(markPending).not.toHaveBeenCalled();
+  });
+
+  it('repairs invalid stored hierarchy by assigning an available parent', () => {
+    const markPending = vi.fn();
+    const { filters } = makePairFixture([[['leaf', 1], ['root', 0.8]]], markPending);
+    filters.setTypeHierarchy({ leaf: 'leaf' });
+    expect(filters.invalidHierarchyReason.value).not.toBeNull();
+    markPending.mockClear();
+
+    filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'leaf',
+      parent: 'root',
+    });
+
+    expect(filters.invalidHierarchyReason.value).toBeNull();
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { leaf: 'root' } });
+    expect(markPending).toHaveBeenCalledTimes(1);
+  });
+
   it('renames assigned group pairs across camera replicas without collapsing the vector', () => {
     const cameraStore = new CameraStore({ markChangesPending });
     cameraStore.removeCamera('singleCam');
@@ -794,6 +950,35 @@ describe('useAnnotationFilters', () => {
     expect(filters.confidenceFilters.value).toEqual({ fin: 0.4, default: 0.1 });
     expect(filters.checkedTypes.value).toContain('fin');
     expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { fin: 'root' } });
+  });
+
+  it('preserves an existing destination parent during a rename-only merge', () => {
+    const { filters } = makePairFixture([
+      [['heading', 0.8]],
+      [['animal', 0.7]],
+    ]);
+    filters.setTypeHierarchy({ leaf: 'heading', animal: 'root' });
+
+    filters.updateTypeName({ currentType: 'heading', newType: 'animal' });
+
+    expect(filters.typeHierarchy.value).toEqual({ animal: 'root', leaf: 'animal' });
+  });
+
+  it('preserves the landed conflicting-parent rejection for rename-only callers', () => {
+    const markPending = vi.fn();
+    const { cameraStore, filters } = makePairFixture([
+      [['cod', 0.8]],
+      [['haddock', 0.7]],
+    ], markPending);
+    filters.setTypeHierarchy({ cod: 'fish', haddock: 'animal' });
+    markPending.mockClear();
+
+    expect(() => filters.updateTypeName({ currentType: 'cod', newType: 'haddock' }))
+      .toThrow('conflicting parents for "haddock"');
+    expect(filters.typeHierarchy.value).toEqual({ cod: 'fish', haddock: 'animal' });
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['cod', 0.8]]);
+    expect(cameraStore.getTrack(1).confidencePairs).toEqual([['haddock', 0.7]]);
+    expect(markPending).not.toHaveBeenCalled();
   });
 
   it('does not configure a hierarchy-only heading during a name-only rename', () => {
@@ -849,6 +1034,74 @@ describe('useAnnotationFilters', () => {
     expect(markPending).not.toHaveBeenCalled();
   });
 
+  it('rejects an invalid combined rename and parent before changing any state', () => {
+    const markPending = vi.fn();
+    const { cameraStore, filters } = makePairFixture([[['leaf', 0.8]]], markPending);
+    filters.importTypes(['leaf'], false);
+    filters.setConfidenceFilters({ leaf: 0.4, default: 0.1 });
+    filters.setTypeHierarchy({ leaf: 'root', child: 'leaf' });
+    const checkedBefore = [...filters.checkedTypes.value];
+    markPending.mockClear();
+
+    expect(() => filters.updateTypeDefinition({
+      currentType: 'leaf',
+      newType: 'fin',
+      parent: 'child',
+    })).toThrow(TypeHierarchyError);
+
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['leaf', 0.8]]);
+    expect(filters.typeHierarchy.value).toEqual({ child: 'leaf', leaf: 'root' });
+    expect(filters.configuredTypes.value).toEqual(['leaf']);
+    expect(filters.confidenceFilters.value).toEqual({ leaf: 0.4, default: 0.1 });
+    expect(filters.checkedTypes.value).toEqual(checkedBefore);
+    expect(filters.typeHierarchySavePatch()).toEqual({});
+    expect(markPending).not.toHaveBeenCalled();
+  });
+
+  it('preflights all type-definition restrictions without changing state', () => {
+    const markPending = vi.fn();
+    const { cameraStore, filters } = makePairFixture([
+      [['leaf', 0.8], ['fin', 0.7]],
+    ], markPending);
+    filters.setTypeHierarchy({ leaf: 'root', child: 'leaf' });
+    markPending.mockClear();
+
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'leaf', parent: 'child',
+    })).toEqual({
+      field: 'parent', reason: 'cycle child -> leaf -> child',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'fin', parent: 'root',
+    })).toEqual({
+      field: 'name', reason: 'track 0 already contains both "leaf" and "fin"',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'renamed', parent: 'missing',
+    })).toEqual({
+      field: 'parent', reason: 'parent "missing" is not an existing type',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'renamed', parent: 'leaf',
+    })).toEqual({
+      field: 'parent',
+      reason: 'the original type "leaf" cannot be its renamed type\'s parent',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'root', parent: 'root',
+    })).toEqual({
+      field: 'name', reason: 'self edge "root -> root"',
+    });
+    expect(filters.validateTypeDefinition({
+      currentType: 'leaf', newType: 'leaf', parent: 'root',
+    })).toBeUndefined();
+
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['leaf', 0.8], ['fin', 0.7]]);
+    expect(filters.typeHierarchy.value).toEqual({ child: 'leaf', leaf: 'root' });
+    expect(filters.typeHierarchySavePatch()).toEqual({});
+    expect(markPending).not.toHaveBeenCalled();
+  });
+
   it('rejects a rename when one track already has both names', () => {
     const markPending = vi.fn();
     const { cameraStore, filters } = makePairFixture([
@@ -887,22 +1140,55 @@ describe('useAnnotationFilters', () => {
     expect(markPending).not.toHaveBeenCalled();
   });
 
-  it('clears settings for unused parents and leaves hierarchy state unchanged', () => {
+  it('deletes an unused parent, promotes its child, and clears type settings', () => {
     const markPending = vi.fn();
     const { filters } = makePairFixture([[['used', 1]]], markPending);
-    filters.importTypes(['leaf'], false);
-    filters.setConfidenceFilters({ leaf: 0.4, default: 0.1 });
+    filters.importTypes(['parent'], false);
+    filters.setConfidenceFilters({ parent: 0.4, default: 0.1 });
     filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
     markPending.mockClear();
-    const hierarchyBefore = { ...filters.typeHierarchy.value };
-    const checkedBefore = [...filters.checkedTypes.value];
+
     expect(filters.deleteType('parent')).toBe(true);
-    expect(filters.deleteType('leaf')).toBe(true);
-    expect(filters.typeHierarchy.value).toEqual(hierarchyBefore);
-    expect(filters.configuredTypes.value).not.toContain('leaf');
-    expect(filters.confidenceFilters.value).not.toHaveProperty('leaf');
-    expect(filters.checkedTypes.value).toEqual(checkedBefore);
-    expect(markPending).toHaveBeenCalledTimes(2);
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { leaf: 'root' } });
+    expect(filters.configuredTypes.value).not.toContain('parent');
+    expect(filters.confidenceFilters.value).not.toHaveProperty('parent');
+    expect(filters.checkedTypes.value).not.toContain('parent');
+    expect(markPending).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows a used descendant when deleting its unused parent', () => {
+    const { cameraStore, filters } = makePairFixture([[['leaf', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+
+    expect(filters.deleteType('parent')).toBe(true);
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['leaf', 1]]);
+  });
+
+  it('keeps a hierarchy-only child when deleting its top-level parent', () => {
+    const { filters } = makePairFixture([[['used', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'root' });
+
+    expect(filters.deleteType('root')).toBe(true);
+    expect(filters.typeHierarchy.value).toBeUndefined();
+    expect(filters.configuredTypes.value).toContain('leaf');
+    expect(filters.allTypes.value).toContain('leaf');
+    expect(filters.allTypes.value).not.toContain('root');
+  });
+
+  it('keeps flat deletion behavior for a configured type outside the hierarchy', () => {
+    const markPending = vi.fn();
+    const { filters } = makePairFixture([[['leaf', 1]]], markPending);
+    filters.setTypeHierarchy({ leaf: 'root' });
+    filters.importTypes(['configured'], false);
+    markPending.mockClear();
+
+    expect(filters.deleteType('configured')).toBe(true);
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+    expect(filters.typeHierarchySavePatch()).toEqual({});
+    expect(filters.configuredTypes.value).not.toContain('configured');
+    expect(markPending).toHaveBeenCalledTimes(1);
   });
 
   it('blocks deleting a type that a divergent camera still uses', () => {
@@ -929,12 +1215,14 @@ describe('useAnnotationFilters', () => {
     expect(markPending).not.toHaveBeenCalled();
   });
 
-  it('keeps hierarchy active after clearing the final leaf settings', () => {
+  it('deletes the final edge and restores flat behavior', () => {
     const { filters } = makePairFixture([[['used', 1]]]);
     filters.setTypeHierarchy({ leaf: 'root' });
     expect(filters.deleteType('leaf')).toBe(true);
-    expect(filters.hierarchyActive.value).toBe(true);
-    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
-    expect(filters.typeHierarchySavePatch()).toEqual({});
+    expect(filters.hierarchyActive.value).toBe(false);
+    expect(filters.typeHierarchy.value).toBeUndefined();
+    expect(filters.configuredTypes.value).toContain('root');
+    expect(filters.allTypes.value).toContain('root');
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
   });
 });
