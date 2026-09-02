@@ -565,6 +565,8 @@ async function runPipeline(
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
   job.on('exit', async (code) => {
+    let exitCode = code;
+    const bodyText = [''];
     if (code === 0) {
       try {
         if (!createsNewDataset) {
@@ -698,13 +700,14 @@ async function runPipeline(
         const message = `Post-run processing failed: ${err instanceof Error ? err.message : String(err)}`;
         console.error(err);
         await fs.appendFile(joblog, `\n${message}\n`).catch(() => undefined);
-        updater({ ...jobBase, body: [message] });
+        exitCode = 1;
+        bodyText.unshift(message);
       }
     }
     updater({
       ...jobBase,
-      body: [''],
-      exitCode: code,
+      body: bodyText,
+      exitCode,
       endTime: new Date(),
     });
   });
