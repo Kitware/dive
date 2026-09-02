@@ -649,6 +649,7 @@ GetDataReturnType = TypedDict(
         'attributes': Optional[dict],
         'type': crud.FileType,
         'hierarchy': NotRequired[Optional[Dict[str, str]]],
+        'species': NotRequired[List[str]],
     },
 )
 
@@ -695,7 +696,11 @@ def _get_data_by_type(
             raise RestException('No array-type json objects are supported')
         if configuration_only and not isinstance(data_dict, dict):
             return None, None
-        if kwcoco.is_coco_json(data_dict):
+        if kwcoco.is_coco_species_list(data_dict):
+            # Checked before is_coco_json: a category-only document declares the classes a
+            # dataset may use and carries no annotations to import.
+            as_type = crud.FileType.COCO_SPECIES_LIST
+        elif kwcoco.is_coco_json(data_dict):
             as_type = crud.FileType.COCO_JSON
         elif models.MetadataMutable.is_dive_configuration(data_dict):
             hierarchy_present = 'typeHierarchy' in data_dict
@@ -715,7 +720,11 @@ def _get_data_by_type(
     else:
         raise RestException('Got file of unknown and unusable type')
 
-    if configuration_only and as_type not in (crud.FileType.DIVE_CONF, crud.FileType.COCO_JSON):
+    if configuration_only and as_type not in (
+        crud.FileType.DIVE_CONF,
+        crud.FileType.COCO_JSON,
+        crud.FileType.COCO_SPECIES_LIST,
+    ):
         return None, None
 
     # Parse the file as the now known type
@@ -749,6 +758,16 @@ def _get_data_by_type(
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
+    if as_type == crud.FileType.COCO_SPECIES_LIST:
+        species_hierarchy, species_warnings = kwcoco.type_hierarchy_from_categories(data_dict)
+        return {
+            'annotations': None,
+            'meta': None,
+            'attributes': None,
+            'type': as_type,
+            'hierarchy': species_hierarchy,
+            'species': kwcoco.species_list_from_categories(data_dict),
+        }, species_warnings or warnings
     if as_type == crud.FileType.COCO_JSON:
         (
             converted,
@@ -935,6 +954,24 @@ def _resolve_configuration_hierarchy(
     return final_write, soft_warnings
 
 
+def _declare_species_types(
+    existing: Dict[str, dict],
+    names: List[str],
+    additive: bool,
+) -> Dict[str, dict]:
+    """Fold one species list into a dataset's declared type styling.
+
+    DIVE stores the declared type list as the keys of ``customTypeStyling``; a name with no
+    style of its own renders in the ordinal palette, so declaring a species costs an empty
+    entry. Overwrite makes the file the whole declaration and drops the types it omits,
+    keeping the styles of the ones it names. Additive adds what is missing and keeps every
+    type already declared. Neither mode can orphan annotations: a type a track uses is
+    listed from its confidence pairs whether or not it is declared here.
+    """
+    declared = {name: existing.get(name, {}) for name in names}
+    return {**existing, **declared} if additive else declared
+
+
 def _prepare_configuration_imports(
     folder: types.GirderModel,
     user: types.GirderUserModel,
@@ -947,6 +984,7 @@ def _prepare_configuration_imports(
     canonical = fresh_parent if fresh_parent is not None else fresh_folder
     config_results = []
     hierarchy_instructions = []
+    species_declarations: List[List[str]] = []
     parsed_json_items = {}
     item_files = {}
 
@@ -967,6 +1005,19 @@ def _prepare_configuration_imports(
         if results is None:
             continue
         parsed_json_items[str(item['_id'])] = (file, results, warnings)
+        if results['type'] == crud.FileType.COCO_SPECIES_LIST:
+            species = results.get('species') or []
+            if species:
+                species_declarations.append(species)
+            # A species list is imported for its classes, so an unusable hierarchy fails the
+            # import outright rather than degrading to a flat list the way the category block
+            # of an annotation file does. A list that declares no supercategory sends an empty
+            # map: Overwrite clears the stored hierarchy along with the types it replaces,
+            # while an additive import leaves it alone.
+            hierarchy_instructions.append(
+                HierarchyInstruction(True, results.get('hierarchy') or {})
+            )
+            continue
         if results['type'] == crud.FileType.COCO_JSON:
             coco_hierarchy = results.get('hierarchy')
             if coco_hierarchy is not None:
@@ -1027,6 +1078,29 @@ def _prepare_configuration_imports(
             if 'datasetInfo' in shared_meta:
                 working_parent_dataset_info = shared_meta['datasetInfo']
             staged_parent_meta.update(shared_meta)
+
+    # Species lists are folded in after the DIVE configuration files so a list always
+    # declares against the styling those files staged, never the other way around.
+    if species_declarations:
+
+        def declare(styles: dict) -> dict:
+            for names in species_declarations:
+                styles = _declare_species_types(styles, names, additive)
+            return styles
+
+        staged_meta['customTypeStyling'] = declare(
+            dict(
+                staged_meta.get('customTypeStyling')
+                or fromMeta(fresh_folder, 'customTypeStyling', {})
+            )
+        )
+        if fresh_parent is not None:
+            staged_parent_meta['customTypeStyling'] = declare(
+                dict(
+                    staged_parent_meta.get('customTypeStyling')
+                    or fromMeta(fresh_parent, 'customTypeStyling', {})
+                )
+            )
 
     preflight_meta = apply_hierarchy_write(staged_meta, hierarchy_write)
     preflight_parent_meta = (
