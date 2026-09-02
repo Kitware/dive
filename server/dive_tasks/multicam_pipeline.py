@@ -99,23 +99,55 @@ CAMERA_ROLE_ALIASES: Dict[str, Tuple[str, ...]] = {
 }
 
 
-def infer_camera_role(camera_name: str) -> Optional[str]:
+def _segments(name: str) -> List[str]:
+    return [seg for seg in re.split(r'[^a-z0-9]+', name.lower()) if seg]
+
+
+def _role_of_token(token: str) -> Optional[str]:
+    lower = token.lower()
+    for role, aliases in CAMERA_ROLE_ALIASES.items():
+        if lower in aliases:
+            return role
+    return None
+
+
+def infer_camera_role(
+    camera_name: str,
+    image_names: Optional[List[str]] = None,
+) -> Optional[str]:
     """
     The sensor role (eo / ir / uv) a camera name denotes, or None when it names
-    none or more than one. Set once at multicam import; the pipeline
-    camera-assignment step shows display order by default and lets the user
-    correct it.
+    none or more than one. Falls back to tokens in image file names (KAMERA style
+    ``..._rgb.jpg`` / ``_ir.tif`` / ``_uv.jpg``). Only a unanimous answer counts.
+    Set once at multicam import; the pipeline camera-assignment step shows display
+    order by default and lets the user correct it.
     """
-    segments = [seg for seg in re.split(r'[^a-z0-9]+', camera_name.lower()) if seg]
-    roles = {
-        role for role, aliases in CAMERA_ROLE_ALIASES.items() if any(s in aliases for s in segments)
-    }
-    return next(iter(roles)) if len(roles) == 1 else None
+    image_names = image_names or []
+    from_name = {_role_of_token(seg) for seg in _segments(camera_name)}
+    from_name.discard(None)
+    if len(from_name) == 1:
+        return next(iter(from_name))
+    if len(from_name) > 1:
+        return None
+    from_images: set = set()
+    for image in image_names[:50]:
+        base = image.replace('\\', '/').rsplit('/', 1)[-1]
+        stem = re.sub(r'\.[^.]+$', '', base)
+        for seg in _segments(stem):
+            role = _role_of_token(seg)
+            if role:
+                from_images.add(role)
+    return next(iter(from_images)) if len(from_images) == 1 else None
 
 
-def infer_camera_roles(camera_names: List[str]) -> Dict[str, str]:
+def infer_camera_roles(cameras: Dict[str, Optional[List[str]]]) -> Dict[str, str]:
     """Roles for a whole rig; cameras that cannot be classified are omitted."""
-    return {name: role for name in camera_names for role in [infer_camera_role(name)] if role}
+    return {
+        name: role
+        for name, image_names in cameras.items()
+        for role in [infer_camera_role(name, image_names or [])]
+        if role
+    }
 
 
 def build_registration_pairs(folder_meta: dict) -> List[dict]:

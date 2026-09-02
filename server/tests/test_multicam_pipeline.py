@@ -130,9 +130,18 @@ def test_infer_camera_role():
     assert infer_camera_role('rgb') == 'eo'
     assert infer_camera_role('CENT_IR') == 'ir'
     assert infer_camera_role('uv_cam') == 'uv'
+    assert infer_camera_role('cam1', ['flight_0001_rgb.jpg', 'flight_0002_rgb.jpg']) == 'eo'
+    assert infer_camera_role('cam1', ['a_rgb.jpg', 'b_ir.tif']) is None
     assert infer_camera_role('eo_ir') is None
-    assert infer_camera_role('center') is None
-    assert infer_camera_roles(['rgb', 'CENT_IR', 'center']) == {'rgb': 'eo', 'CENT_IR': 'ir'}
+    assert infer_camera_role('center', ['0001.png']) is None
+    assert infer_camera_roles(
+        {
+            'rgb': [],
+            'CENT_IR': [],
+            'center': ['x_ir.tif'],
+            'other': ['a.png'],
+        }
+    ) == {'rgb': 'eo', 'CENT_IR': 'ir', 'center': 'ir'}
 
 
 def test_missing_registrations():
