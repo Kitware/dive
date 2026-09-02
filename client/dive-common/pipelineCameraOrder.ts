@@ -10,8 +10,9 @@
  *
  * Datasets carry a role per camera (`cameraRoles`, inferred once at import
  * from the camera / image names and editable afterwards). Before a run the
- * user is shown each slot prefilled from the dataset's display order and
- * confirms or corrects it; the confirmed order is what the job runs with.
+ * user is shown each slot with the camera DIVE proposes for it — by role
+ * when both sides have one, else by name — and display order fills any slot
+ * that would otherwise stay empty; the confirmed order is what the job runs with.
  *
  * Role inference is mirrored in server/dive_tasks/multicam_pipeline.py.
  */
@@ -113,17 +114,49 @@ export function camerasForSlot(
 }
 
 /**
- * Initial assignment for the camera dialog: inputN gets the Nth camera in
- * persisted display order (`cameraOrder`, via orderedMultiCamCameraNames).
+ * Display-order fallback: inputN gets the Nth camera in persisted display
+ * order (`cameraOrder`, via orderedMultiCamCameraNames).
  */
 export function proposedPipelineCameraOrder(cameras: readonly string[]): string[] {
   return [...cameras];
 }
 
 /**
+ * Default dialog prefill: match slots by role/name first; any slot that would
+ * stay empty (or the whole row when every slot is bare `inputN`) is filled
+ * from display order instead of leaving the user with blank pickers.
+ */
+export function defaultDialogCameraOrder(
+  slots: string[],
+  cameras: string[],
+  roles: Record<string, CameraRole> = {},
+): string[] {
+  const matched = prefillPipelineCameraOrder(slots, cameras, roles);
+  if (matched.every((camera) => camera !== null)) {
+    return matched as string[];
+  }
+  if (matched.every((camera) => camera === null)) {
+    return proposedPipelineCameraOrder(cameras);
+  }
+  const taken = new Set(matched.filter((camera): camera is string => camera !== null));
+  const remaining = cameras.filter((camera) => !taken.has(camera));
+  const result: (string | null)[] = [...matched];
+  let next = 0;
+  result.forEach((camera, index) => {
+    if (camera === null && next < remaining.length) {
+      result[index] = remaining[next];
+      next += 1;
+    }
+  });
+  if (result.every((camera) => camera !== null)) {
+    return result as string[];
+  }
+  return proposedPipelineCameraOrder(cameras);
+}
+
+/**
  * Propose a camera for every slot by matching slot tokens to camera roles /
- * names. A slot with no unique candidate is proposed as null. Used when role
- * alignment matters more than display order (not the default dialog prefill).
+ * names. A slot with no unique candidate is proposed as null.
  */
 export function prefillPipelineCameraOrder(
   slots: string[],

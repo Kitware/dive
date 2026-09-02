@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  camerasForSlot, fittedRegistrationPairs, inferCameraRole, inferCameraRoles,
+  camerasForSlot, defaultDialogCameraOrder, fittedRegistrationPairs, inferCameraRole, inferCameraRoles,
   missingRegistrations, parseCameraOrderHeader, pipelineCameraSlots,
   prefillPipelineCameraOrder, proposedPipelineCameraOrder,
 } from './pipelineCameraOrder';
@@ -36,8 +36,17 @@ describe('pipelineCameraOrder', () => {
       .toStrictEqual({ rgb: 'eo', center: 'ir' });
   });
 
-  it('maps display order 1:1 to pipeline inputs for the dialog default', () => {
+  it('maps display order 1:1 when used directly', () => {
     expect(proposedPipelineCameraOrder(['eo', 'uv', 'ir'])).toStrictEqual(['eo', 'uv', 'ir']);
+  });
+
+  it('prefers role/name matches and falls back to display order for empty slots', () => {
+    expect(defaultDialogCameraOrder(['EO', 'UV', 'IR'], ['rgb', 'ir', 'uv']))
+      .toStrictEqual(['rgb', 'uv', 'ir']);
+    expect(defaultDialogCameraOrder(['input1', 'input2'], ['rgb', 'ir']))
+      .toStrictEqual(['rgb', 'ir']);
+    expect(defaultDialogCameraOrder(['EO', 'IR'], ['rgb', 'color', 'ir']))
+      .toStrictEqual(['rgb', 'ir']);
   });
 
   it('assigned roles beat name matching, and prefill leaves ambiguity open', () => {

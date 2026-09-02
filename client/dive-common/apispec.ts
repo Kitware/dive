@@ -85,8 +85,8 @@ interface PipeMetadata {
    * Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]:
    * input1 is optical, input2 ultraviolet, input3 thermal), parsed from a
    * `# Camera Order: <cam> [cam...]` header. Labels the slots of the pre-run
-   * camera-assignment step and drives its prefill (dive-common/pipelineCameraOrder.ts);
-   * pipes without it show bare input1..N slots.
+   * camera-assignment step (dive-common/pipelineCameraOrder.ts); pipes without
+   * it show bare input1..N slots.
    */
   cameraOrder?: string[];
   /**
