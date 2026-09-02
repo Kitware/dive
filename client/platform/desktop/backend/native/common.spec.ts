@@ -1919,6 +1919,48 @@ describe('native.common', () => {
       .toEqual(resolvedHierarchy);
   });
 
+  it('saveConfig persists cameraRoles on the parent dataset and reloads them', async () => {
+    const payload = await beginMultiCamImport({
+      datasetName: 'camera_roles_multicam',
+      defaultDisplay: 'left',
+      sourceList: {
+        left: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: '',
+        },
+        right: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: '',
+        },
+      },
+      type: 'image-sequence',
+    });
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+    const cameraRoles = { left: 'eo' as const, right: 'ir' as const };
+
+    await common.saveConfig(settings, meta.id, { cameraRoles });
+
+    const projectDir = common.getProjectDir(settings, meta.id);
+    const onDisk = await fs.readJSON(projectDir.datasetFileAbsPath);
+    expect(onDisk.cameraRoles).toEqual(cameraRoles);
+    expect((await common.loadConfig(settings, meta.id, urlMapper)).cameraRoles)
+      .toEqual(cameraRoles);
+
+    await common.saveConfig(settings, `${meta.id}/left`, {
+      cameraRoles: { left: 'uv', right: 'ir' },
+    });
+    const updatedRoles = { left: 'uv' as const, right: 'ir' as const };
+    expect(await fs.readJSON(projectDir.datasetFileAbsPath)).toMatchObject({
+      cameraRoles: updatedRoles,
+    });
+    const leftMeta = await fs.readJSON(
+      common.getProjectDir(settings, `${meta.id}/left`).datasetFileAbsPath,
+    );
+    expect(leftMeta.cameraRoles).toBeUndefined();
+    expect((await common.loadConfig(settings, meta.id, urlMapper)).cameraRoles)
+      .toEqual(updatedRoles);
+  });
+
   it('saveConfig writes per-camera registration files (pairs + points) and reloads them', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',

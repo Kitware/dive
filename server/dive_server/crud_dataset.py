@@ -16,6 +16,7 @@ from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
+from dive_tasks.multicam_pipeline import infer_camera_roles
 from dive_utils import (
     TRUTHY_META_VALUES,
     asbool,
@@ -1279,6 +1280,37 @@ class CreateMulticamArgs(BaseModel):
         extra = 'forbid'
 
 
+def _child_media_names_for_role_inference(
+    child: types.GirderModel,
+    user: types.GirderUserModel,
+    media_type: str,
+) -> List[str]:
+    """Image or video file names used to infer camera roles when the folder name is generic."""
+    if media_type == constants.ImageSequenceType:
+        return [img['name'] for img in crud.valid_images(child, user)[:50]]
+    if media_type == constants.LargeImageType:
+        return [img['name'] for img in crud.valid_large_images(child, user)[:50]]
+    if media_type == constants.VideoType:
+        source_video = Item().findOne(
+            {
+                'folderId': child['_id'],
+                'meta.source_video': {'$in': [True, 'true', 'True']},
+            }
+        )
+        if source_video is not None:
+            return [source_video['name']]
+        video_item = Item().findOne(
+            {
+                'folderId': child['_id'],
+                'meta.codec': 'h264',
+                'meta.source_video': {'$in': [None, False]},
+            }
+        )
+        if video_item is not None:
+            return [video_item['name']]
+    return []
+
+
 def _child_media_frame_count(
     child: types.GirderModel, user: types.GirderUserModel, media_type: str
 ) -> int:
@@ -1713,6 +1745,17 @@ def create_multicam(
             'folderId': str(child['_id']),
             'type': camera_types_by_name[name],
         }
+    # Sensor role per camera from its name and (for image sequences) the image
+    # names; the pipeline camera-assignment step prefills from it and the user
+    # can correct it there.
+    camera_roles = infer_camera_roles(
+        {
+            name: _child_media_names_for_role_inference(
+                loaded_children[name], user, camera_types_by_name[name]
+            )
+            for name in camera_order
+        }
+    )
 
     calibration_source_item_id = None
     json_calibration_item_id = None
@@ -1792,6 +1835,7 @@ def create_multicam(
                 else {}
             ),
         },
+        **({'cameraRoles': camera_roles} if camera_roles else {}),
     }
     parent_folder_doc['meta'].setdefault(
         constants.ConfidenceFiltersMarker,

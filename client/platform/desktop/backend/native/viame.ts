@@ -21,6 +21,7 @@ import {
   multiCamPipelineMarkers,
 } from 'dive-common/constants';
 import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   isDisparityImagePipeline,
   isFilterPipeline,
@@ -32,6 +33,7 @@ import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
 } from './utils';
+import { buildRegistrationPipelineArgs } from './cameraRegistration';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
@@ -162,6 +164,22 @@ async function importNewMedia(
 /**
  * a node.js implementation of dive_tasks.tasks.run_pipeline
  */
+/**
+ * The input1..N camera order for a 2-cam/3-cam run: the order the user
+ * confirmed in the camera-assignment step (validated against the dataset's
+ * cameras), else the dataset's camera order as stored.
+ */
+function multiCamOrderFor(meta: JsonConfig, confirmed?: string[]): string[] {
+  const cameras = orderedMultiCamCameraNames(meta.multiCam);
+  if (!confirmed?.length) {
+    return cameras;
+  }
+  if ([...confirmed].sort().join('\n') !== [...cameras].sort().join('\n')) {
+    throw new Error(`Camera assignment [${confirmed.join(', ')}] does not match the dataset cameras [${cameras.join(', ')}]`);
+  }
+  return confirmed;
+}
+
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
@@ -366,7 +384,13 @@ async function runPipeline(
 
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
-    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput);
+    const isMultiCamPipeline = multiCamPipelineMarkers.includes(pipeline.type);
+    // 2-cam/3-cam pipes: which camera feeds which inputN is the order the
+    // user confirmed before the run.
+    const multiCamOrder = isMultiCamPipeline
+      ? multiCamOrderFor(meta, runPipelineArgs.pipelineParams?.cameraOrder)
+      : undefined;
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, multiCamOrder);
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
@@ -392,6 +416,22 @@ async function runPipeline(
         : DEFAULT_CALIBRATION_KEYS;
       calibrationKeys.forEach((key) => {
         command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
+      });
+    }
+    if (multiCamOrder) {
+      // Hand the camera registration to the pipeline's warp processes; a
+      // warped camera with no registration onto camera 1 fails here, before
+      // the job exists.
+      const registrationArgs = await buildRegistrationPipelineArgs(
+        settings,
+        meta,
+        jobWorkDir,
+        multiCamOrder,
+        pipeline.metadata?.registrationWarps,
+        pipeline.name,
+      );
+      Object.entries(registrationArgs).forEach(([arg, value]) => {
+        command.push(`-s ${arg}="${value}"`);
       });
     }
   } else if (pipeline.type === stereoPipelineMarker) {

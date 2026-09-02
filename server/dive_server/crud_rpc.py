@@ -18,7 +18,13 @@ from typing_extensions import NotRequired
 
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
-from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
+from dive_tasks.multicam_pipeline import (
+    build_registration_pairs,
+    describe_missing_registration,
+    is_stereo_or_multicam_pipeline,
+    missing_registrations,
+    pipeline_requires_input,
+)
 from dive_tasks.utils import choose_annotation_fps
 from dive_utils import (
     TRUTHY_META_VALUES,
@@ -320,12 +326,29 @@ def run_pipeline(
     multicam_default_display = ''
     calibration_item_id: Optional[str] = None
     default_camera_folder: Optional[types.GirderModel] = None
+    is_warp_pipeline = False
+    reference_camera = ''
 
     if dataset_type == constants.MultiType:
         multi_cam = fromMeta(folder, constants.MultiCamMarker, required=True)
         multicam_default_display = multi_cam['defaultDisplay']
         camera_order = crud_dataset._multicam_camera_order(multi_cam)
         cameras_meta = multi_cam.get('cameras') or {}
+        is_warp_pipeline = pipeline['type'] in constants.MultiCamPipelineMarkers
+        if is_warp_pipeline and camera_order:
+            # 2-cam/3-cam pipes warp everything onto camera 1; the order the
+            # user confirmed in the camera-assignment step is which camera
+            # feeds which inputN. Without one, the dataset's stored order.
+            confirmed_order = (pipeline_params or {}).get('cameraOrder')
+            if confirmed_order:
+                if sorted(confirmed_order) != sorted(camera_order):
+                    raise RestException(
+                        f'Camera assignment [{", ".join(confirmed_order)}] does not match '
+                        f'the dataset cameras [{", ".join(camera_order)}]',
+                        code=400,
+                    )
+                camera_order = list(confirmed_order)
+            reference_camera = camera_order[0]
         for name in camera_order:
             cam_info = cameras_meta[name]
             folder_id = cam_info.get('folderId')
@@ -407,6 +430,36 @@ def run_pipeline(
         params['multicam_requires_input'] = multicam_requires_input
         if calibration_item_id:
             params['calibration_item_id'] = calibration_item_id
+        if is_warp_pipeline and reference_camera:
+            # Refuse up front when a warped camera has no registration onto
+            # camera 1, rather than letting the pipe die at configure time.
+            fitted_pairs = [
+                key
+                for key, value in (
+                    (folder.get('meta') or {}).get('cameraHomographies') or {}
+                ).items()
+                if value and (value.get('AtoB') or value.get('BtoA'))
+            ]
+            missing = missing_registrations(
+                camera_order,
+                (pipeline.get('metadata') or {}).get('registrationWarps'),
+                fitted_pairs,
+            )
+            if missing:
+                raise RestException(
+                    ' '.join(
+                        describe_missing_registration(*entry, pipeline['name']) for entry in missing
+                    ),
+                    code=400,
+                )
+            registration_pairs = build_registration_pairs(folder.get('meta') or {})
+            if any(
+                pair.get('leftToRight') or pair.get('rightToLeft') for pair in registration_pairs
+            ):
+                params['multicam_registration'] = {
+                    'reference': reference_camera,
+                    'pairs': registration_pairs,
+                }
     if metadata_file_key and metadata_file_item_id:
         params['metadata_file_key'] = metadata_file_key
         params['metadata_file_item_id'] = metadata_file_item_id

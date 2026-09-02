@@ -1,4 +1,4 @@
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 from girder.exceptions import RestException
 import pytest
@@ -47,6 +47,14 @@ def _stereo_data():
     }
 
 
+def _image_items(*names):
+    return [{'name': name} for name in names]
+
+
+def _default_stereo_images():
+    return _image_items('frame_001.png', 'frame_002.png')
+
+
 @patch('dive_server.crud_dataset.crud.get_or_create_auxiliary_folder')
 @patch('dive_server.crud_dataset.Folder')
 @patch('dive_server.crud_dataset.crud.valid_images')
@@ -70,7 +78,7 @@ def test_create_multicam_links_children(_verify, valid_images_mock, folder_cls, 
         return None
 
     folder_cls.return_value.load.side_effect = load_folder
-    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    valid_images_mock.return_value = _default_stereo_images()
 
     data = {
         'name': 'stereo-set',
@@ -117,7 +125,7 @@ def test_create_multicam_promotes_camera_hierarchies_to_the_parent(
         'left-id': left,
         'right-id': right,
     }[folder_id]
-    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    valid_images_mock.return_value = _default_stereo_images()
 
     crud_dataset.create_multicam({'login': 'tester'}, parent, _stereo_data())
 
@@ -144,7 +152,7 @@ def test_create_multicam_keeps_first_hierarchy_and_warns_for_later_conflict(
         'left-id': left,
         'right-id': right,
     }[folder_id]
-    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    valid_images_mock.return_value = _default_stereo_images()
 
     result = crud_dataset.create_multicam({'login': 'tester'}, parent, _stereo_data())
 
@@ -176,7 +184,7 @@ def test_create_multicam_keeps_camera_hierarchies_when_late_validation_fails(
         'left-id': left,
         'right-id': right,
     }[folder_id]
-    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    valid_images_mock.return_value = _default_stereo_images()
     data = _stereo_data()
     data['subType'] = 'multicam'
     data['calibrationFileId'] = 'cal-id'
@@ -209,7 +217,15 @@ def test_create_multicam_accepts_mismatched_frame_counts(
         'left-id': left,
         'right-id': right,
     }[fid]
-    valid_images_mock.side_effect = [[MagicMock()], [MagicMock(), MagicMock()]]
+
+    def valid_images_for_child(child, _user):
+        if child['_id'] == 'left-id':
+            return _image_items('left_001.png')
+        if child['_id'] == 'right-id':
+            return _image_items('right_001.png', 'right_002.png')
+        return []
+
+    valid_images_mock.side_effect = valid_images_for_child
 
     data = {
         'name': 'stereo-set',
@@ -245,7 +261,7 @@ def test_create_multicam_accepts_video_fps_sentinel(_verify, folder_cls, _aux, i
         'left-id': left,
         'right-id': right,
     }[fid]
-    item_cls.return_value.findOne.return_value = {'_id': 'video-item'}
+    item_cls.return_value.findOne.return_value = {'_id': 'video-item', 'name': 'left.mp4'}
 
     data = {
         'name': 'stereo-set',
@@ -289,7 +305,7 @@ def test_create_multicam_accepts_image_sequence_fps_sentinel(
         'right-id': right,
         'star-id': star,
     }[fid]
-    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    valid_images_mock.return_value = _default_stereo_images()
 
     data = {
         'name': 'stereo-set',
@@ -323,7 +339,7 @@ def test_create_multicam_rejects_wrong_default_display(_verify, folder_cls, vali
         'left-id': left,
         'right-id': right,
     }[fid]
-    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    valid_images_mock.return_value = _default_stereo_images()
 
     data = {
         'name': 'stereo-set',
@@ -370,7 +386,7 @@ def test_create_multicam_marks_calibration_in_dataset_folder(
         'left-id': left,
         'right-id': right,
     }[fid]
-    valid_images_mock.return_value = [MagicMock(), MagicMock()]
+    valid_images_mock.return_value = _default_stereo_images()
     item_cls.return_value.load.return_value = cal_item
     item_cls.return_value.childFiles.return_value = [{'name': 'stereo-cal.json'}]
 
