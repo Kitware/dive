@@ -155,6 +155,8 @@ export function useMediaController() {
     resizing,
     alignedGapSlots,
     seekCameraFrame: aggregateSeekCameraFrame,
+    translateCameraFrame: aggregateTranslateCameraFrame,
+    cameraFrameToSlot: aggregateCameraFrameToSlot,
   };
   function stopAlignedPlaybackTimer() {
     if (alignedPlaybackTimer !== undefined) {
@@ -657,6 +659,8 @@ export function useMediaController() {
       resizing,
       alignedGapSlots,
       seekCameraFrame: aggregateSeekCameraFrame,
+      translateCameraFrame: aggregateTranslateCameraFrame,
+      cameraFrameToSlot: aggregateCameraFrameToSlot,
     };
 
     subControllers.push(mediaController);
@@ -714,6 +718,32 @@ export function useMediaController() {
     } else {
       getController(camera).seek(localFrame);
     }
+  }
+
+  /**
+   * Same-capture translation between two cameras' local frame spaces (see
+   * AggregateMediaController.translateCameraFrame). Without an aligned
+   * timeline the spaces are identical, so the frame passes through.
+   */
+  function aggregateTranslateCameraFrame(from: string, localFrame: number, to: string): number | undefined {
+    if (from === to) {
+      return localFrame;
+    }
+    const resolver = alignedFrameResolver.value;
+    if (!resolver) {
+      return localFrame;
+    }
+    const slot = resolver.resolveGlobalSlot(from, localFrame);
+    return slot === undefined ? undefined : resolver.resolveSlot(slot)[to];
+  }
+
+  /**
+   * A camera's local frame expressed as a global slot (see
+   * AggregateMediaController.cameraFrameToSlot).
+   */
+  function aggregateCameraFrameToSlot(camera: string, localFrame: number): number | undefined {
+    const resolver = alignedFrameResolver.value;
+    return resolver ? resolver.resolveGlobalSlot(camera, localFrame) : localFrame;
   }
 
   function aggregateNextFrame() {
@@ -795,6 +825,8 @@ export function useMediaController() {
       resizing,
       alignedGapSlots,
       seekCameraFrame: aggregateSeekCameraFrame,
+      translateCameraFrame: aggregateTranslateCameraFrame,
+      cameraFrameToSlot: aggregateCameraFrameToSlot,
     };
   });
 

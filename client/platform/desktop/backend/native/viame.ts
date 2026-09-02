@@ -33,7 +33,7 @@ import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
 } from './utils';
-import { buildRegistrationPipelineArgs } from './cameraRegistration';
+import { buildRegistrationPipelineArgs, ingestPipelineRegistration } from './cameraRegistration';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   writeMultiCamStereoPipelineArgs,
@@ -190,6 +190,7 @@ async function runPipeline(
 ): Promise<DesktopJob> {
   const { datasetId, pipeline } = runPipelineArgs;
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
+  const imagePairs = runPipelineArgs.pipelineParams?.runtimeParams?.imagePairs ?? undefined;
   // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
   // categorized under '2-cam'/'3-cam' rather than by their filename prefix,
   // so output handling is recognized from the pipe filename as well as the type.
@@ -218,6 +219,41 @@ async function runPipeline(
   // directory, which matters because a 'trained' pipeline's .pipe is a full
   // path rather than a bare filename.
   const jobWorkDir = await createWorkingDirectory(settings, [meta], splitExt(pipeline.pipe)[0]);
+
+  // The key must not depend on the pid: the renderer is told this job exists
+  // before any process does, so that preparing the inputs (extracting a
+  // multi-camera frame subset from video takes longer than the pipeline run
+  // itself) shows up in the Jobs tab instead of looking like nothing
+  // happened. Both updates have to land on the same history entry, and
+  // jobWorkDir is already unique per run.
+  const jobKey = `pipeline_${jobWorkDir}`;
+  const preparingJob: DesktopJob = {
+    key: jobKey,
+    command: '',
+    jobType: 'pipeline',
+    // No process yet. The UI reads a negative pid as "still starting" and
+    // leaves it out of the job's detail table.
+    pid: -1,
+    args: runPipelineArgs,
+    title: runPipelineArgs.pipeline.name,
+    workingDir: jobWorkDir,
+    datasetIds: [datasetId],
+    exitCode: null,
+    startTime: new Date(),
+  };
+  const reportPreparing = (message: string) => updater({ ...preparingJob, body: [message] });
+  // Closes out the placeholder entry when the job dies before it ever spawns;
+  // otherwise the Jobs tab keeps a job that can never finish, and its badge
+  // spins forever.
+  const failedToStart = (err: unknown) => {
+    updater({
+      ...preparingJob,
+      body: [`Job failed to start: ${err instanceof Error ? err.message : String(err)}`],
+      exitCode: 1,
+      endTime: new Date(),
+    });
+  };
+  reportPreparing('Preparing job inputs...');
 
   const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
   let cameraLogLine: string | null = null;
@@ -390,7 +426,19 @@ async function runPipeline(
     const multiCamOrder = isMultiCamPipeline
       ? multiCamOrderFor(meta, runPipelineArgs.pipelineParams?.cameraOrder)
       : undefined;
-    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput, false, multiCamOrder);
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(
+      jobWorkDir,
+      meta,
+      settings,
+      requiresInput,
+      false,
+      multiCamOrder,
+      {
+        imagePairs,
+        frameRange,
+        onProgress: reportPreparing,
+      },
+    );
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
@@ -417,6 +465,14 @@ async function runPipeline(
       calibrationKeys.forEach((key) => {
         command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
       });
+    }
+
+    if (pipeline.pipe.toLowerCase().includes('align_cameras')) {
+      // Camera names for the output JSON, aligned with the input{i} order
+      // writeMultiCamStereoPipelineArgs uses (multiCamOrder or cameraOrder).
+      const cameraNames = (multiCamOrder ?? orderedMultiCamCameraNames(meta.multiCam)).join(',');
+      command.push(`-s register:camera_names="${cameraNames}"`);
+      command.push(`-s register:output_directory="${jobWorkDir}"`);
     }
     if (multiCamOrder) {
       // Hand the camera registration to the pipeline's warp processes; a
@@ -476,11 +532,13 @@ async function runPipeline(
     cwd: jobWorkDir,
   }));
   if (job.pid === undefined) {
-    throw new Error('Failed to spawn pipeline process');
+    const err = new Error('Failed to spawn pipeline process');
+    failedToStart(err);
+    throw err;
   }
 
   const jobBase: DesktopJob = {
-    key: `pipeline_${job.pid}_${jobWorkDir}`,
+    key: jobKey,
     command: command.join(' '),
     jobType: 'pipeline',
     pid: job.pid,
@@ -507,6 +565,8 @@ async function runPipeline(
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
   job.on('exit', async (code) => {
+    let exitCode = code;
+    const bodyText = [''];
     if (code === 0) {
       try {
         if (!createsNewDataset) {
@@ -526,6 +586,32 @@ async function runPipeline(
           if (newMeta) {
             meta.attributes = newMeta.attributes;
             await common.saveConfig(settings, datasetId, meta);
+          }
+        }
+
+        // Registration pipeline: merge the output into the dataset's saved
+        // camera registration. Filename sniff is substring-based, like the
+        // calibration hook below; the process writes atomically, so a file
+        // present here is a complete result (a canceled job leaves none).
+        if (pipeline.pipe.toLowerCase().includes('align_cameras')) {
+          const files = await fs.readdir(jobWorkDir);
+          const registrationFile = files.find(
+            (f) => f.toLowerCase().includes('registration') && f.endsWith('.json'),
+          );
+          if (registrationFile && meta.multiCam) {
+            const videoCameras = Object.entries(meta.multiCam.cameras)
+              .filter(([, camera]) => camera.type === 'video')
+              .map(([name]) => name);
+            const summary = await ingestPipelineRegistration(
+              settings,
+              datasetId,
+              npath.join(jobWorkDir, registrationFile),
+              videoCameras,
+            );
+            updater({
+              ...jobBase,
+              body: [`Merged camera registration for ${summary.pairCount} pair(s) into the dataset`],
+            });
           }
         }
 
@@ -606,13 +692,22 @@ async function runPipeline(
           );
         }
       } catch (err) {
+        // Post-run collection (annotation ingest, registration merge, dataset
+        // creation) failing used to be swallowed to the main-process console:
+        // the job still reported success while its results never reached the
+        // dataset, which reads as "the pipeline did nothing". Put it where the
+        // user looks instead.
+        const message = `Post-run processing failed: ${err instanceof Error ? err.message : String(err)}`;
         console.error(err);
+        await fs.appendFile(joblog, `\n${message}\n`).catch(() => undefined);
+        exitCode = 1;
+        bodyText.unshift(message);
       }
     }
     updater({
       ...jobBase,
-      body: [''],
-      exitCode: code,
+      body: bodyText,
+      exitCode,
       endTime: new Date(),
     });
   });

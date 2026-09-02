@@ -664,7 +664,7 @@ export default defineComponent({
           setMulticamImportProgress(98, `${labelPrefix}Saving camera registration…`);
           await saveConfig(parentFolder._id, {
             cameraHomographies: registrationSeed.values.homographies,
-            cameraCorrespondences: registrationSeed.values.correspondences,
+            cameraCorrespondences: registrationSeed.values.observations,
             cameraTransformTypes: registrationSeed.values.transformTypes,
             ...(registrationSeed.values.source
               ? { cameraRegistrationSource: registrationSeed.values.source }

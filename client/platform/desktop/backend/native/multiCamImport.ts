@@ -25,8 +25,8 @@ import {
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import { discoverMetadataAttachment, findImagesInFolder } from './common';
 import {
-  CameraCorrespondences,
   CameraHomographies,
+  CameraObservations,
   CameraTransformTypes,
   fromRegistrationPairs,
   RegistrationPair,
@@ -160,7 +160,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   // the aligned view consumes (loadConfig falls back to these meta fields
   // until a save writes the standalone per-camera files).
   const seedHomographies: CameraHomographies = {};
-  const seedCorrespondences: CameraCorrespondences = {};
+  const seedCorrespondences: CameraObservations = {};
   const seedTransformTypes: CameraTransformTypes = {};
   const seedSourceStamps: { file: string; source: RegistrationSource | null }[] = [];
   const importWarnings: string[] = [];
@@ -179,6 +179,12 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         if (!data || !Array.isArray(data.pairs)) {
           throw new Error('not a DIVE registration file (expected a "pairs" list)');
         }
+        if (data.version !== 2) {
+          throw new Error(
+            `unsupported registration file version ${JSON.stringify(data.version)} `
+            + '(expected 2); regenerate the file with a current producer',
+          );
+        }
         const parsed = fromRegistrationPairs(data.pairs);
         Object.entries(parsed.homographies).forEach(([key, homography]) => {
           if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
@@ -186,7 +192,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
           }
           seedHomographies[key] = homography;
         });
-        Object.assign(seedCorrespondences, parsed.correspondences);
+        Object.assign(seedCorrespondences, parsed.observations);
         Object.assign(seedTransformTypes, parsed.transformTypes);
         const fileName = item.transformFile.replace(/^.*[\\/]/, '');
         const warning = unknownCameraWarning(

@@ -6,11 +6,121 @@ import {
   MultiCamMedia,
 } from 'dive-common/apispec';
 
-import { JsonConfig, Settings } from 'platform/desktop/constants';
+import { Camera, JsonConfig, Settings } from 'platform/desktop/constants';
 import { loadAnnotationFile, loadJsonConfig, getValidatedProjectDir } from 'platform/desktop/backend/native/common';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { getBinaryPath, spawnResult } from './utils';
+
+const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+
+/** Frame subset / range inputs for multicam pipeline arg writing. */
+export interface MultiCamRuntimeSubset {
+  /**
+   * Camera name -> ordered image identifiers for exactly the frames a job
+   * should process (registration subset jobs). Entries are the camera's own
+   * image names (resolved against its base path), absolute paths, or
+   * frame://N pseudo-names for video cameras (extracted to temp images).
+   */
+  imagePairs?: Record<string, string[]>;
+  frameRange?: [number, number];
+  /**
+   * Progress sink for the slow part of writing these args: extracting a video
+   * camera's subset frames to stills, which for a rig-wide registration run
+   * takes longer than the pipeline itself. Without it the caller has nothing
+   * to report between "job accepted" and "process spawned".
+   */
+  onProgress?: (message: string) => void;
+}
+
+/**
+ * Extract specific frames of a video to still images so a frame-subset job
+ * can consume one uniform image-list input (no vidl_ffmpeg in the pipe, no
+ * video-decode variability in the matcher's input). The frame number is
+ * kept in the file name (<camera>.frame_<N>.png) so job outputs can be
+ * mapped back to frame://N identities on ingest.
+ */
+async function extractVideoFrames(
+  videoPath: string,
+  frames: number[],
+  fps: number,
+  outDir: string,
+  camera: string,
+  onProgress?: (done: number, total: number) => void,
+): Promise<string[]> {
+  await fs.ensureDir(outDir);
+  const results: string[] = [];
+  // eslint-disable-next-line no-restricted-syntax
+  for (const frameNum of frames) {
+    const seconds = fps > 0 ? frameNum / fps : 0;
+    const dest = npath.join(outDir, `${camera}.frame_${frameNum}.png`);
+
+    const result = await spawnResult(ffmpegPath, [
+      '-ss', seconds.toFixed(6),
+      '-i', videoPath,
+      '-frames:v', '1',
+      // Without -update, ffmpeg's image2 muxer treats any digit-bearing
+      // output name as an ambiguous sequence pattern and refuses to write
+      // it; -update 1 tells it this is one literal file.
+      '-update', '1',
+      '-y', dest,
+    ]);
+
+    // result.error is just accumulated stderr, which ffmpeg always writes
+    // (its own progress/banner logging) even on success -- exit code and
+    // the output file are the actual success signal.
+    if (result.exitCode !== 0 || !await fs.pathExists(dest)) {
+      throw new Error(`Could not extract frame ${frameNum} from ${videoPath}: ${result.error || 'no output'}`);
+    }
+    results.push(dest);
+    onProgress?.(results.length, frames.length);
+  }
+  return results;
+}
+
+/** frame://N pseudo-name to frame number, or null for real image names. */
+function pseudoFrameNumber(entry: string): number | null {
+  const match = /^frame:\/\/(\d+)$/.exec(entry);
+  return match ? Number(match[1]) : null;
+}
+
+/** Strip extension for stem matching (e.g. .tif source -> .png transcode). */
+function imageStem(filename: string): string {
+  return filename.replace(npath.extname(filename), '');
+}
+
+/**
+ * Resolve a viewer/subset image identifier to the absolute path VIAME should read.
+ * Subset jobs receive the same basenames the viewer uses; when IR/UV TIFFs were
+ * transcoded to PNG in the project directory, those names must not be joined
+ * against the import source folder (where the originals still live).
+ */
+export function resolveMultiCamImagePath(
+  cameraKey: string,
+  camera: Camera,
+  projectBasePath: string,
+  entry: string,
+): string {
+  if (npath.isAbsolute(entry)) {
+    return entry;
+  }
+  const { originalBasePath, originalImageFiles, transcodedImageFiles } = camera;
+  if (transcodedImageFiles?.length) {
+    if (transcodedImageFiles.includes(entry)) {
+      return npath.join(projectBasePath, cameraKey, entry);
+    }
+    const stem = imageStem(entry);
+    const transcoded = transcodedImageFiles.find((name) => imageStem(name) === stem);
+    if (transcoded) {
+      return npath.join(projectBasePath, cameraKey, transcoded);
+    }
+  }
+  if (originalImageFiles.includes(entry)) {
+    return npath.join(originalBasePath, entry);
+  }
+  return npath.join(originalBasePath, entry);
+}
 
 /**
  * Figure out the destination location
@@ -83,9 +193,14 @@ async function writeMultiCamStereoPipelineArgs(
   // Explicit input1..N camera order for 2-cam/3-cam pipes; stereo
   // measurement keeps the stored left/right order when omitted.
   cameraOrder: string[] | undefined = undefined,
+  runtime: MultiCamRuntimeSubset = {},
 ) {
+  const { onProgress } = runtime;
   const argFilePair: Record<string, string> = {};
   const outFiles: Record<string, string> = {};
+  const projectBasePath = runtime.imagePairs
+    ? (await getValidatedProjectDir(settings, meta.id)).basePath
+    : '';
   if (meta.multiCam && meta.multiCam.cameras) {
     const { cameras } = meta.multiCam;
     const cameraNames = cameraOrder
@@ -106,10 +221,66 @@ async function writeMultiCamStereoPipelineArgs(
         argFilePair['detector_writer:file_name'] = outputFileName;
         argFilePair['track_writer:file_name'] = outputFileName;
       }
+      const subset = runtime.imagePairs?.[key];
       if (list.type === 'image-sequence') {
         const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
+        let images = list.originalImageFiles.map((image) => npath.join(originalBasePath, image));
+        if (subset) {
+          // A registration subset job: ONLY the selected frames, keeping the
+          // ordering contract (row i of each camera's list pairs with row i
+          // of every other camera's).
+          images = subset.map((entry) => resolveMultiCamImagePath(
+            key,
+            list,
+            projectBasePath,
+            entry,
+          ));
+          // eslint-disable-next-line no-restricted-syntax
+          for (const image of images) {
+            if (!await fs.pathExists(image)) {
+              throw new Error(`Image file not found: ${image}`);
+            }
+          }
+        } else if (runtime.frameRange) {
+          // The single-camera path filters image lists by frameRange;
+          // multicam silently ignored it (a pre-existing no-op) -- apply it
+          // here now that the list writing is subset-aware.
+          const [startFrame, endFrame] = runtime.frameRange;
+          images = images.slice(Math.max(0, startFrame), endFrame + 1);
+        }
         const inputFile = fs.createWriteStream(inputFileName);
-        list.originalImageFiles.forEach((image) => inputFile.write(`${npath.join(originalBasePath, image)}\n`));
+        images.forEach((image) => inputFile.write(`${image}\n`));
+        inputFile.end();
+        argFilePair[inputArg] = inputFileName;
+        if (i === 0) {
+          argFilePair['input:video_filename'] = inputFileName;
+        }
+      } else if (list.originalVideoFile && subset) {
+        // Video multicam with a frame subset: extract the selected frames to
+        // temp images and feed the identical image-list path, so the
+        // register pipes never need vidl_ffmpeg (one input mechanism, both
+        // media types).
+        const vidFile = (list.transcodedVideoFile && forceTranscoded) || list.transcodedMisalign
+          ? list.transcodedVideoFile : list.originalVideoFile;
+        const videoPath = npath.join(originalBasePath, vidFile);
+        const frames = subset.map((entry) => {
+          const frameNum = pseudoFrameNumber(entry);
+          if (frameNum === null) {
+            throw new Error(`Expected frame://N identifiers for video camera "${key}", got "${entry}"`);
+          }
+          return frameNum;
+        });
+        const extracted = await extractVideoFrames(
+          videoPath,
+          frames,
+          meta.fps,
+          npath.join(jobWorkDir, `extracted_${key}`),
+          key,
+          (done, total) => onProgress?.(`Extracting frames from ${key}: ${done}/${total}`),
+        );
+        const inputFileName = npath.join(jobWorkDir, `input${i + 1}_images.txt`);
+        const inputFile = fs.createWriteStream(inputFileName);
+        extracted.forEach((image) => inputFile.write(`${image}\n`));
         inputFile.end();
         argFilePair[inputArg] = inputFileName;
         if (i === 0) {

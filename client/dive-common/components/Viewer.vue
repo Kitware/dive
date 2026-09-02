@@ -62,6 +62,7 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
+import { createAutoRegisterJobService, provideAutoRegisterJob } from 'dive-common/use/useAutoRegisterJob';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -197,6 +198,7 @@ export default defineComponent({
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
+      getPipelineList, runPipeline, watchPipelineJob,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -330,25 +332,23 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
-    // When the Camera Registration panel opens, minimize the workspace chrome to
-    // give the picking view more room: collapse the left type-filter sidebar and
-    // the bottom detections graph. This is a soft default -- the normal sidebar
-    // and timeline toggles still work while registering, so the user can bring
-    // either back -- and whatever layout they had before is restored on close.
+    // When the Camera Registration panel opens, minimize the workspace chrome
+    // to give the picking view more room: hide the type-filter sidebar,
+    // whichever side it is on. Bottom especially -- it competes for the same
+    // vertical room the two picking panes want. The bottom controls
+    // deliberately stay as they are -- the timeline hosts the
+    // registration-frame marker row, which is most useful exactly while this
+    // panel is open. This is a soft default -- the normal sidebar toggle
+    // still works while registering -- and whatever layout the user had
+    // before is restored on close.
     const registrationActive = computed(() => context.state.active === RegistrationToolsVue.name);
     let preRegistrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
-    let preRegistrationControlsCollapsed = false;
     watch(registrationActive, (active) => {
       if (active) {
         preRegistrationSidebarMode = sidebarMode.value;
-        preRegistrationControlsCollapsed = controlsCollapsed.value;
-        if (sidebarMode.value === 'left') {
-          sidebarMode.value = 'collapsed';
-        }
-        controlsCollapsed.value = true;
+        sidebarMode.value = 'collapsed';
       } else if (preRegistrationSidebarMode !== null) {
         sidebarMode.value = preRegistrationSidebarMode;
-        controlsCollapsed.value = preRegistrationControlsCollapsed;
         preRegistrationSidebarMode = null;
       }
     });
@@ -564,6 +564,44 @@ export default defineComponent({
       alignedView.setRegistrationProgress(null);
       cameraRegistration.hydrate();
     }
+    // Keep the registration store's current frame in sync so newly picked
+    // points are stamped with the image pair they were picked on.
+    watch(() => aggregateController.value.frame.value, (frameNum) => {
+      cameraRegistration.currentFrame.value = frameNum;
+    }, { immediate: true });
+    /**
+     * Publish the frame/image bridge the registration store resolves
+     * observation identities with: image-sequence cameras resolve to real
+     * file names; video cameras resolve to stable frame://N pseudo-names so
+     * the persisted schema stays uniform across media types. Frames resolve
+     * in each camera's own local frame space.
+     */
+    function publishRegistrationFrameResolver() {
+      cameraRegistration.setFrameResolver({
+        currentImageName: (camera: string) => {
+          let cameraFrame: number;
+          try {
+            cameraFrame = aggregateController.value.getController(camera).frame.value;
+          } catch {
+            cameraFrame = aggregateController.value.frame.value;
+          }
+          return imageData.value[camera]?.[cameraFrame]?.filename
+            ?? `frame://${cameraFrame}`;
+        },
+        frameForImage: (camera: string, imageName: string) => {
+          const pseudo = /^frame:\/\/(\d+)$/.exec(imageName);
+          if (pseudo) {
+            return Number(pseudo[1]);
+          }
+          const images = imageData.value[camera];
+          if (!images || !images.length) {
+            return null;
+          }
+          const index = images.findIndex((image) => image.filename === imageName);
+          return index >= 0 ? index : null;
+        },
+      });
+    }
 
     const alignedResolution = computed(() => {
       if (!isMultiCameraDataset.value) {
@@ -582,7 +620,7 @@ export default defineComponent({
     });
     // Publish how much of the rig resolves so UI outside the viewer core
     // (e.g. the import menu's "Import to all cameras" checkbox) shows the
-    // same "N/M cameras registered" status as the Align View toggle.
+    // same "N/M cameras ready" status as the Align View toggle.
     const registrationProgress = computed(() => {
       if (!isMultiCameraDataset.value) {
         return null;
@@ -614,7 +652,7 @@ export default defineComponent({
      * Camera panes currently displayed. While the Camera Registration panel is
      * open with an active pair on a 3+ camera dataset, only the pair's two
      * panes show, so the left/right alignment flow reads without unrelated
-     * panes in between (regardless of whether Pick points is toggled on).
+     * panes in between (regardless of whether Edit points is toggled on).
      * Panes are hidden (v-show), not unmounted, so their viewers keep state.
      */
     const displayedCameras = computed(() => {
@@ -681,6 +719,65 @@ export default defineComponent({
 
     const lassoMode = useLassoMode();
     provide(LassoModeSymbol, lassoMode);
+
+    // Auto-register job bridge for the Camera Registration panel: proposes a
+    // stratified candidate spread, launches the utility_align_cameras pipe
+    // over exactly those frames, and refreshes the registration store when
+    // the merged result lands in the dataset meta. Availability is "is the
+    // align pipe in the pipeline list" -- truthful on both platforms because
+    // the add-on pack installs the pipes together with the matcher weights.
+    const autoRegisterJob = createAutoRegisterJobService({
+      datasetId,
+      cameras: multiCamList,
+      frameCount: (camera: string) => {
+        const images = imageData.value[camera];
+        if (images && images.length) {
+          return images.length;
+        }
+        try {
+          return aggregateController.value.getController(camera).maxFrame.value + 1;
+        } catch {
+          return 0;
+        }
+      },
+      timestampsFor: (camera: string) => {
+        const images = imageData.value[camera];
+        if (!images || !images.length
+          || !images.some((image) => image.timestamp !== undefined)) {
+          return null;
+        }
+        return images.map((image) => image.timestamp);
+      },
+      // Register through the same timeline playback uses, so a candidate
+      // "frame" is one capture across the rig rather than one index reused on
+      // cameras that may have dropped different frames.
+      alignedSlots: () => {
+        const result = alignedTimeline.value;
+        return result.aligned ? result.slots : null;
+      },
+      resolveImagePaths: async (camera: string, frames: number[]) => {
+        const images = imageData.value[camera];
+        return frames.map((frameNum) => images?.[frameNum]?.filename ?? `frame://${frameNum}`);
+      },
+      getPipelineList,
+      runPipeline,
+      // Only platforms that can report job state supply this; without it the
+      // service falls back to watching the dataset for the job's output.
+      watchJob: watchPipelineJob,
+      loadMetadata: loadConfig,
+      registration: cameraRegistration,
+      confirmReload: () => prompt({
+        title: 'Auto Register Finished',
+        text: 'The auto-register job finished, but this registration has '
+          + 'unsaved edits. Load the job results (replacing the unsaved '
+          + 'edits)?',
+        positiveButton: 'Load results',
+        negativeButton: 'Keep my edits',
+        confirm: true,
+      }),
+    });
+    provideAutoRegisterJob(autoRegisterJob);
+    onBeforeUnmount(() => autoRegisterJob.dispose());
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -1284,7 +1381,7 @@ export default defineComponent({
       cameraRegistration.maybeFitActivePair();
       await saveConfig(datasetId.value, {
         cameraHomographies: cameraRegistration.homographies.value,
-        cameraCorrespondences: cameraRegistration.correspondences.value,
+        cameraCorrespondences: cameraRegistration.observations.value,
         cameraTransformTypes: cameraRegistration.transformTypes.value,
         cameraRegistrationSource: cameraRegistration.source.value,
       });
@@ -1819,6 +1916,11 @@ export default defineComponent({
             meta.cameraTransformTypes,
             meta.cameraRegistrationSource,
           );
+          // Media is loaded at this point: resolve observation frames from
+          // their image names against this dataset's own frame ordering.
+          publishRegistrationFrameResolver();
+          // Probe for the align_cameras pipes (fire and forget).
+          autoRegisterJob.refreshAvailability();
           // Reset the aligned-view toggle for the newly loaded dataset (no
           // persistence this phase).
           alignedView.setEnabled(false);
@@ -2264,6 +2366,7 @@ export default defineComponent({
       cycleSidebarMode,
       sidebarModeIcon,
       sidebarModeTooltip,
+      registrationActive,
       bottomRightPanelView,
       toggleBottomRightPanel,
       colorBy,
@@ -2435,7 +2538,14 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <!--
+          No sidebar while registering: the picking panes want the room, and
+          the bottom layout in particular doesn't lay them out usably. The
+          panel collapses the sidebar on open and restores it on close, so
+          the toggle is simply not offered in between.
+        -->
         <v-tooltip
+          v-if="!registrationActive"
           bottom
         >
           <template #activator="{ on }">

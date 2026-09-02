@@ -117,6 +117,10 @@ class PipelineDescription(TypedDict):
 
 class PipelineRuntimeParams(TypedDict, total=False):
     frameRange: Optional[Tuple[int, int]]
+    # Multicam registration subset: camera name -> ordered image names for
+    # exactly the frames the job should process (row i of one camera's list
+    # pairs with row i of every other's).
+    imagePairs: Optional[Dict[str, List[str]]]
 
 
 class PipelineParams(TypedDict, total=False):
