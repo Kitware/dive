@@ -284,6 +284,8 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   forceMediaTranscode: boolean;
   /** Absolute path of an optional DIVE Configuration File (JSON) chosen at import. */
   configFileAbsPath?: string;
+  /** Absolute path of an optional KWCOCO species list chosen at import. */
+  speciesFileAbsPath?: string;
   /** Absolute path of an optional Metadata File (pipeline sidecar) chosen at import. */
   // Absolute path of the one optional metadata attachment. Seeded by import-time discovery
   // (an exported folder's metadata/ directory, or a reserved-name file beside the media) and

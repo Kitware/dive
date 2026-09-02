@@ -903,6 +903,104 @@ describe('native.common', () => {
       .toEqual([['shark', 1]]);
   });
 
+  it('imports a KWCOCO species list as a declaration, not as annotations', async () => {
+    const imported = '/home/user/output/rockfish.species.json';
+    await fs.writeJSON(imported, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    });
+    const before = Object.keys((await common.loadDetections(settings, 'projectid1')).tracks);
+
+    const result = await common.dataFileImport(settings, 'projectid1', imported);
+
+    expect(result.warnings).toEqual([]);
+    const meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    // A species with no style of its own costs an empty entry and renders in the
+    // ordinal palette; the keys are the declared type list.
+    expect(meta.customTypeStyling).toEqual({
+      Sebastes: {},
+      'Sebastes melanops': {},
+      'Sebastes flavidus': {},
+    });
+    expect(meta.typeHierarchy).toEqual({
+      'Sebastes melanops': 'Sebastes',
+      'Sebastes flavidus': 'Sebastes',
+    });
+    // A declaration is not an observation.
+    expect(Object.keys((await common.loadDetections(settings, 'projectid1')).tracks))
+      .toEqual(before);
+  });
+
+  it('overwrites the declared species list and adds to it on an additive import', async () => {
+    const imported = '/home/user/output/overwrite.species.json';
+    await common.saveConfig(settings, 'projectid1', {
+      customTypeStyling: {
+        Sebastes: { color: '#ff0000' },
+        'retired species': { color: '#00ff00' },
+      },
+    });
+    await fs.writeJSON(imported, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    });
+
+    await common.dataFileImport(settings, 'projectid1', imported);
+
+    // Overwrite is the whole declaration: the type it omits is gone, the style of the
+    // type it names is kept.
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).customTypeStyling)
+      .toEqual({ Sebastes: { color: '#ff0000' }, 'Sebastes flavidus': {} });
+
+    const added = '/home/user/output/additive.species.json';
+    await fs.writeJSON(added, { categories: [{ id: 1, name: 'Anoplopoma fimbria' }] });
+    await common.dataFileImport(settings, 'projectid1', added, true);
+
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).customTypeStyling)
+      .toEqual({
+        Sebastes: { color: '#ff0000' },
+        'Sebastes flavidus': {},
+        'Anoplopoma fimbria': {},
+      });
+  });
+
+  it('clears the hierarchy for a flat Overwrite list and leaves it for an additive one', async () => {
+    const flat = '/home/user/output/flat.species.json';
+    await fs.writeJSON(flat, { categories: [{ id: 1, name: 'Sebastes' }] });
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: { shark: 'fish' } });
+
+    await common.dataFileImport(settings, 'projectid1', flat, true);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toEqual({ shark: 'fish' });
+
+    await common.dataFileImport(settings, 'projectid1', flat);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toBeUndefined();
+  });
+
+  it('rejects a species list whose hierarchy is unusable without changing anything', async () => {
+    // A species list is imported for its classes, so a cycle is an error rather than a
+    // warning that silently degrades the list to a flat one.
+    const cyclic = '/home/user/output/cyclic.species.json';
+    await fs.writeJSON(cyclic, {
+      categories: [
+        { id: 1, name: 'a', supercategory: 'b' },
+        { id: 2, name: 'b', supercategory: 'a' },
+      ],
+    });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+
+    await expect(common.dataFileImport(settings, 'projectid1', cyclic))
+      .rejects.toThrow('Type hierarchy is invalid: cycle a -> b -> a. No configuration was changed.');
+
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
+  });
+
   it('warns and skips a conflicting COCO hierarchy without dropping annotations', async () => {
     const imported = '/home/user/output/conflict.coco.json';
     await common.saveConfig(settings, 'projectid1', {

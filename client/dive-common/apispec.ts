@@ -458,7 +458,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'species' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
     Promise<{
       canceled?: boolean;
       filePaths: string[];
