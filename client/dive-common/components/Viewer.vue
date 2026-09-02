@@ -1693,6 +1693,9 @@ export default defineComponent({
           let seeded = false;
           const nextTypes = { ...globalTypeStyles.value };
           Object.entries(meta.customTypeStyling ?? {}).forEach(([name, style]) => {
+            // A type declared by a species list has no style of its own, and a curated list
+            // runs to hundreds of entries. There is nothing to share, so it is not seeded.
+            if (!Object.keys(style).length) return;
             if (!(name in nextTypes)) {
               nextTypes[name] = {
                 ...style,
