@@ -13,6 +13,7 @@ export * from './girder.service';
 export * from './multicamResolve';
 export * from './rpc.service';
 export * from './waitForFolderDatasetReady';
+export { default as watchPipelineJob } from './watchPipelineJob';
 export * from './largeImage.service';
 
 /**

@@ -766,6 +766,7 @@ export default defineComponent({
       watchJob: watchPipelineJob,
       loadMetadata: loadConfig,
       registration: cameraRegistration,
+      saveRegistration,
       confirmReload: () => prompt({
         title: 'Auto Register Finished',
         text: 'The auto-register job finished, but this registration has '

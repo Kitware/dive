@@ -81,6 +81,7 @@ function buildService(slots: AlignedSlot[] | null) {
       observations: ref({}),
       dirty: ref(false),
     } as unknown as CameraRegistrationStore,
+    saveRegistration: async () => undefined,
     confirmReload: async () => true,
   });
   return { service, sent };
@@ -260,6 +261,7 @@ describe('replaceExisting and the unsaved-edits baseline', () => {
       runPipeline: async () => { throw new Error('stop-after-launch'); },
       loadMetadata: async () => ({ cameraCorrespondences: {} }),
       registration,
+      saveRegistration: async () => undefined,
       confirmReload: async () => true,
     });
     return { service, removed, calls };
@@ -298,6 +300,63 @@ describe('replaceExisting and the unsaved-edits baseline', () => {
  * it waits, the panel must not keep claiming the job is still matching frames
  * -- that reads as a hung job when the work is already done and merged.
  */
+describe('launching from saved state', () => {
+  const timeline = buildAlignedTimeline(IMAGES);
+  const { slots } = (timeline as { aligned: true; slots: AlignedSlot[] });
+
+  /** Records the order of the save, the baseline read and the launch. */
+  function buildOrderedService() {
+    const order: string[] = [];
+    const service = createAutoRegisterJobService({
+      datasetId: ref('ds1'),
+      cameras: ref(CAMERAS),
+      frameCount: (camera: string) => IMAGES[camera].length,
+      timestampsFor: (camera: string) => IMAGES[camera].map((frame) => frame.timestamp),
+      alignedSlots: () => slots,
+      resolveImagePaths: async (camera: string, frames: number[]) => (
+        frames.map((n) => IMAGES[camera][n].filename)
+      ),
+      getPipelineList: async () => ({ utility: { pipes: [ALIGN_PIPE] } }),
+      runPipeline: async () => {
+        order.push('launch');
+        throw new Error('stop-after-launch');
+      },
+      loadMetadata: async () => {
+        order.push('baseline');
+        return { cameraCorrespondences: {} };
+      },
+      registration: {
+        observations: ref({}),
+        dirty: ref(true),
+      } as unknown as CameraRegistrationStore,
+      saveRegistration: async () => { order.push('save'); },
+      confirmReload: async () => true,
+    });
+    return { service, order };
+  }
+
+  it('saves the panel edits before the job exists', async () => {
+    // The status line sends the user to the Jobs tab, and the viewer's
+    // navigation guard would stop them over edits the read-only dataset gives
+    // them no way to save.
+    const { service, order } = buildOrderedService();
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(order).toEqual(['save', 'baseline', 'launch']);
+  });
+
+  it('reads the completion baseline after the save, not before', async () => {
+    // Reading first would capture pre-save meta, so the save's own write would
+    // register as the job's first result and end the run immediately.
+    const { service, order } = buildOrderedService();
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(order.indexOf('save')).toBeLessThan(order.indexOf('baseline'));
+  });
+});
+
 describe('status while the completion confirm is open', () => {
   const timeline = buildAlignedTimeline(IMAGES);
   const { slots } = (timeline as { aligned: true; slots: AlignedSlot[] });
@@ -329,6 +388,7 @@ describe('status while the completion confirm is open', () => {
           observations: ref({}),
           dirty: ref(true),
         } as unknown as CameraRegistrationStore,
+        saveRegistration: async () => undefined,
         confirmReload: () => {
           confirmOpened = true;
           return new Promise<boolean>((resolve) => { resolveConfirm = resolve; });
@@ -398,6 +458,7 @@ describe('completion by job state', () => {
         hydrate: (...args: unknown[]) => { hydrated.push(args); },
         setActivePair: () => undefined,
       } as unknown as CameraRegistrationStore,
+      saveRegistration: async () => undefined,
       confirmReload: async () => true,
     });
     return { service, hydrated };

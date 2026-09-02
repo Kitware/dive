@@ -104,6 +104,13 @@ export interface AutoRegisterJobDeps {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   loadMetadata(datasetId: string): Promise<any>;
   registration: CameraRegistrationStore;
+  /**
+   * Persist the panel's unsaved registration edits -- the same write its Save
+   * button does, and a no-op when the store is clean. Run before the job is
+   * launched: see the call site for why the job cannot be started over unsaved
+   * state.
+   */
+  saveRegistration(): Promise<void>;
   /** Confirm replacing unsaved in-app edits with the job's result. */
   confirmReload(): Promise<boolean>;
 }
@@ -359,6 +366,20 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
       if (options.minInliers !== undefined) {
         kwiverParams['register:min_inliers'] = String(options.minInliers);
       }
+      // Launch from saved state, for two independent reasons.
+      // Navigation: the status line below sends the user to the Jobs tab, but
+      // the viewer's guard stops them leaving with unsaved registration edits,
+      // and the dataset is read-only for the job's duration -- so the prompt
+      // would offer only "discard" for work they cannot save.
+      // Correctness: the job's output is merged into the SAVED registration
+      // (server-side ingest, or the desktop collector), and the result is then
+      // rehydrated over the store. Replace mode's local removal of prior
+      // matcher observations would be undone by that reload unless it is
+      // persisted first.
+      status.value = 'Saving registration edits…';
+      await deps.saveRegistration();
+      // Read the baseline only after the save, or the save itself would look
+      // like the job's first result.
       const meta = await deps.loadMetadata(deps.datasetId.value);
       const baseline = JSON.stringify(meta.cameraCorrespondences ?? {});
       // Queueing the job is not the same as the job starting: video frames are

@@ -192,7 +192,20 @@ function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJo
   const startedAt = Date.now();
   return new Promise<PipelineJobResult>((resolve) => {
     let key: string | null = null;
-    const stop = watch(jobHistory, () => {
+    let stop: (() => void) | undefined;
+    let settled = false;
+    const settle = (result: PipelineJobResult) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      // Undefined while the immediate run is still inside watch() -- a job that
+      // had already finished by then settles on that first pass, before the
+      // handle exists. The caller below stops the watcher in that case.
+      stop?.();
+      resolve(result);
+    };
+    stop = watch(jobHistory, () => {
       const entries = Object.values(jobHistory.value);
       if (key === null) {
         const match = entries.find((entry) => entry.job.jobType === 'pipeline'
@@ -211,18 +224,20 @@ function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJo
       if (!job || job.endTime === undefined) {
         return;
       }
-      stop();
       if (job.cancelledJob) {
-        resolve({ ok: false, message: 'The job was cancelled.' });
+        settle({ ok: false, message: 'The job was cancelled.' });
       } else if (job.exitCode === 0) {
-        resolve({ ok: true });
+        settle({ ok: true });
       } else {
-        resolve({
+        settle({
           ok: false,
           message: `The job exited with code ${job.exitCode}; see its log in the Jobs tab.`,
         });
       }
     }, { deep: true, immediate: true });
+    if (settled) {
+      stop();
+    }
   });
 }
 
