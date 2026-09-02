@@ -1302,11 +1302,16 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     );
     const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
     const hierarchyPresent = Object.prototype.hasOwnProperty.call(args, 'typeHierarchy');
+    const cameraRolesPresent = Object.prototype.hasOwnProperty.call(args, 'cameraRoles');
     if (cameraName) {
       if (hierarchyPresent) {
         await saveConfig(settings, parentId, { typeHierarchy: args.typeHierarchy });
       }
+      if (cameraRolesPresent) {
+        await saveConfig(settings, parentId, { cameraRoles: args.cameraRoles });
+      }
       delete existing.typeHierarchy;
+      delete existing.cameraRoles;
     }
     let hierarchyWrite: HierarchyWrite;
     try {
@@ -1350,6 +1355,9 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     }
     if (args.datasetInfo) {
       existing.datasetInfo = args.datasetInfo;
+    }
+    if (cameraRolesPresent && !cameraName) {
+      existing.cameraRoles = args.cameraRoles;
     }
 
     // Registration files remain separate so each camera pair has one persisted owner.
