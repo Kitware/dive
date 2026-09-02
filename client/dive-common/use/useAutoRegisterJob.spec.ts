@@ -498,3 +498,133 @@ describe('completion by job state', () => {
     expect(service.error.value).toMatch(/exited with code 1/);
   });
 });
+
+/**
+ * What the run achieved, not merely that it ended.
+ *
+ * Fixture shape is a real 3-cam job over flat sea ice (ice_seals fl01): the
+ * matcher prefiltered all 14 candidates as low_texture, so each pair carries 14
+ * disabled observations with a skip reason and no transform came out. Before
+ * this, the panel reported that exactly like a clean fit.
+ */
+describe('reporting what a finished run produced', () => {
+  const timeline = buildAlignedTimeline(IMAGES);
+  const { slots } = (timeline as { aligned: true; slots: AlignedSlot[] });
+  const PAIR_KEYS = ['rgb::ir', 'rgb::uv', 'ir::uv'];
+
+  /** `count` matcher observations for each pair, `skipped` of them rejected. */
+  function correspondences(count: number, skipped: number) {
+    return Object.fromEntries(PAIR_KEYS.map((key) => [
+      key,
+      Array.from({ length: count }, (_unused, i) => ({
+        imageA: `a${i}.jpg`,
+        imageB: `b${i}.png`,
+        source: 'minima_loftr',
+        enabled: i >= skipped,
+        points: [],
+        ...(i < skipped ? { stats: { skipped: 'low_texture', textureScore: 1.95 } } : {}),
+      })),
+    ]));
+  }
+
+  function buildService(meta: Record<string, unknown>, unchanged = false) {
+    let loads = 0;
+    const service = createAutoRegisterJobService({
+      datasetId: ref('ds1'),
+      cameras: ref(CAMERAS),
+      frameCount: (camera: string) => IMAGES[camera].length,
+      timestampsFor: (camera: string) => IMAGES[camera].map((frame) => frame.timestamp),
+      alignedSlots: () => slots,
+      resolveImagePaths: async (camera: string, frames: number[]) => (
+        frames.map((n) => IMAGES[camera][n].filename)
+      ),
+      getPipelineList: async () => ({ utility: { pipes: [ALIGN_PIPE] } }),
+      runPipeline: async () => undefined,
+      watchJob: async () => ({ ok: true }),
+      loadMetadata: async () => {
+        loads += 1;
+        // Pre-launch baseline first, unless the run is meant to change nothing.
+        return loads > 1 || unchanged ? meta : { cameraCorrespondences: {} };
+      },
+      registration: {
+        observations: ref({}),
+        dirty: ref(false),
+        activePair: ref(null),
+        hydrate: () => undefined,
+        setActivePair: () => undefined,
+      } as unknown as CameraRegistrationStore,
+      saveRegistration: async () => undefined,
+      confirmReload: async () => true,
+    });
+    return service;
+  }
+
+  it('reports a total rejection as a failure, with the reason', async () => {
+    const service = buildService({
+      cameraCorrespondences: correspondences(14, 14),
+      cameraHomographies: {},
+    });
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.status.value).toBeNull();
+    expect(service.error.value).toMatch(/fitted no camera pairs/);
+    expect(service.error.value).toMatch(/low_texture/);
+  });
+
+  it('counts rejected frames per pair rather than summing across the rig', async () => {
+    // 14 frames on a triplet is 42 observations; reporting 42 would misstate
+    // how much of the flight the matcher actually looked at.
+    const service = buildService({
+      cameraCorrespondences: correspondences(14, 14),
+      cameraHomographies: {},
+    });
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.error.value).toMatch(/14 low_texture/);
+    expect(service.error.value).not.toMatch(/42/);
+  });
+
+  it('still reports failure when a deterministic re-run changes nothing', async () => {
+    const service = buildService({
+      cameraCorrespondences: correspondences(14, 14),
+      cameraHomographies: {},
+    }, true);
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.error.value).toMatch(/fitted no camera pairs/);
+    // Not the "already up to date" line the unchanged-merge branch used to give.
+    expect(service.status.value).toBeNull();
+  });
+
+  it('names the rejected frames on a partial success without calling it a failure', async () => {
+    const service = buildService({
+      cameraCorrespondences: correspondences(14, 2),
+      cameraHomographies: { 'rgb::ir': { AtoB: [], BtoA: [] } },
+    });
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.error.value).toBeNull();
+    expect(service.status.value).toMatch(/1 of 3 pair\(s\) fitted/);
+    expect(service.status.value).toMatch(/2 low_texture rejected/);
+  });
+
+  it('leaves a clean run reading exactly as it did before', async () => {
+    const service = buildService({
+      cameraCorrespondences: correspondences(14, 0),
+      cameraHomographies: Object.fromEntries(
+        PAIR_KEYS.map((key) => [key, { AtoB: [], BtoA: [] }]),
+      ),
+    });
+    await service.refreshAvailability();
+    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+
+    expect(service.error.value).toBeNull();
+    expect(service.status.value).toBe(
+      'Auto Register complete: review the registration frames below.',
+    );
+  });
+});
