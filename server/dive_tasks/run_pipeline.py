@@ -300,7 +300,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 media_list, media_type = utils.download_source_media(
                     gc, camera['folder_id'], cam_input_path, multicam_force_transcoded
                 )
-                if frame_range is not None and media_type == constants.ImageSequenceType:
+                if frame_range is not None and media_type in constants.ImageListTypes:
                     media_list = filter_image_list_by_frame_range(media_list, frame_range)
                 camera_media[camera['name']] = (media_list, media_type)
                 if requires_input and camera.get('input_revision') is not None:
@@ -555,7 +555,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 _append_frame_range_video_settings(
                     command, input_folder, frame_range, pipeline['pipe']
                 )
-        elif input_type == constants.ImageSequenceType:
+        elif input_type in constants.ImageListTypes:
             # Filter image list by frame range if specified
             filtered_media_list = input_media_list
             if frame_range is not None:
@@ -596,7 +596,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             )
 
         single_input_manifest = (
-            str(img_list_path) if input_type == constants.ImageSequenceType else input_media_list[0]
+            str(img_list_path) if input_type in constants.ImageListTypes else input_media_list[0]
         )
         _append_input_list_kwiver_settings(command, pipeline, [single_input_manifest])
 

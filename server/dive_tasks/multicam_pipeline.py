@@ -428,7 +428,7 @@ def build_multicam_kwiver_settings(
         # is fed as an image list, not as a video.
         extracted_subset = False
         if subset is not None:
-            if media_type == constants.ImageSequenceType:
+            if media_type in constants.ImageListTypes:
                 by_name = {Path(path).name: path for path in media_list}
                 missing = [name for name in subset if name not in by_name]
                 if missing:
@@ -480,7 +480,7 @@ def build_multicam_kwiver_settings(
             arg_file_pair['detector_writer:file_name'] = output_file_name
             arg_file_pair['track_writer:file_name'] = output_file_name
 
-        if media_type == constants.ImageSequenceType or extracted_subset:
+        if media_type in constants.ImageListTypes or extracted_subset:
             input_file_name = str(work_dir / f'input{i + 1}_images.txt')
             with open(input_file_name, 'w', encoding='utf-8') as img_list_file:
                 img_list_file.write('\n'.join(media_list))

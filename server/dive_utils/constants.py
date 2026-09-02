@@ -12,6 +12,11 @@ ImageSequenceType = "image-sequence"
 VideoType = "video"
 LargeImageType = "large-image"
 MultiType = "multi"
+# Media types a pipeline run feeds to KWIVER as a line-separated image list.
+# Large-image datasets are ordinary image files on disk -- girder's large-image
+# conversion only adds tile views alongside them, so only the viewer needs the
+# tile endpoints; the runner reads the same files an image sequence would.
+ImageListTypes = (ImageSequenceType, LargeImageType)
 DefaultVideoFPS = -1
 JsonMetaCurrentVersion = 1
 SettingsCurrentVersion = 1

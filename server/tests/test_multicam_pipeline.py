@@ -406,3 +406,39 @@ def test_build_multicam_kwiver_settings_video_subset_requires_pseudo_frames(tmp_
 def test_extract_video_frames_requires_fps(tmp_path: Path):
     with pytest.raises(ValueError, match='frame rate'):
         multicam_pipeline.extract_video_frames('/tmp/left.mp4', [1], 0, tmp_path, 'left')
+
+
+def test_build_multicam_kwiver_settings_large_image(tmp_path: Path):
+    """A rig's TIFF camera is typed large-image; it still feeds an image list."""
+    cameras = [
+        {'name': 'rgb', 'folder_id': 'r', 'media_type': constants.ImageSequenceType},
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.LargeImageType},
+    ]
+    camera_media = {
+        'rgb': (['/tmp/rgb/000.jpg'], constants.ImageSequenceType),
+        'ir': (['/tmp/ir/000.tif', '/tmp/ir/001.tif'], constants.LargeImageType),
+    }
+    arg_pair, out_files = build_multicam_kwiver_settings(tmp_path, cameras, camera_media)
+
+    assert arg_pair['input2:video_filename'] == str(tmp_path / 'input2_images.txt')
+    # No video reader: large-image media is read off the list like any other.
+    assert 'input2:video_reader:type' not in arg_pair
+    assert (tmp_path / 'input2_images.txt').read_text(encoding='utf-8') == (
+        '/tmp/ir/000.tif\n/tmp/ir/001.tif'
+    )
+    assert out_files['ir'] == 'computed_tracks_ir.csv'
+
+
+def test_build_multicam_kwiver_settings_large_image_subset(tmp_path: Path):
+    """Registration frame subsets resolve by name on large-image cameras too."""
+    cameras = [
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.LargeImageType},
+    ]
+    camera_media = {'ir': (['/tmp/ir/000.tif', '/tmp/ir/001.tif'], constants.LargeImageType)}
+
+    arg_pair, _ = build_multicam_kwiver_settings(
+        tmp_path, cameras, camera_media, image_pairs={'ir': ['001.tif']}
+    )
+
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == '/tmp/ir/001.tif'
+    assert arg_pair['input:video_filename'] == str(tmp_path / 'input1_images.txt')
