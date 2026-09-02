@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import {
-  camerasForSlot, defaultDialogCameraOrder, fittedRegistrationPairs, inferCameraRole, inferCameraRoles,
-  missingRegistrations, parseCameraOrderHeader, pipelineCameraSlots,
-  prefillPipelineCameraOrder, proposedPipelineCameraOrder,
+  camerasForSlot, defaultDialogCameraOrder, describeSlotRoleMismatch, fittedRegistrationPairs,
+  inferCameraRole, inferCameraRoles, missingRegistrations, parseCameraOrderHeader,
+  pipelineCameraSlots, prefillPipelineCameraOrder, proposedPipelineCameraOrder, slotRoleMismatches,
 } from './pipelineCameraOrder';
 
 describe('pipelineCameraOrder', () => {
@@ -73,6 +73,28 @@ describe('pipelineCameraOrder', () => {
       'eo::ir': {},
     })).toStrictEqual(['rgb::ir']);
     expect(fittedRegistrationPairs(undefined)).toStrictEqual([]);
+  });
+
+  it('reports slot labels that disagree with saved camera roles', () => {
+    const slots = ['EO', 'UV', 'IR'];
+    const order = ['cam_a', 'cam_b', 'cam_c'];
+    const roles = { cam_a: 'ir' as const, cam_b: 'eo' as const, cam_c: 'uv' as const };
+    expect(slotRoleMismatches(slots, order, roles)).toStrictEqual([
+      {
+        input: 1, slotLabel: 'EO', slotRole: 'eo', camera: 'cam_a', cameraRole: 'ir',
+      },
+      {
+        input: 2, slotLabel: 'UV', slotRole: 'uv', camera: 'cam_b', cameraRole: 'eo',
+      },
+      {
+        input: 3, slotLabel: 'IR', slotRole: 'ir', camera: 'cam_c', cameraRole: 'uv',
+      },
+    ]);
+    expect(describeSlotRoleMismatch({
+      input: 1, slotLabel: 'EO', slotRole: 'eo', camera: 'cam_a', cameraRole: 'ir',
+    })).toBe('Camera 1 (Optical (EO)): "cam_a" is saved as Thermal (IR).');
+    expect(slotRoleMismatches(slots, ['eo', 'uv', 'ir'], { eo: 'eo', uv: 'uv', ir: 'ir' }))
+      .toStrictEqual([]);
   });
 
   it('reports warped cameras with no fitted registration onto camera 1', () => {

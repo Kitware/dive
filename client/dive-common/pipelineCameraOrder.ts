@@ -262,6 +262,51 @@ export function describeMissingRegistration(missing: MissingRegistration, pipeli
     + `("${missing.target}"). Register ${missing.camera} → ${missing.target} in the Camera Registration tab${where}.`;
 }
 
+export interface SlotRoleMismatch {
+  /** 1-based pipeline input position. */
+  input: number;
+  slotLabel: string;
+  slotRole: CameraRole;
+  camera: string;
+  cameraRole: CameraRole;
+}
+
+/**
+ * Slots whose role label (from `# Camera Order:`) disagrees with a chosen
+ * camera's saved role. Used to warn before "Save roles" overwrites correct
+ * assignments when the dialog default follows display order.
+ */
+export function slotRoleMismatches(
+  slots: string[],
+  order: readonly (string | null)[],
+  roles: Record<string, CameraRole>,
+): SlotRoleMismatch[] {
+  const mismatches: SlotRoleMismatch[] = [];
+  slots.forEach((slot, index) => {
+    const slotRole = roleOfToken(slot);
+    const camera = order[index] ?? null;
+    if (!slotRole || !camera) {
+      return;
+    }
+    const cameraRole = roles[camera];
+    if (cameraRole && cameraRole !== slotRole) {
+      mismatches.push({
+        input: index + 1,
+        slotLabel: slot,
+        slotRole,
+        camera,
+        cameraRole,
+      });
+    }
+  });
+  return mismatches;
+}
+
+export function describeSlotRoleMismatch(mismatch: SlotRoleMismatch): string {
+  return `Camera ${mismatch.input} (${CAMERA_ROLE_LABELS[mismatch.slotRole]}): `
+    + `"${mismatch.camera}" is saved as ${CAMERA_ROLE_LABELS[mismatch.cameraRole]}.`;
+}
+
 /** Parse the value of a `# Camera Order:` header into slot tokens. */
 export function parseCameraOrderHeader(value: string): string[] {
   return value.trim().split(/[\s,]+/).filter((token) => token);

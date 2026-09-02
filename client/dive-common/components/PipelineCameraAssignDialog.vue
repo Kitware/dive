@@ -3,7 +3,8 @@ import {
   computed, defineComponent, PropType, ref, watch,
 } from 'vue';
 import {
-  CameraRole, CAMERA_ROLE_LABELS, describeMissingRegistration, missingRegistrations, roleOfToken,
+  CameraRole, CAMERA_ROLE_LABELS, describeMissingRegistration, describeSlotRoleMismatch,
+  missingRegistrations, roleOfToken, slotRoleMismatches,
 } from 'dive-common/pipelineCameraOrder';
 
 /**
@@ -94,6 +95,15 @@ export default defineComponent({
     const changed = computed(() => (props.request?.proposed ?? [])
       .some((camera, index) => camera !== selection.value[index]));
 
+    const roleMismatches = computed(() => slotRoleMismatches(
+      props.request?.slots ?? [],
+      selection.value,
+      props.request?.roles ?? {},
+    ));
+    const roleMismatchMessages = computed(() => roleMismatches.value
+      .map((entry) => describeSlotRoleMismatch(entry)));
+    const showRoleMismatchWarning = computed(() => !changed.value && roleMismatches.value.length > 0);
+
     /** Warped inputs whose chosen camera has no registration onto camera 1. */
     const missing = computed(() => missingRegistrations(
       selection.value,
@@ -149,6 +159,8 @@ export default defineComponent({
       rowMissing,
       blocked,
       changed,
+      roleMismatchMessages,
+      showRoleMismatchWarning,
       confirm,
     };
   },
@@ -194,6 +206,36 @@ export default defineComponent({
           class="mt-1"
           label="Save these as the dataset's camera roles"
         />
+        <v-alert
+          v-if="showRoleMismatchWarning"
+          type="warning"
+          prominent
+          class="mt-3 mb-0"
+        >
+          <div class="font-weight-medium mb-1">
+            Default order does not match saved camera roles
+          </div>
+          <div
+            v-for="message in roleMismatchMessages"
+            :key="message"
+          >
+            {{ message }}
+          </div>
+          <div
+            v-if="remember"
+            class="mt-2"
+          >
+            Running will overwrite saved roles using the slot labels above. Rearrange the
+            assignments or uncheck "Save these as the dataset's camera roles" if this mapping
+            is wrong.
+          </div>
+          <div
+            v-else
+            class="mt-2"
+          >
+            Review the camera assignments before running.
+          </div>
+        </v-alert>
         <v-alert
           v-if="problems.length"
           type="warning"
