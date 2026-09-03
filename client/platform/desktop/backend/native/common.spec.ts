@@ -497,6 +497,13 @@ beforeEach(() => {
             'trained_detector.zip': '',
           },
         },
+        detectorAndTrackerTrainingJob: {
+          category_models: {
+            'detector.pipe': '',
+            'tracker.pipe': '',
+            'trained_detector.zip': '',
+          },
+        },
       },
       DIVE_Pipelines: {
       /* Empty */
@@ -2602,6 +2609,28 @@ describe('native.common', () => {
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
+    expect(pipes.trained.pipes[0].name).toBe('trainedPipelineName detector');
+  });
+
+  it('getPipelineList lists both detector and tracker from one trained model', async () => {
+    const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
+      datasetIds: ['randomID'],
+      pipelineName: 'trainedPipelineName',
+      trainingConfig: 'trainingConfig',
+      annotatedFramesOnly: false,
+    };
+    await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/detectorAndTrackerTrainingJob/');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes).toHaveLength(2);
+    expect(pipes.trained.pipes.map((p) => p.name)).toEqual([
+      'trainedPipelineName detector',
+      'trainedPipelineName tracker',
+    ]);
+    expect(pipes.trained.pipes.map((p) => npath.basename(p.pipe))).toEqual([
+      'detector.pipe',
+      'tracker.pipe',
+    ]);
   });
 
   it('Full Annotation Loading and Attributes Testing', async () => {
