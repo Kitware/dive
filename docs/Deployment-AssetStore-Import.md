@@ -42,6 +42,7 @@ Place the video file (and optional siblings) in a parent directory. Import creat
 cruise_a/
   reef.mp4
   reef.csv                 ← annotations (same stem as the video)
+  reef_tracks.json         ← also accepted: {stem}_tracks or {stem}_detections
   reef_metadata.csv        ← frame metadata (video-paired name; see below)
   lagoon.mp4
   lagoon.json
@@ -80,7 +81,7 @@ Annotation formats are the same as elsewhere in DIVE ([Data Formats](DataFormats
 
 | Media | How to name / place annotations |
 |-------|----------------------------------|
-| **Video** | Same basename as the video, different extension: `reef.mp4` → `reef.csv` or `reef.json`. The sidecar may sit next to the video; import moves it into the video dataset folder. |
+| **Video** | Same basename as the video, different extension: `reef.mp4` → `reef.csv` or `reef.json`. Optional `_tracks` or `_detections` suffixes are also accepted: `reef_tracks.csv`, `reef_detections.json`. The sidecar may sit next to the video; import moves it into the video dataset folder. |
 | **Image sequence** | Any `.csv` or `.json` file inside the sequence folder. |
 
 !!! note
@@ -140,7 +141,7 @@ FPS defaults:
 ## Checklist
 
 * One dataset per video file or per image-sequence folder
-* Video annotations share the video stem (`video.mp4` ↔ `video.csv`)
+* Video annotations share the video stem (`video.mp4` ↔ `video.csv`, or `video_tracks.csv` / `video_detections.json`)
 * Image-sequence annotations live in the same folder as the frames
 * At most one frame-metadata file per dataset
 * Videos: use `{stem}_metadata.{ext}` beside the video, **or** `frame_metadata.{ext}` inside the video folder after layout
