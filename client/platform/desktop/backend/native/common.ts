@@ -1816,6 +1816,12 @@ async function ingestDataFiles(
   additivePrepend = '',
 ): Promise<{
   processedFiles: string[];
+  /**
+   * Whether any processed file wrote an annotation file. A configuration file or a species
+   * list counts as processed but saves none, so a caller that needs the dataset to have a
+   * track file cannot infer that from `processedFiles` alone.
+   */
+  annotationsSaved: boolean;
   meta: DatasetConfigMutable & { fps?: number };
   warnings: string[];
   /**
@@ -1826,6 +1832,7 @@ async function ingestDataFiles(
   speciesStyling?: Record<string, CustomStyle>;
 }> {
   const processedFiles = []; // which files were processed to generate the detections
+  let annotationsSaved = false;
   const meta: DatasetConfigMutable & { fps?: number } = {};
   let speciesStyling: Record<string, CustomStyle> | undefined;
   let outwarnings: string[] = [];
@@ -1856,6 +1863,8 @@ async function ingestDataFiles(
         }
         if (metadataConfig) {
           importedConfigCopies.push(auxiliaryPath);
+        } else {
+          annotationsSaved = true;
         }
         processedFiles.push(entry.path);
       }
@@ -1866,7 +1875,7 @@ async function ingestDataFiles(
   }
 
   return {
-    processedFiles, meta, warnings: outwarnings, speciesStyling,
+    processedFiles, annotationsSaved, meta, warnings: outwarnings, speciesStyling,
   };
 }
 /**
@@ -2515,7 +2524,9 @@ async function _importTrackFile(
       jsonConfig.customTypeStyling = processed.speciesStyling;
     }
     warnings = processed.warnings;
-    if (processed.processedFiles.length === 0) {
+    // A DIVE configuration file or a species list chosen as the annotation file is processed
+    // but writes no annotations, and every later step expects a track file to exist.
+    if (!processed.annotationsSaved) {
       await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
     }
   } else {

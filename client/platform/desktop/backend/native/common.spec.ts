@@ -1906,6 +1906,44 @@ describe('native.common', () => {
     )).rejects.toThrowError('Found non-image type data in image list file');
   });
 
+  it('imports media with a species list as the annotation file and still has a track file', async () => {
+    const list = '/home/user/data/rockfish.species.json';
+    await fs.writeJSON(list, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+      ],
+    });
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    payload.trackFileAbsPath = list;
+
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+
+    // The list declares types but writes no annotations, so the dataset gets the empty
+    // track file every later step expects, the same as an import with no annotation file.
+    const annotations = await common.loadDetections(settings, meta.id);
+    expect(Object.keys(annotations.tracks)).toEqual([]);
+    const config = await common.loadConfig(settings, meta.id, urlMapper);
+    expect(config.customTypeStyling).toEqual({ Sebastes: {}, 'Sebastes melanops': {} });
+    expect(config.typeHierarchy).toEqual({ 'Sebastes melanops': 'Sebastes' });
+  });
+
+  it('imports media with a configuration file as the annotation file and still has a track file', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    payload.trackFileAbsPath = '/home/user/data/annotationImport/foreign.meta.json';
+
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+
+    const annotations = await common.loadDetections(settings, meta.id);
+    expect(Object.keys(annotations.tracks)).toEqual([]);
+    const config = await common.loadConfig(settings, meta.id, urlMapper);
+    expect(config.confidenceFilters).toStrictEqual({ default: 0.8 });
+  });
+
   it('dataFileImport', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
