@@ -1001,6 +1001,30 @@ describe('native.common', () => {
     expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
   });
 
+  it('rejects a species list that repeats a name without changing anything', async () => {
+    // A repeated name is ambiguous and would silently cost the file its hierarchy, so the
+    // list is refused outright rather than declared with the repeats folded together.
+    const repeated = '/home/user/output/repeated.species.json';
+    await fs.writeJSON(repeated, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes' },
+        { id: 4, name: 'Sebastes melanops', supercategory: 'Sebastodes' },
+      ],
+    });
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: { salmon: 'fish' } });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+
+    await expect(common.dataFileImport(settings, 'projectid1', repeated)).rejects.toThrow(
+      'Species list repeats category names: Sebastes, Sebastes melanops. '
+      + 'No configuration was changed.',
+    );
+
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
+  });
+
   it('warns and skips a conflicting COCO hierarchy without dropping annotations', async () => {
     const imported = '/home/user/output/conflict.coco.json';
     await common.saveConfig(settings, 'projectid1', {

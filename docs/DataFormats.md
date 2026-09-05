@@ -312,8 +312,10 @@ empty.
 * `supercategory` — or a one-element `parents` array — becomes a
   [type hierarchy](UI-Type-List.md#hierarchical-types) edge, read exactly as it is for an
   annotation import.
-* Nameless category slots and repeated names are skipped, with the same warnings a COCO import
-  reports. Repeated names also cost the file its hierarchy.
+* Nameless category slots are skipped, with the same warning a COCO import reports.
+* A repeated `name` fails the import. Two slots claiming the same class may disagree about its
+  parent, and the category block of an annotation file would only drop its hierarchy; a species
+  list is imported for its classes, so it is refused instead.
 * A species list never creates, changes, or removes annotations.
 
 ### Importing a species list
@@ -342,8 +344,9 @@ saved color, which falls back to the default palette.
 
 A list whose hierarchy cannot be applied — a cycle, a self-edge, or a child given two different
 parents — fails the import with `Type hierarchy is invalid: {reason}. No configuration was
-changed.` rather than importing a flat list. Unlike the category block of an annotation file,
-which degrades to a warning, a species list is imported for its classes.
+changed.` rather than importing a flat list, and a list that repeats a name fails with `Species
+list repeats category names: {names}. No configuration was changed.` Unlike the category block
+of an annotation file, which degrades to a warning, a species list is imported for its classes.
 
 For a multicamera dataset the declared types and the hierarchy are stored on the parent, so a
 species list imported against one camera updates the whole dataset.

@@ -239,6 +239,38 @@ def test_unusable_hierarchy_fails_the_import_without_changing_anything(
 @patch('dive_server.crud_rpc.File')
 @patch('dive_server.crud_rpc.Item')
 @patch('dive_server.crud_rpc.Folder')
+def test_repeated_names_fail_the_import_without_changing_anything(
+    folder_cls, item_cls, file_cls, dataset, _girder_stubs
+):
+    # A repeated name is ambiguous and would silently cost the file its hierarchy, so the
+    # list is refused outright rather than declared with the repeats folded together.
+    repeated = _species_list(
+        [
+            {'id': 1, 'name': 'Sebastes'},
+            {'id': 2, 'name': 'Sebastes melanops', 'supercategory': 'Sebastes'},
+            {'id': 3, 'name': 'Sebastes'},
+            {'id': 4, 'name': 'Sebastes melanops', 'supercategory': 'Sebastodes'},
+        ]
+    )
+    dataset['meta']['typeHierarchy'] = {'salmon': 'fish'}
+    with patch('dive_server.crud_rpc.crud_dataset.update_metadata') as update_metadata:
+        with pytest.raises(
+            RestException,
+            match=(
+                'Species list repeats category names: Sebastes, Sebastes melanops. '
+                'No configuration was changed.'
+            ),
+        ):
+            _run(item_cls, file_cls, folder_cls, dataset, {'species.json': repeated})
+
+    update_metadata.assert_not_called()
+    assert 'customTypeStyling' not in dataset['meta']
+    assert dataset['meta']['typeHierarchy'] == {'salmon': 'fish'}
+
+
+@patch('dive_server.crud_rpc.File')
+@patch('dive_server.crud_rpc.Item')
+@patch('dive_server.crud_rpc.Folder')
 def test_a_coco_document_with_media_is_still_imported_as_annotations(
     folder_cls, item_cls, file_cls, dataset, _girder_stubs
 ):

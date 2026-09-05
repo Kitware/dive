@@ -100,6 +100,10 @@ const PortableConfigFileNameLegacy = 'meta.json';
 const CsvFileName = /^.*\.csv$/i;
 const YAMLFileName = /^.*\.ya?ml$/i;
 
+/** Mirrors `species_list_repeats_message` in server/dive_server/crud_rpc.py. */
+const speciesListRepeatsMessage = (repeated: string[]) => (
+  `Species list repeats category names: ${repeated.join(', ')}. No configuration was changed.`
+);
 const invalidHierarchyMessage = (reason: string) => (
   `Type hierarchy is invalid: ${reason}. No configuration was changed.`
 );
@@ -1684,6 +1688,13 @@ async function preflightIngestFiles(
       if (jsonObject !== undefined && coco.isCocoSpeciesList(jsonObject)) {
         // Checked before the DIVE configuration branch, mirroring the server: a category-only
         // document declares the classes a dataset may use and carries no annotations.
+        const repeated = coco.repeatedCategoryNames(jsonObject);
+        if (repeated.length) {
+          // A species list is imported for its classes. A repeated name is ambiguous, and it
+          // would also silently cost the file its hierarchy, so the import fails before
+          // anything is written rather than declaring the de-duplicated names.
+          throw new Error(speciesListRepeatsMessage(repeated));
+        }
         const { hierarchy, warnings } = coco.typeHierarchyFromCategories(jsonObject);
         entry.configWarnings = warnings;
         const names = coco.speciesListFromCategories(jsonObject);

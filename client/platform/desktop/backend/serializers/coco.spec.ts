@@ -13,6 +13,7 @@ import {
   isCocoJson,
   isCocoSpeciesList,
   parseFile,
+  repeatedCategoryNames,
   serializeFile,
   speciesListFromCategories,
   typeHierarchyFromCategories,
@@ -793,14 +794,32 @@ describe('KWCOCO species list', () => {
       'Sebastes', 'Sebastes melanops', 'Sebastes flavidus',
     ]);
     // The nameless slots are reported once, by the hierarchy reader both callers use.
-    // Repeats also cost the file its hierarchy, which that same reader reports; the
-    // de-duplicated names are still declared.
+    // Repeats also cost the file its hierarchy, which that same reader reports; an import
+    // refuses the file instead, using the repeated names listed below.
     const { hierarchy, warnings } = typeHierarchyFromCategories(document);
     expect(hierarchy).toBeUndefined();
     expect(warnings).toEqual([
       CATEGORY_MISSING_NAME_WARNING,
       SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
     ]);
+    expect(repeatedCategoryNames(document)).toEqual(['Sebastes']);
+  });
+
+  it('lists each repeated name once, in first-seen order', () => {
+    expect(repeatedCategoryNames({
+      categories: [
+        { id: 1, name: 'b' },
+        { id: 2, name: 'a' },
+        { id: 3, name: 'b' },
+        { id: 4, name: 'a' },
+        { id: 5, name: 'b' },
+        { id: 6 },
+        { id: 7, name: '' },
+      ],
+    })).toEqual(['b', 'a']);
+    // Nameless slots never count as repeats of each other.
+    expect(repeatedCategoryNames({ categories: [{ id: 1 }, { id: 2 }] })).toEqual([]);
+    expect(repeatedCategoryNames({ categories: [{ id: 1, name: 'a' }] })).toEqual([]);
   });
 });
 

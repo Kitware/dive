@@ -377,9 +377,31 @@ function isCocoSpeciesList(value: unknown): value is CocoCategoryDocument {
 }
 
 /**
+ * Category names a KWCOCO category block uses more than once, in first-seen order.
+ *
+ * A repeat makes a species list ambiguous: two slots claim the same class and may disagree
+ * about its parent, and `typeHierarchyFromCategories` drops the whole hierarchy rather than
+ * guess. A species list is imported for its classes, so callers fail the import on a repeat
+ * instead of declaring the de-duplicated names.
+ */
+function repeatedCategoryNames(document: CocoCategoryDocument): string[] {
+  const seen = new Set<string>();
+  const repeated: string[] = [];
+  document.categories.forEach((category) => {
+    const { name } = category;
+    if (typeof name !== 'string' || !name) return;
+    if (seen.has(name) && !repeated.includes(name)) repeated.push(name);
+    seen.add(name);
+  });
+  return repeated;
+}
+
+/**
  * Species names a KWCOCO category block declares, in file order without repeats.
  * Nameless category slots are skipped; `typeHierarchyFromCategories` reports them, so this
- * does not warn a second time for the same file.
+ * does not warn a second time for the same file. Repeats are folded together here only so
+ * the reader never declares a name twice; `repeatedCategoryNames` is how an import decides
+ * whether to accept the file at all.
  */
 function speciesListFromCategories(document: CocoCategoryDocument): string[] {
   const names: string[] = [];
@@ -695,6 +717,7 @@ export {
   isCocoJson,
   isCocoSpeciesList,
   parseFile,
+  repeatedCategoryNames,
   serializeFile,
   speciesListFromCategories,
   typeHierarchyFromCategories,

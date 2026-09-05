@@ -759,6 +759,12 @@ def _get_data_by_type(
     if data_dict is None:
         data_dict = json.loads(file_string)
     if as_type == crud.FileType.COCO_SPECIES_LIST:
+        repeated = kwcoco.repeated_category_names(data_dict)
+        if repeated:
+            # A species list is imported for its classes. A repeated name is ambiguous, and
+            # it would also silently cost the file its hierarchy, so the import fails before
+            # anything is written rather than declaring the de-duplicated names.
+            raise RestException(species_list_repeats_message(repeated))
         species_hierarchy, species_warnings = kwcoco.type_hierarchy_from_categories(data_dict)
         return {
             'annotations': None,
@@ -952,6 +958,14 @@ def _resolve_configuration_hierarchy(
             candidate = None
             final_write = next_write
     return final_write, soft_warnings
+
+
+def species_list_repeats_message(repeated: List[str]) -> str:
+    """Mirrors ``speciesListRepeatsMessage`` in the desktop importer."""
+    return (
+        f"Species list repeats category names: {', '.join(repeated)}. "
+        "No configuration was changed."
+    )
 
 
 def _declare_species_types(

@@ -1293,11 +1293,31 @@ def test_species_names_keep_file_order_without_repeats():
         'Sebastes flavidus',
     ]
     # The nameless slots are reported once, by the hierarchy reader both callers use.
-    # Repeats also cost the file its hierarchy, which that same reader reports; the
-    # de-duplicated names are still declared.
+    # Repeats also cost the file its hierarchy, which that same reader reports; an import
+    # refuses the file instead, using the repeated names listed below.
     hierarchy, warnings = kwcoco.type_hierarchy_from_categories(document)
     assert hierarchy is None
     assert warnings == [
         kwcoco.CATEGORY_MISSING_NAME_WARNING,
         kwcoco.SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
     ]
+    assert kwcoco.repeated_category_names(document) == ['Sebastes']
+
+
+def test_repeated_category_names_are_listed_once_in_first_seen_order():
+    document = {
+        'categories': [
+            {'id': 1, 'name': 'b'},
+            {'id': 2, 'name': 'a'},
+            {'id': 3, 'name': 'b'},
+            {'id': 4, 'name': 'a'},
+            {'id': 5, 'name': 'b'},
+            {'id': 6},
+            {'id': 7, 'name': ''},
+            'not a category',
+        ]
+    }
+    assert kwcoco.repeated_category_names(document) == ['b', 'a']
+    # Nameless slots never count as repeats of each other.
+    assert kwcoco.repeated_category_names({'categories': [{'id': 1}, {'id': 2}]}) == []
+    assert kwcoco.repeated_category_names({'categories': [{'id': 1, 'name': 'a'}]}) == []

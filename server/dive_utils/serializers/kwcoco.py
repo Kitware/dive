@@ -171,11 +171,35 @@ def is_coco_species_list(coco: Dict[str, Any]) -> bool:
     return not coco.get('images') and not coco.get('annotations')
 
 
+def repeated_category_names(coco: Dict[str, Any]) -> List[str]:
+    """Category names a KWCOCO category block uses more than once, in first-seen order.
+
+    A repeat makes a species list ambiguous: two slots claim the same class and may
+    disagree about its parent, and ``type_hierarchy_from_categories`` drops the whole
+    hierarchy rather than guess. A species list is imported for its classes, so callers
+    fail the import on a repeat instead of declaring the de-duplicated names.
+    """
+    seen: Set[str] = set()
+    repeated: List[str] = []
+    for category in coco.get('categories', []):
+        if not isinstance(category, dict):
+            continue
+        name = category.get('name')
+        if not isinstance(name, str) or not name:
+            continue
+        if name in seen and name not in repeated:
+            repeated.append(name)
+        seen.add(name)
+    return repeated
+
+
 def species_list_from_categories(coco: Dict[str, Any]) -> List[str]:
     """Species names a KWCOCO category block declares, in file order without repeats.
 
     Nameless category slots are skipped; ``type_hierarchy_from_categories`` reports them,
-    so this does not warn a second time for the same file.
+    so this does not warn a second time for the same file. Repeats are folded together
+    here only so the reader never declares a name twice; ``repeated_category_names``
+    is how an import decides whether to accept the file at all.
     """
     names: List[str] = []
     seen: Set[str] = set()
