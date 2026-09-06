@@ -133,6 +133,15 @@ export default function register() {
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
   });
+  ipcMain.handle('write-text-file', async (_, args: { path: string; content: string }) => {
+    await fs.promises.writeFile(args.path, args.content, 'utf-8');
+    return args.path;
+  });
+  ipcMain.handle('print-to-pdf', async (event, args: { path: string }) => {
+    const data = await event.sender.printToPDF({ printBackground: true, pageSize: 'Letter' });
+    await fs.promises.writeFile(args.path, data);
+    return args.path;
+  });
   ipcMain.handle('export-dataset', async (_, args: ExportDatasetArgs) => {
     const ret = await common.exportDataset(settings.get(), args);
     return ret;

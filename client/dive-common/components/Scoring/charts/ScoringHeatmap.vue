@@ -51,6 +51,11 @@ export default defineComponent({
       type: Object as PropType<{ row: number; col: number } | null>,
       default: null,
     },
+    /** Pale cells and dark labels for printing on white */
+    light: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     const hover = ref<CellHover | null>(null);
@@ -77,13 +82,14 @@ export default defineComponent({
         const t = props.showFractions && fraction !== null && fraction !== undefined
           ? fraction
           : (props.counts[r]?.[c] ?? 0) / maxCount;
+        const base = props.light ? '#ffffff' : '#262626';
         if (r === c && !isBackground) {
-          return d3.interpolateRgb('#1e2a1e', '#4caf50')(Math.max(0.12, t));
+          return d3.interpolateRgb(props.light ? '#f1f8f1' : '#1e2a1e', '#4caf50')(Math.max(0.12, t));
         }
         if (isBackground) {
-          return d3.interpolateRgb('#262626', '#ff9800')(t * 0.9);
+          return d3.interpolateRgb(base, '#ff9800')(t * 0.9);
         }
-        return d3.interpolateRgb('#262626', '#e53935')(t);
+        return d3.interpolateRgb(base, '#e53935')(t);
       };
     });
 
@@ -126,7 +132,10 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="scoring-heatmap">
+  <div
+    class="scoring-heatmap"
+    :class="{ light }"
+  >
     <svg
       :width="width"
       :height="height"
@@ -235,6 +244,21 @@ export default defineComponent({
     font-size: 12px;
     padding: 2px 6px;
     color: #ddd;
+  }
+
+  &.light {
+    .axis-title,
+    .cell-label {
+      fill: #222;
+    }
+
+    .cell-value {
+      fill: #111;
+    }
+
+    .heatmap-tooltip {
+      color: #222;
+    }
   }
 }
 </style>

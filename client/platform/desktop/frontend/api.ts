@@ -439,6 +439,29 @@ async function exportDataset(id: string, exclude: boolean, typeFilter: readonly 
   return '';
 }
 
+async function saveScoringExport(
+  { filename, content }: { filename: string; mime: string; content: string },
+): Promise<boolean> {
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Export Scoring Run',
+    defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), filename),
+  });
+  if (location.canceled || !location.filePath) return false;
+  await invoke<string>('write-text-file', { path: location.filePath, content });
+  return true;
+}
+
+async function exportScoringPdf(filename: string): Promise<boolean> {
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Save Scoring Report',
+    defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), filename),
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (location.canceled || !location.filePath) return false;
+  await invoke<string>('print-to-pdf', { path: location.filePath });
+  return true;
+}
+
 async function exportConfiguration(id: string): Promise<string> {
   const location = await window.diveDesktop.showSaveDialog({
     title: 'Export Configuration',
@@ -879,6 +902,8 @@ function deleteCalibration(datasetId: string): Promise<void> {
 }
 
 export {
+  saveScoringExport,
+  exportScoringPdf,
   /* Standard Specification APIs */
   loadConfig,
   loadDetections,

@@ -1,11 +1,15 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onMounted, PropType, ref, watch,
+  computed, defineComponent, nextTick, onMounted, PropType, ref, watch,
 } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { createScoringService, provideScoring } from 'dive-common/use/useScoring';
 import { formatMetric } from 'dive-common/scoring/metrics';
+import {
+  downloadTextFile, exportFilename, resultToCsv, resultToJson,
+} from 'dive-common/scoring/export';
+import ScoringReport from './ScoringReport.vue';
 import ScoringPairsTable from './ScoringPairsTable.vue';
 import ScoringParamsDialog from './ScoringParamsDialog.vue';
 import ScoringSummary from './ScoringSummary.vue';
@@ -40,6 +44,7 @@ export default defineComponent({
     ScoringCurves,
     ScoringSweep,
     ScoringErrors,
+    ScoringReport,
   },
   props: {
     initialDatasetIds: {
@@ -56,6 +61,57 @@ export default defineComponent({
     const tab = ref('summary');
     const showParams = ref(false);
     const errorFilter = ref<ErrorFilter | null>(null);
+    const reportMode = ref(false);
+    const exporting = ref(false);
+
+    async function saveText(filename: string, content: string, mime: string) {
+      if (api.saveScoringExport) {
+        await api.saveScoringExport({ filename, mime, content });
+      } else {
+        downloadTextFile(filename, content, mime);
+      }
+    }
+
+    async function exportAs(kind: 'json' | 'csv' | 'pdf') {
+      const result = scoring.result.value;
+      if (!result || exporting.value) return;
+      if (kind === 'pdf') {
+        reportMode.value = true;
+        return;
+      }
+      exporting.value = true;
+      try {
+        if (kind === 'json') {
+          await saveText(exportFilename(result, 'json'), resultToJson(result), 'application/json');
+        } else {
+          await saveText(exportFilename(result, 'csv'), resultToCsv(result, scoring.metrics.value || undefined), 'text/csv');
+        }
+      } finally {
+        exporting.value = false;
+      }
+    }
+
+    // Electron's printToPDF renders the screen layout rather than print media,
+    // so the chrome is hidden through a class as well as the print stylesheet.
+    async function printReport() {
+      const result = scoring.result.value;
+      if (!result) return;
+      exporting.value = true;
+      document.documentElement.classList.add('scoring-print');
+      try {
+        await nextTick();
+        if (api.exportScoringPdf) {
+          await api.exportScoringPdf(exportFilename(result, 'pdf'));
+        } else {
+          window.print();
+        }
+      } finally {
+        document.documentElement.classList.remove('scoring-print');
+        exporting.value = false;
+      }
+    }
+
+    const canSavePdf = computed(() => typeof api.exportScoringPdf === 'function');
 
     const paramsSummary = computed(() => {
       const p = scoring.params;
@@ -110,6 +166,11 @@ export default defineComponent({
       resultItems,
       removeResult,
       onConfusionFilter,
+      reportMode,
+      exporting,
+      exportAs,
+      printReport,
+      canSavePdf,
       openViewer: (id: string) => emit('open-viewer', id),
     };
   },
@@ -126,6 +187,38 @@ export default defineComponent({
     >
       Scoring is not available on this platform.
     </v-alert>
+    <div
+      v-else-if="reportMode"
+      class="report-mode"
+    >
+      <div class="d-flex align-center scoring-report-toolbar mb-2">
+        <v-btn
+          text
+          @click="reportMode = false"
+        >
+          <v-icon left>
+            mdi-arrow-left
+          </v-icon>
+          Back to results
+        </v-btn>
+        <v-spacer />
+        <span class="text-caption grey--text mr-3">
+          {{ canSavePdf ? 'Saves the report below as a PDF.' : 'Choose "Save as PDF" in the print dialog.' }}
+        </span>
+        <v-btn
+          color="primary"
+          depressed
+          :loading="exporting"
+          @click="printReport"
+        >
+          <v-icon left>
+            mdi-file-pdf-box
+          </v-icon>
+          {{ canSavePdf ? 'Save PDF' : 'Print' }}
+        </v-btn>
+      </div>
+      <ScoringReport />
+    </div>
     <v-row v-else>
       <v-col
         cols="12"
@@ -274,6 +367,35 @@ export default defineComponent({
                 </div>
               </div>
               <v-spacer />
+              <v-menu offset-y>
+                <template #activator="{ on }">
+                  <v-btn
+                    small
+                    text
+                    :loading="exporting"
+                    v-on="on"
+                  >
+                    <v-icon
+                      small
+                      left
+                    >
+                      mdi-download
+                    </v-icon>
+                    Export
+                  </v-btn>
+                </template>
+                <v-list dense>
+                  <v-list-item @click="exportAs('json')">
+                    <v-list-item-title>JSON (metrics, matches, setup)</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item @click="exportAs('csv')">
+                    <v-list-item-title>CSV (summary and per-class tables)</v-list-item-title>
+                  </v-list-item>
+                  <v-list-item @click="exportAs('pdf')">
+                    <v-list-item-title>PDF report</v-list-item-title>
+                  </v-list-item>
+                </v-list>
+              </v-menu>
               <v-tooltip bottom>
                 <template #activator="{ on }">
                   <v-btn
@@ -342,9 +464,51 @@ export default defineComponent({
   </div>
 </template>
 
+<style lang="scss">
+/* Printing the report view: only the report itself goes to paper */
+@mixin report-only {
+  .v-app-bar,
+  .v-navigation-drawer,
+  .v-footer,
+  .scoring-report-toolbar {
+    display: none !important;
+  }
+
+  .v-main {
+    padding: 0 !important;
+  }
+
+  .v-application,
+  .v-application .v-main__wrap,
+  .scoring-page,
+  .report-mode {
+    background: white !important;
+  }
+
+  .scoring-page,
+  .report-mode {
+    padding: 0 !important;
+  }
+}
+
+@media print {
+  @include report-only;
+}
+
+html.scoring-print {
+  @include report-only;
+}
+</style>
+
 <style lang="scss" scoped>
 .run-row {
   gap: 4px;
+}
+
+.report-mode {
+  background: white;
+  padding: 8px;
+  border-radius: 4px;
 }
 
 .result-list {

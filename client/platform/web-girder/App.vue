@@ -44,6 +44,8 @@ import {
   deleteScoringResult,
   listScoringSources,
   listScoringDatasets,
+  saveScoringExport,
+  exportScoringPdf,
 } from './api';
 import {
   getLastCalibration,
@@ -109,6 +111,8 @@ export default defineComponent({
       deleteScoringResult,
       listScoringSources: unwrap(listScoringSources),
       listScoringDatasets,
+      saveScoringExport,
+      exportScoringPdf,
     });
   },
 });

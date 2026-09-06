@@ -54,6 +54,11 @@ export default defineComponent({
       type: Number,
       default: 240,
     },
+    /** Dark text and grid for printing on white */
+    light: {
+      type: Boolean,
+      default: false,
+    },
     step: {
       type: Boolean,
       default: false,
@@ -244,7 +249,10 @@ export default defineComponent({
 </script>
 
 <template>
-  <div class="scoring-line-chart">
+  <div
+    class="scoring-line-chart"
+    :class="{ light }"
+  >
     <div
       ref="container"
       class="chart-area"
@@ -497,6 +505,29 @@ export default defineComponent({
     pointer-events: none;
     white-space: nowrap;
     z-index: 5;
+  }
+
+  &.light {
+    .grid line {
+      stroke: #ddd;
+    }
+
+    .axis line {
+      stroke: #666;
+    }
+
+    .axis text,
+    .axis-label {
+      fill: #222;
+    }
+
+    .selected {
+      stroke: #b8860b;
+    }
+
+    .chart-legend {
+      color: #222;
+    }
   }
 
   .chart-legend {

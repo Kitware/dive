@@ -78,3 +78,27 @@ export {
   listScoringSources,
   listScoringDatasets,
 };
+
+/** Browser download; the user's download settings decide the destination. */
+async function saveScoringExport(
+  { filename, mime, content }: { filename: string; mime: string; content: string },
+): Promise<boolean> {
+  const blob = new Blob([content], { type: mime });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = filename;
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
+  URL.revokeObjectURL(url);
+  return true;
+}
+
+/** The browser's print dialog offers "Save as PDF"; the page carries print styles. */
+async function exportScoringPdf(): Promise<boolean> {
+  window.print();
+  return true;
+}
+
+export { saveScoringExport, exportScoringPdf };
