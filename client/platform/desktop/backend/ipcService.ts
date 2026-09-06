@@ -14,6 +14,7 @@ import {
   ExportTrainedPipeline,
   ConversionArgs,
   DesktopJob,
+  RunScoring,
 } from 'platform/desktop/constants';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { closeChildById } from 'platform/desktop/backend/native/processManager';
@@ -350,6 +351,29 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
+  });
+  ipcMain.handle('run-scoring', async (event, args: RunScoring) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    return currentPlatform.runScoring(settings.get(), args, updater);
+  });
+  ipcMain.handle('list-scoring-sources', async (_, { datasetId }: { datasetId: string }) => (
+    common.listScoringSources(settings.get(), datasetId)
+  ));
+  ipcMain.handle('list-scoring-datasets', async () => common.listScoringDatasets(settings.get()));
+  ipcMain.handle('list-scoring-results', async (_, { datasetId }: { datasetId?: string } = {}) => (
+    common.listScoringResults(settings.get(), datasetId)
+  ));
+  ipcMain.handle('load-scoring-result', async (
+    _,
+    { datasetId, resultId }: { datasetId: string; resultId: string },
+  ) => common.loadScoringResult(settings.get(), datasetId, resultId));
+  ipcMain.handle('delete-scoring-result', async (
+    _,
+    { datasetId, resultId }: { datasetId: string; resultId: string },
+  ) => {
+    await common.deleteScoringResult(settings.get(), datasetId, resultId);
   });
   ipcMain.handle('list-resumable-training', async () => common.findResumableTrainingJobs(settings.get()));
   ipcMain.handle('discard-resumable-training', async (_event, workingDir: string) => {

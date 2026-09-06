@@ -5,6 +5,7 @@ import type {
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
+import type { ScoringJobArgs } from 'dive-common/scoring/types';
 
 export const JsonConfigCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
@@ -189,6 +190,7 @@ export enum JobType {
   ExportTrainedPipeline,
   RunPipeline,
   RunTraining,
+  RunScoring,
 }
 
 export interface JobArgs {
@@ -234,6 +236,10 @@ export interface RunTraining extends JobArgs {
   resumeWorkingDir?: string;
 }
 
+export interface RunScoring extends JobArgs, ScoringJobArgs {
+  type: JobType.RunScoring;
+}
+
 export interface ConversionArgs extends JobArgs {
   type: JobType.Conversion;
   meta: JsonConfig;
@@ -248,7 +254,7 @@ export interface CliTranscodingNotice {
   mediaCount: number;
 }
 
-export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline;
+export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline | RunScoring;
 
 export interface DesktopJob {
   // key unique identifier for this job
@@ -256,11 +262,11 @@ export interface DesktopJob {
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training' | 'conversion' | 'export';
+  jobType: 'pipeline' | 'training' | 'conversion' | 'export' | 'scoring';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
+  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs | RunScoring;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned

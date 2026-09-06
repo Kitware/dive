@@ -1,0 +1,148 @@
+<script lang="ts">
+import { computed, defineComponent, ref } from 'vue';
+import { useScoring } from 'dive-common/use/useScoring';
+import ScoringSourceSelect from './ScoringSourceSelect.vue';
+
+export default defineComponent({
+  name: 'ScoringPairsTable',
+  components: { ScoringSourceSelect },
+  setup(_, { emit }) {
+    const scoring = useScoring();
+    const toAdd = ref<string | null>(null);
+
+    const addable = computed(() => {
+      const used = new Set(scoring.pairs.value.map((p) => p.computed.datasetId));
+      return scoring.datasets.value
+        .filter((d) => !used.has(d.id))
+        .map((d) => ({ value: d.id, text: d.name }));
+    });
+
+    async function add(id: string | null) {
+      if (!id) return;
+      await scoring.addDataset(id);
+      toAdd.value = null;
+    }
+
+    return {
+      scoring,
+      toAdd,
+      addable,
+      add,
+      open: (id: string) => emit('open-viewer', id),
+    };
+  },
+});
+</script>
+
+<template>
+  <div>
+    <div class="d-flex align-center mb-2">
+      <v-autocomplete
+        v-model="toAdd"
+        :items="addable"
+        label="Add a sequence"
+        dense
+        outlined
+        hide-details
+        clearable
+        class="add-select"
+        @change="add"
+      />
+      <span class="text-caption grey--text ml-3 hidden-md-and-down">
+        Each sequence is scored against its own truth; metrics are pooled.
+      </span>
+    </div>
+    <div
+      v-if="scoring.pairs.value.length === 0"
+      class="text-caption grey--text py-2"
+    >
+      No sequences yet. Add one above, or select datasets in the library and choose Score.
+    </div>
+    <v-simple-table
+      v-else
+      dense
+      class="pairs-table"
+    >
+      <thead>
+        <tr>
+          <th>Sequence</th>
+          <th>Computed annotations</th>
+          <th />
+          <th>Ground truth</th>
+          <th />
+        </tr>
+      </thead>
+      <tbody>
+        <tr
+          v-for="(pair, i) in scoring.pairs.value"
+          :key="pair.computed.datasetId"
+        >
+          <td class="sequence-cell">
+            <a @click="open(pair.computed.datasetId)">{{ scoring.datasetName(pair.computed.datasetId) }}</a>
+          </td>
+          <td>
+            <ScoringSourceSelect
+              :source="pair.computed"
+              :media-dataset-id="pair.computed.datasetId"
+              title="Computed annotations"
+              @update:source="scoring.setComputed(i, $event)"
+            />
+          </td>
+          <td class="px-0">
+            <v-tooltip bottom>
+              <template #activator="{ on }">
+                <v-btn
+                  icon
+                  x-small
+                  v-on="on"
+                  @click="scoring.swapPair(i)"
+                >
+                  <v-icon small>
+                    mdi-swap-horizontal
+                  </v-icon>
+                </v-btn>
+              </template>
+              <span>Swap computed and truth</span>
+            </v-tooltip>
+          </td>
+          <td>
+            <ScoringSourceSelect
+              :source="pair.truth"
+              :media-dataset-id="pair.computed.datasetId"
+              title="Ground truth annotations"
+              @update:source="scoring.setTruth(i, $event)"
+            />
+          </td>
+          <td class="px-0">
+            <v-btn
+              icon
+              x-small
+              @click="scoring.removePair(i)"
+            >
+              <v-icon small>
+                mdi-close
+              </v-icon>
+            </v-btn>
+          </td>
+        </tr>
+      </tbody>
+    </v-simple-table>
+  </div>
+</template>
+
+<style lang="scss" scoped>
+.add-select {
+  max-width: 360px;
+}
+
+.sequence-cell {
+  max-width: 160px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pairs-table ::v-deep td {
+  padding: 4px 6px !important;
+}
+</style>

@@ -178,8 +178,10 @@ export default defineComponent({
       const results: string[] = [];
       // Check if any running job contains the root props.id
       // for multicam this is why we use the reduce to check each id
+      // Scoring only reads annotations, so it never locks the viewer.
       if (runningJobs.value.find(
-        (item) => item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
+        (item) => item.job.jobType !== 'scoring'
+          && item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
       )) {
         results.push(props.id);
       }
@@ -2043,6 +2045,9 @@ export default defineComponent({
           <job-tab />
           <v-tab :to="{ name: 'training' }">
             Training<v-icon>mdi-brain</v-icon>
+          </v-tab>
+          <v-tab :to="{ name: 'scoring' }">
+            Scoring<v-icon>mdi-chart-box-outline</v-icon>
           </v-tab>
           <v-tab :to="{ name: 'settings' }">
             Settings<v-icon>mdi-cog</v-icon>

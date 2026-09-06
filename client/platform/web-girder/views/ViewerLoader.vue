@@ -330,6 +330,11 @@ export default defineComponent({
 
     watch(currentJob, async () => {
       if (currentJob.value !== false && currentJob.value !== undefined) {
+        if (currentJob.value.type === 'scoring') {
+          // Scoring never touches the annotations; the scoring page picks up the result
+          jobs.removeCompleteJob({ datasetId: parentDatasetId(props.id) });
+          return;
+        }
         if (currentJob.value.success) {
           const result = await prompt({
             title: 'Pipeline Finished',

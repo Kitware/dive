@@ -1,5 +1,6 @@
 import { watch } from 'vue';
 import type { PipelineJobResult } from 'dive-common/apispec';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
   isJobFinished, jobCanceled, jobSucceeded, useJobs,
 } from 'platform/web-girder/store/useJobs';
@@ -60,4 +61,12 @@ export default function watchPipelineJob(datasetId: string): Promise<PipelineJob
       stop();
     }
   });
+}
+
+/**
+ * Scoring jobs are attributed to the computed dataset the same way pipeline
+ * jobs are: a camera folder's job is keyed by its multicam parent.
+ */
+export function watchScoringJob(datasetId: string): Promise<PipelineJobResult> {
+  return watchPipelineJob(parentDatasetId(datasetId));
 }

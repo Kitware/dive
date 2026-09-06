@@ -31,6 +31,9 @@ export default defineComponent({
       <v-tab :to="{ name: 'pipeline' }">
         Pipeline<v-icon>mdi-pipe</v-icon>
       </v-tab>
+      <v-tab :to="{ name: 'scoring' }">
+        Scoring<v-icon>mdi-chart-box-outline</v-icon>
+      </v-tab>
       <v-tab :to="{ name: 'settings' }">
         Settings<v-icon>mdi-cog</v-icon>
       </v-tab>

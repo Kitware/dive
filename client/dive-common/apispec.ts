@@ -13,6 +13,14 @@ import type {
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { CameraRole } from 'dive-common/pipelineCameraOrder';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
+import type {
+  ScoringDatasetSummary,
+  ScoringJobArgs,
+  ScoringPair,
+  ScoringResult,
+  ScoringResultSummary,
+  ScoringSourceOptions,
+} from 'dive-common/scoring/types';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -448,6 +456,22 @@ interface Api {
     },
   ): Promise<unknown>;
 
+  /**
+   * Scoring mode. Every member is optional so a platform that cannot run the
+   * `viame score` applet simply leaves the mode unavailable.
+   */
+  runScoring?(args: ScoringJobArgs): Promise<unknown>;
+  /** Resolve once the scoring job stored on this dataset, launched after this call, ends. */
+  watchScoringJob?(datasetId: string): Promise<PipelineJobResult>;
+  /** Runs stored on one dataset, or every run the user can read when omitted. */
+  listScoringResults?(datasetId?: string): Promise<ScoringResultSummary[]>;
+  loadScoringResult?(datasetId: string, resultId: string): Promise<ScoringResult>;
+  deleteScoringResult?(datasetId: string, resultId: string): Promise<void>;
+  /** Annotation sets, revisions or on-disk files a source on this dataset can point at. */
+  listScoringSources?(datasetId: string): Promise<ScoringSourceOptions>;
+  /** Datasets that may be named as the other side of a comparison. */
+  listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
+
   loadConfig(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
   loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
@@ -758,6 +782,12 @@ export type {
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,
+  ScoringDatasetSummary,
+  ScoringJobArgs,
+  ScoringPair,
+  ScoringResult,
+  ScoringResultSummary,
+  ScoringSourceOptions,
 };
 
 export type { PercentileStretch, CameraObservations };

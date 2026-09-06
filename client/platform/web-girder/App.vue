@@ -37,6 +37,13 @@ import {
   hasCalibrationFile,
   downloadCalibration,
   deleteCalibration,
+  runScoring,
+  watchScoringJob,
+  listScoringResults,
+  loadScoringResult,
+  deleteScoringResult,
+  listScoringSources,
+  listScoringDatasets,
 } from './api';
 import {
   getLastCalibration,
@@ -95,6 +102,13 @@ export default defineComponent({
       getTiles,
       getTileURL,
       getTileHistogram,
+      runScoring: unwrap(runScoring),
+      watchScoringJob,
+      listScoringResults: unwrap(listScoringResults),
+      loadScoringResult: unwrap(loadScoringResult),
+      deleteScoringResult,
+      listScoringSources: unwrap(listScoringSources),
+      listScoringDatasets,
     });
   },
 });

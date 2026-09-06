@@ -7,6 +7,7 @@ import Settings from './frontend/components/Settings.vue';
 import TrainingPage from './frontend/components/TrainingPage.vue';
 import ViewerLoader from './frontend/components/ViewerLoader.vue';
 import PipelinePage from './frontend/components/PipelinePage.vue';
+import ScoringPage from './frontend/components/ScoringPage.vue';
 
 Vue.use(Router);
 
@@ -31,6 +32,11 @@ export default new Router({
       path: '/pipeline',
       name: 'pipeline',
       component: PipelinePage,
+    },
+    {
+      path: '/scoring',
+      name: 'scoring',
+      component: ScoringPage,
     },
     {
       path: '/jobs',

@@ -541,6 +541,27 @@ def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path
     request.urlretrieve(url, filename=path)
 
 
+def download_annotation_csv(
+    gc: GirderClient,
+    dataset_id: str,
+    path: Path,
+    revision: Optional[int] = None,
+    set: Optional[str] = None,
+):
+    """Download the VIAME CSV for a dataset at a revision and annotation set.
+
+    Nothing is dropped below the dataset's confidence filters: scoring sweeps the
+    confidence range itself, so every computed detection has to be present.
+    """
+    args: dict = {'folderId': dataset_id, 'excludeBelowThreshold': False}
+    if revision is not None:
+        args['revisionId'] = revision
+    if set:
+        args['set'] = set
+    url = urljoin(urljoin(gc.urlBase, 'dive_annotation/export'), f'?{urlencode(args)}')
+    request.urlretrieve(url, filename=path)
+
+
 def download_source_media(
     girder_client: GirderClient, datasetId: str, dest: Path, force_transcoded=False
 ) -> Tuple[List[str], str]:

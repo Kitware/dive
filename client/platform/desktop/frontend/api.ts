@@ -11,6 +11,7 @@ import type {
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
   PipelineJobResult,
+  ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
 } from 'dive-common/apispec';
 
 import {
@@ -26,6 +27,7 @@ import {
   DesktopMediaImportResponse, ConversionArgs, JobType,
   DesktopJob,
   MultiCamBatchScanResult,
+  RunScoring,
 } from 'platform/desktop/constants';
 
 import { gpuJobQueue, cpuJobQueue, jobHistory } from './store/jobs';
@@ -176,19 +178,20 @@ async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: Pipe
 }
 
 /**
- * Resolve when the pipeline job for this dataset finishes.
+ * Resolve when the first job matching `matches` that started at or after this
+ * call finishes.
  *
- * The job store is the only place that knows a job ended: a pipeline's own
+ * The job store is the only place that knows a job ended: a job's own
  * artifacts cannot say it, because a deterministic re-run writes byte-identical
  * output and a job that fails writes none at all. Both look exactly like "still
  * running" to anything watching the output.
  *
  * Only jobs starting at or after this call are considered, so an earlier run of
- * the same pipe on the same dataset (still in the history) is never mistaken for
- * this one. Resolution waits out the queue: `runPipeline` enqueues, so the job
- * may not exist for as long as the jobs ahead of it take.
+ * the same job (still in the history) is never mistaken for this one.
+ * Resolution waits out the queue: the run functions enqueue, so the job may not
+ * exist for as long as the jobs ahead of it take.
  */
-function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJobResult> {
+function watchJob(matches: (job: DesktopJob) => boolean): Promise<PipelineJobResult> {
   const startedAt = Date.now();
   return new Promise<PipelineJobResult>((resolve) => {
     let key: string | null = null;
@@ -208,10 +211,7 @@ function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJo
     stop = watch(jobHistory, () => {
       const entries = Object.values(jobHistory.value);
       if (key === null) {
-        const match = entries.find((entry) => entry.job.jobType === 'pipeline'
-          && 'pipeline' in entry.job.args
-          && entry.job.args.pipeline.pipe === pipeline.pipe
-          && entry.job.datasetIds.includes(datasetId)
+        const match = entries.find((entry) => matches(entry.job)
           // A job update carries the start time as an ISO string once it has
           // crossed the IPC boundary, so normalize before comparing.
           && new Date(entry.job.startTime).getTime() >= startedAt);
@@ -239,6 +239,14 @@ function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJo
       stop();
     }
   });
+}
+
+/** Resolve when the pipeline job for this dataset finishes. */
+function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJobResult> {
+  return watchJob((job) => job.jobType === 'pipeline'
+    && 'pipeline' in job.args
+    && job.args.pipeline.pipe === pipeline.pipe
+    && job.datasetIds.includes(datasetId));
 }
 
 async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<void> {
@@ -273,6 +281,41 @@ async function runTraining(
     fineTuneModel,
   };
   gpuJobQueue.enqueue(args);
+}
+
+/**
+ * Scoring API
+ */
+
+async function runScoring(args: ScoringJobArgs): Promise<void> {
+  const spec: RunScoring = { type: JobType.RunScoring, ...args };
+  cpuJobQueue.enqueue(spec);
+}
+
+/** Resolve when the scoring job involving this dataset, launched after this call, finishes. */
+function watchScoringJob(datasetId: string): Promise<PipelineJobResult> {
+  return watchJob((job) => job.jobType === 'scoring' && job.datasetIds.includes(datasetId));
+}
+
+function listScoringSources(datasetId: string): Promise<ScoringSourceOptions> {
+  return invoke<ScoringSourceOptions>('list-scoring-sources', { datasetId });
+}
+
+function listScoringDatasets(): Promise<ScoringDatasetSummary[]> {
+  return invoke<ScoringDatasetSummary[]>('list-scoring-datasets');
+}
+
+/** Runs stored on one dataset, or every run across all projects when omitted. */
+function listScoringResults(datasetId?: string): Promise<ScoringResultSummary[]> {
+  return invoke<ScoringResultSummary[]>('list-scoring-results', { datasetId });
+}
+
+function loadScoringResult(datasetId: string, resultId: string): Promise<ScoringResult> {
+  return invoke<ScoringResult>('load-scoring-result', { datasetId, resultId });
+}
+
+function deleteScoringResult(datasetId: string, resultId: string): Promise<void> {
+  return invoke<void>('delete-scoring-result', { datasetId, resultId });
 }
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
@@ -850,6 +893,13 @@ export {
   listResumableTrainingJobs,
   resumeTraining,
   discardResumableTraining,
+  runScoring,
+  watchScoringJob,
+  listScoringSources,
+  listScoringDatasets,
+  listScoringResults,
+  loadScoringResult,
+  deleteScoringResult,
   saveConfig,
   saveDetections,
   saveAttributes,

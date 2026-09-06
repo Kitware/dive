@@ -12,7 +12,7 @@ from girder.models.token import Token
 from girder.notification import Notification
 from girder_jobs.models.job import Job, JobStatus
 from girder_plugin_worker.status import CustomJobStatus
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import pymongo
 from typing_extensions import NotRequired
 
@@ -36,6 +36,7 @@ from dive_utils import (
     types,
 )
 from dive_utils.constants import TrainingModelExtensions
+from dive_utils.scoring import DEFAULT_SCORING_PARAMS
 from dive_utils.serializers import dive, kpf, kwcoco, viame
 from dive_utils.type_hierarchy import (
     HierarchyWrite,
@@ -50,6 +51,52 @@ class RunTrainingArgs(BaseModel):
     folderIds: List[str]
     labelText: Optional[str]
     fineTuneModel: Optional[types.TrainingModelTuneArgs]
+
+
+class ScoringSourceModel(BaseModel):
+    datasetId: str
+    set: Optional[str]
+    revision: Optional[int]
+    file: Optional[str]
+    label: Optional[str]
+
+    class Config:
+        extra = 'ignore'
+
+
+class ScoringParamsModel(BaseModel):
+    iouThreshold: float = DEFAULT_SCORING_PARAMS['iouThreshold']
+    confidenceThreshold: float = DEFAULT_SCORING_PARAMS['confidenceThreshold']
+    matchMode: Literal['box', 'polygon'] = DEFAULT_SCORING_PARAMS['matchMode']
+    perClass: bool = DEFAULT_SCORING_PARAMS['perClass']
+    topClass: bool = DEFAULT_SCORING_PARAMS['topClass']
+    auxConfidence: bool = DEFAULT_SCORING_PARAMS['auxConfidence']
+    tracking: bool = DEFAULT_SCORING_PARAMS['tracking']
+    keypointThreshold: float = DEFAULT_SCORING_PARAMS['keypointThreshold']
+    sweep: bool = DEFAULT_SCORING_PARAMS['sweep']
+    sweepInterval: int = DEFAULT_SCORING_PARAMS['sweepInterval']
+    filterEstimator: Literal['none', 'min', 'avg', 'avg_minus_1p', 'idf1', 'mota'] = (
+        DEFAULT_SCORING_PARAMS['filterEstimator']
+    )
+    defaultLabel: Optional[str] = DEFAULT_SCORING_PARAMS['defaultLabel']
+    labelSynonyms: Optional[str] = DEFAULT_SCORING_PARAMS['labelSynonyms']
+
+    class Config:
+        extra = 'ignore'
+
+
+class ScoringPairModel(BaseModel):
+    computed: ScoringSourceModel
+    truth: ScoringSourceModel
+
+    class Config:
+        extra = 'ignore'
+
+
+class RunScoringArgs(BaseModel):
+    pairs: List[ScoringPairModel] = Field(..., min_items=1)
+    params: ScoringParamsModel = Field(default_factory=ScoringParamsModel)
+    title: Optional[str]
 
 
 def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
@@ -639,6 +686,126 @@ def run_training(
             constants.JOBCONST_CREATOR: str(user['_id']),
         },
     )
+
+
+def _scoring_source_dict(source: ScoringSourceModel) -> types.ScoringSourceJob:
+    return cast(
+        types.ScoringSourceJob,
+        {key: value for key, value in source.dict().items() if value is not None},
+    )
+
+
+def _scoring_pair_dict(pair: ScoringPairModel) -> types.ScoringPairJob:
+    return {
+        'computed': _scoring_source_dict(pair.computed),
+        'truth': _scoring_source_dict(pair.truth),
+    }
+
+
+def _load_scoring_dataset(
+    user: types.GirderUserModel, dataset_id: str, level: int
+) -> types.GirderModel:
+    folder = Folder().load(dataset_id, level=level, user=user)
+    if folder is None:
+        raise RestException(f"Cannot access dataset {dataset_id}", code=404)
+    crud.verify_dataset(folder)
+    if fromMeta(folder, constants.TypeMarker) == constants.MultiType:
+        raise RestException(
+            'Scoring runs on one camera at a time; choose a camera of the multicamera dataset',
+            code=400,
+        )
+    return folder
+
+
+def _describe_scoring_source(folder: types.GirderModel, source: types.ScoringSourceJob) -> str:
+    if source.get('label'):
+        return str(source['label'])
+    parts = [str(folder['name'])]
+    if source.get('set'):
+        parts.append(f"set {source['set']}")
+    if source.get('revision') is not None:
+        parts.append(f"rev {source['revision']}")
+    return ' · '.join(parts)
+
+
+def run_scoring(
+    user: types.GirderUserModel,
+    token: types.GirderModel,
+    args: RunScoringArgs,
+) -> types.GirderModel:
+    """Score every pair together; the result is stored on the first pair's computed dataset."""
+    storage_dataset_id = args.pairs[0].computed.datasetId
+    storage_folder = _load_scoring_dataset(user, storage_dataset_id, AccessType.WRITE)
+    storage_id = str(storage_folder['_id'])
+    folders: Dict[str, types.GirderModel] = {storage_dataset_id: storage_folder}
+    for pair in args.pairs:
+        for source in (pair.computed, pair.truth):
+            if source.datasetId not in folders:
+                folders[source.datasetId] = _load_scoring_dataset(
+                    user, source.datasetId, AccessType.READ
+                )
+
+    # Attribute the job the way run_pipeline does so the viewer's running-job
+    # state (keyed by the multicam parent for camera folders) sees it.
+    multicam_parent = crud.get_multicam_parent_folder(storage_folder, user)
+    job_dataset_id = str(multicam_parent['_id']) if multicam_parent is not None else storage_id
+    if _check_running_jobs(job_dataset_id) or (
+        job_dataset_id != storage_id and _check_running_jobs(storage_id)
+    ):
+        raise RestException(
+            (
+                f"A job for {job_dataset_id} is already running. "
+                "Only one outstanding job may be run at a time for "
+                "a dataset."
+            )
+        )
+
+    pairs = [_scoring_pair_dict(pair) for pair in args.pairs]
+    if args.title:
+        title = args.title
+    else:
+        first = pairs[0]
+        computed_name = _describe_scoring_source(
+            folders[first['computed']['datasetId']], first['computed']
+        )
+        truth_name = _describe_scoring_source(folders[first['truth']['datasetId']], first['truth'])
+        title = f"{computed_name} vs {truth_name}"
+        if len(pairs) > 1:
+            title += f" (+{len(pairs) - 1} more)"
+    params: types.ScoringJob = {
+        'pairs': pairs,
+        'params': args.params.dict(),
+        'title': title,
+        'results_folder_id': storage_id,
+        'user_id': str(user['_id']),
+        'user_login': user.get('login', 'unknown'),
+    }
+    job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
+    newjob = tasks.run_scoring.apply_async(
+        queue=_get_queue_name(user, "pipelines"),
+        kwargs=dict(
+            params=params,
+            girder_job_title=f"Scoring {title}",
+            girder_client_token=str(token["_id"]),
+            girder_job_type="private" if job_is_private else "scoring",
+        ),
+    )
+    job = _persist_async_job_metadata(
+        newjob,
+        access_source=storage_folder,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_DATASET_ID: job_dataset_id,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
+    Notification(
+        type='job_status',
+        data=job,
+        user=user,
+    ).flush()
+    return job
 
 
 GetDataReturnType = TypedDict(
