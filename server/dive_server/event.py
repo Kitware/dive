@@ -18,6 +18,7 @@ from girder_plugin_worker.utils import getWorkerApiUrl
 
 from dive_tasks.dive_batch_postprocess import DIVEBatchPostprocessTaskParams
 from dive_utils import asbool, frame_metadata, fromMeta
+from dive_utils.assetstore_import import annotation_media_stem
 from dive_utils.constants import (
     AnnotationFileFutureProcessMarker,
     AssetstoreSourceMarker,
@@ -212,8 +213,7 @@ def process_assetstore_import(event, meta: dict):
         parentFolder = Folder().findOne({"_id": item["folderId"]})
         userId = parentFolder['creatorId'] or parentFolder['baseParentId']
         user = User().findOne({'_id': ObjectId(userId)})
-        base_name = os.path.splitext(item['name'])[0]
-        foldername = base_name
+        foldername = annotation_media_stem(item['name'])
         # check if folder with foldername exists in the parentFolder location;
         # this would be a video folder then
         possible_video_folder = Folder().findOne(
@@ -290,9 +290,9 @@ def process_dangling_annotation_files(folder, user):
             # to the plain annotation path, the same resolution process_assetstore_import uses.
 
         # Check if the corresponding video folder exists
-        base_name = os.path.splitext(item['name'])[0]
+        media_stem = annotation_media_stem(item['name'])
         video_folder = Folder().findOne(
-            {'parentId': parent_folder_id, 'name': base_name, f'meta.{TypeMarker}': VideoType}
+            {'parentId': parent_folder_id, 'name': media_stem, f'meta.{TypeMarker}': VideoType}
         )
         if video_folder is not None:
             # Move the annotation file into the video folder

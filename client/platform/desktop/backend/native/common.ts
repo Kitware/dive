@@ -1125,10 +1125,18 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       (p: string) => p.match(allowedTrainedPatterns) && !p.match(disallowedPatterns),
     );
     if (pipesInFolder.length >= 2) {
-      const pipeName = pipesInFolder.find((pipe) => pipe && pipe.indexOf('.pipe') !== -1);
-      if (pipeName) {
+      // A training run can emit both a detector and a tracker; list each one
+      // separately and disambiguate them the way web does.
+      const pipeNames = pipesInFolder.filter((p) => p.endsWith('.pipe')).sort();
+      pipeNames.forEach((pipeName) => {
+        let suffix = '';
+        if (pipeName.endsWith('tracker.pipe')) {
+          suffix = ' tracker';
+        } else if (pipeName.endsWith('detector.pipe')) {
+          suffix = ' detector';
+        }
         const pipeInfo = {
-          name: item,
+          name: `${item}${suffix}`,
           type: 'trained',
           pipe: npath.join(pipeFolder, pipeName),
         };
@@ -1140,7 +1148,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
             description: 'trained pipes',
           };
         }
-      }
+      });
     }
     return true;
   }));
