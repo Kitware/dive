@@ -103,6 +103,12 @@ export default defineComponent({
       finishScoringDatasetPicker(null);
     }
 
+    function onDialogInput(open: boolean) {
+      if (!open) {
+        cancel();
+      }
+    }
+
     function confirm() {
       if (!canAdd.value || !selected.value) return;
       finishScoringDatasetPicker(toSummary(selected.value));
@@ -116,6 +122,7 @@ export default defineComponent({
       invalidSelection,
       canAdd,
       cancel,
+      onDialogInput,
       confirm,
     };
   },
@@ -127,7 +134,7 @@ export default defineComponent({
     :value="scoringDatasetPickerState.open"
     max-width="800"
     :overlay-opacity="0.95"
-    @input="(open) => { if (!open) cancel(); }"
+    @input="onDialogInput"
   >
     <v-card v-if="location">
       <v-card-title>
