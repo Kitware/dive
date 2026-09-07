@@ -305,6 +305,10 @@ class MetadataMutable(BaseModel):
         """
         Check if value is a configuration file if at lease one of the config options is populated
         """
+        # Annotation documents may carry annotation fps alongside tracks/groups.
+        if 'tracks' in value or 'groups' in value:
+            return False
+
         keys = list(MetadataMutable.schema()['properties'].keys())
 
         # Remove version: its appearance is not enough to indicate that
