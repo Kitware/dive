@@ -30,8 +30,8 @@ export const TRUTH_SET_NAMES = ['groundTruth', 'GT', 'ground_truth', 'Groundtrut
 
 export type ScoringApi = Pick<Api,
   'runScoring' | 'watchScoringJob' | 'listScoringResults' | 'loadScoringResult'
-  | 'deleteScoringResult' | 'listScoringSources' | 'listScoringDatasets' | 'openFromDisk'
-  | 'loadConfig' | 'saveConfig'>;
+  | 'deleteScoringResult' | 'listScoringSources' | 'listScoringDatasets' | 'pickScoringDataset'
+  | 'openFromDisk' | 'loadConfig' | 'saveConfig'>;
 
 export interface ScoringServiceDeps {
   api: ScoringApi;
@@ -61,7 +61,7 @@ export interface ScoringService {
   refreshResults(): Promise<void>;
   selectResult(id: string | null): Promise<void>;
   deleteResult(id: string): Promise<void>;
-  addDataset(datasetId: string): Promise<void>;
+  addDataset(datasetId: string, summary?: ScoringDatasetSummary): Promise<void>;
   setDatasets(datasetIds: string[]): Promise<void>;
   removePair(index: number): void;
   swapPair(index: number): void;
@@ -258,8 +258,14 @@ export function createScoringService(deps: ScoringServiceDeps): ScoringService {
     };
   }
 
-  async function addDataset(datasetId: string) {
+  function rememberDataset(summary?: ScoringDatasetSummary) {
+    if (!summary || datasets.value.some((d) => d.id === summary.id)) return;
+    datasets.value = [...datasets.value, summary];
+  }
+
+  async function addDataset(datasetId: string, summary?: ScoringDatasetSummary) {
     if (pairs.value.some((p) => p.computed.datasetId === datasetId)) return;
+    rememberDataset(summary);
     pairs.value = [...pairs.value, await defaultPair(datasetId)];
   }
 

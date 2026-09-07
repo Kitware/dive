@@ -1,5 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
+import { useApi } from 'dive-common/apispec';
 import { useScoring } from 'dive-common/use/useScoring';
 import ScoringSourceSelect from './ScoringSourceSelect.vue';
 
@@ -7,8 +8,12 @@ export default defineComponent({
   name: 'ScoringPairsTable',
   components: { ScoringSourceSelect },
   setup(_, { emit }) {
+    const api = useApi();
     const scoring = useScoring();
     const toAdd = ref<string | null>(null);
+    const picking = ref(false);
+
+    const usePicker = computed(() => typeof api.pickScoringDataset === 'function');
 
     const addable = computed(() => {
       const used = new Set(scoring.pairs.value.map((p) => p.computed.datasetId));
@@ -23,11 +28,26 @@ export default defineComponent({
       toAdd.value = null;
     }
 
+    async function openPicker() {
+      if (!api.pickScoringDataset || picking.value) return;
+      picking.value = true;
+      try {
+        const used = scoring.pairs.value.map((p) => p.computed.datasetId);
+        const picked = await api.pickScoringDataset(used);
+        if (picked) await scoring.addDataset(picked.id, picked);
+      } finally {
+        picking.value = false;
+      }
+    }
+
     return {
       scoring,
       toAdd,
       addable,
       add,
+      usePicker,
+      picking,
+      openPicker,
       open: (id: string) => emit('open-viewer', id),
     };
   },
@@ -36,8 +56,24 @@ export default defineComponent({
 
 <template>
   <div>
-    <div class="d-flex align-center mb-2">
+    <div class="d-flex align-center mb-2 flex-wrap">
+      <v-btn
+        v-if="usePicker"
+        small
+        outlined
+        :loading="picking"
+        @click="openPicker"
+      >
+        <v-icon
+          small
+          left
+        >
+          mdi-plus
+        </v-icon>
+        Add sequence
+      </v-btn>
       <v-autocomplete
+        v-else
         v-model="toAdd"
         :items="addable"
         label="Add a sequence"
