@@ -9,6 +9,9 @@ import {
   finishScoringDatasetPicker,
   scoringDatasetPickerState,
 } from 'platform/web-girder/api/scoringDatasetPicker';
+import { useLocation } from 'platform/web-girder/store/useLocation';
+import type { LocationType } from 'platform/web-girder/store/types';
+import { isGirderModel } from 'platform/web-girder/store/types';
 
 type BrowserLocation = {
   _id: string;
@@ -37,18 +40,27 @@ export default defineComponent({
   components: { GirderFileManager },
   setup() {
     const girderRest = useGirderRest();
-    const location = ref<BrowserLocation | null>(null);
+    const { getLocation } = useLocation();
+    const location = ref<LocationType | null>(null);
     const selected = ref<BrowserLocation | null>(null);
 
-    function reset() {
-      selected.value = null;
-      location.value = girderRest.user?._id
+    function defaultUserLocation(): LocationType | null {
+      return girderRest.user?._id
         ? {
           _id: girderRest.user._id,
           _modelType: 'user',
           login: girderRest.user.login,
         }
         : null;
+    }
+
+    function reset() {
+      selected.value = null;
+      const browseLocation = getLocation();
+      location.value = browseLocation ?? defaultUserLocation();
+      if (browseLocation && isGirderModel(browseLocation) && isScoringDataset(browseLocation)) {
+        selected.value = browseLocation;
+      }
     }
 
     watch(() => scoringDatasetPickerState.open, (open) => {
