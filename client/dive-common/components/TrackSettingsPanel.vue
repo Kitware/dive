@@ -7,6 +7,7 @@ import {
   computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
+import { STEREO_MATCH_METHODS } from 'dive-common/use/stereo/stereoMatcher';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export default defineComponent({
@@ -40,6 +41,7 @@ export default defineComponent({
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
       stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
+      stereoMatchMethod: 'How a point is matched on the other camera. Template matching correlates the source patch along the epipolar line. Foundation stereo runs a dense disparity network over the pair once, which is steadier where the patch is hard to match but needs its model to be configured.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -52,6 +54,7 @@ export default defineComponent({
       help,
       modes,
       typeList,
+      stereoMatchMethods: STEREO_MATCH_METHODS,
     };
   },
 });
@@ -442,6 +445,42 @@ export default defineComponent({
                 </v-icon>
               </template>
               <span>{{ help.stereoAutoCompute }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row
+          align="end"
+          dense
+        >
+          <v-col class="py-1">
+            <v-select
+              v-model="clientSettings.stereoSettings.matchMethod"
+              :items="stereoMatchMethods"
+              class="my-0 ml-1 pt-0"
+              dense
+              hide-details
+              label="Correspondence method"
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.stereoMatchMethod }}</span>
             </v-tooltip>
           </v-col>
         </v-row>

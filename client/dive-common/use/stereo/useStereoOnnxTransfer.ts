@@ -19,7 +19,8 @@ import Track from 'vue-media-annotator/track';
 import { RectBounds } from 'vue-media-annotator/utils';
 import { HeadPointKey, TailPointKey, HeadTailLineKey } from 'dive-common/recipes/headtail';
 import type { StereoAnnotationCompleteParams } from '../useModeManager';
-import { StereoOnnxMatcher, SearchRange } from './StereoOnnxMatcher';
+import type { SearchRange } from './StereoOnnxMatcher';
+import type { StereoMatcher } from './stereoMatcher';
 import { StereoRig, invertRig } from './calibration';
 import { rgbaToGray, RgbaImage } from './image';
 import { measureLine, aggregateLengths, StereoMeasurement } from './triangulate';
@@ -32,8 +33,12 @@ export interface StereoOnnxTransferConfig {
   getLeftCameraName: () => string;
   /** Stereo calibration, or null if unavailable (transfer is then skipped). */
   getRig: () => Promise<StereoRig | null>;
-  /** The (lazily created / cached) ONNX matcher, or null if unavailable. */
-  getMatcher: () => Promise<StereoOnnxMatcher | null>;
+  /**
+   * The (lazily created / cached) matcher for the selected method, or null if
+   * unavailable. Either correspondence method satisfies {@link StereoMatcher},
+   * so nothing downstream branches on which one is in use.
+   */
+  getMatcher: () => Promise<StereoMatcher | null>;
   /** Full-resolution RGBA pixels for a camera at a frame, or null. */
   getFrame: (cameraName: string, frameNum: number) => Promise<RgbaImage | null>;
   /** Disparity- or depth-based search range for the correspondence search. */

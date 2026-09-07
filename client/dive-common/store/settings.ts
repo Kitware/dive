@@ -2,6 +2,8 @@ import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
+import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 
 interface ColumnVisibilitySettings {
   type: boolean;
@@ -94,6 +96,9 @@ interface AnnotationSettings {
     // Warp an annotation drawn on one camera to the other camera when that
     // camera has no detection for it yet.
     autoComputeOtherCamera: boolean;
+    // Which correspondence method the warp uses: 'ncc' template matching or
+    // 'foundation' dense disparity.
+    matchMethod: StereoMatchMethod;
     loading: boolean;
     loadingMessage: string;
   };
@@ -191,6 +196,7 @@ const defaultSettings: AnnotationSettings = {
     clearLengthOnCameraFileLoad: true,
     updateLengthsOnModify: true,
     autoComputeOtherCamera: false,
+    matchMethod: DEFAULT_STEREO_MATCH_METHOD,
     loading: false,
     loadingMessage: '',
   },

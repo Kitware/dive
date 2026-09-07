@@ -17,6 +17,10 @@
 import { clientSettings } from 'dive-common/store/settings';
 import useStereoOnnxTransfer from 'dive-common/use/stereo/useStereoOnnxTransfer';
 import { StereoOnnxMatcher } from 'dive-common/use/stereo/StereoOnnxMatcher';
+import { StereoFoundationMatcher } from 'dive-common/use/stereo/StereoFoundationMatcher';
+import type { FoundationModelSpec } from 'dive-common/use/stereo/StereoFoundationMatcher';
+import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
+import type { StereoMatcher, StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { SearchRange } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import {
   rigFromNpz, rigFromJson, StereoRig,
@@ -27,6 +31,16 @@ import type { StereoMeasurement } from 'dive-common/use/stereo/triangulate';
 import { getCalibrationFile, getLastCalibration } from './multicamFileRegistry';
 
 const DEFAULT_MODEL_URL = '/models/stereo_match.onnx';
+/**
+ * Fast-FoundationStereo is opt-in and unbundled: the exports run ~100 MB, so
+ * unlike the NCC graph this one is not committed. Serve an export here (or pass
+ * `foundationModelUrl`) and give its sidecar `image_size` as
+ * `foundationModelSpec`; with no model served the dropdown's foundation option
+ * reports that it could not load and the warp no-ops, exactly as a missing
+ * calibration does.
+ */
+const DEFAULT_FOUNDATION_MODEL_URL = '/models/stereo_foundation.onnx';
+const DEFAULT_FOUNDATION_SPEC: FoundationModelSpec = { height: 576, width: 960 };
 // Mirrors epipolar_min_disparity / epipolar_max_disparity in VIAME's
 // configs/pipelines/interactive_stereo_template.conf, which is what the desktop
 // interactive stereo service loads. Scene-dependent, and hidden config there
@@ -41,6 +55,11 @@ export interface StereoOnnxWebOptions {
   /** Dataset (folder) id used to look up the stored calibration. */
   getDatasetId: () => string;
   modelUrl?: string;
+  foundationModelUrl?: string;
+  /** Input resolution of the foundation export (its sidecar yaml `image_size`). */
+  foundationModelSpec?: FoundationModelSpec;
+  /** Overrides the user's dropdown choice; mainly for tests. */
+  getMatchMethod?: () => StereoMatchMethod;
   range?: SearchRange;
   onStatus?: (message: string | null) => void;
   onError?: (message: string) => void;
@@ -80,22 +99,32 @@ async function urlToRgba(url: string): Promise<RgbaImage | null> {
 
 export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   const modelUrl = opts.modelUrl ?? DEFAULT_MODEL_URL;
-  let matcher: StereoOnnxMatcher | null = null;
-  let matcherTried = false;
+  const foundationModelUrl = opts.foundationModelUrl ?? DEFAULT_FOUNDATION_MODEL_URL;
+  const foundationSpec = opts.foundationModelSpec ?? DEFAULT_FOUNDATION_SPEC;
+  // Cached per method: switching the dropdown must not reload the other model,
+  // and a method that failed to load must not be retried on every warp.
+  const matchers: Partial<Record<StereoMatchMethod, StereoMatcher | null>> = {};
   let rig: StereoRig | null = null;
   let rigKey: string | null = null;
 
-  async function getMatcher(): Promise<StereoOnnxMatcher | null> {
-    if (!matcher && !matcherTried) {
-      matcherTried = true;
-      try {
-        matcher = await StereoOnnxMatcher.create(modelUrl);
-      } catch (err) {
-        console.warn('[StereoOnnx] failed to load model', modelUrl, err);
-        matcher = null;
-      }
+  function currentMethod(): StereoMatchMethod {
+    if (opts.getMatchMethod) return opts.getMatchMethod();
+    return clientSettings.stereoSettings.matchMethod ?? DEFAULT_STEREO_MATCH_METHOD;
+  }
+
+  async function getMatcher(): Promise<StereoMatcher | null> {
+    const method = currentMethod();
+    if (method in matchers) return matchers[method] ?? null;
+    const url = method === 'foundation' ? foundationModelUrl : modelUrl;
+    try {
+      matchers[method] = method === 'foundation'
+        ? await StereoFoundationMatcher.create(url, foundationSpec)
+        : await StereoOnnxMatcher.create(url);
+    } catch (err) {
+      console.warn('[StereoOnnx] failed to load model', method, url, err);
+      matchers[method] = null;
     }
-    return matcher;
+    return matchers[method] ?? null;
   }
 
   function parseRig(name: string, buffer: ArrayBuffer): Promise<StereoRig> {
