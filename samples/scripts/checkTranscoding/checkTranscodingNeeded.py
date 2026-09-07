@@ -199,10 +199,12 @@ def probe_media(file_path: Path) -> tuple[dict, dict, str]:
 def is_frame_misaligned(file_path: Path) -> bool:
     """
     True when duplicate best_effort_timestamp_time values appear in the first
-    5 seconds of frames (audio/video misalignment indicator).
+    5 seconds of primary video frames (audio/video misalignment indicator).
     """
     frame_info = run_ffprobe(
         [
+            "-select_streams",
+            "v:0",
             str(file_path),
             "-hide_banner",
             "-read_intervals",

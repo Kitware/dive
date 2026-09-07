@@ -230,12 +230,45 @@ def test_is_frame_misaligned_accepts_url_and_headers():
 
     command = mock_run.call_args[0][3]['args']
     assert command[0] == 'ffprobe'
+    assert '-select_streams' in command
+    assert 'v:0' in command
     assert '-/headers' in command
     assert '-headers' not in command
     assert 'tok' not in command[command.index('-/headers') + 1]
     assert 'http://girder.example/api/v1/file/1/download' in command
     written = ''.join(str(c.args[0]) for c in manager.write.call_args_list)
     assert '8192' in written
+
+
+def test_is_frame_misaligned_ignores_cross_stream_timestamps():
+    """Audio at the same time as a video frame must not count as misalignment."""
+    task = MagicMock()
+    manager = MagicMock()
+    # ffprobe with -select_streams v:0 only returns video packets.
+    frame_json = (
+        '{"frames":[{"best_effort_timestamp_time":"0.0"},'
+        '{"best_effort_timestamp_time":"0.033"}]}'
+    )
+
+    with patch('dive_tasks.frame_alignment.stream_subprocess', return_value=frame_json) as mock_run:
+        assert is_frame_misaligned(task, '/tmp/clip.mp4', {}, manager) is False
+
+    command = mock_run.call_args[0][3]['args']
+    assert '-select_streams' in command
+    assert 'v:0' in command
+
+
+def test_is_frame_misaligned_detects_duplicate_video_timestamps():
+    task = MagicMock()
+    manager = MagicMock()
+    frame_json = (
+        '{"frames":[{"best_effort_timestamp_time":"0.0"},'
+        '{"best_effort_timestamp_time":"0.0"},'
+        '{"best_effort_timestamp_time":"0.033"}]}'
+    )
+
+    with patch('dive_tasks.frame_alignment.stream_subprocess', return_value=frame_json):
+        assert is_frame_misaligned(task, '/tmp/clip.mp4', {}, manager) is True
 
 
 def _run_convert_video(task, **kwargs):
