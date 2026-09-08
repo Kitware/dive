@@ -23,7 +23,8 @@ import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
-import { useRouter } from 'vue-router/composables';
+import { useRouter, useRoute } from 'vue-router/composables';
+import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
@@ -112,6 +113,7 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const router = useRouter();
+    const route = useRoute();
     const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
@@ -420,6 +422,16 @@ export default defineComponent({
       }
     }
 
+    const annotationSourceLabel = computed(() => {
+      const value = route.query[ANNOTATION_SOURCE_QUERY];
+      return typeof value === 'string' ? value : '';
+    });
+    const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+
+    function returnToCurrentAnnotations() {
+      router.replace({ name: 'viewer', params: { id: props.id } });
+    }
+
     return {
       buttonOptions,
       brandData,
@@ -456,6 +468,9 @@ export default defineComponent({
       stereoLengthMessage,
       closeStereoError,
       handleStereoWarpImported,
+      annotationSourceLabel,
+      annotationSourceReturnable,
+      returnToCurrentAnnotations,
     };
   },
 });
@@ -471,6 +486,9 @@ export default defineComponent({
       :current-set="set"
       :read-only-mode="!!jobs.getDatasetRunningState(id)"
       :comparison-sets="comparisonSets"
+      :annotation-source-label="annotationSourceLabel"
+      :annotation-source-returnable="annotationSourceReturnable"
+      @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
       @update:set="routeSet"
       @change-camera="changeCamera"

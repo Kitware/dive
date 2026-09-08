@@ -2,6 +2,8 @@
 import { computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router/composables';
 import SharedScoringPage from 'dive-common/components/Scoring/ScoringPage.vue';
+import type { ScoringSource } from 'dive-common/scoring/types';
+import { desktopViewerLocation } from 'dive-common/scoring/viewerNavigation';
 import NavigationBar from './NavigationBar.vue';
 
 const route = useRoute();
@@ -14,8 +16,8 @@ const initialDatasetIds = computed(() => {
   return values.flatMap((value) => (value || '').split(',')).filter(Boolean);
 });
 
-function openViewer(id: string) {
-  router.push({ name: 'viewer', params: { id } });
+function openViewer(source: ScoringSource, sourceLabel: string) {
+  router.push(desktopViewerLocation(source, sourceLabel));
 }
 </script>
 

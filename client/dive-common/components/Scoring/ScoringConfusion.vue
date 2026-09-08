@@ -59,19 +59,21 @@ export default defineComponent({
     </div>
     <div
       v-else
-      class="d-flex flex-wrap"
+      class="confusion-layout"
     >
-      <ScoringHeatmap
-        :row-labels="matrix.classNames"
-        :col-labels="matrix.classNames"
-        :counts="matrix.matrix"
-        :fractions="matrix.normalized"
-        :show-fractions="normalized"
-        :background-index="backgroundIndex"
-        :selected="selected"
-        @select="onSelect"
-      />
-      <div class="pl-4 pt-2 confusion-side">
+      <div class="confusion-scroll">
+        <ScoringHeatmap
+          :row-labels="matrix.classNames"
+          :col-labels="matrix.classNames"
+          :counts="matrix.matrix"
+          :fractions="matrix.normalized"
+          :show-fractions="normalized"
+          :background-index="backgroundIndex"
+          :selected="selected"
+          @select="onSelect"
+        />
+      </div>
+      <div class="confusion-side">
         <v-switch
           v-model="normalized"
           dense
@@ -104,7 +106,39 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+.confusion-layout {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.confusion-scroll {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
 .confusion-side {
+  flex: 0 1 320px;
   max-width: 320px;
+  min-width: 200px;
+  padding-top: 8px;
+}
+
+@media (max-width: 900px) {
+  .confusion-layout {
+    flex-direction: column;
+  }
+
+  .confusion-side {
+    flex: 1 1 auto;
+    max-width: 100%;
+    min-width: 0;
+    padding-left: 0;
+  }
 }
 </style>

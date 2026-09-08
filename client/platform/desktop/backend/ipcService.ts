@@ -240,6 +240,11 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('load-detections-from-file', async (event, { file }: { file: string }) => {
+    const ret = await common.loadAnnotationFile(file);
+    return ret;
+  });
+
   ipcMain.handle('load-frame-metadata', async (
     event,
     { datasetId }: { datasetId: string },

@@ -9,6 +9,7 @@ import { formatMetric } from 'dive-common/scoring/metrics';
 import {
   downloadTextFile, exportFilename, resultToCsv, resultToJson,
 } from 'dive-common/scoring/export';
+import type { ScoringSource } from 'dive-common/scoring/types';
 import ScoringReport from './ScoringReport.vue';
 import ScoringPairsTable from './ScoringPairsTable.vue';
 import ScoringParamsDialog from './ScoringParamsDialog.vue';
@@ -31,7 +32,7 @@ const TABS = [
 /**
  * The scoring page: pick sequences and their computed/truth annotations, run
  * `viame score` on all of them as one job, and browse this or any earlier run.
- * Platform shells own routing; this emits `open-viewer` with a dataset id.
+ * Platform shells own routing; this emits `open-viewer` with a {@link ScoringSource}.
  */
 export default defineComponent({
   name: 'ScoringPage',
@@ -58,6 +59,7 @@ export default defineComponent({
     provideScoring(scoring);
     const { prompt } = usePrompt();
 
+    const pageTab = ref('results');
     const tab = ref('summary');
     const showParams = ref(false);
     const errorFilter = ref<ErrorFilter | null>(null);
@@ -127,6 +129,7 @@ export default defineComponent({
       id: r.id,
       title: r.title,
       when: new Date(r.created).toLocaleString(),
+      date: new Date(r.created).toLocaleDateString(),
       f1: formatMetric(r.headline.f1_score, 'ratio'),
       sequences: r.pairs.length,
     })));
@@ -146,18 +149,40 @@ export default defineComponent({
     }
 
     async function applyInitial(ids: string[]) {
-      if (ids.length) await scoring.setDatasets(ids);
+      if (ids.length) {
+        await scoring.setDatasets(ids);
+        pageTab.value = 'newrun';
+      }
+    }
+
+    async function selectRun(id: string) {
+      await scoring.selectResult(id);
+      pageTab.value = 'results';
+    }
+
+    function reuseSetup() {
+      scoring.useResultSetup();
+      pageTab.value = 'newrun';
+    }
+
+    async function runScoring() {
+      await scoring.run();
+      if (scoring.result.value) pageTab.value = 'results';
     }
 
     onMounted(async () => {
       await scoring.refreshDatasets();
-      scoring.refreshResults();
+      await scoring.refreshResults();
+      if (!scoring.selectedResultId.value && scoring.results.value.length > 0) {
+        await scoring.selectResult(scoring.results.value[0].id);
+      }
       await applyInitial(props.initialDatasetIds);
     });
     watch(() => props.initialDatasetIds, (ids) => { applyInitial(ids); });
 
     return {
       scoring,
+      pageTab,
       tab,
       tabs: TABS,
       showParams,
@@ -165,13 +190,16 @@ export default defineComponent({
       paramsSummary,
       resultItems,
       removeResult,
+      selectRun,
+      reuseSetup,
+      runScoring,
       onConfusionFilter,
       reportMode,
       exporting,
       exportAs,
       printReport,
       canSavePdf,
-      openViewer: (id: string) => emit('open-viewer', id),
+      openViewer: (source: ScoringSource) => emit('open-viewer', source, scoring.sourceLabel(source)),
     };
   },
 });
@@ -219,87 +247,18 @@ export default defineComponent({
       </div>
       <ScoringReport />
     </div>
-    <v-row v-else>
-      <v-col
-        cols="12"
-        lg="5"
-        xl="4"
-      >
+    <div
+      v-else
+      class="scoring-layout"
+    >
+      <aside class="runs-rail">
         <v-card outlined>
-          <v-card-title class="text-h6 py-2">
-            <v-icon
-              class="mr-2"
-            >
-              mdi-chart-box-outline
-            </v-icon>
-            Score annotations
-          </v-card-title>
-          <v-card-text>
-            <ScoringPairsTable @open-viewer="openViewer" />
-            <div class="d-flex align-center mt-3 flex-wrap run-row">
-              <v-btn
-                small
-                outlined
-                @click="showParams = true"
-              >
-                <v-icon
-                  small
-                  left
-                >
-                  mdi-tune
-                </v-icon>
-                Parameters
-              </v-btn>
-              <span class="text-caption grey--text mx-2">{{ paramsSummary }}</span>
-              <v-spacer />
-              <v-btn
-                depressed
-                color="primary"
-                :loading="scoring.running.value"
-                :disabled="scoring.running.value || scoring.pairs.value.length === 0"
-                @click="scoring.run()"
-              >
-                <v-icon left>
-                  mdi-play
-                </v-icon>
-                Score
-              </v-btn>
-            </div>
-            <div
-              v-if="scoring.status.value"
-              class="text-caption d-flex align-center mt-2"
-            >
-              <v-progress-circular
-                indeterminate
-                size="12"
-                width="2"
-                class="mr-2"
-              />
-              {{ scoring.status.value }}
-            </div>
-            <v-alert
-              v-if="scoring.error.value"
-              dense
-              dismissible
-              type="error"
-              class="mt-2 mb-0"
-              @input="scoring.clearError()"
-            >
-              {{ scoring.error.value }}
-            </v-alert>
-          </v-card-text>
-        </v-card>
-
-        <v-card
-          outlined
-          class="mt-3"
-        >
-          <v-card-title class="text-subtitle-1 py-2">
+          <v-card-title class="text-subtitle-2 py-2 px-3">
             Previous runs
             <v-spacer />
             <v-btn
               icon
-              small
+              x-small
               :loading="scoring.loading.value"
               @click="scoring.refreshResults()"
             >
@@ -314,56 +273,92 @@ export default defineComponent({
           >
             <div
               v-if="resultItems.length === 0"
-              class="text-caption grey--text px-4 pb-2"
+              class="text-caption grey--text px-3 pb-2"
             >
               No scoring runs stored yet.
             </div>
-            <v-list-item
+            <v-tooltip
               v-for="item in resultItems"
               :key="item.id"
-              :input-value="scoring.selectedResultId.value === item.id"
-              color="primary"
-              @click="scoring.selectResult(item.id)"
+              bottom
+              open-delay="400"
             >
-              <v-list-item-content>
-                <v-list-item-title>{{ item.title }}</v-list-item-title>
-                <v-list-item-subtitle>
-                  {{ item.when }} · F1 {{ item.f1 }} · {{ item.sequences }} sequence{{ item.sequences === 1 ? '' : 's' }}
-                </v-list-item-subtitle>
-              </v-list-item-content>
-              <v-list-item-action>
-                <v-btn
-                  icon
-                  x-small
-                  @click.stop="removeResult(item.id)"
+              <template #activator="{ on }">
+                <v-list-item
+                  :input-value="scoring.selectedResultId.value === item.id"
+                  color="primary"
+                  class="result-item"
+                  v-on="on"
+                  @click="selectRun(item.id)"
                 >
-                  <v-icon small>
-                    mdi-delete-outline
-                  </v-icon>
-                </v-btn>
-              </v-list-item-action>
-            </v-list-item>
+                  <v-list-item-content>
+                    <v-list-item-title>{{ item.title }}</v-list-item-title>
+                    <v-list-item-subtitle>
+                      F1 {{ item.f1 }} · {{ item.sequences }} seq · {{ item.date }}
+                    </v-list-item-subtitle>
+                  </v-list-item-content>
+                  <v-list-item-action>
+                    <v-btn
+                      icon
+                      x-small
+                      color="error"
+                      @click.stop="removeResult(item.id)"
+                    >
+                      <v-icon small>
+                        mdi-delete-outline
+                      </v-icon>
+                    </v-btn>
+                  </v-list-item-action>
+                </v-list-item>
+              </template>
+              <span>{{ item.title }} · {{ item.when }}</span>
+            </v-tooltip>
           </v-list>
         </v-card>
-      </v-col>
+      </aside>
 
-      <v-col
-        cols="12"
-        lg="7"
-        xl="8"
-      >
+      <div class="scoring-main">
+        <v-tabs
+          v-model="pageTab"
+          height="36"
+          class="page-tabs mb-2"
+        >
+          <v-tab href="#results">
+            Results
+          </v-tab>
+          <v-tab href="#newrun">
+            New run
+          </v-tab>
+        </v-tabs>
+
         <v-card
+          v-if="pageTab === 'results'"
           outlined
           class="results-card"
         >
           <template v-if="scoring.result.value">
-            <div class="d-flex align-center px-3 pt-2">
-              <div>
+            <div class="d-flex align-center px-3 pt-2 results-header">
+              <div class="results-title-block">
                 <div class="text-subtitle-1">
                   {{ scoring.result.value.title }}
                 </div>
                 <div class="text-caption grey--text">
                   {{ new Date(scoring.result.value.created).toLocaleString() }}
+                </div>
+                <div class="text-caption grey--text mt-1 result-sources">
+                  <div
+                    v-for="(pair, i) in scoring.result.value.pairs"
+                    :key="i"
+                    class="result-source-row"
+                  >
+                    <span
+                      v-if="scoring.result.value.pairs.length > 1"
+                      class="mr-1"
+                    >{{ scoring.datasetName(pair.computed.datasetId) }}:</span>
+                    <a @click="openViewer(pair.computed)">{{ scoring.sourceLabel(pair.computed) }}</a>
+                    <span class="mx-1">vs</span>
+                    <a @click="openViewer(pair.truth)">{{ scoring.sourceLabel(pair.truth) }}</a>
+                  </div>
                 </div>
               </div>
               <v-spacer />
@@ -402,7 +397,7 @@ export default defineComponent({
                     small
                     text
                     v-on="on"
-                    @click="scoring.useResultSetup()"
+                    @click="reuseSetup"
                   >
                     <v-icon
                       small
@@ -452,14 +447,88 @@ export default defineComponent({
             <div v-if="scoring.running.value">
               Scoring is running; results appear here when the job finishes.
             </div>
+            <div v-else-if="resultItems.length > 0">
+              Select a run on the left to review it, or
+              <a @click="pageTab = 'newrun'">configure a new run</a>.
+            </div>
             <div v-else>
-              Add the sequences to score, choose which annotations are computed and which are
-              truth for each, and press Score. Pick an earlier run on the left to review it.
+              No scoring runs yet.
+              <a @click="pageTab = 'newrun'">Configure a new run</a>
+              to score annotations against ground truth.
             </div>
           </v-card-text>
         </v-card>
-      </v-col>
-    </v-row>
+
+        <v-card
+          v-else
+          outlined
+          class="new-run-card"
+        >
+          <v-card-title class="text-h6 py-2">
+            <v-icon class="mr-2">
+              mdi-chart-box-outline
+            </v-icon>
+            Score annotations
+          </v-card-title>
+          <v-card-text>
+            <div class="pairs-scroll">
+              <ScoringPairsTable @open-viewer="openViewer" />
+            </div>
+            <div class="d-flex align-center mt-3 flex-wrap run-row">
+              <v-btn
+                small
+                outlined
+                @click="showParams = true"
+              >
+                <v-icon
+                  small
+                  left
+                >
+                  mdi-tune
+                </v-icon>
+                Parameters
+              </v-btn>
+              <span class="text-caption grey--text mx-2">{{ paramsSummary }}</span>
+              <v-spacer />
+              <v-btn
+                depressed
+                color="primary"
+                :loading="scoring.running.value"
+                :disabled="scoring.running.value || scoring.pairs.value.length === 0"
+                @click="runScoring"
+              >
+                <v-icon left>
+                  mdi-play
+                </v-icon>
+                Score
+              </v-btn>
+            </div>
+            <div
+              v-if="scoring.status.value"
+              class="text-caption d-flex align-center mt-2"
+            >
+              <v-progress-circular
+                indeterminate
+                size="12"
+                width="2"
+                class="mr-2"
+              />
+              {{ scoring.status.value }}
+            </div>
+            <v-alert
+              v-if="scoring.error.value"
+              dense
+              dismissible
+              type="error"
+              class="mt-2 mb-0"
+              @input="scoring.clearError()"
+            >
+              {{ scoring.error.value }}
+            </v-alert>
+          </v-card-text>
+        </v-card>
+      </div>
+    </div>
     <ScoringParamsDialog v-model="showParams" />
   </div>
 </template>
@@ -501,6 +570,35 @@ html.scoring-print {
 </style>
 
 <style lang="scss" scoped>
+.scoring-page {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.scoring-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  max-width: 100%;
+  min-width: 0;
+}
+
+.scoring-main {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.runs-rail {
+  flex: 0 0 248px;
+  width: 248px;
+  max-width: 248px;
+  min-width: 0;
+}
+
+.page-tabs {
+  border-bottom: 1px solid #444;
+}
+
 .run-row {
   gap: 4px;
 }
@@ -511,13 +609,64 @@ html.scoring-print {
   border-radius: 4px;
 }
 
+.pairs-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
 .result-list {
-  max-height: 50vh;
+  max-height: calc(100vh - 180px);
   overflow-y: auto;
 }
 
-.results-card {
+.result-item ::v-deep .v-list-item__content {
+  min-width: 0;
+}
+
+.result-item ::v-deep .v-list-item__title {
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.result-item ::v-deep .v-list-item__subtitle {
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.results-card,
+.new-run-card {
   min-height: 60vh;
+  min-width: 0;
+  max-width: 100%;
+}
+
+.results-header {
+  min-width: 0;
+}
+
+.results-title-block {
+  min-width: 0;
+  overflow: hidden;
+
+  .text-subtitle-1 {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+.result-sources {
+  line-height: 1.4;
+}
+
+.result-source-row {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .result-tabs {
@@ -526,5 +675,24 @@ html.scoring-print {
 
 .results-body {
   padding: 8px 0;
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
+@media (max-width: 960px) {
+  .scoring-layout {
+    flex-direction: column;
+  }
+
+  .runs-rail {
+    flex: 1 1 auto;
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .result-list {
+    max-height: 240px;
+  }
 }
 </style>

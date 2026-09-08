@@ -804,8 +804,19 @@ async function loadConfig(id: string) {
   return { ...data, calibration: data.multiCam?.calibration ?? null };
 }
 
+let scoringAnnotationPreviewFile: string | null = null;
+
+/** One-shot annotation file to load in the viewer (from scoring result links). */
+export function setScoringAnnotationPreviewFile(path: string | null) {
+  scoringAnnotationPreviewFile = path;
+}
+
 async function loadDetections(datasetId: string) {
-  const annotations = await invoke<AnnotationSchema>('load-detections', { datasetId });
+  const previewFile = scoringAnnotationPreviewFile;
+  scoringAnnotationPreviewFile = null;
+  const annotations = previewFile
+    ? await invoke<AnnotationSchema>('load-detections-from-file', { file: previewFile })
+    : await invoke<AnnotationSchema>('load-detections', { datasetId });
   return {
     version: annotations.version,
     tracks: Object.values(annotations.tracks),

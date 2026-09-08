@@ -4,6 +4,7 @@ import {
 } from 'vue';
 import { useScoring } from 'dive-common/use/useScoring';
 import { perFrameErrorCounts, ScoringMatch } from 'dive-common/scoring/metrics';
+import type { ScoringSource } from 'dive-common/scoring/types';
 import ScoringLineChart from './charts/ScoringLineChart.vue';
 import type { ChartHover, ChartSeries } from './charts/chartTypes';
 
@@ -100,9 +101,9 @@ export default defineComponent({
       return id ? scoring.datasetName(id) : `#${m.sequence}`;
     }
 
-    function open(m: ScoringMatch) {
-      const id = datasetFor(m);
-      if (id) emit('open-viewer', id);
+    function openSource(m: ScoringMatch) {
+      const source = pairs.value[m.sequence]?.computed;
+      if (source) emit('open-viewer', source);
     }
 
     const headers = computed(() => [
@@ -139,7 +140,7 @@ export default defineComponent({
       frameSeries,
       frameTooltip,
       sequenceName,
-      open,
+      openSource,
       headers,
       statusItems,
       STATUS_LABEL,
@@ -244,7 +245,7 @@ export default defineComponent({
                 icon
                 x-small
                 v-on="on"
-                @click="open(item)"
+                @click="openSource(item)"
               >
                 <v-icon small>
                   mdi-open-in-new

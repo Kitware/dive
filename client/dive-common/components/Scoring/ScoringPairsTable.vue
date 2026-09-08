@@ -2,6 +2,7 @@
 import { computed, defineComponent, ref } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { useScoring } from 'dive-common/use/useScoring';
+import type { ScoringSource } from 'dive-common/scoring/types';
 import ScoringSourceSelect from './ScoringSourceSelect.vue';
 
 export default defineComponent({
@@ -48,7 +49,7 @@ export default defineComponent({
       usePicker,
       picking,
       openPicker,
-      open: (id: string) => emit('open-viewer', id),
+      open: (source: ScoringSource) => emit('open-viewer', source),
     };
   },
 });
@@ -114,7 +115,7 @@ export default defineComponent({
           :key="pair.computed.datasetId"
         >
           <td class="sequence-cell">
-            <a @click="open(pair.computed.datasetId)">{{ scoring.datasetName(pair.computed.datasetId) }}</a>
+            <a @click="open(pair.computed)">{{ scoring.datasetName(pair.computed.datasetId) }}</a>
           </td>
           <td>
             <ScoringSourceSelect

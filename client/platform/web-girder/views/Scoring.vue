@@ -2,6 +2,8 @@
 import { computed, defineComponent } from 'vue';
 import { useRoute, useRouter } from 'vue-router/composables';
 import ScoringPage from 'dive-common/components/Scoring/ScoringPage.vue';
+import type { ScoringSource } from 'dive-common/scoring/types';
+import { webViewerLocation } from 'dive-common/scoring/viewerNavigation';
 
 export default defineComponent({
   name: 'Scoring',
@@ -16,8 +18,8 @@ export default defineComponent({
       return typeof joined === 'string' ? joined.split(',').filter((id) => id) : [];
     });
 
-    function openViewer(id: string) {
-      router.push({ name: 'viewer', params: { id } });
+    function openViewer(source: ScoringSource, sourceLabel: string) {
+      router.push(webViewerLocation(source, sourceLabel));
     }
 
     return { initialDatasetIds, openViewer };

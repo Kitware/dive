@@ -62,17 +62,20 @@ export default defineComponent({
     >
       Per-class metrics were not requested for this run. Enable "Per class" in the scoring parameters.
     </div>
-    <v-data-table
+    <div
       v-else
-      :headers="headers"
-      :items="rows"
-      dense
-      disable-pagination
-      hide-default-footer
-      sort-by="f1_score"
-      sort-desc
-      class="class-table"
+      class="class-table-scroll"
     >
+      <v-data-table
+        :headers="headers"
+        :items="rows"
+        dense
+        disable-pagination
+        hide-default-footer
+        sort-by="f1_score"
+        sort-desc
+        class="class-table"
+      >
       <template #[`item.name`]="{ item }">
         <span
           class="class-swatch"
@@ -89,11 +92,18 @@ export default defineComponent({
           class="tabular"
         >{{ display(item[col.key], col.key) }}</span>
       </template>
-    </v-data-table>
+      </v-data-table>
+    </div>
   </div>
 </template>
 
 <style lang="scss" scoped>
+.class-table-scroll {
+  overflow-x: auto;
+  max-width: 100%;
+  min-width: 0;
+}
+
 .class-swatch {
   display: inline-block;
   width: 10px;
