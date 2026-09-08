@@ -412,6 +412,22 @@ describe('useAnnotationFilters', () => {
     expect(tf.confidenceFilters.value).toEqual({ bar: 0.2, newtype: 0.1, default: 0.1 });
   });
 
+  it('replaces the declared type list on a dataset load', () => {
+    const tf = makeTrackFilterControls();
+    tf.importTypes(['Sebastes', 'Sebastes melanops'], false);
+    tf.checkedTypes.value = ['foo', 'Sebastes', 'Sebastes melanops'];
+
+    // An Overwrite species-list import dropped melanops and declared caurinus.
+    tf.setConfiguredTypes(['Sebastes', 'Sebastes caurinus']);
+
+    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz', 'Sebastes', 'Sebastes caurinus']);
+    expect(tf.checkedTypes.value).toEqual(['foo', 'Sebastes']);
+
+    // A type a track still uses is listed whether or not it is declared.
+    tf.setConfiguredTypes([]);
+    expect(tf.allTypes.value).toEqual(['foo', 'bar', 'baz']);
+  });
+
   it('deleteType', () => {
     const tf = makeTrackFilterControls();
     tf.setConfidenceFilters({ baz: 0.1, bar: 0.2 });

@@ -2093,6 +2093,63 @@ describe('native.common', () => {
       .toEqual(resolvedHierarchy);
   });
 
+  it('adds a species list to a multicam parent on an additive camera-scoped import', async () => {
+    const basePayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const baseRes = await common.finalizeMediaImport(settings, basePayload);
+    const baseId = baseRes.meta.id;
+    const cameraPayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const cameraRes = await common.finalizeMediaImport(settings, cameraPayload);
+    const projects = npath.join(settings.dataPath, ProjectsFolderName);
+    await fs.move(
+      npath.join(projects, cameraRes.meta.id),
+      npath.join(projects, baseId, 'EO'),
+    );
+    const rockfish = '/home/user/output/rockfish.species.json';
+    await fs.writeJSON(rockfish, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+        { id: 4, name: 'Anoplopoma fimbria' },
+      ],
+    });
+    await common.dataFileImport(settings, baseId, rockfish);
+    const rockfishHierarchy = {
+      'Sebastes flavidus': 'Sebastes',
+      'Sebastes melanops': 'Sebastes',
+    };
+    expect((await common.loadConfig(settings, baseId, urlMapper)).typeHierarchy)
+      .toEqual(rockfishHierarchy);
+
+    const extra = '/home/user/output/extra.species.json';
+    await fs.writeJSON(extra, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 5, name: 'Sebastes caurinus', supercategory: 'Sebastes' },
+      ],
+    });
+    await common.dataFileImport(settings, `${baseId}/EO`, extra, true);
+
+    const merged = { ...rockfishHierarchy, 'Sebastes caurinus': 'Sebastes' };
+    const declared = {
+      Sebastes: {},
+      'Sebastes melanops': {},
+      'Sebastes flavidus': {},
+      'Anoplopoma fimbria': {},
+      'Sebastes caurinus': {},
+    };
+    const parent = await common.loadConfig(settings, baseId, urlMapper);
+    expect(parent.typeHierarchy).toEqual(merged);
+    expect(parent.customTypeStyling).toEqual(declared);
+    const camera = await common.loadConfig(settings, `${baseId}/EO`, urlMapper);
+    expect(camera.typeHierarchy).toEqual(merged);
+    expect(camera.customTypeStyling).toEqual(declared);
+  });
+
   it('saveConfig persists cameraRoles on the parent dataset and reloads them', async () => {
     const payload = await beginMultiCamImport({
       datasetName: 'camera_roles_multicam',
