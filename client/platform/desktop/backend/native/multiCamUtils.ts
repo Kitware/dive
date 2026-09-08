@@ -402,13 +402,11 @@ async function writeMultiCamStereoPipelineArgs(
         const vidType = 'vidl_ffmpeg';
         argFilePair[vidTypeArg] = vidType;
         if (startFrames) {
-          // Same correction as the image-list slice, expressed as a seek:
-          // start_at_frame counts from 1, and 0 would mean "the beginning".
+          // vidl_ffmpeg frames are 1-based and stop_after_frame is inclusive.
           const from = startFrames.start[key];
-          argFilePair[`input${i + 1}:start_at_frame`] = String(from + 1);
-          // ...and stop where the shortest camera does, so the inputs end
-          // together too. Also 1-based, and inclusive of the named frame.
-          argFilePair[`input${i + 1}:stop_after_frame`] = String(from + startFrames.length);
+          const reader = `input${i + 1}:video_reader:${vidType}`;
+          argFilePair[`${reader}:start_at_frame`] = String(from + 1);
+          argFilePair[`${reader}:stop_after_frame`] = String(from + startFrames.length);
         }
         const videoFileName = npath.join(originalBasePath, vidFile);
         argFilePair[inputArg] = videoFileName;
