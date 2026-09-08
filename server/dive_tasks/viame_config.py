@@ -32,8 +32,10 @@ def get_gpu_environment() -> Dict[str, str]:
     env["PATH"] = env.get("PATH").replace("/opt/dive/local/venv/bin", "")
     # VIAME ships its own python, and kwiver prepends $VIRTUAL_ENV's
     # site-packages to the embedded interpreter's sys.path, so leaving this set
-    # points VIAME at our venv (a different python version).
-    env.pop("VIRTUAL_ENV", None)
+    # points VIAME at our venv (a different python version). `uv run` also
+    # re-exports its UV_PYTHON* selection; drop those for the same reason.
+    for key in ("VIRTUAL_ENV", "UV_PYTHON", "UV_PYTHON_INSTALL_DIR"):
+        env.pop(key, None)
     return env
 
 
