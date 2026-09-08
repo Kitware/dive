@@ -1,6 +1,7 @@
 <template>
   <v-app>
     <router-view />
+    <ScoringDatasetPickerDialog />
   </v-app>
 </template>
 
@@ -37,7 +38,18 @@ import {
   hasCalibrationFile,
   downloadCalibration,
   deleteCalibration,
+  runScoring,
+  watchScoringJob,
+  listScoringResults,
+  loadScoringResult,
+  deleteScoringResult,
+  listScoringSources,
+  listScoringDatasets,
+  saveScoringExport,
+  exportScoringPdf,
+  pickScoringDataset,
 } from './api';
+import ScoringDatasetPickerDialog from './components/ScoringDatasetPickerDialog.vue';
 import {
   getLastCalibration,
   openFromDiskWithRegistry,
@@ -50,7 +62,7 @@ import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 export default defineComponent({
   name: 'App',
-  components: {},
+  components: { ScoringDatasetPickerDialog },
   setup() {
     const route = useRoute();
     const { loadDataset } = useDataset();
@@ -95,6 +107,16 @@ export default defineComponent({
       getTiles,
       getTileURL,
       getTileHistogram,
+      runScoring: unwrap(runScoring),
+      watchScoringJob,
+      listScoringResults: unwrap(listScoringResults),
+      loadScoringResult: unwrap(loadScoringResult),
+      deleteScoringResult,
+      listScoringSources: unwrap(listScoringSources),
+      listScoringDatasets,
+      pickScoringDataset,
+      saveScoringExport,
+      exportScoringPdf,
     });
   },
 });

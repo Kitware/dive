@@ -171,6 +171,12 @@ export default defineComponent({
     };
   },
   methods: {
+    scoreSelection() {
+      this.$router.push({
+        name: 'scoring',
+        query: { datasetIds: this.selectedViameFolderIds.join(',') },
+      });
+    },
     async deleteSelection() {
       const result = await this.prompt({
         title: 'Confirm',
@@ -253,6 +259,18 @@ export default defineComponent({
                   :jobs-disabled="jobsDisabled"
                   :jobs-disabled-message="jobsDisabledMessage"
                 />
+                <v-btn
+                  v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="scoreSelection"
+                >
+                  <v-icon>
+                    mdi-chart-box-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Score
+                  </span>
+                </v-btn>
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-ids="locationInputs"

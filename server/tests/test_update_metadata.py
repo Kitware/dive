@@ -323,6 +323,15 @@ def test_metadata_mutable_does_not_classify_unrelated_json_as_config():
     assert models.MetadataMutable.is_dive_configuration({'tracks': {}, 'groups': {}}) is False
 
 
+def test_metadata_mutable_does_not_classify_dive_annotation_json_as_config():
+    assert (
+        models.MetadataMutable.is_dive_configuration(
+            {'version': 2, 'fps': 5, 'tracks': {'0': {}}, 'groups': {}}
+        )
+        is False
+    )
+
+
 @pytest.mark.parametrize(
     'media_type',
     [

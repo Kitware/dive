@@ -14,6 +14,9 @@ __all__ = [
     "PipelineJob",
     "PipelineCategory",
     "PipeMetadata",
+    "ScoringJob",
+    "ScoringPairJob",
+    "ScoringSourceJob",
     "Warnings",
 ]
 
@@ -205,6 +208,34 @@ class TrainingJob(TypedDict):
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]  # Force using the transcoded version
+
+
+class ScoringSourceJob(TypedDict):
+    """One side of a scoring comparison (mirrors the client's ScoringSource)."""
+
+    datasetId: str
+    set: NotRequired[Optional[str]]
+    revision: NotRequired[Optional[int]]
+    file: NotRequired[Optional[str]]
+    label: NotRequired[Optional[str]]
+
+
+class ScoringPairJob(TypedDict):
+    """One sequence to score: computed annotations against the truth for the same footage."""
+
+    computed: ScoringSourceJob
+    truth: ScoringSourceJob
+
+
+class ScoringJob(TypedDict):
+    """Describes the parameters for scoring a list of sequence pairs together."""
+
+    pairs: List[ScoringPairJob]
+    params: Dict[str, Any]  # ScoringParams as validated by crud_rpc.ScoringParamsModel
+    title: str
+    results_folder_id: str  # The first pair's computed dataset; receives the result item
+    user_id: str
+    user_login: str
 
 
 class ExportTrainedPipelineJob(TypedDict):

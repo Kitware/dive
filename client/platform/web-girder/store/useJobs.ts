@@ -133,7 +133,10 @@ function updateJobFromMessage(job: GirderJob & { type?: string; title?: string }
       status: job.status,
       jobId: job._id,
     });
-    if (['pipelines', 'convert'].includes(job.type || '') && NonRunningStates.includes(job.status)) {
+    if (
+      ['pipelines', 'convert', 'scoring'].includes(job.type || '')
+      && NonRunningStates.includes(job.status)
+    ) {
       jobs.setCompleteJobsInfo({
         datasetId: job.dataset_id,
         type: job.type || '',

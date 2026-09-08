@@ -16,10 +16,15 @@ import {
   removeJobFromQueue,
   // removeJobFromQueue,
 } from 'platform/desktop/frontend/store/jobs';
+import type { ScoringSource } from 'dive-common/scoring/types';
 import { datasets } from '../store/dataset';
 
 export default defineComponent({
   setup() {
+    function datasetName(id: string) {
+      return datasets.value[id]?.name || id;
+    }
+
     const queuedJobSpecs: Ref<Job[]> = ref([]);
     function updateQueuedJobSpecs() {
       queuedJobSpecs.value = [];
@@ -39,11 +44,23 @@ export default defineComponent({
         return `export trained pipeline: ${jobSpec.path}`;
       }
       if (jobSpec.type === JobType.RunTraining) {
-        const title = `training: ${datasets.value[jobSpec.datasetIds[0]]?.name || jobSpec.datasetIds[0]}`;
+        const title = `training: ${datasetName(jobSpec.datasetIds[0])}`;
         if (jobSpec.datasetIds.length > 1) {
           return `${title} (and ${jobSpec.datasetIds.length - 1} more)`;
         }
         return title;
+      }
+      if (jobSpec.type === JobType.RunScoring) {
+        const label = (source: ScoringSource) => source.label || datasetName(source.datasetId);
+        const [first] = jobSpec.pairs;
+        let { title } = jobSpec;
+        if (!title && first) {
+          title = `${label(first.computed)} vs ${label(first.truth)}`;
+          if (jobSpec.pairs.length > 1) {
+            title += ` (+${jobSpec.pairs.length - 1} more)`;
+          }
+        }
+        return `scoring: ${title || 'no sequences'}`;
       }
       return 'queued job';
     }
@@ -58,6 +75,9 @@ export default defineComponent({
       if (jobSpec.type === JobType.RunTraining) {
         return jobSpec.datasetIds;
       }
+      if (jobSpec.type === JobType.RunScoring) {
+        return [...new Set(jobSpec.pairs.flatMap((pair) => [pair.computed.datasetId, pair.truth.datasetId]))];
+      }
       return [];
     }
 
@@ -69,6 +89,7 @@ export default defineComponent({
       JobType,
       queuedJobSpecs,
       datasets,
+      datasetName,
       getQueuedJobTitle,
       getJobDatasets,
       removeJobFromQueue,
@@ -114,7 +135,7 @@ export default defineComponent({
                             class="mr-1"
                             :to="{ name: 'viewer', params: { id: dataset } }"
                           >
-                            {{ datasets[dataset].name }}
+                            {{ datasetName(dataset) }}
                           </router-link>
                         </span>
                       </td>
