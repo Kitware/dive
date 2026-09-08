@@ -279,9 +279,9 @@ export async function buildRegistrationPipelineArgs(
     const registrationPath = npath.join(jobWorkDir, registrationFileName(camera, reference));
     writes.push(writeJsonFile(registrationPath, { ...file.body, pairs: [pair] }));
     args[`warp${input}:transformation_file`] = registrationPath;
-    args[`warp${input}:transform_reader:type`] = 'dive';
-    args[`warp${input}:transform_reader:dive:from_camera`] = camera;
-    args[`warp${input}:transform_reader:dive:to_camera`] = reference;
+    args[`warp${input}:transform_reader:type`] = 'homography_json';
+    args[`warp${input}:transform_reader:homography_json:from_camera`] = camera;
+    args[`warp${input}:transform_reader:homography_json:to_camera`] = reference;
   });
   await Promise.all(writes);
   return args;

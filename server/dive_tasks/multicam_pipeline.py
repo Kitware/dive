@@ -255,7 +255,7 @@ def build_registration_pairs(folder_meta: dict) -> List[dict]:
     become the file's imageLeft/imageRight, and each point's a/b pair becomes
     one `leftX leftY rightX rightY` row.
 
-    VIAME's dive transform reader only consumes the matrices; the
+    VIAME's homography_json transform reader only consumes the matrices; the
     observations travel for provenance and so a file round-trips back into
     DIVE without losing which frame contributed what.
     """
@@ -387,9 +387,9 @@ def build_registration_kwiver_settings(
             )
         warp = f'warp{index + 1}'
         settings[f'{warp}:transformation_file'] = str(registration_path)
-        settings[f'{warp}:transform_reader:type'] = 'dive'
-        settings[f'{warp}:transform_reader:dive:from_camera'] = name
-        settings[f'{warp}:transform_reader:dive:to_camera'] = reference
+        settings[f'{warp}:transform_reader:type'] = 'homography_json'
+        settings[f'{warp}:transform_reader:homography_json:from_camera'] = name
+        settings[f'{warp}:transform_reader:homography_json:to_camera'] = reference
     return settings
 
 
