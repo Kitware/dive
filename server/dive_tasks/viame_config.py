@@ -30,6 +30,13 @@ def get_gpu_environment() -> Dict[str, str]:
         env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
     # Support for NOAA python3.10 means removing the local venv from the path
     env["PATH"] = env.get("PATH").replace("/opt/dive/local/venv/bin", "")
+    # The worker image (and `uv run`, which re-exports it) sets VIRTUAL_ENV to
+    # DIVE's own venv.  kwiver's plugins_from_python loader reads that variable
+    # and touches sys.path without holding the GIL after another loader has
+    # already started the interpreter, so every `viame runner` segfaults while
+    # it is set.  It must be absent, not empty: kwiver only checks for null.
+    for key in ("VIRTUAL_ENV", "UV_PYTHON", "UV_PYTHON_INSTALL_DIR"):
+        env.pop(key, None)
     return env
 
 
