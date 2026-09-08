@@ -76,22 +76,22 @@ export default defineComponent({
         sort-desc
         class="class-table"
       >
-      <template #[`item.name`]="{ item }">
-        <span
-          class="class-swatch"
-          :style="{ background: item.color }"
-        />
-        {{ item.name }}
-      </template>
-      <template
-        v-for="col in COLUMNS"
-        #[`item.${col.key}`]="{ item }"
-      >
-        <span
-          :key="col.key"
-          class="tabular"
-        >{{ display(item[col.key], col.key) }}</span>
-      </template>
+        <template #[`item.name`]="{ item }">
+          <span
+            class="class-swatch"
+            :style="{ background: item.color }"
+          />
+          {{ item.name }}
+        </template>
+        <template
+          v-for="col in COLUMNS"
+          #[`item.${col.key}`]="{ item }"
+        >
+          <span
+            :key="col.key"
+            class="tabular"
+          >{{ display(item[col.key], col.key) }}</span>
+        </template>
       </v-data-table>
     </div>
   </div>

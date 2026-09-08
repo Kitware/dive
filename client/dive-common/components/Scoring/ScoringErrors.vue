@@ -4,7 +4,6 @@ import {
 } from 'vue';
 import { useScoring } from 'dive-common/use/useScoring';
 import { perFrameErrorCounts, ScoringMatch } from 'dive-common/scoring/metrics';
-import type { ScoringSource } from 'dive-common/scoring/types';
 import ScoringLineChart from './charts/ScoringLineChart.vue';
 import type { ChartHover, ChartSeries } from './charts/chartTypes';
 
