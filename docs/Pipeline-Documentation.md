@@ -130,3 +130,7 @@ By default, training runs include all frames from the chosen input datasets, and
 ## Pipeline Import and Export
 
 Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Pipeline Import and Export](Pipeline-Import-Export.md) for upload steps and [pipe file headers](Pipeline-Import-Export.md#pipe-file-headers) (including `# Metadata File:` and `# Image List Keys:`).
+
+## Evaluating pipeline output
+
+After running a detector or tracker pipeline, use [Scoring](Scoring.md) to compare the pipeline annotations against ground truth. On web, keep labels and model output in separate [annotation sets](Annotation-Sets.md) (for example `groundTruth` vs `default`) and score them from the **Scoring** tab.

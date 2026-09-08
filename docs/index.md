@@ -49,6 +49,7 @@ Multiple parallel annotation sets on one dataset | ✔️ | ❌
 Run VIAME object detection and tracking | ✔️ | ✔️
 Run VIAME detector and tracker **training** | ✔️ | ✔️
 VIAME multi-camera pipelines  | ✔️ | ✔️
+Score computed annotations against ground truth | ✔️ | ✔️
 Manual refinement of auto-generated annotations | ✔️ | ✔️
 
 ## Concepts and Definitions
