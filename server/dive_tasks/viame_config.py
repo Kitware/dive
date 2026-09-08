@@ -30,6 +30,10 @@ def get_gpu_environment() -> Dict[str, str]:
         env["CUDA_VISIBLE_DEVICES"] = str(gpus[0])
     # Support for NOAA python3.10 means removing the local venv from the path
     env["PATH"] = env.get("PATH").replace("/opt/dive/local/venv/bin", "")
+    # VIAME ships its own python, and kwiver prepends $VIRTUAL_ENV's
+    # site-packages to the embedded interpreter's sys.path, so leaving this set
+    # points VIAME at our venv (a different python version).
+    env.pop("VIRTUAL_ENV", None)
     return env
 
 
