@@ -133,13 +133,13 @@ describe('buildRegistrationPipelineArgs', () => {
     const uvPath = npath.join(jobWorkDir, 'uv_to_rgb_registration.json');
     expect(args).toStrictEqual({
       'warp2:transformation_file': uvPath,
-      'warp2:transform_reader:type': 'dive',
-      'warp2:transform_reader:dive:from_camera': 'uv',
-      'warp2:transform_reader:dive:to_camera': 'rgb',
+      'warp2:transform_reader:type': 'homography_json',
+      'warp2:transform_reader:homography_json:from_camera': 'uv',
+      'warp2:transform_reader:homography_json:to_camera': 'rgb',
       'warp3:transformation_file': irPath,
-      'warp3:transform_reader:type': 'dive',
-      'warp3:transform_reader:dive:from_camera': 'ir',
-      'warp3:transform_reader:dive:to_camera': 'rgb',
+      'warp3:transform_reader:type': 'homography_json',
+      'warp3:transform_reader:homography_json:from_camera': 'ir',
+      'warp3:transform_reader:homography_json:to_camera': 'rgb',
     });
     const written = await fs.readJSON(irPath);
     expect(written.type).toBe('dive-camera-registration');
@@ -159,7 +159,7 @@ describe('buildRegistrationPipelineArgs', () => {
     // (no warps declared, so that is not an error); ir (warp3) has a
     // reference pair.
     expect(Object.keys(args).some((key) => key.startsWith('warp2'))).toBe(false);
-    expect(args['warp3:transform_reader:dive:from_camera']).toBe('ir');
+    expect(args['warp3:transform_reader:homography_json:from_camera']).toBe('ir');
     const irPath = npath.join(jobWorkDir, 'ir_to_rgb_registration.json');
     expect(args['warp3:transformation_file']).toBe(irPath);
     // The uv-to-ir pair is dropped from ir's job file too.
@@ -197,7 +197,7 @@ describe('buildRegistrationPipelineArgs', () => {
     const jobWorkDir = '/home/user/job/seeded';
     await fs.ensureDir(jobWorkDir);
     const args = await buildRegistrationPipelineArgs(settings, meta, jobWorkDir, ['rgb', 'ir']);
-    expect(args['warp2:transform_reader:dive:from_camera']).toBe('ir');
-    expect(args['warp2:transform_reader:dive:to_camera']).toBe('rgb');
+    expect(args['warp2:transform_reader:homography_json:from_camera']).toBe('ir');
+    expect(args['warp2:transform_reader:homography_json:to_camera']).toBe('rgb');
   });
 });
