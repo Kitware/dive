@@ -96,9 +96,20 @@ async function saveScoringExport(
 }
 
 /** The browser's print dialog offers "Save as PDF"; the page carries print styles. */
-async function exportScoringPdf(): Promise<boolean> {
-  window.print();
-  return true;
+async function exportScoringPdf(
+  _filename: string,
+  hooks?: {
+    onBeforePrint?: () => void | Promise<void>;
+    onAfterPrint?: () => void | Promise<void>;
+  },
+): Promise<boolean> {
+  try {
+    if (hooks?.onBeforePrint) await hooks.onBeforePrint();
+    window.print();
+    return true;
+  } finally {
+    if (hooks?.onAfterPrint) await hooks.onAfterPrint();
+  }
 }
 
 export { saveScoringExport, exportScoringPdf };

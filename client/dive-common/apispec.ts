@@ -476,7 +476,13 @@ interface Api {
   /** Save a text export where the user chooses; resolves false when they cancel. */
   saveScoringExport?(args: { filename: string; mime: string; content: string }): Promise<boolean>;
   /** Print the page as it stands (the scoring report view) to a PDF; false when cancelled. */
-  exportScoringPdf?(filename: string): Promise<boolean>;
+  exportScoringPdf?(
+    filename: string,
+    hooks?: {
+      onBeforePrint?: () => void | Promise<void>;
+      onAfterPrint?: () => void | Promise<void>;
+    },
+  ): Promise<boolean>;
 
   loadConfig(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;

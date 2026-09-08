@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, nextTick, onMounted, PropType, ref, watch,
+  computed, defineComponent, nextTick, onBeforeUnmount, onMounted, PropType, ref, watch,
 } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -65,6 +65,7 @@ export default defineComponent({
     const errorFilter = ref<ErrorFilter | null>(null);
     const reportMode = ref(false);
     const exporting = ref(false);
+    const printing = ref(false);
 
     async function saveText(filename: string, content: string, mime: string) {
       if (api.saveScoringExport) {
@@ -95,20 +96,49 @@ export default defineComponent({
 
     // Electron's printToPDF renders the screen layout rather than print media,
     // so the chrome is hidden through a class as well as the print stylesheet.
+    async function applyPrintStyles() {
+      document.documentElement.classList.add('scoring-print');
+      await nextTick();
+    }
+
+    function removePrintStyles() {
+      document.documentElement.classList.remove('scoring-print');
+    }
+
+    function exitReportMode() {
+      if (printing.value) return;
+      reportMode.value = false;
+      exporting.value = false;
+      removePrintStyles();
+    }
+
     async function printReport() {
       const result = scoring.result.value;
-      if (!result) return;
+      if (!result || exporting.value) return;
       exporting.value = true;
-      document.documentElement.classList.add('scoring-print');
+      const printHooks = {
+        onBeforePrint: async () => {
+          printing.value = true;
+          await applyPrintStyles();
+        },
+        onAfterPrint: () => {
+          printing.value = false;
+          removePrintStyles();
+        },
+      };
       try {
-        await nextTick();
         if (api.exportScoringPdf) {
-          await api.exportScoringPdf(exportFilename(result, 'pdf'));
+          const saved = await api.exportScoringPdf(exportFilename(result, 'pdf'), printHooks);
+          if (saved) exitReportMode();
         } else {
+          printing.value = true;
+          await applyPrintStyles();
           window.print();
+          printing.value = false;
+          removePrintStyles();
         }
       } finally {
-        document.documentElement.classList.remove('scoring-print');
+        removePrintStyles();
         exporting.value = false;
       }
     }
@@ -180,6 +210,15 @@ export default defineComponent({
     });
     watch(() => props.initialDatasetIds, (ids) => { applyInitial(ids); });
 
+    function onReportKeydown(event: KeyboardEvent) {
+      if (event.key === 'Escape') exitReportMode();
+    }
+    watch(reportMode, (active) => {
+      if (active) document.addEventListener('keydown', onReportKeydown);
+      else document.removeEventListener('keydown', onReportKeydown);
+    });
+    onBeforeUnmount(() => document.removeEventListener('keydown', onReportKeydown));
+
     return {
       scoring,
       pageTab,
@@ -196,8 +235,10 @@ export default defineComponent({
       onConfusionFilter,
       reportMode,
       exporting,
+      printing,
       exportAs,
       printReport,
+      exitReportMode,
       canSavePdf,
       openViewer: (source: ScoringSource) => emit('open-viewer', source, scoring.sourceLabel(source)),
     };
@@ -222,7 +263,9 @@ export default defineComponent({
       <div class="d-flex align-center scoring-report-toolbar mb-2">
         <v-btn
           text
-          @click="reportMode = false"
+          color="grey darken-3"
+          :disabled="printing"
+          @click="exitReportMode"
         >
           <v-icon left>
             mdi-arrow-left
@@ -230,9 +273,18 @@ export default defineComponent({
           Back to results
         </v-btn>
         <v-spacer />
-        <span class="text-caption grey--text mr-3">
+        <span class="text-caption toolbar-hint mr-3">
           {{ canSavePdf ? 'Saves the report below as a PDF.' : 'Choose "Save as PDF" in the print dialog.' }}
         </span>
+        <v-btn
+          outlined
+          color="grey darken-2"
+          class="mr-2 toolbar-cancel"
+          :disabled="printing"
+          @click="exitReportMode"
+        >
+          Cancel
+        </v-btn>
         <v-btn
           color="primary"
           depressed
@@ -607,6 +659,21 @@ html.scoring-print {
   background: white;
   padding: 8px;
   border-radius: 4px;
+}
+
+.scoring-report-toolbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: white;
+  border-bottom: 1px solid #ddd;
+  padding: 4px 0 8px;
+  flex-wrap: wrap;
+  gap: 4px;
+
+  .toolbar-hint {
+    color: #666;
+  }
 }
 
 .pairs-scroll {

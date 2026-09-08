@@ -451,15 +451,26 @@ async function saveScoringExport(
   return true;
 }
 
-async function exportScoringPdf(filename: string): Promise<boolean> {
+async function exportScoringPdf(
+  filename: string,
+  hooks?: {
+    onBeforePrint?: () => void | Promise<void>;
+    onAfterPrint?: () => void | Promise<void>;
+  },
+): Promise<boolean> {
   const location = await window.diveDesktop.showSaveDialog({
     title: 'Save Scoring Report',
     defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), filename),
     filters: [{ name: 'PDF', extensions: ['pdf'] }],
   });
   if (location.canceled || !location.filePath) return false;
-  await invoke<string>('print-to-pdf', { path: location.filePath });
-  return true;
+  try {
+    if (hooks?.onBeforePrint) await hooks.onBeforePrint();
+    await invoke<string>('print-to-pdf', { path: location.filePath });
+    return true;
+  } finally {
+    if (hooks?.onAfterPrint) await hooks.onAfterPrint();
+  }
 }
 
 async function exportConfiguration(id: string): Promise<string> {
