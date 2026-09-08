@@ -325,7 +325,10 @@ empty.
   import dialog. On Web it may be uploaded together with an annotation file and a DIVE
   Configuration JSON; one species list per dataset.
 * **Beside the media**, name it to end in `species.json` (for example, `rockfish.species.json`)
-  and it is picked up automatically when the folder is imported.
+  and it is picked up automatically when the folder is imported. For a Desktop multicamera
+  import it is looked for in the folder the cameras share, then beside each camera; if the
+  cameras carry different lists none is applied and the import dialog warns, so you can pick
+  one in its Species List field.
 
 ### Overwrite and additive imports
 

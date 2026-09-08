@@ -855,6 +855,21 @@ async function discoverMetadataAttachment(directory: string): Promise<string | u
 }
 
 /**
+ * The KWCOCO species list beside a dataset's media, if any: the first file in `directory`
+ * whose name ends in `species.json`, in name order so the pick is stable. The single-dataset
+ * import finds its list while it scans for a track file; the multicam import has no such
+ * scan, so it asks here for the directory its cameras share.
+ */
+async function discoverSpeciesList(directory: string): Promise<string | undefined> {
+  const names = (await fs.readdir(directory)).filter((name) => JsonSpeciesRegEx.test(name)).sort();
+  const files = await Promise.all(names.map(async (name) => {
+    const fullPath = npath.join(directory, name);
+    return (await fs.stat(fullPath)).isFile() ? fullPath : undefined;
+  }));
+  return files.find((path) => path !== undefined);
+}
+
+/**
  * Discovery for the single-dataset import, where the answer is only the value the import
  * dialog's "Metadata File (Optional)" field opens with. That field is the one place the user
  * can resolve an ambiguous or unreadable directory, and it appears only after this returns, so
@@ -2964,6 +2979,7 @@ export {
   loadFrameMetadata,
   frameMetadataSourceDirectories,
   discoverMetadataAttachment,
+  discoverSpeciesList,
   openLink,
   openPathInFileManager,
   ingestDataFiles,
