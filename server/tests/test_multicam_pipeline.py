@@ -10,6 +10,7 @@ from dive_tasks.multicam_pipeline import (
     build_multicam_kwiver_settings,
     build_registration_kwiver_settings,
     build_registration_pairs,
+    common_frame_bound,
     find_downloaded_calibration_file,
     infer_camera_role,
     infer_camera_roles,
@@ -19,6 +20,7 @@ from dive_tasks.multicam_pipeline import (
     pipeline_requires_input,
     pseudo_frame_number,
     stereo_calibration_keys,
+    video_frame_count,
     video_subset_cameras,
 )
 from dive_utils import constants
@@ -442,3 +444,43 @@ def test_build_multicam_kwiver_settings_large_image_subset(tmp_path: Path):
 
     assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == '/tmp/ir/001.tif'
     assert arg_pair['input:video_filename'] == str(tmp_path / 'input1_images.txt')
+
+
+def test_video_frame_count():
+    assert video_frame_count({'ffprobe_info': {'nb_frames': '300'}}) == 300
+    assert video_frame_count({'ffprobe_info': {'duration': '10.0'}, 'originalFps': 29.97}) == 300
+    assert video_frame_count({'ffprobe_info': {'duration': '10.0'}}) is None
+    assert video_frame_count({}) is None
+
+
+def test_common_frame_bound():
+    seq = constants.ImageSequenceType
+    equal = {'a': (['1', '2'], seq), 'b': (['1', '2'], seq)}
+    assert common_frame_bound(equal, None, {}) is None
+    uneven = {'a': (['1', '2', '3'], seq), 'b': (['1', '2'], seq)}
+    assert common_frame_bound(uneven, None, {}) == 2
+    videos = {'a': (['a.mp4'], constants.VideoType), 'b': (['b.mp4'], constants.VideoType)}
+    assert common_frame_bound(videos, None, {'a': 900, 'b': 850}) == 850
+    assert common_frame_bound(videos, None, {'a': 900}) is None
+    # A frame subset already pairs row for row, so its length is the count.
+    assert common_frame_bound(videos, {'a': ['frame://1'], 'b': ['frame://1']}, {'a': 9}) is None
+    mixed = {'a': (['1', '2', '3'], seq), 'b': (['b.mp4'], constants.VideoType)}
+    assert common_frame_bound(mixed, None, {'b': 2}) == 2
+
+
+def test_build_multicam_kwiver_settings_frame_bound(tmp_path: Path):
+    cameras = [
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.ImageSequenceType},
+        {'name': 'eo', 'folder_id': 'e', 'media_type': constants.VideoType},
+    ]
+    camera_media = {
+        'ir': (['/tmp/ir/0.png', '/tmp/ir/1.png', '/tmp/ir/2.png'], constants.ImageSequenceType),
+        'eo': (['/tmp/eo.mp4'], constants.VideoType),
+    }
+    arg_pair, _ = build_multicam_kwiver_settings(tmp_path, cameras, camera_media, frame_bound=2)
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == (
+        '/tmp/ir/0.png\n/tmp/ir/1.png'
+    )
+    assert arg_pair['input2:video_reader:vidl_ffmpeg:stop_after_frame'] == '2'
+    unbounded, _ = build_multicam_kwiver_settings(tmp_path, cameras, camera_media)
+    assert 'input2:video_reader:vidl_ffmpeg:stop_after_frame' not in unbounded
