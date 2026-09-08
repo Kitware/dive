@@ -438,6 +438,26 @@ def common_frame_bound(
     return min(counts)
 
 
+def paired_start_frames(
+    frame_counts: Dict[str, int],
+    offsets: Optional[Dict[str, int]],
+) -> Optional[Tuple[Dict[str, int], int]]:
+    """
+    Per-camera start index and common length from the dataset's camera time offsets.
+
+    offsets[name] is the frame of that camera that coincides with frame 0 of a
+    camera at offset 0. Returns None when no camera is offset; the length is
+    <= 0 when the offsets leave no overlapping span.
+    """
+    names = list(frame_counts)
+    if not offsets or not any(offsets.get(name, 0) for name in names):
+        return None
+    first_slot = max(-offsets.get(name, 0) for name in names)
+    start = {name: first_slot + offsets.get(name, 0) for name in names}
+    spans = [frame_counts[name] - start[name] for name in names if frame_counts[name] > 0]
+    return start, (min(spans) if spans else 0)
+
+
 def build_multicam_kwiver_settings(
     work_dir: Path,
     cameras: List[MulticamCameraJob],
@@ -448,6 +468,7 @@ def build_multicam_kwiver_settings(
     fps: Optional[float] = None,
     on_progress: Optional[Callable[[str], None]] = None,
     frame_bound: Optional[int] = None,
+    frame_starts: Optional[Dict[str, int]] = None,
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
     Build KWIVER -s key/value pairs for per-camera inputs/outputs.
@@ -461,8 +482,9 @@ def build_multicam_kwiver_settings(
     must then drop any video reader type it would otherwise set (see
     video_subset_cameras).
 
-    frame_bound caps every camera at that many frames (see common_frame_bound):
-    image lists are truncated and video readers get stop_after_frame.
+    frame_starts skips each camera to its first paired frame (see
+    paired_start_frames) and frame_bound caps every camera at that many frames
+    from there: image lists are sliced, video readers get start/stop frames.
 
     Returns (arg_file_pair, out_files) where out_files maps camera name -> output csv basename.
     """
@@ -529,9 +551,11 @@ def build_multicam_kwiver_settings(
             arg_file_pair['detector_writer:file_name'] = output_file_name
             arg_file_pair['track_writer:file_name'] = output_file_name
 
+        first = (frame_starts or {}).get(key, 0) if not extracted_subset else 0
         if media_type in constants.ImageListTypes or extracted_subset:
-            if frame_bound is not None:
-                media_list = media_list[:frame_bound]
+            if first or frame_bound is not None:
+                stop = None if frame_bound is None else first + frame_bound
+                media_list = media_list[first:stop]
             input_file_name = str(work_dir / f'input{i + 1}_images.txt')
             with open(input_file_name, 'w', encoding='utf-8') as img_list_file:
                 img_list_file.write('\n'.join(media_list))
@@ -541,11 +565,12 @@ def build_multicam_kwiver_settings(
         elif media_type == constants.VideoType:
             assert len(media_list) == 1, 'Expected exactly one video per camera'
             arg_file_pair[f'input{i + 1}:video_reader:type'] = 'vidl_ffmpeg'
+            reader = f'input{i + 1}:video_reader:vidl_ffmpeg'
+            if first:
+                # vidl_ffmpeg frames are 1-based; 0 means unset.
+                arg_file_pair[f'{reader}:start_at_frame'] = str(first + 1)
             if frame_bound is not None:
-                # vidl_ffmpeg frames are 1-based, so this reads exactly frame_bound frames.
-                arg_file_pair[f'input{i + 1}:video_reader:vidl_ffmpeg:stop_after_frame'] = str(
-                    frame_bound
-                )
+                arg_file_pair[f'{reader}:stop_after_frame'] = str(first + frame_bound)
             arg_file_pair[input_arg] = media_list[0]
             if i == 0:
                 arg_file_pair['input:video_filename'] = media_list[0]

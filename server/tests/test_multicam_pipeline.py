@@ -11,6 +11,7 @@ from dive_tasks.multicam_pipeline import (
     build_registration_kwiver_settings,
     build_registration_pairs,
     common_frame_bound,
+    paired_start_frames,
     find_downloaded_calibration_file,
     infer_camera_role,
     infer_camera_roles,
@@ -484,3 +485,37 @@ def test_build_multicam_kwiver_settings_frame_bound(tmp_path: Path):
     assert arg_pair['input2:video_reader:vidl_ffmpeg:stop_after_frame'] == '2'
     unbounded, _ = build_multicam_kwiver_settings(tmp_path, cameras, camera_media)
     assert 'input2:video_reader:vidl_ffmpeg:stop_after_frame' not in unbounded
+
+
+def test_paired_start_frames():
+    assert paired_start_frames({'EO': 100, 'IR': 100}, None) is None
+    assert paired_start_frames({'EO': 100, 'IR': 100}, {'EO': 0, 'IR': 0}) is None
+    # IR frame 9 is the same instant as EO frame 0, so IR skips ahead and both stop together.
+    assert paired_start_frames({'EO': 100, 'IR': 100}, {'IR': 9}) == ({'EO': 0, 'IR': 9}, 91)
+    assert paired_start_frames({'EO': 100, 'IR': 100}, {'IR': -4}) == ({'EO': 4, 'IR': 0}, 96)
+    assert paired_start_frames({'EO': 9000, 'IR': 9008}, {'IR': 9}) == ({'EO': 0, 'IR': 9}, 8999)
+    assert paired_start_frames({'EO': 100, 'IR': 100, 'UV': 100}, {'IR': 9, 'UV': -4}) == (
+        {'EO': 4, 'IR': 13, 'UV': 0},
+        87,
+    )
+    start, length = paired_start_frames({'EO': 100, 'IR': 5}, {'IR': 9})
+    assert length <= 0
+
+
+def test_build_multicam_kwiver_settings_frame_starts(tmp_path: Path):
+    cameras = [
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.ImageSequenceType},
+        {'name': 'eo', 'folder_id': 'e', 'media_type': constants.VideoType},
+    ]
+    camera_media = {
+        'ir': (['/tmp/ir/0.png', '/tmp/ir/1.png', '/tmp/ir/2.png'], constants.ImageSequenceType),
+        'eo': (['/tmp/eo.mp4'], constants.VideoType),
+    }
+    arg_pair, _ = build_multicam_kwiver_settings(
+        tmp_path, cameras, camera_media, frame_bound=2, frame_starts={'ir': 1, 'eo': 3}
+    )
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == (
+        '/tmp/ir/1.png\n/tmp/ir/2.png'
+    )
+    assert arg_pair['input2:video_reader:vidl_ffmpeg:start_at_frame'] == '4'
+    assert arg_pair['input2:video_reader:vidl_ffmpeg:stop_after_frame'] == '5'

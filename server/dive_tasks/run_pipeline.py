@@ -21,6 +21,7 @@ from dive_tasks.multicam_pipeline import (
     common_frame_bound,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
+    paired_start_frames,
     video_frame_count,
     video_subset_cameras,
 )
@@ -332,16 +333,36 @@ def run_pipeline(self: Task, params: PipelineJob):
             # Cut every camera to the shortest so the lockstep pipe ends together.
             frame_counts: Dict[str, int] = {}
             for camera in multicam_cameras:
-                if camera_media[camera['name']][1] != constants.VideoType:
+                media_list, media_type = camera_media[camera['name']]
+                if media_type != constants.VideoType:
+                    frame_counts[camera['name']] = len(media_list)
                     continue
                 count = video_frame_count(gc.getFolder(camera['folder_id']).get('meta') or {})
                 if count is not None:
                     frame_counts[camera['name']] = count
-            frame_bound = common_frame_bound(camera_media, image_pairs, frame_counts)
-            if frame_bound is not None:
+            frame_starts: Optional[Dict[str, int]] = None
+            frame_bound: Optional[int] = None
+            # A frame subset already pairs row for row, so offsets apply only to full runs.
+            offsets = None if image_pairs else fromMeta(input_folder, 'cameraFrameOffsets', None)
+            span = paired_start_frames(frame_counts, offsets)
+            if span is not None:
+                frame_starts, frame_bound = span
+                if frame_bound <= 0:
+                    raise ValueError(
+                        'The camera time offsets leave no overlapping frames between cameras; '
+                        'check the Time Offset in the Camera Registration panel.'
+                    )
+                skipped = ', '.join(f'{k} from frame {v}' for k, v in frame_starts.items() if v)
                 manager.write(
-                    f'Cameras differ in length; running the first {frame_bound} frames of each\n'
+                    f'Applying camera time offsets ({skipped}); running {frame_bound} frames\n'
                 )
+            else:
+                frame_bound = common_frame_bound(camera_media, image_pairs, frame_counts)
+                if frame_bound is not None:
+                    manager.write(
+                        'Cameras differ in length; '
+                        f'running the first {frame_bound} frames of each\n'
+                    )
 
             arg_file_pair, out_files = build_multicam_kwiver_settings(
                 _working_directory_path,
@@ -352,6 +373,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 fps=input_fps,
                 on_progress=report_extraction if extracted_cameras else None,
                 frame_bound=frame_bound,
+                frame_starts=frame_starts,
             )
 
             command = [
