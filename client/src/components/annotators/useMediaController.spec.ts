@@ -275,6 +275,30 @@ describe('useMediaController', () => {
     expect(composable.aggregateController.value.frame.value).toBe(0);
   });
 
+  it('replacing a resolver keeps the first camera\'s displayed frame instead of jumping to slot 0', () => {
+    const { composable, mocks } = mountMediaController();
+    composable.setAlignedFrameResolver(makeGappedResolver(10));
+    composable.aggregateController.value.seek(5);
+    // A Time Offset nudge: B now runs three frames ahead of A, so the timeline
+    // grows a lead of three slots where A has no frame.
+    const shifted: AlignedFrameResolver = {
+      slotCount: ref(13),
+      frameRate: ref(2),
+      resolveSlot: (f: number) => ({
+        A: f < 3 ? undefined : f - 3,
+        B: f < 10 ? f : undefined,
+      }),
+      resolveGlobalSlot: (camera: string, localFrame: number) => (
+        camera === 'A' ? localFrame + 3 : localFrame),
+      gapSlots: ref([0, 1, 2, 10, 11, 12]),
+    };
+    composable.setAlignedFrameResolver(shifted);
+    // A stays on local frame 5, now global slot 8; B follows to its frame there.
+    expect(composable.aggregateController.value.frame.value).toBe(8);
+    expect(mocks.seekA).toHaveBeenLastCalledWith(5);
+    expect(mocks.seekB).toHaveBeenLastCalledWith(8);
+  });
+
   it('re-applies the current aligned slot when a camera registers after the resolver is installed', async () => {
     const { composable, wrapper } = mountMediaController();
     const resolver: AlignedFrameResolver = {

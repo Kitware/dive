@@ -172,15 +172,29 @@ export function useMediaController() {
    */
   function setAlignedFrameResolver(resolver: AlignedFrameResolver | null) {
     stopAlignedPlaybackTimer();
+    const previous = alignedFrameResolver.value;
+    const previousSlot = alignedCurrentFrame.value;
     alignedFrameResolver.value = resolver;
-    if (resolver) {
-      // Immediately perform an aligned seek to slot 0 so that any camera with
-      // no frame at that slot blanks right away, rather than continuing to
-      // show its own local frame 0 until the first user-driven seek.
-      alignedSeek(resolver, 0);
-    } else {
+    if (!resolver) {
       alignedCurrentFrame.value = 0;
+      return;
     }
+    // A rebuilt timeline (e.g. a Time Offset nudge) keeps the instant on screen; a fresh one starts at 0.
+    let target = 0;
+    if (previous) {
+      const shown = previous.resolveSlot(previousSlot);
+      let kept: number | undefined;
+      subControllers.forEach((mc) => {
+        const local = shown[mc.cameraName.value];
+        if (kept === undefined && local !== undefined) {
+          kept = resolver.resolveGlobalSlot(mc.cameraName.value, local);
+        }
+      });
+      if (kept !== undefined) {
+        target = kept;
+      }
+    }
+    alignedSeek(resolver, target);
   }
 
   /**
