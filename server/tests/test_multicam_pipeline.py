@@ -284,9 +284,9 @@ def test_build_registration_kwiver_settings(tmp_path: Path):
     registration_path = str(tmp_path / 'ir_to_rgb_registration.json')
     assert settings == {
         'warp2:transformation_file': registration_path,
-        'warp2:transform_reader:type': 'dive',
-        'warp2:transform_reader:dive:from_camera': 'ir',
-        'warp2:transform_reader:dive:to_camera': 'rgb',
+        'warp2:transform_reader:type': 'homography_json',
+        'warp2:transform_reader:homography_json:from_camera': 'ir',
+        'warp2:transform_reader:homography_json:to_camera': 'rgb',
     }
     written = json.loads((tmp_path / 'ir_to_rgb_registration.json').read_text(encoding='utf-8'))
     assert written['type'] == 'dive-camera-registration'
