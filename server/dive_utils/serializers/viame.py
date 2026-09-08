@@ -344,7 +344,7 @@ def load_json_as_track_and_attributes(
     for key, track in tracks.items():
         track_attributes = {}
         detection_attributes = {}
-        for attrkey, attribute in track['attributes'].items():
+        for attrkey, attribute in track.get('attributes', {}).items():
             track_attributes[attrkey] = _deduceType(attribute)
         for feature in track['features']:
             if 'attributes' in feature.keys():
