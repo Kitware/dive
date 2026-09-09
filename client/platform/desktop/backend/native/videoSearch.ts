@@ -16,7 +16,7 @@
  * On-disk layout:
  *   <dataPath>/DIVE_SearchIndex/
  *     index_meta.json               - stream -> dataset membership and backend, written by DIVE
- *     <stream>.txt                  - media list handed to run_bulk.py
+ *     <stream>.txt                  - media list handed to viame index add
  *     database/
  *       ITQ/                        - the shared ITQ model (+ legacy global hash files)
  *       <stream>.index              - files backend: manifest marking an indexed stream
@@ -70,10 +70,11 @@ const IndexMetaFileName = 'index_meta.json';
 const QueryPipelineName = 'query_retrieval_and_iqr.pipe';
 const ExportTemplateName = npath.join('templates', 'detector_generic_svm.pipe');
 
-const IndexPipelines: Record<BuildSearchIndex['method'], string> = {
-  detections: 'index_generic.pipe',
-  tracking: 'index_generic.trk.pipe',
-  existing: 'index_existing.pipe',
+/** viame index --method for each build method. */
+const IndexMethods: Record<BuildSearchIndex['method'], string> = {
+  detections: 'detections',
+  tracking: 'tracking',
+  existing: 'existing',
 };
 
 function getCurrentPlatform() {
@@ -92,8 +93,7 @@ async function isVideoSearchInstalled(
   const pipelines = npath.join(configs, 'pipelines');
   const checks = [
     fs.pathExists(npath.join(pipelines, QueryPipelineName)),
-    fs.pathExists(npath.join(configs, 'run_bulk.py')),
-    fs.pathExists(npath.join(configs, 'generate_nn_index.py')),
+    fs.pathExists(npath.join(configs, 'index.py')),
   ];
   if (backend === 'postgres') {
     const initdb = OS.platform() === 'win32' ? 'initdb.exe' : 'initdb';
@@ -103,6 +103,26 @@ async function isVideoSearchInstalled(
     );
   }
   return (await Promise.all(checks)).every((c) => c);
+}
+
+/** Run `viame index <args>` inside the shared index folder and wait for it. */
+async function runIndexTool(settings: Settings, args: string[]): Promise<void> {
+  const platform = getCurrentPlatform();
+  const viameConstants = platform.getViameConstants(settings);
+  const pythonExe = platform.getViamePythonExe(settings);
+  const indexScript = npath.join(settings.viamePath, 'configs', 'index.py');
+  const quoted = args.map((a) => `"${a}"`).join(' ');
+  const command = [
+    viameConstants.setupScriptAbs,
+    `"${pythonExe}" "${indexScript}" ${quoted}`,
+  ].join(' && ');
+  const child = observeChild(spawn(command, { shell: viameConstants.shell, cwd: getIndexDir(settings) }));
+  let stderr = '';
+  child.stderr?.on('data', (chunk) => { stderr += chunk.toString('utf-8'); });
+  const exitCode = await new Promise<number | null>((resolve) => { child.on('exit', resolve); });
+  if (exitCode !== 0) {
+    throw new Error(`viame index ${args[0]} failed (exit ${exitCode}): ${stderr.trim().split('\n').slice(-3).join(' ')}`);
+  }
 }
 
 /** Delete one stream's bundle files (files backend). */
@@ -250,8 +270,6 @@ async function buildIndex(
   // recorded were always postgres.
   const backend: SearchIndexBackend = indexMeta.backend
     ?? (Object.keys(indexMeta.streams).length > 0 ? 'postgres' : DefaultSearchIndexBackend);
-  const firstBuild = backend === 'postgres'
-    && !(await fs.pathExists(npath.join(indexDir, 'database', 'SQL')));
 
   const command: string[] = [viameConstants.setupScriptAbs];
   if (backend === 'files' && existing) {
@@ -259,54 +277,30 @@ async function buildIndex(
     // mistaken for current ones by the bundle builder.
     await removeStreamFiles(settings, streamName);
   }
-  if (backend === 'postgres' && !firstBuild) {
-    // Adding to an existing database: make sure it is running (the caller
-    // closed the query service, so the default port is free)...
-    command.push(`"${pythonExe}" "${npath.join(configsDir, 'database.py')}" start`);
-    if (existing) {
-      // ...and drop the dataset's previous rows before re-ingest
-      const removeSql = npath.join(indexDir, `${sanitizeName(streamName)}_remove.sql`);
-      await fs.writeFile(removeSql, [
-        'DELETE FROM TRACK_DESCRIPTOR_TRACK WHERE UID IN '
-        + `(SELECT UID FROM TRACK_DESCRIPTOR WHERE VIDEO_NAME = '${streamName}');`,
-        'DELETE FROM TRACK_DESCRIPTOR_HISTORY WHERE UID IN '
-        + `(SELECT UID FROM TRACK_DESCRIPTOR WHERE VIDEO_NAME = '${streamName}');`,
-        `DELETE FROM TRACK_DESCRIPTOR WHERE VIDEO_NAME = '${streamName}';`,
-        `DELETE FROM DESCRIPTOR WHERE VIDEO_NAME = '${streamName}';`,
-        `DELETE FROM OBJECT_TRACK WHERE VIDEO_NAME = '${streamName}';`,
-        '',
-      ].join('\n'));
-      command.push(
-        `psql -h localhost -d postgres -v ON_ERROR_STOP=1 -f "${removeSql}"`,
-      );
-    }
-  }
 
-  const processVideoInvocation = [
-    `"${pythonExe}" "${npath.join(configsDir, 'run_bulk.py')}"`,
-    firstBuild ? '--init-db' : '',
-    '--no-reset-prompt',
+  // viame index add owns the rest: database initialisation and start for
+  // the postgres backend, the ingest pipeline, and the hash refresh.
+  const indexInvocation = [
+    `"${pythonExe}" "${npath.join(configsDir, 'index.py')}" add`,
     `-l "${ingestList}"`,
-    `-p "pipelines/${IndexPipelines[method]}"`,
-    '-o database',
-    '--build-index',
-    `--index-backend ${backend}`,
+    `--method ${IndexMethods[method]}`,
+    '--database database',
+    `--backend ${backend}`,
+    '--yes',
     `-install "${settings.viamePath}"`,
-  ].filter((part) => part.length);
+  ];
   if (meta.type === 'video') {
-    processVideoInvocation.push(`-frate ${meta.fps}`);
+    indexInvocation.push(`-frate ${meta.fps}`);
   }
-
-  // Index around this dataset's existing annotations
   if (method === 'existing') {
     const detectionsCsv = npath.join(indexDir, `${sanitizeName(streamName)}_detections.csv`);
     const csvStream = fs.createWriteStream(detectionsCsv);
     const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
     await serialize(csvStream, inputData, meta);
     csvStream.end();
-    processVideoInvocation.push(`-id "${detectionsCsv}"`);
+    indexInvocation.push(`-id "${detectionsCsv}"`);
   }
-  command.push(processVideoInvocation.join(' '));
+  command.push(indexInvocation.join(' '));
 
   const fullCommand = command.join(' && ');
   const jobWorkDir = await createCustomWorkingDirectory(settings, 'search_index', datasetId.replace('/', '_'));
@@ -829,14 +823,12 @@ async function removeFromIndex(settings: Settings, datasetId: string): Promise<v
   }
   const backend: SearchIndexBackend = meta.backend ?? 'postgres';
   const manager = getQueryServiceManager();
+  // Any open query session still holds the removed vectors in memory.
+  await manager.closeIndex();
   if (backend === 'files') {
-    // Bundle files are plain files: drop them here and close any query
-    // session, whose in-memory index still holds the removed vectors.
-    await manager.closeIndex();
     await Promise.all(streams.map((s) => removeStreamFiles(settings, s)));
   } else {
-    await manager.ensureStarted(settings);
-    await manager.removeStreams(getIndexDir(settings), streams, backend);
+    await runIndexTool(settings, ['remove', '--database', 'database', '--backend', backend, ...streams]);
   }
   streams.forEach((s) => { delete meta.streams[s]; });
   await writeIndexMeta(settings, meta);
