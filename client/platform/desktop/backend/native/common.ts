@@ -16,6 +16,7 @@ import {
 import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
+import type { CustomStyle } from 'vue-media-annotator/StyleManager';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetConfigMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
@@ -37,6 +38,7 @@ import {
   METADATA_ATTACHMENT_UNAVAILABLE, isFrameMetadataReadableName,
 } from 'dive-common/frameMetadata/readability';
 import { parentDatasetId, parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import declareSpeciesTypes from 'dive-common/speciesList';
 import type {
   ScoringDatasetSummary, ScoringResultFile, ScoringResultSummary,
   ScoringSource, ScoringSourceOptions,
@@ -51,7 +53,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
-  MultiType, JsonConfigRegEx, largeImageDesktopTypes, metadataFileTypes,
+  MultiType, JsonConfigRegEx, JsonSpeciesRegEx, largeImageDesktopTypes, metadataFileTypes,
 } from 'dive-common/constants';
 import {
   JsonConfig, Settings, JsonConfigCurrentVersion, DesktopConfig,
@@ -105,6 +107,10 @@ const ImportedAnnotationFileName = /^imported_.+/i;
 const ScoringResultFileName = /^scoring_[\w.-]+\.json$/;
 const YAMLFileName = /^.*\.ya?ml$/i;
 
+/** Mirrors `species_list_repeats_message` in server/dive_server/crud_rpc.py. */
+const speciesListRepeatsMessage = (repeated: string[]) => (
+  `Species list repeats category names: ${repeated.join(', ')}. No configuration was changed.`
+);
 const invalidHierarchyMessage = (reason: string) => (
   `Type hierarchy is invalid: ${reason}. No configuration was changed.`
 );
@@ -505,10 +511,11 @@ async function _findCSVTrackFiles(searchPath: string) {
  * @returns object containing trackAbsPath and metaPath if it exists
  */
 async function _findJsonAndMetaTrackFile(basePath: string): Promise<
-  {trackFileAbsPath: string; configFileAbsPath?: string}> {
+  {trackFileAbsPath: string; configFileAbsPath?: string; speciesFileAbsPath?: string}> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
   let configFileAbsPath: undefined | string;
+  let speciesFileAbsPath: undefined | string;
   await Promise.all(contents.map(async (name) => {
     const fullPath = npath.join(basePath, name);
     if (JsonTrackFileName.test(name)) {
@@ -531,12 +538,16 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
       } else if (!configFileAbsPath) {
         configFileAbsPath = fullPath;
       }
+    } else if (JsonSpeciesRegEx.test(name) && !speciesFileAbsPath) {
+      // A species list beside the media is applied after the dataset is created, the same
+      // way a discovered config.json is.
+      speciesFileAbsPath = fullPath;
     }
   }));
   if (jsonFileCandidates.length > 0) {
-    return { trackFileAbsPath: jsonFileCandidates[0], configFileAbsPath };
+    return { trackFileAbsPath: jsonFileCandidates[0], configFileAbsPath, speciesFileAbsPath };
   }
-  return { trackFileAbsPath: '', configFileAbsPath };
+  return { trackFileAbsPath: '', configFileAbsPath, speciesFileAbsPath };
 }
 
 /**
@@ -848,6 +859,21 @@ async function archiveMetadataAttachment(directory: string): Promise<string | un
 async function discoverMetadataAttachment(directory: string): Promise<string | undefined> {
   const archived = await archiveMetadataAttachment(directory);
   return archived ?? reservedMetadataAttachmentPath(directory);
+}
+
+/**
+ * The KWCOCO species list beside a dataset's media, if any: the first file in `directory`
+ * whose name ends in `species.json`, in name order so the pick is stable. The single-dataset
+ * import finds its list while it scans for a track file; the multicam import has no such
+ * scan, so it asks here for the directory its cameras share.
+ */
+async function discoverSpeciesList(directory: string): Promise<string | undefined> {
+  const names = (await fs.readdir(directory)).filter((name) => JsonSpeciesRegEx.test(name)).sort();
+  const files = await Promise.all(names.map(async (name) => {
+    const fullPath = npath.join(directory, name);
+    return (await fs.stat(fullPath)).isFile() ? fullPath : undefined;
+  }));
+  return files.find((path) => path !== undefined);
 }
 
 /**
@@ -1556,6 +1582,13 @@ interface IngestFilePlan {
   additivePrepend: string;
   configMeta?: StagedConfigImport;
   cocoHierarchy?: Record<string, string>;
+  /**
+   * The dataset's complete declared type styling after this species list is applied.
+   * Resolved during preflight against the canonical dataset so execution neither re-reads
+   * the file nor repeats the Overwrite/additive policy, and assigned rather than merged so
+   * Overwrite can drop the types the list omits.
+   */
+  speciesStyling?: Record<string, CustomStyle>;
   configWarnings?: string[];
 }
 
@@ -1570,6 +1603,20 @@ async function loadCanonicalHierarchy(settings: Settings, datasetId: string): Pr
   return Object.prototype.hasOwnProperty.call(config, 'typeHierarchy')
     ? config.typeHierarchy
     : null;
+}
+
+async function loadCanonicalTypeStyling(
+  settings: Settings,
+  datasetId: string,
+): Promise<Record<string, CustomStyle>> {
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  const canonicalId = cameraName ? parentId : datasetId;
+  const projectDir = getProjectDir(settings, canonicalId);
+  if (!await fs.pathExists(projectDir.datasetFileAbsPath)) {
+    return {};
+  }
+  const config = await loadJsonConfig(projectDir.datasetFileAbsPath);
+  return config.customTypeStyling ?? {};
 }
 
 function mergeImportedConfig(
@@ -1625,6 +1672,9 @@ async function preflightIngestFiles(
   additivePrepend: string,
 ): Promise<IngestFilePlan[]> {
   let hierarchyCandidate = await loadCanonicalHierarchy(settings, datasetId);
+  // Read lazily: only a species list needs the dataset's declared styling, and most
+  // ingests never see one.
+  let stylingCandidate: Record<string, CustomStyle> | undefined;
   const plan: IngestFilePlan[] = [
     ...absPaths.map((path) => ({
       datasetId,
@@ -1657,7 +1707,53 @@ async function preflightIngestFiles(
           throw error;
         }
       }
-      if (jsonObject !== undefined
+      if (jsonObject !== undefined && coco.isCocoSpeciesList(jsonObject)) {
+        // Checked before the DIVE configuration branch, mirroring the server: a category-only
+        // document declares the classes a dataset may use and carries no annotations.
+        const repeated = coco.repeatedCategoryNames(jsonObject);
+        if (repeated.length) {
+          // A species list is imported for its classes. A repeated name is ambiguous, and it
+          // would also silently cost the file its hierarchy, so the import fails before
+          // anything is written rather than declaring the de-duplicated names.
+          throw new Error(speciesListRepeatsMessage(repeated));
+        }
+        const { hierarchy, warnings } = coco.typeHierarchyFromCategories(jsonObject);
+        entry.configWarnings = warnings;
+        const names = coco.speciesListFromCategories(jsonObject);
+        if (stylingCandidate === undefined) {
+          // eslint-disable-next-line no-await-in-loop
+          stylingCandidate = await loadCanonicalTypeStyling(settings, datasetId);
+        }
+        try {
+          const write = resolveTypeHierarchy(
+            hierarchyCandidate,
+            true,
+            // A list that declares no supercategory sends an empty map: Overwrite clears the
+            // stored hierarchy along with the types it replaces, while an additive import
+            // leaves it alone. A species list is imported for its classes, so an unusable
+            // hierarchy fails the import rather than degrading to a flat list the way the
+            // category block of an annotation file does.
+            hierarchy ?? {},
+            additive ? 'additive' : 'overwrite',
+          );
+          const configMeta: StagedConfigImport = {};
+          if (write.action === 'set') {
+            hierarchyCandidate = write.hierarchy;
+            configMeta.typeHierarchy = { ...write.hierarchy };
+          } else if (write.action === 'delete') {
+            hierarchyCandidate = null;
+            configMeta.typeHierarchy = null;
+          }
+          stylingCandidate = declareSpeciesTypes(stylingCandidate, names, additive);
+          entry.speciesStyling = { ...stylingCandidate };
+          entry.configMeta = configMeta;
+        } catch (error) {
+          if (error instanceof TypeHierarchyError) {
+            throw new Error(invalidHierarchyMessage(error.reason));
+          }
+          throw error;
+        }
+      } else if (jsonObject !== undefined
         && jsonObject !== null
         && typeof jsonObject === 'object'
         && !Array.isArray(jsonObject)
@@ -1742,11 +1838,25 @@ async function ingestDataFiles(
   additivePrepend = '',
 ): Promise<{
   processedFiles: string[];
+  /**
+   * Whether any processed file wrote an annotation file. A configuration file or a species
+   * list counts as processed but saves none, so a caller that needs the dataset to have a
+   * track file cannot infer that from `processedFiles` alone.
+   */
+  annotationsSaved: boolean;
   meta: DatasetConfigMutable & { fps?: number };
   warnings: string[];
+  /**
+   * The dataset's complete declared type styling when a species list was among the files.
+   * Kept out of `meta` because callers assign it rather than deep-merging it: Overwrite
+   * drops the types the list omits, which a merge would put back.
+   */
+  speciesStyling?: Record<string, CustomStyle>;
 }> {
   const processedFiles = []; // which files were processed to generate the detections
+  let annotationsSaved = false;
   const meta: DatasetConfigMutable & { fps?: number } = {};
+  let speciesStyling: Record<string, CustomStyle> | undefined;
   let outwarnings: string[] = [];
   const plan = await preflightIngestFiles(
     settings,
@@ -1770,8 +1880,13 @@ async function ingestDataFiles(
         const [newMeta, warnings, metadataConfig, auxiliaryPath] = results;
         outwarnings = outwarnings.concat(warnings, entry.configWarnings || []);
         mergeStagedImportedConfig(meta, newMeta, additive);
+        if (entry.speciesStyling) {
+          speciesStyling = entry.speciesStyling;
+        }
         if (metadataConfig) {
           importedConfigCopies.push(auxiliaryPath);
+        } else {
+          annotationsSaved = true;
         }
         processedFiles.push(entry.path);
       }
@@ -1781,7 +1896,9 @@ async function ingestDataFiles(
     throw error;
   }
 
-  return { processedFiles, meta, warnings: outwarnings };
+  return {
+    processedFiles, annotationsSaved, meta, warnings: outwarnings, speciesStyling,
+  };
 }
 /**
  * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder
@@ -1952,7 +2069,7 @@ async function checkDataset(
 async function findTrackandMetaFileinFolder(path: string) {
   const results = await _findJsonAndMetaTrackFile(path);
   let { trackFileAbsPath } = results;
-  const { configFileAbsPath } = results;
+  const { configFileAbsPath, speciesFileAbsPath } = results;
   if (!trackFileAbsPath) {
     // Declared frame metadata sidecars stay in place for read-time discovery; the first
     // remaining CSV is unconditionally the annotation track file.
@@ -1962,7 +2079,7 @@ async function findTrackandMetaFileinFolder(path: string) {
       [trackFileAbsPath] = csvFileCandidates;
     }
   }
-  return { trackFileAbsPath, configFileAbsPath };
+  return { trackFileAbsPath, configFileAbsPath, speciesFileAbsPath };
 }
 
 /**
@@ -2272,7 +2389,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     throw new Error('only video, image-sequence, and large-image types are supported');
   }
 
-  const { trackFileAbsPath, configFileAbsPath } = await
+  const { trackFileAbsPath, configFileAbsPath, speciesFileAbsPath } = await
   findTrackandMetaFileinFolder(relatedDataSearchPath);
   // The discovered attachment is a suggestion the import dialog shows and the user can clear or
   // replace, so it travels on the response rather than on jsonConfig.
@@ -2285,6 +2402,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     forceMediaTranscode: false,
     multiCamTrackFiles: null,
     configFileAbsPath,
+    speciesFileAbsPath,
     ...(metadata.path ? { metadataFileAbsPath: metadata.path } : {}),
     ...(metadata.warning ? { importWarnings: [metadata.warning] } : {}),
   };
@@ -2337,6 +2455,11 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
       ? { ...(existingDatasetInfo ?? {}), ...result.meta.datasetInfo }
       : result.meta.datasetInfo;
   }
+  // A species list declares the whole type list. Assign it for the same reason datasetInfo is
+  // assigned: the deep merge above would keep the types an Overwrite import meant to drop.
+  if (result.speciesStyling) {
+    jsonConfig.customTypeStyling = result.speciesStyling;
+  }
   await saveProjectConfig(projectDirData.basePath, jsonConfig);
   // Shared mutable config (styling, thresholds, attributes, datasetInfo, ...) is
   // loaded by the viewer from the base dataset's metadata, so an import
@@ -2344,7 +2467,9 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   // Do not sync per-camera imageEnhancements or camera-registration fields.
   const hierarchyPresent = Object.prototype.hasOwnProperty.call(result.meta, 'typeHierarchy');
   if (cameraName && (
-    hierarchyPresent || MulticamSharedMutableKeys.some((key) => key in result.meta)
+    hierarchyPresent
+    || result.speciesStyling !== undefined
+    || MulticamSharedMutableKeys.some((key) => key in result.meta)
   )) {
     const baseProjectDir = getProjectDir(settings, parentId);
     if (await fs.pathExists(baseProjectDir.datasetFileAbsPath)) {
@@ -2359,6 +2484,9 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
         baseMeta.datasetInfo = additive
           ? { ...(existingBaseDatasetInfo ?? {}), ...result.meta.datasetInfo }
           : result.meta.datasetInfo;
+      }
+      if (result.speciesStyling) {
+        baseMeta.customTypeStyling = result.speciesStyling;
       }
       await saveProjectConfig(baseProjectDir.basePath, baseMeta);
     }
@@ -2412,8 +2540,15 @@ async function _importTrackFile(
       delete importedMeta.typeHierarchy;
     }
     merge(jsonConfig, importedMeta);
+    if (processed.speciesStyling) {
+      // Assigned, not merged: an Overwrite species list drops the types it omits.
+      // eslint-disable-next-line no-param-reassign
+      jsonConfig.customTypeStyling = processed.speciesStyling;
+    }
     warnings = processed.warnings;
-    if (processed.processedFiles.length === 0) {
+    // A DIVE configuration file or a species list chosen as the annotation file is processed
+    // but writes no annotations, and every later step expects a track file to exist.
+    if (!processed.annotationsSaved) {
       await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
     }
   } else {
@@ -2646,6 +2781,11 @@ async function finalizeMediaImport(
   importWarnings.push(...finalImport.warnings);
   if (args.configFileAbsPath) {
     await dataFileImport(settings, jsonConfig.id, args.configFileAbsPath);
+  }
+  // After the configuration file, so a species list always declares against the styling that
+  // file brought rather than the other way around.
+  if (args.speciesFileAbsPath) {
+    await dataFileImport(settings, jsonConfig.id, args.speciesFileAbsPath);
   }
   const conversionJobArgs: ConversionArgs = {
     type: JobType.Conversion,
@@ -2971,6 +3111,7 @@ export {
   loadFrameMetadata,
   frameMetadataSourceDirectories,
   discoverMetadataAttachment,
+  discoverSpeciesList,
   openLink,
   openPathInFileManager,
   ingestDataFiles,
