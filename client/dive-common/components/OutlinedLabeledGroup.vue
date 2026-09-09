@@ -22,7 +22,7 @@ export default defineComponent({
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
   margin: -9px 4px 0;
-  padding: 2px 6px 4px;
+  padding: 6px 6px 4px;
   min-inline-size: min-content;
 }
 
