@@ -151,6 +151,11 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /** The annotation type's colour, used for the editing handles like the annotator. */
+    color: {
+      type: String,
+      default: '#00e5ff',
+    },
   },
   setup(props, { emit }) {
     const cycleIndex = ref(0);
@@ -158,6 +163,10 @@ export default defineComponent({
     const overlay = ref<SVGSVGElement | null>(null);
     const editing = ref(false);
     const draft = ref<GeometryDraft | null>(null);
+    /** Cycling stopped by the user stepping through frames. */
+    const paused = ref(false);
+    /** Handle being dragged, drawn highlighted like the annotator's selected handle. */
+    const activeHandle = ref<string | null>(null);
     let timer: number | null = null;
     let drag: { target: DragTarget; startImage: [number, number]; startDraft: GeometryDraft } | null = null;
 
@@ -204,16 +213,16 @@ export default defineComponent({
     }
 
     function syncTimer() {
-      const shouldRun = props.animate && hasSequence.value && !editing.value;
+      const shouldRun = props.animate && hasSequence.value && !editing.value && !paused.value;
       if (shouldRun && timer === null) {
         timer = window.setInterval(advance, props.cycleIntervalMs);
       } else if (!shouldRun && timer !== null) {
         window.clearInterval(timer);
         timer = null;
-        if (!editing.value) cycleIndex.value = 0;
+        if (!editing.value && !paused.value) cycleIndex.value = 0;
       }
     }
-    watch([() => props.animate, () => props.srcs, () => props.cycleIntervalMs, editing], () => {
+    watch([() => props.animate, () => props.srcs, () => props.cycleIntervalMs, editing, paused], () => {
       if (timer !== null) {
         window.clearInterval(timer);
         timer = null;
@@ -225,6 +234,24 @@ export default defineComponent({
     });
 
     watch(() => props.type, (next) => { typeInput.value = next; });
+
+    /** Step to the previous/next loaded frame by hand, pausing the cycling there. */
+    function step(direction: 1 | -1) {
+      const srcs = props.srcs ?? [];
+      if (srcs.length < 2) return;
+      paused.value = true;
+      for (let count = 1; count <= srcs.length; count += 1) {
+        const next = (cycleIndex.value + direction * count + srcs.length * count) % srcs.length;
+        if (srcs[next]) {
+          cycleIndex.value = next;
+          return;
+        }
+      }
+    }
+
+    function togglePaused() {
+      paused.value = !paused.value;
+    }
 
     function commitType() {
       const next = typeInput.value.trim();
@@ -311,6 +338,10 @@ export default defineComponent({
       return Math.max(1, shown / 180);
     });
 
+    /**
+     * Box handles as the annotator draws them: circles on the corners
+     * (vertex handles) and smaller ones on the edge midpoints.
+     */
     const boxHandles = computed(() => {
       const r = boxRect.value;
       if (!r) return [];
@@ -328,9 +359,21 @@ export default defineComponent({
         w: [r.x, cy],
       };
       return BOX_HANDLES.map(({ handle, cursor }) => ({
-        handle, cursor, x: at[handle][0], y: at[handle][1],
+        handle,
+        cursor,
+        x: at[handle][0],
+        y: at[handle][1],
+        radius: unit.value * (handle.length === 2 ? 3 : 2),
       }));
     });
+
+    function handleFill(id: string) {
+      return activeHandle.value === id ? '#ff0000' : props.color;
+    }
+
+    function handleOpacity(id: string) {
+      return activeHandle.value === id ? 1 : 0.25;
+    }
 
     // ---- editing --------------------------------------------------------------
 
@@ -393,13 +436,20 @@ export default defineComponent({
       return toImagePoint(t, point.x, point.y);
     }
 
+    function handleId(target: DragTarget): string {
+      if (target.kind === 'box') return `box-${target.handle}`;
+      if (target.kind === 'vertex') return `v-${target.polygon}-${target.vertex}`;
+      return target.key;
+    }
+
     function startDrag(target: DragTarget, event: PointerEvent) {
-      if (!editing.value || !draft.value) return;
+      if (!editing.value || !draft.value || event.button !== 0) return;
       const start = imagePointFromEvent(event);
       if (!start) return;
       event.preventDefault();
       event.stopPropagation();
       drag = { target, startImage: start, startDraft: cloneDraft(draft.value) };
+      activeHandle.value = handleId(target);
       overlay.value?.setPointerCapture(event.pointerId);
     }
 
@@ -426,7 +476,12 @@ export default defineComponent({
         if (startDraft.bounds) draft.value.bounds = moveBox(target.handle, startDraft.bounds, dx, dy);
       } else if (target.kind === 'vertex') {
         const origin = startDraft.polygons[target.polygon]?.[target.vertex];
-        if (origin) draft.value.polygons[target.polygon][target.vertex] = [origin[0] + dx, origin[1] + dy];
+        if (origin) {
+          // Replace the arrays: index assignment is invisible to Vue 2.
+          const polygons = startDraft.polygons.map((polygon) => polygon.map((p) => [p[0], p[1]] as [number, number]));
+          polygons[target.polygon][target.vertex] = [origin[0] + dx, origin[1] + dy];
+          draft.value.polygons = polygons;
+        }
       } else {
         const origin = startDraft[target.key];
         if (origin) draft.value[target.key] = [origin[0] + dx, origin[1] + dy];
@@ -436,6 +491,7 @@ export default defineComponent({
     function endDrag(event: PointerEvent) {
       if (!drag) return;
       drag = null;
+      activeHandle.value = null;
       try {
         overlay.value?.releasePointerCapture(event.pointerId);
       } catch {
@@ -456,9 +512,20 @@ export default defineComponent({
       event.stopPropagation();
     }
 
-    function onImageClick() {
+    /** Double click opens the viewer; a single click is left alone so edits are not lost to a slip. */
+    function onImageDoubleClick() {
       if (editing.value) return;
       emit('open', currentFrame.value?.frame);
+    }
+
+    /** Right click: start editing, or, while editing, lock the changes in like the annotator. */
+    function onContextMenu(event: MouseEvent) {
+      event.preventDefault();
+      if (editing.value) {
+        applyEdit();
+      } else {
+        beginEdit(event);
+      }
     }
 
     return {
@@ -487,8 +554,15 @@ export default defineComponent({
       onPointerMove,
       endDrag,
       onOverlayKeydown,
-      onImageClick,
+      onImageDoubleClick,
+      onContextMenu,
       currentFrame,
+      paused,
+      step,
+      togglePaused,
+      handleFill,
+      handleOpacity,
+      activeHandle,
     };
   },
 });
@@ -508,8 +582,8 @@ export default defineComponent({
     <div
       class="cell-image-wrap"
       :title="editing ? '' : title"
-      @click="onImageClick"
-      @contextmenu="beginEdit"
+      @dblclick="onImageDoubleClick"
+      @contextmenu="onContextMenu"
     >
       <img
         v-if="displaySrc"
@@ -574,18 +648,22 @@ export default defineComponent({
             :width="boxRect.width"
             :height="boxRect.height"
             class="overlay-box"
-            :stroke-width="unit"
+            :stroke="color"
+            :stroke-width="unit * 1.5"
             @pointerdown="startDrag({ kind: 'box', handle: 'move' }, $event)"
           />
-          <rect
+          <circle
             v-for="handle in boxHandles"
             :key="handle.handle"
-            :x="handle.x - unit * 2.5"
-            :y="handle.y - unit * 2.5"
-            :width="unit * 5"
-            :height="unit * 5"
+            :cx="handle.x"
+            :cy="handle.y"
+            :r="handle.radius"
             class="overlay-handle"
             :style="{ cursor: handle.cursor }"
+            :fill="handleFill(`box-${handle.handle}`)"
+            :fill-opacity="handleOpacity(`box-${handle.handle}`)"
+            :stroke="handleFill(`box-${handle.handle}`)"
+            :stroke-width="unit * 0.6"
             @pointerdown="startDrag({ kind: 'box', handle: handle.handle }, $event)"
           />
           <template v-for="(vertices, polygonIndex) in polygonVertices">
@@ -594,8 +672,12 @@ export default defineComponent({
               :key="`v-${polygonIndex}-${vertexIndex}`"
               :cx="vertex[0]"
               :cy="vertex[1]"
-              :r="unit * 2.5"
+              :r="unit * 3"
               class="overlay-vertex"
+              :fill="handleFill(`v-${polygonIndex}-${vertexIndex}`)"
+              :fill-opacity="handleOpacity(`v-${polygonIndex}-${vertexIndex}`)"
+              :stroke="handleFill(`v-${polygonIndex}-${vertexIndex}`)"
+              :stroke-width="unit * 0.6"
               @pointerdown="startDrag({ kind: 'vertex', polygon: polygonIndex, vertex: vertexIndex }, $event)"
             />
           </template>
@@ -627,15 +709,42 @@ export default defineComponent({
       </div>
       <div
         v-if="hasSequence && !editing"
-        class="cell-badge cell-sequence text-caption"
+        class="cell-badge cell-sequence cell-sequence-controls text-caption"
+        @click.stop
+        @dblclick.stop
+        @contextmenu.stop.prevent
       >
-        <v-icon
-          x-small
-          color="grey lighten-1"
-          class="mr-1"
+        <button
+          type="button"
+          class="sequence-button"
+          title="Previous frame (pauses cycling)"
+          @click="step(-1)"
         >
-          mdi-filmstrip
-        </v-icon>{{ frameLabel }}
+          <v-icon x-small>
+            mdi-chevron-left
+          </v-icon>
+        </button>
+        <button
+          type="button"
+          class="sequence-button"
+          :title="paused ? 'Resume cycling' : 'Pause cycling'"
+          @click="togglePaused"
+        >
+          <v-icon x-small>
+            {{ paused ? 'mdi-play' : 'mdi-pause' }}
+          </v-icon>
+        </button>
+        <span class="sequence-label">{{ frameLabel }}</span>
+        <button
+          type="button"
+          class="sequence-button"
+          title="Next frame (pauses cycling)"
+          @click="step(1)"
+        >
+          <v-icon x-small>
+            mdi-chevron-right
+          </v-icon>
+        </button>
       </div>
       <div
         v-else-if="frameCount > 1 && !editing"
@@ -668,7 +777,7 @@ export default defineComponent({
         @contextmenu.stop.prevent
       >
         <span class="text-caption edit-hint">
-          Frame {{ currentFrame ? currentFrame.frame : '' }}: drag the box, points or vertices
+          Frame {{ currentFrame ? currentFrame.frame : '' }}: drag to adjust, right click to keep
         </span>
         <v-btn
           x-small
@@ -762,7 +871,7 @@ export default defineComponent({
                 </v-icon>
               </v-btn>
             </template>
-            <span>Open in the annotation viewer at this frame</span>
+            <span>Open in the annotation viewer at this frame (or double click)</span>
           </v-tooltip>
         </slot>
       </div>
@@ -880,21 +989,11 @@ export default defineComponent({
 }
 
 .overlay-box {
-  fill: rgba(144, 202, 249, 0.08);
-  stroke: #90caf9;
+  fill: rgba(255, 255, 255, 0.04);
   cursor: move;
 }
 
-.overlay-handle {
-  fill: #90caf9;
-  stroke: #0d47a1;
-  stroke-width: 0.5;
-}
-
 .overlay-vertex {
-  fill: #ffc107;
-  stroke: #5d4037;
-  stroke-width: 0.5;
   cursor: grab;
 }
 
@@ -927,6 +1026,40 @@ export default defineComponent({
   right: 3px;
   display: flex;
   align-items: center;
+}
+
+.cell-sequence-controls {
+  pointer-events: auto;
+  padding: 0 2px;
+  gap: 1px;
+}
+
+.sequence-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  background: transparent;
+  color: #ddd;
+  cursor: pointer;
+
+  &:hover {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
+  .v-icon {
+    color: #ddd;
+  }
+}
+
+.sequence-label {
+  padding: 0 2px;
+  min-width: 26px;
+  text-align: center;
 }
 
 .cell-pending-badge {

@@ -3,6 +3,8 @@ import {
   computed, defineComponent, onBeforeUnmount, onMounted, PropType, ref, watch,
 } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router/composables';
+import { debounce } from 'lodash';
+import { clientSettings } from 'dive-common/store/settings';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { createReviewService, provideReview } from 'dive-common/use/useReview';
@@ -168,6 +170,25 @@ export default defineComponent({
       grid.handleKeydown(event);
     }
 
+    // Auto-save follows the annotator's setting: edits are written after the
+    // configured delay, so leaving the page rarely finds anything unsaved.
+    const autoSaveDelayMs = () => Math.max(1, Number(clientSettings.autoSaveSettings.delaySeconds) || 60) * 1000;
+    let autoSave = debounce(() => {
+      if (review.pendingCount.value > 0 && !review.saving.value) review.save();
+    }, autoSaveDelayMs());
+    watch(() => clientSettings.autoSaveSettings.delaySeconds, () => {
+      autoSave.cancel();
+      autoSave = debounce(() => {
+        if (review.pendingCount.value > 0 && !review.saving.value) review.save();
+      }, autoSaveDelayMs());
+    });
+    watch(review.pendingCount, (count, previous) => {
+      if (clientSettings.autoSaveSettings.enabled && count > previous) autoSave();
+    });
+    watch(review.saving, (saving, wasSaving) => {
+      if (wasSaving && !saving && clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) autoSave();
+    });
+
     function onBeforeUnload(event: BeforeUnloadEvent) {
       if (review.pendingCount.value > 0) {
         event.preventDefault();
@@ -216,6 +237,7 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
       window.removeEventListener('beforeunload', onBeforeUnload);
+      autoSave.cancel();
       grid.dispose();
       review.dispose();
     });
@@ -603,6 +625,7 @@ export default defineComponent({
             :animate="true"
             :cycle-interval-ms="review.grid.cycleIntervalMs"
             :scale="cellScale"
+            :color="review.colorFor(cell.type)"
             :type="cell.type"
             :confidence="cell.confidence"
             :pending="cell.pending"
