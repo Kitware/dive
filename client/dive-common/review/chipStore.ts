@@ -8,9 +8,9 @@
  * seeking one hidden element, and image sequences would otherwise fire a
  * whole page of requests at once.
  */
-import { ref, set } from 'vue';
+import { ref, set, del } from 'vue';
 import type { FrameSource } from './frameSource';
-import { renderChip } from './chipRenderer';
+import { renderChip, ChipTransform, RenderedChip } from './chipRenderer';
 import type { ReviewItem } from './types';
 
 export interface ChipStoreOptions {
@@ -38,12 +38,16 @@ interface ChipJob {
 }
 
 export type ChipSequence = Array<string | null>;
+export type ChipTransformSequence = Array<ChipTransform | null>;
 
 export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) {
   const concurrency = deps.concurrency ?? 4;
   const chips = ref<Record<string, string>>({});
   const sequences = ref<Record<string, ChipSequence>>({});
   const failures = ref<Record<string, string>>({});
+  /** How each rendered chip maps to its frame, for overlays and editing. */
+  const transforms = ref<Record<string, ChipTransform>>({});
+  const sequenceTransforms = ref<Record<string, ChipTransformSequence>>({});
   let options: ChipStoreOptions = { ...initial };
   let generation = 0;
   let active = 0;
@@ -58,6 +62,8 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
     chips.value = {};
     sequences.value = {};
     failures.value = {};
+    transforms.value = {};
+    sequenceTransforms.value = {};
     primaryQueue.length = 0;
     sequenceQueue.length = 0;
     pendingPrimary.clear();
@@ -74,7 +80,7 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
     reset();
   }
 
-  async function render(job: ChipJob): Promise<string> {
+  async function render(job: ChipJob): Promise<RenderedChip> {
     const source = await deps.frameSourceFor(job.item.datasetId);
     if (!source) throw new Error('Media for this dataset cannot be cropped');
     const frameRef = job.slot === null ? job.item.primary : job.item.frames[job.slot];
@@ -82,18 +88,21 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
     return renderChip(frame, frameRef.bounds, options);
   }
 
-  function complete(job: ChipJob, dataUrl: string | null, error?: unknown) {
+  function complete(job: ChipJob, rendered: RenderedChip | null, error?: unknown) {
     if (job.generation !== generation) return;
     const { key } = job.item;
     if (job.slot === null) {
-      if (dataUrl) {
-        set(chips.value, key, dataUrl);
+      if (rendered) {
+        set(chips.value, key, rendered.dataUrl);
+        set(transforms.value, key, rendered.transform);
       } else {
         set(failures.value, key, error instanceof Error ? error.message : 'Could not render this chip');
       }
-    } else if (dataUrl) {
+    } else if (rendered) {
       const slots = sequences.value[key];
-      if (slots) set(slots, job.slot, dataUrl);
+      if (slots) set(slots, job.slot, rendered.dataUrl);
+      const slotTransforms = sequenceTransforms.value[key];
+      if (slotTransforms) set(slotTransforms, job.slot, rendered.transform);
     }
   }
 
@@ -108,7 +117,7 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
   function start(job: ChipJob) {
     active += 1;
     render(job)
-      .then((dataUrl) => complete(job, dataUrl))
+      .then((rendered) => complete(job, rendered))
       .catch((err) => complete(job, null, err))
       .finally(() => finish(job));
   }
@@ -143,6 +152,7 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
       sequenceQueued.set(item.key, generation);
       // Fixed-size, null-filled so cells can show frames as they arrive.
       set(sequences.value, item.key, item.frames.map((): string | null => null));
+      set(sequenceTransforms.value, item.key, item.frames.map((): ChipTransform | null => null));
       item.frames.forEach((_, slot) => {
         sequenceQueue.push({ item, slot, generation });
       });
@@ -162,21 +172,40 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
     droppedSequence.forEach((job) => {
       sequenceQueued.delete(job.item.key);
       if (job.generation === generation) {
-        const slots = sequences.value;
-        delete slots[job.item.key];
+        del(sequences.value, job.item.key);
+        del(sequenceTransforms.value, job.item.key);
       }
     });
     sequenceQueue.splice(0, sequenceQueue.length, ...sequenceQueue.filter(keep));
+  }
+
+  /**
+   * Forget an item's chips (its boxes changed) so the next ensure call
+   * renders them again. Queued work for the item is dropped too.
+   */
+  function invalidate(key: string) {
+    del(chips.value, key);
+    del(failures.value, key);
+    del(transforms.value, key);
+    del(sequences.value, key);
+    del(sequenceTransforms.value, key);
+    pendingPrimary.delete(key);
+    sequenceQueued.delete(key);
+    primaryQueue.splice(0, primaryQueue.length, ...primaryQueue.filter((job) => job.item.key !== key));
+    sequenceQueue.splice(0, sequenceQueue.length, ...sequenceQueue.filter((job) => job.item.key !== key));
   }
 
   return {
     chips,
     sequences,
     failures,
+    transforms,
+    sequenceTransforms,
     setOptions,
     ensurePrimary,
     ensureSequences,
     trimQueues,
+    invalidate,
     reset,
     get options() { return options; },
   };

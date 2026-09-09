@@ -1,4 +1,4 @@
-import { clampGrid } from './gridSettings';
+import { cellScaleFor, clampGrid } from './gridSettings';
 import { DEFAULT_REVIEW_GRID } from './types';
 
 describe('clampGrid', () => {
@@ -19,5 +19,15 @@ describe('clampGrid', () => {
     expect(clampGrid({ ...DEFAULT_REVIEW_GRID, columns: Number.NaN, rows: Infinity })).toMatchObject({
       columns: DEFAULT_REVIEW_GRID.columns, rows: DEFAULT_REVIEW_GRID.rows,
     });
+  });
+});
+
+describe('cellScaleFor', () => {
+  it('grows footer text as the grid shows fewer cells, within limits', () => {
+    expect(cellScaleFor(5, 4)).toBeCloseTo(1.34, 2);
+    expect(cellScaleFor(2, 2)).toBe(1.6);
+    expect(cellScaleFor(1, 1)).toBe(1.6);
+    expect(cellScaleFor(8, 6)).toBe(1);
+    expect(cellScaleFor(12, 10)).toBe(1);
   });
 });

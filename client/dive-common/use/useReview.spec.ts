@@ -133,6 +133,32 @@ describe('createReviewService', () => {
     expect(service.error.value).toBeNull();
   });
 
+  it('edits a keyframe box and points, marks the track pending, and refreshes the item', async () => {
+    const api = makeApi({ a: [track(1, [['fish', 0.6]], [0, 4])] });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    service.query.type = '';
+    service.query.threshold = 0;
+    service.runQuery();
+    const [item] = service.items.value;
+    expect(item.primary.bounds).toEqual([0, 0, 10, 10]);
+
+    service.updateGeometry(item, 4, { bounds: [22.4, 8, 2.6, 30], head: [5, 5], tail: [9, 9] });
+    const feature = service.trackOf('a', 1)?.features.find((f) => f.frame === 4);
+    expect(feature?.bounds).toEqual([3, 8, 22, 30]);
+    expect(feature?.head).toEqual([5, 5]);
+    const keys = feature?.geometry?.features.map((g) => (g.properties as { key: string }).key).sort();
+    expect(keys).toEqual(['HeadTails', 'head', 'tail']);
+    expect(item.frames.find((f) => f.frame === 4)).toMatchObject({ bounds: [3, 8, 22, 30], head: [5, 5], tail: [9, 9] });
+    expect(item.primary.bounds).toEqual([0, 0, 10, 10]);
+    expect(service.isPending(item)).toBe(true);
+    expect(service.chipStore.chips.value[item.key]).toBeUndefined();
+
+    service.updateGeometry(item, 4, { tail: null });
+    expect(feature?.tail).toBeUndefined();
+    expect(feature?.geometry?.features.map((g) => (g.properties as { key: string }).key)).toEqual(['head']);
+  });
+
   it('reports a failed save and keeps the edits pending', async () => {
     const api = makeApi({ a: [track(1, [['fish', 0.6]], [0])] }, {
       saveDetections: vi.fn(async () => { throw new Error('disk full'); }),

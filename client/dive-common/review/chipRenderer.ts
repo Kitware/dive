@@ -27,6 +27,30 @@ export interface ChipRegion {
   height: number;
 }
 
+/** How a rendered chip maps to the frame: chip px = (image px - region.x) * scale. */
+export interface ChipTransform {
+  region: ChipRegion;
+  scale: number;
+  /** Chip image size in pixels. */
+  width: number;
+  height: number;
+}
+
+export interface RenderedChip {
+  dataUrl: string;
+  transform: ChipTransform;
+}
+
+/** Chip pixel coordinates of an image point. */
+export function toChipPoint(transform: ChipTransform, x: number, y: number): [number, number] {
+  return [(x - transform.region.x) * transform.scale, (y - transform.region.y) * transform.scale];
+}
+
+/** Image coordinates of a chip pixel. */
+export function toImagePoint(transform: ChipTransform, x: number, y: number): [number, number] {
+  return [transform.region.x + x / transform.scale, transform.region.y + y / transform.scale];
+}
+
 /**
  * Crop region (may extend past the image) for a box with padding: the
  * padded square around the box, widened or heightened to the requested
@@ -67,22 +91,34 @@ export function frameRegion(width: number, height: number, aspect = 1): ChipRegi
   };
 }
 
+/**
+ * Scale from frame pixels to chip pixels: the crop's longer side fills the
+ * requested size. Small crops are upscaled so the chip is rendered once at
+ * the cell's resolution with high-quality resampling, instead of the browser
+ * stretching a tiny image (and its compression artifacts) on every paint.
+ */
+export function chipScale(region: ChipRegion, size: number): number {
+  const longest = Math.max(1, Math.max(region.width, region.height));
+  return Math.max(16, size) / longest;
+}
+
+/** Render a box crop, or the whole frame when no box is given. */
 export function renderChip(
   frame: DecodedFrame,
   bounds: RectBounds | null,
   options: ChipRenderOptions,
-): string {
+): RenderedChip {
   const region = bounds
     ? chipRegion(bounds, options.padding, options.aspect)
     : frameRegion(frame.width, frame.height, options.aspect);
-  const longest = Math.max(region.width, region.height);
-  // Never upscale source pixels beyond 1:1 more than the bucket asks for.
-  const scale = Math.max(16, Math.min(options.size, Math.max(longest, 16))) / longest;
+  const scale = chipScale(region, options.size);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(region.width * scale));
   canvas.height = Math.max(1, Math.round(region.height * scale));
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Canvas unavailable');
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
   ctx.fillStyle = '#101010';
   ctx.fillRect(0, 0, canvas.width, canvas.height);
   // Source rectangle clipped to the frame; the destination shifts by the same amount.
@@ -116,5 +152,13 @@ export function renderChip(
       Math.abs(y2 - y1) * scale,
     );
   }
-  return canvas.toDataURL('image/jpeg', options.quality ?? 0.85);
+  const transform: ChipTransform = {
+    region, scale, width: canvas.width, height: canvas.height,
+  };
+  // Upscaled crops hold few source pixels; keep them lossless so the little
+  // detail there is does not pick up compression noise.
+  const dataUrl = scale > 1
+    ? canvas.toDataURL('image/png')
+    : canvas.toDataURL('image/jpeg', options.quality ?? 0.92);
+  return { dataUrl, transform };
 }
