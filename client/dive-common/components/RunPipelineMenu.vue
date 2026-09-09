@@ -575,7 +575,9 @@ export default defineComponent({
           v-else-if="pipelines"
           outlined
         >
-          <v-card-title> VIAME Pipelines </v-card-title>
+          <v-card-title class="pb-2">
+            VIAME Pipelines
+          </v-card-title>
 
           <v-card-text class="pb-0">
             Choose a pipeline type. Check the
@@ -757,6 +759,10 @@ export default defineComponent({
 
 .pipeline-item-action + .pipeline-item-action {
   margin-left: 8px;
+}
+
+.pipeline-categories-row {
+  margin-top: -2px;
 }
 
 .pipeline-category-col--last {

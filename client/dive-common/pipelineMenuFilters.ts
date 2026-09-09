@@ -133,5 +133,25 @@ export function filterPipelinesForDatasets(
     }
   });
 
-  return excludePipelinesMatchingTerms(sortedPipelines, excludePipelineTerms);
+  return orderPipelineCategories(
+    excludePipelinesMatchingTerms(sortedPipelines, excludePipelineTerms),
+  );
+}
+
+/** Menu order for known categories; anything else keeps its discovery order after them. */
+export const pipelineCategoryOrder = [
+  'detector', 'tracker', 'measurement', 'filter', 'transcode', 'utility', 'generate', 'trained',
+];
+
+export function orderPipelineCategories(pipelines: Pipelines): Pipelines {
+  const rank = (name: string) => {
+    const index = pipelineCategoryOrder.indexOf(name);
+    return index === -1 ? pipelineCategoryOrder.length : index;
+  };
+  const ordered = {} as Pipelines;
+  Object.keys(pipelines)
+    .map((name, index) => ({ name, index }))
+    .sort((a, b) => rank(a.name) - rank(b.name) || a.index - b.index)
+    .forEach(({ name }) => { ordered[name] = pipelines[name]; });
+  return ordered;
 }

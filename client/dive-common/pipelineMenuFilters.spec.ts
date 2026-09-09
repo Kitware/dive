@@ -2,6 +2,7 @@ import {
   excludePipelinesMatchingTerms,
   filterPipelinesForDatasets,
   getMultiCamCameraCount,
+  orderPipelineCategories,
 } from './pipelineMenuFilters';
 import type { Pipelines } from './apispec';
 
@@ -113,5 +114,19 @@ describe('pipelineMenuFilters', () => {
     const filtered = filterPipelinesForDatasets(withSeagis, [null], [1], undefined, ['seagis']);
     expect(filtered.utility).toBeUndefined();
     expect(filtered.detector).toBeDefined();
+  });
+
+  it('orders categories detector, tracker, measurement, filter, transcode, utility, trained', () => {
+    const pipelines: Pipelines = {};
+    ['trained', 'utility', 'filter', 'zeta', 'transcode', 'tracker', 'measurement', 'alpha', 'detector']
+      .forEach((name) => { pipelines[name] = { description: '', pipes: [] }; });
+    expect(Object.keys(orderPipelineCategories(pipelines))).toEqual([
+      'detector', 'tracker', 'measurement', 'filter', 'transcode', 'utility', 'trained', 'zeta', 'alpha',
+    ]);
+  });
+
+  it('orders categories in filterPipelinesForDatasets', () => {
+    const filtered = filterPipelinesForDatasets(samplePipelines, ['stereo'], [2]);
+    expect(Object.keys(filtered)).toEqual(['detector', 'measurement']);
   });
 });
