@@ -33,7 +33,7 @@ def convert_calibration(self: Task, itemId: str):
         manager.updateStatus(JobStatus.CANCELED)
         return
 
-    convert_tool = conf.viame_install_path / 'configs' / 'convert_cam_format.py'
+    convert_tool = conf.viame_install_path / 'configs' / 'convert_cam.py'
 
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
