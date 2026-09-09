@@ -37,15 +37,15 @@ The **Results** panel opens by default and shows the annotations that match the 
 * the dataset name (when more than one is loaded), track id, and frame or frame count;
 * any polygon outline and head/tail points the detection carries, drawn over the chip.
 
-Hover an entry for three actions: **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
+Hover an entry for three actions (they grow under the mouse): **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
 
-Tracks cycle through their sampled frames; the arrows in the filmstrip badge step through them by hand, which pauses the cycling on that frame until the play button resumes it.
+Tracks cycle through their sampled frames at the dataset's real-time rate (sparser samples wait proportionally longer, so a loop lasts about as long as the track does). The arrows in the filmstrip badge step through them by hand, which pauses the cycling on that frame until the play button resumes it; starting an edit pauses it too.
 
 The type field and caption grow a little as the grid shows fewer entries, so a 3 by 3 grid is comfortably readable while a dense grid stays compact.
 
 ### Editing boxes, polygons and points in place
 
-Right click an entry (or use its edit action) to adjust the frame it is showing without opening the viewer. The cycling pauses on that frame, the box gains the same handles the annotator uses (in the type's colour, red while dragged), and any polygon vertices and head/tail points can be dragged too. Right click again, or press **Enter** or **Apply**, to keep the change; **Esc** or **Cancel** drops it. Edits are held with the type edits until you **Save**, and the entry's chip is re-cropped around the new box. When auto-save is enabled in the settings, review edits are saved after the same delay the annotator uses.
+Right click an entry (or use its edit action) to adjust the frame it is showing without opening the viewer. The cycling pauses on that frame, the box gains the same handles the annotator uses (in the type's colour, red while dragged), and any polygon vertices and head/tail points can be dragged too. The mouse wheel zooms into the chip about the cursor and dragging empty space pans it, as in the annotator; the zoom stays until you wheel back out. Right click again, or press **Enter** or **Apply**, to keep the change; **Esc** or **Cancel** drops it. The chip keeps its crop after an edit, with the box drawn over it at its new position. Edits are held with the type edits until you **Save**; when auto-save is enabled in the settings, review edits are saved after the same delay the annotator uses.
 
 **Tracks** spanning several frames first show their first box, then, once the extra frames have loaded, cycle through up to eight boxes evenly sampled along the track. The object stays centred in the entry as it cycles. A filmstrip badge shows which sampled frame is on screen.
 
@@ -56,9 +56,11 @@ Two query modes are available in the toolbar:
 * **Type**: pick a type (or *Any type*) and a minimum confidence. Every track whose matching type meets the threshold is listed once.
 * **Attribute**: pick an attribute key, optionally a value, and whether to look at track attributes, detection (per-frame) attributes, or both. Matches on detection attributes show the frames that carry the attribute.
 
-Press **Show** (or switch to the Grid view) to run the query. The grid keeps its entries until you run the query again, so editing a type never reshuffles the page you are working on. The toolbar notes when the query has changed since the last run.
+Changes to the query take effect as soon as they settle. The grid otherwise keeps its entries, so editing a type never reshuffles the page you are working on.
 
-Entries can be sorted by dataset and track id, confidence (either direction), or frame.
+The gear next to **Save** opens the same settings as the annotator, including the auto-save switch and delay.
+
+Entries are sorted by confidence, highest first, by default; the sort field also offers lowest first, dataset and track id, or frame.
 
 ### Grid size and zoom
 

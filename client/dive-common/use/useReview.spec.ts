@@ -68,7 +68,7 @@ describe('createReviewService', () => {
       id: 'a', name: 'Alpha', status: 'ready', trackCount: 2, croppable: true,
     });
     expect(service.types.value).toEqual(['fish', 'shark']);
-    expect(service.stale.value).toBe(true);
+    expect(service.items.value.map((i) => i.key)).toEqual(['a#1', 'a#2']);
 
     service.query.threshold = 0.5;
     service.runQuery();
@@ -109,7 +109,8 @@ describe('createReviewService', () => {
     service.query.type = 'fish';
     service.query.threshold = 0;
     service.runQuery();
-    const [first, second] = service.items.value;
+    const first = service.items.value.find((i) => i.trackId === 1)!;
+    const second = service.items.value.find((i) => i.trackId === 2)!;
 
     service.assignType(first, 'shark');
     expect(service.currentType(first)).toEqual({ type: 'shark', confidence: 1 });
@@ -152,7 +153,6 @@ describe('createReviewService', () => {
     expect(item.frames.find((f) => f.frame === 4)).toMatchObject({ bounds: [3, 8, 22, 30], head: [5, 5], tail: [9, 9] });
     expect(item.primary.bounds).toEqual([0, 0, 10, 10]);
     expect(service.isPending(item)).toBe(true);
-    expect(service.chipStore.chips.value[item.key]).toBeUndefined();
 
     service.updateGeometry(item, 4, { tail: null });
     expect(feature?.tail).toBeUndefined();

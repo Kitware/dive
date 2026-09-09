@@ -35,6 +35,8 @@ export interface ReviewGridOptions {
   active: Ref<boolean>;
   /** Footer height to exclude from the chip aspect ratio. */
   footerPx?: number | Ref<number>;
+  /** Box outline burned into the chips; empty draws none (the cell overlays it). */
+  outline?: string;
 }
 
 /** How long paging must be idle before chips load, so skipped pages never render. */
@@ -69,7 +71,7 @@ export function useReviewGrid(options: ReviewGridOptions) {
       padding: grid.padding,
       size: chipSizeFor(pixels),
       aspect: chipAspectFor(cellSize.value.width, cellSize.value.height, unref(options.footerPx)),
-      outline: CHIP_OUTLINE,
+      outline: options.outline ?? CHIP_OUTLINE,
     });
     ensureVisible();
   }, 200);

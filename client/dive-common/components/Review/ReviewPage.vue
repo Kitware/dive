@@ -10,8 +10,10 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { cellScaleFor } from 'dive-common/review/gridSettings';
+import { cycleIntervalFor } from 'dive-common/review/reviewItems';
 import { ReviewItem, ReviewSortOrder } from 'dive-common/review/types';
 import type { ViewerFocus } from 'dive-common/review/viewerNavigation';
+import UserSettingsDialog from 'dive-common/components/UserSettingsDialog.vue';
 import ReviewDatasetsPanel from './ReviewDatasetsPanel.vue';
 import ReviewGrid from './ReviewGrid.vue';
 import ReviewGridControls from './ReviewGridControls.vue';
@@ -25,9 +27,9 @@ const CELL_FOOTER_BASE_PX = 48;
 type ReviewView = 'results' | 'datasets';
 
 const SORT_OPTIONS: { value: ReviewSortOrder; text: string }[] = [
-  { value: 'dataset', text: 'Dataset, track id' },
-  { value: 'confidence-asc', text: 'Confidence, low first' },
   { value: 'confidence-desc', text: 'Confidence, high first' },
+  { value: 'confidence-asc', text: 'Confidence, low first' },
+  { value: 'dataset', text: 'Dataset, track id' },
   { value: 'frame', text: 'Frame' },
 ];
 
@@ -46,7 +48,7 @@ const SCOPE_OPTIONS = [
 export default defineComponent({
   name: 'ReviewPage',
   components: {
-    ReviewDatasetsPanel, ReviewGrid, ReviewGridControls, ReviewCell,
+    ReviewDatasetsPanel, ReviewGrid, ReviewGridControls, ReviewCell, UserSettingsDialog,
   },
   props: {
     initialDatasetIds: {
@@ -62,6 +64,20 @@ export default defineComponent({
 
     const view = ref<ReviewView>('results');
     const pageTypeInput = ref('');
+    const showSettings = ref(false);
+    const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
+
+    /** The type field's arrow opens its list, and closes it again on a second press. */
+    function toggleTypeMenu() {
+      const field = typeField.value;
+      if (!field) return;
+      if (field.isMenuActive) {
+        field.isMenuActive = false;
+        field.blur();
+      } else {
+        field.activateMenu();
+      }
+    }
     const gridActive = computed(() => view.value === 'results');
     const cellScale = computed(() => cellScaleFor(review.grid.columns, review.grid.rows));
     const footerPx = computed(() => Math.round(CELL_FOOTER_BASE_PX * cellScale.value));
@@ -71,6 +87,8 @@ export default defineComponent({
       chipStore: review.chipStore,
       active: gridActive,
       footerPx,
+      // The box is drawn over the chip (and follows edits), not into it.
+      outline: '',
     });
 
     const showDatasetNames = computed(() => review.datasets.value.length > 1);
@@ -85,6 +103,7 @@ export default defineComponent({
         const attributeText = attribute
           ? `${attribute.key}${attribute.value === true ? '' : ` = ${String(attribute.value)}`}`
           : '';
+        const fps = review.datasetFps(item.datasetId);
         const subtitleBits = [];
         if (showDatasetNames.value) subtitleBits.push(review.datasetName(item.datasetId));
         subtitleBits.push(`#${item.trackId}`);
@@ -99,6 +118,7 @@ export default defineComponent({
           subtitle: subtitleBits.join(' · '),
           attributeText,
           frames: item.frames,
+          cycleIntervalMs: cycleIntervalFor(item.frames, fps, review.grid.cycleIntervalMs),
         };
       });
     });
@@ -110,19 +130,10 @@ export default defineComponent({
 
     const countLabel = computed(() => {
       const count = review.items.value.length;
-      const base = `${count} entr${count === 1 ? 'y' : 'ies'}`;
-      return review.stale.value ? `${base} · query changed, press Show` : base;
+      return `${count} entr${count === 1 ? 'y' : 'ies'}`;
     });
 
-    function show() {
-      review.runQuery();
-      view.value = 'results';
-    }
-
     function setView(next: ReviewView) {
-      if (next === 'results' && review.stale.value) {
-        review.runQuery();
-      }
       view.value = next;
     }
 
@@ -223,7 +234,7 @@ export default defineComponent({
       if (ids.length === 0) return;
       await review.addDatasets(ids);
       if (review.datasets.value.some((d) => d.status === 'ready')) {
-        show();
+        view.value = 'results';
       }
     }
 
@@ -245,6 +256,8 @@ export default defineComponent({
     return {
       review,
       view,
+      typeField,
+      toggleTypeMenu,
       grid,
       cells,
       cellScale,
@@ -255,7 +268,7 @@ export default defineComponent({
       readyDatasets,
       countLabel,
       pageTypeInput,
-      show,
+      showSettings,
       setView,
       openItem,
       openDataset,
@@ -329,6 +342,7 @@ export default defineComponent({
 
         <template v-if="review.query.mode === 'type'">
           <v-autocomplete
+            ref="typeField"
             :value="review.query.type"
             :items="typeItems"
             dense
@@ -336,6 +350,7 @@ export default defineComponent({
             hide-details
             class="query-field type-field mr-2"
             @change="review.query.type = $event || ''"
+            @click:append="toggleTypeMenu"
           />
           <div class="d-flex align-center threshold-field mr-2">
             <span class="text-caption grey--text mr-2 text-no-wrap">Min confidence</span>
@@ -393,22 +408,6 @@ export default defineComponent({
             @change="review.query.attributeScope = $event"
           />
         </template>
-        <v-btn
-          small
-          :color="review.stale.value ? 'primary' : undefined"
-          :outlined="!review.stale.value"
-          depressed
-          class="mr-2"
-          @click="show"
-        >
-          <v-icon
-            small
-            left
-          >
-            mdi-magnify
-          </v-icon>
-          Show
-        </v-btn>
       </template>
 
       <v-spacer />
@@ -427,6 +426,15 @@ export default defineComponent({
         @click="discard"
       >
         Discard
+      </v-btn>
+      <v-btn
+        icon
+        small
+        class="mr-1"
+        title="Settings (auto-save and more)"
+        @click="showSettings = true"
+      >
+        <v-icon>mdi-cog</v-icon>
       </v-btn>
       <v-btn
         small
@@ -601,7 +609,7 @@ export default defineComponent({
             at or above confidence {{ review.query.threshold }}.
           </div>
           <div v-else-if="!review.query.attributeKey">
-            Pick an attribute and press Show.
+            Pick an attribute to look for.
           </div>
           <div v-else>
             No annotations carry attribute "{{ review.query.attributeKey }}"{{ review.query.attributeValue ? ` = ${review.query.attributeValue}` : '' }}.
@@ -623,7 +631,7 @@ export default defineComponent({
             :frames="cell.frames"
             :failure="review.chipStore.failures.value[cell.item.key] || null"
             :animate="true"
-            :cycle-interval-ms="review.grid.cycleIntervalMs"
+            :cycle-interval-ms="cell.cycleIntervalMs"
             :scale="cellScale"
             :color="review.colorFor(cell.type)"
             :type="cell.type"
@@ -643,6 +651,11 @@ export default defineComponent({
       </template>
     </div>
 
+    <UserSettingsDialog
+      :value="showSettings"
+      @input="showSettings = $event"
+    />
+
     <datalist :id="typeListId">
       <option
         v-for="type in review.types.value"
@@ -654,6 +667,10 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+// Every query control reads at the same size as the Results / Datasets
+// buttons, whatever it currently shows.
+$toolbar-font: 0.75rem;
+
 .review-page {
   position: absolute;
   inset: 0;
@@ -675,9 +692,24 @@ export default defineComponent({
   overflow: auto;
 }
 
+.query-field,
+.threshold-number,
+.sort-field {
+  font-size: $toolbar-font;
+
+  ::v-deep input,
+  ::v-deep .v-select__selection,
+  ::v-deep .v-select__selection--comma,
+  ::v-deep .v-label,
+  ::v-deep .v-list-item__title {
+    font-size: $toolbar-font;
+    font-weight: 500;
+    letter-spacing: 0.0892857143em;
+  }
+}
+
 .query-field {
   max-width: 240px;
-  font-size: 14px;
 }
 
 .type-field {
@@ -698,12 +730,10 @@ export default defineComponent({
 
 .threshold-number {
   max-width: 90px;
-  font-size: 14px;
 }
 
 .sort-field {
   max-width: 240px;
-  font-size: 14px;
 }
 
 .page-actions {
