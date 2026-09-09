@@ -349,9 +349,8 @@ async function runPipeline(
     }
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.viameExe}" runner`,
+      `"${viameConstants.viameExe}" run "${pipelinePath}"`,
       ...(feedsVideoReader ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
-      `-p "${pipelinePath}"`,
       ...(feedsVideoReader ? [`-s downsampler:target_frame_rate=${meta.fps}`] : []),
     ];
     if (frameRange && feedsVideoReader) {
@@ -389,8 +388,7 @@ async function runPipeline(
     await fs.writeFile(manifestFile, fileData);
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.viameExe}" runner`,
-      `-p "${pipelinePath}"`,
+      `"${viameConstants.viameExe}" run "${pipelinePath}"`,
     ];
     if (!stereoOrMultiCam) {
       command.push(`-s input:video_filename="${manifestFile}"`);
@@ -778,8 +776,7 @@ async function exportTrainedPipeline(
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
-    `"${viameConstants.viameExe}" runner`,
-    `-p "${exportPipelinePath}"`,
+    `"${viameConstants.viameExe}" run "${exportPipelinePath}"`,
     `-s "onnx_convert:model_path=${weightsPath}"`,
     `-s "onnx_convert:onnx_model_prefix=${converterOutput}"`,
   ];
