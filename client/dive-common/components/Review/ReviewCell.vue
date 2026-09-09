@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, PropType, ref, watch,
+  computed, defineComponent, onBeforeUnmount, PropType, ref, watch,
 } from 'vue';
 import type { ChipTransform } from 'dive-common/review/chipRenderer';
 import type { ReviewFrameRef } from 'dive-common/review/types';
@@ -160,6 +160,68 @@ export default defineComponent({
 
     watch(() => props.type, (next) => { typeInput.value = next; });
 
+    // ---- shared cycling: every camera of an entry shows the same frame ----
+
+    const shared = computed(() => viewList.value.length > 1);
+    const sharedSlot = ref(0);
+    const sharedPaused = ref(false);
+    let timer: number | null = null;
+
+    const sequenceLength = computed(() => (
+      viewList.value.reduce((longest, view) => Math.max(longest, view.srcs?.length ?? 0), 0)
+    ));
+
+    /** Whether any camera has the frame for a slot, so the cycle never stalls on a gap. */
+    function slotLoaded(slot: number) {
+      return viewList.value.some((view) => Boolean(view.srcs?.[slot]));
+    }
+
+    function advanceShared(direction: 1 | -1 = 1) {
+      const length = sequenceLength.value;
+      if (length < 2) return;
+      for (let count = 1; count <= length; count += 1) {
+        const next = (sharedSlot.value + direction * count + length * count) % length;
+        if (slotLoaded(next)) {
+          sharedSlot.value = next;
+          return;
+        }
+      }
+    }
+
+    function syncSharedTimer() {
+      const shouldRun = shared.value && props.animate && sequenceLength.value > 1
+        && !sharedPaused.value && editingCount.value === 0;
+      if (shouldRun && timer === null) {
+        timer = window.setInterval(() => advanceShared(1), props.cycleIntervalMs);
+      } else if (!shouldRun && timer !== null) {
+        window.clearInterval(timer);
+        timer = null;
+      }
+    }
+    watch(
+      [shared, () => props.animate, sequenceLength, sharedPaused, editingCount, () => props.cycleIntervalMs],
+      () => {
+        if (timer !== null) {
+          window.clearInterval(timer);
+          timer = null;
+        }
+        syncSharedTimer();
+      },
+      { immediate: true },
+    );
+    onBeforeUnmount(() => {
+      if (timer !== null) window.clearInterval(timer);
+    });
+
+    function stepShared(direction: 1 | -1) {
+      sharedPaused.value = true;
+      advanceShared(direction);
+    }
+
+    function toggleSharedPaused() {
+      sharedPaused.value = !sharedPaused.value;
+    }
+
     function commitType() {
       const next = typeInput.value.trim();
       if (!next) {
@@ -186,6 +248,11 @@ export default defineComponent({
       editingCount,
       commitType,
       onTypeKeydown,
+      shared,
+      sharedSlot,
+      sharedPaused,
+      stepShared,
+      toggleSharedPaused,
     };
   },
 });
@@ -219,6 +286,11 @@ export default defineComponent({
         :deletable="deletable"
         :show-geometry="showGeometry"
         :color="color"
+        :controlled-slot="shared ? sharedSlot : null"
+        :controlled-paused="sharedPaused"
+        @step="stepShared"
+        @toggle-paused="toggleSharedPaused"
+        @pause="sharedPaused = true"
         @accept="$emit('accept')"
         @delete="$emit('delete')"
         @open="$emit('open', $event, index)"

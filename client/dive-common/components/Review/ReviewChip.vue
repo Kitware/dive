@@ -130,6 +130,18 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /**
+     * Sequence slot chosen by the cell, so the cameras of an entry stay on
+     * the same frame; null lets the chip cycle on its own.
+     */
+    controlledSlot: {
+      type: Number as PropType<number | null>,
+      default: null,
+    },
+    controlledPaused: {
+      type: Boolean,
+      default: false,
+    },
     /** Draw polygons and head/tail points over the chip. */
     showGeometry: {
       type: Boolean,
@@ -158,6 +170,11 @@ export default defineComponent({
     let drag: { target: DragTarget; startImage: [number, number]; startDraft: GeometryDraft } | null = null;
 
     const hasSequence = computed(() => Boolean(props.srcs && props.srcs.length > 1));
+    const controlled = computed(() => props.controlledSlot !== null);
+
+    watch(() => props.controlledSlot, (slot) => {
+      if (slot !== null) cycleIndex.value = Math.max(0, slot);
+    }, { immediate: true });
 
     /** Sequence slot on screen; 0 while only the primary chip is available. */
     const currentSlot = computed(() => (hasSequence.value && props.animate ? cycleIndex.value : 0));
@@ -203,7 +220,8 @@ export default defineComponent({
     }
 
     function syncTimer() {
-      const shouldRun = props.animate && hasSequence.value && !editing.value && !paused.value;
+      const shouldRun = props.animate && hasSequence.value && !editing.value && !paused.value
+        && !controlled.value;
       if (shouldRun && timer === null) {
         timer = window.setInterval(advance, props.cycleIntervalMs);
       } else if (!shouldRun && timer !== null) {
@@ -225,6 +243,10 @@ export default defineComponent({
 
     /** Step to the previous/next loaded frame by hand, pausing the cycling there. */
     function step(direction: 1 | -1) {
+      if (controlled.value) {
+        emit('step', direction);
+        return;
+      }
       const srcs = props.srcs ?? [];
       if (srcs.length < 2) return;
       paused.value = true;
@@ -238,8 +260,14 @@ export default defineComponent({
     }
 
     function togglePaused() {
+      if (controlled.value) {
+        emit('toggle-paused');
+        return;
+      }
       paused.value = !paused.value;
     }
+
+    const shownPaused = computed(() => (controlled.value ? props.controlledPaused : paused.value));
 
     const confidenceText = computed(() => (
       props.confidence === null ? '' : `${Math.round(props.confidence * 100)}%`
@@ -378,6 +406,7 @@ export default defineComponent({
       editing.value = true;
       // Editing pins the frame; cycling stays paused afterwards until resumed.
       paused.value = true;
+      if (controlled.value) emit('pause');
       emit('edit-start');
       requestAnimationFrame(() => overlay.value?.focus());
     }
@@ -609,7 +638,7 @@ export default defineComponent({
       onImageDoubleClick,
       onContextMenu,
       currentFrame,
-      paused,
+      paused: shownPaused,
       step,
       togglePaused,
       handleFill,
