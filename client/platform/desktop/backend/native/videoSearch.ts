@@ -5,16 +5,27 @@
  * persistent query service manager (viame.core.query_service) that holds the
  * KWIVER query/IQR pipeline open so refinement iterations are interactive.
  *
- * All database tables key rows on a per-video stream identifier
- * (VIDEO_NAME), so datasets are added to, updated in, and removed from the
- * shared database independently; a query searches every indexed dataset in
- * one IQR session.
+ * Every indexed dataset is one stream (video/sequence identifier), so
+ * datasets are added to, updated in, and removed from the shared index
+ * independently; a query searches every indexed dataset in one IQR session.
+ *
+ * Two storage backends exist (SearchIndexBackend). The default keeps one
+ * set of files per stream and needs no server process; the PostgreSQL one
+ * is retained for deployments that prefer the embedded database.
  *
  * On-disk layout:
  *   <dataPath>/DIVE_SearchIndex/
- *     index_meta.json     - stream -> dataset membership, written by DIVE
- *     <stream>.txt        - media list handed to process_video.py
- *     database/           - embedded PostgreSQL data + ITQ/LSH index files
+ *     index_meta.json               - stream -> dataset membership and backend, written by DIVE
+ *     <stream>.txt                  - media list handed to run_bulk.py
+ *     database/
+ *       ITQ/                        - the shared ITQ model (+ legacy global hash files)
+ *       <stream>.index              - files backend: manifest marking an indexed stream
+ *       <stream>_descriptors.csv    - files backend: descriptor uids, track refs, history
+ *       <stream>_descriptors.npy    - files backend: float32 descriptor matrix
+ *       <stream>_uids.txt           - files backend: uid per matrix row
+ *       <stream>_hashes.npy         - files backend: ITQ hash codes per row
+ *       <stream>_tracks.csv         - files backend: object tracks of the stream
+ *       SQL/                        - postgres backend: embedded database data
  */
 
 import OS from 'os';
@@ -29,7 +40,9 @@ import {
   Settings, DesktopJob, DesktopJobUpdater,
   SearchIndexMeta, BuildSearchIndex, JsonConfig,
 } from 'platform/desktop/constants';
-import type { VideoSearchIndexStatus, VideoSearchIndexInfo } from 'dive-common/apispec';
+import type {
+  VideoSearchIndexStatus, VideoSearchIndexInfo, SearchIndexBackend,
+} from 'dive-common/apispec';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from './processManager';
 import * as common from './common';
@@ -40,13 +53,26 @@ import linux from './linux';
 import win32 from './windows';
 
 const GlobalIndexFolderName = 'DIVE_SearchIndex';
+
+/**
+ * The backend new indexes are built with. 'files' (per-stream bundles, no
+ * server) is the default; 'postgres' keeps the embedded database path
+ * alive for anyone who wants to switch back. An existing index keeps the
+ * backend it was created with (recorded in index_meta.json).
+ */
+export const DefaultSearchIndexBackend: SearchIndexBackend = 'files';
+
+/** Files that make up one stream of a file-backed index. */
+const StreamBundlePostfixes = [
+  '.index', '_descriptors.csv', '_descriptors.npy', '_uids.txt', '_hashes.npy', '_tracks.csv',
+];
 const IndexMetaFileName = 'index_meta.json';
 const QueryPipelineName = 'query_retrieval_and_iqr.pipe';
 const ExportTemplateName = npath.join('templates', 'detector_generic_svm.pipe');
 
 const IndexPipelines: Record<BuildSearchIndex['method'], string> = {
-  detections: 'index_default.pipe',
-  tracking: 'index_default.trk.pipe',
+  detections: 'index_generic.pipe',
+  tracking: 'index_generic.trk.pipe',
   existing: 'index_existing.pipe',
 };
 
@@ -55,18 +81,36 @@ function getCurrentPlatform() {
 }
 
 /**
- * Video search requires the query pipeline (built with database support) and
- * the bundled PostgreSQL binaries used to host the descriptor index.
+ * Video search requires the query pipeline and the index build tooling;
+ * the PostgreSQL backend additionally needs the bundled database binaries.
  */
-async function isVideoSearchInstalled(settings: Settings): Promise<boolean> {
-  const pipelines = npath.join(settings.viamePath, 'configs', 'pipelines');
-  const initdb = OS.platform() === 'win32' ? 'initdb.exe' : 'initdb';
-  const checks = await Promise.all([
+async function isVideoSearchInstalled(
+  settings: Settings,
+  backend: SearchIndexBackend = DefaultSearchIndexBackend,
+): Promise<boolean> {
+  const configs = npath.join(settings.viamePath, 'configs');
+  const pipelines = npath.join(configs, 'pipelines');
+  const checks = [
     fs.pathExists(npath.join(pipelines, QueryPipelineName)),
-    fs.pathExists(npath.join(pipelines, 'sql_init_table.sql')),
-    fs.pathExists(npath.join(settings.viamePath, 'bin', initdb)),
-  ]);
-  return checks.every((c) => c);
+    fs.pathExists(npath.join(configs, 'run_bulk.py')),
+    fs.pathExists(npath.join(configs, 'generate_nn_index.py')),
+  ];
+  if (backend === 'postgres') {
+    const initdb = OS.platform() === 'win32' ? 'initdb.exe' : 'initdb';
+    checks.push(
+      fs.pathExists(npath.join(pipelines, 'sql_init_table.sql')),
+      fs.pathExists(npath.join(settings.viamePath, 'bin', initdb)),
+    );
+  }
+  return (await Promise.all(checks)).every((c) => c);
+}
+
+/** Delete one stream's bundle files (files backend). */
+async function removeStreamFiles(settings: Settings, streamName: string): Promise<void> {
+  const database = npath.join(getIndexDir(settings), 'database');
+  await Promise.all(StreamBundlePostfixes.map(async (postfix) => {
+    await fs.remove(npath.join(database, sanitizeName(streamName) + postfix)).catch(() => undefined);
+  }));
 }
 
 function getIndexDir(settings: Settings): string {
@@ -201,13 +245,24 @@ async function buildIndex(
   const viameConstants = platform.getViameConstants(settings);
   const pythonExe = platform.getViamePythonExe(settings);
   const configsDir = npath.join(settings.viamePath, 'configs');
-  const firstBuild = !(await fs.pathExists(npath.join(indexDir, 'database', 'SQL')));
+  // The backend is fixed when the shared index is first built; every later
+  // build joins the same store. Indexes from before the backend was
+  // recorded were always postgres.
+  const backend: SearchIndexBackend = indexMeta.backend
+    ?? (Object.keys(indexMeta.streams).length > 0 ? 'postgres' : DefaultSearchIndexBackend);
+  const firstBuild = backend === 'postgres'
+    && !(await fs.pathExists(npath.join(indexDir, 'database', 'SQL')));
 
   const command: string[] = [viameConstants.setupScriptAbs];
-  if (!firstBuild) {
+  if (backend === 'files' && existing) {
+    // Rebuilding a stream: drop its previous bundle so stale files are not
+    // mistaken for current ones by the bundle builder.
+    await removeStreamFiles(settings, streamName);
+  }
+  if (backend === 'postgres' && !firstBuild) {
     // Adding to an existing database: make sure it is running (the caller
     // closed the query service, so the default port is free)...
-    command.push(`"${pythonExe}" "${npath.join(configsDir, 'database_tool.py')}" start`);
+    command.push(`"${pythonExe}" "${npath.join(configsDir, 'database.py')}" start`);
     if (existing) {
       // ...and drop the dataset's previous rows before re-ingest
       const removeSql = npath.join(indexDir, `${sanitizeName(streamName)}_remove.sql`);
@@ -228,13 +283,14 @@ async function buildIndex(
   }
 
   const processVideoInvocation = [
-    `"${pythonExe}" "${npath.join(configsDir, 'process_video.py')}"`,
-    firstBuild ? '--init' : '',
+    `"${pythonExe}" "${npath.join(configsDir, 'run_bulk.py')}"`,
+    firstBuild ? '--init-db' : '',
     '--no-reset-prompt',
     `-l "${ingestList}"`,
     `-p "pipelines/${IndexPipelines[method]}"`,
     '-o database',
     '--build-index',
+    `--index-backend ${backend}`,
     `-install "${settings.viamePath}"`,
   ].filter((part) => part.length);
   if (meta.type === 'video') {
@@ -288,6 +344,7 @@ async function buildIndex(
     if (code === 0) {
       try {
         const latest = await readIndexMeta(settings);
+        latest.backend = backend;
         latest.streams[streamName] = {
           datasetId,
           method,
@@ -600,7 +657,11 @@ export class QueryServiceManager extends EventEmitter {
    * any previously open set if it differs. Each index gets its own embedded
    * postgres instance on an incremented port inside the service.
    */
-  async openIndexes(settings: Settings, indexDirs: string[]): Promise<void> {
+  async openIndexes(
+    settings: Settings,
+    indexDirs: string[],
+    backend: SearchIndexBackend = DefaultSearchIndexBackend,
+  ): Promise<void> {
     await this.ensureStarted(settings);
     if (indexDirs.length === this.currentIndexDirs.length
       && indexDirs.every((dir, i) => this.currentIndexDirs[i] === dir)) {
@@ -609,7 +670,9 @@ export class QueryServiceManager extends EventEmitter {
     if (this.currentIndexDirs.length) {
       await this.closeIndex();
     }
-    const response = await this.sendRequest({ command: 'open_index', index_dirs: indexDirs }, 'Open index');
+    const response = await this.sendRequest({
+      command: 'open_index', index_dirs: indexDirs, backend,
+    }, 'Open index');
     QueryServiceManager.check(response, 'Opening the search indexes');
     this.currentIndexDirs = indexDirs;
   }
@@ -654,9 +717,13 @@ export class QueryServiceManager extends EventEmitter {
    * The service adopts or temporarily starts the index's postgres; if the
    * index was open, the session set is closed for consistency.
    */
-  async removeStreams(indexDir: string, streams: string[]): Promise<void> {
+  async removeStreams(
+    indexDir: string,
+    streams: string[],
+    backend: SearchIndexBackend,
+  ): Promise<void> {
     const response = await this.sendRequest({
-      command: 'remove_streams', index_dir: indexDir, streams,
+      command: 'remove_streams', index_dir: indexDir, streams, backend,
     }, 'Stream removal');
     QueryServiceManager.check(response, 'Stream removal');
     if (response.closed_session) {
@@ -760,9 +827,17 @@ async function removeFromIndex(settings: Settings, datasetId: string): Promise<v
   if (!streams.length) {
     return;
   }
+  const backend: SearchIndexBackend = meta.backend ?? 'postgres';
   const manager = getQueryServiceManager();
-  await manager.ensureStarted(settings);
-  await manager.removeStreams(getIndexDir(settings), streams);
+  if (backend === 'files') {
+    // Bundle files are plain files: drop them here and close any query
+    // session, whose in-memory index still holds the removed vectors.
+    await manager.closeIndex();
+    await Promise.all(streams.map((s) => removeStreamFiles(settings, s)));
+  } else {
+    await manager.ensureStarted(settings);
+    await manager.removeStreams(getIndexDir(settings), streams, backend);
+  }
   streams.forEach((s) => { delete meta.streams[s]; });
   await writeIndexMeta(settings, meta);
 }
@@ -802,6 +877,7 @@ async function exportSearchModel(settings: Settings, name: string): Promise<stri
 export {
   isVideoSearchInstalled,
   getIndexDir,
+  readIndexMeta,
   getIndexStatus,
   listIndexedDatasets,
   buildIndex,

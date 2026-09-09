@@ -783,9 +783,14 @@ export interface VideoSearchStreamEntry {
   createdAt: string;
 }
 
+/** How a search index stores descriptors: per-stream files or an embedded PostgreSQL database. */
+export type SearchIndexBackend = 'files' | 'postgres';
+
 /** Sidecar metadata describing the shared search index. */
 export interface VideoSearchIndexMeta {
   version: number;
+  /** Storage backend the index was built with; absent on indexes from before it was recorded (postgres). */
+  backend?: SearchIndexBackend;
   // stream identifier (as reported in query results) -> source dataset
   streams: Record<string, VideoSearchStreamEntry>;
 }

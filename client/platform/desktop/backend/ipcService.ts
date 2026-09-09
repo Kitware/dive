@@ -666,7 +666,12 @@ export default function register() {
       throw new Error('The search index is empty; add a dataset to it first');
     }
     const manager = videoSearch.getQueryServiceManager();
-    await manager.openIndexes(currentSettings, [videoSearch.getIndexDir(currentSettings)]);
+    const indexMeta = await videoSearch.readIndexMeta(currentSettings);
+    await manager.openIndexes(
+      currentSettings,
+      [videoSearch.getIndexDir(currentSettings)],
+      indexMeta.backend ?? 'postgres',
+    );
     return { success: true, streams };
   });
 
