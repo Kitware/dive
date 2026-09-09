@@ -26,8 +26,11 @@ export function chipAspectFor(cellWidth: number, cellHeight: number, footerPx = 
   return Math.round(ratio * 10) / 10;
 }
 
-export interface ReviewGridOptions {
-  items: Ref<readonly ReviewItem[]>;
+export interface ReviewGridOptions<T> {
+  /** What the grid pages over: review items, or entries holding several. */
+  items: Ref<readonly T[]>;
+  /** Items whose chips an entry needs; defaults to the entry being an item. */
+  chipItemsOf?: (entry: T) => readonly ReviewItem[];
   /** Reactive grid settings (mutated in place by the setters below). */
   grid: ReviewGridSettings;
   chipStore: ChipStore;
@@ -42,10 +45,12 @@ export interface ReviewGridOptions {
 /** How long paging must be idle before chips load, so skipped pages never render. */
 const PAGE_SETTLE_MS = 250;
 
-export function useReviewGrid(options: ReviewGridOptions) {
+export function useReviewGrid<T = ReviewItem>(options: ReviewGridOptions<T>) {
   const {
     items, grid, chipStore, active,
   } = options;
+  const chipItemsOf = options.chipItemsOf ?? ((entry: T) => [entry as unknown as ReviewItem]);
+  const chipItems = (entries: readonly T[]) => entries.flatMap((entry) => chipItemsOf(entry));
   const page = ref(0);
   const cellSize = ref({ width: 0, height: 0 });
 
@@ -56,8 +61,8 @@ export function useReviewGrid(options: ReviewGridOptions) {
 
   function ensureVisible() {
     if (!active.value) return;
-    const visible = pageItems.value;
-    const prefetch = nextPageItems.value;
+    const visible = chipItems(pageItems.value);
+    const prefetch = chipItems(nextPageItems.value);
     chipStore.trimQueues(new Set([...visible, ...prefetch].map((i) => i.key)));
     chipStore.ensurePrimary([...visible, ...prefetch]);
     chipStore.ensureSequences(visible);
@@ -83,7 +88,7 @@ export function useReviewGrid(options: ReviewGridOptions) {
   const ensureVisibleSettled = debounce(ensureVisible, PAGE_SETTLE_MS);
   function onPageChanged() {
     if (!active.value) return;
-    chipStore.trimQueues(new Set(pageItems.value.map((i) => i.key)));
+    chipStore.trimQueues(new Set(chipItems(pageItems.value).map((i) => i.key)));
     ensureVisibleSettled();
   }
 

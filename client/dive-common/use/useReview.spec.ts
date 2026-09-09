@@ -159,6 +159,49 @@ describe('createReviewService', () => {
     expect(feature?.geometry?.features.map((g) => (g.properties as { key: string }).key)).toEqual(['head']);
   });
 
+  it('groups a track across cameras, adds boxes where a side is missing, and deletes tracks', async () => {
+    const api = makeApi({ 'm/left': [track(3, [['fish', 1]], [0, 4])], 'm/right': [track(3, [['fish', 1]], [4])] }, {
+      loadConfig: vi.fn(async (id: string) => (id === 'm'
+        ? config(id, {
+          type: 'multi',
+          multiCamMedia: {
+            defaultDisplay: 'left',
+            cameras: {
+              left: { type: 'image-sequence', imageData: [], videoUrl: '' },
+              right: { type: 'image-sequence', imageData: [], videoUrl: '' },
+            },
+          },
+        })
+        : config(id))),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('m', { id: 'm', name: 'Rig' });
+    service.query.threshold = 0;
+    service.runQuery();
+
+    expect(service.entries.value).toHaveLength(1);
+    const [entry] = service.entries.value;
+    expect(entry.labels).toEqual(['left', 'right']);
+    expect(service.parentOf('m/right')).toBe('m');
+    const right = entry.items[1];
+    expect(right.frames.map((f) => f.missing ?? false)).toEqual([true, false]);
+
+    service.addKeyframe(right, 0, right.frames[0].bounds as [number, number, number, number]);
+    expect(service.trackOf('m/right', 3)?.features.map((f) => f.frame)).toEqual([0, 4]);
+    expect(service.trackOf('m/right', 3)?.begin).toBe(0);
+    expect(service.entries.value[0].items[1].frames.every((f) => !f.missing)).toBe(true);
+    expect(service.pendingCount.value).toBe(1);
+
+    service.deleteTrack(entry.items[0]);
+    service.deleteTrack(entry.items[1]);
+    expect(service.entries.value).toHaveLength(0);
+    expect(service.pendingCount.value).toBe(2);
+    await service.save();
+    const { calls } = (api.saveDetections as ReturnType<typeof vi.fn>).mock;
+    expect(calls.map(([id, args]) => [id, args.tracks.delete])).toEqual([['m/left', [3]], ['m/right', [3]]]);
+    expect(service.pendingCount.value).toBe(0);
+  });
+
   it('reports a failed save and keeps the edits pending', async () => {
     const api = makeApi({ a: [track(1, [['fish', 0.6]], [0])] }, {
       saveDetections: vi.fn(async () => { throw new Error('disk full'); }),

@@ -19,11 +19,13 @@ import {
 import { createFrameSource, FrameSource } from 'dive-common/review/frameSource';
 import { createChipStore, ChipStore } from 'dive-common/review/chipStore';
 import {
-  buildReviewItems, collectAttributeKeys, collectTypes, frameRefFor, sortReviewItems,
+  buildReviewItems, CameraMembership, collectAttributeKeys, collectTypes, frameRefFor, groupReviewItems,
+  sortReviewItems,
 } from 'dive-common/review/reviewItems';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import {
   DEFAULT_REVIEW_QUERY,
+  ReviewEntry,
   ReviewGridSettings,
   ReviewItem,
   ReviewPolygon,
@@ -69,6 +71,8 @@ export interface ReviewService {
   grid: ReviewGridSettings;
   sort: Ref<ReviewSortOrder>;
   items: Readonly<Ref<ReviewItem[]>>;
+  /** Items grouped into grid entries (one per track across its cameras). */
+  entries: Readonly<Ref<ReviewEntry[]>>;
   /** Bumps whenever tracks load or change; computeds that read tracks depend on it. */
   dataRevision: Readonly<Ref<number>>;
   /** True once tracks or the query changed after the last run. */
@@ -94,6 +98,12 @@ export interface ReviewService {
   colorFor(type: string): string;
   /** Frames per second the dataset is annotated at, or 0 when unknown. */
   datasetFps(id: string): number;
+  /** The multicamera parent a camera dataset was expanded from, or the id itself. */
+  parentOf(id: string): string;
+  /** Add a keyframe with a box to a track, e.g. where one camera lacks a detection. */
+  addKeyframe(item: ReviewItem, frame: number, bounds: RectBounds): void;
+  /** Remove the track behind an item; written on the next save. */
+  deleteTrack(item: ReviewItem): void;
   isPending(item: ReviewItem): boolean;
   assignType(item: ReviewItem, type: string): void;
   acceptType(item: ReviewItem): void;
@@ -111,6 +121,8 @@ interface LoadedDataset {
   hierarchy: TypeHierarchyIndex;
   frameSource: FrameSource | null;
   pending: Set<AnnotationId>;
+  /** Tracks removed here and not yet deleted on the platform. */
+  deleted: Set<AnnotationId>;
 }
 
 type GeoFeature = NonNullable<Feature['geometry']>['features'][number];
@@ -205,6 +217,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   let loadGeneration = 0;
   /** Type colours as the annotator assigns them, seeded from each dataset's custom styles. */
   const styles = new StyleManager({ markChangesPending: () => undefined });
+  /** Camera datasets expanded from a multicamera parent. */
+  const memberships = new Map<string, CameraMembership>();
 
   // Query changes apply as soon as they settle; the grid only reshuffles
   // for those, never for edits made in it.
@@ -278,6 +292,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         const cameras = Object.keys(config.multiCamMedia?.cameras || {});
         const parentName = entry(id)?.name || config.name;
         datasets.value = datasets.value.filter((d) => d.id !== id);
+        cameras.forEach((camera, rank) => memberships.set(`${id}/${camera}`, { parent: id, camera, rank }));
         await Promise.all(cameras.map((camera) => addDataset(`${id}/${camera}`, {
           id: `${id}/${camera}`, name: `${parentName} (${camera})`, type: config.multiCamMedia?.cameras[camera]?.type,
         })));
@@ -298,6 +313,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         hierarchy: compileHierarchy(config.typeHierarchy || {}),
         frameSource,
         pending: new Set(),
+        deleted: new Set(),
       });
       patch(id, {
         status: 'ready',
@@ -399,6 +415,20 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     return loaded.get(datasetId)?.tracks.get(trackId);
   }
 
+  function parentOf(id: string) {
+    return memberships.get(id)?.parent ?? id;
+  }
+
+  const entries = computed(() => {
+    dependOnData();
+    return groupReviewItems(
+      items.value,
+      (datasetId) => memberships.get(datasetId),
+      (item) => trackOf(item.datasetId, item.trackId),
+      grid.maxSequenceFrames,
+    );
+  });
+
   function currentType(item: ReviewItem) {
     const track = trackOf(item.datasetId, item.trackId);
     if (!track) return { type: item.type, confidence: item.confidence };
@@ -429,7 +459,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   const pendingCount = computed(() => {
     dependOnData();
     let count = 0;
-    loaded.forEach((dataset) => { count += dataset.pending.size; });
+    loaded.forEach((dataset) => { count += dataset.pending.size + dataset.deleted.size; });
     return count;
   });
 
@@ -461,6 +491,42 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     const current = currentType(item);
     if (!current.type) return;
     updatePairs(item, (pairs, hierarchy) => acceptPairAsCorrect(hierarchy, pairs, current.type));
+  }
+
+  function deleteTrack(item: ReviewItem) {
+    const dataset = loaded.get(item.datasetId);
+    if (!dataset || !dataset.tracks.has(item.trackId)) return;
+    dataset.tracks.delete(item.trackId);
+    dataset.pending.delete(item.trackId);
+    dataset.deleted.add(item.trackId);
+    // The entry leaves the grid at once; everything else stays put.
+    items.value = items.value.filter(
+      (other) => !(other.datasetId === item.datasetId && other.trackId === item.trackId),
+    );
+    dataRevision.value += 1;
+  }
+
+  function addKeyframe(item: ReviewItem, frame: number, bounds: RectBounds) {
+    const dataset = loaded.get(item.datasetId);
+    const track = dataset?.tracks.get(item.trackId);
+    if (!dataset || !track || track.features.some((f) => f.frame === frame && f.bounds)) return;
+    const [x1, y1, x2, y2] = bounds;
+    const previous = [...track.features].reverse().find((f) => f.frame < frame);
+    const feature: Feature = {
+      frame,
+      keyframe: true,
+      interpolate: previous?.interpolate ?? false,
+      bounds: [
+        Math.round(Math.min(x1, x2)), Math.round(Math.min(y1, y2)),
+        Math.round(Math.max(x1, x2)), Math.round(Math.max(y1, y2)),
+      ],
+    };
+    track.features = [...track.features.filter((f) => f.frame !== frame), feature]
+      .sort((a, b) => a.frame - b.frame);
+    track.begin = Math.min(track.begin, frame);
+    track.end = Math.max(track.end, frame);
+    dataset.pending.add(item.trackId);
+    dataRevision.value += 1;
   }
 
   function updateGeometry(item: ReviewItem, frame: number, edit: ReviewGeometryEdit) {
@@ -501,16 +567,18 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     saving.value = true;
     error.value = null;
     try {
-      const targets = Array.from(loaded.entries()).filter(([, d]) => d.pending.size > 0);
+      const targets = Array.from(loaded.entries())
+        .filter(([, d]) => d.pending.size > 0 || d.deleted.size > 0);
       const results = await Promise.allSettled(targets.map(async ([id, dataset]) => {
         const upsert = Array.from(dataset.pending)
           .map((trackId) => dataset.tracks.get(trackId))
           .filter((t): t is TrackData => !!t);
         await api.saveDetections(id, {
-          tracks: { upsert, delete: [] },
+          tracks: { upsert, delete: Array.from(dataset.deleted) },
           groups: { upsert: [], delete: [] },
         });
         dataset.pending.clear();
+        dataset.deleted.clear();
       }));
       const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
       if (failed) throw failed.reason;
@@ -523,7 +591,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   }
 
   async function discardChanges() {
-    const dirty = Array.from(loaded.entries()).filter(([, d]) => d.pending.size > 0).map(([id]) => id);
+    const dirty = Array.from(loaded.entries())
+      .filter(([, d]) => d.pending.size > 0 || d.deleted.size > 0).map(([id]) => id);
     await Promise.all(dirty.map((id) => reloadDataset(id)));
   }
 
@@ -546,6 +615,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     grid,
     sort,
     items,
+    entries,
     dataRevision,
     stale,
     types,
@@ -566,6 +636,9 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     currentType,
     colorFor,
     datasetFps,
+    parentOf,
+    addKeyframe,
+    deleteTrack,
     isPending,
     assignType,
     acceptType,
