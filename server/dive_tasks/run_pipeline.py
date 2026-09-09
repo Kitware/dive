@@ -340,8 +340,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "viame runner",
-                f"-p {shlex.quote(str(pipeline_path))}",
+                f"viame run {shlex.quote(str(pipeline_path))}",
             ]
             # An extracted subset replaced every video input with an image list;
             # leaving the video reader type (or the downsampler) bound would
@@ -543,9 +542,8 @@ def run_pipeline(self: Task, params: PipelineJob):
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "viame runner",
+                f"viame run {shlex.quote(str(pipeline_path))}",
                 "-s input:video_reader:type=vidl_ffmpeg",
-                f"-p {shlex.quote(str(pipeline_path))}",
                 f"-s input:video_filename={shlex.quote(input_media_list[0])}",
                 f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
                 f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
@@ -567,8 +565,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "viame runner",
-                f"-p {shlex.quote(str(pipeline_path))}",
+                f"viame run {shlex.quote(str(pipeline_path))}",
                 f"-s input:video_filename={shlex.quote(str(img_list_path))}",
                 f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
                 f"-s track_writer:file_name={shlex.quote(track_output_file)}",
