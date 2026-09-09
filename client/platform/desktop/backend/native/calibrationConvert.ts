@@ -1,7 +1,7 @@
 /**
  * Stereo camera calibration file handling for the desktop backend.
  *
- * VIAME ships a `convert_cam_format.py` tool (installed under
+ * VIAME ships a `convert_cam.py` tool (installed under
  * `<viamePath>/configs/`) that reads any supported stereo calibration format
  * (npz, opencv yml, matlab mat, zed, CamCAL, ...) and writes KWIVER's JSON
  * camera-rig format. We normalize every imported calibration to that JSON so the
@@ -15,7 +15,7 @@ import fs from 'fs-extra';
 import { Settings } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
-const ConvertToolRelativePath = npath.join('configs', 'convert_cam_format.py');
+const ConvertToolRelativePath = npath.join('configs', 'convert_cam.py');
 
 function shellQuote(value: string): string {
   if (process.platform === 'win32') {
@@ -25,7 +25,7 @@ function shellQuote(value: string): string {
 }
 
 /**
- * Run VIAME's convert_cam_format.py to convert a calibration file to the
+ * Run VIAME's convert_cam.py to convert a calibration file to the
  * KWIVER-compatible JSON camera-rig format.
  * @returns true if the JSON file was produced, false if conversion was
  *   unavailable (e.g. VIAME not configured) or failed.
@@ -107,7 +107,7 @@ async function prepareDatasetCalibration(
     return originalDest;
   }
   const base = npath.basename(originalDest, npath.extname(originalDest));
-  // convert_cam_format.py detects the input format by extension, so a binary
+  // convert_cam.py detects the input format by extension, so a binary
   // file mislabeled ".json" must be given its true extension first.
   let convertSource = originalDest;
   if (ext === '.json' && await looksLikeZip(originalDest)) {
