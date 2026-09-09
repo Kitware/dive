@@ -809,6 +809,7 @@ export default defineComponent({
     <div
       v-if="hasSequence && !editing"
       class="cell-badge cell-sequence cell-sequence-controls text-caption"
+      :class="{ 'cell-sequence-bottom': label }"
       @click.stop
       @dblclick.stop
       @contextmenu.stop.prevent
@@ -858,7 +859,7 @@ export default defineComponent({
       </v-icon>
     </div>
     <div
-      v-if="pending && !editing"
+      v-if="pending && !editing && !label"
       class="cell-badge cell-pending-badge text-caption"
       title="Changed; not saved yet"
     >
@@ -1124,6 +1125,14 @@ export default defineComponent({
   pointer-events: auto;
   padding: 0 2px;
   gap: 1px;
+}
+
+// Narrow camera chips: keep the frame controls clear of the camera label
+.cell-sequence-bottom {
+  top: auto;
+  right: auto;
+  bottom: 3px;
+  left: 3px;
 }
 
 .sequence-button {
