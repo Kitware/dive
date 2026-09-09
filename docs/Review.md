@@ -37,11 +37,15 @@ The **Results** panel opens by default and shows the annotations that match the 
 * the dataset name (when more than one is loaded), track id, and frame or frame count;
 * any polygon outline and head/tail points the detection carries, drawn over the chip.
 
-Hover an entry for three actions (they grow under the mouse): **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
+Hover an entry for its actions (they grow under the mouse): **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **delete** (a red X; the annotation is removed on the next save), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
 
 Tracks cycle through their sampled frames at the dataset's real-time rate (sparser samples wait proportionally longer, so a loop lasts about as long as the track does). The arrows in the filmstrip badge step through them by hand, which pauses the cycling on that frame until the play button resumes it; starting an edit pauses it too.
 
 The type field and caption grow a little as the grid shows fewer entries, so a 3 by 3 grid is comfortably readable while a dense grid stays compact.
+
+### Stereo and multi-camera datasets
+
+Each camera of a multi-camera (or stereo) dataset is loaded as its own sequence, but a track that appears in several cameras is one entry, showing a chip per camera side by side with the camera named on it. The chips show the same frames on every side. Where one camera has no detection on a frame the track has elsewhere, that side is still cropped at a position interpolated from its own neighbouring boxes and shows **no box**; its **add box** action creates a detection there, at the interpolated position, ready to be adjusted. The type field applies to the track in every camera, and opening the viewer opens the whole rig.
 
 ### Editing boxes, polygons and points in place
 

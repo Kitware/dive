@@ -11,13 +11,13 @@ import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { cellScaleFor } from 'dive-common/review/gridSettings';
 import { cycleIntervalFor } from 'dive-common/review/reviewItems';
-import { ReviewItem, ReviewSortOrder } from 'dive-common/review/types';
+import { ReviewEntry, ReviewSortOrder } from 'dive-common/review/types';
 import type { ViewerFocus } from 'dive-common/review/viewerNavigation';
 import UserSettingsDialog from 'dive-common/components/UserSettingsDialog.vue';
 import ReviewDatasetsPanel from './ReviewDatasetsPanel.vue';
 import ReviewGrid from './ReviewGrid.vue';
 import ReviewGridControls from './ReviewGridControls.vue';
-import ReviewCell, { ReviewCellGeometryEdit } from './ReviewCell.vue';
+import ReviewCell, { ReviewCellGeometryEdit, ReviewCellView } from './ReviewCell.vue';
 
 const TYPE_LIST_ID = 'reviewTypeOptions';
 
@@ -81,8 +81,9 @@ export default defineComponent({
     const gridActive = computed(() => view.value === 'results');
     const cellScale = computed(() => cellScaleFor(review.grid.columns, review.grid.rows));
     const footerPx = computed(() => Math.round(CELL_FOOTER_BASE_PX * cellScale.value));
-    const grid = useReviewGrid({
-      items: review.items,
+    const grid = useReviewGrid<ReviewEntry>({
+      items: review.entries,
+      chipItemsOf: (entry) => entry.items,
       grid: review.grid,
       chipStore: review.chipStore,
       active: gridActive,
@@ -97,27 +98,42 @@ export default defineComponent({
     /** Per-cell display data; carries dataRevision so edits re-render. */
     const cells = computed(() => {
       const revision = review.dataRevision.value;
-      return grid.pageItems.value.map((item) => {
+      const { chipStore } = review;
+      return grid.pageItems.value.map((entry) => {
+        const [item] = entry.items;
         const current = review.currentType(item);
         const attribute = item.matchedAttribute;
         const attributeText = attribute
           ? `${attribute.key}${attribute.value === true ? '' : ` = ${String(attribute.value)}`}`
           : '';
         const fps = review.datasetFps(item.datasetId);
+        const parent = review.parentOf(item.datasetId);
         const subtitleBits = [];
-        if (showDatasetNames.value) subtitleBits.push(review.datasetName(item.datasetId));
+        if (showDatasetNames.value) subtitleBits.push(review.datasetName(parent));
         subtitleBits.push(`#${item.trackId}`);
         subtitleBits.push(item.frames.length > 1 ? `${item.keyframeCount} frames` : `frame ${item.primary.frame}`);
+        const views: ReviewCellView[] = entry.items.map((view, index) => ({
+          key: view.key,
+          src: chipStore.chips.value[view.key] || null,
+          srcs: chipStore.sequences.value[view.key] || null,
+          transform: chipStore.transforms.value[view.key] || null,
+          transforms: chipStore.sequenceTransforms.value[view.key] || null,
+          frames: view.frames,
+          failure: chipStore.failures.value[view.key] || null,
+          frameCount: view.keyframeCount,
+          label: entry.labels[index],
+        }));
         return {
+          entry,
           item,
           revision,
+          views,
           type: current.type,
           confidence: current.confidence,
-          pending: review.isPending(item),
-          title: `${review.datasetName(item.datasetId)} · track ${item.trackId} · frame ${item.primary.frame}`,
+          pending: entry.items.some((view) => review.isPending(view)),
+          title: `${review.datasetName(parent)} · track ${item.trackId} · frame ${item.primary.frame}`,
           subtitle: subtitleBits.join(' · '),
           attributeText,
-          frames: item.frames,
           cycleIntervalMs: cycleIntervalFor(item.frames, fps, review.grid.cycleIntervalMs),
         };
       });
@@ -129,7 +145,7 @@ export default defineComponent({
     ]);
 
     const countLabel = computed(() => {
-      const count = review.items.value.length;
+      const count = review.entries.value.length;
       return `${count} entr${count === 1 ? 'y' : 'ies'}`;
     });
 
@@ -137,13 +153,17 @@ export default defineComponent({
       view.value = next;
     }
 
-    /** Open the viewer on the frame the cell is showing (its first frame otherwise). */
-    function openItem(item: ReviewItem, frame?: number) {
+    /** Open the viewer on the frame the chip is showing (its first frame otherwise). */
+    function openItem(entry: ReviewEntry, frame?: number, viewIndex = 0) {
+      const item = entry.items[viewIndex] ?? entry.items[0];
       const focus: ViewerFocus = { frame: frame ?? item.primary.frame, trackId: item.trackId };
-      emit('open-viewer', item.datasetId, focus);
+      // A camera of a rig opens as the rig, which shows every camera.
+      emit('open-viewer', review.parentOf(item.datasetId), focus);
     }
 
-    function applyGeometry(item: ReviewItem, edit: ReviewCellGeometryEdit) {
+    function applyGeometry(entry: ReviewEntry, edit: ReviewCellGeometryEdit, viewIndex = 0) {
+      const item = entry.items[viewIndex];
+      if (!item) return;
       review.updateGeometry(item, edit.frame, {
         bounds: edit.bounds,
         polygons: edit.polygons,
@@ -153,6 +173,26 @@ export default defineComponent({
       grid.ensureVisible();
     }
 
+    function addBox(entry: ReviewEntry, added: { frame: number; bounds: [number, number, number, number] }, viewIndex = 0) {
+      const item = entry.items[viewIndex];
+      if (!item) return;
+      review.addKeyframe(item, added.frame, added.bounds);
+      grid.ensureVisible();
+    }
+
+    /** Type edits apply to the track in every camera of the entry. */
+    function assignEntryType(entry: ReviewEntry, type: string) {
+      entry.items.forEach((item) => review.assignType(item, type));
+    }
+
+    function acceptEntry(entry: ReviewEntry) {
+      entry.items.forEach((item) => review.acceptType(item));
+    }
+
+    function deleteEntry(entry: ReviewEntry) {
+      entry.items.forEach((item) => review.deleteTrack(item));
+    }
+
     function openDataset(datasetId: string) {
       emit('open-viewer', datasetId, {});
     }
@@ -160,11 +200,11 @@ export default defineComponent({
     function applyTypeToPage() {
       const type = pageTypeInput.value.trim();
       if (!type) return;
-      grid.pageItems.value.forEach((item) => review.assignType(item, type));
+      grid.pageItems.value.forEach((entry) => assignEntryType(entry, type));
     }
 
     function acceptPage() {
-      grid.pageItems.value.forEach((item) => review.acceptType(item));
+      grid.pageItems.value.forEach((entry) => acceptEntry(entry));
     }
 
     async function discard() {
@@ -273,6 +313,10 @@ export default defineComponent({
       openItem,
       openDataset,
       applyGeometry,
+      addBox,
+      assignEntryType,
+      acceptEntry,
+      deleteEntry,
       applyTypeToPage,
       acceptPage,
       discard,
@@ -623,13 +667,8 @@ export default defineComponent({
         >
           <ReviewCell
             v-for="cell in cells"
-            :key="cell.item.key"
-            :src="review.chipStore.chips.value[cell.item.key] || null"
-            :srcs="review.chipStore.sequences.value[cell.item.key] || null"
-            :transform="review.chipStore.transforms.value[cell.item.key] || null"
-            :transforms="review.chipStore.sequenceTransforms.value[cell.item.key] || null"
-            :frames="cell.frames"
-            :failure="review.chipStore.failures.value[cell.item.key] || null"
+            :key="cell.entry.key"
+            :views="cell.views"
             :animate="true"
             :cycle-interval-ms="cell.cycleIntervalMs"
             :scale="cellScale"
@@ -640,12 +679,13 @@ export default defineComponent({
             :title="cell.title"
             :subtitle="cell.subtitle"
             :attribute-text="cell.attributeText"
-            :frame-count="cell.item.keyframeCount"
             :type-list-id="typeListId"
-            @assign="review.assignType(cell.item, $event)"
-            @accept="review.acceptType(cell.item)"
-            @open="openItem(cell.item, $event)"
-            @edit-geometry="applyGeometry(cell.item, $event)"
+            @assign="assignEntryType(cell.entry, $event)"
+            @accept="acceptEntry(cell.entry)"
+            @delete="deleteEntry(cell.entry)"
+            @open="(frame, index) => openItem(cell.entry, frame, index)"
+            @edit-geometry="(edit, index) => applyGeometry(cell.entry, edit, index)"
+            @add-box="(added, index) => addBox(cell.entry, added, index)"
           />
         </ReviewGrid>
       </template>

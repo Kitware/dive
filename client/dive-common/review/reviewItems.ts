@@ -6,8 +6,9 @@ import type { TrackData, Feature } from 'vue-media-annotator/track';
 import type { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { compareTypeNames } from 'dive-common/typeHierarchy';
+import type { RectBounds } from 'vue-media-annotator/utils';
 import type {
-  ReviewFrameGeometry, ReviewFrameRef, ReviewItem, ReviewPolygon, ReviewQuery, ReviewSortOrder,
+  ReviewEntry, ReviewFrameGeometry, ReviewFrameRef, ReviewItem, ReviewPolygon, ReviewQuery, ReviewSortOrder,
 } from './types';
 
 function isPoint(value: unknown): value is [number, number] {
@@ -245,6 +246,116 @@ export function sortReviewItems(
       sorted.sort((a, b) => byDataset(a, b) || a.trackId - b.trackId);
   }
   return sorted;
+}
+
+/** Which multicamera parent and camera a dataset id belongs to, if any. */
+export interface CameraMembership {
+  parent: string;
+  camera: string;
+  /** Position of the camera in the rig's display order. */
+  rank: number;
+}
+
+/**
+ * Box a track would have on `frame` in one camera, interpolated between
+ * its nearest keyframes with boxes (held at the ends), or null when the
+ * track has no boxes there at all.
+ */
+export function interpolateBounds(track: TrackData, frame: number): RectBounds | null {
+  const features = boxedFeatures(track);
+  if (features.length === 0) return null;
+  const exact = features.find((f) => f.frame === frame);
+  if (exact?.bounds) return exact.bounds;
+  const before = [...features].reverse().find((f) => f.frame < frame);
+  const after = features.find((f) => f.frame > frame);
+  if (before?.bounds && after?.bounds) {
+    const t = (frame - before.frame) / (after.frame - before.frame);
+    return before.bounds.map((v, i) => v + ((after.bounds as RectBounds)[i] - v) * t) as RectBounds;
+  }
+  return (before?.bounds ?? after?.bounds) ?? null;
+}
+
+/**
+ * Give the items of a multicamera entry the same frames: the union of their
+ * keyframes sampled once, with a camera that lacks a detection on a frame
+ * getting an interpolated, box-less reference there.
+ */
+export function alignCameraFrames(
+  items: ReviewItem[],
+  trackOf: (item: ReviewItem) => TrackData | undefined,
+  maxSequenceFrames: number,
+): ReviewItem[] {
+  if (items.length < 2) return items;
+  const byFrame = new Map<number, Feature>();
+  items.forEach((item) => {
+    const track = trackOf(item);
+    if (!track) return;
+    boxedFeatures(track).forEach((feature) => {
+      if (!byFrame.has(feature.frame)) byFrame.set(feature.frame, feature);
+    });
+  });
+  const union = Array.from(byFrame.values()).sort((a, b) => a.frame - b.frame);
+  // Detection matches keep their own frame first so the query hit stays visible.
+  const sampled = sampleFrames(union, maxSequenceFrames).map((ref) => ref.frame);
+  const anchor = items.find((item) => item.key.includes('@'))?.primary.frame;
+  if (anchor !== undefined && !sampled.includes(anchor)) sampled.unshift(anchor);
+
+  return items.map((item) => {
+    const track = trackOf(item);
+    if (!track) return item;
+    const frames: ReviewFrameRef[] = [];
+    sampled.forEach((frame) => {
+      const feature = track.features.find((f) => f.frame === frame && f.bounds);
+      if (feature) {
+        const ref = frameRefFor(feature);
+        if (ref) frames.push(ref);
+        return;
+      }
+      const bounds = interpolateBounds(track, frame);
+      if (bounds) frames.push({ frame, bounds, missing: true });
+    });
+    if (frames.length === 0) return item;
+    return {
+      ...item, primary: frames[0], frames, keyframeCount: boxedFeatures(track).length,
+    };
+  });
+}
+
+/**
+ * Group items into grid entries: one per track, holding an item per camera
+ * the track appears in (in rig order) for multicamera datasets.
+ */
+export function groupReviewItems(
+  items: readonly ReviewItem[],
+  membershipOf: (datasetId: string) => CameraMembership | undefined,
+  trackOf: (item: ReviewItem) => TrackData | undefined,
+  maxSequenceFrames: number,
+): ReviewEntry[] {
+  const entries: ReviewEntry[] = [];
+  const byKey = new Map<string, { items: ReviewItem[]; ranks: number[]; labels: string[] }>();
+  items.forEach((item) => {
+    const membership = membershipOf(item.datasetId);
+    if (!membership) {
+      entries.push({ key: item.key, items: [item], labels: [''] });
+      return;
+    }
+    const key = item.key.replace(item.datasetId, membership.parent);
+    let group = byKey.get(key);
+    if (!group) {
+      group = { items: [], ranks: [], labels: [] };
+      byKey.set(key, group);
+      entries.push({ key, items: group.items, labels: group.labels });
+    }
+    // Keep cameras in rig order whatever order the items arrived in.
+    let at = group.ranks.findIndex((rank) => rank > membership.rank);
+    if (at < 0) at = group.ranks.length;
+    group.items.splice(at, 0, item);
+    group.ranks.splice(at, 0, membership.rank);
+    group.labels.splice(at, 0, membership.camera);
+  });
+  return entries.map((entry) => (entry.items.length > 1
+    ? { ...entry, items: alignCameraFrames(entry.items, trackOf, maxSequenceFrames) }
+    : entry));
 }
 
 /** Every type named by any confidence pair, in type order. */
