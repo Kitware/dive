@@ -1,0 +1,6 @@
+/* Equal tab widths so the icon spacing does not follow the label length. */
+.desktop-nav-tabs .v-tab {
+  min-width: 116px;
+  max-width: 116px;
+  padding: 0 8px;
+}
