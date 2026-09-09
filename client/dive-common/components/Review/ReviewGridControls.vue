@@ -142,7 +142,12 @@ export default defineComponent({
 
 .grid-number {
   max-width: 66px;
-  font-size: 14px;
+  font-size: 0.75rem;
+
+  ::v-deep input {
+    font-size: 0.75rem;
+    font-weight: 500;
+  }
 }
 
 .padding-slider {

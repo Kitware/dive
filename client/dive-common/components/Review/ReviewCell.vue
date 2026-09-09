@@ -109,6 +109,7 @@ export default defineComponent({
       type: String,
       default: 'reviewTypeOptions',
     },
+    /** Accessible name for the entry (not shown as a tooltip). */
     title: {
       type: String,
       default: '',
@@ -167,6 +168,10 @@ export default defineComponent({
     const paused = ref(false);
     /** Handle being dragged, drawn highlighted like the annotator's selected handle. */
     const activeHandle = ref<string | null>(null);
+    /** Zoom into the chip while editing: scale about the wrap's origin plus a pan. */
+    const view = ref({ scale: 1, x: 0, y: 0 });
+    const wrap = ref<HTMLElement | null>(null);
+    let pan: { startX: number; startY: number; originX: number; originY: number; pointerId: number } | null = null;
     let timer: number | null = null;
     let drag: { target: DragTarget; startImage: [number, number]; startDraft: GeometryDraft } | null = null;
 
@@ -292,12 +297,15 @@ export default defineComponent({
       };
     });
 
+    /** The box is always drawn over the chip, so edits show without re-cropping. */
     const overlayVisible = computed(() => (
       Boolean(displayTransform.value) && Boolean(shownGeometry.value)
-        && (editing.value || (props.showGeometry && (
-          (shownGeometry.value?.polygons.length ?? 0) > 0
-            || Boolean(shownGeometry.value?.head) || Boolean(shownGeometry.value?.tail))))
     ));
+
+    const viewStyle = computed(() => ({
+      transform: `translate(${view.value.x}px, ${view.value.y}px) scale(${view.value.scale})`,
+      transformOrigin: '0 0',
+    }));
 
     const viewBox = computed(() => {
       const t = displayTransform.value;
@@ -391,8 +399,70 @@ export default defineComponent({
       if (!props.editable || !displayTransform.value || !shownGeometry.value || editing.value) return;
       draft.value = cloneDraft(shownGeometry.value);
       editing.value = true;
+      // Editing pins the frame; cycling stays paused afterwards until resumed.
+      paused.value = true;
       emit('edit-start');
       requestAnimationFrame(() => overlay.value?.focus());
+    }
+
+    // ---- zoom and pan while editing --------------------------------------
+
+    const MIN_ZOOM = 1;
+    const MAX_ZOOM = 16;
+
+    /** Wheel zooms about the cursor, like the annotator's map. */
+    function onWheel(event: WheelEvent) {
+      if (!editing.value || !wrap.value) return;
+      event.preventDefault();
+      event.stopPropagation();
+      const rect = wrap.value.getBoundingClientRect();
+      const px = event.clientX - rect.left;
+      const py = event.clientY - rect.top;
+      const current = view.value;
+      const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current.scale * Math.exp(-event.deltaY * 0.0015)));
+      if (next === current.scale) return;
+      if (next <= MIN_ZOOM) {
+        view.value = { scale: 1, x: 0, y: 0 };
+        return;
+      }
+      const ratio = next / current.scale;
+      view.value = {
+        scale: next,
+        x: px - (px - current.x) * ratio,
+        y: py - (py - current.y) * ratio,
+      };
+    }
+
+    /** Drag on empty overlay space pans the zoomed view. */
+    function startPan(event: PointerEvent) {
+      if (!editing.value || event.button !== 0 || view.value.scale <= MIN_ZOOM) return;
+      pan = {
+        startX: event.clientX,
+        startY: event.clientY,
+        originX: view.value.x,
+        originY: view.value.y,
+        pointerId: event.pointerId,
+      };
+      overlay.value?.setPointerCapture(event.pointerId);
+    }
+
+    function onPanMove(event: PointerEvent) {
+      if (!pan) return;
+      view.value = {
+        scale: view.value.scale,
+        x: pan.originX + (event.clientX - pan.startX),
+        y: pan.originY + (event.clientY - pan.startY),
+      };
+    }
+
+    function endPan(event: PointerEvent) {
+      if (!pan) return;
+      pan = null;
+      try {
+        overlay.value?.releasePointerCapture(event.pointerId);
+      } catch {
+        // Capture may already be gone.
+      }
     }
 
     function cancelEdit() {
@@ -466,6 +536,10 @@ export default defineComponent({
     }
 
     function onPointerMove(event: PointerEvent) {
+      if (pan) {
+        onPanMove(event);
+        return;
+      }
       if (!drag || !draft.value) return;
       const current = imagePointFromEvent(event);
       if (!current) return;
@@ -489,6 +563,10 @@ export default defineComponent({
     }
 
     function endDrag(event: PointerEvent) {
+      if (pan) {
+        endPan(event);
+        return;
+      }
       if (!drag) return;
       drag = null;
       activeHandle.value = null;
@@ -563,6 +641,10 @@ export default defineComponent({
       handleFill,
       handleOpacity,
       activeHandle,
+      wrap,
+      viewStyle,
+      onWheel,
+      startPan,
     };
   },
 });
@@ -580,15 +662,18 @@ export default defineComponent({
     :style="{ '--cell-scale': scale }"
   >
     <div
+      ref="wrap"
       class="cell-image-wrap"
-      :title="editing ? '' : title"
+      :aria-label="title"
       @dblclick="onImageDoubleClick"
       @contextmenu="onContextMenu"
+      @wheel="onWheel"
     >
       <img
         v-if="displaySrc"
         :src="displaySrc"
         class="cell-image"
+        :style="viewStyle"
         draggable="false"
       >
       <div
@@ -618,13 +703,25 @@ export default defineComponent({
         class="cell-image cell-overlay"
         :class="{ 'overlay-editing': editing }"
         :viewBox="viewBox"
+        :style="viewStyle"
         preserveAspectRatio="xMidYMid meet"
         tabindex="-1"
         @keydown="onOverlayKeydown"
+        @pointerdown="startPan"
         @pointermove="onPointerMove"
         @pointerup="endDrag"
         @pointercancel="endDrag"
       >
+        <rect
+          v-if="!editing && boxRect"
+          :x="boxRect.x"
+          :y="boxRect.y"
+          :width="boxRect.width"
+          :height="boxRect.height"
+          class="overlay-box-static"
+          :stroke="color"
+          :stroke-width="unit * 1.5"
+        />
         <polygon
           v-for="(points, index) in polygonPoints"
           :key="`poly-${index}`"
@@ -777,7 +874,7 @@ export default defineComponent({
         @contextmenu.stop.prevent
       >
         <span class="text-caption edit-hint">
-          Frame {{ currentFrame ? currentFrame.frame : '' }}: drag to adjust, right click to keep
+          Frame {{ currentFrame ? currentFrame.frame : '' }}: drag to adjust, wheel to zoom, right click to keep
         </span>
         <v-btn
           x-small
@@ -812,14 +909,13 @@ export default defineComponent({
             <template #activator="{ on }">
               <v-btn
                 icon
-                x-small
+                small
                 class="cell-action"
                 :disabled="!editable || !type"
                 v-on="on"
                 @click.stop="$emit('accept')"
               >
                 <v-icon
-                  small
                   :color="confidence !== null && confidence >= 1 ? 'success' : 'grey lighten-1'"
                 >
                   mdi-check-circle-outline
@@ -835,16 +931,13 @@ export default defineComponent({
             <template #activator="{ on }">
               <v-btn
                 icon
-                x-small
+                small
                 class="cell-action"
                 :disabled="!editable"
                 v-on="on"
                 @click.stop="beginEdit($event)"
               >
-                <v-icon
-                  small
-                  color="grey lighten-1"
-                >
+                <v-icon color="grey lighten-1">
                   mdi-vector-square-edit
                 </v-icon>
               </v-btn>
@@ -858,15 +951,12 @@ export default defineComponent({
             <template #activator="{ on }">
               <v-btn
                 icon
-                x-small
+                small
                 class="cell-action"
                 v-on="on"
                 @click.stop="$emit('open', currentFrame ? currentFrame.frame : undefined)"
               >
-                <v-icon
-                  small
-                  color="grey lighten-1"
-                >
+                <v-icon color="grey lighten-1">
                   mdi-open-in-new
                 </v-icon>
               </v-btn>
@@ -995,6 +1085,10 @@ export default defineComponent({
   cursor: move;
 }
 
+.overlay-box-static {
+  fill: none;
+}
+
 .overlay-vertex {
   cursor: grab;
 }
@@ -1103,6 +1197,14 @@ export default defineComponent({
 
 .cell-image-wrap:hover .cell-actions {
   opacity: 1;
+}
+
+.cell-action {
+  transition: transform 100ms;
+
+  &:hover {
+    transform: scale(1.25);
+  }
 }
 
 .cell-footer {

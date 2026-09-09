@@ -73,6 +73,19 @@ export function sampleFrames(features: Feature[], max: number): ReviewFrameRef[]
   return chosen;
 }
 
+/**
+ * Milliseconds between the sampled frames of a track so that cycling
+ * through them plays at the dataset's real-time rate: consecutive frames
+ * advance every 1/fps seconds, and sparser samples wait proportionally
+ * longer. Clamped so a loop is neither a strobe nor a slideshow.
+ */
+export function cycleIntervalFor(frames: readonly ReviewFrameRef[], fps: number, fallbackMs: number): number {
+  if (frames.length < 2 || !(fps > 0)) return fallbackMs;
+  const span = frames[frames.length - 1].frame - frames[0].frame;
+  const stride = Math.max(1, span / (frames.length - 1));
+  return Math.min(2000, Math.max(33, Math.round((stride / fps) * 1000)));
+}
+
 /** The pair a type query matches on, or null when the track does not qualify. */
 export function matchTypePair(
   pairs: readonly (readonly [string, number])[],
