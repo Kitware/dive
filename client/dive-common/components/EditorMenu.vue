@@ -459,15 +459,18 @@ export default defineComponent({
           <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
-              :disabled="!editingMode || activeEditButton?.loading"
+              :disabled="!!activeEditButton?.loading"
               :loading="!!activeEditButton?.loading"
               :color="activeEditButton?.active ? editingHeader.color : ''"
               class="mx-1 mode-button toolbar-group-activator"
               small
-              v-on="on"
+              v-on="editingMode ? on : {}"
             >
-              <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-              <v-icon>
+              <pre
+                v-if="activeEditButton?.mousetrap"
+                :class="{ 'edit-btn-unavailable': !editingMode }"
+              >{{ activeEditButton.mousetrap[0].bind }}:</pre>
+              <v-icon :class="{ 'edit-btn-unavailable': !editingMode }">
                 {{ activeEditButton?.icon }}
               </v-icon>
               <toolbar-expand-toggle
