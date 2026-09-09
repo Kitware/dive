@@ -27,6 +27,8 @@ export interface ChipStoreDeps {
    * May resolve lazily (e.g. loading the dataset's config on first use).
    */
   frameSourceFor(datasetId: string): FrameSource | null | Promise<FrameSource | null>;
+  /** Why a dataset cannot be cropped, when known. */
+  frameSourceIssue?(datasetId: string): string | null;
   concurrency?: number;
 }
 
@@ -82,7 +84,9 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
 
   async function render(job: ChipJob): Promise<RenderedChip> {
     const source = await deps.frameSourceFor(job.item.datasetId);
-    if (!source) throw new Error('Media for this dataset cannot be cropped');
+    if (!source) {
+      throw new Error(deps.frameSourceIssue?.(job.item.datasetId) || 'Media for this dataset cannot be cropped');
+    }
     const frameRef = job.slot === null ? job.item.primary : job.item.frames[job.slot];
     const frame = await source.getFrame(frameRef.frame);
     return renderChip(frame, frameRef.bounds, options);

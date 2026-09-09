@@ -883,6 +883,12 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
   return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
+/** Frame of an untranscoded video, extracted on demand by the backend. */
+async function nativeVideoFrameUrl(videoPath: string, frame: number, fps: number) {
+  await getClient();
+  return `${_baseURL}/frame?path=${encodeURIComponent(videoPath)}&frame=${frame}&fps=${fps}`;
+}
+
 async function loadConfig(id: string) {
   const client = await getClient();
   const { data } = await client.get<DesktopConfig>(`dataset/${id}/meta`);
@@ -1008,6 +1014,7 @@ export {
   /* Standard Specification APIs */
   loadConfig,
   peekConfig,
+  nativeVideoFrameUrl,
   loadDetections,
   loadFrameMetadata,
   getPipelineList,

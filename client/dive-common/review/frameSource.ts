@@ -23,6 +23,11 @@ export interface FrameSource {
 export interface FrameSourceOptions {
   /** Decoded frames kept per dataset. */
   cacheSize?: number;
+  /**
+   * Frame image URL for a natively played video (no media URL, only a path
+   * the platform extracts frames from on demand).
+   */
+  nativeFrameUrl?: (videoPath: string, frame: number, fps: number) => Promise<string>;
 }
 
 const DefaultCacheSize = 24;
@@ -222,6 +227,17 @@ export function createFrameSource(config: DatasetConfig, options: FrameSourceOpt
   if (config.type === 'video') {
     if (config.videoUrl) {
       return videoFrameSource(config, cacheSize);
+    }
+    const nativePath = (config as { nativeVideoPath?: string }).nativeVideoPath;
+    if (nativePath && options.nativeFrameUrl) {
+      // Frames are numbered at the rate the video plays natively, as the
+      // annotator requests them.
+      const fps = config.originalFps || config.fps;
+      const { nativeFrameUrl } = options;
+      return imageFrameSource((frame) => nativeFrameUrl(nativePath, frame, fps), null, cacheSize);
+    }
+    if (nativePath) {
+      throw new Error('This platform cannot extract frames from an untranscoded video');
     }
     throw new Error('This video has no playable media');
   }

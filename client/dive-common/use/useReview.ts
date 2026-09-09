@@ -44,7 +44,7 @@ export interface ReviewGeometryEdit {
 }
 
 export type ReviewApi = Pick<Api,
-  'loadConfig' | 'peekConfig' | 'loadDetections' | 'saveDetections'
+  'loadConfig' | 'peekConfig' | 'nativeVideoFrameUrl' | 'loadDetections' | 'saveDetections'
   | 'listScoringDatasets' | 'pickScoringDataset'>;
 
 export interface ReviewServiceDeps {
@@ -120,6 +120,8 @@ interface LoadedDataset {
   tracks: Map<AnnotationId, TrackData>;
   hierarchy: TypeHierarchyIndex;
   frameSource: FrameSource | null;
+  /** Why the media cannot be cropped, when it cannot. */
+  frameSourceIssue: string | null;
   pending: Set<AnnotationId>;
   /** Tracks removed here and not yet deleted on the platform. */
   deleted: Set<AnnotationId>;
@@ -230,6 +232,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
   const chipStore = createChipStore({
     frameSourceFor: (datasetId) => loaded.get(datasetId)?.frameSource ?? null,
+    frameSourceIssue: (datasetId) => loaded.get(datasetId)?.frameSourceIssue ?? null,
   }, {
     padding: grid.padding, size: 256, aspect: 1, outline: CHIP_OUTLINE,
   });
@@ -266,11 +269,11 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     return api.peekConfig ? api.peekConfig(id) : api.loadConfig(id);
   }
 
-  function frameSourceFor(config: DatasetConfig): FrameSource | null {
+  function frameSourceFor(config: DatasetConfig): { source: FrameSource | null; issue: string | null } {
     try {
-      return createFrameSource(config);
-    } catch {
-      return null;
+      return { source: createFrameSource(config, { nativeFrameUrl: api.nativeVideoFrameUrl }), issue: null };
+    } catch (err) {
+      return { source: null, issue: err instanceof Error ? err.message : String(err) };
     }
   }
 
@@ -303,7 +306,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       dropLoaded(id);
       const tracks = new Map<AnnotationId, TrackData>();
       detections.tracks.forEach((track) => tracks.set(track.id, track));
-      const frameSource = frameSourceFor(config);
+      const { source: frameSource, issue: frameSourceIssue } = frameSourceFor(config);
       if (config.customTypeStyling) {
         styles.populateTypeStyles({ ...styles.customStyles.value, ...config.customTypeStyling });
       }
@@ -312,6 +315,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         tracks,
         hierarchy: compileHierarchy(config.typeHierarchy || {}),
         frameSource,
+        frameSourceIssue,
         pending: new Set(),
         deleted: new Set(),
       });

@@ -72,7 +72,7 @@ The default grid is 5 columns by 4 rows. Set the columns and rows directly, or u
 
 Use the arrow keys, Page Up / Page Down, Home and End to page through the results. Paging quickly only loads the page you stop on; pages passed over are skipped.
 
-Chips are rendered at the resolution of the cell they fill. A box a few pixels across still has only a few pixels of image behind it, but it is resampled once at full cell size rather than being stretched by the browser, so small objects come out as sharp as the source allows.
+Videos are read through a hidden player, or, for videos imported for native playback without transcoding, through the desktop's frame extractor. Chips are rendered at the resolution of the cell they fill. A box a few pixels across still has only a few pixels of image behind it, but it is resampled once at full cell size rather than being stretched by the browser, so small objects come out as sharp as the source allows.
 
 ### Editing types
 

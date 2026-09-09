@@ -501,6 +501,11 @@ interface Api {
    * Review. Callers fall back to loadConfig when absent.
    */
   peekConfig?(datasetId: string): Promise<DatasetConfig>;
+  /**
+   * URL of one frame of a natively played (untranscoded) video, for
+   * platforms that extract frames on demand instead of serving the video.
+   */
+  nativeVideoFrameUrl?(videoPath: string, frame: number, fps: number): Promise<string>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
   loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
