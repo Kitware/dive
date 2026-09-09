@@ -103,7 +103,6 @@ export default defineComponent({
       :max="limits.padding[1]"
       step="0.05"
       hide-details
-      dense
       class="padding-slider mr-3"
       @input="$emit('set-padding', Number($event))"
     />
@@ -142,12 +141,12 @@ export default defineComponent({
 }
 
 .grid-number {
-  max-width: 62px;
-  font-size: 13px;
+  max-width: 66px;
+  font-size: 14px;
 }
 
 .padding-slider {
-  min-width: 110px;
-  max-width: 180px;
+  min-width: 170px;
+  max-width: 260px;
 }
 </style>

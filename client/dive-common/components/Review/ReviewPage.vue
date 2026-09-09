@@ -7,14 +7,20 @@ import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
+import { cellScaleFor } from 'dive-common/review/gridSettings';
 import { ReviewItem, ReviewSortOrder } from 'dive-common/review/types';
 import type { ViewerFocus } from 'dive-common/review/viewerNavigation';
 import ReviewDatasetsPanel from './ReviewDatasetsPanel.vue';
 import ReviewGrid from './ReviewGrid.vue';
 import ReviewGridControls from './ReviewGridControls.vue';
-import ReviewCell from './ReviewCell.vue';
+import ReviewCell, { ReviewCellGeometryEdit } from './ReviewCell.vue';
 
 const TYPE_LIST_ID = 'reviewTypeOptions';
+
+/** Base footer height of a cell at scale 1 (type field plus caption). */
+const CELL_FOOTER_BASE_PX = 52;
+
+type ReviewView = 'results' | 'datasets';
 
 const SORT_OPTIONS: { value: ReviewSortOrder; text: string }[] = [
   { value: 'dataset', text: 'Dataset, track id' },
@@ -52,14 +58,17 @@ export default defineComponent({
     provideReview(review);
     const { prompt } = usePrompt();
 
-    const view = ref<'datasets' | 'grid'>('datasets');
+    const view = ref<ReviewView>('results');
     const pageTypeInput = ref('');
-    const gridActive = computed(() => view.value === 'grid');
+    const gridActive = computed(() => view.value === 'results');
+    const cellScale = computed(() => cellScaleFor(review.grid.columns, review.grid.rows));
+    const footerPx = computed(() => Math.round(CELL_FOOTER_BASE_PX * cellScale.value));
     const grid = useReviewGrid({
       items: review.items,
       grid: review.grid,
       chipStore: review.chipStore,
       active: gridActive,
+      footerPx,
     });
 
     const showDatasetNames = computed(() => review.datasets.value.length > 1);
@@ -87,6 +96,7 @@ export default defineComponent({
           title: `${review.datasetName(item.datasetId)} · track ${item.trackId} · frame ${item.primary.frame}`,
           subtitle: subtitleBits.join(' · '),
           attributeText,
+          frames: item.frames,
         };
       });
     });
@@ -104,19 +114,30 @@ export default defineComponent({
 
     function show() {
       review.runQuery();
-      view.value = 'grid';
+      view.value = 'results';
     }
 
-    function setView(next: 'datasets' | 'grid') {
-      if (next === 'grid' && review.stale.value) {
+    function setView(next: ReviewView) {
+      if (next === 'results' && review.stale.value) {
         review.runQuery();
       }
       view.value = next;
     }
 
-    function openItem(item: ReviewItem) {
-      const focus: ViewerFocus = { frame: item.primary.frame, trackId: item.trackId };
+    /** Open the viewer on the frame the cell is showing (its first frame otherwise). */
+    function openItem(item: ReviewItem, frame?: number) {
+      const focus: ViewerFocus = { frame: frame ?? item.primary.frame, trackId: item.trackId };
       emit('open-viewer', item.datasetId, focus);
+    }
+
+    function applyGeometry(item: ReviewItem, edit: ReviewCellGeometryEdit) {
+      review.updateGeometry(item, edit.frame, {
+        bounds: edit.bounds ?? undefined,
+        polygons: edit.polygons,
+        head: edit.head,
+        tail: edit.tail,
+      });
+      grid.ensureVisible();
     }
 
     function openDataset(datasetId: string) {
@@ -204,6 +225,7 @@ export default defineComponent({
       view,
       grid,
       cells,
+      cellScale,
       typeItems,
       typeListId: TYPE_LIST_ID,
       sortOptions: SORT_OPTIONS,
@@ -215,6 +237,7 @@ export default defineComponent({
       setView,
       openItem,
       openDataset,
+      applyGeometry,
       applyTypeToPage,
       acceptPage,
       discard,
@@ -235,6 +258,18 @@ export default defineComponent({
       >
         <v-btn
           small
+          value="results"
+        >
+          <v-icon
+            small
+            left
+          >
+            mdi-view-grid
+          </v-icon>
+          Results
+        </v-btn>
+        <v-btn
+          small
           value="datasets"
         >
           <v-icon
@@ -246,22 +281,9 @@ export default defineComponent({
           Datasets
           <span class="ml-1 grey--text">({{ review.datasets.value.length }})</span>
         </v-btn>
-        <v-btn
-          small
-          value="grid"
-          :disabled="readyDatasets === 0"
-        >
-          <v-icon
-            small
-            left
-          >
-            mdi-view-grid
-          </v-icon>
-          Grid
-        </v-btn>
       </v-btn-toggle>
 
-      <template v-if="view === 'grid'">
+      <template v-if="view === 'results' && readyDatasets > 0">
         <v-btn-toggle
           :value="review.query.mode"
           mandatory
@@ -301,7 +323,6 @@ export default defineComponent({
               max="1"
               step="0.01"
               hide-details
-              dense
               class="threshold-slider"
               @input="review.query.threshold = Number($event)"
             />
@@ -404,7 +425,7 @@ export default defineComponent({
     </div>
 
     <ReviewGridControls
-      v-if="view === 'grid'"
+      v-if="view === 'results' && readyDatasets > 0"
       :grid="review.grid"
       :page="grid.page.value"
       :page-count="grid.pageCount.value"
@@ -507,7 +528,40 @@ export default defineComponent({
       />
       <template v-else>
         <div
-          v-if="review.items.value.length === 0"
+          v-if="readyDatasets === 0"
+          class="d-flex flex-column align-center justify-center fill-height grey--text"
+        >
+          <v-icon
+            large
+            color="grey darken-1"
+            class="mb-2"
+          >
+            mdi-database-outline
+          </v-icon>
+          <div v-if="review.loading.value">
+            Loading annotations…
+          </div>
+          <template v-else>
+            <div class="mb-3">
+              No datasets are selected. Select one or more on the Datasets panel.
+            </div>
+            <v-btn
+              small
+              outlined
+              @click="setView('datasets')"
+            >
+              <v-icon
+                small
+                left
+              >
+                mdi-database
+              </v-icon>
+              Datasets
+            </v-btn>
+          </template>
+        </div>
+        <div
+          v-else-if="review.items.value.length === 0"
           class="d-flex flex-column align-center justify-center fill-height grey--text"
         >
           <v-icon
@@ -542,9 +596,13 @@ export default defineComponent({
             :key="cell.item.key"
             :src="review.chipStore.chips.value[cell.item.key] || null"
             :srcs="review.chipStore.sequences.value[cell.item.key] || null"
+            :transform="review.chipStore.transforms.value[cell.item.key] || null"
+            :transforms="review.chipStore.sequenceTransforms.value[cell.item.key] || null"
+            :frames="cell.frames"
             :failure="review.chipStore.failures.value[cell.item.key] || null"
             :animate="true"
             :cycle-interval-ms="review.grid.cycleIntervalMs"
+            :scale="cellScale"
             :type="cell.type"
             :confidence="cell.confidence"
             :pending="cell.pending"
@@ -555,7 +613,8 @@ export default defineComponent({
             :type-list-id="typeListId"
             @assign="review.assignType(cell.item, $event)"
             @accept="review.acceptType(cell.item)"
-            @open="openItem(cell.item)"
+            @open="openItem(cell.item, $event)"
+            @edit-geometry="applyGeometry(cell.item, $event)"
           />
         </ReviewGrid>
       </template>
@@ -594,34 +653,34 @@ export default defineComponent({
 }
 
 .query-field {
-  max-width: 220px;
-  font-size: 13px;
+  max-width: 240px;
+  font-size: 14px;
 }
 
 .type-field {
-  max-width: 200px;
+  max-width: 220px;
 }
 
 .scope-field {
-  max-width: 190px;
+  max-width: 200px;
 }
 
 .threshold-field {
-  min-width: 260px;
+  min-width: 320px;
 }
 
 .threshold-slider {
-  min-width: 120px;
+  min-width: 170px;
 }
 
 .threshold-number {
-  max-width: 82px;
-  font-size: 13px;
+  max-width: 90px;
+  font-size: 14px;
 }
 
 .sort-field {
-  max-width: 230px;
-  font-size: 13px;
+  max-width: 240px;
+  font-size: 14px;
 }
 
 .page-actions {

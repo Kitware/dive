@@ -7,8 +7,46 @@ import type { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { compareTypeNames } from 'dive-common/typeHierarchy';
 import type {
-  ReviewFrameRef, ReviewItem, ReviewQuery, ReviewSortOrder,
+  ReviewFrameGeometry, ReviewFrameRef, ReviewItem, ReviewPolygon, ReviewQuery, ReviewSortOrder,
 } from './types';
+
+function isPoint(value: unknown): value is [number, number] {
+  return Array.isArray(value) && value.length >= 2
+    && Number.isFinite(value[0]) && Number.isFinite(value[1]);
+}
+
+/**
+ * Polygons and head/tail points of a keyframe. Points come from the
+ * GeoJSON features keyed "head"/"tail" (how DIVE stores them), falling back
+ * to the feature's own head/tail fields.
+ */
+export function frameGeometry(feature: Feature): ReviewFrameGeometry {
+  const geometry: ReviewFrameGeometry = {};
+  const polygons: ReviewPolygon[] = [];
+  (feature.geometry?.features || []).forEach((geo) => {
+    const key = (geo.properties as { key?: unknown } | null)?.key;
+    if (geo.geometry.type === 'Polygon') {
+      const ring = (geo.geometry.coordinates[0] || []).filter(isPoint).map(([x, y]) => [x, y] as [number, number]);
+      if (ring.length > 1 && ring[0][0] === ring[ring.length - 1][0] && ring[0][1] === ring[ring.length - 1][1]) {
+        ring.pop();
+      }
+      if (ring.length >= 3) polygons.push(ring);
+    } else if (geo.geometry.type === 'Point' && (key === 'head' || key === 'tail')) {
+      const point = geo.geometry.coordinates;
+      if (isPoint(point)) geometry[key] = [point[0], point[1]];
+    }
+  });
+  if (!geometry.head && isPoint(feature.head)) geometry.head = [feature.head[0], feature.head[1]];
+  if (!geometry.tail && isPoint(feature.tail)) geometry.tail = [feature.tail[0], feature.tail[1]];
+  if (polygons.length) geometry.polygons = polygons;
+  return geometry;
+}
+
+/** A frame reference for a keyframe, carrying its extra geometry when present. */
+export function frameRefFor(feature: Feature): ReviewFrameRef | null {
+  if (!feature.bounds) return null;
+  return { frame: feature.frame, bounds: feature.bounds, ...frameGeometry(feature) };
+}
 
 /** Keyframes carrying a box, in frame order. */
 export function boxedFeatures(track: TrackData): Feature[] {
@@ -26,9 +64,10 @@ export function sampleFrames(features: Feature[], max: number): ReviewFrameRef[]
   for (let i = 0; i < count; i += 1) {
     const index = count === 1 ? 0 : Math.round((i * (features.length - 1)) / (count - 1));
     const feature = features[index];
-    if (feature.bounds && !seen.has(feature.frame)) {
+    const ref = frameRefFor(feature);
+    if (ref && !seen.has(feature.frame)) {
       seen.add(feature.frame);
-      chosen.push({ frame: feature.frame, bounds: feature.bounds });
+      chosen.push(ref);
     }
   }
   return chosen;

@@ -5,6 +5,16 @@
 import { reactive, watch } from 'vue';
 import { DEFAULT_REVIEW_GRID, REVIEW_GRID_LIMITS, ReviewGridSettings } from './types';
 
+/**
+ * Size factor for a cell's footer text: a 5x4 grid reads about a third
+ * larger than the base size, a 2x2 grid nearly double, and dense grids
+ * stay at the base size.
+ */
+export function cellScaleFor(columns: number, rows: number): number {
+  const cells = Math.max(1, columns * rows);
+  return Math.round(Math.min(1.6, Math.max(1, 6 / Math.sqrt(cells))) * 100) / 100;
+}
+
 const GRID_STORAGE_KEY = 'dive.review.grid';
 
 export function loadGridSettings(): ReviewGridSettings {
