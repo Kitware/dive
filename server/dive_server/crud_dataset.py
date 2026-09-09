@@ -2047,7 +2047,7 @@ def enqueue_calibration_conversion(
     jsonCalibrationFile JSON camera-rig item for display.
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
-    # convert_cam_format.py lives on pipeline workers (VIAME image), not celery workers.
+    # the VIAME convert tool lives on pipeline workers (VIAME image), not celery workers.
     queue = f'{user["login"]}@private' if job_is_private else 'pipelines'
     token = Token().createToken(user=user, days=1)
     tasks.convert_calibration.apply_async(

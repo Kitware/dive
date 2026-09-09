@@ -3,7 +3,7 @@
  * dive_utils.serializers.viame python module
  */
 
-import csvparser from 'csv-parse';
+import { parse as csvparser } from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';

@@ -1,6 +1,7 @@
 import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
+import moment from 'moment';
 
 import {
   Settings, DesktopJob, RunPipeline, RunTraining,
@@ -8,6 +9,7 @@ import {
   ExportTrainedPipeline,
   JsonConfig,
   JobsOutputFolderName,
+  RunScoring,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -28,6 +30,9 @@ import {
   isTranscodePipeline,
   pipelineCreatesNewDataset,
 } from 'dive-common/pipelineCreatesDataset';
+import { describeSource, scoringCliArgs } from 'dive-common/scoring/metrics';
+import { SCORING_RESULT_VERSION } from 'dive-common/scoring/types';
+import type { RawScoringMatches, ScoringResultFile } from 'dive-common/scoring/types';
 import * as common from './common';
 import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
@@ -344,9 +349,8 @@ async function runPipeline(
     }
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.viameExe}" runner`,
+      `"${viameConstants.viameExe}" run "${pipelinePath}"`,
       ...(feedsVideoReader ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
-      `-p "${pipelinePath}"`,
       ...(feedsVideoReader ? [`-s downsampler:target_frame_rate=${meta.fps}`] : []),
     ];
     if (frameRange && feedsVideoReader) {
@@ -384,8 +388,7 @@ async function runPipeline(
     await fs.writeFile(manifestFile, fileData);
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.viameExe}" runner`,
-      `-p "${pipelinePath}"`,
+      `"${viameConstants.viameExe}" run "${pipelinePath}"`,
     ];
     if (!stereoOrMultiCam) {
       command.push(`-s input:video_filename="${manifestFile}"`);
@@ -773,8 +776,7 @@ async function exportTrainedPipeline(
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
-    `"${viameConstants.viameExe}" runner`,
-    `-p "${exportPipelinePath}"`,
+    `"${viameConstants.viameExe}" run "${exportPipelinePath}"`,
     `-s "onnx_convert:model_path=${weightsPath}"`,
     `-s "onnx_convert:onnx_model_prefix=${converterOutput}"`,
   ];
@@ -1025,9 +1027,168 @@ async function train(
   return jobBase;
 }
 
+/** Quote a `viame score` token for the platform shell; bare flags and numbers stay as-is. */
+function shellToken(token: string) {
+  return /^[\w.-]+$/.test(token) ? token : `"${token}"`;
+}
+
+/** Keep only the last part of the scorer's stdout for the stored summary. */
+const ScoringSummaryTailBytes = 64 * 1024;
+
+/**
+ * Run the `viame score` applet over every pair in one invocation and store
+ * its output as a result file in the first pair's computed dataset.
+ */
+async function runScoring(
+  settings: Settings,
+  args: RunScoring,
+  updater: DesktopJobUpdater,
+  validateViamePath: (settings: Settings) => Promise<true | string>,
+  viameConstants: ViameConstants,
+): Promise<DesktopJob> {
+  const isValid = await validateViamePath(settings);
+  if (isValid !== true) {
+    throw new Error(isValid);
+  }
+  const { pairs, params } = args;
+  if (pairs.length === 0) {
+    throw new Error('Scoring needs at least one computed/truth pair');
+  }
+  const storageDatasetId = pairs[0].computed.datasetId;
+  const projectInfo = await common.getValidatedProjectDir(settings, storageDatasetId);
+  const jobWorkDir = await createCustomWorkingDirectory(settings, 'Scoring', storageDatasetId);
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
+
+  // Folder mode pairs computed and truth files by basename.
+  const computedDir = npath.join(jobWorkDir, 'computed');
+  const truthDir = npath.join(jobWorkDir, 'truth');
+  await fs.ensureDir(computedDir);
+  await fs.ensureDir(truthDir);
+  await Promise.all(pairs.map(async (pair, i) => {
+    const name = `seq_${String(i).padStart(3, '0')}.csv`;
+    await common.exportScoringSourceCsv(settings, pair.computed, npath.join(computedDir, name));
+    await common.exportScoringSourceCsv(settings, pair.truth, npath.join(truthDir, name));
+  }));
+
+  let labelsFile: string | undefined;
+  if (params.labelSynonyms) {
+    labelsFile = npath.join(jobWorkDir, 'labels.txt');
+    await fs.writeFile(labelsFile, params.labelSynonyms);
+  }
+
+  const metricsOut = npath.join(jobWorkDir, 'metrics.json');
+  const matchesOut = npath.join(jobWorkDir, 'matches.json');
+  const command = [
+    `${viameConstants.setupScriptAbs} &&`,
+    `"${viameConstants.viameExe}" score`,
+    ...scoringCliArgs(params, {
+      computed: computedDir,
+      truth: truthDir,
+      metricsOut,
+      matchesOut,
+      sweepDir: npath.join(jobWorkDir, 'sweep'),
+      labelsFile,
+    }).map(shellToken),
+    '--input-ext', '.csv',
+  ];
+
+  const job = observeChild(spawn(command.join(' '), {
+    shell: viameConstants.shell,
+    cwd: jobWorkDir,
+  }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to spawn scoring process');
+  }
+
+  let { title } = args;
+  if (!title) {
+    title = `${describeSource(pairs[0].computed)} vs ${describeSource(pairs[0].truth)}`;
+    if (pairs.length > 1) {
+      title += ` (+${pairs.length - 1} more)`;
+    }
+  }
+  const datasetIds = [...new Set(pairs.flatMap((pair) => [pair.computed.datasetId, pair.truth.datasetId]))];
+  const jobBase: DesktopJob = {
+    key: `scoring_${job.pid}_${jobWorkDir}`,
+    command: command.join(' '),
+    jobType: 'scoring',
+    pid: job.pid,
+    args,
+    title: `Scoring ${title}`,
+    workingDir: jobWorkDir,
+    datasetIds,
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+  const manifestPath = npath.join(jobWorkDir, DiveJobManifestName);
+  fs.writeFile(manifestPath, JSON.stringify(jobBase, null, 2));
+
+  updater({
+    ...jobBase,
+    body: [''],
+  });
+
+  let stdoutTail = '';
+  const echo = jobFileEchoMiddleware(jobBase, updater, joblog);
+  job.stdout.on('data', (chunk: Buffer) => {
+    stdoutTail = (stdoutTail + chunk.toString('utf-8')).slice(-ScoringSummaryTailBytes);
+    echo(chunk);
+  });
+  job.stderr.on('data', echo);
+
+  job.on('exit', async (code) => {
+    let existingManifest: DesktopJob | undefined;
+    try {
+      if (await fs.pathExists(manifestPath)) {
+        existingManifest = await fs.readJson(manifestPath) as DesktopJob;
+      }
+    } catch {
+      // fall through and record process exit status
+    }
+
+    let exitCode = code;
+    const bodyText = [''];
+    if (!existingManifest?.cancelledJob && code === 0) {
+      try {
+        const created = moment();
+        const id = `scoring_${created.format('YYYY-MM-DD_HH-mm-ss.SSS')}.json`;
+        const result: ScoringResultFile = {
+          version: SCORING_RESULT_VERSION,
+          id,
+          datasetId: storageDatasetId,
+          created: created.toISOString(),
+          title,
+          pairs,
+          params,
+          metrics: await fs.readJson(metricsOut),
+          summaryText: stdoutTail.trim() || undefined,
+        };
+        if (await fs.pathExists(matchesOut)) {
+          result.matches = await fs.readJson(matchesOut) as RawScoringMatches;
+        }
+        await fs.writeJson(npath.join(projectInfo.auxDirAbsPath, id), result);
+      } catch (err) {
+        const message = `Failed to record scoring result: ${err instanceof Error ? err.message : String(err)}`;
+        console.error(err);
+        await fs.appendFile(joblog, `\n${message}\n`).catch(() => undefined);
+        exitCode = 1;
+        bodyText.unshift(message);
+      }
+    }
+    const finalJob = buildTrainingExitManifest(jobBase, exitCode, new Date(), existingManifest);
+    fs.writeFile(manifestPath, JSON.stringify(finalJob, null, 2));
+    updater({
+      ...finalJob,
+      body: bodyText,
+    });
+  });
+  return jobBase;
+}
+
 export {
   runPipeline,
   exportTrainedPipeline,
   train,
+  runScoring,
   DEFAULT_CALIBRATION_KEYS,
 };

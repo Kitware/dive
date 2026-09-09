@@ -14,6 +14,7 @@ import {
   JobType,
   RunPipeline,
   RunTraining,
+  RunScoring,
   JsonConfig,
 } from 'platform/desktop/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -202,7 +203,8 @@ function removeJobFromQueue(jobArgs: JobArgs) {
   switch (jobArgs.type) {
     case JobType.Conversion:
     case JobType.ExportTrainedPipeline:
-      cpuJobQueue.removeJobFromQueue(jobArgs as ConversionArgs | ExportTrainedPipeline);
+    case JobType.RunScoring:
+      cpuJobQueue.removeJobFromQueue(jobArgs as ConversionArgs | ExportTrainedPipeline | RunScoring);
       break;
     case JobType.RunPipeline:
     case JobType.RunTraining:

@@ -14,7 +14,7 @@ from girder.models.item import Item
 from dive_utils import constants, setContentDisposition
 from dive_utils.models import MetadataMutable
 
-from . import crud, crud_dataset
+from . import crud, crud_dataset, crud_scoring
 
 DatasetModelParam = {
     'description': "dataset id",
@@ -51,6 +51,10 @@ class DatasetResource(Resource):
         self.route("POST", (":id", "metadata_file"), self.set_dataset_metadata_file)
         self.route("GET", (":id", "media"), self.get_media)
         self.route("GET", (":id", "frame_metadata_sources"), self.get_frame_metadata_sources)
+        self.route("GET", (":id", "scoring"), self.list_scoring_results)
+        self.route("GET", (":id", "scoring", ":resultId"), self.get_scoring_result)
+        self.route("DELETE", (":id", "scoring", ":resultId"), self.delete_scoring_result)
+        self.route("GET", (":id", "scoring_sources"), self.get_scoring_sources)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
         self.route("GET", (":id", "media", ":mediaId", "download"), self.download_media)
@@ -299,6 +303,56 @@ class DatasetResource(Resource):
     )
     def get_frame_metadata_sources(self, folder):
         return crud_dataset.load_frame_metadata_sources(folder, self.getCurrentUser())
+
+    @access.user
+    @autoDescribeRoute(
+        Description("List scoring results stored on a dataset, newest first").modelParam(
+            "id", level=AccessType.READ, **DatasetModelParam
+        )
+    )
+    def list_scoring_results(self, folder):
+        return crud_scoring.list_results(folder)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Load one scoring result")
+        .modelParam("id", level=AccessType.READ, **DatasetModelParam)
+        .modelParam(
+            "resultId",
+            description="scoring result item id",
+            model=Item,
+            paramType='path',
+            level=AccessType.READ,
+            required=True,
+        )
+    )
+    def get_scoring_result(self, folder, item):
+        return crud_scoring.load_result(folder, item)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Delete one scoring result")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .modelParam(
+            "resultId",
+            description="scoring result item id",
+            model=Item,
+            paramType='path',
+            level=AccessType.WRITE,
+            required=True,
+        )
+    )
+    def delete_scoring_result(self, folder, item):
+        crud_scoring.delete_result(folder, item)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Annotation sets and revisions a scoring source can use").modelParam(
+            "id", level=AccessType.READ, **DatasetModelParam
+        )
+    )
+    def get_scoring_sources(self, folder):
+        return crud_scoring.source_options(folder)
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(

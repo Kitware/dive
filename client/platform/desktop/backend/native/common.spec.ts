@@ -134,6 +134,61 @@ const console = new Console(process.stdout, process.stderr);
 
 const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
 
+const scoringTrackFixture = {
+  version: AnnotationsCurrentVersion,
+  groups: {},
+  tracks: {
+    1: {
+      id: 1,
+      begin: 0,
+      end: 0,
+      attributes: {},
+      confidencePairs: [['shark', 0.9]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1] }],
+    },
+  },
+};
+
+const scoringResultFixture = {
+  version: 1,
+  id: 'ignored-on-load',
+  datasetId: 'projectidScoring',
+  created: '2026-01-02T03:04:05.000Z',
+  title: 'current vs old',
+  pairs: [{
+    computed: { datasetId: 'projectidScoring' },
+    truth: { datasetId: 'projectidScoring', file: '/home/user/viamedata/DIVE_Projects/projectidScoring/auxiliary/result_old.json' },
+  }],
+  params: {
+    iouThreshold: 0.5,
+    confidenceThreshold: 0,
+    matchMode: 'box',
+    perClass: true,
+    topClass: false,
+    auxConfidence: false,
+    tracking: true,
+    keypointThreshold: 0.1,
+    sweep: false,
+    sweepInterval: 50,
+    filterEstimator: 'min',
+  },
+  metrics: { precision: 0.5, recall: 1, per_class: { shark: { precision: 0.5 } } },
+};
+
+/** Written before results recorded their storage dataset, and scoring two sequences. */
+const legacyScoringResultFixture = {
+  version: 1,
+  id: 'ignored-on-load',
+  created: '2025-12-31T00:00:00.000Z',
+  title: 'two sequences',
+  pairs: [
+    { computed: { datasetId: 'projectidScoring2' }, truth: { datasetId: 'projectidScoring' } },
+    { computed: { datasetId: 'projectidScoring' }, truth: { datasetId: 'projectidScoring2' } },
+  ],
+  params: scoringResultFixture.params,
+  metrics: { precision: 0.25 },
+};
+
 function cocoWithRle(trackId: number, categoryName = 'fish') {
   return JSON.stringify({
     images: [{ id: 1, file_name: 'frame_000001.jpg', frame_index: 0 }],
@@ -869,6 +924,46 @@ beforeEach(() => {
           }),
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
+        },
+        projectidScoring: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'projectidScoring',
+            name: 'Scoring Project',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/scoring',
+            originalImageFiles: ['a.png'],
+          } as JsonConfig),
+          'result_current.json': JSON.stringify(scoringTrackFixture),
+          auxiliary: {
+            'scoring_2026-01-02_03-04-05.000.json': JSON.stringify(scoringResultFixture),
+            'scoring_broken.json': '{not json',
+            'result_old.json': mockfs.file({
+              content: JSON.stringify(scoringTrackFixture),
+              mtime: new Date('2026-01-01T00:00:00Z'),
+            }),
+            'imported_annotations.csv': mockfs.file({
+              content: emptyCsvString,
+              mtime: new Date('2026-01-03T00:00:00Z'),
+            }),
+            'flight_log.csv': '',
+          },
+        },
+        projectidScoring2: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'projectidScoring2',
+            name: 'Second Scoring Project',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/scoring2',
+            originalImageFiles: ['a.png'],
+          } as JsonConfig),
+          'result_current.json': JSON.stringify(scoringTrackFixture),
+          auxiliary: {
+            'scoring_2025-12-31_00-00-00.000.json': JSON.stringify(legacyScoringResultFixture),
+          },
         },
         projectid5missingMultiCam: {
           'meta.json': JSON.stringify({
@@ -3194,6 +3289,105 @@ describe('frame metadata import gates', () => {
       'projectid1',
       ['/home/user/data/fmGateViameFail/nav.csv'],
     )).rejects.toThrow(/rename it to frame-metadata\.csv/);
+  });
+});
+
+describe('scoring results and sources', () => {
+  const projectDir = '/home/user/viamedata/DIVE_Projects/projectidScoring';
+
+  it('listScoringResults summarizes readable result files and skips broken ones', async () => {
+    const warn = vi.spyOn(globalThis.console, 'warn').mockImplementation(() => undefined);
+    const results = await common.listScoringResults(settings, 'projectidScoring');
+    expect(results).toHaveLength(1);
+    expect(results[0].id).toBe('scoring_2026-01-02_03-04-05.000.json');
+    expect(results[0].datasetId).toBe('projectidScoring');
+    expect(results[0].title).toBe('current vs old');
+    expect(results[0].pairs).toEqual(scoringResultFixture.pairs);
+    expect(results[0].headline.precision).toBe(0.5);
+    expect(results[0]).not.toHaveProperty('metrics');
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('listScoringResults without a dataset gathers every project newest first', async () => {
+    const warn = vi.spyOn(globalThis.console, 'warn').mockImplementation(() => undefined);
+    const results = await common.listScoringResults(settings);
+    expect(results.map((r) => [r.id, r.datasetId])).toEqual([
+      ['scoring_2026-01-02_03-04-05.000.json', 'projectidScoring'],
+      ['scoring_2025-12-31_00-00-00.000.json', 'projectidScoring2'],
+    ]);
+    expect(results[1].pairs).toHaveLength(2);
+    expect(results[1].headline.precision).toBe(0.25);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('loadScoringResult returns the file with its basename as id', async () => {
+    const result = await common.loadScoringResult(
+      settings,
+      'projectidScoring',
+      'scoring_2026-01-02_03-04-05.000.json',
+    );
+    expect(result.id).toBe('scoring_2026-01-02_03-04-05.000.json');
+    expect(result.metrics.per_class).toEqual({ shark: { precision: 0.5 } });
+    expect(result.pairs[0].truth.file).toBe(`${projectDir}/auxiliary/result_old.json`);
+  });
+
+  it('deleteScoringResult rejects ids that are not result files inside auxiliary', async () => {
+    await expect(common.deleteScoringResult(settings, 'projectidScoring', '../result_current.json'))
+      .rejects.toThrow('not a scoring result id');
+    await expect(common.deleteScoringResult(settings, 'projectidScoring', 'scoring_../dataset.json'))
+      .rejects.toThrow('not a scoring result id');
+    await expect(common.deleteScoringResult(settings, 'projectidScoring', 'result_old.json'))
+      .rejects.toThrow('not a scoring result id');
+    expect(fs.existsSync(`${projectDir}/result_current.json`)).toBe(true);
+    expect(fs.existsSync(`${projectDir}/auxiliary/result_old.json`)).toBe(true);
+
+    await common.deleteScoringResult(settings, 'projectidScoring', 'scoring_2026-01-02_03-04-05.000.json');
+    expect(fs.existsSync(`${projectDir}/auxiliary/scoring_2026-01-02_03-04-05.000.json`)).toBe(false);
+  });
+
+  it('listScoringSources lists rotated and imported annotation files newest first', async () => {
+    const options = await common.listScoringSources(settings, 'projectidScoring');
+    expect(options.sets).toEqual([]);
+    expect(options.revisions).toEqual([]);
+    expect(options.files.map((f) => f.name)).toEqual(['imported_annotations.csv', 'result_old.json']);
+    expect(options.files[1]).toEqual({
+      path: `${projectDir}/auxiliary/result_old.json`,
+      name: 'result_old.json',
+      modified: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('listScoringDatasets reports every loadable project', async () => {
+    const datasets = await common.listScoringDatasets(settings);
+    expect(datasets).toContainEqual({ id: 'projectidScoring', name: 'Scoring Project', type: 'image-sequence' });
+    expect(datasets.find((d) => d.id === 'projectid2Bad')).toBeUndefined();
+  });
+
+  it('exportScoringSourceCsv writes current annotations, a rotated json, or copies a csv', async () => {
+    const current = '/home/user/output/current.csv';
+    await common.exportScoringSourceCsv(settings, { datasetId: 'projectidScoring' }, current);
+    expect(await fs.readFile(current, 'utf-8')).toContain('shark');
+
+    const rotated = '/home/user/output/rotated.csv';
+    await common.exportScoringSourceCsv(settings, {
+      datasetId: 'projectidScoring',
+      file: `${projectDir}/auxiliary/result_old.json`,
+    }, rotated);
+    expect(await fs.readFile(rotated, 'utf-8')).toContain('shark');
+
+    const copied = '/home/user/output/copied.csv';
+    await common.exportScoringSourceCsv(settings, {
+      datasetId: 'projectidScoring',
+      file: `${projectDir}/auxiliary/imported_annotations.csv`,
+    }, copied);
+    expect(await fs.readFile(copied, 'utf-8')).toBe(emptyCsvString);
+
+    await expect(common.exportScoringSourceCsv(settings, {
+      datasetId: 'projectidScoring',
+      file: `${projectDir}/auxiliary/flight_log.txt`,
+    }, '/home/user/output/bad.csv')).rejects.toThrow('not a CSV or JSON');
   });
 });
 

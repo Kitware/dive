@@ -12,8 +12,10 @@ export { default as loadFrameMetadata } from './frameMetadata.service';
 export * from './girder.service';
 export * from './multicamResolve';
 export * from './rpc.service';
+export * from './scoring.service';
+export { pickScoringDataset } from './scoringDatasetPicker';
 export * from './waitForFolderDatasetReady';
-export { default as watchPipelineJob } from './watchPipelineJob';
+export { default as watchPipelineJob, watchScoringJob } from './watchPipelineJob';
 export * from './largeImage.service';
 
 /**

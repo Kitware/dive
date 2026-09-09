@@ -261,6 +261,10 @@ export default defineComponent({
     function runTrainingOnSelected() {
       router.push({ name: 'training', query: selectedIdsQuery() });
     }
+
+    function scoreSelected() {
+      router.push({ name: 'scoring', query: selectedIdsQuery() });
+    }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
         if (recent.subType === 'stereo') {
@@ -355,6 +359,7 @@ export default defineComponent({
       confirmDeleteSelected,
       runPipelineOnSelected,
       runTrainingOnSelected,
+      scoreSelected,
       isSelected,
       toggleSelected,
       toggleSelectAll,
@@ -622,6 +627,27 @@ export default defineComponent({
                     </v-btn>
                   </template>
                   <span>Train a model on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="scoreSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-chart-box-outline
+                      </v-icon>
+                      Score
+                    </v-btn>
+                  </template>
+                  <span>Score the selected datasets against ground truth</span>
                 </v-tooltip>
                 <v-tooltip bottom>
                   <template #activator="{ on }">

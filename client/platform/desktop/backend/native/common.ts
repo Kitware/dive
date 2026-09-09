@@ -39,6 +39,11 @@ import {
 } from 'dive-common/frameMetadata/readability';
 import { parentDatasetId, parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 import declareSpeciesTypes from 'dive-common/speciesList';
+import type {
+  ScoringDatasetSummary, ScoringResultFile, ScoringResultSummary,
+  ScoringSource, ScoringSourceOptions,
+} from 'dive-common/scoring/types';
+import { summarizeResult } from 'dive-common/scoring/metrics';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
@@ -98,6 +103,8 @@ const PortableConfigFileName = 'config.json';
 const DiveJobManifestName = 'dive_job_manifest.json';
 const PortableConfigFileNameLegacy = 'meta.json';
 const CsvFileName = /^.*\.csv$/i;
+const ImportedAnnotationFileName = /^imported_.+/i;
+const ScoringResultFileName = /^scoring_[\w.-]+\.json$/;
 const YAMLFileName = /^.*\.ya?ml$/i;
 
 /** Mirrors `species_list_repeats_message` in server/dive_server/crud_rpc.py. */
@@ -2925,6 +2932,125 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   });
 }
 
+/**
+ * Annotation files a desktop scoring source can point at: track files rotated
+ * into auxiliary by earlier saves, and copies of imported annotation files.
+ */
+async function listScoringSources(
+  settings: Settings,
+  datasetId: string,
+): Promise<ScoringSourceOptions> {
+  const projectInfo = await getValidatedProjectDir(settings, datasetId);
+  const names = await fs.readdir(projectInfo.auxDirAbsPath);
+  const files = await Promise.all(names
+    .filter((name) => JsonTrackFileName.test(name) || ImportedAnnotationFileName.test(name))
+    .map(async (name) => {
+      const path = npath.join(projectInfo.auxDirAbsPath, name);
+      const stat = await fs.stat(path);
+      return stat.isFile() ? { path, name, modified: stat.mtime.toISOString() } : null;
+    }));
+  return {
+    sets: [],
+    revisions: [],
+    files: files
+      .filter((file): file is NonNullable<typeof file> => file !== null)
+      .sort((a, b) => b.modified.localeCompare(a.modified)),
+    allowFilePaths: true,
+  };
+}
+
+async function listScoringDatasets(settings: Settings): Promise<ScoringDatasetSummary[]> {
+  const metas = await autodiscoverData(settings);
+  return metas.map(({ id, name, type }) => ({ id, name, type }));
+}
+
+async function summarizeScoringResultsIn(
+  auxDirAbsPath: string,
+  datasetId: string,
+): Promise<ScoringResultSummary[]> {
+  const names = await listNames(auxDirAbsPath);
+  const summaries: ScoringResultSummary[] = [];
+  await Promise.all(names.filter((name) => ScoringResultFileName.test(name)).map(async (name) => {
+    try {
+      const file = await fs.readJson(npath.join(auxDirAbsPath, name)) as ScoringResultFile;
+      // Files written before datasetId existed live in the dataset they belong to.
+      summaries.push(summarizeResult({ ...file, id: name, datasetId: file.datasetId || datasetId }));
+    } catch (err) {
+      console.warn(`Skipping unreadable scoring result ${name}:`, err);
+    }
+  }));
+  return summaries;
+}
+
+/** Runs stored on one dataset, or on every project when no dataset is given. */
+async function listScoringResults(
+  settings: Settings,
+  datasetId?: string,
+): Promise<ScoringResultSummary[]> {
+  let summaries: ScoringResultSummary[];
+  if (datasetId) {
+    const projectInfo = await getValidatedProjectDir(settings, datasetId);
+    summaries = await summarizeScoringResultsIn(projectInfo.auxDirAbsPath, datasetId);
+  } else {
+    const projectIds = await listNames(npath.join(settings.dataPath, ProjectsFolderName));
+    summaries = (await Promise.all(projectIds.map((id) => (
+      summarizeScoringResultsIn(getProjectDir(settings, id).auxDirAbsPath, id)
+    )))).flat();
+  }
+  return summaries.sort((a, b) => b.created.localeCompare(a.created));
+}
+
+async function scoringResultPath(settings: Settings, datasetId: string, resultId: string) {
+  if (!ScoringResultFileName.test(resultId)) {
+    throw new Error(`${resultId} is not a scoring result id`);
+  }
+  const projectInfo = await getValidatedProjectDir(settings, datasetId);
+  const path = npath.resolve(projectInfo.auxDirAbsPath, resultId);
+  if (npath.dirname(path) !== npath.resolve(projectInfo.auxDirAbsPath)) {
+    throw new Error(`${resultId} is not a scoring result id`);
+  }
+  return path;
+}
+
+async function loadScoringResult(
+  settings: Settings,
+  datasetId: string,
+  resultId: string,
+): Promise<ScoringResultFile> {
+  const path = await scoringResultPath(settings, datasetId, resultId);
+  const file = await fs.readJson(path) as ScoringResultFile;
+  return { ...file, id: npath.basename(path), datasetId: file.datasetId || datasetId };
+}
+
+async function deleteScoringResult(settings: Settings, datasetId: string, resultId: string) {
+  await fs.unlink(await scoringResultPath(settings, datasetId, resultId));
+}
+
+/**
+ * Write one side of a scoring comparison as VIAME CSV. Every detection is
+ * kept so the scorer, not the dataset's display filter, applies thresholds.
+ */
+async function exportScoringSourceCsv(settings: Settings, source: ScoringSource, outPath: string) {
+  if (source.file && CsvFileName.test(source.file)) {
+    await fs.copy(source.file, outPath);
+    return;
+  }
+  const projectInfo = await getValidatedProjectDir(settings, source.datasetId);
+  let trackFile = projectInfo.trackFileAbsPath;
+  if (source.file) {
+    if (!JsonFileName.test(source.file)) {
+      throw new Error(`${source.file} is not a CSV or JSON annotation file`);
+    }
+    trackFile = source.file;
+  }
+  const meta = await loadJsonConfig(projectInfo.datasetFileAbsPath);
+  const data = await loadAnnotationFile(trackFile);
+  await viameSerializers.serializeFile(outPath, data, meta, new Set(), {
+    excludeBelowThreshold: false,
+    header: true,
+  });
+}
+
 async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
@@ -2964,6 +3090,12 @@ export {
   checkDataset,
   exportConfiguration,
   exportDataset,
+  exportScoringSourceCsv,
+  listScoringSources,
+  listScoringDatasets,
+  listScoringResults,
+  loadScoringResult,
+  deleteScoringResult,
   finalizeMediaImport,
   getPipelineList,
   deleteTrainedPipeline,

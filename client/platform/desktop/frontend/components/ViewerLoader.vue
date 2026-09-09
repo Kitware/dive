@@ -2,6 +2,8 @@
 import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
+import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { useRoute, useRouter } from 'vue-router/composables';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
@@ -34,6 +36,7 @@ import {
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
   openLink,
+  setScoringAnnotationPreviewFile,
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -106,11 +109,33 @@ export default defineComponent({
   },
   setup(props) {
     const { prompt } = usePrompt();
+    const route = useRoute();
+    const router = useRouter();
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const isStereoscopicDataset = computed(() => subTypeList.value[0] === 'stereo');
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const scoringPreviewFile = computed(() => {
+      const file = route.query.scoringFile;
+      return typeof file === 'string' && file ? file : '';
+    });
+    watch(scoringPreviewFile, (file) => {
+      setScoringAnnotationPreviewFile(file || null);
+      if (viewerRef.value) {
+        viewerRef.value.reloadAnnotations();
+      }
+    }, { immediate: true });
+    const annotationSourceLabel = computed(() => {
+      const value = route.query[ANNOTATION_SOURCE_QUERY];
+      return typeof value === 'string' ? value : '';
+    });
+    const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+
+    function returnToCurrentAnnotations() {
+      router.replace({ name: 'viewer', params: { id: props.id } });
+    }
+
     const selectedCamera = ref('');
     watch(runningJobs, async (_previous, current) => {
       // Check the current props.id so multicam files also trigger a reload
@@ -149,7 +174,7 @@ export default defineComponent({
       }
       return props.id;
     });
-    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
 
@@ -178,8 +203,10 @@ export default defineComponent({
       const results: string[] = [];
       // Check if any running job contains the root props.id
       // for multicam this is why we use the reduce to check each id
+      // Scoring only reads annotations, so it never locks the viewer.
       if (runningJobs.value.find(
-        (item) => item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
+        (item) => item.job.jobType !== 'scoring'
+          && item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
       )) {
         results.push(props.id);
       }
@@ -2003,6 +2030,9 @@ export default defineComponent({
       handleStereoTrackLinked,
       onCalibrationImported,
       onCalibrationDeleted,
+      annotationSourceLabel,
+      annotationSourceReturnable,
+      returnToCurrentAnnotations,
     };
   },
 });
@@ -2014,8 +2044,11 @@ export default defineComponent({
       :id.sync="id"
       ref="viewerRef"
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :annotation-source-label="annotationSourceLabel"
+      :annotation-source-returnable="annotationSourceReturnable"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
+      @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @text-query-submit="handleTextQuerySubmit"
@@ -2043,6 +2076,9 @@ export default defineComponent({
           <job-tab />
           <v-tab :to="{ name: 'training' }">
             Training<v-icon>mdi-brain</v-icon>
+          </v-tab>
+          <v-tab :to="{ name: 'scoring' }">
+            Scoring<v-icon>mdi-chart-box-outline</v-icon>
           </v-tab>
           <v-tab :to="{ name: 'settings' }">
             Settings<v-icon>mdi-cog</v-icon>

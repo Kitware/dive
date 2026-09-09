@@ -157,6 +157,16 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    /** Label for annotations loaded from a scoring result or other preview. */
+    annotationSourceLabel: {
+      type: String,
+      default: '',
+    },
+    /** Offer a control to return to the dataset's current annotations. */
+    annotationSourceReturnable: {
+      type: Boolean,
+      default: false,
+    },
     textQueryEnabled: {
       type: Boolean,
       default: false,
@@ -2499,6 +2509,43 @@ export default defineComponent({
           </template>
           Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
         </v-tooltip>
+        <v-tooltip
+          v-if="annotationSourceLabel"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-chip
+              class="ml-2 annotation-source-chip"
+              small
+              outlined
+              color="info"
+              v-on="on"
+            >
+              <v-icon
+                small
+                left
+              >
+                mdi-chart-box-outline
+              </v-icon>
+              {{ annotationSourceLabel }}
+              <v-icon
+                v-if="annotationSourceReturnable"
+                small
+                right
+                class="ml-1"
+                @click.stop="$emit('return-to-current-annotations')"
+              >
+                mdi-close
+              </v-icon>
+            </v-chip>
+          </template>
+          <span>
+            Annotations from a scoring result.
+            <template v-if="annotationSourceReturnable">
+              Click the close icon to return to the dataset's current annotations.
+            </template>
+          </span>
+        </v-tooltip>
         <div
           v-if="readonlyState"
           class="mx-auto my-0 pa-0"
@@ -3057,5 +3104,15 @@ html {
 .camera-select fieldset {
   height: 33px;
   margin-top: 4px;
+}
+
+.annotation-source-chip {
+  max-width: min(280px, 40vw);
+
+  .v-chip__content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 </style>
