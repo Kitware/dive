@@ -234,6 +234,8 @@ export interface RunTraining extends JobArgs {
   };
   // working directory of a prior interrupted run to continue from
   resumeWorkingDir?: string;
+  // address that receives progress and completion reports from the run
+  monitorEmail?: string;
 }
 
 export interface RunScoring extends JobArgs, ScoringJobArgs {
