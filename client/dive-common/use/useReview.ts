@@ -6,6 +6,7 @@
 import {
   computed, inject, provide, reactive, ref, Ref, watch,
 } from 'vue';
+import { debounce } from 'lodash';
 import type { Api, DatasetConfig } from 'dive-common/apispec';
 import type { ScoringDatasetSummary } from 'dive-common/scoring/types';
 import type { Feature, TrackData } from 'vue-media-annotator/track';
@@ -91,6 +92,8 @@ export interface ReviewService {
   currentType(item: ReviewItem): { type: string; confidence: number };
   /** The colour the annotator draws a type in (custom dataset styles applied). */
   colorFor(type: string): string;
+  /** Frames per second the dataset is annotated at, or 0 when unknown. */
+  datasetFps(id: string): number;
   isPending(item: ReviewItem): boolean;
   assignType(item: ReviewItem, type: string): void;
   acceptType(item: ReviewItem): void;
@@ -189,7 +192,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   const available = ref<ScoringDatasetSummary[]>([]);
   const query = reactive<ReviewQuery>({ ...DEFAULT_REVIEW_QUERY });
   const grid = usePersistentGridSettings();
-  const sort = ref<ReviewSortOrder>('dataset');
+  const sort = ref<ReviewSortOrder>('confidence-desc');
   const items = ref<ReviewItem[]>([]);
   const dataRevision = ref(0);
   const stale = ref(false);
@@ -203,7 +206,13 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   /** Type colours as the annotator assigns them, seeded from each dataset's custom styles. */
   const styles = new StyleManager({ markChangesPending: () => undefined });
 
-  watch(query, () => { stale.value = true; }, { deep: true });
+  // Query changes apply as soon as they settle; the grid only reshuffles
+  // for those, never for edits made in it.
+  const runQuerySettled = debounce(() => runQuery(), 200);
+  watch(query, () => {
+    stale.value = true;
+    runQuerySettled();
+  }, { deep: true });
 
   const chipStore = createChipStore({
     frameSourceFor: (datasetId) => loaded.get(datasetId)?.frameSource ?? null,
@@ -299,7 +308,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         croppable: frameSource !== null,
       });
       dataRevision.value += 1;
-      stale.value = true;
+      // Newly loaded tracks join the grid without any further action.
+      runQuery();
     } catch (err) {
       if (generation !== loadGeneration || !entry(id)) return;
       patch(id, {
@@ -334,7 +344,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     dropLoaded(id);
     loadGeneration += 1;
     dataRevision.value += 1;
-    stale.value = true;
+    runQuery();
   }
 
   async function reloadDataset(id: string) {
@@ -407,6 +417,11 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     return styles.typeStyling.value.color(type);
   }
 
+  function datasetFps(id: string) {
+    const fps = Number(loaded.get(id)?.config.fps);
+    return Number.isFinite(fps) && fps > 0 ? fps : 0;
+  }
+
   function isPending(item: ReviewItem) {
     return loaded.get(item.datasetId)?.pending.has(item.trackId) ?? false;
   }
@@ -477,7 +492,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     }
     dataset.pending.add(item.trackId);
     dataRevision.value += 1;
-    chipStore.invalidate(item.key);
+    // The chip keeps its crop: the box is drawn over it, so the view does
+    // not jump when an edit lands.
   }
 
   async function save() {
@@ -516,6 +532,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   }
 
   function dispose() {
+    runQuerySettled.cancel();
     loadGeneration += 1;
     loaded.forEach((dataset) => dataset.frameSource?.dispose());
     loaded.clear();
@@ -548,6 +565,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     trackOf,
     currentType,
     colorFor,
+    datasetFps,
     isPending,
     assignType,
     acceptType,

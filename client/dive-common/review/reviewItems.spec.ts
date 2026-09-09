@@ -4,6 +4,7 @@ import {
   buildReviewItems,
   collectAttributeKeys,
   collectTypes,
+  cycleIntervalFor,
   frameGeometry,
   matchTypePair,
   sampleFrames,
@@ -193,5 +194,22 @@ describe('frameGeometry', () => {
   it('falls back to the feature head/tail fields and leaves plain boxes bare', () => {
     expect(frameGeometry({ frame: 0, bounds: [0, 0, 1, 1], head: [1, 2] })).toEqual({ head: [1, 2] });
     expect(frameGeometry({ frame: 0, bounds: [0, 0, 1, 1] })).toEqual({});
+  });
+});
+
+describe('cycleIntervalFor', () => {
+  it('plays consecutive frames at the dataset rate and sparse samples proportionally slower', () => {
+    const consecutive = [0, 1, 2, 3].map((frame) => ({ frame, bounds: [0, 0, 1, 1] as [number, number, number, number] }));
+    expect(cycleIntervalFor(consecutive, 10, 400)).toBe(100);
+    const sparse = [0, 30, 60, 90].map((frame) => ({ frame, bounds: [0, 0, 1, 1] as [number, number, number, number] }));
+    expect(cycleIntervalFor(sparse, 30, 400)).toBe(1000);
+    expect(cycleIntervalFor(sparse, 1, 400)).toBe(2000);
+    expect(cycleIntervalFor(consecutive, 120, 400)).toBe(33);
+  });
+
+  it('falls back when the rate is unknown or there is nothing to cycle', () => {
+    const one = [{ frame: 5, bounds: [0, 0, 1, 1] as [number, number, number, number] }];
+    expect(cycleIntervalFor(one, 30, 400)).toBe(400);
+    expect(cycleIntervalFor([...one, { frame: 6, bounds: [0, 0, 1, 1] }], 0, 400)).toBe(400);
   });
 });
