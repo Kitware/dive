@@ -41,7 +41,7 @@ Hover an entry for three actions: **mark correct** (sets the shown type's confid
 
 Tracks cycle through their sampled frames; the arrows in the filmstrip badge step through them by hand, which pauses the cycling on that frame until the play button resumes it.
 
-The type field and caption grow as the grid shows fewer entries, so a 2 by 2 grid is comfortably readable from a distance while a dense grid stays compact.
+The type field and caption grow a little as the grid shows fewer entries, so a 3 by 3 grid is comfortably readable while a dense grid stays compact.
 
 ### Editing boxes, polygons and points in place
 
