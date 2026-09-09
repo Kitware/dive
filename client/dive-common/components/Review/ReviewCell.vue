@@ -1096,9 +1096,9 @@ export default defineComponent({
   width: 100%;
   min-width: 0;
   box-sizing: border-box;
-  padding: calc(2px * var(--cell-scale)) calc(6px * var(--cell-scale));
-  font-size: calc(14px * var(--cell-scale));
-  line-height: calc(20px * var(--cell-scale));
+  padding: calc(2px * var(--cell-scale)) calc(5px * var(--cell-scale));
+  font-size: calc(13px * var(--cell-scale));
+  line-height: calc(19px * var(--cell-scale));
   color: #eee;
   background: #2a2a2a;
   border: 1px solid #444;
@@ -1118,7 +1118,7 @@ export default defineComponent({
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: calc(12px * var(--cell-scale));
+  font-size: calc(11.5px * var(--cell-scale));
   line-height: 1.3;
   margin-top: calc(2px * var(--cell-scale));
 }
