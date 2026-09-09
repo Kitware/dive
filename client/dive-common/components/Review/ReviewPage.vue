@@ -3,29 +3,18 @@ import {
   computed, defineComponent, onBeforeUnmount, onMounted, PropType, ref, watch,
 } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router/composables';
-import { debounce } from 'lodash';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { clampGrid, createReviewService, provideReview } from 'dive-common/use/useReview';
-import { chipSizeFor } from 'dive-common/review/chipRenderer';
-import { REVIEW_GRID_LIMITS, ReviewItem, ReviewSortOrder } from 'dive-common/review/types';
+import { createReviewService, provideReview } from 'dive-common/use/useReview';
+import { useReviewGrid } from 'dive-common/review/useReviewGrid';
+import { ReviewItem, ReviewSortOrder } from 'dive-common/review/types';
 import type { ViewerFocus } from 'dive-common/review/viewerNavigation';
 import ReviewDatasetsPanel from './ReviewDatasetsPanel.vue';
 import ReviewGrid from './ReviewGrid.vue';
+import ReviewGridControls from './ReviewGridControls.vue';
 import ReviewCell from './ReviewCell.vue';
 
-const CHIP_OUTLINE = '#00e5ff';
 const TYPE_LIST_ID = 'reviewTypeOptions';
-/** Height of a cell's footer (type field and caption), excluded from the image area. */
-const CELL_FOOTER_PX = 46;
-
-/** Chip aspect for a cell, coarsened so window resizes rarely force a re-render. */
-export function chipAspectFor(cellWidth: number, cellHeight: number): number {
-  const imageHeight = cellHeight - CELL_FOOTER_PX;
-  if (cellWidth <= 0 || imageHeight <= 0) return 1;
-  const ratio = Math.min(3, Math.max(1 / 3, cellWidth / imageHeight));
-  return Math.round(ratio * 10) / 10;
-}
 
 const SORT_OPTIONS: { value: ReviewSortOrder; text: string }[] = [
   { value: 'dataset', text: 'Dataset, track id' },
@@ -48,7 +37,9 @@ const SCOPE_OPTIONS = [
  */
 export default defineComponent({
   name: 'ReviewPage',
-  components: { ReviewDatasetsPanel, ReviewGrid, ReviewCell },
+  components: {
+    ReviewDatasetsPanel, ReviewGrid, ReviewGridControls, ReviewCell,
+  },
   props: {
     initialDatasetIds: {
       type: Array as PropType<string[]>,
@@ -62,21 +53,22 @@ export default defineComponent({
     const { prompt } = usePrompt();
 
     const view = ref<'datasets' | 'grid'>('datasets');
-    const page = ref(0);
-    const cellSize = ref({ width: 0, height: 0 });
     const pageTypeInput = ref('');
+    const gridActive = computed(() => view.value === 'grid');
+    const grid = useReviewGrid({
+      items: review.items,
+      grid: review.grid,
+      chipStore: review.chipStore,
+      active: gridActive,
+    });
 
-    const perPage = computed(() => review.grid.columns * review.grid.rows);
-    const pageCount = computed(() => Math.max(1, Math.ceil(review.items.value.length / perPage.value)));
-    const pageItems = computed(() => review.items.value.slice(page.value * perPage.value, (page.value + 1) * perPage.value));
-    const nextPageItems = computed(() => review.items.value.slice((page.value + 1) * perPage.value, (page.value + 2) * perPage.value));
     const showDatasetNames = computed(() => review.datasets.value.length > 1);
     const readyDatasets = computed(() => review.datasets.value.filter((d) => d.status === 'ready').length);
 
     /** Per-cell display data; carries dataRevision so edits re-render. */
     const cells = computed(() => {
       const revision = review.dataRevision.value;
-      return pageItems.value.map((item) => {
+      return grid.pageItems.value.map((item) => {
         const current = review.currentType(item);
         const attribute = item.matchedAttribute;
         const attributeText = attribute
@@ -104,37 +96,10 @@ export default defineComponent({
       ...review.types.value.map((t) => ({ value: t, text: t })),
     ]);
 
-    function ensureVisible() {
-      if (view.value !== 'grid') return;
-      const visible = pageItems.value;
-      const prefetch = nextPageItems.value;
-      review.chipStore.trimQueues(new Set([...visible, ...prefetch].map((i) => i.key)));
-      review.chipStore.ensurePrimary([...visible, ...prefetch]);
-      review.chipStore.ensureSequences(visible);
-    }
-
-    const applyChipOptions = debounce(() => {
-      const pixels = Math.max(cellSize.value.width, cellSize.value.height)
-        * (window.devicePixelRatio || 1);
-      if (pixels <= 0) return;
-      review.chipStore.setOptions({
-        padding: review.grid.padding,
-        size: chipSizeFor(pixels),
-        aspect: chipAspectFor(cellSize.value.width, cellSize.value.height),
-        outline: CHIP_OUTLINE,
-      });
-      ensureVisible();
-    }, 200);
-
-    watch(() => [review.grid.padding, cellSize.value.width, cellSize.value.height], applyChipOptions);
-    watch([page, view], ensureVisible);
-    watch(() => review.items.value, () => {
-      page.value = 0;
-      ensureVisible();
-    });
-    watch(perPage, () => {
-      page.value = Math.min(page.value, pageCount.value - 1);
-      ensureVisible();
+    const countLabel = computed(() => {
+      const count = review.items.value.length;
+      const base = `${count} entr${count === 1 ? 'y' : 'ies'}`;
+      return review.stale.value ? `${base} · query changed, press Show` : base;
     });
 
     function show() {
@@ -149,33 +114,6 @@ export default defineComponent({
       view.value = next;
     }
 
-    function goToPage(next: number) {
-      page.value = Math.min(Math.max(0, next), pageCount.value - 1);
-    }
-
-    function setColumns(value: number) {
-      Object.assign(review.grid, clampGrid({ ...review.grid, columns: Number(value) }));
-    }
-
-    function setRows(value: number) {
-      Object.assign(review.grid, clampGrid({ ...review.grid, rows: Number(value) }));
-    }
-
-    function setPadding(value: number) {
-      Object.assign(review.grid, clampGrid({ ...review.grid, padding: Number(value) }));
-    }
-
-    /** Fewer, larger cells (in) or more, smaller cells (out), keeping the shape. */
-    function zoom(direction: 1 | -1) {
-      const ratio = review.grid.rows / review.grid.columns;
-      const columns = review.grid.columns + direction;
-      const rows = Math.max(1, Math.round(columns * ratio));
-      Object.assign(review.grid, clampGrid({ ...review.grid, columns, rows }));
-    }
-
-    const canZoomIn = computed(() => review.grid.columns > REVIEW_GRID_LIMITS.columns[0]);
-    const canZoomOut = computed(() => review.grid.columns < REVIEW_GRID_LIMITS.columns[1]);
-
     function openItem(item: ReviewItem) {
       const focus: ViewerFocus = { frame: item.primary.frame, trackId: item.trackId };
       emit('open-viewer', item.datasetId, focus);
@@ -188,11 +126,11 @@ export default defineComponent({
     function applyTypeToPage() {
       const type = pageTypeInput.value.trim();
       if (!type) return;
-      pageItems.value.forEach((item) => review.assignType(item, type));
+      grid.pageItems.value.forEach((item) => review.assignType(item, type));
     }
 
     function acceptPage() {
-      pageItems.value.forEach((item) => review.acceptType(item));
+      grid.pageItems.value.forEach((item) => review.acceptType(item));
     }
 
     async function discard() {
@@ -205,25 +143,8 @@ export default defineComponent({
       if (ok) await review.discardChanges();
     }
 
-    function isTypingTarget(target: EventTarget | null) {
-      if (!(target instanceof HTMLElement)) return false;
-      return ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName) || target.isContentEditable;
-    }
-
     function onKeydown(event: KeyboardEvent) {
-      if (view.value !== 'grid' || isTypingTarget(event.target)) return;
-      if (event.key === 'ArrowLeft' || event.key === 'PageUp') {
-        goToPage(page.value - 1);
-      } else if (event.key === 'ArrowRight' || event.key === 'PageDown') {
-        goToPage(page.value + 1);
-      } else if (event.key === 'Home') {
-        goToPage(0);
-      } else if (event.key === 'End') {
-        goToPage(pageCount.value - 1);
-      } else {
-        return;
-      }
-      event.preventDefault();
+      grid.handleKeydown(event);
     }
 
     function onBeforeUnload(event: BeforeUnloadEvent) {
@@ -274,35 +195,24 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      applyChipOptions.cancel();
+      grid.dispose();
       review.dispose();
     });
 
     return {
       review,
       view,
-      page,
-      pageCount,
-      perPage,
-      pageItems,
+      grid,
       cells,
       typeItems,
       typeListId: TYPE_LIST_ID,
       sortOptions: SORT_OPTIONS,
       scopeOptions: SCOPE_OPTIONS,
-      limits: REVIEW_GRID_LIMITS,
       readyDatasets,
-      cellSize,
+      countLabel,
       pageTypeInput,
       show,
       setView,
-      goToPage,
-      setColumns,
-      setRows,
-      setPadding,
-      zoom,
-      canZoomIn,
-      canZoomOut,
       openItem,
       openDataset,
       applyTypeToPage,
@@ -493,83 +403,32 @@ export default defineComponent({
       </v-btn>
     </div>
 
-    <div
+    <ReviewGridControls
       v-if="view === 'grid'"
-      class="review-controls d-flex align-center flex-wrap px-2 py-1"
+      :grid="review.grid"
+      :page="grid.page.value"
+      :page-count="grid.pageCount.value"
+      :count-label="countLabel"
+      :can-zoom-in="grid.canZoomIn.value"
+      :can-zoom-out="grid.canZoomOut.value"
+      @update:page="grid.goToPage"
+      @set-columns="grid.setColumns"
+      @set-rows="grid.setRows"
+      @set-padding="grid.setPadding"
+      @zoom="grid.zoom"
     >
-      <v-select
-        :value="review.sort.value"
-        :items="sortOptions"
-        dense
-        outlined
-        hide-details
-        class="sort-field mr-3"
-        prepend-inner-icon="mdi-sort"
-        @change="review.sort.value = $event"
-      />
-      <span class="text-caption grey--text mr-1">Grid</span>
-      <v-text-field
-        :value="review.grid.columns"
-        type="number"
-        :min="limits.columns[0]"
-        :max="limits.columns[1]"
-        dense
-        outlined
-        hide-details
-        class="grid-number"
-        title="Columns"
-        @change="setColumns"
-      />
-      <span class="text-caption grey--text mx-1">×</span>
-      <v-text-field
-        :value="review.grid.rows"
-        type="number"
-        :min="limits.rows[0]"
-        :max="limits.rows[1]"
-        dense
-        outlined
-        hide-details
-        class="grid-number"
-        title="Rows"
-        @change="setRows"
-      />
-      <v-btn
-        icon
-        small
-        title="Zoom out: more, smaller entries"
-        :disabled="!canZoomOut"
-        @click="zoom(1)"
-      >
-        <v-icon small>
-          mdi-magnify-minus-outline
-        </v-icon>
-      </v-btn>
-      <v-btn
-        icon
-        small
-        title="Zoom in: fewer, larger entries"
-        :disabled="!canZoomIn"
-        class="mr-3"
-        @click="zoom(-1)"
-      >
-        <v-icon small>
-          mdi-magnify-plus-outline
-        </v-icon>
-      </v-btn>
-      <span
-        class="text-caption grey--text mr-2 text-no-wrap"
-        title="Extra image shown around each box, as a fraction of the box size"
-      >Context {{ Math.round(review.grid.padding * 100) }}%</span>
-      <v-slider
-        :value="review.grid.padding"
-        :min="limits.padding[0]"
-        :max="limits.padding[1]"
-        step="0.05"
-        hide-details
-        dense
-        class="padding-slider mr-3"
-        @input="setPadding"
-      />
+      <template #before>
+        <v-select
+          :value="review.sort.value"
+          :items="sortOptions"
+          dense
+          outlined
+          hide-details
+          class="sort-field mr-3"
+          prepend-inner-icon="mdi-sort"
+          @change="review.sort.value = $event"
+        />
+      </template>
       <v-menu
         offset-y
         :close-on-content-click="false"
@@ -578,7 +437,7 @@ export default defineComponent({
           <v-btn
             small
             text
-            :disabled="pageItems.length === 0"
+            :disabled="grid.pageItems.value.length === 0"
             v-on="on"
           >
             <v-icon
@@ -592,7 +451,7 @@ export default defineComponent({
         </template>
         <v-card class="pa-3 page-actions">
           <div class="text-caption grey--text mb-2">
-            Applies to the {{ pageItems.length }} entries on this page.
+            Applies to the {{ grid.pageItems.value.length }} entries on this page.
           </div>
           <div class="d-flex align-center mb-2">
             <input
@@ -628,29 +487,7 @@ export default defineComponent({
           </v-btn>
         </v-card>
       </v-menu>
-      <v-spacer />
-      <span class="text-caption grey--text mr-2 text-no-wrap">
-        {{ review.items.value.length }} entr{{ review.items.value.length === 1 ? 'y' : 'ies' }}
-        <template v-if="review.stale.value"> · query changed, press Show</template>
-      </span>
-      <v-btn
-        icon
-        small
-        :disabled="page === 0"
-        @click="goToPage(page - 1)"
-      >
-        <v-icon>mdi-chevron-left</v-icon>
-      </v-btn>
-      <span class="text-caption mx-1 text-no-wrap">Page {{ page + 1 }} / {{ pageCount }}</span>
-      <v-btn
-        icon
-        small
-        :disabled="page >= pageCount - 1"
-        @click="goToPage(page + 1)"
-      >
-        <v-icon>mdi-chevron-right</v-icon>
-      </v-btn>
-    </div>
+    </ReviewGridControls>
 
     <v-alert
       v-if="review.error.value"
@@ -698,7 +535,7 @@ export default defineComponent({
           v-else
           :columns="review.grid.columns"
           :rows="review.grid.rows"
-          @cell-size="cellSize = $event"
+          @cell-size="grid.cellSize.value = $event"
         >
           <ReviewCell
             v-for="cell in cells"
@@ -744,15 +581,9 @@ export default defineComponent({
   min-width: 0;
 }
 
-.review-toolbar,
-.review-controls {
+.review-toolbar {
   flex: 0 0 auto;
   gap: 4px 0;
-}
-
-.review-controls {
-  border-top: 1px solid #333;
-  border-bottom: 1px solid #333;
 }
 
 .review-body {
@@ -791,16 +622,6 @@ export default defineComponent({
 .sort-field {
   max-width: 230px;
   font-size: 13px;
-}
-
-.grid-number {
-  max-width: 62px;
-  font-size: 13px;
-}
-
-.padding-slider {
-  min-width: 110px;
-  max-width: 180px;
 }
 
 .page-actions {

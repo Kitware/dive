@@ -18,17 +18,15 @@ import { createChipStore, ChipStore } from 'dive-common/review/chipStore';
 import {
   buildReviewItems, collectAttributeKeys, collectTypes, sortReviewItems,
 } from 'dive-common/review/reviewItems';
+import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import {
-  DEFAULT_REVIEW_GRID,
   DEFAULT_REVIEW_QUERY,
-  REVIEW_GRID_LIMITS,
   ReviewGridSettings,
   ReviewItem,
   ReviewQuery,
   ReviewSortOrder,
 } from 'dive-common/review/types';
 
-const GRID_STORAGE_KEY = 'dive.review.grid';
 const CHIP_OUTLINE = '#00e5ff';
 
 export type ReviewApi = Pick<Api,
@@ -89,41 +87,6 @@ export interface ReviewService {
   dispose(): void;
 }
 
-function loadGridSettings(): ReviewGridSettings {
-  try {
-    const raw = window.localStorage.getItem(GRID_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed && typeof parsed === 'object') {
-        return { ...DEFAULT_REVIEW_GRID, ...parsed };
-      }
-    }
-  } catch {
-    // Storage may be unavailable; defaults are fine.
-  }
-  return { ...DEFAULT_REVIEW_GRID };
-}
-
-function storeGridSettings(grid: ReviewGridSettings) {
-  try {
-    window.localStorage.setItem(GRID_STORAGE_KEY, JSON.stringify(grid));
-  } catch {
-    // Ignore storage failures.
-  }
-}
-
-export function clampGrid(grid: ReviewGridSettings): ReviewGridSettings {
-  const clamp = (value: number, [min, max]: readonly [number, number], fallback: number) => (
-    Number.isFinite(value) ? Math.min(max, Math.max(min, value)) : fallback
-  );
-  return {
-    ...grid,
-    columns: Math.round(clamp(grid.columns, REVIEW_GRID_LIMITS.columns, DEFAULT_REVIEW_GRID.columns)),
-    rows: Math.round(clamp(grid.rows, REVIEW_GRID_LIMITS.rows, DEFAULT_REVIEW_GRID.rows)),
-    padding: clamp(grid.padding, REVIEW_GRID_LIMITS.padding, DEFAULT_REVIEW_GRID.padding),
-  };
-}
-
 interface LoadedDataset {
   config: DatasetConfig;
   tracks: Map<AnnotationId, TrackData>;
@@ -145,7 +108,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   const datasets = ref<ReviewDataset[]>([]);
   const available = ref<ScoringDatasetSummary[]>([]);
   const query = reactive<ReviewQuery>({ ...DEFAULT_REVIEW_QUERY });
-  const grid = reactive<ReviewGridSettings>(clampGrid(loadGridSettings()));
+  const grid = usePersistentGridSettings();
   const sort = ref<ReviewSortOrder>('dataset');
   const items = ref<ReviewItem[]>([]);
   const dataRevision = ref(0);
@@ -158,7 +121,6 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   /** Loads still in flight, so a removal during load is honoured. */
   let loadGeneration = 0;
 
-  watch(grid, () => storeGridSettings({ ...grid }), { deep: true });
   watch(query, () => { stale.value = true; }, { deep: true });
 
   const chipStore = createChipStore({
