@@ -27,8 +27,18 @@ export interface ReviewQuery {
 
 export type ReviewSortOrder = 'dataset' | 'confidence-asc' | 'confidence-desc' | 'frame';
 
+/** A polygon outline in image coordinates: [[x, y], ...] without a closing repeat. */
+export type ReviewPolygon = [number, number][];
+
+/** Extra geometry a detection may carry besides its box. */
+export interface ReviewFrameGeometry {
+  polygons?: ReviewPolygon[];
+  head?: [number, number];
+  tail?: [number, number];
+}
+
 /** One box of a track shown in a chip, in the dataset's own frame numbers. */
-export interface ReviewFrameRef {
+export interface ReviewFrameRef extends ReviewFrameGeometry {
   frame: number;
   /** The box to crop around; null shows the whole frame. */
   bounds: RectBounds | null;

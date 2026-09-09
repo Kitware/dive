@@ -4,6 +4,7 @@ import {
   buildReviewItems,
   collectAttributeKeys,
   collectTypes,
+  frameGeometry,
   matchTypePair,
   sampleFrames,
   sortReviewItems,
@@ -160,5 +161,37 @@ describe('vocabularies', () => {
         belongs: 'track', datatype: 'text', name: 'defined', key: 'track_defined',
       },
     })).toEqual(['defined', 'detAttr', 'trackAttr']);
+  });
+});
+
+describe('frameGeometry', () => {
+  it('reads polygons and head/tail points from the GeoJSON features', () => {
+    const geometry = frameGeometry({
+      frame: 2,
+      bounds: [0, 0, 10, 10],
+      geometry: {
+        type: 'FeatureCollection',
+        features: [
+          {
+            type: 'Feature',
+            properties: { key: '' },
+            geometry: { type: 'Polygon', coordinates: [[[1, 1], [9, 1], [9, 9], [1, 1]]] },
+          },
+          { type: 'Feature', properties: { key: 'head' }, geometry: { type: 'Point', coordinates: [3, 4] } },
+          { type: 'Feature', properties: { key: 'tail' }, geometry: { type: 'Point', coordinates: [7, 8] } },
+          { type: 'Feature', properties: { key: 'HeadTails' }, geometry: { type: 'LineString', coordinates: [[3, 4], [7, 8]] } },
+        ],
+      },
+    });
+    expect(geometry).toEqual({
+      polygons: [[[1, 1], [9, 1], [9, 9]]],
+      head: [3, 4],
+      tail: [7, 8],
+    });
+  });
+
+  it('falls back to the feature head/tail fields and leaves plain boxes bare', () => {
+    expect(frameGeometry({ frame: 0, bounds: [0, 0, 1, 1], head: [1, 2] })).toEqual({ head: [1, 2] });
+    expect(frameGeometry({ frame: 0, bounds: [0, 0, 1, 1] })).toEqual({});
   });
 });
