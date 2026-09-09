@@ -20,7 +20,7 @@ import ReviewCell, { ReviewCellGeometryEdit } from './ReviewCell.vue';
 const TYPE_LIST_ID = 'reviewTypeOptions';
 
 /** Base footer height of a cell at scale 1 (type field plus caption). */
-const CELL_FOOTER_BASE_PX = 52;
+const CELL_FOOTER_BASE_PX = 48;
 
 type ReviewView = 'results' | 'datasets';
 
