@@ -759,6 +759,10 @@ export default defineComponent({
   margin-left: 8px;
 }
 
+.pipeline-categories-row {
+  margin-top: -6px;
+}
+
 .pipeline-category-col--last {
   padding-bottom: 12px;
   margin-bottom: 12px;
