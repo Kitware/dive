@@ -8,6 +8,7 @@ import TrainingPage from './frontend/components/TrainingPage.vue';
 import ViewerLoader from './frontend/components/ViewerLoader.vue';
 import PipelinePage from './frontend/components/PipelinePage.vue';
 import ScoringPage from './frontend/components/ScoringPage.vue';
+import ReviewPage from './frontend/components/ReviewPage.vue';
 
 Vue.use(Router);
 
@@ -27,6 +28,11 @@ export default new Router({
       path: '/training',
       name: 'training',
       component: TrainingPage,
+    },
+    {
+      path: '/review',
+      name: 'review',
+      component: ReviewPage,
     },
     {
       path: '/pipeline',

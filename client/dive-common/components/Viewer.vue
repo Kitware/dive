@@ -174,6 +174,16 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** Deep link: frame to seek to once the media is ready (e.g. from the review grid). */
+    initialFrame: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+    /** Deep link: track to select once annotations are loaded. */
+    initialTrackId: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -2044,6 +2054,32 @@ export default defineComponent({
       }
     };
     loadData();
+
+    /**
+     * Apply a deep link (initialFrame / initialTrackId) once: after the
+     * annotations are loaded and the media controller reports its frame
+     * range, so the seek is not swallowed by the annotator's own init seek.
+     */
+    let initialFocusApplied = false;
+    watch(
+      () => [progress.loaded, aggregateController.value.maxFrame.value] as const,
+      ([loaded, maxFrame]) => {
+        if (initialFocusApplied || !loaded) return;
+        if (props.initialFrame === undefined && props.initialTrackId === undefined) return;
+        if (props.initialFrame !== undefined && maxFrame <= 0) return;
+        initialFocusApplied = true;
+        nextTick(() => {
+          if (props.initialFrame !== undefined) {
+            handler.seekFrame(Math.min(props.initialFrame, maxFrame));
+          }
+          if (props.initialTrackId !== undefined
+            && cameraStore.getAnyPossibleTrack(props.initialTrackId)) {
+            handler.trackSelect(props.initialTrackId, false);
+          }
+        });
+      },
+      { immediate: true },
+    );
 
     const reloadAnnotations = async () => {
       progress.loaded = false;

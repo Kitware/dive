@@ -3,6 +3,7 @@ import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import { useRoute, useRouter } from 'vue-router/composables';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -131,6 +132,8 @@ export default defineComponent({
       return typeof value === 'string' ? value : '';
     });
     const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+    /** Frame / track deep link from the review grid. */
+    const viewerFocus = computed(() => parseViewerFocus(route.query));
 
     function returnToCurrentAnnotations() {
       router.replace({ name: 'viewer', params: { id: props.id } });
@@ -2032,6 +2035,7 @@ export default defineComponent({
       onCalibrationDeleted,
       annotationSourceLabel,
       annotationSourceReturnable,
+      viewerFocus,
       returnToCurrentAnnotations,
     };
   },
@@ -2046,6 +2050,8 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       :annotation-source-label="annotationSourceLabel"
       :annotation-source-returnable="annotationSourceReturnable"
+      :initial-frame="viewerFocus.frame"
+      :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
       @return-to-current-annotations="returnToCurrentAnnotations"

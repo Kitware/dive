@@ -469,9 +469,15 @@ interface Api {
   deleteScoringResult?(datasetId: string, resultId: string): Promise<void>;
   /** Annotation sets, revisions or on-disk files a source on this dataset can point at. */
   listScoringSources?(datasetId: string): Promise<ScoringSourceOptions>;
-  /** Datasets that may be named as the other side of a comparison. */
+  /**
+   * Datasets that may be named as the other side of a comparison; also the
+   * dataset list the review page offers.
+   */
   listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
-  /** Open a platform dataset picker; returns null when the user cancels. */
+  /**
+   * Open a platform dataset picker; returns null when the user cancels.
+   * Shared by the scoring and review pages.
+   */
   pickScoringDataset?(excludeIds: string[]): Promise<ScoringDatasetSummary | null>;
   /** Save a text export where the user chooses; resolves false when they cancel. */
   saveScoringExport?(args: { filename: string; mime: string; content: string }): Promise<boolean>;
@@ -485,6 +491,12 @@ interface Api {
   ): Promise<boolean>;
 
   loadConfig(datasetId: string): Promise<DatasetConfig>;
+  /**
+   * loadConfig without the platform's viewer bookkeeping (desktop recents,
+   * web browse location), for pages that read many datasets at once such as
+   * Review. Callers fall back to loadConfig when absent.
+   */
+  peekConfig?(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
   loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 

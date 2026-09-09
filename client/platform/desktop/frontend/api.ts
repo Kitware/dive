@@ -815,6 +815,11 @@ async function loadConfig(id: string) {
   return { ...data, calibration: data.multiCam?.calibration ?? null };
 }
 
+/** loadConfig without the recents bookkeeping the stateful wrapper adds. */
+function peekConfig(id: string) {
+  return loadConfig(id);
+}
+
 let scoringAnnotationPreviewFile: string | null = null;
 
 /** One-shot annotation file to load in the viewer (from scoring result links). */
@@ -928,6 +933,7 @@ export {
   exportScoringPdf,
   /* Standard Specification APIs */
   loadConfig,
+  peekConfig,
   loadDetections,
   loadFrameMetadata,
   getPipelineList,
