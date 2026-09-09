@@ -33,7 +33,7 @@ const buttonOptions = {
   left: true,
   depressed: true,
   color: 'primary',
-  class: ['my-2', 'd-flex', 'justify-start'],
+  class: ['d-flex', 'justify-start'],
 };
 
 const menuOptions = {
@@ -228,19 +228,10 @@ export default defineComponent({
             :value="selected.length ? selected : [location]"
           >
             <template #actions>
-              <div class="pa-2">
+              <div class="pa-2 folder-actions">
                 <Clone
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
-                />
-                <run-training-menu
-                  v-if="trainingEnabled"
-                  v-bind="{
-                    buttonOptions:
-                      { ...buttonOptions, disabled: includesLargeImage || includesMultiCamDataset },
-                    menuOptions,
-                  }"
-                  :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
                   v-if="pipelinesEnabled"
@@ -258,6 +249,15 @@ export default defineComponent({
                   :exclude-pipeline-terms="webExcludedPipelineTerms"
                   :jobs-disabled="jobsDisabled"
                   :jobs-disabled-message="jobsDisabledMessage"
+                />
+                <run-training-menu
+                  v-if="trainingEnabled"
+                  v-bind="{
+                    buttonOptions:
+                      { ...buttonOptions, disabled: includesLargeImage || includesMultiCamDataset },
+                    menuOptions,
+                  }"
+                  :selected-dataset-ids="locationInputs"
                 />
                 <v-btn
                   v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
@@ -322,5 +322,11 @@ export default defineComponent({
 <style lang='scss'>
 .nowraptable table thead tr th .row {
   flex-wrap: nowrap;
+}
+
+.folder-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 </style>
