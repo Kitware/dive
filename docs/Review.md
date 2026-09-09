@@ -37,13 +37,15 @@ The **Results** panel opens by default and shows the annotations that match the 
 * the dataset name (when more than one is loaded), track id, and frame or frame count;
 * any polygon outline and head/tail points the detection carries, drawn over the chip.
 
-Hover an entry for three actions: **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **edit geometry**, and **open in viewer**. Clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
+Hover an entry for three actions: **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
+
+Tracks cycle through their sampled frames; the arrows in the filmstrip badge step through them by hand, which pauses the cycling on that frame until the play button resumes it.
 
 The type field and caption grow as the grid shows fewer entries, so a 2 by 2 grid is comfortably readable from a distance while a dense grid stays compact.
 
 ### Editing boxes, polygons and points in place
 
-Right click an entry (or use its edit action) to adjust the frame it is showing without opening the viewer. The cycling pauses on that frame, the box gains drag handles, and any polygon vertices and head/tail points can be dragged too. Press **Enter** or **Apply** to keep the change, **Esc** or **Cancel** to drop it. Edits are held with the type edits until you **Save**, and the entry's chip is re-cropped around the new box.
+Right click an entry (or use its edit action) to adjust the frame it is showing without opening the viewer. The cycling pauses on that frame, the box gains the same handles the annotator uses (in the type's colour, red while dragged), and any polygon vertices and head/tail points can be dragged too. Right click again, or press **Enter** or **Apply**, to keep the change; **Esc** or **Cancel** drops it. Edits are held with the type edits until you **Save**, and the entry's chip is re-cropped around the new box. When auto-save is enabled in the settings, review edits are saved after the same delay the annotator uses.
 
 **Tracks** spanning several frames first show their first box, then, once the extra frames have loaded, cycle through up to eight boxes evenly sampled along the track. The object stays centred in the entry as it cycles. A filmstrip badge shows which sampled frame is on screen.
 

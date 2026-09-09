@@ -11,6 +11,7 @@ import type { ScoringDatasetSummary } from 'dive-common/scoring/types';
 import type { Feature, TrackData } from 'vue-media-annotator/track';
 import type { AnnotationId, ConfidencePair } from 'vue-media-annotator/BaseAnnotation';
 import type { RectBounds } from 'vue-media-annotator/utils';
+import StyleManager from 'vue-media-annotator/StyleManager';
 import {
   acceptPairAsCorrect, compileHierarchy, reassignPairs, TypeHierarchyIndex,
 } from 'dive-common/typeHierarchy';
@@ -88,6 +89,8 @@ export interface ReviewService {
   trackOf(datasetId: string, trackId: AnnotationId): TrackData | undefined;
   /** The item's live top type/confidence after any edits. */
   currentType(item: ReviewItem): { type: string; confidence: number };
+  /** The colour the annotator draws a type in (custom dataset styles applied). */
+  colorFor(type: string): string;
   isPending(item: ReviewItem): boolean;
   assignType(item: ReviewItem, type: string): void;
   acceptType(item: ReviewItem): void;
@@ -197,6 +200,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   const loaded = new Map<string, LoadedDataset>();
   /** Loads still in flight, so a removal during load is honoured. */
   let loadGeneration = 0;
+  /** Type colours as the annotator assigns them, seeded from each dataset's custom styles. */
+  const styles = new StyleManager({ markChangesPending: () => undefined });
 
   watch(query, () => { stale.value = true; }, { deep: true });
 
@@ -275,6 +280,9 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       const tracks = new Map<AnnotationId, TrackData>();
       detections.tracks.forEach((track) => tracks.set(track.id, track));
       const frameSource = frameSourceFor(config);
+      if (config.customTypeStyling) {
+        styles.populateTypeStyles({ ...styles.customStyles.value, ...config.customTypeStyling });
+      }
       loaded.set(id, {
         config,
         tracks,
@@ -393,6 +401,10 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       return top;
     }
     return topPair(track.confidencePairs);
+  }
+
+  function colorFor(type: string) {
+    return styles.typeStyling.value.color(type);
   }
 
   function isPending(item: ReviewItem) {
@@ -535,6 +547,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     runQuery,
     trackOf,
     currentType,
+    colorFor,
     isPending,
     assignType,
     acceptType,
