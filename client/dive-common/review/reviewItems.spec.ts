@@ -6,6 +6,8 @@ import {
   collectTypes,
   cycleIntervalFor,
   frameGeometry,
+  groupReviewItems,
+  interpolateBounds,
   matchTypePair,
   sampleFrames,
   sortReviewItems,
@@ -211,5 +213,44 @@ describe('cycleIntervalFor', () => {
     const one = [{ frame: 5, bounds: [0, 0, 1, 1] as [number, number, number, number] }];
     expect(cycleIntervalFor(one, 30, 400)).toBe(400);
     expect(cycleIntervalFor([...one, { frame: 6, bounds: [0, 0, 1, 1] }], 0, 400)).toBe(400);
+  });
+});
+
+describe('interpolateBounds', () => {
+  it('holds the nearest box at the ends and interpolates between keyframes', () => {
+    const t = track(1, [['fish', 1]], [0, 10]);
+    expect(interpolateBounds(t, 5)).toEqual([5, 0, 15, 10]);
+    expect(interpolateBounds(t, -3)).toEqual([0, 0, 10, 10]);
+    expect(interpolateBounds(t, 20)).toEqual([10, 0, 20, 10]);
+    expect(interpolateBounds(t, 10)).toEqual([10, 0, 20, 10]);
+    expect(interpolateBounds({ ...t, features: [] }, 3)).toBeNull();
+  });
+});
+
+describe('groupReviewItems', () => {
+  it('joins a track across the cameras of a rig with aligned frames and box-less gaps', () => {
+    const left = track(7, [['fish', 1]], [0, 4]);
+    const right = track(7, [['fish', 1]], [4, 8]);
+    const query = { ...DEFAULT_REVIEW_QUERY, threshold: 0 };
+    const items = [
+      ...buildReviewItems('rig/right', [right], query, 8),
+      ...buildReviewItems('rig/left', [left], query, 8),
+      ...buildReviewItems('solo', [track(1, [['fish', 1]], [2])], query, 8),
+    ];
+    const membership = (id: string) => (id.startsWith('rig/')
+      ? { parent: 'rig', camera: id.slice(4), rank: id === 'rig/left' ? 0 : 1 }
+      : undefined);
+    const tracks: Record<string, TrackData> = { 'rig/left': left, 'rig/right': right };
+    const entries = groupReviewItems(items, membership, (item) => tracks[item.datasetId], 8);
+
+    expect(entries.map((e) => e.key)).toEqual(['rig#7', 'solo#1']);
+    const rig = entries[0];
+    expect(rig.labels).toEqual(['left', 'right']);
+    expect(rig.items.map((i) => i.datasetId)).toEqual(['rig/left', 'rig/right']);
+    // Both cameras show frames 0, 4 and 8; the sides without a detection are interpolated.
+    expect(rig.items[0].frames.map((f) => [f.frame, f.missing ?? false])).toEqual([[0, false], [4, false], [8, true]]);
+    expect(rig.items[1].frames.map((f) => [f.frame, f.missing ?? false])).toEqual([[0, true], [4, false], [8, false]]);
+    expect(rig.items[0].frames[2].bounds).toEqual([4, 0, 14, 10]);
+    expect(entries[1].labels).toEqual(['']);
   });
 });

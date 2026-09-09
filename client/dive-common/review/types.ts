@@ -42,6 +42,12 @@ export interface ReviewFrameRef extends ReviewFrameGeometry {
   frame: number;
   /** The box to crop around; null shows the whole frame. */
   bounds: RectBounds | null;
+  /**
+   * The track has no detection on this frame in this camera; `bounds` is
+   * interpolated from its neighbours so the chip can still be cropped there,
+   * and no box is drawn.
+   */
+  missing?: boolean;
 }
 
 /**
@@ -72,6 +78,18 @@ export interface ReviewItem {
     value: unknown;
     scope: 'track' | 'detection';
   };
+}
+
+/**
+ * One grid entry: a track shown once per camera it appears in. Single
+ * camera datasets have one item per entry; the cameras of a multicamera
+ * dataset share the entry, with their items' frames aligned.
+ */
+export interface ReviewEntry {
+  key: string;
+  items: ReviewItem[];
+  /** Camera name per item; empty strings for single-camera entries. */
+  labels: string[];
 }
 
 /** Grid presentation settings, persisted per browser. */
