@@ -85,7 +85,7 @@ async function getDatasetMedia(datasetId: string) {
 function mergeDatasetConfig(
   metaStatic: GirderConfigStatic,
   media: DatasetSourceMedia,
-  compositeId: string | undefined,
+  compositeId: string | null | undefined,
 ): GirderConfig {
   const dsMeta: GirderConfig = {
     ...metaStatic,

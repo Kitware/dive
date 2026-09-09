@@ -163,7 +163,9 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
   const chipStore = createChipStore({
     frameSourceFor: (datasetId) => loaded.get(datasetId)?.frameSource ?? null,
-  }, { padding: grid.padding, size: 256, outline: CHIP_OUTLINE });
+  }, {
+    padding: grid.padding, size: 256, aspect: 1, outline: CHIP_OUTLINE,
+  });
 
   function fail(reason: unknown, fallback: string) {
     const message = reason instanceof Error ? reason.message : String(reason || fallback);

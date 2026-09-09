@@ -16,6 +16,16 @@ import ReviewCell from './ReviewCell.vue';
 
 const CHIP_OUTLINE = '#00e5ff';
 const TYPE_LIST_ID = 'reviewTypeOptions';
+/** Height of a cell's footer (type field and caption), excluded from the image area. */
+const CELL_FOOTER_PX = 46;
+
+/** Chip aspect for a cell, coarsened so window resizes rarely force a re-render. */
+export function chipAspectFor(cellWidth: number, cellHeight: number): number {
+  const imageHeight = cellHeight - CELL_FOOTER_PX;
+  if (cellWidth <= 0 || imageHeight <= 0) return 1;
+  const ratio = Math.min(3, Math.max(1 / 3, cellWidth / imageHeight));
+  return Math.round(ratio * 10) / 10;
+}
 
 const SORT_OPTIONS: { value: ReviewSortOrder; text: string }[] = [
   { value: 'dataset', text: 'Dataset, track id' },
@@ -110,6 +120,7 @@ export default defineComponent({
       review.chipStore.setOptions({
         padding: review.grid.padding,
         size: chipSizeFor(pixels),
+        aspect: chipAspectFor(cellSize.value.width, cellSize.value.height),
         outline: CHIP_OUTLINE,
       });
       ensureVisible();
