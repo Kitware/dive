@@ -30,7 +30,8 @@ export type ReviewSortOrder = 'dataset' | 'confidence-asc' | 'confidence-desc' |
 /** One box of a track shown in a chip, in the dataset's own frame numbers. */
 export interface ReviewFrameRef {
   frame: number;
-  bounds: RectBounds;
+  /** The box to crop around; null shows the whole frame. */
+  bounds: RectBounds | null;
 }
 
 /**

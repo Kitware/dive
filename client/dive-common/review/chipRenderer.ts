@@ -55,8 +55,26 @@ export function chipSizeFor(cellPixels: number): number {
   return CHIP_SIZE_BUCKETS.find((size) => size >= wanted) ?? CHIP_SIZE_BUCKETS[CHIP_SIZE_BUCKETS.length - 1];
 }
 
-export function renderChip(frame: DecodedFrame, bounds: RectBounds, options: ChipRenderOptions): string {
-  const region = chipRegion(bounds, options.padding, options.aspect);
+/** Crop region covering a whole frame at the requested aspect ratio, centred. */
+export function frameRegion(width: number, height: number, aspect = 1): ChipRegion {
+  const ratio = aspect > 0 && Number.isFinite(aspect) ? aspect : 1;
+  const w = Math.max(1, width);
+  const h = Math.max(1, height);
+  const regionWidth = w / h >= ratio ? w : h * ratio;
+  const regionHeight = w / h >= ratio ? w / ratio : h;
+  return {
+    x: (w - regionWidth) / 2, y: (h - regionHeight) / 2, width: regionWidth, height: regionHeight,
+  };
+}
+
+export function renderChip(
+  frame: DecodedFrame,
+  bounds: RectBounds | null,
+  options: ChipRenderOptions,
+): string {
+  const region = bounds
+    ? chipRegion(bounds, options.padding, options.aspect)
+    : frameRegion(frame.width, frame.height, options.aspect);
   const longest = Math.max(region.width, region.height);
   // Never upscale source pixels beyond 1:1 more than the bucket asks for.
   const scale = Math.max(16, Math.min(options.size, Math.max(longest, 16))) / longest;
@@ -87,7 +105,7 @@ export function renderChip(frame: DecodedFrame, bounds: RectBounds, options: Chi
       sh * scale,
     );
   }
-  if (options.outline) {
+  if (options.outline && bounds) {
     const [x1, y1, x2, y2] = bounds;
     ctx.strokeStyle = options.outline;
     ctx.lineWidth = Math.max(1, Math.round(Math.max(canvas.width, canvas.height) / 160));

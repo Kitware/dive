@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onMounted, ref, watch,
+  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch,
 } from 'vue';
 import {
   useCameraStore,
@@ -13,7 +13,8 @@ import type { VideoSearchResult, VideoSearchIndexMethod } from 'dive-common/apis
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { runningJobs } from 'platform/desktop/frontend/store/jobs';
 import { useVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
-import { createResultChips, resultFrame } from 'platform/desktop/frontend/useResultChips';
+import { createSearchChips } from 'platform/desktop/frontend/useSearchChips';
+import { searchResultFrame as resultFrame } from 'dive-common/review/searchResultItems';
 import VideoSearchResultsGrid from 'platform/desktop/frontend/components/VideoSearchResultsGrid.vue';
 
 export default defineComponent({
@@ -34,8 +35,9 @@ export default defineComponent({
     const saveModelDialog = ref(false);
     const resultsGridOpen = ref(false);
     /** Cropped result chips shared with the results grid. */
-    const chipStore = search ? createResultChips(search) : null;
-    const thumbnails = computed(() => chipStore?.chips.value ?? {});
+    const searchChips = search ? createSearchChips(search) : null;
+    const thumbnails = computed(() => searchChips?.chips.value ?? {});
+    onBeforeUnmount(() => searchChips?.dispose());
 
     const state = computed(() => search?.state ?? null);
 
@@ -177,7 +179,7 @@ export default defineComponent({
       saveModelName,
       saveModelDialog,
       resultsGridOpen,
-      chipStore,
+      searchChips,
       thumbnails,
       resultFrame,
       queryFromSelectedTrack,
@@ -449,9 +451,9 @@ export default defineComponent({
 
       <!-- Full-window adjudication grid over the same session state -->
       <video-search-results-grid
-        v-if="chipStore"
+        v-if="searchChips"
         v-model="resultsGridOpen"
-        :chip-store="chipStore"
+        :search-chips="searchChips"
       />
     </div>
   </div>

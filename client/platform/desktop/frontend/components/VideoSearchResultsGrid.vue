@@ -1,45 +1,55 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, PropType, ref, watch,
+  computed, defineComponent, onBeforeUnmount, PropType, watch,
 } from 'vue';
 import { useHandler } from 'vue-media-annotator/provides';
-import type { VideoSearchResult } from 'dive-common/apispec';
 import { useVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
-import { resultFrame, ResultChipStore } from 'platform/desktop/frontend/useResultChips';
-import AdjudicationChip from 'platform/desktop/frontend/components/AdjudicationChip.vue';
+import type { SearchChips } from 'platform/desktop/frontend/useSearchChips';
+import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
+import { useReviewGrid } from 'dive-common/review/useReviewGrid';
+import type { ReviewItem } from 'dive-common/review/types';
+import ReviewGrid from 'dive-common/components/Review/ReviewGrid.vue';
+import ReviewGridControls from 'dive-common/components/Review/ReviewGridControls.vue';
+import ReviewCell from 'dive-common/components/Review/ReviewCell.vue';
 
-const PageSize = 20; // 5 columns x 4 rows
+/** Footer height of a search cell (score line only), for the chip aspect ratio. */
+const SearchCellFooterPx = 24;
 
 /**
- * Full-window grid of ranked search results across every indexed video,
- * for rapid adjudication: accept/reject each chip, then refine. Shares
- * session state (and adjudications) with the Video Search side panel.
+ * Full-window review grid of ranked search results across every indexed
+ * video, for rapid adjudication: accept/reject each chip, then refine.
+ * Shares session state (and adjudications) with the Video Search side
+ * panel, and the grid shape, zoom, context and paging with the Review page.
  */
 export default defineComponent({
   name: 'VideoSearchResultsGrid',
-  components: { AdjudicationChip },
+  components: { ReviewGrid, ReviewGridControls, ReviewCell },
   props: {
     value: {
       type: Boolean,
       default: false,
     },
-    chipStore: {
-      type: Object as PropType<ResultChipStore>,
+    searchChips: {
+      type: Object as PropType<SearchChips>,
       required: true,
     },
   },
   setup(props, { emit }) {
     const search = useVideoSearch();
     const handler = useHandler();
-    const page = ref(0);
+    const gridSettings = usePersistentGridSettings();
+    const open = computed(() => props.value);
+    const grid = useReviewGrid({
+      items: props.searchChips.items,
+      grid: gridSettings,
+      chipStore: props.searchChips.store,
+      active: open,
+      footerPx: SearchCellFooterPx,
+    });
 
     const state = computed(() => search?.state ?? null);
     const results = computed(() => state.value?.results ?? []);
-    const pageCount = computed(() => Math.max(1, Math.ceil(results.value.length / PageSize)));
-    const pageResults = computed(
-      () => results.value.slice(page.value * PageSize, (page.value + 1) * PageSize),
-    );
-    const chips = computed(() => props.chipStore.chips.value);
+    const resultsByRef = computed(() => new Map(results.value.map((r) => [r.ref, r])));
 
     const adjudicationCounts = computed(() => {
       const counts = { positive: 0, negative: 0 };
@@ -49,54 +59,42 @@ export default defineComponent({
       return counts;
     });
 
+    const cells = computed(() => grid.pageItems.value.map((item) => {
+      const result = resultsByRef.value.get(item.key);
+      const datasetName = search && result ? search.resultDatasetName(result) : null;
+      const local = Boolean(search && result && search.resultIsLocal(result));
+      const bits = [`Frame ${item.primary.frame}`];
+      if (datasetName) bits.push(datasetName);
+      const adjudication: '' | 'positive' | 'negative' = (result && state.value?.adjudications[result.ref]) || '';
+      return {
+        item,
+        local,
+        adjudication,
+        subtitle: bits.join(' · '),
+        title: `${datasetName || 'This dataset'} · frame ${item.primary.frame}`,
+      };
+    }));
+
+    const countLabel = computed(() => {
+      const count = results.value.length;
+      const base = `${count} result${count === 1 ? '' : 's'}`;
+      return state.value?.iteration ? `${base} · iteration ${state.value.iteration}` : base;
+    });
+
     function close() {
       emit('input', false);
     }
 
-    function prevPage() {
-      page.value = Math.max(0, page.value - 1);
-    }
-
-    function nextPage() {
-      page.value = Math.min(pageCount.value - 1, page.value + 1);
-    }
-
-    /**
-     * Load chips for the visible page and prefetch the next one, plus
-     * cycling track sequences for just the visible page (each sequence
-     * frame can cost a backend ffmpeg extraction).
-     */
-    function ensureVisibleChips() {
-      if (!props.value) return;
-      props.chipStore.ensure(
-        results.value.slice(page.value * PageSize, (page.value + 2) * PageSize),
-      );
-      props.chipStore.ensureSequences(
-        results.value.slice(page.value * PageSize, (page.value + 1) * PageSize),
-      );
-    }
-    watch([() => props.value, page], ensureVisibleChips);
-    // Refinement re-ranks everything, so restart from the top page.
-    watch(results, () => {
-      page.value = 0;
-      ensureVisibleChips();
-    });
-
     function onKeydown(event: KeyboardEvent) {
-      if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
-      // Swallow the event before it bubbles to document, where the
+      // Swallow paging keys before they bubble to document, where the
       // annotator's mousetrap left/right bindings would seek the (hidden)
       // playhead one frame per grid page turn.
-      event.preventDefault();
-      event.stopPropagation();
-      if (event.key === 'ArrowLeft') {
-        prevPage();
-      } else {
-        nextPage();
+      if (grid.handleKeydown(event)) {
+        event.stopPropagation();
       }
     }
-    watch(() => props.value, (open) => {
-      if (open) {
+    watch(() => props.value, (isOpen) => {
+      if (isOpen) {
         window.addEventListener('keydown', onKeydown, true);
       } else {
         window.removeEventListener('keydown', onKeydown, true);
@@ -104,42 +102,33 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown, true);
+      grid.dispose();
     });
 
-    function isLocalResult(result: VideoSearchResult): boolean {
-      return search !== null && search.resultIsLocal(result);
-    }
-
-    function chipTitle(result: VideoSearchResult): string {
-      const frameNum = resultFrame(result);
-      return frameNum !== null ? `Frame ${frameNum}` : '';
-    }
-
     /** Jump the annotator to a result in the currently open dataset. */
-    function openResult(result: VideoSearchResult) {
-      if (!isLocalResult(result)) return;
-      const target = resultFrame(result);
-      if (target !== null) {
-        handler.seekFrame(target);
-        close();
-      }
+    function openItem(item: ReviewItem) {
+      const result = resultsByRef.value.get(item.key);
+      if (!search || !result || !search.resultIsLocal(result)) return;
+      handler.seekFrame(item.primary.frame);
+      close();
+    }
+
+    function mark(item: ReviewItem, adjudication: 'positive' | 'negative') {
+      search?.mark(item.key, adjudication);
     }
 
     return {
       search,
       state,
       results,
-      page,
-      pageCount,
-      pageResults,
-      chips,
+      gridSettings,
+      grid,
+      cells,
+      countLabel,
       adjudicationCounts,
       close,
-      prevPage,
-      nextPage,
-      isLocalResult,
-      chipTitle,
-      openResult,
+      openItem,
+      mark,
     };
   },
 });
@@ -165,12 +154,6 @@ export default defineComponent({
       >
         <v-toolbar-title class="text-subtitle-1">
           Search Results
-          <span class="text-caption grey--text ml-2">
-            {{ results.length }} results
-            <template v-if="state.iteration">
-              — iteration {{ state.iteration }}
-            </template>
-          </span>
         </v-toolbar-title>
         <v-spacer />
         <span class="text-caption mr-3">
@@ -207,6 +190,20 @@ export default defineComponent({
         </v-btn>
       </v-toolbar>
 
+      <ReviewGridControls
+        :grid="gridSettings"
+        :page="grid.page.value"
+        :page-count="grid.pageCount.value"
+        :count-label="countLabel"
+        :can-zoom-in="grid.canZoomIn.value"
+        :can-zoom-out="grid.canZoomOut.value"
+        @update:page="grid.goToPage"
+        @set-columns="grid.setColumns"
+        @set-rows="grid.setRows"
+        @set-padding="grid.setPadding"
+        @zoom="grid.zoom"
+      />
+
       <v-progress-linear
         v-if="state.busy"
         indeterminate
@@ -230,43 +227,65 @@ export default defineComponent({
       </div>
       <div
         v-else
-        class="results-grid flex-grow-1 pa-2"
+        class="results-grid-body flex-grow-1 pa-2"
       >
-        <adjudication-chip
-          v-for="result in pageResults"
-          :key="result.ref"
-          :src="chips[result.ref] || null"
-          :srcs="chipStore.sequences.value[result.ref] || null"
-          :animate="value"
-          :failed="Boolean(chipStore.failures.value[result.ref])"
-          :title="chipTitle(result)"
-          :subtitle="search.resultDatasetName(result)"
-          :score="result.relevancy_score"
-          :adjudication="state.adjudications[result.ref] || null"
-          :clickable="isLocalResult(result)"
-          @adjudicate="search.mark(result.ref, $event)"
-          @open="openResult(result)"
-        />
-      </div>
-
-      <div class="d-flex align-center justify-center py-1 flex-grow-0">
-        <v-btn
-          icon
-          :disabled="page === 0"
-          @click="prevPage"
+        <ReviewGrid
+          :columns="gridSettings.columns"
+          :rows="gridSettings.rows"
+          @cell-size="grid.cellSize.value = $event"
         >
-          <v-icon>mdi-chevron-left</v-icon>
-        </v-btn>
-        <span class="text-caption mx-3">
-          Page {{ page + 1 }} of {{ pageCount }}
-        </span>
-        <v-btn
-          icon
-          :disabled="page >= pageCount - 1"
-          @click="nextPage"
-        >
-          <v-icon>mdi-chevron-right</v-icon>
-        </v-btn>
+          <ReviewCell
+            v-for="cell in cells"
+            :key="cell.item.key"
+            :src="searchChips.chips.value[cell.item.key] || null"
+            :srcs="searchChips.store.sequences.value[cell.item.key] || null"
+            :failure="searchChips.store.failures.value[cell.item.key] || null"
+            :animate="value"
+            :cycle-interval-ms="gridSettings.cycleIntervalMs"
+            :confidence="cell.item.confidence"
+            :frame-count="cell.item.keyframeCount"
+            :title="cell.title"
+            :highlight="cell.adjudication"
+            :editable="false"
+            @open="openItem(cell.item)"
+          >
+            <template #actions>
+              <v-btn
+                icon
+                small
+                class="chip-action"
+                :color="cell.adjudication === 'positive' ? 'success' : 'grey lighten-1'"
+                title="Mark as a correct match"
+                @click.stop="mark(cell.item, 'positive')"
+              >
+                <v-icon>
+                  {{ cell.adjudication === 'positive' ? 'mdi-check-circle' : 'mdi-check-circle-outline' }}
+                </v-icon>
+              </v-btn>
+              <v-btn
+                icon
+                small
+                class="chip-action"
+                :color="cell.adjudication === 'negative' ? 'error' : 'grey lighten-1'"
+                title="Mark as an incorrect match"
+                @click.stop="mark(cell.item, 'negative')"
+              >
+                <v-icon>
+                  {{ cell.adjudication === 'negative' ? 'mdi-close-circle' : 'mdi-close-circle-outline' }}
+                </v-icon>
+              </v-btn>
+            </template>
+            <template #footer>
+              <div
+                class="text-caption search-cell-caption"
+                :class="{ 'grey--text': !cell.local }"
+                :title="cell.local ? 'Click the image to open this frame' : 'Result from another dataset'"
+              >
+                {{ cell.subtitle }}
+              </div>
+            </template>
+          </ReviewCell>
+        </ReviewGrid>
       </div>
     </v-card>
   </v-dialog>
@@ -276,12 +295,14 @@ export default defineComponent({
 .results-grid-page {
   height: 100vh;
 }
-.results-grid {
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  grid-template-rows: repeat(4, 1fr);
-  gap: 8px;
+.results-grid-body {
   min-height: 0;
   overflow: hidden;
+}
+.search-cell-caption {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  line-height: 1.3;
 }
 </style>

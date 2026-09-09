@@ -78,6 +78,11 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    /** Outline the cell as accepted or rejected (e.g. search adjudication). */
+    highlight: {
+      type: String as PropType<'' | 'positive' | 'negative'>,
+      default: '',
+    },
   },
   setup(props, { emit }) {
     const cycleIndex = ref(0);
@@ -173,7 +178,11 @@ export default defineComponent({
 <template>
   <div
     class="review-cell"
-    :class="{ 'cell-pending': pending }"
+    :class="{
+      'cell-pending': pending,
+      'cell-positive': highlight === 'positive',
+      'cell-negative': highlight === 'negative',
+    }"
   >
     <div
       class="cell-image-wrap"
@@ -340,6 +349,14 @@ export default defineComponent({
 
   &.cell-pending {
     border-color: #ffb300;
+  }
+
+  &.cell-positive {
+    border-color: #4caf50;
+  }
+
+  &.cell-negative {
+    border-color: #f44336;
   }
 }
 
