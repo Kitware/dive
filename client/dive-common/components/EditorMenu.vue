@@ -449,7 +449,6 @@ export default defineComponent({
       <!-- Collapsed mode for edit buttons -->
       <span
         class="toolbar-group-host"
-        :class="{ 'toolbar-group-host--expanded': isEditButtonsExpanded }"
       >
         <v-menu
           v-if="!isEditButtonsExpanded"

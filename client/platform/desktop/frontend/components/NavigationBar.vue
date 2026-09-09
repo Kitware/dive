@@ -17,12 +17,15 @@ export default defineComponent({
   <v-app-bar app>
     <v-tabs
       icons-and-text
+      class="desktop-nav-tabs"
       style="flex-basis:0; flex-grow:0;"
       color="accent"
     >
       <v-tab :to="{ name: 'recent' }">
-        Library
-        <v-icon>mdi-folder-open</v-icon>
+        Library<v-icon>mdi-folder-open</v-icon>
+      </v-tab>
+      <v-tab :to="{ name: 'pipeline' }">
+        Pipelines<v-icon>mdi-pipe</v-icon>
       </v-tab>
       <job-tab />
       <v-tab :to="{ name: 'training' }">
@@ -30,9 +33,6 @@ export default defineComponent({
       </v-tab>
       <v-tab :to="{ name: 'review' }">
         Review<v-icon>mdi-view-grid-outline</v-icon>
-      </v-tab>
-      <v-tab :to="{ name: 'pipeline' }">
-        Pipeline<v-icon>mdi-pipe</v-icon>
       </v-tab>
       <v-tab :to="{ name: 'scoring' }">
         Scoring<v-icon>mdi-chart-box-outline</v-icon>
@@ -44,3 +44,7 @@ export default defineComponent({
     <v-spacer />
   </v-app-bar>
 </template>
+
+<style lang="scss">
+@import './navTabs.scss';
+</style>

@@ -21,15 +21,15 @@ export default defineComponent({
 .outlined-labeled-group {
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
-  margin: -9px 4px 0;
-  padding: 2px 6px 4px;
+  margin: 0 4px;
+  padding: 4px 6px 2px;
   min-inline-size: min-content;
 }
 
 .outlined-labeled-group__legend {
   color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
-  line-height: 1.25;
+  line-height: 1;
   padding: 0 4px;
   width: auto;
 }

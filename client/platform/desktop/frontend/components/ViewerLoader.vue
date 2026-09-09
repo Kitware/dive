@@ -2105,11 +2105,11 @@ export default defineComponent({
         <v-tabs
           icons-and-text
           hide-slider
+          class="desktop-nav-tabs"
           style="flex-basis:0; flex-grow:0;"
         >
           <v-tab :to="{ name: 'recent' }">
-            Library
-            <v-icon>mdi-folder-open</v-icon>
+            Library<v-icon>mdi-folder-open</v-icon>
           </v-tab>
           <job-tab />
           <v-tab :to="{ name: 'training' }">
@@ -2236,6 +2236,10 @@ export default defineComponent({
     </v-snackbar>
   </div>
 </template>
+
+<style lang="scss">
+@import './navTabs.scss';
+</style>
 
 <style scoped>
 .viewer-loader-wrapper {
