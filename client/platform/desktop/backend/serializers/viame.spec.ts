@@ -1,5 +1,6 @@
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
-import parseSync from 'csv-parse/lib/sync';
+// eslint-disable-next-line import/no-unresolved -- csv-parse/sync is a valid package export
+import { parse as parseSync } from 'csv-parse/sync';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
 import { Readable } from 'stream';
