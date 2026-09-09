@@ -2478,7 +2478,7 @@ export default defineComponent({
   <v-main class="viewer">
     <v-app-bar
       app
-      extension-height="52"
+      extension-height="56"
     >
       <slot name="title" />
       <span
