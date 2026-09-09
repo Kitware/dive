@@ -279,6 +279,10 @@ export default defineComponent({
     function scoreSelected() {
       router.push({ name: 'scoring', query: selectedIdsQuery() });
     }
+
+    function reviewSelected() {
+      router.push({ name: 'review', query: selectedIdsQuery() });
+    }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
         if (recent.subType === 'stereo') {
@@ -374,6 +378,7 @@ export default defineComponent({
       runPipelineOnSelected,
       runTrainingOnSelected,
       scoreSelected,
+      reviewSelected,
       isSelected,
       toggleSelected,
       toggleSelectAll,
@@ -662,6 +667,27 @@ export default defineComponent({
                     </v-btn>
                   </template>
                   <span>Score the selected datasets against ground truth</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="reviewSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-view-grid-outline
+                      </v-icon>
+                      Review
+                    </v-btn>
+                  </template>
+                  <span>Review the selected datasets' annotations as a grid</span>
                 </v-tooltip>
                 <v-tooltip bottom>
                   <template #activator="{ on }">

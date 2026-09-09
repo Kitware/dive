@@ -1,0 +1,164 @@
+import type { TrackData } from 'vue-media-annotator/track';
+import {
+  attributeMatches,
+  buildReviewItems,
+  collectAttributeKeys,
+  collectTypes,
+  matchTypePair,
+  sampleFrames,
+  sortReviewItems,
+} from './reviewItems';
+import { DEFAULT_REVIEW_QUERY } from './types';
+
+function track(
+  id: number,
+  pairs: [string, number][],
+  frames: number[],
+  extra: Partial<TrackData> = {},
+): TrackData {
+  return {
+    id,
+    begin: Math.min(...frames),
+    end: Math.max(...frames),
+    confidencePairs: pairs,
+    attributes: {},
+    features: frames.map((frame) => ({
+      frame, keyframe: true, bounds: [frame, 0, frame + 10, 10],
+    })),
+    ...extra,
+  };
+}
+
+describe('sampleFrames', () => {
+  it('keeps a single detection as one frame', () => {
+    const [only] = track(1, [['a', 1]], [3]).features;
+    expect(sampleFrames([only], 8)).toEqual([{ frame: 3, bounds: [3, 0, 13, 10] }]);
+  });
+
+  it('samples evenly including both ends and never repeats a frame', () => {
+    const { features } = track(1, [['a', 1]], [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
+    const frames = sampleFrames(features, 4).map((f) => f.frame);
+    expect(frames).toEqual([0, 3, 7, 10]);
+    expect(sampleFrames(features, 50)).toHaveLength(11);
+  });
+});
+
+describe('matchTypePair', () => {
+  it('uses the top pair when no type is requested', () => {
+    expect(matchTypePair([['fish', 0.4], ['shark', 0.9]], '', 0.5)).toEqual(['shark', 0.9]);
+    expect(matchTypePair([['fish', 0.4]], '', 0.5)).toBeNull();
+  });
+
+  it('matches the named type against the threshold', () => {
+    expect(matchTypePair([['fish', 0.4], ['shark', 0.9]], 'fish', 0.3)).toEqual(['fish', 0.4]);
+    expect(matchTypePair([['fish', 0.4], ['shark', 0.9]], 'fish', 0.5)).toBeNull();
+    expect(matchTypePair([['shark', 0.9]], 'fish', 0)).toBeNull();
+  });
+
+  it('only shows untyped tracks when everything is requested', () => {
+    expect(matchTypePair([], '', 0)).toEqual(['', 0]);
+    expect(matchTypePair([], '', 0.1)).toBeNull();
+  });
+});
+
+describe('attributeMatches', () => {
+  it('requires presence, then compares as text ignoring case', () => {
+    expect(attributeMatches(undefined, '')).toBe(false);
+    expect(attributeMatches('Yes', '')).toBe(true);
+    expect(attributeMatches('Yes', 'yes')).toBe(true);
+    expect(attributeMatches(3, '3')).toBe(true);
+    expect(attributeMatches(true, 'false')).toBe(false);
+  });
+});
+
+describe('buildReviewItems', () => {
+  const tracks = [
+    track(2, [['fish', 0.8], ['shark', 0.2]], [10, 11, 12]),
+    track(1, [['shark', 0.95]], [5]),
+    track(3, [['fish', 0.05]], [0]),
+    { ...track(4, [['fish', 0.9]], [7]), features: [{ frame: 7, keyframe: false }] },
+  ];
+
+  it('filters by type and threshold and orders by track id', () => {
+    const items = buildReviewItems('ds', tracks, { ...DEFAULT_REVIEW_QUERY, type: 'fish', threshold: 0.1 }, 8);
+    expect(items.map((i) => i.trackId)).toEqual([2]);
+    expect(items[0]).toMatchObject({
+      key: 'ds#2', type: 'fish', confidence: 0.8, keyframeCount: 3,
+    });
+    expect(items[0].primary.frame).toBe(10);
+    expect(items[0].frames).toHaveLength(3);
+  });
+
+  it('shows every class above the threshold when no type is picked', () => {
+    const items = buildReviewItems('ds', tracks, { ...DEFAULT_REVIEW_QUERY, type: '', threshold: 0.5 }, 8);
+    expect(items.map((i) => [i.trackId, i.type])).toEqual([[1, 'shark'], [2, 'fish']]);
+  });
+
+  it('finds track and detection attributes', () => {
+    const withAttributes = [
+      track(1, [['fish', 1]], [0, 1], { attributes: { verified: true } }),
+      {
+        ...track(2, [['fish', 1]], [4, 5, 6]),
+        features: [
+          { frame: 4, keyframe: true, bounds: [0, 0, 1, 1] as [number, number, number, number] },
+          {
+            frame: 5, keyframe: true, bounds: [0, 0, 1, 1] as [number, number, number, number], attributes: { occluded: 'partial' },
+          },
+          {
+            frame: 6, keyframe: true, bounds: [0, 0, 1, 1] as [number, number, number, number], attributes: { occluded: 'partial' },
+          },
+        ],
+      },
+    ];
+    const query = { ...DEFAULT_REVIEW_QUERY, mode: 'attribute' as const };
+    const verified = buildReviewItems('ds', withAttributes, { ...query, attributeKey: 'verified' }, 8);
+    expect(verified.map((i) => i.trackId)).toEqual([1]);
+    expect(verified[0].matchedAttribute).toEqual({ key: 'verified', value: true, scope: 'track' });
+
+    const occluded = buildReviewItems('ds', withAttributes, { ...query, attributeKey: 'occluded', attributeValue: 'PARTIAL' }, 8);
+    expect(occluded).toHaveLength(1);
+    expect(occluded[0]).toMatchObject({ key: 'ds#2@5', trackId: 2, type: 'fish' });
+    expect(occluded[0].primary.frame).toBe(5);
+    expect(occluded[0].frames.map((f) => f.frame)).toEqual([5, 6]);
+
+    const trackOnly = buildReviewItems('ds', withAttributes, { ...query, attributeKey: 'occluded', attributeScope: 'track' }, 8);
+    expect(trackOnly).toHaveLength(0);
+  });
+});
+
+describe('sortReviewItems', () => {
+  const items = [
+    ...buildReviewItems('b', [track(1, [['a', 0.5]], [9]), track(2, [['a', 0.9]], [3])], DEFAULT_REVIEW_QUERY, 8),
+    ...buildReviewItems('a', [track(7, [['a', 0.7]], [1])], DEFAULT_REVIEW_QUERY, 8),
+  ];
+
+  it('orders by dataset selection order, confidence or frame', () => {
+    const keys = (order: Parameters<typeof sortReviewItems>[1]) => (
+      sortReviewItems(items, order, ['a', 'b']).map((i) => i.key)
+    );
+    expect(keys('dataset')).toEqual(['a#7', 'b#1', 'b#2']);
+    expect(keys('confidence-asc')).toEqual(['b#1', 'a#7', 'b#2']);
+    expect(keys('confidence-desc')).toEqual(['b#2', 'a#7', 'b#1']);
+    expect(keys('frame')).toEqual(['a#7', 'b#2', 'b#1']);
+  });
+});
+
+describe('vocabularies', () => {
+  it('collects sorted types and attribute keys', () => {
+    const tracks = [
+      track(1, [['zeta', 0.1], ['alpha', 0.9]], [0], { attributes: { trackAttr: 1 } }),
+      {
+        ...track(2, [['beta', 1]], [0]),
+        features: [{
+          frame: 0, keyframe: true, bounds: [0, 0, 1, 1] as [number, number, number, number], attributes: { detAttr: 'x' },
+        }],
+      },
+    ];
+    expect(collectTypes(tracks)).toEqual(['alpha', 'beta', 'zeta']);
+    expect(collectAttributeKeys(tracks, {
+      defined: {
+        belongs: 'track', datatype: 'text', name: 'defined', key: 'track_defined',
+      },
+    })).toEqual(['defined', 'detAttr', 'trackAttr']);
+  });
+});

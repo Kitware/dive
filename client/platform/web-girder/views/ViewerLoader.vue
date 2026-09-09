@@ -25,6 +25,7 @@ import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
@@ -427,6 +428,8 @@ export default defineComponent({
       return typeof value === 'string' ? value : '';
     });
     const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+    /** Frame / track deep link from the review grid. */
+    const viewerFocus = computed(() => parseViewerFocus(route.query));
 
     function returnToCurrentAnnotations() {
       router.replace({ name: 'viewer', params: { id: props.id } });
@@ -470,6 +473,7 @@ export default defineComponent({
       handleStereoWarpImported,
       annotationSourceLabel,
       annotationSourceReturnable,
+      viewerFocus,
       returnToCurrentAnnotations,
     };
   },
@@ -488,6 +492,8 @@ export default defineComponent({
       :comparison-sets="comparisonSets"
       :annotation-source-label="annotationSourceLabel"
       :annotation-source-returnable="annotationSourceReturnable"
+      :initial-frame="viewerFocus.frame"
+      :initial-track-id="viewerFocus.trackId"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
       @update:set="routeSet"

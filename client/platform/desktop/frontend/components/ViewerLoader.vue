@@ -3,6 +3,7 @@ import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import { useRoute, useRouter } from 'vue-router/composables';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -41,6 +42,10 @@ import {
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
+import VideoSearchContext from './VideoSearchContext.vue';
+import {
+  createVideoSearch, provideVideoSearch, VideoSearchMediaInfo,
+} from '../useVideoSearch';
 import { datasets } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
@@ -56,6 +61,13 @@ function joinPath(base: string, file: string): string {
   const sep = base.includes('\\') ? '\\' : '/';
   return `${base.replace(/[\\/]+$/, '')}${sep}${file}`;
 }
+
+// Desktop-only context panel: registered here (not in the shared context
+// store) so the web build does not pick it up.
+context.register({
+  description: 'Video Search',
+  component: VideoSearchContext,
+});
 
 const buttonOptions = {
   outlined: true,
@@ -131,6 +143,8 @@ export default defineComponent({
       return typeof value === 'string' ? value : '';
     });
     const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+    /** Frame / track deep link from the review grid. */
+    const viewerFocus = computed(() => parseViewerFocus(route.query));
 
     function returnToCurrentAnnotations() {
       router.replace({ name: 'viewer', params: { id: props.id } });
@@ -573,10 +587,31 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Video Search / IQR session (index-backed similarity queries).
+     * Media info resolves lazily once metadata loads; multicam datasets are
+     * not yet supported (media stays null and the panel reports unavailable).
+     */
+    const videoSearchMedia = ref<VideoSearchMediaInfo | null>(null);
+    const videoSearch = createVideoSearch(props.id, () => videoSearchMedia.value);
+    provideVideoSearch(videoSearch);
+
     // Initialize segmentation when component is mounted
-    onMounted(() => {
+    onMounted(async () => {
       initializeSegmentation();
       refreshTextQueryAvailability();
+      try {
+        const meta = await loadConfig(props.id);
+        if (!meta.multiCamMedia) {
+          videoSearchMedia.value = {
+            type: meta.type,
+            fps: meta.fps,
+            getImagePath: buildImagePathGetter(meta),
+          };
+        }
+      } catch {
+        // Video search stays unavailable if metadata cannot load
+      }
     });
 
     /**
@@ -2032,6 +2067,7 @@ export default defineComponent({
       onCalibrationDeleted,
       annotationSourceLabel,
       annotationSourceReturnable,
+      viewerFocus,
       returnToCurrentAnnotations,
     };
   },
@@ -2046,6 +2082,8 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       :annotation-source-label="annotationSourceLabel"
       :annotation-source-returnable="annotationSourceReturnable"
+      :initial-frame="viewerFocus.frame"
+      :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
       @return-to-current-annotations="returnToCurrentAnnotations"

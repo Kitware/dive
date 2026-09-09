@@ -177,6 +177,12 @@ export default defineComponent({
         query: { datasetIds: this.selectedViameFolderIds.join(',') },
       });
     },
+    reviewSelection() {
+      this.$router.push({
+        name: 'review',
+        query: { datasetIds: this.selectedViameFolderIds.join(',') },
+      });
+    },
     async deleteSelection() {
       const result = await this.prompt({
         title: 'Confirm',
@@ -269,6 +275,18 @@ export default defineComponent({
                   </v-icon>
                   <span class="pl-1">
                     Score
+                  </span>
+                </v-btn>
+                <v-btn
+                  v-if="selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="reviewSelection"
+                >
+                  <v-icon>
+                    mdi-view-grid-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Review
                   </span>
                 </v-btn>
                 <export
