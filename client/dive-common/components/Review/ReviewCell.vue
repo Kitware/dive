@@ -339,11 +339,14 @@ export default defineComponent({
       };
     });
 
-    /** Stroke and handle sizes in chip pixels, so they look the same at any chip resolution. */
+    /**
+     * Stroke and handle sizes in chip pixels, so they look the same at any
+     * chip resolution and stay the same on screen as the view zooms.
+     */
     const unit = computed(() => {
       const t = displayTransform.value;
       const shown = t ? Math.max(t.width, t.height) : 256;
-      return Math.max(1, shown / 180);
+      return Math.max(1, shown / 180) / view.value.scale;
     });
 
     /**
