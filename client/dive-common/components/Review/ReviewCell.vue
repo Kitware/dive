@@ -923,6 +923,8 @@ export default defineComponent({
 
   &.cell-negative {
     border-color: #f44336;
+  }
+
   &.cell-editing {
     border-color: #90caf9;
   }
