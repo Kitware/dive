@@ -18,7 +18,7 @@ import {
   videoSearchRemoveIndex, videoSearchOpenIndex,
   videoSearchFormulate, videoSearchQuery, videoSearchRefine,
   videoSearchExportModel, videoSearchClose, videoSearchExtractFrame,
-  loadMetadata,
+  loadConfig,
 } from 'platform/desktop/frontend/api';
 
 export const VideoSearchInjectKey = 'DesktopVideoSearch';
@@ -101,7 +101,7 @@ export function createVideoSearch(
     }
     if (!(dsId in mediaInfoCache)) {
       try {
-        const meta = await loadMetadata(dsId);
+        const meta = await loadConfig(dsId);
         const {
           originalBasePath, originalImageFiles, type, originalVideoFile, fps,
           imageData, videoUrl,

@@ -27,7 +27,7 @@ import { EventEmitter } from 'events';
 
 import {
   Settings, DesktopJob, DesktopJobUpdater,
-  SearchIndexMeta, BuildSearchIndex, JsonMeta,
+  SearchIndexMeta, BuildSearchIndex, JsonConfig,
 } from 'platform/desktop/constants';
 import type { VideoSearchIndexStatus, VideoSearchIndexInfo } from 'dive-common/apispec';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -93,7 +93,7 @@ async function writeIndexMeta(settings: Settings, meta: SearchIndexMeta): Promis
 }
 
 /** The stream identifier a dataset's rows key on in the shared database. */
-function streamNameForDataset(datasetId: string, meta: JsonMeta): string {
+function streamNameForDataset(datasetId: string, meta: JsonConfig): string {
   if (meta.type === 'video') {
     // Videos are attributed by their filename stem (process_video derives
     // the ingest stream name from the input file's basename)
@@ -133,7 +133,7 @@ async function listIndexedDatasets(settings: Settings): Promise<VideoSearchIndex
       let name = stream.datasetId;
       try {
         const projectInfo = await common.getValidatedProjectDir(settings, stream.datasetId);
-        const dsMeta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
+        const dsMeta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
         name = dsMeta.name || stream.datasetId;
       } catch {
         // Dataset may have been deleted; keep the id as the display name.
@@ -166,7 +166,7 @@ async function buildIndex(
   }
 
   const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
-  const meta = await common.loadJsonMetadata(projectInfo.metaFileAbsPath);
+  const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   if (meta.multiCam) {
     throw new Error('Search indexes are not yet supported on multi-camera datasets');
   }
@@ -193,7 +193,7 @@ async function buildIndex(
     await fs.writeFile(ingestList, `${videoAbsPath}\n`);
   } else {
     const fileData = meta.originalImageFiles
-      .map((f) => npath.join(meta.originalBasePath, f))
+      .map((f: string) => npath.join(meta.originalBasePath, f))
       .join('\n');
     await fs.writeFile(ingestList, `${fileData}\n`);
   }
@@ -260,6 +260,9 @@ async function buildIndex(
     shell: viameConstants.shell,
     cwd: indexDir,
   }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to spawn the search index build');
+  }
 
   const jobBase: DesktopJob = {
     key: `search_index_${job.pid}_${jobWorkDir}`,

@@ -35,7 +35,7 @@ export default defineComponent({
     const resultsGridOpen = ref(false);
     /** Cropped result chips shared with the results grid. */
     const chipStore = search ? createResultChips(search) : null;
-    const thumbnails = chipStore?.chips;
+    const thumbnails = computed(() => chipStore?.chips.value ?? {});
 
     const state = computed(() => search?.state ?? null);
 
