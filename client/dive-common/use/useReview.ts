@@ -8,26 +8,36 @@ import {
 } from 'vue';
 import type { Api, DatasetConfig } from 'dive-common/apispec';
 import type { ScoringDatasetSummary } from 'dive-common/scoring/types';
-import type { TrackData } from 'vue-media-annotator/track';
+import type { Feature, TrackData } from 'vue-media-annotator/track';
 import type { AnnotationId, ConfidencePair } from 'vue-media-annotator/BaseAnnotation';
+import type { RectBounds } from 'vue-media-annotator/utils';
 import {
   acceptPairAsCorrect, compileHierarchy, reassignPairs, TypeHierarchyIndex,
 } from 'dive-common/typeHierarchy';
 import { createFrameSource, FrameSource } from 'dive-common/review/frameSource';
 import { createChipStore, ChipStore } from 'dive-common/review/chipStore';
 import {
-  buildReviewItems, collectAttributeKeys, collectTypes, sortReviewItems,
+  buildReviewItems, collectAttributeKeys, collectTypes, frameRefFor, sortReviewItems,
 } from 'dive-common/review/reviewItems';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import {
   DEFAULT_REVIEW_QUERY,
   ReviewGridSettings,
   ReviewItem,
+  ReviewPolygon,
   ReviewQuery,
   ReviewSortOrder,
 } from 'dive-common/review/types';
 
 const CHIP_OUTLINE = '#00e5ff';
+
+/** Geometry edits for one keyframe; omitted fields are left alone, null removes a point. */
+export interface ReviewGeometryEdit {
+  bounds?: RectBounds;
+  polygons?: ReviewPolygon[];
+  head?: [number, number] | null;
+  tail?: [number, number] | null;
+}
 
 export type ReviewApi = Pick<Api,
   'loadConfig' | 'peekConfig' | 'loadDetections' | 'saveDetections'
@@ -81,6 +91,8 @@ export interface ReviewService {
   isPending(item: ReviewItem): boolean;
   assignType(item: ReviewItem, type: string): void;
   acceptType(item: ReviewItem): void;
+  /** Change a keyframe's box, polygons or head/tail points; re-renders the item's chips. */
+  updateGeometry(item: ReviewItem, frame: number, edit: ReviewGeometryEdit): void;
   save(): Promise<void>;
   discardChanges(): Promise<void>;
   clearError(): void;
@@ -93,6 +105,71 @@ interface LoadedDataset {
   hierarchy: TypeHierarchyIndex;
   frameSource: FrameSource | null;
   pending: Set<AnnotationId>;
+}
+
+type GeoFeature = NonNullable<Feature['geometry']>['features'][number];
+
+function featureKey(geo: GeoFeature): unknown {
+  return (geo.properties as { key?: unknown } | null)?.key;
+}
+
+/** Write a head/tail point into the keyframe the way DIVE stores it. */
+function setKeypoint(feature: Feature, key: 'head' | 'tail', point: [number, number] | null) {
+  const collection = feature.geometry || { type: 'FeatureCollection' as const, features: [] };
+  const remaining = collection.features.filter(
+    (geo) => !(geo.geometry.type === 'Point' && featureKey(geo) === key),
+  );
+  if (point) {
+    remaining.push({
+      type: 'Feature',
+      properties: { key },
+      geometry: { type: 'Point', coordinates: [point[0], point[1]] },
+    });
+  }
+  collection.features = remaining;
+  // eslint-disable-next-line no-param-reassign
+  feature.geometry = collection;
+  if (point) {
+    // eslint-disable-next-line no-param-reassign
+    feature[key] = [point[0], point[1]];
+  } else {
+    // eslint-disable-next-line no-param-reassign
+    delete feature[key];
+  }
+}
+
+/** Keep the head-to-tail line in step with its end points. */
+function syncHeadTailLine(feature: Feature) {
+  const collection = feature.geometry;
+  if (!collection) return;
+  const head = collection.features.find((g) => g.geometry.type === 'Point' && featureKey(g) === 'head');
+  const tail = collection.features.find((g) => g.geometry.type === 'Point' && featureKey(g) === 'tail');
+  collection.features = collection.features.filter(
+    (geo) => !(geo.geometry.type === 'LineString' && featureKey(geo) === 'HeadTails'),
+  );
+  if (head && tail && head.geometry.type === 'Point' && tail.geometry.type === 'Point') {
+    collection.features.push({
+      type: 'Feature',
+      properties: { key: 'HeadTails' },
+      geometry: { type: 'LineString', coordinates: [head.geometry.coordinates, tail.geometry.coordinates] },
+    });
+  }
+}
+
+/** Replace the outer rings of the keyframe's polygons, in order. */
+function setPolygons(feature: Feature, polygons: ReviewPolygon[]) {
+  const collection = feature.geometry;
+  if (!collection) return;
+  let index = 0;
+  collection.features.forEach((geo) => {
+    if (geo.geometry.type !== 'Polygon') return;
+    const ring = polygons[index];
+    index += 1;
+    if (!ring || ring.length < 3) return;
+    const holes = geo.geometry.coordinates.slice(1);
+    // eslint-disable-next-line no-param-reassign
+    geo.geometry.coordinates = [[...ring.map(([x, y]) => [x, y]), [ring[0][0], ring[0][1]]], ...holes];
+  });
 }
 
 function topPair(pairs: readonly ConfidencePair[]): { type: string; confidence: number } {
@@ -359,6 +436,38 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     updatePairs(item, (pairs, hierarchy) => acceptPairAsCorrect(hierarchy, pairs, current.type));
   }
 
+  function updateGeometry(item: ReviewItem, frame: number, edit: ReviewGeometryEdit) {
+    const dataset = loaded.get(item.datasetId);
+    const track = dataset?.tracks.get(item.trackId);
+    const feature = track?.features.find((f) => f.frame === frame);
+    if (!dataset || !track || !feature) return;
+
+    if (edit.bounds) {
+      const [x1, y1, x2, y2] = edit.bounds;
+      feature.bounds = [
+        Math.round(Math.min(x1, x2)), Math.round(Math.min(y1, y2)),
+        Math.round(Math.max(x1, x2)), Math.round(Math.max(y1, y2)),
+      ];
+    }
+    if (edit.head !== undefined) setKeypoint(feature, 'head', edit.head);
+    if (edit.tail !== undefined) setKeypoint(feature, 'tail', edit.tail);
+    if (edit.head !== undefined || edit.tail !== undefined) syncHeadTailLine(feature);
+    if (edit.polygons) setPolygons(feature, edit.polygons);
+
+    // The grid item mirrors the keyframe; refresh it so overlays and the
+    // re-rendered chip follow the edit.
+    const refreshed = frameRefFor(feature);
+    if (refreshed) {
+      item.frames.forEach((ref) => {
+        if (ref.frame === frame) Object.assign(ref, refreshed);
+      });
+      if (item.primary.frame === frame) Object.assign(item.primary, refreshed);
+    }
+    dataset.pending.add(item.trackId);
+    dataRevision.value += 1;
+    chipStore.invalidate(item.key);
+  }
+
   async function save() {
     if (saving.value) return;
     saving.value = true;
@@ -429,6 +538,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     isPending,
     assignType,
     acceptType,
+    updateGeometry,
     save,
     discardChanges,
     clearError,

@@ -1,4 +1,6 @@
-import { chipRegion, chipSizeFor } from './chipRenderer';
+import {
+  chipRegion, chipScale, chipSizeFor, toChipPoint, toImagePoint,
+} from './chipRenderer';
 
 describe('chipRegion', () => {
   it('is a square centred on the box, padded on every side', () => {
@@ -34,5 +36,31 @@ describe('chipSizeFor', () => {
     expect(chipSizeFor(128)).toBe(128);
     expect(chipSizeFor(129)).toBe(192);
     expect(chipSizeFor(5000)).toBe(768);
+  });
+});
+
+describe('chipScale', () => {
+  it('fills the requested size, upscaling small crops and downscaling large ones', () => {
+    expect(chipScale({
+      x: 0, y: 0, width: 32, height: 32,
+    }, 256)).toBe(8);
+    expect(chipScale({
+      x: 0, y: 0, width: 1024, height: 512,
+    }, 256)).toBe(0.25);
+  });
+});
+
+describe('chip point mapping', () => {
+  it('round-trips between image and chip coordinates', () => {
+    const transform = {
+      region: {
+        x: 100, y: 50, width: 40, height: 20,
+      },
+      scale: 4,
+      width: 160,
+      height: 80,
+    };
+    expect(toChipPoint(transform, 110, 60)).toEqual([40, 40]);
+    expect(toImagePoint(transform, 40, 40)).toEqual([110, 60]);
   });
 });

@@ -6,7 +6,7 @@
  * visible page (plus a prefetch of the next one).
  */
 import {
-  computed, ref, Ref, watch,
+  computed, ref, Ref, unref, watch,
 } from 'vue';
 import { debounce } from 'lodash';
 import type { ChipStore } from './chipStore';
@@ -34,8 +34,11 @@ export interface ReviewGridOptions {
   /** Whether the grid is on screen; chips only load and keys only page while true. */
   active: Ref<boolean>;
   /** Footer height to exclude from the chip aspect ratio. */
-  footerPx?: number;
+  footerPx?: number | Ref<number>;
 }
+
+/** How long paging must be idle before chips load, so skipped pages never render. */
+const PAGE_SETTLE_MS = 250;
 
 export function useReviewGrid(options: ReviewGridOptions) {
   const {
@@ -65,14 +68,26 @@ export function useReviewGrid(options: ReviewGridOptions) {
     chipStore.setOptions({
       padding: grid.padding,
       size: chipSizeFor(pixels),
-      aspect: chipAspectFor(cellSize.value.width, cellSize.value.height, options.footerPx),
+      aspect: chipAspectFor(cellSize.value.width, cellSize.value.height, unref(options.footerPx)),
       outline: CHIP_OUTLINE,
     });
     ensureVisible();
   }, 200);
 
-  watch(() => [grid.padding, cellSize.value.width, cellSize.value.height], applyChipOptions);
-  watch([page, active], ensureVisible);
+  /**
+   * Rapid paging only loads the page landed on: queued work for pages
+   * passed over is dropped at once, and new work waits for paging to settle.
+   */
+  const ensureVisibleSettled = debounce(ensureVisible, PAGE_SETTLE_MS);
+  function onPageChanged() {
+    if (!active.value) return;
+    chipStore.trimQueues(new Set(pageItems.value.map((i) => i.key)));
+    ensureVisibleSettled();
+  }
+
+  watch(() => [grid.padding, cellSize.value.width, cellSize.value.height, unref(options.footerPx)], applyChipOptions);
+  watch(page, onPageChanged);
+  watch(active, ensureVisible);
   watch(items, () => {
     page.value = 0;
     ensureVisible();
@@ -134,6 +149,7 @@ export function useReviewGrid(options: ReviewGridOptions) {
 
   function dispose() {
     applyChipOptions.cancel();
+    ensureVisibleSettled.cancel();
   }
 
   return {
