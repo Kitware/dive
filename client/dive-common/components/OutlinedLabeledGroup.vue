@@ -21,7 +21,7 @@ export default defineComponent({
 .outlined-labeled-group {
   border: 1px solid rgba(255, 255, 255, 0.24);
   border-radius: 4px;
-  margin: 0 4px;
+  margin: -8px 4px 0;
   padding: 4px 6px 2px;
   min-inline-size: min-content;
 }

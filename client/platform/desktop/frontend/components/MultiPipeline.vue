@@ -180,6 +180,19 @@ function toggleStaged(item: JsonConfigCache) {
     stagedDatasetIds.value.push(item.id);
   }
 }
+/* Mirrors the table's default search so "select all" only stages what is listed. */
+const unstagedSearchMatches = computed(() => {
+  const needle = availableDatasetSearch.value.trim().toLowerCase();
+  return availableItems.value.filter((item) => !stagedDatasetIds.value.includes(item.id)
+    && (!needle || headersTmpl.some((header) => String(
+      (item as unknown as Record<string, unknown>)[header.value] ?? '',
+    ).toLowerCase().includes(needle))));
+});
+function stageAllAvailable() {
+  stagedDatasetIds.value = stagedDatasetIds.value.concat(
+    unstagedSearchMatches.value.map((item) => item.id),
+  );
+}
 
 async function runPipelineForDatasets() {
   const pipeline = selectedPipeline.value;
@@ -356,6 +369,23 @@ onBeforeMount(async () => {
             single-line
             hide-details
           />
+        </v-col>
+        <v-spacer />
+        <v-col
+          cols="auto"
+          class="align-self-end"
+        >
+          <v-btn
+            :disabled="unstagedSearchMatches.length === 0"
+            color="success"
+            small
+            @click="stageAllAvailable"
+          >
+            <v-icon left>
+              mdi-check-all
+            </v-icon>
+            Select all
+          </v-btn>
         </v-col>
       </v-row>
       <v-data-table
