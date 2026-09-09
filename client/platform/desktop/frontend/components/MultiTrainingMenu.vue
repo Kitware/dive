@@ -15,7 +15,7 @@ import {
   DatasetConfig, Pipelines, TrainingConfigs, useApi, Pipe,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
+import { itemsPerPageOptions, simplifyTrainingName, isValidEmail } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 
 import { useRoute, useRouter } from 'vue-router/composables';
@@ -126,6 +126,9 @@ export default defineComponent({
     const nameRules = [
       (val: string) => (!trainedPipelines.value.includes(val) || 'A Trained pipeline with that name already exists'),
     ];
+    const emailRules = [
+      (val: string | null) => (!val || isValidEmail(val) || 'Enter a valid email address'),
+    ];
 
     const data = reactive({
       stagedItems: {} as Record<string, DatasetConfig>,
@@ -141,6 +144,7 @@ export default defineComponent({
         models: {},
       } as TrainingConfigs,
       annotatedFramesOnly: false,
+      monitorEmail: '',
     });
 
     const headersTmpl: DataTableHeader[] = [
@@ -210,6 +214,7 @@ export default defineComponent({
       stagedItems.value.length > 0
         && data.selectedTrainingConfig
         && data.trainingOutputName
+        && (!data.monitorEmail || isValidEmail(data.monitorEmail))
     ));
 
     async function deleteModel(item: Pipe) {
@@ -285,6 +290,7 @@ export default defineComponent({
           data.annotatedFramesOnly,
           labelText.value || undefined,
           foundTrainingModel,
+          data.monitorEmail.trim() || undefined,
         );
         router.push({ name: 'jobs' });
       } catch (err) {
@@ -352,6 +358,7 @@ export default defineComponent({
       resumeJob,
       discardJob,
       nameRules,
+      emailRules,
       itemsPerPageOptions,
       clientSettings,
       modelNames,
@@ -533,6 +540,23 @@ export default defineComponent({
           label="Fine Tune Model"
         />
       </div>
+      <v-row
+        class="mt-4 pt-0"
+        dense
+      >
+        <v-col sm="5">
+          <v-text-field
+            v-model="data.monitorEmail"
+            :rules="emailRules"
+            outlined
+            dense
+            clearable
+            label="Email progress reports to (optional)"
+            hint="Sends training progress, error and completion reports; requires mail to be configured for VIAME"
+            persistent-hint
+          />
+        </v-col>
+      </v-row>
     </div>
     <div v-if="resumable.items.value.length">
       <v-card-title class="text-h4">

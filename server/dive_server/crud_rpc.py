@@ -51,6 +51,7 @@ class RunTrainingArgs(BaseModel):
     folderIds: List[str]
     labelText: Optional[str]
     fineTuneModel: Optional[types.TrainingModelTuneArgs]
+    monitorEmail: Optional[str] = None
 
 
 class ScoringSourceModel(BaseModel):
@@ -664,6 +665,7 @@ def run_training(
         'annotated_frames_only': annotatedFramesOnly,
         'label_txt': bodyParams.labelText,
         'model': fineTuneModel,
+        'monitor_email': bodyParams.monitorEmail or None,
         'user_id': user.get('_id', 'unknown'),
         'user_login': user.get('login', 'unknown'),
         'force_transcoded': force_transcoded,
