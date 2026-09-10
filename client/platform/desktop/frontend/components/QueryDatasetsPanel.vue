@@ -30,8 +30,6 @@ export default defineComponent({
   setup(props, { emit }) {
     const { prompt } = usePrompt();
     const method = ref<VideoSearchIndexMethod>('detections');
-    /** Datasets ticked for "build index for selected". */
-    const selected = ref<string[]>([]);
 
     const listedIds = computed(() => props.page.datasets.value.map((d) => d.id));
 
@@ -39,20 +37,16 @@ export default defineComponent({
       ids.forEach((id) => props.page.removeDataset(id));
     }
 
-    const buildable = computed(() => props.page.datasets.value
-      .filter((d) => selected.value.includes(d.id) && d.index !== 'building')
-      .map((d) => d.id));
-
     const unindexedIds = computed(() => props.page.datasets.value
       .filter((d) => d.index === 'not-indexed' || d.index === 'error')
       .map((d) => d.id));
 
-    function buildSelected() {
-      props.page.buildIndex(buildable.value, method.value);
-    }
-
     function buildUnindexed() {
       props.page.buildIndex(unindexedIds.value, method.value);
+    }
+
+    function buildOne(id: string) {
+      props.page.buildIndex([id], method.value);
     }
 
     async function removeIndex(id: string) {
@@ -65,10 +59,6 @@ export default defineComponent({
         negativeButton: 'Cancel',
       });
       if (ok) await props.page.removeFromIndex(id);
-    }
-
-    function toggleAll(on: boolean) {
-      selected.value = on ? props.page.datasets.value.map((d) => d.id) : [];
     }
 
     function indexBadge(state: string) {
@@ -86,13 +76,10 @@ export default defineComponent({
       removeMany,
       method,
       methodItems: IndexMethodItems,
-      selected,
-      buildable,
       unindexedIds,
-      buildSelected,
       buildUnindexed,
+      buildOne,
       removeIndex,
-      toggleAll,
       indexBadge,
       open: (id: string) => emit('open-dataset', id),
     };
@@ -138,9 +125,8 @@ export default defineComponent({
           small
           depressed
           color="primary"
-          :disabled="buildable.length === 0 || page.installed.value === false"
-          class="mr-2"
-          @click="buildSelected"
+          :disabled="unindexedIds.length === 0 || page.installed.value === false"
+          @click="buildUnindexed"
         >
           <v-icon
             small
@@ -148,15 +134,7 @@ export default defineComponent({
           >
             mdi-database-plus
           </v-icon>
-          Build index for {{ buildable.length }} selected
-        </v-btn>
-        <v-btn
-          small
-          outlined
-          :disabled="unindexedIds.length === 0 || page.installed.value === false"
-          @click="buildUnindexed"
-        >
-          Build all not indexed ({{ unindexedIds.length }})
+          Build index for {{ unindexedIds.length }} not indexed
         </v-btn>
         <span
           v-if="page.installed.value === false"
@@ -171,14 +149,6 @@ export default defineComponent({
       >
         <thead>
           <tr>
-            <th class="check-cell">
-              <v-simple-checkbox
-                :value="selected.length > 0 && selected.length === page.datasets.value.length"
-                :indeterminate="selected.length > 0 && selected.length < page.datasets.value.length"
-                dense
-                @input="toggleAll"
-              />
-            </th>
             <th>Dataset</th>
             <th>Type</th>
             <th>Search index</th>
@@ -190,13 +160,6 @@ export default defineComponent({
             v-for="dataset in page.datasets.value"
             :key="dataset.id"
           >
-            <td class="check-cell">
-              <v-simple-checkbox
-                :value="selected.includes(dataset.id)"
-                dense
-                @input="selected = $event ? [...selected, dataset.id] : selected.filter((id) => id !== dataset.id)"
-              />
-            </td>
             <td class="name-cell">
               <a @click="open(dataset.id)">{{ dataset.name }}</a>
             </td>
@@ -219,6 +182,18 @@ export default defineComponent({
               </span>
             </td>
             <td class="text-right actions-cell">
+              <v-btn
+                v-if="dataset.index === 'not-indexed' || dataset.index === 'error'"
+                icon
+                x-small
+                title="Build the search index for this dataset"
+                :disabled="page.installed.value === false"
+                @click="buildOne(dataset.id)"
+              >
+                <v-icon small>
+                  mdi-database-plus
+                </v-icon>
+              </v-btn>
               <v-btn
                 v-if="dataset.index === 'indexed'"
                 icon
@@ -266,10 +241,6 @@ export default defineComponent({
 
 .method-select {
   max-width: 260px;
-}
-
-.check-cell {
-  width: 36px;
 }
 
 .name-cell {

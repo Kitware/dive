@@ -20,9 +20,10 @@ export default defineComponent({
 
     const selectedIds = computed(() => review.datasets.value.map((d) => d.id));
 
+    /** Picked datasets queue up; they load when the Results view opens. */
     async function add(id: string) {
       const summary = review.available.value.find((d) => d.id === id);
-      await review.addDataset(id, summary);
+      await review.addDataset(id, summary, { defer: true });
     }
 
     async function addMany(ids: string[]) {
@@ -38,7 +39,7 @@ export default defineComponent({
       picking.value = true;
       try {
         const picked = await api.pickScoringDataset(selectedIds.value);
-        if (picked) await review.addDataset(picked.id, picked);
+        if (picked) await review.addDataset(picked.id, picked, { defer: true });
       } finally {
         picking.value = false;
       }
@@ -47,11 +48,19 @@ export default defineComponent({
     function statusIcon(status: string) {
       if (status === 'ready') return { icon: 'mdi-check-circle', color: 'success' };
       if (status === 'error') return { icon: 'mdi-alert-circle', color: 'error' };
+      if (status === 'queued') return { icon: 'mdi-clock-outline', color: 'grey' };
       return { icon: 'mdi-progress-clock', color: 'grey' };
+    }
+
+    function statusText(status: string) {
+      if (status === 'ready') return 'Ready';
+      if (status === 'queued') return 'Loads when Results opens';
+      return 'Loading…';
     }
 
     return {
       review,
+      statusText,
       selectedIds,
       add,
       addMany,
@@ -141,7 +150,7 @@ export default defineComponent({
               <span
                 v-else
                 class="text-caption grey--text"
-              >{{ dataset.status === 'ready' ? 'Ready' : 'Loading…' }}</span>
+              >{{ statusText(dataset.status) }}</span>
             </span>
           </td>
           <td class="text-right actions-cell">
