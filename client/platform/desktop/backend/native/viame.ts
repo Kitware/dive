@@ -842,7 +842,7 @@ async function exportTrainedPipeline(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     if (code === 0) {
       if (fs.existsSync(converterOutput)) {
         if (fs.existsSync(path)) {
@@ -1018,7 +1018,7 @@ async function train(
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     const manifestPath = npath.join(jobWorkDir, DiveJobManifestName);
     // Cancel updates the manifest before killing the child; read that first so
     // we do not clobber cancelledJob with a null/signal exit code.
@@ -1166,7 +1166,7 @@ async function runScoring(
   });
   job.stderr.on('data', echo);
 
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     let existingManifest: DesktopJob | undefined;
     try {
       if (await fs.pathExists(manifestPath)) {
