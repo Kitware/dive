@@ -270,7 +270,9 @@ export function useMediaController() {
       }
       const size = containerRef.value.getBoundingClientRect();
       const mapSize = geoViewerRef.value.size();
-      if (size.width !== mapSize.width || size.height !== mapSize.height) {
+      // Sub-pixel layout jitter is not a resize; resizing refits the pane and drops its zoom.
+      if (Math.round(size.width) !== Math.round(mapSize.width)
+        || Math.round(size.height) !== Math.round(mapSize.height)) {
         resized = true;
         pendingResizes.push(() => {
           if (geoViewerRef.value === undefined) {

@@ -178,11 +178,18 @@ export default defineComponent({
         /** Else fall back to a reasonable default */
         data.currentTime = frame / props.frameRate + OnePTSTick;
       }
-      video.currentTime = data.currentTime;
       data.frame = requestedFrame;
       data.flick = Math.round(data.currentTime * Flick);
       props.updateTime(data);
+      if (video.seeking) {
+        // Let the in-flight seek land and paint; the newest request goes out on 'seeked'.
+        pendingSeekTime = data.currentTime;
+        return;
+      }
+      pendingSeekTime = null;
+      video.currentTime = data.currentTime;
     }
+    let pendingSeekTime: number | null = null;
     function pause() {
       video.pause();
       seek(data.frame); // snap to frame boundary
@@ -278,8 +285,6 @@ export default defineComponent({
       });
       quadFeatureLayer
         .createFeature('quad')
-        // Otherwise geojs skips rendering while the video seeks, freezing the pane under a scrub.
-        .style('delayRenderWhenSeeking', false)
         .data([
           {
             ul: { x: 0, y: 0 },
@@ -306,6 +311,13 @@ export default defineComponent({
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
     function pendingUpdate() {
+      if (pendingSeekTime !== null && pendingSeekTime !== video.currentTime) {
+        const next = pendingSeekTime;
+        pendingSeekTime = null;
+        video.currentTime = next;
+        return;
+      }
+      pendingSeekTime = null;
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
       // The aligned-view warp is a canvas snapshot of this <video> element,
       // redrawn only on an imageRevision bump -- unlike the native pane,
