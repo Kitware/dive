@@ -118,7 +118,7 @@ function getAvailableItems(): JsonConfigCache[] {
   }
   return Object.values(datasets.value);
 }
-const availableItems: Ref<JsonConfigCache[]> = ref([]);
+const availableItems = computed(() => getAvailableItems());
 const stagedDatasetIds: Ref<string[]> = ref([]);
 const stagedDatasets = computed(() => availableItems.value.filter((item: JsonConfigCache) => stagedDatasetIds.value.includes(item.id)));
 const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
@@ -161,9 +161,6 @@ function isPipelineItemDisabledForCalibration(pipe: Pipe) {
   );
 }
 
-watch(selectedPipeline, () => {
-  availableItems.value = getAvailableItems();
-});
 function toggleStaged(item: JsonConfigCache) {
   if (stagedDatasetIds.value.includes(item.id)) {
     stagedDatasetIds.value = stagedDatasetIds.value.filter((id: string) => id !== item.id);
@@ -220,7 +217,6 @@ async function runPipelineForDatasets() {
 onBeforeMount(async () => {
   stagedDatasetIds.value = preselectedDatasetIds();
   unsortedPipelines.value = await getPipelineList();
-  availableItems.value = getAvailableItems();
 });
 
 </script>
@@ -300,58 +296,13 @@ onBeforeMount(async () => {
           </v-col>
         </v-row>
       </v-card-text>
-      <div v-if="selectedPipeline">
-        <v-card-title class="px-0">
-          Datasets staged for selected pipeline
-        </v-card-title>
-        <v-data-table
-          dense
-          v-bind="{
-            headers: selectedPipeline && pipelineCreatesNewDataset(selectedPipeline)
-              ? createNewDatasetHeaders : stagedDatasetHeaders,
-            items: stagedDatasets,
-          }"
-          :items-per-page.sync="clientSettings.rowsPerPage"
-          hide-default-footer
-          :hide-default-header="stagedDatasets.length === 0"
-          no-data-text="Select datasets from the table below"
-        >
-          <template #[`item.remove`]="{ item }">
-            <v-btn
-              color="error"
-              x-small
-              @click="toggleStaged(item)"
-            >
-              <v-icon>mdi-minus</v-icon>
-            </v-btn>
-          </template>
-          <template #[`item.output`]="{ item }">
-            <b>{{ computeOutputDatasetName(item) }}</b>
-          </template>
-        </v-data-table>
-      </div>
-      <v-row class="mt-7">
-        <v-spacer />
-        <v-col cols="auto">
-          <v-btn
-            :disabled="runDisabled"
-            color="primary"
-            @click="runPipelineForDatasets"
-          >
-            Run pipeline for ({{ stagedDatasets.length }}) Datasets
-          </v-btn>
-        </v-col>
-      </v-row>
     </div>
-    <div
-      v-if="selectedPipeline"
-      class="mb-4"
-    >
+    <div class="mb-4">
       <v-card-title class="text-h4 px-0">
         Available datasets
       </v-card-title>
       <v-card-text class="px-0">
-        These datasets are compatible with the chosen pipeline.
+        Add the datasets to run the pipeline on. Measurement pipelines list stereo datasets only.
       </v-card-text>
       <DatasetPicker
         :items="availableItems"
@@ -363,6 +314,49 @@ onBeforeMount(async () => {
         @remove="unstageIds([$event])"
         @remove-many="unstageIds"
       />
+    </div>
+    <div class="mb-4 selected-datasets">
+      <v-card-title class="text-h4 px-0">
+        Selected datasets
+      </v-card-title>
+      <v-data-table
+        dense
+        v-bind="{
+          headers: selectedPipeline && pipelineCreatesNewDataset(selectedPipeline)
+            ? createNewDatasetHeaders : stagedDatasetHeaders,
+          items: stagedDatasets,
+        }"
+        :items-per-page.sync="clientSettings.rowsPerPage"
+        hide-default-footer
+        :hide-default-header="stagedDatasets.length === 0"
+        no-data-text="Add datasets from the list above."
+      >
+        <template #[`item.remove`]="{ item }">
+          <v-btn
+            color="error"
+            x-small
+            @click="toggleStaged(item)"
+          >
+            <v-icon>mdi-minus</v-icon>
+          </v-btn>
+        </template>
+        <template #[`item.output`]="{ item }">
+          <b>{{ computeOutputDatasetName(item) }}</b>
+        </template>
+      </v-data-table>
+      <v-row class="mt-4">
+        <v-spacer />
+        <v-col cols="auto">
+          <v-btn
+            :disabled="runDisabled"
+            color="primary"
+            :title="selectedPipeline ? '' : 'Choose a pipeline first'"
+            @click="runPipelineForDatasets"
+          >
+            Run pipeline for ({{ stagedDatasets.length }}) Datasets
+          </v-btn>
+        </v-col>
+      </v-row>
     </div>
   </div>
 </template>

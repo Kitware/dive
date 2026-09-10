@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, nextTick, PropType, ref,
+  computed, defineComponent, PropType, ref,
 } from 'vue';
 import type { DataTableHeader } from 'vuetify';
 import { clientSettings } from 'dive-common/store/settings';
@@ -77,41 +77,6 @@ export default defineComponent({
     const removable = computed(() => listed.value
       .filter((row) => selected.value.has(row.id))
       .map((row) => row.id));
-    const root = ref<HTMLElement | null>(null);
-
-    function scrollParentOf(el: HTMLElement): HTMLElement | null {
-      let node = el.parentElement;
-      while (node) {
-        const style = window.getComputedStyle(node);
-        if (/(auto|scroll)/.test(style.overflowY) && node.scrollHeight > node.clientHeight) {
-          return node;
-        }
-        node = node.parentElement;
-      }
-      return null;
-    }
-
-    /**
-     * Run a change, then scroll so the picker stays where it was on screen:
-     * pages list their selection above the picker, so adding to it would
-     * otherwise push the list the user is working in down the page.
-     */
-    async function holdInPlace(change: () => void) {
-      const el = root.value;
-      if (!el) {
-        change();
-        return;
-      }
-      const before = el.getBoundingClientRect().top;
-      change();
-      await nextTick();
-      await new Promise((resolve) => { window.requestAnimationFrame(resolve); });
-      const delta = el.getBoundingClientRect().top - before;
-      if (Math.abs(delta) < 1) return;
-      const parent = scrollParentOf(el);
-      if (parent) parent.scrollTop += delta;
-      else window.scrollBy(0, delta);
-    }
 
     const tableHeaders = computed<DataTableHeader[]>(() => [
       ...props.headers,
@@ -124,20 +89,12 @@ export default defineComponent({
       return selected.value.has(item.id) ? 'picker-row-selected' : '';
     }
 
-    function add(id: string) {
-      holdInPlace(() => emit('add', id));
-    }
-
-    function remove(id: string) {
-      holdInPlace(() => emit('remove', id));
-    }
-
     function addAll() {
-      if (addable.value.length) holdInPlace(() => emit('add-many', addable.value));
+      if (addable.value.length) emit('add-many', addable.value);
     }
 
     function removeAll() {
-      if (removable.value.length) holdInPlace(() => emit('remove-many', removable.value));
+      if (removable.value.length) emit('remove-many', removable.value);
     }
 
     return {
@@ -146,11 +103,8 @@ export default defineComponent({
       addable,
       removable,
       selected,
-      root,
       tableHeaders,
       rowClass,
-      add,
-      remove,
       addAll,
       removeAll,
       clientSettings,
@@ -161,10 +115,7 @@ export default defineComponent({
 </script>
 
 <template>
-  <div
-    ref="root"
-    class="dataset-picker"
-  >
+  <div class="dataset-picker">
     <div
       v-if="title || hint"
       class="mb-1"
@@ -270,7 +221,7 @@ export default defineComponent({
             x-small
             color="grey"
             title="Selected; click to remove"
-            @click="remove(item.id)"
+            @click="$emit('remove', item.id)"
           >
             <v-icon small>
               mdi-check
@@ -283,7 +234,7 @@ export default defineComponent({
             x-small
             color="success"
             title="Add"
-            @click="add(item.id)"
+            @click="$emit('add', item.id)"
           >
             <v-icon small>
               mdi-plus
