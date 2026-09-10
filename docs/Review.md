@@ -57,7 +57,7 @@ Right click an entry (or use its edit action) to adjust the frame it is showing 
 
 Two query modes are available in the toolbar:
 
-* **Type**: pick a type (or *Any type*) and a minimum confidence. Every track whose matching type meets the threshold is listed once.
+* **Type**: pick a type (or *Any type*) and a minimum confidence. The list offers only the types found on the selected datasets at that confidence or above, so every choice has results. Every track whose matching type meets the threshold is listed once.
 * **Attribute**: pick an attribute key, optionally a value, and whether to look at track attributes, detection (per-frame) attributes, or both. Matches on detection attributes show the frames that carry the attribute.
 
 Changes to the query take effect as soon as they settle. The grid otherwise keeps its entries, so editing a type never reshuffles the page you are working on.

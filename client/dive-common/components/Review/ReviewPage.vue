@@ -700,7 +700,7 @@ export default defineComponent({
 
     <datalist :id="typeListId">
       <option
-        v-for="type in review.types.value"
+        v-for="type in review.knownTypes.value"
         :key="type"
         :value="type"
       />
