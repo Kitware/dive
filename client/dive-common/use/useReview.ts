@@ -51,7 +51,8 @@ export interface ReviewServiceDeps {
   api: ReviewApi;
 }
 
-export type ReviewDatasetStatus = 'loading' | 'ready' | 'error';
+/** `queued` datasets were picked but load only once results are wanted. */
+export type ReviewDatasetStatus = 'queued' | 'loading' | 'ready' | 'error';
 
 export interface ReviewDataset {
   id: string;
@@ -86,7 +87,8 @@ export interface ReviewService {
   chipStore: ChipStore;
   datasetName(id: string): string;
   refreshAvailable(): Promise<void>;
-  addDataset(id: string, summary?: ScoringDatasetSummary): Promise<void>;
+  addDataset(id: string, summary?: ScoringDatasetSummary, options?: { defer?: boolean }): Promise<void>;
+  loadQueued(): Promise<void>;
   addDatasets(ids: string[]): Promise<void>;
   removeDataset(id: string): void;
   reloadDataset(id: string): Promise<void>;
@@ -337,17 +339,30 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     }
   }
 
-  async function addDataset(id: string, summary?: ScoringDatasetSummary) {
+  /**
+   * Add a dataset; with `defer` it only joins the list and loads on the
+   * next `loadQueued`, so picking many datasets costs nothing until the
+   * results are actually wanted.
+   */
+  async function addDataset(id: string, summary?: ScoringDatasetSummary, options: { defer?: boolean } = {}) {
     if (!id || entry(id)) return;
     datasets.value = [...datasets.value, {
       id,
       name: summary?.name || datasetName(id),
       type: summary?.type,
-      status: 'loading',
+      status: options.defer ? 'queued' : 'loading',
       trackCount: 0,
       croppable: false,
     }];
+    if (options.defer) return;
     await load(id, loadGeneration);
+  }
+
+  /** Load every queued dataset; annotations are read and the query rerun as each arrives. */
+  async function loadQueued() {
+    const queued = datasets.value.filter((d) => d.status === 'queued').map((d) => d.id);
+    queued.forEach((id) => patch(id, { status: 'loading' }));
+    await Promise.all(queued.map((id) => load(id, loadGeneration)));
   }
 
   async function addDatasets(ids: string[]) {
@@ -629,6 +644,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     refreshAvailable,
     addDataset,
     addDatasets,
+    loadQueued,
     removeDataset,
     reloadDataset,
     runQuery,

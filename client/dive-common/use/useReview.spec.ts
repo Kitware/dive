@@ -53,6 +53,17 @@ function makeApi(tracksById: Record<string, TrackData[]>, overrides: Partial<Rev
 }
 
 describe('createReviewService', () => {
+  it('keeps deferred datasets queued until loadQueued', async () => {
+    const api = makeApi({ a: [track(1, [['fish', 0.9]], [0])] });
+    const service = createReviewService({ api });
+    await service.addDataset('a', { id: 'a', name: 'Alpha' }, { defer: true });
+    expect(service.datasets.value.map((d) => d.status)).toEqual(['queued']);
+    expect(api.loadDetections).not.toHaveBeenCalled();
+    await service.loadQueued();
+    expect(service.datasets.value.map((d) => [d.status, d.trackCount])).toEqual([['ready', 1]]);
+    expect(api.loadDetections).toHaveBeenCalledTimes(1);
+  });
+
   it('loads datasets, prefers peekConfig, and builds items for a query', async () => {
     const peekConfig = vi.fn(async (id: string) => config(id));
     const api = makeApi({
