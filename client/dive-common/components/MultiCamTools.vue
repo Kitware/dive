@@ -1,7 +1,9 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
 import {
+  useCameraRegistration,
   useCameraStore,
+  useDatasetId,
   useEditingMode,
   useHandler,
   useSelectedCamera,
@@ -11,6 +13,9 @@ import {
 } from 'vue-media-annotator/provides';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import Track from 'vue-media-annotator/track';
+import { useApi } from 'dive-common/apispec';
+import { pendingFrameShifts, shiftTrackData } from 'dive-common/frameOffsetAnnotations';
 
 interface CameraTrackData {
   trackExists: boolean;
@@ -25,10 +30,76 @@ export default defineComponent({
     const inEditingMode = useEditingMode();
     const enabledTracksRef = useTrackFilters().enabledAnnotations;
     const handler = useHandler();
-    const { frame } = useTime();
+    const { frame, frameRate } = useTime();
     const selectedTrackId = useSelectedTrackId();
     const cameraStore = useCameraStore();
     const cameras = computed(() => cameraStore.orderedCameraNames());
+    const registration = useCameraRegistration();
+    const datasetId = useDatasetId();
+    const { saveConfig } = useApi();
+
+    // Time offset: the first camera is the reference; every other camera is shifted onto it.
+    const OFFSET_LIMIT_SECONDS = 3;
+    const referenceCamera = computed(() => cameras.value[0] ?? null);
+    const offsetCameras = computed(() => cameras.value.slice(1));
+    const offsetLimit = computed(
+      () => Math.max(1, Math.round((frameRate.value || 30) * OFFSET_LIMIT_SECONDS)),
+    );
+    function cameraOffset(camera: string): number {
+      return registration.frameOffsets.value[camera] ?? 0;
+    }
+    function setCameraOffset(camera: string, value: number) {
+      // Replace the map: the aligned timeline is a computed over this ref.
+      registration.frameOffsets.value = {
+        ...registration.frameOffsets.value,
+        [camera]: Math.round(value),
+      };
+    }
+    function nudgeOffset(camera: string, delta: number) {
+      setCameraOffset(camera, cameraOffset(camera) + delta);
+    }
+    function offsetReadout(camera: string): string {
+      const frames = cameraOffset(camera);
+      const sign = frames > 0 ? '+' : '';
+      const plural = Math.abs(frames) === 1 ? '' : 's';
+      const seconds = frameRate.value ? ` (${sign}${(frames / frameRate.value).toFixed(3)}s)` : '';
+      return `${sign}${frames} frame${plural}${seconds}`;
+    }
+    const pendingShifts = computed(() => pendingFrameShifts(
+      registration.frameOffsets.value,
+      registration.appliedFrameOffsets.value,
+      offsetCameras.value,
+    ));
+    const savingOffsets = ref(false);
+    /** Move each shifted camera's annotations by its unapplied offset, then save everything. */
+    async function saveAnnotationOffsets() {
+      savingOffsets.value = true;
+      try {
+        Object.entries(pendingShifts.value).forEach(([camera, delta]) => {
+          const store = cameraStore.camMap.value.get(camera)?.trackStore;
+          if (!store) {
+            return;
+          }
+          const tracks = Array.from(store.annotationMap.values()) as Track[];
+          tracks.forEach((track) => {
+            const shifted = shiftTrackData(track.serialize(), delta);
+            store.remove(track.id, shifted !== null);
+            if (shifted !== null) {
+              store.insert(Track.fromJSON(shifted, track.set));
+            }
+          });
+        });
+        registration.appliedFrameOffsets.value = { ...registration.frameOffsets.value };
+        await saveConfig(datasetId.value, {
+          cameraFrameOffsets: registration.frameOffsets.value,
+          cameraFrameOffsetsApplied: registration.appliedFrameOffsets.value,
+        });
+        registration.markSaved();
+        await handler.save();
+      } finally {
+        savingOffsets.value = false;
+      }
+    }
     const canary = ref(false);
     function _depend(): boolean {
       return canary.value;
@@ -119,6 +190,16 @@ export default defineComponent({
       deleteTrack,
       startLinking,
       handler,
+      referenceCamera,
+      offsetCameras,
+      offsetLimit,
+      cameraOffset,
+      setCameraOffset,
+      nudgeOffset,
+      offsetReadout,
+      pendingShifts,
+      savingOffsets,
+      saveAnnotationOffsets,
     };
   },
 });
@@ -130,6 +211,53 @@ export default defineComponent({
       Multi Camera Tools for creating tracks, linking and unlinking tracks
     </span>
     <v-divider class="my-3" />
+    <div v-if="offsetCameras.length">
+      <h4>Time Offset</h4>
+      <span class="text-caption grey--text d-block mb-1">
+        Frames to shift each camera so it plays in step with {{ referenceCamera }}.
+      </span>
+      <div v-for="camera in offsetCameras" :key="camera" class="mb-2">
+        <span class="text-body-2">{{ camera }}</span>
+        <div class="d-flex align-center">
+          <tooltip-btn
+            icon="mdi-minus"
+            :tooltip-text="`Shift ${camera} one frame earlier`"
+            @click="nudgeOffset(camera, -1)"
+          />
+          <v-slider
+            :value="cameraOffset(camera)"
+            :min="-offsetLimit"
+            :max="offsetLimit"
+            :step="1"
+            dense
+            hide-details
+            class="mx-1"
+            @input="setCameraOffset(camera, $event)"
+          />
+          <tooltip-btn
+            icon="mdi-plus"
+            :tooltip-text="`Shift ${camera} one frame later`"
+            @click="nudgeOffset(camera, 1)"
+          />
+        </div>
+        <div class="text-caption" style="font-family: monospace;">
+          {{ offsetReadout(camera) }}
+        </div>
+      </div>
+      <v-btn
+        block
+        small
+        color="primary"
+        :disabled="!Object.keys(pendingShifts).length"
+        :loading="savingOffsets"
+        @click="saveAnnotationOffsets"
+      >
+        Save annotations
+      </v-btn>
+      <span class="text-caption grey--text d-block mt-1">
+        Moves every annotation on a shifted camera by its offset, then saves.
+      </span>
+    </div>
     <v-divider class="my-3" />
     <div v-if="selectedTrackId !== null">
       <span> Selected Track: {{ selectedTrackId }} Frame: {{ frame }}</span>

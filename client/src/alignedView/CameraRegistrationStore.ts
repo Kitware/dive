@@ -329,6 +329,9 @@ export default class CameraRegistrationStore {
    */
   frameOffsets: Ref<Record<string, number>>;
 
+  /** Per-camera frame offset already baked into that camera's annotations. */
+  appliedFrameOffsets: Ref<Record<string, number>>;
+
   /** True when the calibration has unsaved changes since the last save or load. */
   dirty: ComputedRef<boolean>;
 
@@ -361,6 +364,7 @@ export default class CameraRegistrationStore {
     this.fitError = ref(null);
     this.source = ref(null);
     this.frameOffsets = ref({});
+    this.appliedFrameOffsets = ref({});
     this.nextId = 1;
     this.nextRecenterId = 1;
     this.homographySources = {};
@@ -377,6 +381,7 @@ export default class CameraRegistrationStore {
       transformTypes: this.transformTypes.value,
       source: this.source.value,
       frameOffsets: this.frameOffsets.value,
+      appliedFrameOffsets: this.appliedFrameOffsets.value,
     });
   }
 
@@ -1415,12 +1420,14 @@ export default class CameraRegistrationStore {
     transformTypes?: CameraTransformTypes,
     source?: RegistrationSource | null,
     frameOffsets?: Record<string, number> | null,
+    appliedFrameOffsets?: Record<string, number> | null,
   ) {
     this.homographies.value = homographies ? { ...homographies } : {};
     this.observations.value = observations ? { ...observations } : {};
     this.transformTypes.value = transformTypes ? { ...transformTypes } : {};
     this.source.value = source ?? null;
     this.frameOffsets.value = frameOffsets ? { ...frameOffsets } : {};
+    this.appliedFrameOffsets.value = appliedFrameOffsets ? { ...appliedFrameOffsets } : {};
     this.markHomographySources();
     this.activePair.value = null;
     this.pendingPoint.value = null;
