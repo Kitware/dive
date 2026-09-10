@@ -2500,7 +2500,10 @@ export default defineComponent({
 
 <template>
   <v-main class="viewer">
-    <v-app-bar app>
+    <v-app-bar
+      app
+      extension-height="56"
+    >
       <slot name="title" />
       <span
         class="title pl-3 flex-row"

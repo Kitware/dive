@@ -2125,6 +2125,7 @@ export default defineComponent({
       </template>
       <template #title-right>
         <RunPipelineMenu
+          :before-run="() => viewerRef.save()"
           :selected-dataset-ids="[modifiedId]"
           :sub-type-list="subTypeList"
           :camera-numbers="camNumbers"

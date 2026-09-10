@@ -5,7 +5,9 @@ import {
 import type { DataTableHeader } from 'vuetify';
 import { clientSettings } from 'dive-common/store/settings';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import { DatasetPickerRow, filterDatasetRows, selectableIds } from 'dive-common/datasetPicker';
+import {
+  DatasetPickerRow, datasetTypeOptions, filterDatasetRows, selectableIds,
+} from 'dive-common/datasetPicker';
 
 const DefaultHeaders: DataTableHeader[] = [
   { text: 'Dataset', value: 'name', sortable: true },
@@ -15,11 +17,11 @@ const DefaultHeaders: DataTableHeader[] = [
 ];
 
 /**
- * The one way datasets are chosen across the app: a searchable list of the
- * datasets on offer, an add button per row, and select all for everything
- * the search lists. Pages keep their own table of what they selected; this
- * only offers. Platforms without a listing (the web) can show a browse
- * button instead, through `pickerLabel` and the `pick` event.
+ * The one way datasets are chosen across the app: a searchable, type-filterable
+ * list of the datasets on offer, an add button per row, and select all for
+ * everything the filters list. Pages keep their own table of what they
+ * selected; this only offers. Platforms without a listing (the web) can show a
+ * browse button instead, through `pickerLabel` and the `pick` event.
  */
 export default defineComponent({
   name: 'DatasetPicker',
@@ -68,9 +70,17 @@ export default defineComponent({
   setup(props, { emit }) {
     /** Null when the field's clear button is used. */
     const search = ref<string | null>('');
+    /** Null means all types; otherwise the selected type string. */
+    const typeFilter = ref<string | null>(null);
 
-    const searchFields = computed(() => props.headers.map((h) => h.value));
-    const listed = computed(() => filterDatasetRows(props.items, search.value ?? '', searchFields.value));
+    const typeOptions = computed(() => datasetTypeOptions(props.items));
+    const showTypeFilter = computed(() => props.headers.some((h) => h.value === 'type'));
+    const listed = computed(() => filterDatasetRows(
+      props.items,
+      search.value,
+      ['name'],
+      typeFilter.value,
+    ));
     const addable = computed(() => selectableIds(listed.value, props.selectedIds));
     const selected = computed(() => new Set(props.selectedIds));
     /** Listed rows that are selected: what "remove all" drops. */
@@ -97,8 +107,15 @@ export default defineComponent({
       if (removable.value.length) emit('remove-many', removable.value);
     }
 
+    function setTypeFilter(value: string | null) {
+      typeFilter.value = value;
+    }
+
     return {
       search,
+      typeFilter,
+      typeOptions,
+      showTypeFilter,
       listed,
       addable,
       removable,
@@ -107,6 +124,7 @@ export default defineComponent({
       rowClass,
       addAll,
       removeAll,
+      setTypeFilter,
       clientSettings,
       itemsPerPageOptions,
     };
@@ -204,10 +222,56 @@ export default defineComponent({
       :items-per-page.sync="clientSettings.rowsPerPage"
       :footer-props="{ itemsPerPageOptions }"
       :hide-default-footer="compact && listed.length <= clientSettings.rowsPerPage"
-      :no-data-text="items.length ? 'Nothing matches the search.' : noDataText"
+      :no-data-text="items.length ? 'Nothing matches the filters.' : noDataText"
       :item-class="rowClass"
       class="picker-table"
     >
+      <template #header.type="{ header }">
+        <v-menu
+          v-if="showTypeFilter"
+          open-on-hover
+          bottom
+          offset-y
+          open-delay="200"
+          close-delay="250"
+          :nudge-bottom="4"
+        >
+          <template #activator="{ on, attrs }">
+            <span
+              class="type-header-label"
+              v-bind="attrs"
+              v-on="on"
+            >
+              {{ header.text }}
+              <v-icon
+                x-small
+                class="ml-1"
+                :color="typeFilter ? 'primary' : undefined"
+                :class="{ 'type-filter-idle': !typeFilter }"
+              >
+                {{ typeFilter ? 'mdi-filter' : 'mdi-filter-outline' }}
+              </v-icon>
+            </span>
+          </template>
+          <v-list dense>
+            <v-list-item
+              :input-value="!typeFilter"
+              @click="setTypeFilter(null)"
+            >
+              <v-list-item-title>All</v-list-item-title>
+            </v-list-item>
+            <v-list-item
+              v-for="type in typeOptions"
+              :key="type"
+              :input-value="typeFilter === type"
+              @click="setTypeFilter(type)"
+            >
+              <v-list-item-title>{{ type }}</v-list-item-title>
+            </v-list-item>
+          </v-list>
+        </v-menu>
+        <span v-else>{{ header.text }}</span>
+      </template>
       <template #[`item.picker-actions`]="{ item }">
         <span class="d-inline-flex align-center">
           <slot
@@ -253,6 +317,16 @@ export default defineComponent({
 
 .picker-search {
   max-width: 360px;
+}
+
+.type-header-label {
+  display: inline-flex;
+  align-items: center;
+  cursor: default;
+}
+
+.type-filter-idle {
+  opacity: 0.45;
 }
 
 .picker-table ::v-deep td {

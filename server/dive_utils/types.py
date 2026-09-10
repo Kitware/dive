@@ -127,6 +127,7 @@ class PipelineRuntimeParams(TypedDict, total=False):
 
 
 class PipelineParams(TypedDict, total=False):
+    singleCameraMode: str
     kwiverParams: Dict[str, str]
     runtimeParams: PipelineRuntimeParams
     # 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
@@ -152,6 +153,7 @@ class PipelineJob(TypedDict):
     """Describes the parameters for running a pipeline on a dataset."""
 
     pipeline: PipelineDescription
+    single_camera: NotRequired[dict]
     input_folder: str  # dataset folder id
     input_type: str  # video, image-sequence, etc.
     input_revision: Optional[int]  # A revision ID is included if the pipeline needs input
