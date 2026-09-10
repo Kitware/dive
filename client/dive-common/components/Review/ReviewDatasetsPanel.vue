@@ -2,41 +2,42 @@
 import { computed, defineComponent, ref } from 'vue';
 import { useApi } from 'dive-common/apispec';
 import { useReview } from 'dive-common/use/useReview';
+import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
 
 /**
- * Which datasets the review grid draws from: add through the platform's
- * dataset picker (web) or a listing (desktop), see each one's load state,
- * reload or drop it.
+ * Which datasets the review grid draws from: pick them from the library
+ * listing (or the platform's dataset browser on the web), see each one's
+ * load state, reload or drop it.
  */
 export default defineComponent({
   name: 'ReviewDatasetsPanel',
+  components: { DatasetPicker },
   setup() {
     const api = useApi();
     const review = useReview();
-    const toAdd = ref<string | null>(null);
     const picking = ref(false);
     const usePicker = computed(() => typeof api.pickScoringDataset === 'function');
 
-    const addable = computed(() => {
-      const used = new Set(review.datasets.value.map((d) => d.id));
-      return review.available.value
-        .filter((d) => !used.has(d.id))
-        .map((d) => ({ value: d.id, text: d.name }));
-    });
+    const selectedIds = computed(() => review.datasets.value.map((d) => d.id));
 
-    async function add(id: string | null) {
-      if (!id) return;
+    async function add(id: string) {
       const summary = review.available.value.find((d) => d.id === id);
-      toAdd.value = null;
       await review.addDataset(id, summary);
+    }
+
+    async function addMany(ids: string[]) {
+      await Promise.all(ids.map((id) => add(id)));
+    }
+
+    function removeMany(ids: string[]) {
+      ids.forEach((id) => review.removeDataset(id));
     }
 
     async function openPicker() {
       if (!api.pickScoringDataset || picking.value) return;
       picking.value = true;
       try {
-        const used = review.datasets.value.map((d) => d.id);
-        const picked = await api.pickScoringDataset(used);
+        const picked = await api.pickScoringDataset(selectedIds.value);
         if (picked) await review.addDataset(picked.id, picked);
       } finally {
         picking.value = false;
@@ -51,9 +52,10 @@ export default defineComponent({
 
     return {
       review,
-      toAdd,
-      addable,
+      selectedIds,
       add,
+      addMany,
+      removeMany,
       usePicker,
       picking,
       openPicker,
@@ -65,43 +67,29 @@ export default defineComponent({
 
 <template>
   <div class="review-datasets">
-    <div class="d-flex align-center flex-wrap mb-2 add-row">
-      <v-btn
-        v-if="usePicker"
-        small
-        outlined
-        :loading="picking"
-        @click="openPicker"
-      >
-        <v-icon
-          small
-          left
-        >
-          mdi-plus
-        </v-icon>
-        Add dataset
-      </v-btn>
-      <v-autocomplete
-        v-else
-        v-model="toAdd"
-        :items="addable"
-        label="Add a dataset"
-        dense
-        outlined
-        hide-details
-        clearable
-        class="add-select"
-        @change="add"
-      />
-      <span class="text-caption grey--text ml-3">
-        Every dataset here contributes its annotations to the grid. Multicamera datasets are added one camera at a time.
-      </span>
+    <DatasetPicker
+      :items="review.available.value"
+      :selected-ids="selectedIds"
+      :picker-label="usePicker ? 'Browse…' : ''"
+      :picking="picking"
+      hint="Every dataset here contributes its annotations to the grid. Multicamera datasets are added one camera at a time."
+      no-data-text="No datasets in the library."
+      compact
+      class="mb-3"
+      @add="add"
+      @add-many="addMany"
+      @remove="review.removeDataset"
+      @remove-many="removeMany"
+      @pick="openPicker"
+    />
+    <div class="text-subtitle-2 mb-1">
+      Selected datasets ({{ review.datasets.value.length }})
     </div>
     <div
       v-if="review.datasets.value.length === 0"
       class="text-caption grey--text py-2"
     >
-      No datasets yet. Add one above, or select datasets in the library and choose Review.
+      None yet. Add datasets from the list above, or select them in the library and choose Review.
     </div>
     <v-simple-table
       v-else
@@ -186,14 +174,6 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-.add-row {
-  gap: 4px;
-}
-
-.add-select {
-  max-width: 360px;
-}
-
 .name-cell {
   max-width: 320px;
   overflow: hidden;
