@@ -19,6 +19,11 @@ import {
   NewDatasetJobConfig,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
+import SingleCameraAssociationDialog from 'dive-common/singleCamera/AssociationDialog.vue';
+import {
+  associationUnavailableReason, singleCameraContext, SingleCameraMode,
+} from 'dive-common/singleCamera';
+import { isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
 import RunPipelineToast from 'dive-common/components/RunPipelineToast.vue';
 import {
@@ -53,6 +58,7 @@ export default defineComponent({
 
   components: {
     JobLaunchDialog,
+    SingleCameraAssociationDialog,
     JobConfigFilterTranscodeDialog,
     PipelineParamsDialog,
     PipelineCameraAssignDialog,
@@ -61,6 +67,11 @@ export default defineComponent({
   },
 
   props: {
+    /** Persist viewer annotations before inspecting or consuming the other cameras. */
+    beforeRun: {
+      type: Function as PropType<() => Promise<void>>,
+      default: undefined,
+    },
     selectedDatasetIds: {
       type: Array as PropType<string[]>,
       default: () => [],
@@ -120,7 +131,7 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const {
-      runPipeline, getPipelineList, hasCalibrationFile, loadConfig, saveConfig,
+      runPipeline, getPipelineList, hasCalibrationFile, loadConfig, saveConfig, loadDetections,
     } = useApi();
     const unsortedPipelines = ref({} as Pipelines);
     const {
@@ -132,6 +143,21 @@ export default defineComponent({
     const menuState: Ref<MenuState> = ref('idle');
     const configuring = computed(() => menuState.value === 'configuring');
     const selectedPipeline: Ref<Pipe | null> = ref(null);
+    const associationCamera = ref('');
+    const associationUnavailable = ref('');
+    let resolveAssociation: (mode: SingleCameraMode | null) => void = () => {};
+    function answerAssociation(mode: SingleCameraMode | null) {
+      associationCamera.value = '';
+      associationUnavailable.value = '';
+      resolveAssociation(mode);
+    }
+    function askAssociation(camera: string, unavailableReason: string) {
+      return new Promise<SingleCameraMode | null>((resolve) => {
+        resolveAssociation = resolve;
+        associationUnavailable.value = unavailableReason;
+        associationCamera.value = camera;
+      });
+    }
     const selectedPipelineName = computed(() => (selectedPipeline.value ? selectedPipeline.value.name : ''));
     function cancelConfig() {
       menuState.value = 'idle';
@@ -357,18 +383,41 @@ export default defineComponent({
         throw new Error('No selected datasets to run on');
       }
       let datasetIds = props.selectedDatasetIds;
-      if (props.cameraNumbers.length === 1 && props.cameraNumbers[0] > 1
-      && (!multiCamPipelineMarkers.includes(pipeline.type)
-      && stereoPipelineMarker !== pipeline.type)) {
-        const cameraNames = props.selectedDatasetIds.map((item) => parentDatasetId(item));
-        const result = await prompt({
-          title: `Running Single Camera Pipeline on ${cameraNames[0]}`,
-          text: ['Running a single pipeline on multi-camera data can produce conflicting track Ids',
-            'Suggest Cancelling and deleting all existing tracks to ensure proper display of the output',
-          ],
-          confirm: true,
-        });
-        if (!result) {
+      const singleCameraModes: Record<string, SingleCameraMode> = {};
+      if (!pipelineCreatesNewDataset(pipeline)
+        && !multiCamPipelineMarkers.includes(pipeline.type)
+        && stereoPipelineMarker !== pipeline.type) {
+        datasetIds = [...datasetIds];
+        try {
+          if (props.cameraNumbers.some((count) => count > 1)) await props.beforeRun?.();
+          const parents = new Set<string>();
+          for (let i = 0; i < datasetIds.length; i += 1) {
+            // eslint-disable-next-line no-await-in-loop
+            const context = await singleCameraContext({ loadConfig, loadDetections }, datasetIds[i]);
+            if (context) {
+              if (parents.has(context.parentId)) {
+                throw new Error('Select only one camera per dataset for a single-camera pipeline run.');
+              }
+              parents.add(context.parentId);
+              datasetIds[i] = context.datasetId;
+              let mode: SingleCameraMode | null = 'separate';
+              if (context.hasOtherTracks) {
+                // eslint-disable-next-line no-await-in-loop
+                const calibration = context.stereo && !!await hasCalibrationFile?.(context.parentId);
+                const unavailable = associationUnavailableReason(
+                  context.stereo,
+                  calibration,
+                  isStereoInteractiveModeEnabled(),
+                ) || '';
+                // eslint-disable-next-line no-await-in-loop
+                mode = await askAssociation(context.datasetId, unavailable);
+                if (!mode) return;
+              }
+              singleCameraModes[context.datasetId] = mode;
+            }
+          }
+        } catch (error) {
+          await prompt({ title: 'Cannot run pipeline', text: (error as Error).message });
           return;
         }
       }
@@ -393,6 +442,7 @@ export default defineComponent({
           outputParentFolderId,
           kwiverParams: kwiverParamsById?.[id],
           cameraOrder: cameraOrderById[id],
+          singleCameraMode: singleCameraModes[id],
         })),
       ));
     }
@@ -446,6 +496,9 @@ export default defineComponent({
     }
 
     return {
+      associationCamera,
+      associationUnavailable,
+      answerAssociation,
       jobState,
       pipelines,
       pipelinesNotRunnable,
@@ -481,6 +534,11 @@ export default defineComponent({
 
 <template>
   <div>
+    <SingleCameraAssociationDialog
+      :camera="associationCamera"
+      :unavailable-reason="associationUnavailable"
+      @answer="answerAssociation"
+    />
     <v-menu
       max-width="230"
       max-height="none"
