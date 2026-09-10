@@ -105,10 +105,8 @@ function computeOutputDatasetName(item: JsonConfigCache) {
   const timeStamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   return `${selectedPipeline.value?.name}_${item.name}_${timeStamp}`;
 }
+/** Every dataset, narrowed to stereo ones once a measurement pipeline type is chosen. */
 function getAvailableItems(): JsonConfigCache[] {
-  if (!selectedPipelineType.value || !selectedPipeline.value) {
-    return [];
-  }
   if (selectedPipelineType.value === stereoPipelineMarker) {
     // Only allow stereo datasets to be included for bulk pipeline
     // operations if the selected pipeline type is a measurement.
@@ -308,7 +306,7 @@ onBeforeMount(async () => {
         :items="availableItems"
         :selected-ids="stagedDatasetIds"
         :headers="headersTmpl"
-        no-data-text="No compatible datasets found for the selected pipeline."
+        no-data-text="No datasets in the library are compatible with this pipeline."
         @add="stageIds([$event])"
         @add-many="stageIds"
         @remove="unstageIds([$event])"
