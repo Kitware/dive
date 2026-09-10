@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import type { ChipTransform } from 'dive-common/review/chipRenderer';
 import type { ReviewFrameRef } from 'dive-common/review/types';
-import ReviewChip, { ReviewChipGeometryEdit } from './ReviewChip.vue';
+import ReviewChip, { ChipView, ReviewChipGeometryEdit } from './ReviewChip.vue';
 
 /** One chip of an entry: a track in one camera. */
 export interface ReviewCellView {
@@ -165,6 +165,8 @@ export default defineComponent({
     const shared = computed(() => viewList.value.length > 1);
     const sharedSlot = ref(0);
     const sharedPaused = ref(false);
+    /** One zoom and pan for every camera of the entry. */
+    const sharedView = ref<ChipView>({ scale: 1, x: 0, y: 0 });
     let timer: number | null = null;
 
     const sequenceLength = computed(() => (
@@ -251,6 +253,7 @@ export default defineComponent({
       shared,
       sharedSlot,
       sharedPaused,
+      sharedView,
       stepShared,
       toggleSharedPaused,
     };
@@ -288,6 +291,8 @@ export default defineComponent({
         :color="color"
         :controlled-slot="shared ? sharedSlot : null"
         :controlled-paused="sharedPaused"
+        :controlled-view="shared ? sharedView : null"
+        @view-change="sharedView = $event"
         @step="stepShared"
         @toggle-paused="toggleSharedPaused"
         @pause="sharedPaused = true"
