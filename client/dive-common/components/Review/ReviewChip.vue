@@ -465,7 +465,9 @@ export default defineComponent({
 
     /** Drag on the zoomed image (empty overlay space while editing) pans the view. */
     function startPan(event: PointerEvent) {
-      if (event.button !== 0 || view.value.scale <= MIN_ZOOM) return;
+      // Left button on the image, or the middle button anywhere.
+      if ((event.button !== 0 && event.button !== 1) || view.value.scale <= MIN_ZOOM) return;
+      if (event.button === 1) event.preventDefault();
       const capture = event.currentTarget as Element | null;
       pan = {
         startX: event.clientX,
@@ -505,8 +507,13 @@ export default defineComponent({
     function onWrapPointerDown(event: PointerEvent) {
       if (editing.value) return;
       const target = event.target as Element | null;
-      if (!target?.classList.contains('cell-image')) return;
+      if (event.button === 0 && !target?.classList.contains('cell-image')) return;
       startPan(event);
+    }
+
+    /** The middle button pans; keep the browser's autoscroll out of it. */
+    function onWrapMouseDown(event: MouseEvent) {
+      if (event.button === 1) event.preventDefault();
     }
 
     function onWrapPointerMove(event: PointerEvent) {
@@ -696,6 +703,7 @@ export default defineComponent({
       startPan,
       zoomed: computed(() => view.value.scale > 1),
       onWrapPointerDown,
+      onWrapMouseDown,
       onWrapPointerMove,
       onWrapPointerUp,
       missing,
@@ -714,6 +722,7 @@ export default defineComponent({
     @dblclick="onImageDoubleClick"
     @contextmenu="onContextMenu"
     @wheel="onWheel"
+    @mousedown="onWrapMouseDown"
     @pointerdown="onWrapPointerDown"
     @pointermove="onWrapPointerMove"
     @pointerup="onWrapPointerUp"
@@ -932,7 +941,7 @@ export default defineComponent({
       @contextmenu.stop.prevent
     >
       <span class="text-caption edit-hint">
-        Frame {{ currentFrame ? currentFrame.frame : '' }}: drag to adjust, wheel to zoom, right click to keep
+        Frame {{ currentFrame ? currentFrame.frame : '' }}: drag to adjust, wheel to zoom, middle drag to pan, right click to keep
       </span>
       <v-btn
         x-small

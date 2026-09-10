@@ -49,7 +49,7 @@ Each camera of a multi-camera (or stereo) dataset is loaded as its own sequence,
 
 ### Editing boxes, polygons and points in place
 
-Right click an entry (or use its edit action) to adjust the frame it is showing without opening the viewer. The cycling pauses on that frame, the box gains the same handles the annotator uses (in the type's colour, red while dragged), and any polygon vertices and head/tail points can be dragged too. The mouse wheel zooms into the chip about the cursor and dragging pans it, as in the annotator; the zoom stays until you wheel back out. Right click again, or press **Enter** or **Apply**, to keep the change; **Esc** or **Cancel** drops it. The chip keeps its crop after an edit, with the box drawn over it at its new position. Edits are held with the type edits until you **Save**; when auto-save is enabled in the settings, review edits are saved after the same delay the annotator uses.
+Right click an entry (or use its edit action) to adjust the frame it is showing without opening the viewer. The cycling pauses on that frame, the box gains the same handles the annotator uses (in the type's colour, red while dragged), and any polygon vertices and head/tail points can be dragged too. The mouse wheel zooms into the chip about the cursor and dragging empty space or middle-dragging anywhere pans it, as in the annotator; the zoom stays until you wheel back out. Right click again, or press **Enter** or **Apply**, to keep the change; **Esc** or **Cancel** drops it. The chip keeps its crop after an edit, with the box drawn over it at its new position. Edits are held with the type edits until you **Save**; when auto-save is enabled in the settings, review edits are saved after the same delay the annotator uses.
 
 **Tracks** spanning several frames first show their first box, then, once the extra frames have loaded, cycle through up to eight boxes evenly sampled along the track. The object stays centred in the entry as it cycles. A filmstrip badge shows which sampled frame is on screen.
 
@@ -68,7 +68,7 @@ Entries are sorted by confidence, highest first, by default; the sort field also
 
 ### Grid size and zoom
 
-The mouse wheel over any entry zooms into it about the cursor, editing or not, and dragging the zoomed image pans it; wheel back out to return to the full chip.
+The mouse wheel over any entry zooms into it about the cursor, editing or not, and dragging the zoomed image (with the left or the middle button) pans it; wheel back out to return to the full chip.
 
 The default grid is 5 columns by 4 rows. Set the columns and rows directly, or use the zoom buttons: zoom in shows fewer, larger entries and zoom out shows more, smaller ones, keeping the grid's shape. The **Context** slider controls how much image is shown around each box, as a fraction of the box size (30% by default). These settings are remembered per browser.
 
@@ -78,7 +78,7 @@ Chips are rendered at the resolution of the cell they fill. A box a few pixels a
 
 ### Editing types
 
-Type into an entry's type field and press Enter (or click away) to reassign the annotation's type; the new type becomes the top confidence pair with confidence 1, the same as changing the type in the viewer's track list. Edited entries get an amber border and a pencil badge until saved.
+Type into an entry's type field and press Enter (or click away), or open its dropdown with the arrow button (which also closes it) and pick one of the known types, to reassign the annotation's type; the new type becomes the top confidence pair with confidence 1, the same as changing the type in the viewer's track list. Edited entries get an amber border and a pencil badge until saved.
 
 **Page actions** applies to every entry on the current page: set them all to one type, or mark them all correct.
 
