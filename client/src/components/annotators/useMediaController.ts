@@ -273,24 +273,11 @@ export function useMediaController() {
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
         resized = true;
         pendingResizes.push(() => {
-          const map = geoViewerRef.value;
-          if (map === undefined) {
+          if (geoViewerRef.value === undefined) {
             return;
           }
-          // A pane the user zoomed keeps its view through a resize; only a fitted pane refits.
-          const fitted = map.zoomAndCenterFromBounds(state[camera].originalBounds, 0);
-          const center = map.center();
-          const atFit = Math.abs(map.zoom() - fitted.zoom) < 1e-6
-            && Math.abs(center.x - fitted.center.x) < 1e-6
-            && Math.abs(center.y - fitted.center.y) < 1e-6;
-          const zoom = map.zoom();
-          map.size(size);
-          if (atFit) {
-            mc.resetZoom();
-          } else {
-            map.zoom(zoom);
-            map.center(center);
-          }
+          geoViewerRef.value.size(size);
+          mc.resetZoom();
         });
       }
     });
