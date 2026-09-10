@@ -8,9 +8,9 @@ from dive_tasks.pipeline_discovery import (
 
 
 def test_parse_pipe_type_and_name_stereo():
-    assert parse_pipe_type_and_name('stereo_measure_fully_auto_gmm_motion') == (
+    assert parse_pipe_type_and_name('stereo_detect_and_measure_gmm_motion') == (
         'stereo',
-        'measure fully auto gmm motion',
+        'detect and measure gmm motion',
     )
 
 
@@ -43,7 +43,7 @@ def test_parse_pipe_type_and_name_one_cam_stays_detector():
 
 
 def test_load_static_pipelines_includes_stereo_and_multicam(tmp_path: Path):
-    (tmp_path / 'stereo_measure_fully_auto_gmm_motion.pipe').write_text('# Description: test\n')
+    (tmp_path / 'stereo_detect_and_measure_gmm_motion.pipe').write_text('# Description: test\n')
     (tmp_path / 'utility_register_frames_2-cam.pipe').write_text('')
     (tmp_path / 'utility_register_frames_3-cam.pipe').write_text('')
     (tmp_path / 'detector_gmm_motion.pipe').write_text('')
