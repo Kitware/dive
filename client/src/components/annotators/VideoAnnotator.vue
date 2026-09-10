@@ -222,6 +222,8 @@ export default defineComponent({
       });
       quadFeatureLayer
         .createFeature('quad')
+        // Otherwise geojs skips rendering while the video seeks, freezing the pane under a scrub.
+        .style('delayRenderWhenSeeking', false)
         .data([
           {
             ul: { x: 0, y: 0 },
