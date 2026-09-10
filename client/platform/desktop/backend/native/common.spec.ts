@@ -999,6 +999,128 @@ describe('native.common', () => {
       .toEqual([['shark', 1]]);
   });
 
+  it('imports a KWCOCO species list as a declaration, not as annotations', async () => {
+    const imported = '/home/user/output/rockfish.species.json';
+    await fs.writeJSON(imported, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    });
+    const before = Object.keys((await common.loadDetections(settings, 'projectid1')).tracks);
+
+    const result = await common.dataFileImport(settings, 'projectid1', imported);
+
+    expect(result.warnings).toEqual([]);
+    const meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    // A species with no style of its own costs an empty entry and renders in the
+    // ordinal palette; the keys are the declared type list.
+    expect(meta.customTypeStyling).toEqual({
+      Sebastes: {},
+      'Sebastes melanops': {},
+      'Sebastes flavidus': {},
+    });
+    expect(meta.typeHierarchy).toEqual({
+      'Sebastes melanops': 'Sebastes',
+      'Sebastes flavidus': 'Sebastes',
+    });
+    // A declaration is not an observation.
+    expect(Object.keys((await common.loadDetections(settings, 'projectid1')).tracks))
+      .toEqual(before);
+  });
+
+  it('overwrites the declared species list and adds to it on an additive import', async () => {
+    const imported = '/home/user/output/overwrite.species.json';
+    await common.saveConfig(settings, 'projectid1', {
+      customTypeStyling: {
+        Sebastes: { color: '#ff0000' },
+        'retired species': { color: '#00ff00' },
+      },
+    });
+    await fs.writeJSON(imported, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    });
+
+    await common.dataFileImport(settings, 'projectid1', imported);
+
+    // Overwrite is the whole declaration: the type it omits is gone, the style of the
+    // type it names is kept.
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).customTypeStyling)
+      .toEqual({ Sebastes: { color: '#ff0000' }, 'Sebastes flavidus': {} });
+
+    const added = '/home/user/output/additive.species.json';
+    await fs.writeJSON(added, { categories: [{ id: 1, name: 'Anoplopoma fimbria' }] });
+    await common.dataFileImport(settings, 'projectid1', added, true);
+
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).customTypeStyling)
+      .toEqual({
+        Sebastes: { color: '#ff0000' },
+        'Sebastes flavidus': {},
+        'Anoplopoma fimbria': {},
+      });
+  });
+
+  it('clears the hierarchy for a flat Overwrite list and leaves it for an additive one', async () => {
+    const flat = '/home/user/output/flat.species.json';
+    await fs.writeJSON(flat, { categories: [{ id: 1, name: 'Sebastes' }] });
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: { shark: 'fish' } });
+
+    await common.dataFileImport(settings, 'projectid1', flat, true);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toEqual({ shark: 'fish' });
+
+    await common.dataFileImport(settings, 'projectid1', flat);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toBeUndefined();
+  });
+
+  it('rejects a species list whose hierarchy is unusable without changing anything', async () => {
+    // A species list is imported for its classes, so a cycle is an error rather than a
+    // warning that silently degrades the list to a flat one.
+    const cyclic = '/home/user/output/cyclic.species.json';
+    await fs.writeJSON(cyclic, {
+      categories: [
+        { id: 1, name: 'a', supercategory: 'b' },
+        { id: 2, name: 'b', supercategory: 'a' },
+      ],
+    });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+
+    await expect(common.dataFileImport(settings, 'projectid1', cyclic))
+      .rejects.toThrow('Type hierarchy is invalid: cycle a -> b -> a. No configuration was changed.');
+
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
+  });
+
+  it('rejects a species list that repeats a name without changing anything', async () => {
+    // A repeated name is ambiguous and would silently cost the file its hierarchy, so the
+    // list is refused outright rather than declared with the repeats folded together.
+    const repeated = '/home/user/output/repeated.species.json';
+    await fs.writeJSON(repeated, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes' },
+        { id: 4, name: 'Sebastes melanops', supercategory: 'Sebastodes' },
+      ],
+    });
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: { salmon: 'fish' } });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+
+    await expect(common.dataFileImport(settings, 'projectid1', repeated)).rejects.toThrow(
+      'Species list repeats category names: Sebastes, Sebastes melanops. '
+      + 'No configuration was changed.',
+    );
+
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
+  });
+
   it('warns and skips a conflicting COCO hierarchy without dropping annotations', async () => {
     const imported = '/home/user/output/conflict.coco.json';
     await common.saveConfig(settings, 'projectid1', {
@@ -1880,6 +2002,44 @@ describe('native.common', () => {
     )).rejects.toThrowError('Found non-image type data in image list file');
   });
 
+  it('imports media with a species list as the annotation file and still has a track file', async () => {
+    const list = '/home/user/data/rockfish.species.json';
+    await fs.writeJSON(list, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+      ],
+    });
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    payload.trackFileAbsPath = list;
+
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+
+    // The list declares types but writes no annotations, so the dataset gets the empty
+    // track file every later step expects, the same as an import with no annotation file.
+    const annotations = await common.loadDetections(settings, meta.id);
+    expect(Object.keys(annotations.tracks)).toEqual([]);
+    const config = await common.loadConfig(settings, meta.id, urlMapper);
+    expect(config.customTypeStyling).toEqual({ Sebastes: {}, 'Sebastes melanops': {} });
+    expect(config.typeHierarchy).toEqual({ 'Sebastes melanops': 'Sebastes' });
+  });
+
+  it('imports media with a configuration file as the annotation file and still has a track file', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    payload.trackFileAbsPath = '/home/user/data/annotationImport/foreign.meta.json';
+
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+
+    const annotations = await common.loadDetections(settings, meta.id);
+    expect(Object.keys(annotations.tracks)).toEqual([]);
+    const config = await common.loadConfig(settings, meta.id, urlMapper);
+    expect(config.confidenceFilters).toStrictEqual({ default: 0.8 });
+  });
+
   it('dataFileImport', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
@@ -2027,6 +2187,63 @@ describe('native.common', () => {
       .toEqual(resolvedHierarchy);
     expect((await common.loadConfig(settings, `${baseId}/left`, urlMapper)).typeHierarchy)
       .toEqual(resolvedHierarchy);
+  });
+
+  it('adds a species list to a multicam parent on an additive camera-scoped import', async () => {
+    const basePayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const baseRes = await common.finalizeMediaImport(settings, basePayload);
+    const baseId = baseRes.meta.id;
+    const cameraPayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const cameraRes = await common.finalizeMediaImport(settings, cameraPayload);
+    const projects = npath.join(settings.dataPath, ProjectsFolderName);
+    await fs.move(
+      npath.join(projects, cameraRes.meta.id),
+      npath.join(projects, baseId, 'EO'),
+    );
+    const rockfish = '/home/user/output/rockfish.species.json';
+    await fs.writeJSON(rockfish, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+        { id: 4, name: 'Anoplopoma fimbria' },
+      ],
+    });
+    await common.dataFileImport(settings, baseId, rockfish);
+    const rockfishHierarchy = {
+      'Sebastes flavidus': 'Sebastes',
+      'Sebastes melanops': 'Sebastes',
+    };
+    expect((await common.loadConfig(settings, baseId, urlMapper)).typeHierarchy)
+      .toEqual(rockfishHierarchy);
+
+    const extra = '/home/user/output/extra.species.json';
+    await fs.writeJSON(extra, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 5, name: 'Sebastes caurinus', supercategory: 'Sebastes' },
+      ],
+    });
+    await common.dataFileImport(settings, `${baseId}/EO`, extra, true);
+
+    const merged = { ...rockfishHierarchy, 'Sebastes caurinus': 'Sebastes' };
+    const declared = {
+      Sebastes: {},
+      'Sebastes melanops': {},
+      'Sebastes flavidus': {},
+      'Anoplopoma fimbria': {},
+      'Sebastes caurinus': {},
+    };
+    const parent = await common.loadConfig(settings, baseId, urlMapper);
+    expect(parent.typeHierarchy).toEqual(merged);
+    expect(parent.customTypeStyling).toEqual(declared);
+    const camera = await common.loadConfig(settings, `${baseId}/EO`, urlMapper);
+    expect(camera.typeHierarchy).toEqual(merged);
+    expect(camera.customTypeStyling).toEqual(declared);
   });
 
   it('saveConfig persists cameraRoles on the parent dataset and reloads them', async () => {

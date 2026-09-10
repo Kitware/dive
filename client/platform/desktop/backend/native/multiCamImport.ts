@@ -23,7 +23,7 @@ import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView
 import {
   mergeRegistrationSources, unknownCameraWarning,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
-import { discoverMetadataAttachment, findImagesInFolder } from './common';
+import { discoverMetadataAttachment, discoverSpeciesList, findImagesInFolder } from './common';
 import {
   CameraHomographies,
   CameraObservations,
@@ -220,6 +220,11 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   }
 
   let sharedMetadataFile: string | undefined;
+  // A species list declares the types of the whole dataset, so it is discovered at the
+  // dataset scope: the directory the cameras share, or failing that the camera directories
+  // themselves when they agree on one file. It rides the response, not jsonConfig, so the
+  // import dialog shows it in its Species List field where the user can clear or replace it.
+  let sharedSpeciesFile: string | undefined;
   if (isFolderArgs(args)) {
     const cameraDirectories = Object.values(args.sourceList).map((item) => (
       args.type === 'video' ? npath.dirname(item.sourcePath) : item.sourcePath
@@ -236,8 +241,26 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     }
     sharedMetadataFile = args.metadataFile
       || (sharedDirectory ? await discoverMetadataAttachment(sharedDirectory) : undefined);
+    sharedSpeciesFile = sharedDirectory ? await discoverSpeciesList(sharedDirectory) : undefined;
+    if (!sharedSpeciesFile) {
+      const perCamera = [...new Set((await Promise.all(
+        uniqueCameraDirectories
+          .filter((directory) => directory !== sharedDirectory)
+          .map((directory) => discoverSpeciesList(directory)),
+      )).filter((path): path is string => path !== undefined))];
+      if (perCamera.length === 1) {
+        [sharedSpeciesFile] = perCamera;
+      } else if (perCamera.length > 1) {
+        importWarnings.push(
+          'More than one species list was found beside the cameras '
+          + `(${perCamera.map((path) => npath.basename(path)).join(', ')}). `
+          + 'None was applied; choose one in the Species List field.',
+        );
+      }
+    }
   } else {
     sharedMetadataFile = args.metadataFile || undefined;
+    sharedSpeciesFile = await discoverSpeciesList(args.sourcePath);
   }
 
   const jsonConfig: JsonConfig = {
@@ -400,6 +423,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     useNativePlayback: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
     ...(sharedMetadataFile ? { metadataFileAbsPath: sharedMetadataFile } : {}),
+    ...(sharedSpeciesFile ? { speciesFileAbsPath: sharedSpeciesFile } : {}),
     ...(importWarnings.length ? { importWarnings } : {}),
   };
 }

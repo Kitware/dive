@@ -24,6 +24,7 @@ import {
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
+import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
@@ -1700,12 +1701,10 @@ export default defineComponent({
             ? { ...(meta.customGroupStyling ?? {}), ...globalGroupStyles.value }
             : meta.customGroupStyling,
         );
-        if (meta.customTypeStyling) {
-          trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
-        }
-        if (meta.customGroupStyling) {
-          groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
-        }
+        // The declared lists are replaced, not grown: an Overwrite species-list import
+        // drops types, and a reload must stop listing them or the next save puts them back.
+        trackFilters.setConfiguredTypes(Object.keys(meta.customTypeStyling ?? {}));
+        groupFilters.setConfiguredTypes(Object.keys(meta.customGroupStyling ?? {}));
         if (loadedGlobalStyles) {
           // Do not importTypes() for shared keys: that would list every
           // historically colored type as an empty type in this dataset.
@@ -1721,6 +1720,9 @@ export default defineComponent({
           let seeded = false;
           const nextTypes = { ...globalTypeStyles.value };
           Object.entries(meta.customTypeStyling ?? {}).forEach(([name, style]) => {
+            // A type declared by a species list has no style of its own, and a curated list
+            // runs to hundreds of entries. There is nothing to share, so it is not seeded.
+            if (!Object.keys(style).length) return;
             if (!(name in nextTypes)) {
               nextTypes[name] = {
                 ...style,
@@ -1968,33 +1970,19 @@ export default defineComponent({
          * Existing shared overrides win; new keys are tagged with this dataset.
          */
         if (loadedGlobalStyles) {
-          const sourceId = datasetId.value;
-          const sourceName = datasetName.value || meta.name;
-          const seedMissing = (
-            into: Record<string, CustomStyle>,
-            from: Record<string, CustomStyle>,
-          ) => {
-            let changed = false;
-            const next = { ...into };
-            Object.entries(from).forEach(([name, style]) => {
-              if (!(name in next)) {
-                next[name] = {
-                  ...style,
-                  sourceDatasetId: sourceId,
-                  sourceDatasetName: sourceName,
-                };
-                changed = true;
-              }
-            });
-            return { next, changed };
+          const source = {
+            sourceDatasetId: datasetId.value,
+            sourceDatasetName: datasetName.value || meta.name,
           };
-          const typeSeed = seedMissing(
+          const typeSeed = seedSharedStyles(
             globalTypeStyles.value,
             trackStyleManager.getTypeStyles(trackFilters.allTypes),
+            source,
           );
-          const groupSeed = seedMissing(
+          const groupSeed = seedSharedStyles(
             globalGroupStyles.value,
             groupStyleManager.getTypeStyles(groupFilters.allTypes),
+            source,
           );
           if (typeSeed.changed || groupSeed.changed) {
             globalTypeStyles.value = typeSeed.next;

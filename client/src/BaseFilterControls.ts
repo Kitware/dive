@@ -168,6 +168,18 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
   }
 
   /**
+   * Make `types` the whole declared list, as a freshly loaded dataset states it. importTypes
+   * only ever grows the list, so a reload after an Overwrite import would keep listing the
+   * types the import dropped, and the next save would write them straight back. A choice
+   * for a type that is no longer listed is dropped with it.
+   */
+  setConfiguredTypes(types: string[]) {
+    this.configuredTypes.value = Array.from(new Set(types));
+    const listed = new Set(this.allTypes.value);
+    this.checkedTypes.value = this.checkedTypes.value.filter((name) => listed.has(name));
+  }
+
+  /**
    * Carry a renamed type's confidence threshold over to its new name, unless
    * the new name already carries one of its own.
    */

@@ -180,13 +180,23 @@ function toggleStaged(item: JsonConfigCache) {
     stagedDatasetIds.value.push(item.id);
   }
 }
+function datasetMatchesSearch(item: JsonConfigCache, search: string) {
+  if (!search) {
+    return true;
+  }
+  const record = item as unknown as Record<string, unknown>;
+  return headersTmpl.some((header) => {
+    const value = String(record[header.value] ?? '').toLowerCase();
+    return value.includes(search);
+  });
+}
 /* Mirrors the table's default search so "select all" only stages what is listed. */
 const unstagedSearchMatches = computed(() => {
-  const needle = availableDatasetSearch.value.trim().toLowerCase();
-  return availableItems.value.filter((item) => !stagedDatasetIds.value.includes(item.id)
-    && (!needle || headersTmpl.some((header) => String(
-      (item as unknown as Record<string, unknown>)[header.value] ?? '',
-    ).toLowerCase().includes(needle))));
+  const search = availableDatasetSearch.value.trim().toLowerCase();
+  return availableItems.value.filter((item) => (
+    !stagedDatasetIds.value.includes(item.id)
+    && datasetMatchesSearch(item, search)
+  ));
 });
 function stageAllAvailable() {
   stagedDatasetIds.value = stagedDatasetIds.value.concat(

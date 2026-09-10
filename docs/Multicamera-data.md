@@ -37,7 +37,12 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
 7. Optionally attach a per-camera annotation file during import.
 8. Optionally attach a **Metadata File** (`.json`, `.txt`, or `.csv`) — for example a flight log used by registration pipelines. This is **not** stereo-only and is independent of the calibration file; matching CSV/TXT rows are also shown as [Frame Metadata](Frame-Metadata.md) for image-sequence and video cameras. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
 9. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
-10. When upload finishes, DIVE opens the new multicam dataset in the annotator.
+10. On Desktop, ==Begin Import== opens the import dialog, whose advanced options hold the
+    Configuration File, [Species List](DataFormats.md#kwcoco-species-list), and Metadata File
+    fields. A file named to end in `species.json` in the folder the cameras share (or beside
+    one camera) is pre-filled there; a species list is stored on the dataset, so every camera
+    shares the declared types.
+11. When upload finishes, DIVE opens the new multicam dataset in the annotator.
 
 !!! note
 
