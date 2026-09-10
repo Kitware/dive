@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { filterDatasetRows, selectableIds } from './datasetPicker';
+import { datasetTypeOptions, filterDatasetRows, selectableIds } from './datasetPicker';
 
 const rows = [
   {
@@ -12,11 +12,30 @@ const rows = [
 ];
 
 describe('filterDatasetRows', () => {
-  it('matches any listed field, ignoring case and surrounding space', () => {
-    expect(filterDatasetRows(rows, '  VIDEO ').map((r) => r.id)).toEqual(['b']);
+  it('matches names only by default, ignoring case and surrounding space', () => {
+    expect(filterDatasetRows(rows, '  bering ').map((r) => r.id)).toEqual(['b']);
     expect(filterDatasetRows(rows, 'ri').map((r) => r.id)).toEqual(['b', 'c']);
-    expect(filterDatasetRows(rows, '30', ['fps']).map((r) => r.id)).toEqual(['b']);
+    expect(filterDatasetRows(rows, 'video')).toHaveLength(0);
     expect(filterDatasetRows(rows, '')).toHaveLength(3);
+    expect(filterDatasetRows(rows, null)).toHaveLength(3);
+  });
+
+  it('keeps rows whose type equals the type filter, ignoring case and space', () => {
+    expect(filterDatasetRows(rows, '', ['name'], '  VIDEO ').map((r) => r.id)).toEqual(['b']);
+    expect(filterDatasetRows(rows, '', ['name'], 'image-sequence').map((r) => r.id)).toEqual(['a']);
+    expect(filterDatasetRows(rows, '', ['name'], null)).toHaveLength(3);
+  });
+
+  it('applies search and type filter together', () => {
+    expect(filterDatasetRows(rows, 'ri', ['name'], 'video').map((r) => r.id)).toEqual(['b']);
+    expect(filterDatasetRows(rows, 'ri', ['name'], 'multi').map((r) => r.id)).toEqual(['c']);
+    expect(filterDatasetRows(rows, 'Amchitka', ['name'], 'video')).toHaveLength(0);
+  });
+});
+
+describe('datasetTypeOptions', () => {
+  it('lists distinct types in sorted order', () => {
+    expect(datasetTypeOptions(rows)).toEqual(['image-sequence', 'multi', 'video']);
   });
 });
 
