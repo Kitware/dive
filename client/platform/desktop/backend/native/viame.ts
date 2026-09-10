@@ -34,6 +34,7 @@ import { describeSource, scoringCliArgs } from 'dive-common/scoring/metrics';
 import { SCORING_RESULT_VERSION } from 'dive-common/scoring/types';
 import type { RawScoringMatches, ScoringResultFile } from 'dive-common/scoring/types';
 import * as common from './common';
+import { prepareSingleCameraRun, finishSingleCameraRun } from './singleCameraPipeline';
 import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
@@ -193,7 +194,8 @@ async function runPipeline(
   viameConstants: ViameConstants,
   forceTranscodedVideo?: boolean,
 ): Promise<DesktopJob> {
-  const { datasetId, pipeline } = runPipelineArgs;
+  const { pipeline } = runPipelineArgs;
+  let { datasetId } = runPipelineArgs;
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
   const imagePairs = runPipelineArgs.pipelineParams?.runtimeParams?.imagePairs ?? undefined;
   // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
@@ -210,6 +212,12 @@ async function runPipeline(
   if (isValid !== true) {
     throw new Error(isValid);
   }
+
+  const singleCamera = !createsNewDataset && pipeline.type !== stereoPipelineMarker
+    && !multiCamPipelineMarkers.includes(pipeline.type)
+    ? await prepareSingleCameraRun(settings, datasetId, runPipelineArgs.pipelineParams?.singleCameraMode)
+    : null;
+  if (singleCamera) datasetId = `${singleCamera.parentId}/${singleCamera.camera}`;
 
   let pipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, pipeline.pipe);
   if (runPipelineArgs.pipeline.type === 'trained') {
@@ -575,7 +583,7 @@ async function runPipeline(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     let exitCode = code;
     const bodyText = [''];
     if (code === 0) {
@@ -593,10 +601,32 @@ async function runPipeline(
             }
           }
 
-          const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
-          if (newMeta) {
-            meta.attributes = newMeta.attributes;
-            await common.saveConfig(settings, datasetId, meta);
+          if (singleCamera) {
+            await finishSingleCameraRun(settings, singleCamera, [finalDetectorOutput, finalTrackOutput], jobWorkDir, async (directory) => {
+              updater({ ...jobBase, body: ['Associating stereo detections...'] });
+              const association = observeChild(spawn(`${viameConstants.setupScriptAbs} && "${viameConstants.viameExe}" run associate.pipe`, {
+                shell: viameConstants.shell,
+                cwd: directory,
+              }));
+              // Keep cancellation pointed at the process that is currently running.
+              jobBase.pid = association.pid ?? -1;
+              updater({ ...jobBase, body: ['Associating stereo detections...'] });
+              association.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+              association.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+              await new Promise<void>((resolve, reject) => {
+                association.on('error', reject);
+                association.on('close', (status) => {
+                  if (status === 0) resolve();
+                  else reject(new Error(`Stereo association failed (exit ${status}).`));
+                });
+              });
+            });
+          } else {
+            const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
+            if (newMeta) {
+              meta.attributes = newMeta.attributes;
+              await common.saveConfig(settings, datasetId, meta);
+            }
           }
         }
 
@@ -812,7 +842,7 @@ async function exportTrainedPipeline(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     if (code === 0) {
       if (fs.existsSync(converterOutput)) {
         if (fs.existsSync(path)) {
@@ -988,7 +1018,7 @@ async function train(
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     const manifestPath = npath.join(jobWorkDir, DiveJobManifestName);
     // Cancel updates the manifest before killing the child; read that first so
     // we do not clobber cancelledJob with a null/signal exit code.
@@ -1136,7 +1166,7 @@ async function runScoring(
   });
   job.stderr.on('data', echo);
 
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     let existingManifest: DesktopJob | undefined;
     try {
       if (await fs.pathExists(manifestPath)) {
