@@ -7,10 +7,10 @@ from dive_tasks.pipeline_discovery import (
 )
 
 
-def test_parse_pipe_type_and_name_measurement():
-    assert parse_pipe_type_and_name('measurement_fully_auto_gmm_motion') == (
-        'measurement',
-        'fully auto gmm motion',
+def test_parse_pipe_type_and_name_stereo():
+    assert parse_pipe_type_and_name('stereo_detect_and_measure_gmm_motion') == (
+        'stereo',
+        'detect and measure gmm motion',
     )
 
 
@@ -42,15 +42,15 @@ def test_parse_pipe_type_and_name_one_cam_stays_detector():
     )
 
 
-def test_load_static_pipelines_includes_measurement_and_multicam(tmp_path: Path):
-    (tmp_path / 'measurement_fully_auto_gmm_motion.pipe').write_text('# Description: test\n')
+def test_load_static_pipelines_includes_stereo_and_multicam(tmp_path: Path):
+    (tmp_path / 'stereo_detect_and_measure_gmm_motion.pipe').write_text('# Description: test\n')
     (tmp_path / 'utility_register_frames_2-cam.pipe').write_text('')
     (tmp_path / 'utility_register_frames_3-cam.pipe').write_text('')
     (tmp_path / 'detector_gmm_motion.pipe').write_text('')
 
     pipedict = load_static_pipelines(tmp_path)
-    assert 'measurement' in pipedict
-    assert pipedict['measurement']['pipes'][0]['type'] == 'measurement'
+    assert 'stereo' in pipedict
+    assert pipedict['stereo']['pipes'][0]['type'] == 'stereo'
     assert '2-cam' in pipedict
     assert '3-cam' in pipedict
     assert 'detector' in pipedict
@@ -76,7 +76,7 @@ def test_load_static_pipelines_excludes_common_stereo(tmp_path: Path):
 
 
 def test_extract_pipe_metadata_requires_calibration(tmp_path: Path):
-    pipe = tmp_path / 'measurement_foo.pipe'
+    pipe = tmp_path / 'stereo_foo.pipe'
     pipe.write_text(
         '\n'.join(
             [
@@ -98,7 +98,7 @@ def test_extract_pipe_metadata_requires_calibration(tmp_path: Path):
 
 
 def test_extract_pipe_metadata_calibration_keys(tmp_path: Path):
-    pipe = tmp_path / 'measurement_disparity.pipe'
+    pipe = tmp_path / 'stereo_disparity.pipe'
     pipe.write_text(
         '\n'.join(
             [

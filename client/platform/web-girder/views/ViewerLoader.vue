@@ -520,6 +520,7 @@ export default defineComponent({
       <template #title-right>
         <RunPipelineMenu
           v-if="pipelinesEnabled"
+          :before-run="() => viewerRef.save(set)"
           v-bind="{
             buttonOptions,
             menuOptions,

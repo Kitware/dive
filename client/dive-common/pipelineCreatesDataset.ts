@@ -2,7 +2,7 @@ import type { Pipe } from 'dive-common/apispec';
 import { pipelineCreatesDatasetMarkers } from 'dive-common/constants';
 
 /** Stereo pipe that writes disparity/depth images as a new image-sequence dataset. */
-export const DISPARITY_IMAGE_PIPELINE = 'measurement_compute_rectified_disparity.pipe';
+export const DISPARITY_IMAGE_PIPELINE = 'stereo_compute_rectified_disparity.pipe';
 
 /**
  * True when a pipeline produces a new dataset (filter / transcode / disparity).
@@ -32,7 +32,7 @@ export function isTranscodePipeline(pipeline: Pick<Pipe, 'type' | 'pipe'>): bool
 }
 
 /**
- * True for measurement_compute_rectified_disparity.pipe — produces depth-map
+ * True for stereo_compute_rectified_disparity.pipe — produces depth-map
  * images that should become a new dataset (not CSV annotations).
  */
 export function isDisparityImagePipeline(pipeline: Pick<Pipe, 'pipe'>): boolean {

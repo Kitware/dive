@@ -121,6 +121,8 @@ interface PipelineRuntimeParams {
 }
 
 interface PipelineParams {
+  /** Postprocess a single-camera run against the rig's existing annotations. */
+  singleCameraMode?: 'associate' | 'separate';
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
   /**

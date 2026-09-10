@@ -22,7 +22,7 @@ DisallowedTrainingConfigs = (
 # Align with desktop getPipelineList allow patterns (common.ts).
 AllowedStaticPipelines = (
     r"^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_.+|"
-    r"^measurement_.+|.*[23]-cam.+"
+    r"^stereo_.+|.*[23]-cam.+"
 )
 
 DisallowedStaticPipelines = (
