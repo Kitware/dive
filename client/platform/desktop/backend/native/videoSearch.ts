@@ -248,18 +248,20 @@ async function buildIndex(
     );
   }
 
-  // Media list: image sequences list every frame; videos list the one file.
-  // The list file is named after the stream so image-sequence results
-  // attribute back to the dataset directly.
+  // Image sequences are handed over as a list of frames named after the
+  // stream, so results attribute back to the dataset; a video is passed as
+  // the video itself (a list would be read as images and fail to decode).
   const ingestList = npath.join(indexDir, `${sanitizeName(streamName)}.txt`);
+  let inputArg: string;
   if (meta.type === 'video') {
     const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-    await fs.writeFile(ingestList, `${videoAbsPath}\n`);
+    inputArg = `-v "${videoAbsPath}"`;
   } else {
     const fileData = meta.originalImageFiles
       .map((f: string) => npath.join(meta.originalBasePath, f))
       .join('\n');
     await fs.writeFile(ingestList, `${fileData}\n`);
+    inputArg = `-l "${ingestList}"`;
   }
 
   const viameConstants = platform.getViameConstants(settings);
@@ -282,7 +284,7 @@ async function buildIndex(
   // the postgres backend, the ingest pipeline, and the hash refresh.
   const indexInvocation = [
     `"${pythonExe}" "${npath.join(configsDir, 'index.py')}" add`,
-    `-l "${ingestList}"`,
+    inputArg,
     `--method ${IndexMethods[method]}`,
     '--database database',
     `--backend ${backend}`,

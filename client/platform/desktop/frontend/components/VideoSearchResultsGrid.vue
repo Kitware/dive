@@ -33,12 +33,21 @@ export default defineComponent({
       type: Object as PropType<SearchChips>,
       required: true,
     },
+    /**
+     * Render in place instead of as a full-window dialog (the Query page).
+     * Opening a result then emits `open-result` rather than seeking.
+     */
+    inline: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
     const search = useVideoSearch();
-    const handler = useHandler();
+    // The annotator handler only exists inside the viewer.
+    const handler = props.inline ? null : useHandler();
     const gridSettings = usePersistentGridSettings();
-    const open = computed(() => props.value);
+    const open = computed(() => props.inline || props.value);
     const grid = useReviewGrid({
       items: props.searchChips.items,
       grid: gridSettings,
@@ -93,22 +102,28 @@ export default defineComponent({
         event.stopPropagation();
       }
     }
-    watch(() => props.value, (isOpen) => {
+    watch(open, (isOpen) => {
       if (isOpen) {
         window.addEventListener('keydown', onKeydown, true);
       } else {
         window.removeEventListener('keydown', onKeydown, true);
       }
-    });
+    }, { immediate: true });
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown, true);
       grid.dispose();
     });
 
-    /** Jump the annotator to a result in the currently open dataset. */
+    /** Jump the annotator to a result in the currently open dataset, or hand it up inline. */
     function openItem(item: ReviewItem) {
       const result = resultsByRef.value.get(item.key);
-      if (!search || !result || !search.resultIsLocal(result)) return;
+      if (!search || !result) return;
+      if (props.inline) {
+        const datasetId = search.resultDatasetId(result);
+        if (datasetId) emit('open-result', datasetId, item.primary.frame);
+        return;
+      }
+      if (!handler || !search.resultIsLocal(result)) return;
       handler.seekFrame(item.primary.frame);
       close();
     }
@@ -121,6 +136,7 @@ export default defineComponent({
       search,
       state,
       results,
+      open,
       gridSettings,
       grid,
       cells,
@@ -135,16 +151,19 @@ export default defineComponent({
 </script>
 
 <template>
-  <v-dialog
-    :value="value"
-    fullscreen
-    hide-overlay
-    transition="dialog-bottom-transition"
-    @input="$emit('input', $event)"
+  <component
+    :is="inline ? 'div' : 'v-dialog'"
+    v-bind="inline ? {} : {
+      value, fullscreen: true, hideOverlay: true, transition: 'dialog-bottom-transition',
+    }"
+    :class="{ 'results-grid-inline': inline }"
+    @input="inline ? undefined : $emit('input', $event)"
   >
     <v-card
       v-if="search && state"
       class="results-grid-page d-flex flex-column"
+      :class="{ 'results-grid-page-inline': inline }"
+      :flat="inline"
     >
       <v-toolbar
         dense
@@ -182,6 +201,7 @@ export default defineComponent({
           Refine
         </v-btn>
         <v-btn
+          v-if="!inline"
           icon
           class="ml-2"
           @click="close"
@@ -240,13 +260,14 @@ export default defineComponent({
             :src="searchChips.chips.value[cell.item.key] || null"
             :srcs="searchChips.store.sequences.value[cell.item.key] || null"
             :failure="searchChips.store.failures.value[cell.item.key] || null"
-            :animate="value"
+            :animate="open"
             :cycle-interval-ms="gridSettings.cycleIntervalMs"
             :confidence="cell.item.confidence"
             :frame-count="cell.item.keyframeCount"
             :title="cell.title"
             :highlight="cell.adjudication"
             :editable="false"
+            :deletable="false"
             @open="openItem(cell.item)"
           >
             <template #actions>
@@ -278,8 +299,8 @@ export default defineComponent({
             <template #footer>
               <div
                 class="text-caption search-cell-caption"
-                :class="{ 'grey--text': !cell.local }"
-                :title="cell.local ? 'Click the image to open this frame' : 'Result from another dataset'"
+                :class="{ 'grey--text': !cell.local && !inline }"
+                :title="inline ? 'Double click to open this frame in the viewer' : (cell.local ? 'Click the image to open this frame' : 'Result from another dataset')"
               >
                 {{ cell.subtitle }}
               </div>
@@ -288,12 +309,17 @@ export default defineComponent({
         </ReviewGrid>
       </div>
     </v-card>
-  </v-dialog>
+  </component>
 </template>
 
 <style scoped>
 .results-grid-page {
   height: 100vh;
+}
+.results-grid-inline,
+.results-grid-page-inline {
+  height: 100%;
+  min-height: 0;
 }
 .results-grid-body {
   min-height: 0;

@@ -9,7 +9,7 @@
  * generation (state.queryGeneration): the service can reuse refs across
  * queries, so the store is reset whenever a new query starts.
  */
-import { computed, watch } from 'vue';
+import { computed, Ref, watch } from 'vue';
 import { loadConfig } from 'platform/desktop/frontend/api';
 import type { VideoSearchContextType } from 'platform/desktop/frontend/useVideoSearch';
 import { createChipStore } from 'dive-common/review/chipStore';
@@ -72,3 +72,32 @@ export function createSearchChips(search: VideoSearchContextType) {
 }
 
 export type SearchChips = ReturnType<typeof createSearchChips>;
+
+/**
+ * Chips for any list of grid items whose datasets can be loaded by id
+ * (e.g. text query hits), with the same cross-dataset cropping.
+ */
+export function createItemChips(items: Ref<ReviewItem[]>) {
+  const registry = createFrameSourceRegistry(loadConfig);
+  const store = createChipStore({ frameSourceFor: registry.frameSourceFor }, {
+    padding: DEFAULT_REVIEW_GRID.padding, size: PanelChipSize, aspect: 1, outline: '',
+  });
+  const itemsByKey = computed(() => new Map(items.value.map((item) => [item.key, item])));
+  watch(items, (current, previous) => {
+    // A new hit list is a new result set; cached chips would belong to the old one.
+    if (!previous || current.length === 0 || current[0]?.key !== previous[0]?.key) store.reset();
+    store.ensurePrimary(current.slice(0, EagerLoadCount));
+  }, { immediate: true });
+  return {
+    store,
+    items,
+    itemsByKey,
+    chips: store.chips,
+    dispose: () => {
+      store.reset();
+      registry.dispose();
+    },
+  };
+}
+
+export type ItemChips = ReturnType<typeof createItemChips>;
