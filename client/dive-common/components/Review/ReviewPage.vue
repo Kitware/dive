@@ -681,7 +681,7 @@ export default defineComponent({
             :title="cell.title"
             :subtitle="cell.subtitle"
             :attribute-text="cell.attributeText"
-            :type-list-id="typeListId"
+            :type-options="review.knownTypes.value"
             @assign="assignEntryType(cell.entry, $event)"
             @accept="acceptEntry(cell.entry)"
             @delete="deleteEntry(cell.entry)"
