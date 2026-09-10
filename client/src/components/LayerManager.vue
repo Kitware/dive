@@ -130,7 +130,7 @@ export default defineComponent({
 
     const aggregateController = injectAggregateController();
     const annotator = aggregateController.value.getController(props.camera);
-    const frameNumberRef = annotator.frame;
+    const frameNumberRef = annotator.annotationFrame;
     const flickNumberRef = annotator.flick;
     const hasFrameRef = annotator.hasFrame;
 

@@ -134,6 +134,8 @@ export interface MediaController extends AggregateMediaController {
    * draw annotations for the stale `frame` value left over from before.
    */
   hasFrame: Readonly<Ref<boolean>>;
+  /** Frame annotations are read at: `frame` minus this camera's unapplied time offset. */
+  annotationFrame: Readonly<Ref<number>>;
   /**
    * Bumped whenever the annotator redraws its media quad: the async <img>
    * swap after a seek finishes loading, an image-enhancement change (the

@@ -92,6 +92,7 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
+import { pendingFrameShifts } from 'dive-common/frameOffsetAnnotations';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
@@ -185,6 +186,7 @@ export default defineComponent({
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
+      setAnnotationFrameShifts,
       setResetZoomOverride,
     } = useMediaController();
     const { time, updateTime, initialize: initTime } = useTimeObserver();
@@ -265,6 +267,16 @@ export default defineComponent({
       });
       return buildOffsetTimeline(frameCounts, cameraRegistration.frameOffsets.value);
     });
+    // Until an offset is applied to a camera's annotations, they stay put while its video shifts.
+    watch(
+      () => pendingFrameShifts(
+        cameraRegistration.frameOffsets.value,
+        cameraRegistration.appliedFrameOffsets.value,
+        multiCamList.value,
+      ),
+      (shifts) => setAnnotationFrameShifts(shifts),
+      { immediate: true },
+    );
     // Serialized shape of the currently installed timeline. The computed
     // re-evaluates whenever any camera's imageData array identity changes --
     // including pure display-URL swaps (e.g. the percentile-stretch remap)

@@ -1,4 +1,4 @@
-import { defineComponent, ref } from 'vue';
+import { defineComponent, ref, type Ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import { useMediaController } from './useMediaController';
 import type { AlignedFrameResolver } from './mediaControllerType';
@@ -254,10 +254,9 @@ describe('useMediaController', () => {
     expect(composable.aggregateController.value.alignedGapSlots.value).toEqual([]);
   });
 
-  it('installing a resolver immediately performs an aligned seek to slot 0', () => {
+  it('installing a first resolver seeks to the slot showing the current frame', () => {
     const { composable, mocks } = mountMediaController();
-    // Gap at slot 0: A has no frame there and must blank right away rather
-    // than continuing to show its local frame 0 until the first user seek.
+    // Both cameras sit at local frame 0; A's frame 0 lives at slot 1 here.
     const resolver: AlignedFrameResolver = {
       slotCount: ref(3),
       frameRate: ref(2),
@@ -270,9 +269,9 @@ describe('useMediaController', () => {
       gapSlots: ref([0]),
     };
     composable.setAlignedFrameResolver(resolver);
-    expect(mocks.seekA).toHaveBeenCalledWith(undefined);
-    expect(mocks.seekB).toHaveBeenCalledWith(0);
-    expect(composable.aggregateController.value.frame.value).toBe(0);
+    expect(mocks.seekA).toHaveBeenLastCalledWith(0);
+    expect(mocks.seekB).toHaveBeenLastCalledWith(1);
+    expect(composable.aggregateController.value.frame.value).toBe(1);
   });
 
   it('replacing a resolver keeps the first camera\'s displayed frame instead of jumping to slot 0', () => {
@@ -297,6 +296,42 @@ describe('useMediaController', () => {
     expect(composable.aggregateController.value.frame.value).toBe(8);
     expect(mocks.seekA).toHaveBeenLastCalledWith(5);
     expect(mocks.seekB).toHaveBeenLastCalledWith(8);
+  });
+
+  it('a first resolver keeps the frame positional playback was showing', () => {
+    const { composable, mocks } = mountMediaController();
+    // The mock annotators never report back, so place the frames directly.
+    (composable.aggregateController.value.getController('A').frame as Ref<number>).value = 4;
+    (composable.aggregateController.value.getController('B').frame as Ref<number>).value = 4;
+    // B now runs three frames ahead of A: the timeline gains a three-slot lead.
+    const shifted: AlignedFrameResolver = {
+      slotCount: ref(13),
+      frameRate: ref(2),
+      resolveSlot: (f: number) => ({
+        A: f < 3 ? undefined : f - 3,
+        B: f < 10 ? f : undefined,
+      }),
+      resolveGlobalSlot: (camera: string, localFrame: number) => (
+        camera === 'A' ? localFrame + 3 : localFrame),
+      gapSlots: ref([0, 1, 2, 10, 11, 12]),
+    };
+    composable.setAlignedFrameResolver(shifted);
+    expect(composable.aggregateController.value.frame.value).toBe(7);
+    expect(mocks.seekA).toHaveBeenLastCalledWith(4);
+    expect(mocks.seekB).toHaveBeenLastCalledWith(7);
+  });
+
+  it('annotationFrame trails the video frame by the camera\'s unapplied shift', () => {
+    const { composable } = mountMediaController();
+    const a = composable.aggregateController.value.getController('A');
+    (a.frame as Ref<number>).value = 12;
+    (composable.aggregateController.value.getController('B').frame as Ref<number>).value = 12;
+    expect(a.annotationFrame.value).toBe(12);
+    composable.setAnnotationFrameShifts({ A: 9 });
+    expect(a.annotationFrame.value).toBe(3);
+    expect(composable.aggregateController.value.getController('B').annotationFrame.value).toBe(12);
+    composable.setAnnotationFrameShifts({});
+    expect(a.annotationFrame.value).toBe(12);
   });
 
   it('re-applies the current aligned slot when a camera registers after the resolver is installed', async () => {

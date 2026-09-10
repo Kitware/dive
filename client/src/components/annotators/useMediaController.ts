@@ -122,6 +122,8 @@ export function useMediaController() {
   // that must NOT be deep-reactive-converted/auto-unwrapped by a plain ref().
   const alignedFrameResolver: Ref<AlignedFrameResolver | null> = shallowRef(null);
   const alignedCurrentFrame: Ref<number> = ref(0);
+  // Per camera: frames its annotations lag its video by until a time offset is applied to them.
+  const annotationFrameShifts: Ref<Record<string, number>> = ref({});
   const externallyDriven = computed(() => alignedFrameResolver.value !== null);
   const alignedGapSlots = computed(() => alignedFrameResolver.value?.gapSlots.value ?? []);
   let alignedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
@@ -179,22 +181,21 @@ export function useMediaController() {
       alignedCurrentFrame.value = 0;
       return;
     }
-    // A rebuilt timeline (e.g. a Time Offset nudge) keeps the instant on screen; a fresh one starts at 0.
-    let target = 0;
-    if (previous) {
-      const shown = previous.resolveSlot(previousSlot);
-      let kept: number | undefined;
-      subControllers.forEach((mc) => {
-        const local = shown[mc.cameraName.value];
-        if (kept === undefined && local !== undefined) {
-          kept = resolver.resolveGlobalSlot(mc.cameraName.value, local);
-        }
-      });
-      if (kept !== undefined) {
-        target = kept;
+    // Keep the instant on screen: the first camera's displayed frame, from the old timeline or positional playback.
+    const shown = previous ? previous.resolveSlot(previousSlot) : null;
+    let kept: number | undefined;
+    subControllers.forEach((mc) => {
+      const local = shown ? shown[mc.cameraName.value] : mc.frame.value;
+      if (kept === undefined && local !== undefined) {
+        kept = resolver.resolveGlobalSlot(mc.cameraName.value, local);
       }
-    }
-    alignedSeek(resolver, target);
+    });
+    alignedSeek(resolver, kept ?? 0);
+  }
+
+  /** Set how far each camera's annotations trail its video (see MediaController.annotationFrame). */
+  function setAnnotationFrameShifts(shifts: Record<string, number>) {
+    annotationFrameShifts.value = { ...shifts };
   }
 
   /**
@@ -650,6 +651,9 @@ export function useMediaController() {
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
+      annotationFrame: computed(
+        () => state[camera].frame - (annotationFrameShifts.value[cameraName] ?? 0),
+      ),
       imageRevision: toRef(state[camera], 'imageRevision'),
       frameTexture: toRef(state[camera], 'frameTexture'),
       originalBounds: toRef(state[camera], 'originalBounds'),
@@ -857,6 +861,7 @@ export function useMediaController() {
     onResize,
     clear,
     setAlignedFrameResolver,
+    setAnnotationFrameShifts,
     setResetZoomOverride,
   };
 }
