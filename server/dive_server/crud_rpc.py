@@ -25,6 +25,7 @@ from dive_tasks.multicam_pipeline import (
     missing_registrations,
     pipeline_requires_input,
 )
+from dive_tasks.pipeline_creates_dataset import pipeline_creates_new_dataset
 from dive_tasks.utils import choose_annotation_fps
 from dive_utils import (
     TRUTHY_META_VALUES,
@@ -468,6 +469,46 @@ def run_pipeline(
     if camera_name:
         params['camera_name'] = camera_name
         multi_cam_meta = fromMeta(multicam_parent, constants.MultiCamMarker, default={}) or {}
+        if not pipeline_creates_new_dataset(pipeline):
+            mode = (pipeline_params or {}).get('singleCameraMode', 'separate')
+            if mode not in ('associate', 'separate'):
+                raise RestException('Invalid single-camera association mode', code=400)
+            cameras = []
+            for name in crud_dataset._multicam_camera_order(multi_cam_meta):
+                child = Folder().load(
+                    multi_cam_meta['cameras'][name]['folderId'],
+                    level=AccessType.WRITE if mode == 'associate' else AccessType.READ,
+                    user=user,
+                    exc=True,
+                )
+                cameras.append({'name': name, 'folder_id': str(child['_id'])})
+            association_calibration = None
+            if mode == 'associate':
+                if (
+                    fromMeta(multicam_parent, constants.SubTypeMarker, default=None) != 'stereo'
+                    or len(cameras) != 2
+                ):
+                    raise RestException(
+                        'Detection association in multi-camera mode is not implemented yet.',
+                        code=400,
+                    )
+                calibration_pipeline: types.PipelineDescription = {
+                    **pipeline,
+                    'metadata': {'requiresCalibration': True},
+                }
+                association_calibration = crud_dataset.resolve_stereo_calibration_item_id(
+                    multicam_parent, calibration_pipeline
+                )
+                if not association_calibration:
+                    raise RestException(
+                        'Stereo association requires a loaded calibration file.', code=400
+                    )
+            params['single_camera'] = {
+                'mode': mode,
+                'camera': camera_name,
+                'cameras': cameras,
+                'calibration_item_id': association_calibration,
+            }
         default_display = multi_cam_meta.get('defaultDisplay')
         if default_display:
             params['multicam_default_display'] = default_display

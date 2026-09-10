@@ -28,8 +28,8 @@ describe('pipelineCreatesNewDataset', () => {
 
   it('matches the rectified disparity measurement pipe', () => {
     expect(pipelineCreatesNewDataset({
-      type: 'measurement',
-      pipe: 'measurement_compute_rectified_disparity.pipe',
+      type: 'stereo',
+      pipe: 'stereo_compute_rectified_disparity.pipe',
     })).toBe(true);
   });
 
@@ -37,8 +37,8 @@ describe('pipelineCreatesNewDataset', () => {
     expect(pipelineCreatesNewDataset({ type: '2-cam', pipe: 'detector_2-cam.pipe' })).toBe(false);
     expect(pipelineCreatesNewDataset({ type: 'detector', pipe: 'detector_default.pipe' })).toBe(false);
     expect(pipelineCreatesNewDataset({
-      type: 'measurement',
-      pipe: 'measurement_gmm_left_right_stereo.pipe',
+      type: 'stereo',
+      pipe: 'stereo_gmm_left_right_stereo.pipe',
     })).toBe(false);
   });
 });
@@ -75,10 +75,10 @@ describe('isTranscodePipeline', () => {
 describe('isDisparityImagePipeline', () => {
   it('matches only the rectified disparity pipe', () => {
     expect(isDisparityImagePipeline({
-      pipe: 'measurement_compute_rectified_disparity.pipe',
+      pipe: 'stereo_compute_rectified_disparity.pipe',
     })).toBe(true);
     expect(isDisparityImagePipeline({
-      pipe: 'measurement_gmm_left_right_stereo.pipe',
+      pipe: 'stereo_gmm_left_right_stereo.pipe',
     })).toBe(false);
   });
 });

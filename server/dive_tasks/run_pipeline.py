@@ -29,6 +29,7 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_renumbers_frames,
 )
 from dive_tasks.registration_output import ingest_registration_output
+from dive_tasks.single_camera_pipeline import csv_rows, finish_single_camera_run
 from dive_tasks.viame_config import Config
 from dive_utils import constants, fromMeta
 from dive_utils.types import GirderModel, MulticamCameraJob, MulticamPipelineJob, PipelineJob
@@ -633,12 +634,25 @@ def run_pipeline(self: Task, params: PipelineJob):
         else:
             output_file = detector_output_file
 
+        # Some detectors also create a track CSV containing only its header.
+        if (
+            params.get('single_camera')
+            and Path(detector_output_file).exists()
+            and not csv_rows(Path(output_file).read_text())
+        ):
+            output_file = detector_output_file
+
         # Filter output CSV by frame range for videos
         if frame_range is not None and input_type == constants.VideoType:
             output_file = filter_csv_by_frame_range(output_file, frame_range)
 
+        outputs = [(output_folder_id, Path(output_file))]
+        if params.get('single_camera'):
+            outputs = finish_single_camera_run(
+                self, context, manager, conf, gc, params, output_file, output_path
+            )
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        newfile = gc.uploadFileToFolder(output_folder_id, output_file)
-
-        gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
-        gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
+        for folder_id, result in outputs:
+            newfile = gc.uploadFileToFolder(folder_id, str(result))
+            gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
+            gc.post(f'dive_rpc/postprocess/{folder_id}', data={"skipJobs": True})
