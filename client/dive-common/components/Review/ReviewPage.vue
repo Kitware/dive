@@ -151,6 +151,8 @@ export default defineComponent({
 
     function setView(next: ReviewView) {
       view.value = next;
+      // Datasets picked on the Datasets view load only now, when results are wanted.
+      if (next === 'results') review.loadQueued();
     }
 
     /** Open the viewer on the frame the chip is showing (its first frame otherwise). */
