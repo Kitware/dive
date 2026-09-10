@@ -32,14 +32,14 @@ def test_pipeline_requires_input():
         {
             'name': 'disparity',
             'type': constants.StereoPipelineMarker,
-            'pipe': 'measurement_compute_rectified_disparity.pipe',
+            'pipe': 'stereo_compute_rectified_disparity.pipe',
         }
     )
     assert pipeline_requires_input(
         {
             'name': 'meas',
             'type': constants.StereoPipelineMarker,
-            'pipe': 'measurement_gmm_left_right_stereo.pipe',
+            'pipe': 'stereo_gmm_left_right_stereo.pipe',
         }
     )
 
@@ -54,7 +54,7 @@ def test_is_stereo_or_multicam_pipeline():
 
 def test_is_stereo_measurement_pipeline():
     assert is_stereo_measurement_pipeline(
-        {'name': 'm', 'type': constants.StereoPipelineMarker, 'pipe': 'measurement_x.pipe'}
+        {'name': 'm', 'type': constants.StereoPipelineMarker, 'pipe': 'stereo_x.pipe'}
     )
     assert not is_stereo_measurement_pipeline({'name': '2', 'type': '2-cam', 'pipe': 'x.pipe'})
 
@@ -87,7 +87,7 @@ def test_append_stereo_calibration_kwiver_settings_declared_keys():
     pipeline = {
         'name': 'disparity',
         'type': constants.StereoPipelineMarker,
-        'pipe': 'measurement_compute_rectified_disparity.pipe',
+        'pipe': 'stereo_compute_rectified_disparity.pipe',
         'metadata': {
             'calibrationKeys': [
                 'depth_map:computer:ocv_stereo_disparity:calibration_file',
