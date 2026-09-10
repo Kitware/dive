@@ -1,8 +1,8 @@
 import pipelineTypeDisplay from './pipelineTypeDisplay';
 
 describe('pipelineTypeDisplay', () => {
-  it('labels measurement category', () => {
-    expect(pipelineTypeDisplay('measurement')).toBe('Measurement');
+  it('labels stereo category', () => {
+    expect(pipelineTypeDisplay('stereo')).toBe('Stereo');
   });
 
   it('pluralizes other category keys', () => {

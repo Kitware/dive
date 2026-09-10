@@ -306,11 +306,11 @@ async function runPipeline(
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
-  // Disparity image pipe is measurement_* but only needs stereo media + calibration.
+  // Disparity image pipe is stereo_* but only needs stereo media + calibration.
   let requiresInput = false;
   if (
     !isDisparityPipe
-    && (/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)
+    && (/utility_|filter_|transcode_|stereo_/g).test(pipeline.pipe)
   ) {
     requiresInput = true;
   }

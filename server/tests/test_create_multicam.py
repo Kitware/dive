@@ -435,7 +435,7 @@ def test_resolve_stereo_calibration_item_id_from_folder_root(item_cls):
     pipeline = {
         'name': 'Stereo',
         'type': constants.StereoPipelineMarker,
-        'pipe': 'measurement_foo.pipe',
+        'pipe': 'stereo_foo.pipe',
         'metadata': {'requiresCalibration': True},
     }
     cal_item = {
@@ -464,7 +464,7 @@ def test_resolve_stereo_calibration_item_id_legacy_multi_cam_id(item_cls):
     pipeline = {
         'name': 'Stereo',
         'type': constants.StereoPipelineMarker,
-        'pipe': 'measurement_foo.pipe',
+        'pipe': 'stereo_foo.pipe',
         'metadata': {'requiresCalibration': True},
     }
     cal_item = {

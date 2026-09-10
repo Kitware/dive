@@ -7,11 +7,10 @@ import {
 import type { Pipelines } from './apispec';
 
 const samplePipelines: Pipelines = {
-  measurement: { description: '', pipes: [{ name: 'gmm', type: 'measurement', pipe: 'measurement_gmm.pipe' }] },
+  stereo: { description: '', pipes: [{ name: 'gmm', type: 'stereo', pipe: 'stereo_gmm.pipe' }] },
   '2-cam': { description: '', pipes: [{ name: 'detector', type: '2-cam', pipe: 'detector_2-cam.pipe' }] },
   '3-cam': { description: '', pipes: [{ name: 'detector', type: '3-cam', pipe: 'detector_3-cam.pipe' }] },
   detector: { description: '', pipes: [{ name: 'default', type: 'detector', pipe: 'detector_default.pipe' }] },
-  stereo: { description: '', pipes: [{ name: 'fish tracker', type: 'stereo', pipe: 'common_stereo_fish_tracker.pipe' }] },
 };
 
 describe('pipelineMenuFilters', () => {
@@ -27,24 +26,17 @@ describe('pipelineMenuFilters', () => {
     })).toBe(3);
   });
 
-  it('hides measurement and multicam categories when subTypeList is empty', () => {
+  it('hides stereo and multicam categories when subTypeList is empty', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, [], [1]);
-    expect(filtered.measurement).toBeUndefined();
     expect(filtered.stereo).toBeUndefined();
     expect(filtered['2-cam']).toBeUndefined();
     expect(filtered['3-cam']).toBeUndefined();
     expect(filtered.detector).toBeDefined();
   });
 
-  it('never shows legacy common_stereo category', () => {
+  it('shows stereo only for all-stereo selection', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, ['stereo'], [2]);
-    expect(filtered.stereo).toBeUndefined();
-    expect(filtered.measurement).toBeDefined();
-  });
-
-  it('shows measurement only for all-stereo selection', () => {
-    const filtered = filterPipelinesForDatasets(samplePipelines, ['stereo'], [2]);
-    expect(filtered.measurement).toBeDefined();
+    expect(filtered.stereo).toBeDefined();
     expect(filtered['2-cam']).toBeUndefined();
     expect(filtered.detector).toBeDefined();
   });
@@ -82,7 +74,7 @@ describe('pipelineMenuFilters', () => {
 
   it('hides special categories for non-multicam subtypes', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, [null], [1]);
-    expect(filtered.measurement).toBeUndefined();
+    expect(filtered.stereo).toBeUndefined();
     expect(filtered['2-cam']).toBeUndefined();
     expect(filtered.detector).toBeDefined();
   });
@@ -116,17 +108,17 @@ describe('pipelineMenuFilters', () => {
     expect(filtered.detector).toBeDefined();
   });
 
-  it('orders categories detector, tracker, measurement, filter, transcode, utility, trained', () => {
+  it('orders categories detector, tracker, stereo, filter, transcode, utility, trained', () => {
     const pipelines: Pipelines = {};
-    ['trained', 'utility', 'filter', 'zeta', 'transcode', 'tracker', 'measurement', 'alpha', 'detector']
+    ['trained', 'utility', 'filter', 'zeta', 'transcode', 'tracker', 'stereo', 'alpha', 'detector']
       .forEach((name) => { pipelines[name] = { description: '', pipes: [] }; });
     expect(Object.keys(orderPipelineCategories(pipelines))).toEqual([
-      'detector', 'tracker', 'measurement', 'filter', 'transcode', 'utility', 'trained', 'zeta', 'alpha',
+      'detector', 'tracker', 'stereo', 'filter', 'transcode', 'utility', 'trained', 'zeta', 'alpha',
     ]);
   });
 
   it('orders categories in filterPipelinesForDatasets', () => {
     const filtered = filterPipelinesForDatasets(samplePipelines, ['stereo'], [2]);
-    expect(Object.keys(filtered)).toEqual(['detector', 'measurement']);
+    expect(Object.keys(filtered)).toEqual(['detector', 'stereo']);
   });
 });

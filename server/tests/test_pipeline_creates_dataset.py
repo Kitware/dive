@@ -39,14 +39,14 @@ def test_pipeline_creates_new_dataset_disparity():
         {
             'name': 'd',
             'type': constants.StereoPipelineMarker,
-            'pipe': 'measurement_compute_rectified_disparity.pipe',
+            'pipe': 'stereo_compute_rectified_disparity.pipe',
         }
     )
     assert not pipeline_creates_new_dataset(
         {
             'name': 'm',
             'type': constants.StereoPipelineMarker,
-            'pipe': 'measurement_gmm_left_right_stereo.pipe',
+            'pipe': 'stereo_gmm_left_right_stereo.pipe',
         }
     )
     assert not pipeline_creates_new_dataset(
@@ -65,13 +65,13 @@ def test_is_filter_transcode_disparity_helpers():
         {
             'name': 'd',
             'type': constants.StereoPipelineMarker,
-            'pipe': 'measurement_compute_rectified_disparity.pipe',
+            'pipe': 'stereo_compute_rectified_disparity.pipe',
         }
     )
     assert not is_disparity_image_pipeline(
         {
             'name': 'm',
             'type': constants.StereoPipelineMarker,
-            'pipe': 'measurement_other.pipe',
+            'pipe': 'stereo_other.pipe',
         }
     )
