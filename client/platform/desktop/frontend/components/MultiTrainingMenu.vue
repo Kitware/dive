@@ -12,11 +12,12 @@ import {
   watch,
 } from 'vue';
 import {
-  DatasetConfig, Pipelines, TrainingConfigs, useApi, Pipe,
+  Pipelines, TrainingConfigs, useApi, Pipe,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
+import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
 
 import { useRoute, useRouter } from 'vue-router/composables';
 import { DesktopJob, RunTraining } from 'platform/desktop/constants';
@@ -31,6 +32,7 @@ function joinPath(dir: string, filename: string) {
 }
 
 export default defineComponent({
+  components: { DatasetPicker },
   setup() {
     const {
       runTraining, getPipelineList, deleteTrainedPipeline, getTrainingConfigurations, exportTrainedPipeline,
@@ -128,7 +130,7 @@ export default defineComponent({
     ];
 
     const data = reactive({
-      stagedItems: {} as Record<string, DatasetConfig>,
+      stagedItems: {} as Record<string, JsonConfigCache>,
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
       fineTuneTraining: false,
@@ -186,7 +188,7 @@ export default defineComponent({
       return [];
     });
 
-    function toggleStaged(meta: DatasetConfig) {
+    function toggleStaged(meta: JsonConfigCache) {
       if (data.stagedItems[meta.id]) {
         del(data.stagedItems, meta.id);
       } else {
@@ -194,16 +196,18 @@ export default defineComponent({
       }
     }
     const availableItems = computed(() => Object.values(datasets.value)
-      .filter((item) => item.subType === null)
-      .map((item) => ({
-        ...item,
-        included: item.id in data.stagedItems,
-      })));
+      .filter((item) => item.subType === null));
 
     const stagedItems = computed(() => Object.values(data.stagedItems));
 
-    function getAvailableItemClass({ included }: JsonConfigCache & { included: boolean }) {
-      return included ? 'disabled-row' : '';
+    const stagedIds = computed(() => Object.keys(data.stagedItems));
+
+    /** Stage the picked datasets that are not staged yet. */
+    function stageIds(ids: string[]) {
+      ids.forEach((id) => {
+        const meta = datasets.value[id];
+        if (meta && !data.stagedItems[id]) toggleStaged(meta);
+      });
     }
 
     const isReadyToTrain = computed(() => (
@@ -343,7 +347,8 @@ export default defineComponent({
       labelFile,
       clearLabelText,
       toggleStaged,
-      getAvailableItemClass,
+      stagedIds,
+      stageIds,
       deleteModel,
       exportModel,
       simplifyTrainingName,
@@ -375,17 +380,7 @@ export default defineComponent({
       },
       available: {
         items: availableItems,
-        headers: headersTmpl.concat({
-          text: 'View',
-          value: 'view',
-          sortable: false,
-          width: 80,
-        }, {
-          text: 'Include',
-          value: 'action',
-          sortable: false,
-          width: 80,
-        }),
+        headers: headersTmpl,
       },
       staged: {
         items: stagedItems,
@@ -582,37 +577,28 @@ export default defineComponent({
       <v-card-text>
         These datasets meet the requirements for the chosen training configuration.
       </v-card-text>
-      <v-data-table
-        dense
-        v-bind="{ headers: available.headers, items: available.items.value }"
-        :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
-        :item-class="getAvailableItemClass"
+      <DatasetPicker
+        :items="available.items.value"
+        :selected-ids="stagedIds"
+        :headers="available.headers"
         no-data-text="No data meets criteria for chosen configuration"
+        @add="stageIds([$event])"
+        @add-many="stageIds"
       >
-        <template #[`item.action`]="{ item }">
+        <template #row-actions="{ item }">
           <v-btn
-            :key="item.name"
-            :disabled="item.included"
-            color="success"
+            icon
             x-small
-            @click="toggleStaged(item)"
-          >
-            <v-icon>mdi-plus</v-icon>
-          </v-btn>
-        </template>
-        <template #[`item.view`]="{ item }">
-          <v-btn
-            :key="item.name"
-            :disabled="item.included"
             color="info"
-            x-small
+            title="Open in the viewer"
             @click="$router.push({ name: 'viewer', params: { id: item.id } })"
           >
-            <v-icon>mdi-eye</v-icon>
+            <v-icon small>
+              mdi-eye
+            </v-icon>
           </v-btn>
         </template>
-      </v-data-table>
+      </DatasetPicker>
     </div>
 
     <div>
@@ -652,11 +638,3 @@ export default defineComponent({
     </div>
   </div>
 </template>
-
-<style lang="scss">
-.multitraining-menu {
-  .disabled-row {
-    color: #444444;
-  }
-}
-</style>

@@ -11,7 +11,6 @@ import { useRoute, useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
-  itemsPerPageOptions,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
   MultiType,
@@ -23,6 +22,7 @@ import {
   pipelineRequiresCalibration,
 } from 'dive-common/pipelineCalibration';
 import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
+import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { datasets, JsonConfigCache } from '../store/dataset';
@@ -80,14 +80,6 @@ const headersTmpl: DataTableHeader[] = [
     width: 80,
   },
 ];
-const availableDatasetHeaders = headersTmpl.concat(
-  {
-    text: 'Include',
-    value: 'include',
-    sortable: false,
-    width: 80,
-  },
-);
 const stagedDatasetHeaders: DataTableHeader[] = headersTmpl.concat([
   {
     text: 'Remove',
@@ -127,7 +119,6 @@ function getAvailableItems(): JsonConfigCache[] {
   return Object.values(datasets.value);
 }
 const availableItems: Ref<JsonConfigCache[]> = ref([]);
-const availableDatasetSearch = ref('');
 const stagedDatasetIds: Ref<string[]> = ref([]);
 const stagedDatasets = computed(() => availableItems.value.filter((item: JsonConfigCache) => stagedDatasetIds.value.includes(item.id)));
 const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
@@ -180,28 +171,10 @@ function toggleStaged(item: JsonConfigCache) {
     stagedDatasetIds.value.push(item.id);
   }
 }
-function datasetMatchesSearch(item: JsonConfigCache, search: string) {
-  if (!search) {
-    return true;
-  }
-  const record = item as unknown as Record<string, unknown>;
-  return headersTmpl.some((header) => {
-    const value = String(record[header.value] ?? '').toLowerCase();
-    return value.includes(search);
-  });
-}
-/* Mirrors the table's default search so "select all" only stages what is listed. */
-const unstagedSearchMatches = computed(() => {
-  const search = availableDatasetSearch.value.trim().toLowerCase();
-  return availableItems.value.filter((item) => (
-    !stagedDatasetIds.value.includes(item.id)
-    && datasetMatchesSearch(item, search)
-  ));
-});
-function stageAllAvailable() {
-  stagedDatasetIds.value = stagedDatasetIds.value.concat(
-    unstagedSearchMatches.value.map((item) => item.id),
-  );
+/** Stage the picked datasets that are not staged yet. */
+function stageIds(ids: string[]) {
+  const staged = new Set(stagedDatasetIds.value);
+  stagedDatasetIds.value = stagedDatasetIds.value.concat(ids.filter((id) => !staged.has(id)));
 }
 
 async function runPipelineForDatasets() {
@@ -370,54 +343,14 @@ onBeforeMount(async () => {
         Available datasets
       </v-card-title>
       <v-card-text>These datasets are compatible with the chosen pipeline.</v-card-text>
-      <v-row class="mb-2">
-        <v-col cols="6">
-          <v-text-field
-            v-model="availableDatasetSearch"
-            append-icon="mdi-magnify"
-            label="Search"
-            single-line
-            hide-details
-          />
-        </v-col>
-        <v-spacer />
-        <v-col
-          cols="auto"
-          class="align-self-end"
-        >
-          <v-btn
-            :disabled="unstagedSearchMatches.length === 0"
-            color="success"
-            small
-            @click="stageAllAvailable"
-          >
-            <v-icon left>
-              mdi-check-all
-            </v-icon>
-            Select all
-          </v-btn>
-        </v-col>
-      </v-row>
-      <v-data-table
-        dense
-        v-bind="{ headers: availableDatasetHeaders, items: availableItems }"
-        :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
-        :search="availableDatasetSearch"
+      <DatasetPicker
+        :items="availableItems"
+        :selected-ids="stagedDatasetIds"
+        :headers="headersTmpl"
         no-data-text="No compatible datasets found for the selected pipeline."
-      >
-        <template #[`item.include`]="{ item }">
-          <v-btn
-            :key="item.name"
-            :disabled="stagedDatasetIds.includes(item.id)"
-            color="success"
-            x-small
-            @click="toggleStaged(item)"
-          >
-            <v-icon>mdi-plus</v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
+        @add="stageIds([$event])"
+        @add-many="stageIds"
+      />
     </div>
   </div>
 </template>

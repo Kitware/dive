@@ -1,3 +1,4 @@
+import { describe, expect, it } from 'vitest';
 import { filterDatasetRows, selectableIds } from './datasetPicker';
 
 const rows = [

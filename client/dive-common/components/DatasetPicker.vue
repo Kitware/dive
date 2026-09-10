@@ -66,10 +66,11 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const search = ref('');
+    /** Null when the field's clear button is used. */
+    const search = ref<string | null>('');
 
     const searchFields = computed(() => props.headers.map((h) => h.value));
-    const listed = computed(() => filterDatasetRows(props.items, search.value, searchFields.value));
+    const listed = computed(() => filterDatasetRows(props.items, search.value ?? '', searchFields.value));
     const addable = computed(() => selectableIds(listed.value, props.selectedIds));
     const selected = computed(() => new Set(props.selectedIds));
 
@@ -79,6 +80,10 @@ export default defineComponent({
         text: '', value: 'picker-actions', sortable: false, width: 96, align: 'end',
       },
     ]);
+
+    function rowClass(item: DatasetPickerRow) {
+      return selected.value.has(item.id) ? 'picker-row-selected' : '';
+    }
 
     function addAll() {
       if (addable.value.length) emit('add-many', addable.value);
@@ -90,6 +95,7 @@ export default defineComponent({
       addable,
       selected,
       tableHeaders,
+      rowClass,
       addAll,
       clientSettings,
       itemsPerPageOptions,
@@ -172,7 +178,7 @@ export default defineComponent({
       :footer-props="{ itemsPerPageOptions }"
       :hide-default-footer="compact && listed.length <= clientSettings.rowsPerPage"
       :no-data-text="items.length ? 'Nothing matches the search.' : noDataText"
-      :item-class="(item) => (selected.has(item.id) ? 'picker-row-selected' : '')"
+      :item-class="rowClass"
       class="picker-table"
     >
       <template #[`item.picker-actions`]="{ item }">

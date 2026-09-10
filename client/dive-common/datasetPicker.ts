@@ -3,12 +3,11 @@
  * the search behaviour is testable and identical on every page.
  */
 
-/** A dataset offered for selection; extra fields feed extra table columns. */
+/** A dataset offered for selection; any extra fields can feed extra table columns. */
 export interface DatasetPickerRow {
   id: string;
   name: string;
   type?: string;
-  [column: string]: unknown;
 }
 
 /**
@@ -23,7 +22,7 @@ export function filterDatasetRows<T extends DatasetPickerRow>(
   const needle = search.trim().toLowerCase();
   if (!needle) return [...rows];
   return rows.filter((row) => fields.some((field) => {
-    const value = row[field];
+    const value = (row as unknown as Record<string, unknown>)[field];
     return value !== undefined && value !== null && String(value).toLowerCase().includes(needle);
   }));
 }
