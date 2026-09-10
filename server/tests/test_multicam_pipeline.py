@@ -10,6 +10,8 @@ from dive_tasks.multicam_pipeline import (
     build_multicam_kwiver_settings,
     build_registration_kwiver_settings,
     build_registration_pairs,
+    camera_frame_size,
+    clip_viame_csv_to_frame,
     common_frame_bound,
     paired_start_frames,
     find_downloaded_calibration_file,
@@ -519,3 +521,36 @@ def test_build_multicam_kwiver_settings_frame_starts(tmp_path: Path):
     )
     assert arg_pair['input2:video_reader:vidl_ffmpeg:start_at_frame'] == '4'
     assert arg_pair['input2:video_reader:vidl_ffmpeg:stop_after_frame'] == '5'
+
+
+def test_clip_viame_csv_to_frame(tmp_path: Path):
+    source = tmp_path / 'computed_tracks_IR.csv'
+    source.write_text(
+        '# metadata\n'
+        '1,a.png,0,10,10,50,50,0.9,-1,fish,0.9\n'  # inside: untouched
+        '2,a.png,0,-20,10,40,50,0.9,-1,fish,0.9\n'  # 2/3 visible: clipped
+        '3,a.png,0,-100,10,-40,50,0.9,-1,fish,0.9\n'  # fully outside: dropped
+        '4,a.png,0,630,300,730,400,0.9,-1,fish,0.9\n'  # 10% visible: dropped
+        '5,a.png,0,630.5,5,650,20,0.9,-1,fish,0.9\n',  # clipped, keeps decimals
+        encoding='utf-8',
+    )
+    out, clipped, dropped = clip_viame_csv_to_frame(str(source), 640, 480)
+    lines = Path(out).read_text(encoding='utf-8').splitlines()
+    assert lines[0] == '# metadata'
+    assert lines[1] == '1,a.png,0,10,10,50,50,0.9,-1,fish,0.9'
+    assert lines[2] == '2,a.png,0,0,10,40,50,0.9,-1,fish,0.9'
+    assert lines[3] == '5,a.png,0,630.500,5,640,20,0.9,-1,fish,0.9'
+    assert len(lines) == 4
+    assert (clipped, dropped) == (2, 2)
+
+
+def test_camera_frame_size(tmp_path: Path):
+    meta = {'ffprobe_info': {'width': '640', 'height': '512'}}
+    assert camera_frame_size(meta, ['/tmp/x.mp4'], constants.VideoType) == (640, 512)
+    assert camera_frame_size({}, ['/tmp/x.mp4'], constants.VideoType) is None
+    from PIL import Image
+
+    image_path = tmp_path / 'frame.png'
+    Image.new('L', (320, 240)).save(image_path)
+    assert camera_frame_size({}, [str(image_path)], constants.ImageSequenceType) == (320, 240)
+    assert camera_frame_size({}, [], constants.ImageSequenceType) is None

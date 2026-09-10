@@ -458,6 +458,75 @@ def paired_start_frames(
     return start, (min(spans) if spans else 0)
 
 
+def camera_frame_size(
+    folder_meta: dict, media_list: List[str], media_type: str
+) -> Optional[Tuple[int, int]]:
+    """Pixel size of a camera's frames: ffprobe metadata for video, the first image otherwise."""
+    if media_type == constants.VideoType:
+        info = folder_meta.get('ffprobe_info') or {}
+        try:
+            width, height = int(info.get('width') or 0), int(info.get('height') or 0)
+        except (TypeError, ValueError):
+            return None
+        return (width, height) if width > 0 and height > 0 else None
+    if not media_list:
+        return None
+    try:
+        from PIL import Image
+
+        with Image.open(media_list[0]) as image:
+            return image.size
+    except Exception:
+        return None
+
+
+def _csv_number(value: float) -> str:
+    return str(int(round(value))) if value == round(value) else f'{value:.3f}'
+
+
+def clip_viame_csv_to_frame(
+    csv_path: str, width: int, height: int, min_visible: float = 0.25
+) -> Tuple[str, int, int]:
+    """
+    Clip every box in a VIAME CSV to the frame and drop boxes mostly outside it.
+
+    A box keeps its row when at least min_visible of its area lies inside the
+    width x height frame (a zero-area box must lie inside); the surviving box
+    is clamped to the frame edges. Returns (output path, boxes clipped, rows dropped).
+    """
+    output_path = csv_path.replace('.csv', '_clipped.csv')
+    clipped = 0
+    dropped = 0
+    with open(csv_path, 'r', encoding='utf-8') as infile, open(
+        output_path, 'w', encoding='utf-8'
+    ) as outfile:
+        for line in infile:
+            parts = line.rstrip('\r\n').split(',')
+            if line.startswith('#') or len(parts) < 7:
+                outfile.write(line)
+                continue
+            try:
+                x0, y0, x1, y1 = (float(value) for value in parts[3:7])
+            except ValueError:
+                outfile.write(line)
+                continue
+            cx0, cy0 = min(max(x0, 0.0), width), min(max(y0, 0.0), height)
+            cx1, cy1 = min(max(x1, 0.0), width), min(max(y1, 0.0), height)
+            area = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+            inside = max(0.0, cx1 - cx0) * max(0.0, cy1 - cy0)
+            visible = inside / area if area > 0 else float((cx0, cy0, cx1, cy1) == (x0, y0, x1, y1))
+            if visible < min_visible:
+                dropped += 1
+                continue
+            if (cx0, cy0, cx1, cy1) != (x0, y0, x1, y1):
+                parts[3:7] = [_csv_number(v) for v in (cx0, cy0, cx1, cy1)]
+                clipped += 1
+                outfile.write(','.join(parts) + '\n')
+            else:
+                outfile.write(line)
+    return output_path, clipped, dropped
+
+
 def build_multicam_kwiver_settings(
     work_dir: Path,
     cameras: List[MulticamCameraJob],
