@@ -210,6 +210,12 @@ export default defineComponent({
       });
     }
 
+    function unstageIds(ids: string[]) {
+      ids.forEach((id) => {
+        if (data.stagedItems[id]) toggleStaged(data.stagedItems[id]);
+      });
+    }
+
     const isReadyToTrain = computed(() => (
       stagedItems.value.length > 0
         && data.selectedTrainingConfig
@@ -349,6 +355,7 @@ export default defineComponent({
       toggleStaged,
       stagedIds,
       stageIds,
+      unstageIds,
       deleteModel,
       exportModel,
       simplifyTrainingName,
@@ -399,10 +406,10 @@ export default defineComponent({
 <template>
   <div class="multitraining-menu">
     <div class="mb-4">
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Staged for training ({{ staged.items.value.length }})
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         Add datasets to the staging area and choose a training configuration.
       </v-card-text>
       <v-row
@@ -530,10 +537,10 @@ export default defineComponent({
       </div>
     </div>
     <div v-if="resumable.items.value.length">
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Interrupted training runs
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         These runs did not finish, but their intermediate files are still on disk.
         Resuming continues from the last saved training state.
       </v-card-text>
@@ -571,10 +578,10 @@ export default defineComponent({
     </div>
 
     <div>
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Available for training
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         These datasets meet the requirements for the chosen training configuration.
       </v-card-text>
       <DatasetPicker
@@ -584,6 +591,8 @@ export default defineComponent({
         no-data-text="No data meets criteria for chosen configuration"
         @add="stageIds([$event])"
         @add-many="stageIds"
+        @remove="unstageIds([$event])"
+        @remove-many="unstageIds"
       >
         <template #row-actions="{ item }">
           <v-btn
@@ -602,10 +611,10 @@ export default defineComponent({
     </div>
 
     <div>
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Trained models
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         Here are all your trained models
       </v-card-text>
       <v-data-table

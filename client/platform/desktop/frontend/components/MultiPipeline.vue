@@ -176,6 +176,10 @@ function stageIds(ids: string[]) {
   const staged = new Set(stagedDatasetIds.value);
   stagedDatasetIds.value = stagedDatasetIds.value.concat(ids.filter((id) => !staged.has(id)));
 }
+function unstageIds(ids: string[]) {
+  const dropped = new Set(ids);
+  stagedDatasetIds.value = stagedDatasetIds.value.filter((id) => !dropped.has(id));
+}
 
 async function runPipelineForDatasets() {
   const pipeline = selectedPipeline.value;
@@ -224,16 +228,18 @@ onBeforeMount(async () => {
 <template>
   <div>
     <div class="mb-4">
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Run a pipeline on multiple datasets
       </v-card-title>
-      <v-card-text>Choose a pipeline to run, then select datasets.</v-card-text>
+      <v-card-text class="px-0">
+        Choose a pipeline to run, then select datasets.
+      </v-card-text>
     </div>
     <div class="mb-4">
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Choose a VIAME pipeline
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         <v-row>
           <v-col cols="6">
             <v-select
@@ -295,7 +301,9 @@ onBeforeMount(async () => {
         </v-row>
       </v-card-text>
       <div v-if="selectedPipeline">
-        <v-card-title>Datasets staged for selected pipeline</v-card-title>
+        <v-card-title class="px-0">
+          Datasets staged for selected pipeline
+        </v-card-title>
         <v-data-table
           dense
           v-bind="{
@@ -339,10 +347,12 @@ onBeforeMount(async () => {
       v-if="selectedPipeline"
       class="mb-4"
     >
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Available datasets
       </v-card-title>
-      <v-card-text>These datasets are compatible with the chosen pipeline.</v-card-text>
+      <v-card-text class="px-0">
+        These datasets are compatible with the chosen pipeline.
+      </v-card-text>
       <DatasetPicker
         :items="availableItems"
         :selected-ids="stagedDatasetIds"
@@ -350,6 +360,8 @@ onBeforeMount(async () => {
         no-data-text="No compatible datasets found for the selected pipeline."
         @add="stageIds([$event])"
         @add-many="stageIds"
+        @remove="unstageIds([$event])"
+        @remove-many="unstageIds"
       />
     </div>
   </div>
