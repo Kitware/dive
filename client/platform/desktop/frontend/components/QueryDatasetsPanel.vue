@@ -5,6 +5,7 @@ import {
 import type { VideoSearchIndexMethod } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import type { QueryPageState } from 'platform/desktop/frontend/useQueryPage';
+import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
 
 const IndexMethodItems: { text: string; value: VideoSearchIndexMethod }[] = [
   { text: 'Around generic detections', value: 'detections' },
@@ -13,12 +14,13 @@ const IndexMethodItems: { text: string; value: VideoSearchIndexMethod }[] = [
 ];
 
 /**
- * Which datasets queries search: add them from the library listing, see
- * whether each one is in the search index, and build or drop indexes for
- * several at once.
+ * Which datasets queries search: pick them from the library with the
+ * shared picker, see whether each one is in the search index, and build
+ * or drop indexes for several at once.
  */
 export default defineComponent({
   name: 'QueryDatasetsPanel',
+  components: { DatasetPicker },
   props: {
     page: {
       type: Object as PropType<QueryPageState>,
@@ -27,21 +29,14 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const { prompt } = usePrompt();
-    const toAdd = ref<string | null>(null);
     const method = ref<VideoSearchIndexMethod>('detections');
+    /** Datasets ticked for "build index for selected". */
     const selected = ref<string[]>([]);
 
-    const addable = computed(() => {
-      const used = new Set(props.page.datasets.value.map((d) => d.id));
-      return props.page.available.value
-        .filter((d) => !used.has(d.id))
-        .map((d) => ({ value: d.id, text: d.name }));
-    });
+    const listedIds = computed(() => props.page.datasets.value.map((d) => d.id));
 
-    async function add(id: string | null) {
-      if (!id) return;
-      toAdd.value = null;
-      await props.page.addDataset(id);
+    function removeMany(ids: string[]) {
+      ids.forEach((id) => props.page.removeDataset(id));
     }
 
     const buildable = computed(() => props.page.datasets.value
@@ -87,9 +82,8 @@ export default defineComponent({
     }
 
     return {
-      toAdd,
-      addable,
-      add,
+      listedIds,
+      removeMany,
       method,
       methodItems: IndexMethodItems,
       selected,
@@ -108,27 +102,26 @@ export default defineComponent({
 
 <template>
   <div class="query-datasets">
-    <div class="d-flex align-center flex-wrap mb-2 add-row">
-      <v-autocomplete
-        v-model="toAdd"
-        :items="addable"
-        label="Add a dataset"
-        dense
-        outlined
-        hide-details
-        clearable
-        class="add-select"
-        @change="add"
-      />
-      <span class="text-caption grey--text ml-3">
-        Queries search the indexed datasets listed here. Build an index for a dataset before searching it.
-      </span>
+    <DatasetPicker
+      :items="page.available.value"
+      :selected-ids="listedIds"
+      hint="Queries search the indexed datasets listed here. Build an index for a dataset before searching it."
+      no-data-text="No datasets in the library."
+      compact
+      class="mb-3"
+      @add="page.addDataset"
+      @add-many="page.addDatasets"
+      @remove="page.removeDataset"
+      @remove-many="removeMany"
+    />
+    <div class="text-subtitle-2 mb-1">
+      Selected datasets ({{ page.datasets.value.length }})
     </div>
     <div
       v-if="page.datasets.value.length === 0"
       class="text-caption grey--text py-2"
     >
-      No datasets yet. Add one above, or select datasets in the library and choose Query.
+      None yet. Add datasets from the list above, or select them in the library and choose Query.
     </div>
     <template v-else>
       <div class="d-flex align-center flex-wrap mb-2 build-row">
@@ -267,13 +260,8 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
-.add-row,
 .build-row {
   gap: 4px;
-}
-
-.add-select {
-  max-width: 360px;
 }
 
 .method-select {
