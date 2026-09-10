@@ -159,6 +159,7 @@ describe('vocabularies', () => {
       },
     ];
     expect(collectTypes(tracks)).toEqual(['alpha', 'beta', 'zeta']);
+    expect(collectTypes(tracks, 0.5)).toEqual(['alpha', 'beta']);
     expect(collectAttributeKeys(tracks, {
       defined: {
         belongs: 'track', datatype: 'text', name: 'defined', key: 'track_defined',

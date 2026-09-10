@@ -359,10 +359,17 @@ export function groupReviewItems(
 }
 
 /** Every type named by any confidence pair, in type order. */
-export function collectTypes(tracks: Iterable<TrackData>): string[] {
+/**
+ * Types present on the tracks, sorted; with a threshold, only those some
+ * track carries at that confidence or above, so a type query built from
+ * the list always finds something.
+ */
+export function collectTypes(tracks: Iterable<TrackData>, threshold = 0): string[] {
   const types = new Set<string>();
   Array.from(tracks).forEach((track) => {
-    track.confidencePairs.forEach(([type]) => { if (type) types.add(type); });
+    track.confidencePairs.forEach(([type, confidence]) => {
+      if (type && confidence >= threshold) types.add(type);
+    });
   });
   return Array.from(types).sort(compareTypeNames);
 }

@@ -79,6 +79,7 @@ export interface ReviewService {
   /** True once tracks or the query changed after the last run. */
   stale: Readonly<Ref<boolean>>;
   types: Readonly<Ref<string[]>>;
+  knownTypes: Readonly<Ref<string[]>>;
   attributeKeys: Readonly<Ref<string[]>>;
   pendingCount: Readonly<Ref<number>>;
   saving: Readonly<Ref<boolean>>;
@@ -399,7 +400,14 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     return dataRevision.value;
   }
 
+  /** Types the query can ask for: present on the selected datasets at the current threshold. */
   const types = computed(() => {
+    dependOnData();
+    return collectTypes(allTracks(), query.threshold);
+  });
+
+  /** Every type on the selected datasets, offered when assigning a type. */
+  const knownTypes = computed(() => {
     dependOnData();
     return collectTypes(allTracks());
   });
@@ -638,6 +646,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     dataRevision,
     stale,
     types,
+    knownTypes,
     attributeKeys,
     pendingCount,
     saving,
