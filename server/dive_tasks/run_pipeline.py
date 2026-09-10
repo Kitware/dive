@@ -18,6 +18,8 @@ from dive_tasks.multicam_pipeline import (
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
     build_registration_kwiver_settings,
+    camera_frame_size,
+    clip_viame_csv_to_frame,
     common_frame_bound,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
@@ -561,6 +563,25 @@ def run_pipeline(self: Task, params: PipelineJob):
                 if frame_range is not None and camera_media[cam_name][1] == constants.VideoType:
                     filtered_path = filter_csv_by_frame_range(str(output_file), frame_range)
                     output_file = Path(filtered_path)
+                if multicam_registration and output_file.exists():
+                    # Warped boxes can land outside the target camera's field of view.
+                    media_list, media_type = camera_media[cam_name]
+                    size = camera_frame_size(
+                        gc.getFolder(camera['folder_id']).get('meta') or {}, media_list, media_type
+                    )
+                    if size is None:
+                        manager.write(
+                            f'Warning: unknown frame size for {cam_name}; boxes not clipped\n'
+                        )
+                    else:
+                        clipped_path, clipped, dropped = clip_viame_csv_to_frame(
+                            str(output_file), size[0], size[1]
+                        )
+                        output_file = Path(clipped_path)
+                        manager.write(
+                            f'{cam_name}: clipped {clipped} box(es) to the {size[0]}x{size[1]} '
+                            f'frame and dropped {dropped} outside it\n'
+                        )
                 newfile = gc.uploadFileToFolder(camera['folder_id'], str(output_file))
                 gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
                 gc.post(
