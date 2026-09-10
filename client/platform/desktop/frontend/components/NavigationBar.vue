@@ -31,6 +31,9 @@ export default defineComponent({
       <v-tab :to="{ name: 'training' }">
         Training<v-icon>mdi-brain</v-icon>
       </v-tab>
+      <v-tab :to="{ name: 'query' }">
+        Query<v-icon>mdi-image-search-outline</v-icon>
+      </v-tab>
       <v-tab :to="{ name: 'review' }">
         Review<v-icon>mdi-view-grid-outline</v-icon>
       </v-tab>

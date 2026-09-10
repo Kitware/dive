@@ -269,6 +269,10 @@ export default defineComponent({
     function reviewSelected() {
       router.push({ name: 'review', query: selectedIdsQuery() });
     }
+
+    function querySelected() {
+      router.push({ name: 'query', query: selectedIdsQuery() });
+    }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
         if (recent.subType === 'stereo') {
@@ -365,6 +369,7 @@ export default defineComponent({
       runTrainingOnSelected,
       scoreSelected,
       reviewSelected,
+      querySelected,
       isSelected,
       toggleSelected,
       toggleSelectAll,
@@ -674,6 +679,27 @@ export default defineComponent({
                     </v-btn>
                   </template>
                   <span>Review the selected datasets' annotations as a grid</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="querySelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-image-search-outline
+                      </v-icon>
+                      Query
+                    </v-btn>
+                  </template>
+                  <span>Index the selected datasets and search them by image, video frame or text</span>
                 </v-tooltip>
                 <v-tooltip bottom>
                   <template #activator="{ on }">

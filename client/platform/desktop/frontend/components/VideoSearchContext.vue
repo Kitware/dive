@@ -53,7 +53,7 @@ export default defineComponent({
       item.job.exitCode === null
       && search !== null
       && item.job.datasetIds.includes(search.datasetId)
-      && item.job.title.startsWith('Build search index')
+      && /search index/i.test(item.job.title)
     )));
 
     /** Refresh index status whenever a build job for this dataset finishes. */
@@ -61,7 +61,7 @@ export default defineComponent({
       if (!search) return;
       const finished = previous.some((item) => (
         item.job.datasetIds.includes(search.datasetId)
-        && item.job.title.startsWith('Build search index')
+        && /search index/i.test(item.job.title)
         && !current.some((c) => c.job.key === item.job.key)
       ));
       if (finished) {

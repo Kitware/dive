@@ -892,6 +892,13 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
   return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
+/** Frame rate, size and length of a video file on disk, read by the backend. */
+async function videoInfo(videoPath: string) {
+  const client = await getClient();
+  const { data } = await client.get<{ fps: number; width: number; height: number; frameCount?: number; duration?: number }>('video-info', { params: { path: videoPath } });
+  return data;
+}
+
 async function loadConfig(id: string) {
   const client = await getClient();
   const { data } = await client.get<DesktopConfig>(`dataset/${id}/meta`);
@@ -1017,6 +1024,7 @@ export {
   /* Standard Specification APIs */
   loadConfig,
   peekConfig,
+  videoInfo,
   loadDetections,
   loadFrameMetadata,
   getPipelineList,
