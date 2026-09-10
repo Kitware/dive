@@ -1,4 +1,8 @@
-"""Postprocess single-camera results before publishing annotations."""
+"""Postprocess single-camera results before publishing annotations.
+
+Client counterpart and overview: client/dive-common/singleCamera/README.md
+Desktop: client/platform/desktop/backend/native/singleCameraPipeline.ts
+"""
 
 import csv
 from pathlib import Path

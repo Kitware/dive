@@ -1,5 +1,5 @@
-import type { Api, DatasetConfig } from './apispec';
-import { remapCsvIds, singleCameraContext, validateAssociation } from './singleCameraPipeline';
+import type { Api, DatasetConfig } from '../apispec';
+import { remapCsvIds, singleCameraContext, validateAssociation } from './decisions';
 
 describe('single camera pipeline decisions', () => {
   const config = {

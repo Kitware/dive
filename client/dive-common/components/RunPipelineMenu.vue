@@ -19,10 +19,10 @@ import {
   NewDatasetJobConfig,
 } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
-import SingleCameraAssociationDialog from 'dive-common/components/SingleCameraAssociationDialog.vue';
+import SingleCameraAssociationDialog from 'dive-common/singleCamera/AssociationDialog.vue';
 import {
   singleCameraContext, SingleCameraMode, validateAssociation,
-} from 'dive-common/singleCameraPipeline';
+} from 'dive-common/singleCamera';
 import { isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
 import RunPipelineToast from 'dive-common/components/RunPipelineToast.vue';

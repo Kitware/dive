@@ -5,8 +5,8 @@ import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   SingleCameraMode, remapCsvIds, associationCalibrationError, associationMulticamError,
-} from 'dive-common/singleCameraPipeline';
-import { stereoAssociationPipeline, lastCsvFrame } from 'dive-common/stereoAssociationPipeline';
+  stereoAssociationPipeline, lastCsvFrame,
+} from 'dive-common/singleCamera';
 import { serializeFile } from '../serializers/viame';
 import * as common from './common';
 

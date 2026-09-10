@@ -225,7 +225,12 @@ Per-camera export from the viewer still exports only the active camera.
 
 Single camera pipelines can be used by selecting the camera and then running the pipeline from the pipeline menu.
 
-> **Note:** it is suggested that single camera pipelines only be run on empty datasets that don't have annotations already. When the pipeline finishes it will create tracks with TrackIds that may conflict with the other cameras. So it is recommended that all tracks be removed before running single camera pipelines.
+When other cameras already have detections, DIVE prompts before launch:
+
+- **No** (separate) — remaps new TrackIds above every ID on the other cameras so IDs do not collide.
+- **Yes** (associate) — on calibrated stereo with interactive stereo features enabled, runs VIAME association and imports paired annotations for both cameras.
+
+Association for generic multi-camera (non-stereo) datasets is not implemented yet.
 
 ### MultiCamera/Stereo Pipelines
 

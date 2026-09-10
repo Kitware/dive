@@ -1,5 +1,5 @@
-import type { Api, PipelineParams } from './apispec';
-import { parseCompositeDatasetId } from './compositeDatasetId';
+import type { Api, PipelineParams } from '../apispec';
+import { parseCompositeDatasetId } from '../compositeDatasetId';
 
 export const associationCalibrationError = 'Stereo association requires a loaded calibration file.';
 export const associationMulticamError = 'Detection association in multi-camera mode is not implemented yet.';
