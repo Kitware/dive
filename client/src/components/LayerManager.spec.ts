@@ -165,6 +165,7 @@ describe('LayerManager hierarchy frame data', () => {
     };
     const annotator = {
       frame: ref(0),
+      annotationFrame: ref(0),
       flick: ref(0),
       hasFrame: ref(true),
       imageRevision: ref(0),
@@ -283,6 +284,7 @@ function renderCamera(
 ) {
   const annotator = {
     frame: ref(0),
+    annotationFrame: ref(0),
     flick: ref(0),
     hasFrame: ref(true),
     imageRevision: ref(0),

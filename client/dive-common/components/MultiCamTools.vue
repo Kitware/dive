@@ -39,7 +39,7 @@ export default defineComponent({
     const { saveConfig } = useApi();
 
     // Time offset: the first camera is the reference; every other camera is shifted onto it.
-    const OFFSET_LIMIT_SECONDS = 3;
+    const OFFSET_LIMIT_SECONDS = 10;
     const referenceCamera = computed(() => cameras.value[0] ?? null);
     const offsetCameras = computed(() => cameras.value.slice(1));
     const offsetLimit = computed(
