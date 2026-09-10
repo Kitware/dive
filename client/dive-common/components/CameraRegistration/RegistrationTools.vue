@@ -7,7 +7,6 @@ import {
   useCameraStore,
   useCameraRegistration,
   useDatasetId,
-  useTime,
 } from 'vue-media-annotator/provides';
 import {
   TransformType, TRANSFORM_TYPES, DEFAULT_TRANSFORM_TYPE, minPointsForTransform,
@@ -562,56 +561,6 @@ export default defineComponent({
       return cam;
     }
 
-    /**
-     * Start-offset control for the right camera, in its own frames.
-     *
-     * Two independently-started recorders on a fixed rig can be a fraction of
-     * a second apart for the whole clip. The homography can't reveal that --
-     * the static background fits equally well at any offset -- so this is set
-     * by eye: turn Overlay Warp on and scrub, and moving subjects line up
-     * only at the right value.
-     *
-     * Only the right camera moves; the left stays the time reference. On a
-     * 3-camera rig each non-reference camera keeps its own offset, so
-     * switching the pair selector edits whichever camera is on the right.
-     */
-    const OFFSET_LIMIT_SECONDS = 3;
-    const { frameRate } = useTime();
-    const offsetLimit = computed(
-      () => Math.max(1, Math.round((frameRate.value || 30) * OFFSET_LIMIT_SECONDS)),
-    );
-    const rightFrameOffset = computed({
-      get: () => (camRight.value
-        ? registration.frameOffsets.value[camRight.value] ?? 0
-        : 0),
-      set: (value: number) => {
-        const camera = camRight.value;
-        if (!camera) {
-          return;
-        }
-        // Replace the map rather than mutating it: the aligned timeline is a
-        // computed over this ref and only re-runs on identity change.
-        registration.frameOffsets.value = {
-          ...registration.frameOffsets.value,
-          [camera]: Math.round(value),
-        };
-      },
-    });
-    /** e.g. "+12 frames (+0.400s)"; the seconds half needs a known frame rate. */
-    const offsetReadout = computed(() => {
-      const frames = rightFrameOffset.value;
-      const sign = frames > 0 ? '+' : '';
-      const plural = Math.abs(frames) === 1 ? '' : 's';
-      const rate = frameRate.value;
-      const seconds = rate
-        ? ` (${sign}${(frames / rate).toFixed(3)}s)`
-        : '';
-      return `${sign}${frames} frame${plural}${seconds}`;
-    });
-    function nudgeOffset(delta: number) {
-      rightFrameOffset.value += delta;
-    }
-
     /** Live cursor readout text: this camera's coord, and its linked point in the other camera. */
     const cursorReadout = computed(() => {
       const cursor = registration.cursorCoord.value;
@@ -700,6 +649,7 @@ export default defineComponent({
           cameraTransformTypes: registration.transformTypes.value,
           cameraRegistrationSource: registration.source.value,
           cameraFrameOffsets: registration.frameOffsets.value,
+          cameraFrameOffsetsApplied: registration.appliedFrameOffsets.value,
         });
         registration.markSaved();
       } finally {
@@ -818,10 +768,6 @@ export default defineComponent({
       selectedCorrespondenceId,
       deleteSelectedCorrespondence,
       cursorReadout,
-      rightFrameOffset,
-      offsetLimit,
-      offsetReadout,
-      nudgeOffset,
       correspondences,
       pairStats,
       currentPairFrame,
@@ -1447,49 +1393,6 @@ export default defineComponent({
       dense
       hide-details
     />
-
-    <v-divider class="my-3" />
-
-    <!--
-      Sits under Overlay Warp because the warp is how you judge it: scrub with
-      the overlay on and only the correct offset makes moving subjects line
-      up. The fit itself is no guide -- a static background matches at every
-      offset.
-    -->
-    <h4>Time Offset</h4>
-    <span class="text-caption grey--text d-block mb-1">
-      Frames to shift R so it plays in step with L.
-    </span>
-    <div class="d-flex align-center">
-      <tooltip-btn
-        icon="mdi-minus"
-        tooltip-text="Shift R one frame earlier"
-        :disabled="!camRight"
-        @click="nudgeOffset(-1)"
-      />
-      <v-slider
-        v-model="rightFrameOffset"
-        :min="-offsetLimit"
-        :max="offsetLimit"
-        :step="1"
-        :disabled="!camRight"
-        dense
-        hide-details
-        class="mx-1"
-      />
-      <tooltip-btn
-        icon="mdi-plus"
-        tooltip-text="Shift R one frame later"
-        :disabled="!camRight"
-        @click="nudgeOffset(1)"
-      />
-    </div>
-    <div
-      class="text-caption"
-      style="font-family: monospace;"
-    >
-      {{ offsetReadout }}
-    </div>
 
     <v-divider class="my-3" />
 

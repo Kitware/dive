@@ -300,6 +300,8 @@ class MetadataMutable(BaseModel):
     cameraRoles: Optional[Dict[str, CameraRole]]
     # Per-camera start offset in its own frames, for recorders that started at different times.
     cameraFrameOffsets: Optional[Dict[str, int]]
+    # The part of cameraFrameOffsets already applied to each camera's annotations.
+    cameraFrameOffsetsApplied: Optional[Dict[str, int]]
     fps: Optional[float]
 
     @staticmethod

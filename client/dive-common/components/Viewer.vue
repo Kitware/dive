@@ -1409,6 +1409,7 @@ export default defineComponent({
         cameraTransformTypes: cameraRegistration.transformTypes.value,
         cameraRegistrationSource: cameraRegistration.source.value,
         cameraFrameOffsets: cameraRegistration.frameOffsets.value,
+        cameraFrameOffsetsApplied: cameraRegistration.appliedFrameOffsets.value,
       });
       cameraRegistration.markSaved();
     }
@@ -1941,6 +1942,7 @@ export default defineComponent({
             meta.cameraTransformTypes,
             meta.cameraRegistrationSource,
             meta.cameraFrameOffsets,
+            meta.cameraFrameOffsetsApplied,
           );
           // Media is loaded at this point: resolve observation frames from
           // their image names against this dataset's own frame ordering.
