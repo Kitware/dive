@@ -119,6 +119,9 @@ function getAvailableItems(): JsonConfigCache[] {
 const availableItems = computed(() => getAvailableItems());
 const stagedDatasetIds: Ref<string[]> = ref([]);
 const stagedDatasets = computed(() => availableItems.value.filter((item: JsonConfigCache) => stagedDatasetIds.value.includes(item.id)));
+const stagedParentIds = computed(() => [
+  ...new Set(stagedDatasetIds.value.map((id) => parentDatasetId(id))),
+]);
 const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
 
 async function refreshCalibrationForDatasets(datasetIds: string[]) {
@@ -135,8 +138,18 @@ async function refreshCalibrationForDatasets(datasetIds: string[]) {
   };
 }
 
+/** Drop staged ids that the current pipeline type no longer offers (e.g. non-stereo under measurement). */
 watch(availableItems, (items) => {
-  refreshCalibrationForDatasets(items.map((item) => item.id));
+  const available = new Set(items.map((item) => item.id));
+  const next = stagedDatasetIds.value.filter((id) => available.has(id));
+  if (next.length !== stagedDatasetIds.value.length) {
+    stagedDatasetIds.value = next;
+  }
+});
+
+/** Calibration status only for what is staged, not the whole library. */
+watch(stagedDatasetIds, (ids) => {
+  refreshCalibrationForDatasets(ids);
 }, { immediate: true });
 
 const runDisabled = computed(() => {
@@ -155,7 +168,7 @@ function isPipelineItemDisabledForCalibration(pipe: Pipe) {
   return pipelineDisabledForMissingCalibration(
     pipe,
     calibrationAvailableByDatasetId.value,
-    availableItems.value.map((dataset) => parentDatasetId(dataset.id)),
+    stagedParentIds.value,
   );
 }
 
@@ -163,7 +176,7 @@ function toggleStaged(item: JsonConfigCache) {
   if (stagedDatasetIds.value.includes(item.id)) {
     stagedDatasetIds.value = stagedDatasetIds.value.filter((id: string) => id !== item.id);
   } else {
-    stagedDatasetIds.value.push(item.id);
+    stagedDatasetIds.value = stagedDatasetIds.value.concat(item.id);
   }
 }
 /** Stage the picked datasets that are not staged yet. */
@@ -179,8 +192,6 @@ function unstageIds(ids: string[]) {
 async function runPipelineForDatasets() {
   const pipeline = selectedPipeline.value;
   if (pipeline !== null) {
-    // Only the staged datasets compatible with (and displayed for) the
-    // selected pipeline; staged ids can hold datasets other pipelines accept.
     const runIds = stagedDatasets.value.map((item: JsonConfigCache) => item.id);
     const results = await Promise.allSettled(
       runIds.map((datasetId: string) => {
