@@ -19,7 +19,7 @@ Review shows many annotations at once as a grid of cropped image chips, so you c
 
 The page has two views, toggled with the **Datasets** / **Grid** buttons at the top left; only one is shown at a time to keep the grid uncluttered.
 
-The **Datasets** view lists the datasets under review. Add more with **Add dataset** (web opens a folder picker; desktop offers a list of your projects), reload a dataset's annotations, or remove it. Each row shows the dataset's type, how many tracks it holds, and its load state.
+The **Datasets** view has the same dataset picker as the Training and Pipelines pages: search the library, add datasets one at a time or with **Select all**, and drop them again with **Remove all** (on the web, **Browse** opens the folder picker instead). The selected datasets are listed underneath with their type, how many tracks they hold and their load state; reload a dataset's annotations or remove it from there.
 
 Notes:
 
