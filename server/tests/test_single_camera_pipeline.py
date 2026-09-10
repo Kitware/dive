@@ -1,5 +1,5 @@
-import json
 import importlib.util
+import json
 import os
 from pathlib import Path
 import subprocess
@@ -42,18 +42,34 @@ def test_worker_allocates_above_every_other_camera(tmp_path, monkeypatch):
         return target
 
     run = Mock()
-    monkeypatch.setitem(sys.modules, 'dive_tasks', SimpleNamespace(utils=SimpleNamespace(
-        make_directory=directory, download_annotation_csv=download, stream_subprocess=run,
-    )))
-    monkeypatch.setitem(sys.modules, 'dive_tasks.multicam_pipeline', SimpleNamespace(
-        find_downloaded_calibration_file=Mock(),
-    ))
+    monkeypatch.setitem(
+        sys.modules,
+        'dive_tasks',
+        SimpleNamespace(
+            utils=SimpleNamespace(
+                make_directory=directory,
+                download_annotation_csv=download,
+                stream_subprocess=run,
+            )
+        ),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        'dive_tasks.multicam_pipeline',
+        SimpleNamespace(
+            find_downloaded_calibration_file=Mock(),
+        ),
+    )
     source = tmp_path / 'detections.csv'
     source.write_text('1,image,0,1,2,3,4,1,-1\n1,image,2,1,2,3,4,1,-1\n')
-    params = {'output_folder': 'right', 'single_camera': {
-        'mode': 'separate', 'camera': 'right',
-        'cameras': [{'name': name, 'folder_id': name} for name in ('left', 'right', 'third')],
-    }}
+    params = {
+        'output_folder': 'right',
+        'single_camera': {
+            'mode': 'separate',
+            'camera': 'right',
+            'cameras': [{'name': name, 'folder_id': name} for name in ('left', 'right', 'third')],
+        },
+    }
     outputs = module.finish_single_camera_run(None, {}, None, None, None, params, source, tmp_path)
     assert len(outputs) == 1
     assert outputs[0][0] == 'right'
@@ -61,14 +77,28 @@ def test_worker_allocates_above_every_other_camera(tmp_path, monkeypatch):
     run.assert_not_called()
 
 
-@pytest.mark.skipif(not os.environ.get('DIVE_TEST_VIAME'), reason='Set DIVE_TEST_VIAME to the VIAME executable')
+@pytest.mark.skipif(
+    not os.environ.get('DIVE_TEST_VIAME'), reason='Set DIVE_TEST_VIAME to the VIAME executable'
+)
 def test_real_stereo_association(tmp_path):
     calibration = {}
     for side in ('left', 'right'):
-        calibration.update({f'{key}_{side}': value for key, value in {
-            'fx': 1000, 'fy': 1000, 'cx': 500, 'cy': 500,
-            'k1': 0, 'k2': 0, 'k3': 0, 'p1': 0, 'p2': 0,
-        }.items()})
+        calibration.update(
+            {
+                f'{key}_{side}': value
+                for key, value in {
+                    'fx': 1000,
+                    'fy': 1000,
+                    'cx': 500,
+                    'cy': 500,
+                    'k1': 0,
+                    'k2': 0,
+                    'k3': 0,
+                    'p1': 0,
+                    'p2': 0,
+                }.items()
+            }
+        )
     calibration.update({'R': [1, 0, 0, 0, 1, 0, 0, 0, 1], 'T': [-100, 0, 0]})
     source = tmp_path / 'source.json'
     source.write_text(json.dumps(calibration))
@@ -87,8 +117,13 @@ def test_real_stereo_association(tmp_path):
         '52,right,1,380,680,420,720,1,-1,ray,1\n'
     )
     prepare_association(tmp_path, source)
-    result = subprocess.run([os.environ['DIVE_TEST_VIAME'], 'run', 'associate.pipe'],
-                            cwd=tmp_path, capture_output=True, text=True, timeout=30)
+    result = subprocess.run(
+        [os.environ['DIVE_TEST_VIAME'], 'run', 'associate.pipe'],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
     assert result.returncode == 0, result.stdout + result.stderr
     left = csv_rows((tmp_path / 'associated1.csv').read_text())
     right = csv_rows((tmp_path / 'associated2.csv').read_text())

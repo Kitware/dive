@@ -489,7 +489,8 @@ def run_pipeline(
                     or len(cameras) != 2
                 ):
                     raise RestException(
-                        'Detection association in multi-camera mode is not implemented yet.', code=400
+                        'Detection association in multi-camera mode is not implemented yet.',
+                        code=400,
                     )
                 calibration_pipeline: types.PipelineDescription = {
                     **pipeline,

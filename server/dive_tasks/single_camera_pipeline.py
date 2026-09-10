@@ -27,7 +27,7 @@ def remap_csv_ids(text, maximum_other_id):
 
 
 def association_pipeline():
-    pipeline = '''config _scheduler
+    pipeline = """config _scheduler
   :type thread_per_process
 
 process clock
@@ -56,9 +56,9 @@ process pairing
 
 connect from timestamps.timestamp
         to pairing.timestamp
-'''
+"""
     for side in (1, 2):
-        pipeline += f'''
+        pipeline += f"""
 process reader{side}
   :: read_object_track
   :file_name input{side}.csv
@@ -76,19 +76,23 @@ process writer{side}
 
 connect from pairing.object_track_set{side}
         to writer{side}.object_track_set
-'''
+"""
     return pipeline
 
 
 def prepare_association(directory, calibration):
     directory = Path(directory)
-    rows = [row for side in (1, 2) for row in csv_rows((directory / f'input{side}.csv').read_text())]
+    rows = [
+        row for side in (1, 2) for row in csv_rows((directory / f'input{side}.csv').read_text())
+    ]
     last_frame = max(int(row[2]) for row in rows)
     calibration_name = f'calibration{Path(calibration).suffix}'
     shutil.copyfile(calibration, directory / calibration_name)
     (directory / 'clock.ppm').write_text('P3\n1 1\n255\n0 0 0\n')
     (directory / 'frames.txt').write_text(f'{directory / "clock.ppm"}\n' * (last_frame + 1))
-    (directory / 'associate.pipe').write_text(association_pipeline().replace('calibration.json', calibration_name))
+    (directory / 'associate.pipe').write_text(
+        association_pipeline().replace('calibration.json', calibration_name)
+    )
 
 
 def finish_single_camera_run(task, context, manager, conf, gc, params, output_file, working_dir):
@@ -121,13 +125,22 @@ def finish_single_camera_run(task, context, manager, conf, gc, params, output_fi
         raise ValueError('Stereo association requires a loaded calibration file.')
     prepare_association(directory, calibration)
     manager.write('Associating stereo detections...\n')
-    utils.stream_subprocess(task, context, manager, {
-        'args': f'. {shlex.quote(str(conf.viame_setup_script))} && viame run associate.pipe',
-        'shell': True, 'executable': '/bin/bash', 'cwd': directory,
-        'env': conf.gpu_process_env,
-    })
-    outputs = [(camera['folder_id'], directory / f'associated{side}.csv')
-               for side, camera in enumerate(cameras, 1)]
+    utils.stream_subprocess(
+        task,
+        context,
+        manager,
+        {
+            'args': f'. {shlex.quote(str(conf.viame_setup_script))} && viame run associate.pipe',
+            'shell': True,
+            'executable': '/bin/bash',
+            'cwd': directory,
+            'env': conf.gpu_process_env,
+        },
+    )
+    outputs = [
+        (camera['folder_id'], directory / f'associated{side}.csv')
+        for side, camera in enumerate(cameras, 1)
+    ]
     for _, output in outputs:
         if not output.exists() or not csv_rows(output.read_text()):
             raise ValueError('Stereo association did not produce annotations for both cameras.')
