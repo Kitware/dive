@@ -50,7 +50,7 @@ def prepare_conversion_input_path(
     """
     If a mislabeled .json is actually a ZIP/npz archive, return a .npz path for VIAME.
 
-    Returns the path to pass to convert_cam_format.py (may be input_path unchanged).
+    Returns the path to pass to the VIAME convert tool (may be input_path unchanged).
     """
     from pathlib import Path
 

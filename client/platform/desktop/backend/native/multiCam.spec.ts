@@ -141,6 +141,77 @@ describe('native.multiCamImport', () => {
     expect(output.jsonConfig.multiCam?.cameras.right.metadataFile).toBeUndefined();
   });
 
+  const stereoFolders = {
+    left: { sourcePath: '/home/user/data/stereoLeftRightImages/left', trackFile: '' },
+    right: { sourcePath: '/home/user/data/stereoLeftRightImages/right', trackFile: '' },
+  };
+  const speciesList = JSON.stringify({ categories: [{ id: 1, name: 'Sebastes' }] });
+
+  it('discovers a species list in the folder the cameras share', async () => {
+    await fs.writeFile('/home/user/data/stereoLeftRightImages/rockfish.species.json', speciesList);
+
+    const output = await beginMultiCamImport({
+      datasetName: 'stereo', defaultDisplay: 'left', sourceList: stereoFolders, type: 'image-sequence',
+    });
+
+    expect(output.speciesFileAbsPath)
+      .toBe('/home/user/data/stereoLeftRightImages/rockfish.species.json');
+    // The list is a suggestion the import dialog shows, not dataset state.
+    expect(output.jsonConfig.customTypeStyling).toBeUndefined();
+    expect(output.importWarnings).toBeUndefined();
+  });
+
+  it('leaves the species list slot empty when no camera folder carries one', async () => {
+    const output = await beginMultiCamImport({
+      datasetName: 'stereo', defaultDisplay: 'left', sourceList: stereoFolders, type: 'image-sequence',
+    });
+    expect(output.speciesFileAbsPath).toBeUndefined();
+  });
+
+  it('discovers a species list beside one camera when the shared folder has none', async () => {
+    await fs.writeFile('/home/user/data/stereoLeftRightImages/left/rockfish.species.json', speciesList);
+
+    const output = await beginMultiCamImport({
+      datasetName: 'stereo', defaultDisplay: 'left', sourceList: stereoFolders, type: 'image-sequence',
+    });
+
+    expect(output.speciesFileAbsPath)
+      .toBe('/home/user/data/stereoLeftRightImages/left/rockfish.species.json');
+  });
+
+  it('warns instead of guessing when the cameras carry different species lists', async () => {
+    await fs.writeFile('/home/user/data/stereoLeftRightImages/left/rockfish.species.json', speciesList);
+    await fs.writeFile('/home/user/data/stereoLeftRightImages/right/flatfish.species.json', speciesList);
+
+    const output = await beginMultiCamImport({
+      datasetName: 'stereo', defaultDisplay: 'left', sourceList: stereoFolders, type: 'image-sequence',
+    });
+
+    expect(output.speciesFileAbsPath).toBeUndefined();
+    expect(output.importWarnings).toEqual([
+      'More than one species list was found beside the cameras '
+      + '(rockfish.species.json, flatfish.species.json). '
+      + 'None was applied; choose one in the Species List field.',
+    ]);
+  });
+
+  it('discovers a species list in the base folder of a keyword import', async () => {
+    await fs.writeFile('/home/user/data/stereoLeftRightCombinedImages/rockfish.species.json', speciesList);
+
+    const output = await beginMultiCamImport({
+      defaultDisplay: 'left',
+      sourcePath: '/home/user/data/stereoLeftRightCombinedImages',
+      globList: {
+        left: { glob: '*left*.png', trackFile: '' },
+        right: { glob: '*right*.png', trackFile: '' },
+      },
+      type: 'image-sequence',
+    });
+
+    expect(output.speciesFileAbsPath)
+      .toBe('/home/user/data/stereoLeftRightCombinedImages/rockfish.species.json');
+  });
+
   it('imports an archive whose meta.json carries only a legacy item-id locator', async () => {
     // What today's upstream/main writes: a bare Girder item id in meta.json and the attachment
     // at the archive root. Nothing to discover, and nothing to fail on.

@@ -245,18 +245,14 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
     if len(head_tail) == 2:
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
 
-    # ensure confidence pairs list is not empty
-    if len(sorted_confidence_pairs) == 0:
-        # extract Detection or Length Confidence field
-        try:
-            confidence = float(row[7])
-        except ValueError:  # in case field is empty
-            confidence = 1.0
-
-        # add a dummy pair with a default type
-        sorted_confidence_pairs.append(('unknown', confidence))
-
     return features, attributes, track_attributes, sorted_confidence_pairs, notes
+
+
+def _fallback_confidence(row: List[str]) -> float:
+    try:
+        return float(row[7])
+    except (ValueError, IndexError):
+        return 1.0
 
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
@@ -404,6 +400,7 @@ def load_csv_as_tracks_and_attributes(
     multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
+    fallbackConfidence: Dict[int, float] = {}
     sortedlist = sorted(reader, key=custom_sort)
     warnings: types.Warnings = []
     fps = None
@@ -465,13 +462,22 @@ def load_csv_as_tracks_and_attributes(
         track.begin = min(feature.frame, track.begin)
         track.end = max(track.end, feature.frame)
         track.features.append(feature)
-        track.confidencePairs = confidence_pairs
+        # Pairs may be written on only one row of a track; rows without
+        # pairs must not clobber those already seen.
+        if confidence_pairs:
+            track.confidencePairs = confidence_pairs
+        else:
+            fallbackConfidence[trackId] = _fallback_confidence(row)
 
         for key, val in track_attributes.items():
             track.attributes[key] = val
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
         for key, val in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
+
+    for track in tracks.values():
+        if not track.confidencePairs:
+            track.confidencePairs = [('unknown', fallbackConfidence.get(track.id, 1.0))]
 
     if imageMap and len(missingImages) and len(foundImages):
         minFrame = float('inf')
