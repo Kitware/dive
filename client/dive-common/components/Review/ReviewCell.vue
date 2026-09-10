@@ -5,6 +5,7 @@ import {
 import type { ChipTransform } from 'dive-common/review/chipRenderer';
 import type { ReviewFrameRef } from 'dive-common/review/types';
 import ReviewChip, { ChipView, ReviewChipGeometryEdit } from './ReviewChip.vue';
+import ReviewTypeField from './ReviewTypeField.vue';
 
 /** One chip of an entry: a track in one camera. */
 export interface ReviewCellView {
@@ -32,7 +33,7 @@ export type ReviewCellGeometryEdit = ReviewChipGeometryEdit;
  */
 export default defineComponent({
   name: 'ReviewCell',
-  components: { ReviewChip },
+  components: { ReviewChip, ReviewTypeField },
   props: {
     /** Chips of the entry, one per camera. Overrides the single-chip props. */
     views: {
@@ -92,10 +93,10 @@ export default defineComponent({
       type: Number as PropType<number | null>,
       default: null,
     },
-    /** Types offered by the datalist. */
-    typeListId: {
-      type: String,
-      default: 'reviewTypeOptions',
+    /** Types offered by the type field's dropdown. */
+    typeOptions: {
+      type: Array as PropType<string[]>,
+      default: () => [],
     },
     /** Accessible name for the entry (not shown as a tooltip). */
     title: {
@@ -142,7 +143,6 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const typeInput = ref(props.type);
     /** Chips currently in edit mode, to outline the whole entry. */
     const editingCount = ref(0);
 
@@ -157,8 +157,6 @@ export default defineComponent({
       frameCount: props.frameCount,
       label: '',
     }]);
-
-    watch(() => props.type, (next) => { typeInput.value = next; });
 
     // ---- shared cycling: every camera of an entry shows the same frame ----
 
@@ -224,32 +222,14 @@ export default defineComponent({
       sharedPaused.value = !sharedPaused.value;
     }
 
-    function commitType() {
-      const next = typeInput.value.trim();
-      if (!next) {
-        typeInput.value = props.type;
-        return;
-      }
+    function commitType(next: string) {
       if (next !== props.type) emit('assign', next);
-    }
-
-    function onTypeKeydown(event: KeyboardEvent) {
-      if (event.key === 'Enter') {
-        (event.target as HTMLInputElement).blur();
-      } else if (event.key === 'Escape') {
-        typeInput.value = props.type;
-        (event.target as HTMLInputElement).blur();
-      }
-      // Arrow keys page the grid; keep them inside the field while typing.
-      event.stopPropagation();
     }
 
     return {
       viewList,
-      typeInput,
       editingCount,
       commitType,
-      onTypeKeydown,
       shared,
       sharedSlot,
       sharedPaused,
@@ -314,17 +294,12 @@ export default defineComponent({
     </div>
     <div class="cell-footer">
       <slot name="footer">
-        <input
-          v-model="typeInput"
-          type="text"
-          class="cell-type-input"
-          :list="typeListId"
+        <ReviewTypeField
+          :value="type"
+          :options="typeOptions"
           :disabled="!editable"
-          :title="type"
-          spellcheck="false"
-          @blur="commitType"
-          @keydown="onTypeKeydown"
-        >
+          @commit="commitType"
+        />
         <div
           v-if="subtitle || attributeText"
           class="grey--text cell-caption-line"
@@ -371,28 +346,6 @@ export default defineComponent({
   flex: 0 0 auto;
   padding: calc(3px * var(--cell-scale)) calc(4px * var(--cell-scale));
   min-width: 0;
-}
-
-.cell-type-input {
-  width: 100%;
-  min-width: 0;
-  box-sizing: border-box;
-  padding: calc(2px * var(--cell-scale)) calc(5px * var(--cell-scale));
-  font-size: calc(13px * var(--cell-scale));
-  line-height: calc(19px * var(--cell-scale));
-  color: #eee;
-  background: #2a2a2a;
-  border: 1px solid #444;
-  border-radius: 3px;
-  outline: none;
-
-  &:focus {
-    border-color: #90caf9;
-  }
-
-  &:disabled {
-    color: #888;
-  }
 }
 
 .cell-caption-line {
