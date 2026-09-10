@@ -16,6 +16,13 @@ interface GeometryDraft {
 }
 
 /** What is emitted when an edit is applied. */
+/** Zoom about the chip's origin plus a pan, in chip pixels. */
+export interface ChipView {
+  scale: number;
+  x: number;
+  y: number;
+}
+
 export interface ReviewChipGeometryEdit {
   /** Sequence slot edited (0 is the primary frame). */
   slot: number;
@@ -48,7 +55,7 @@ const BOX_HANDLES: { handle: BoxHandle; cursor: string }[] = [
  * One cropped chip of a grid entry, cycling through a track's sampled
  * frames once they load. Polygons and head/tail points are drawn over it,
  * and a right click opens the frame's box, polygon vertices and points for
- * dragging in place, with wheel zoom and panning while editing. A cell
+ * dragging in place. The wheel zooms and dragging pans at any time. A cell
  * holds one chip per camera the track appears in.
  */
 export default defineComponent({
@@ -143,6 +150,14 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /**
+     * Zoom and pan chosen by the cell, so the cameras of an entry zoom
+     * together; null lets the chip keep its own.
+     */
+    controlledView: {
+      type: Object as PropType<ChipView | null>,
+      default: null,
+    },
     /** Draw polygons and head/tail points over the chip. */
     showGeometry: {
       type: Boolean,
@@ -163,10 +178,13 @@ export default defineComponent({
     const paused = ref(false);
     /** Handle being dragged, drawn highlighted like the annotator's selected handle. */
     const activeHandle = ref<string | null>(null);
-    /** Zoom into the chip while editing: scale about the wrap's origin plus a pan. */
-    const view = ref({ scale: 1, x: 0, y: 0 });
+    /** The chip's own zoom and pan, used unless the cell controls the view. */
+    const ownView = ref<ChipView>({ scale: 1, x: 0, y: 0 });
+    const view = computed<ChipView>(() => props.controlledView ?? ownView.value);
     const wrap = ref<HTMLElement | null>(null);
-    let pan: { startX: number; startY: number; originX: number; originY: number; pointerId: number } | null = null;
+    let pan: {
+      startX: number; startY: number; originX: number; originY: number; pointerId: number; capture: Element | null;
+    } | null = null;
     let timer: number | null = null;
     let drag: { target: DragTarget; startImage: [number, number]; startDraft: GeometryDraft } | null = null;
 
@@ -412,14 +430,19 @@ export default defineComponent({
       requestAnimationFrame(() => overlay.value?.focus());
     }
 
-    // ---- zoom and pan while editing --------------------------------------
+    // ---- zoom and pan ----------------------------------------------------
 
     const MIN_ZOOM = 1;
     const MAX_ZOOM = 16;
 
-    /** Wheel zooms about the cursor, like the annotator's map. */
+    function setView(next: ChipView) {
+      if (props.controlledView) emit('view-change', next);
+      else ownView.value = next;
+    }
+
+    /** Wheel zooms about the cursor, like the annotator's map, whether editing or not. */
     function onWheel(event: WheelEvent) {
-      if (!editing.value || !wrap.value) return;
+      if (!wrap.value || !displaySrc.value) return;
       event.preventDefault();
       event.stopPropagation();
       const rect = wrap.value.getBoundingClientRect();
@@ -429,47 +452,69 @@ export default defineComponent({
       const next = Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, current.scale * Math.exp(-event.deltaY * 0.0015)));
       if (next === current.scale) return;
       if (next <= MIN_ZOOM) {
-        view.value = { scale: 1, x: 0, y: 0 };
+        setView({ scale: 1, x: 0, y: 0 });
         return;
       }
       const ratio = next / current.scale;
-      view.value = {
+      setView({
         scale: next,
         x: px - (px - current.x) * ratio,
         y: py - (py - current.y) * ratio,
-      };
+      });
     }
 
-    /** Drag on empty overlay space pans the zoomed view. */
+    /** Drag on the zoomed image (empty overlay space while editing) pans the view. */
     function startPan(event: PointerEvent) {
-      if (!editing.value || event.button !== 0 || view.value.scale <= MIN_ZOOM) return;
+      if (event.button !== 0 || view.value.scale <= MIN_ZOOM) return;
+      const capture = event.currentTarget as Element | null;
       pan = {
         startX: event.clientX,
         startY: event.clientY,
         originX: view.value.x,
         originY: view.value.y,
         pointerId: event.pointerId,
+        capture,
       };
-      overlay.value?.setPointerCapture(event.pointerId);
+      capture?.setPointerCapture(event.pointerId);
     }
 
     function onPanMove(event: PointerEvent) {
       if (!pan) return;
-      view.value = {
+      setView({
         scale: view.value.scale,
         x: pan.originX + (event.clientX - pan.startX),
         y: pan.originY + (event.clientY - pan.startY),
-      };
+      });
     }
 
     function endPan(event: PointerEvent) {
       if (!pan) return;
+      const { capture } = pan;
       pan = null;
       try {
-        overlay.value?.releasePointerCapture(event.pointerId);
+        capture?.releasePointerCapture(event.pointerId);
       } catch {
         // Capture may already be gone.
       }
+    }
+
+    /**
+     * Outside editing there is no overlay, so the wrap pans the image itself.
+     * Only the image starts a pan, so the action buttons keep their clicks.
+     */
+    function onWrapPointerDown(event: PointerEvent) {
+      if (editing.value) return;
+      const target = event.target as Element | null;
+      if (!target?.classList.contains('cell-image')) return;
+      startPan(event);
+    }
+
+    function onWrapPointerMove(event: PointerEvent) {
+      if (!editing.value) onPanMove(event);
+    }
+
+    function onWrapPointerUp(event: PointerEvent) {
+      if (!editing.value) endPan(event);
     }
 
     function cancelEdit() {
@@ -649,6 +694,10 @@ export default defineComponent({
       viewStyle,
       onWheel,
       startPan,
+      zoomed: computed(() => view.value.scale > 1),
+      onWrapPointerDown,
+      onWrapPointerMove,
+      onWrapPointerUp,
       missing,
       addBox,
     };
@@ -665,11 +714,16 @@ export default defineComponent({
     @dblclick="onImageDoubleClick"
     @contextmenu="onContextMenu"
     @wheel="onWheel"
+    @pointerdown="onWrapPointerDown"
+    @pointermove="onWrapPointerMove"
+    @pointerup="onWrapPointerUp"
+    @pointercancel="onWrapPointerUp"
   >
     <img
       v-if="displaySrc"
       :src="displaySrc"
       class="cell-image"
+      :class="{ 'cell-image-zoomed': zoomed }"
       :style="viewStyle"
       draggable="false"
     >
@@ -1028,6 +1082,10 @@ export default defineComponent({
 
 .cell-image-wrap.chip-editing {
   cursor: default;
+}
+
+.cell-image-zoomed {
+  cursor: grab;
 }
 
 .cell-image {
