@@ -1,6 +1,8 @@
 export {
   associationCalibrationError,
   associationMulticamError,
+  associationStereoDisabledError,
+  associationUnavailableReason,
   validateAssociation,
   singleCameraContext,
   remapCsvIds,

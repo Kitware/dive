@@ -17,7 +17,7 @@ pair detections across a calibrated stereo pair.
 |-------|------|
 | `decisions.ts` | UI/preflight: resolve camera scope, validate association, shared errors/types, ID remapping |
 | `association.ts` | Shared VIAME `.pipe` text and CSV frame helper used when finishing a run |
-| `AssociationDialog.vue` | Prompt: associate across cameras, keep separate IDs, or cancel |
+| `AssociationDialog.vue` | Prompt: associate (when allowed; rewrites both cameras), keep separate IDs, or cancel |
 | `index.ts` | Public re-exports for `dive-common/singleCamera` |
 
 Platform execution (filesystem / Girder) stays outside this folder:

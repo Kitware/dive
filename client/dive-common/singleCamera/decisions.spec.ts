@@ -1,5 +1,7 @@
 import type { Api, DatasetConfig } from '../apispec';
-import { remapCsvIds, singleCameraContext, validateAssociation } from './decisions';
+import {
+  associationUnavailableReason, remapCsvIds, singleCameraContext, validateAssociation,
+} from './decisions';
 
 describe('single camera pipeline decisions', () => {
   const config = {
@@ -28,9 +30,11 @@ describe('single camera pipeline decisions', () => {
   });
 
   it('rejects unsupported multicam, missing calibration, and disabled stereo', () => {
+    expect(associationUnavailableReason(false, true, true)).toMatch(/not implemented/);
+    expect(associationUnavailableReason(true, false, true)).toMatch(/calibration file/);
+    expect(associationUnavailableReason(true, true, false)).toMatch(/Enable stereo/);
+    expect(associationUnavailableReason(true, true, true)).toBeNull();
     expect(() => validateAssociation(false, true, true)).toThrow('not implemented');
-    expect(() => validateAssociation(true, false, true)).toThrow('calibration file');
-    expect(() => validateAssociation(true, true, false)).toThrow('Enable stereo');
     expect(() => validateAssociation(true, true, true)).not.toThrow();
   });
 

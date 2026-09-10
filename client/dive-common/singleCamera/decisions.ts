@@ -3,11 +3,23 @@ import { parseCompositeDatasetId } from '../compositeDatasetId';
 
 export const associationCalibrationError = 'Stereo association requires a loaded calibration file.';
 export const associationMulticamError = 'Detection association in multi-camera mode is not implemented yet.';
+export const associationStereoDisabledError = 'Enable stereo features before associating detections.';
+
+/** Why association cannot run, or null when it is allowed. */
+export function associationUnavailableReason(
+  stereo: boolean,
+  calibration: boolean,
+  enabled: boolean,
+): string | null {
+  if (!stereo) return associationMulticamError;
+  if (!calibration) return associationCalibrationError;
+  if (!enabled) return associationStereoDisabledError;
+  return null;
+}
 
 export function validateAssociation(stereo: boolean, calibration: boolean, enabled: boolean) {
-  if (!stereo) throw new Error(associationMulticamError);
-  if (!calibration) throw new Error(associationCalibrationError);
-  if (!enabled) throw new Error('Enable stereo features before associating detections.');
+  const reason = associationUnavailableReason(stereo, calibration, enabled);
+  if (reason) throw new Error(reason);
 }
 
 /** Resolve the actual camera scope; library runs may use the parent id. */

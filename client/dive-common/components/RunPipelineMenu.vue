@@ -21,7 +21,7 @@ import {
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import SingleCameraAssociationDialog from 'dive-common/singleCamera/AssociationDialog.vue';
 import {
-  singleCameraContext, SingleCameraMode, validateAssociation,
+  associationUnavailableReason, singleCameraContext, SingleCameraMode,
 } from 'dive-common/singleCamera';
 import { isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import JobConfigFilterTranscodeDialog from 'dive-common/components/JobConfigFilterTranscodeDialog.vue';
@@ -144,14 +144,17 @@ export default defineComponent({
     const configuring = computed(() => menuState.value === 'configuring');
     const selectedPipeline: Ref<Pipe | null> = ref(null);
     const associationCamera = ref('');
+    const associationUnavailable = ref('');
     let resolveAssociation: (mode: SingleCameraMode | null) => void = () => {};
     function answerAssociation(mode: SingleCameraMode | null) {
       associationCamera.value = '';
+      associationUnavailable.value = '';
       resolveAssociation(mode);
     }
-    function askAssociation(camera: string) {
+    function askAssociation(camera: string, unavailableReason: string) {
       return new Promise<SingleCameraMode | null>((resolve) => {
         resolveAssociation = resolve;
+        associationUnavailable.value = unavailableReason;
         associationCamera.value = camera;
       });
     }
@@ -400,13 +403,15 @@ export default defineComponent({
               let mode: SingleCameraMode | null = 'separate';
               if (context.hasOtherTracks) {
                 // eslint-disable-next-line no-await-in-loop
-                mode = await askAssociation(context.datasetId);
-                if (!mode) return;
-              }
-              if (mode === 'associate') {
-                // eslint-disable-next-line no-await-in-loop
                 const calibration = context.stereo && !!await hasCalibrationFile?.(context.parentId);
-                validateAssociation(context.stereo, calibration, isStereoInteractiveModeEnabled());
+                const unavailable = associationUnavailableReason(
+                  context.stereo,
+                  calibration,
+                  isStereoInteractiveModeEnabled(),
+                ) || '';
+                // eslint-disable-next-line no-await-in-loop
+                mode = await askAssociation(context.datasetId, unavailable);
+                if (!mode) return;
               }
               singleCameraModes[context.datasetId] = mode;
             }
@@ -492,6 +497,7 @@ export default defineComponent({
 
     return {
       associationCamera,
+      associationUnavailable,
       answerAssociation,
       jobState,
       pipelines,
@@ -528,7 +534,11 @@ export default defineComponent({
 
 <template>
   <div>
-    <SingleCameraAssociationDialog :camera="associationCamera" @answer="answerAssociation" />
+    <SingleCameraAssociationDialog
+      :camera="associationCamera"
+      :unavailable-reason="associationUnavailable"
+      @answer="answerAssociation"
+    />
     <v-menu
       max-width="230"
       max-height="none"
