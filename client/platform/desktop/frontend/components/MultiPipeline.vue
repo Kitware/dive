@@ -11,7 +11,6 @@ import { useRoute, useRouter } from 'vue-router/composables';
 import { Pipe, Pipelines, useApi } from 'dive-common/apispec';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import {
-  itemsPerPageOptions,
   stereoPipelineMarker,
   multiCamPipelineMarkers,
   MultiType,
@@ -23,6 +22,7 @@ import {
   pipelineRequiresCalibration,
 } from 'dive-common/pipelineCalibration';
 import PipelineCalibrationWarningIcon from 'dive-common/components/PipelineCalibrationWarningIcon.vue';
+import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { datasets, JsonConfigCache } from '../store/dataset';
@@ -80,14 +80,6 @@ const headersTmpl: DataTableHeader[] = [
     width: 80,
   },
 ];
-const availableDatasetHeaders = headersTmpl.concat(
-  {
-    text: 'Include',
-    value: 'include',
-    sortable: false,
-    width: 80,
-  },
-);
 const stagedDatasetHeaders: DataTableHeader[] = headersTmpl.concat([
   {
     text: 'Remove',
@@ -113,10 +105,8 @@ function computeOutputDatasetName(item: JsonConfigCache) {
   const timeStamp = (new Date()).toISOString().replace(/[:.]/g, '-');
   return `${selectedPipeline.value?.name}_${item.name}_${timeStamp}`;
 }
+/** Every dataset, narrowed to stereo ones once a measurement pipeline type is chosen. */
 function getAvailableItems(): JsonConfigCache[] {
-  if (!selectedPipelineType.value || !selectedPipeline.value) {
-    return [];
-  }
   if (selectedPipelineType.value === stereoPipelineMarker) {
     // Only allow stereo datasets to be included for bulk pipeline
     // operations if the selected pipeline type is a measurement.
@@ -126,10 +116,12 @@ function getAvailableItems(): JsonConfigCache[] {
   }
   return Object.values(datasets.value);
 }
-const availableItems: Ref<JsonConfigCache[]> = ref([]);
-const availableDatasetSearch = ref('');
+const availableItems = computed(() => getAvailableItems());
 const stagedDatasetIds: Ref<string[]> = ref([]);
 const stagedDatasets = computed(() => availableItems.value.filter((item: JsonConfigCache) => stagedDatasetIds.value.includes(item.id)));
+const stagedParentIds = computed(() => [
+  ...new Set(stagedDatasetIds.value.map((id) => parentDatasetId(id))),
+]);
 const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
 
 async function refreshCalibrationForDatasets(datasetIds: string[]) {
@@ -146,8 +138,18 @@ async function refreshCalibrationForDatasets(datasetIds: string[]) {
   };
 }
 
+/** Drop staged ids that the current pipeline type no longer offers (e.g. non-stereo under measurement). */
 watch(availableItems, (items) => {
-  refreshCalibrationForDatasets(items.map((item) => item.id));
+  const available = new Set(items.map((item) => item.id));
+  const next = stagedDatasetIds.value.filter((id) => available.has(id));
+  if (next.length !== stagedDatasetIds.value.length) {
+    stagedDatasetIds.value = next;
+  }
+});
+
+/** Calibration status only for what is staged, not the whole library. */
+watch(stagedDatasetIds, (ids) => {
+  refreshCalibrationForDatasets(ids);
 }, { immediate: true });
 
 const runDisabled = computed(() => {
@@ -166,49 +168,30 @@ function isPipelineItemDisabledForCalibration(pipe: Pipe) {
   return pipelineDisabledForMissingCalibration(
     pipe,
     calibrationAvailableByDatasetId.value,
-    availableItems.value.map((dataset) => parentDatasetId(dataset.id)),
+    stagedParentIds.value,
   );
 }
 
-watch(selectedPipeline, () => {
-  availableItems.value = getAvailableItems();
-});
 function toggleStaged(item: JsonConfigCache) {
   if (stagedDatasetIds.value.includes(item.id)) {
     stagedDatasetIds.value = stagedDatasetIds.value.filter((id: string) => id !== item.id);
   } else {
-    stagedDatasetIds.value.push(item.id);
+    stagedDatasetIds.value = stagedDatasetIds.value.concat(item.id);
   }
 }
-function datasetMatchesSearch(item: JsonConfigCache, search: string) {
-  if (!search) {
-    return true;
-  }
-  const record = item as unknown as Record<string, unknown>;
-  return headersTmpl.some((header) => {
-    const value = String(record[header.value] ?? '').toLowerCase();
-    return value.includes(search);
-  });
+/** Stage the picked datasets that are not staged yet. */
+function stageIds(ids: string[]) {
+  const staged = new Set(stagedDatasetIds.value);
+  stagedDatasetIds.value = stagedDatasetIds.value.concat(ids.filter((id) => !staged.has(id)));
 }
-/* Mirrors the table's default search so "select all" only stages what is listed. */
-const unstagedSearchMatches = computed(() => {
-  const search = availableDatasetSearch.value.trim().toLowerCase();
-  return availableItems.value.filter((item) => (
-    !stagedDatasetIds.value.includes(item.id)
-    && datasetMatchesSearch(item, search)
-  ));
-});
-function stageAllAvailable() {
-  stagedDatasetIds.value = stagedDatasetIds.value.concat(
-    unstagedSearchMatches.value.map((item) => item.id),
-  );
+function unstageIds(ids: string[]) {
+  const dropped = new Set(ids);
+  stagedDatasetIds.value = stagedDatasetIds.value.filter((id) => !dropped.has(id));
 }
 
 async function runPipelineForDatasets() {
   const pipeline = selectedPipeline.value;
   if (pipeline !== null) {
-    // Only the staged datasets compatible with (and displayed for) the
-    // selected pipeline; staged ids can hold datasets other pipelines accept.
     const runIds = stagedDatasets.value.map((item: JsonConfigCache) => item.id);
     const results = await Promise.allSettled(
       runIds.map((datasetId: string) => {
@@ -243,7 +226,6 @@ async function runPipelineForDatasets() {
 onBeforeMount(async () => {
   stagedDatasetIds.value = preselectedDatasetIds();
   unsortedPipelines.value = await getPipelineList();
-  availableItems.value = getAvailableItems();
 });
 
 </script>
@@ -251,16 +233,18 @@ onBeforeMount(async () => {
 <template>
   <div>
     <div class="mb-4">
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Run a pipeline on multiple datasets
       </v-card-title>
-      <v-card-text>Choose a pipeline to run, then select datasets.</v-card-text>
+      <v-card-text class="px-0">
+        Choose a pipeline to run, then select datasets.
+      </v-card-text>
     </div>
     <div class="mb-4">
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Choose a VIAME pipeline
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         <v-row>
           <v-col cols="6">
             <v-select
@@ -321,103 +305,67 @@ onBeforeMount(async () => {
           </v-col>
         </v-row>
       </v-card-text>
-      <div v-if="selectedPipeline">
-        <v-card-title>Datasets staged for selected pipeline</v-card-title>
-        <v-data-table
-          dense
-          v-bind="{
-            headers: selectedPipeline && pipelineCreatesNewDataset(selectedPipeline)
-              ? createNewDatasetHeaders : stagedDatasetHeaders,
-            items: stagedDatasets,
-          }"
-          :items-per-page.sync="clientSettings.rowsPerPage"
-          hide-default-footer
-          :hide-default-header="stagedDatasets.length === 0"
-          no-data-text="Select datasets from the table below"
-        >
-          <template #[`item.remove`]="{ item }">
-            <v-btn
-              color="error"
-              x-small
-              @click="toggleStaged(item)"
-            >
-              <v-icon>mdi-minus</v-icon>
-            </v-btn>
-          </template>
-          <template #[`item.output`]="{ item }">
-            <b>{{ computeOutputDatasetName(item) }}</b>
-          </template>
-        </v-data-table>
-      </div>
-      <v-row class="mt-7">
+    </div>
+    <div class="mb-4">
+      <v-card-title class="text-h4 px-0">
+        Available datasets
+      </v-card-title>
+      <v-card-text class="px-0">
+        Add the datasets to run the pipeline on. Measurement pipelines list stereo datasets only.
+      </v-card-text>
+      <DatasetPicker
+        :items="availableItems"
+        :selected-ids="stagedDatasetIds"
+        :headers="headersTmpl"
+        no-data-text="No datasets in the library are compatible with this pipeline."
+        @add="stageIds([$event])"
+        @add-many="stageIds"
+        @remove="unstageIds([$event])"
+        @remove-many="unstageIds"
+      />
+    </div>
+    <div class="mb-4 selected-datasets">
+      <v-card-title class="text-h4 px-0">
+        Selected datasets
+      </v-card-title>
+      <v-data-table
+        dense
+        v-bind="{
+          headers: selectedPipeline && pipelineCreatesNewDataset(selectedPipeline)
+            ? createNewDatasetHeaders : stagedDatasetHeaders,
+          items: stagedDatasets,
+        }"
+        :items-per-page.sync="clientSettings.rowsPerPage"
+        hide-default-footer
+        :hide-default-header="stagedDatasets.length === 0"
+        no-data-text="Add datasets from the list above."
+      >
+        <template #[`item.remove`]="{ item }">
+          <v-btn
+            color="error"
+            x-small
+            @click="toggleStaged(item)"
+          >
+            <v-icon>mdi-minus</v-icon>
+          </v-btn>
+        </template>
+        <template #[`item.output`]="{ item }">
+          <b>{{ computeOutputDatasetName(item) }}</b>
+        </template>
+      </v-data-table>
+      <v-row class="mt-4">
         <v-spacer />
         <v-col cols="auto">
           <v-btn
             :disabled="runDisabled"
             color="primary"
+            :title="selectedPipeline ? '' : 'Choose a pipeline first'"
             @click="runPipelineForDatasets"
           >
             Run pipeline for ({{ stagedDatasets.length }}) Datasets
           </v-btn>
         </v-col>
       </v-row>
-    </div>
-    <div
-      v-if="selectedPipeline"
-      class="mb-4"
-    >
-      <v-card-title class="text-h4">
-        Available datasets
-      </v-card-title>
-      <v-card-text>These datasets are compatible with the chosen pipeline.</v-card-text>
-      <v-row class="mb-2">
-        <v-col cols="6">
-          <v-text-field
-            v-model="availableDatasetSearch"
-            append-icon="mdi-magnify"
-            label="Search"
-            single-line
-            hide-details
-          />
-        </v-col>
-        <v-spacer />
-        <v-col
-          cols="auto"
-          class="align-self-end"
-        >
-          <v-btn
-            :disabled="unstagedSearchMatches.length === 0"
-            color="success"
-            small
-            @click="stageAllAvailable"
-          >
-            <v-icon left>
-              mdi-check-all
-            </v-icon>
-            Select all
-          </v-btn>
-        </v-col>
-      </v-row>
-      <v-data-table
-        dense
-        v-bind="{ headers: availableDatasetHeaders, items: availableItems }"
-        :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
-        :search="availableDatasetSearch"
-        no-data-text="No compatible datasets found for the selected pipeline."
-      >
-        <template #[`item.include`]="{ item }">
-          <v-btn
-            :key="item.name"
-            :disabled="stagedDatasetIds.includes(item.id)"
-            color="success"
-            x-small
-            @click="toggleStaged(item)"
-          >
-            <v-icon>mdi-plus</v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
     </div>
   </div>
 </template>
