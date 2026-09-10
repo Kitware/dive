@@ -124,7 +124,12 @@ export function useMediaController() {
   const alignedCurrentFrame: Ref<number> = ref(0);
   // Per camera: frames its annotations lag its video by until a time offset is applied to them.
   const annotationFrameShifts: Ref<Record<string, number>> = ref({});
-  const externallyDriven = computed(() => alignedFrameResolver.value !== null);
+  // All-video rigs under an aligned timeline let the <video> elements free-run instead of ticking.
+  const alignedNativePlayback = ref(false);
+  let stopNativePlaybackWatch: (() => void) | null = null;
+  const externallyDriven = computed(
+    () => alignedFrameResolver.value !== null && !alignedNativePlayback.value,
+  );
   const alignedGapSlots = computed(() => alignedFrameResolver.value?.gapSlots.value ?? []);
   let alignedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
   const emptyControllerFrame = ref(0);
@@ -783,17 +788,52 @@ export function useMediaController() {
   }
 
   function aggregatePause() {
+    const wasNative = alignedNativePlayback.value;
+    if (stopNativePlaybackWatch) {
+      stopNativePlaybackWatch();
+      stopNativePlaybackWatch = null;
+    }
+    alignedNativePlayback.value = false;
     subControllers.forEach((mc) => mc.pause());
     stopAlignedPlaybackTimer();
+    const resolver = alignedFrameResolver.value;
+    if (wasNative && resolver) {
+      // Free-running videos drift by a frame or two; snap every pane back to the slot.
+      alignedSeek(resolver, alignedCurrentFrame.value);
+    }
   }
 
   function aggregatePlay() {
+    const resolver = alignedFrameResolver.value;
+    if (resolver && subControllers.length && subControllers.every((mc) => mc.mediaKind === 'video')) {
+      // Seeking two videos every tick cannot keep up; align them once and let them play.
+      stopAlignedPlaybackTimer();
+      alignedSeek(resolver, alignedCurrentFrame.value);
+      alignedNativePlayback.value = true;
+      const reference = subControllers[0];
+      const stopFrame = watch(reference.frame, (local) => {
+        const slot = resolver.resolveGlobalSlot(reference.cameraName.value, local);
+        if (slot !== undefined) {
+          alignedCurrentFrame.value = slot;
+        }
+      });
+      const stopPlaying = watch(reference.playing, (playing) => {
+        if (!playing) {
+          aggregatePause();
+        }
+      });
+      stopNativePlaybackWatch = () => {
+        stopFrame();
+        stopPlaying();
+      };
+      subControllers.forEach((mc) => mc.play());
+      return;
+    }
     // Each camera still flips its own `playing` UI state; when a resolver is
     // set, ImageAnnotator/VideoAnnotator skip starting their own internal
     // frame-advance loop (see externallyDriven) and this centralized tick
     // drives seeks instead.
     subControllers.forEach((mc) => mc.play());
-    const resolver = alignedFrameResolver.value;
     if (!resolver) {
       return;
     }
@@ -863,5 +903,6 @@ export function useMediaController() {
     setAlignedFrameResolver,
     setAnnotationFrameShifts,
     setResetZoomOverride,
+    externallyDriven,
   };
 }

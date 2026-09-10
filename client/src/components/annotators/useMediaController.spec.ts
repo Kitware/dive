@@ -1,4 +1,6 @@
-import { defineComponent, ref, type Ref } from 'vue';
+import {
+  defineComponent, nextTick, ref, type Ref,
+} from 'vue';
 import { mount } from '@vue/test-utils';
 import { useMediaController } from './useMediaController';
 import type { AlignedFrameResolver } from './mediaControllerType';
@@ -11,7 +13,7 @@ function noop() { /* unused setVolume/setSpeed stub */ }
  * GeoJS/DOM, so camera controllers can be registered directly here with
  * mocked seek/play/pause -- no need to mount real annotator components.
  */
-function mountMediaController() {
+function mountMediaController(kind: 'image-sequence' | 'video' = 'image-sequence') {
   const seekA = vi.fn();
   const playA = vi.fn();
   const pauseA = vi.fn();
@@ -24,10 +26,10 @@ function mountMediaController() {
   const Host = defineComponent({
     setup() {
       composable = useMediaController();
-      composable.initialize('A', 'image-sequence', {
+      composable.initialize('A', kind, {
         seek: seekA, play: playA, pause: pauseA, setVolume: noop, setSpeed: noop,
       });
-      composable.initialize('B', 'image-sequence', {
+      composable.initialize('B', kind, {
         seek: seekB, play: playB, pause: pauseB, setVolume: noop, setSpeed: noop,
       });
       return {};
@@ -188,6 +190,44 @@ describe('useMediaController', () => {
 
       vi.advanceTimersByTime(1000);
       expect(composable.aggregateController.value.frame.value).toBe(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('an all-video rig plays natively: no tick, the slot follows the reference camera', () => {
+    vi.useFakeTimers();
+    try {
+      const { composable, mocks } = mountMediaController('video');
+      const {
+        seekA, seekB, pauseA, pauseB,
+      } = mocks;
+      composable.setAlignedFrameResolver(makeShiftedResolver());
+      composable.aggregateController.value.seek(0);
+      seekA.mockClear();
+      seekB.mockClear();
+
+      composable.aggregateController.value.play();
+      expect(composable.externallyDriven.value).toBe(false);
+      // Aligned once at play, then left alone: no per-tick seeks.
+      expect(seekA).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(3000);
+      expect(seekA).toHaveBeenCalledTimes(1);
+      expect(seekB).toHaveBeenCalledTimes(1);
+
+      // The reference camera's own clock advances the global slot.
+      const a = composable.aggregateController.value.getController('A');
+      (a.frame as Ref<number>).value = 1;
+      return nextTick().then(() => {
+        expect(composable.aggregateController.value.frame.value).toBe(2);
+        composable.aggregateController.value.pause();
+        expect(composable.externallyDriven.value).toBe(true);
+        expect(pauseA).toHaveBeenCalled();
+        expect(pauseB).toHaveBeenCalled();
+        // Pause snaps every pane back onto the slot.
+        expect(seekA).toHaveBeenLastCalledWith(1);
+        expect(seekB).toHaveBeenLastCalledWith(2);
+      });
     } finally {
       vi.useRealTimers();
     }

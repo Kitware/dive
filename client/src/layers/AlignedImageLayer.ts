@@ -63,7 +63,9 @@ export default class AlignedImageLayer {
       autoshareRenderer: false,
       renderer: 'canvas',
     });
-    this.quadFeature = this.quadLayer.createFeature('quad');
+    this.quadFeature = this.quadLayer.createFeature('quad')
+      // Otherwise geojs skips rendering while a video seeks, freezing the warp under a scrub.
+      .style('delayRenderWhenSeeking', false);
     // Right-click recenter: center this pane on the clicked location, in any
     // view mode. While the aligned view is active, the aligned pan/zoom link
     // then recenters every other pane on the same reference-space point;
