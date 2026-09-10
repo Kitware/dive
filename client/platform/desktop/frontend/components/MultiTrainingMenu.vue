@@ -407,10 +407,10 @@ export default defineComponent({
   <div class="multitraining-menu">
     <div class="mb-4">
       <v-card-title class="text-h4 px-0">
-        Staged for training ({{ staged.items.value.length }})
+        Training configuration
       </v-card-title>
       <v-card-text class="px-0">
-        Add datasets to the staging area and choose a training configuration.
+        Name the model and choose a configuration, then add datasets below.
       </v-card-text>
       <v-row
         class="mt-4 pt-0"
@@ -485,25 +485,7 @@ export default defineComponent({
         </v-col>
         <v-spacer />
       </v-row>
-      <v-data-table
-        v-bind="{ headers: staged.headers, items: staged.items.value }"
-        hide-default-footer
-        dense
-        :hide-default-header="staged.items.value.length === 0"
-        no-data-text="No data chosen for training."
-      >
-        <template #[`item.action`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="error"
-            x-small
-            @click="toggleStaged(item)"
-          >
-            <v-icon>mdi-minus</v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
-      <div class="d-flex flex-row mt-7">
+      <div class="d-flex flex-row mt-4">
         <v-checkbox
           v-model="data.annotatedFramesOnly"
           label="Use annotated frames only"
@@ -512,16 +494,8 @@ export default defineComponent({
           persistent-hint
           class="py-0 my-0"
         />
-        <v-spacer />
-        <v-btn
-          :disabled="!isReadyToTrain"
-          color="primary"
-          @click="runTrainingOnFolder"
-        >
-          Train on ({{ staged.items.value.length }}) Datasets
-        </v-btn>
       </div>
-      <div class="d-flex flex-row mt-7">
+      <div class="d-flex flex-row mt-2">
         <v-checkbox
           v-model="data.fineTuneTraining"
           label="Fine Tuning"
@@ -536,6 +510,73 @@ export default defineComponent({
         />
       </div>
     </div>
+    <div>
+      <v-card-title class="text-h4 px-0">
+        Available for training
+      </v-card-title>
+      <v-card-text class="px-0">
+        These datasets meet the requirements for the chosen training configuration.
+      </v-card-text>
+      <DatasetPicker
+        :items="available.items.value"
+        :selected-ids="stagedIds"
+        :headers="available.headers"
+        no-data-text="No data meets criteria for chosen configuration"
+        @add="stageIds([$event])"
+        @add-many="stageIds"
+        @remove="unstageIds([$event])"
+        @remove-many="unstageIds"
+      >
+        <template #row-actions="{ item }">
+          <v-btn
+            icon
+            x-small
+            color="info"
+            title="Open in the viewer"
+            @click="$router.push({ name: 'viewer', params: { id: item.id } })"
+          >
+            <v-icon small>
+              mdi-eye
+            </v-icon>
+          </v-btn>
+        </template>
+      </DatasetPicker>
+    </div>
+
+    <div class="mb-4 selected-datasets">
+      <v-card-title class="text-h4 px-0">
+        Selected datasets ({{ staged.items.value.length }})
+      </v-card-title>
+      <v-data-table
+        v-bind="{ headers: staged.headers, items: staged.items.value }"
+        hide-default-footer
+        dense
+        :hide-default-header="staged.items.value.length === 0"
+        no-data-text="Add datasets from the list above."
+      >
+        <template #[`item.action`]="{ item }">
+          <v-btn
+            :key="item.name"
+            color="error"
+            x-small
+            @click="toggleStaged(item)"
+          >
+            <v-icon>mdi-minus</v-icon>
+          </v-btn>
+        </template>
+      </v-data-table>
+      <div class="d-flex flex-row mt-4">
+        <v-spacer />
+        <v-btn
+          :disabled="!isReadyToTrain"
+          color="primary"
+          @click="runTrainingOnFolder"
+        >
+          Train on ({{ staged.items.value.length }}) Datasets
+        </v-btn>
+      </div>
+    </div>
+
     <div v-if="resumable.items.value.length">
       <v-card-title class="text-h4 px-0">
         Interrupted training runs
@@ -575,39 +616,6 @@ export default defineComponent({
           </v-btn>
         </template>
       </v-data-table>
-    </div>
-
-    <div>
-      <v-card-title class="text-h4 px-0">
-        Available for training
-      </v-card-title>
-      <v-card-text class="px-0">
-        These datasets meet the requirements for the chosen training configuration.
-      </v-card-text>
-      <DatasetPicker
-        :items="available.items.value"
-        :selected-ids="stagedIds"
-        :headers="available.headers"
-        no-data-text="No data meets criteria for chosen configuration"
-        @add="stageIds([$event])"
-        @add-many="stageIds"
-        @remove="unstageIds([$event])"
-        @remove-many="unstageIds"
-      >
-        <template #row-actions="{ item }">
-          <v-btn
-            icon
-            x-small
-            color="info"
-            title="Open in the viewer"
-            @click="$router.push({ name: 'viewer', params: { id: item.id } })"
-          >
-            <v-icon small>
-              mdi-eye
-            </v-icon>
-          </v-btn>
-        </template>
-      </DatasetPicker>
     </div>
 
     <div>
