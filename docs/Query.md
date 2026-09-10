@@ -6,7 +6,7 @@ Open it from the **Query** tab, or select datasets in the **Library** and click 
 
 ## Datasets panel
 
-Add datasets with the picker. Each row shows whether the dataset is in the search index. Tick datasets and press **Build index** to index them, choosing how the index is made:
+Add datasets with the same picker as the Training and Pipelines pages: search the library, add rows one at a time or with **Select all**, and drop them with **Remove all**. Each selected dataset shows whether it is in the search index. Tick datasets and press **Build index** to index them, choosing how the index is made:
 
 * *Around generic detections*: run the generic object detector and describe its boxes.
 * *Detection and tracking*: detect and track, then describe the tracks.
