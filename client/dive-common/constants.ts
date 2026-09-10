@@ -237,6 +237,13 @@ const multiCamPipelineMarkers = ['2-cam', '3-cam'];
 const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
 const JsonConfigRegEx = /^.*\.?(meta|config)\.json$/;
+/**
+ * A KWCOCO species list: the classes a dataset may use, travelling beside the media as
+ * configuration rather than annotations. Deliberately not folded into JsonConfigRegEx,
+ * which also names the portable config.json that identifies an exported dataset
+ * directory and supplies a dataset's own metadata on import.
+ */
+const JsonSpeciesRegEx = /^.*\.?species\.json$/i;
 
 function simplifyTrainingName(item: string) {
   return item.replace('.conf', '');
@@ -283,5 +290,6 @@ export {
   multiCamPipelineMarkers,
   pipelineCreatesDatasetMarkers,
   JsonConfigRegEx,
+  JsonSpeciesRegEx,
   simplifyTrainingName,
 };

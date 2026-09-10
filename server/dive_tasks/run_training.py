@@ -59,8 +59,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
             f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-            "viame runner",
-            f"-p {shlex.quote(str(convert_to_onnx_pipeline_path))}",
+            f"viame run {shlex.quote(str(convert_to_onnx_pipeline_path))}",
             f"-s onnx_convert:model_path={shlex.quote(str(model_file))}",
             f"-s onnx_convert:onnx_model_prefix={shlex.quote(str(onnx_path))}",
         ]

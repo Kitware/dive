@@ -54,7 +54,7 @@ function makeMediaUrl(filepath: string): string {
 }
 
 /* LOAD dataset config */
-apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
+apirouter.get('/dataset/:id{/:camera}/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -69,7 +69,7 @@ apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
 });
 
 /* SAVE dataset config */
-apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -84,7 +84,7 @@ apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
 });
 
 /* SAVE attributes */
-apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/attributes', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -100,7 +100,7 @@ apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
   return null;
 });
 
-apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/attribute_track_filters', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -117,7 +117,7 @@ apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res,
 });
 
 /* SAVE detections */
-apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/detections', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -134,7 +134,7 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
 });
 
 /* Large image (GeoTIFF) tiles - compatible with LargeImageAnnotator getTiles/getTileURL */
-apirouter.get('/dataset/:id/:camera?/tiles/:level/:x/:y', async (req, res, next) => {
+apirouter.get('/dataset/:id{/:camera}/tiles/:level/:x/:y', async (req, res, next) => {
   try {
     const datasetId = req.params.camera
       ? `${req.params.id}/${req.params.camera}`
@@ -160,7 +160,7 @@ apirouter.get('/dataset/:id/:camera?/tiles/:level/:x/:y', async (req, res, next)
   return null;
 });
 
-apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
+apirouter.get('/dataset/:id{/:camera}/tiles', async (req, res, next) => {
   try {
     const datasetId = req.params.camera
       ? `${req.params.id}/${req.params.camera}`

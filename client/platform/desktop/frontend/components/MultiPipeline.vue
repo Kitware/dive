@@ -180,6 +180,29 @@ function toggleStaged(item: JsonConfigCache) {
     stagedDatasetIds.value.push(item.id);
   }
 }
+function datasetMatchesSearch(item: JsonConfigCache, search: string) {
+  if (!search) {
+    return true;
+  }
+  const record = item as unknown as Record<string, unknown>;
+  return headersTmpl.some((header) => {
+    const value = String(record[header.value] ?? '').toLowerCase();
+    return value.includes(search);
+  });
+}
+/* Mirrors the table's default search so "select all" only stages what is listed. */
+const unstagedSearchMatches = computed(() => {
+  const search = availableDatasetSearch.value.trim().toLowerCase();
+  return availableItems.value.filter((item) => (
+    !stagedDatasetIds.value.includes(item.id)
+    && datasetMatchesSearch(item, search)
+  ));
+});
+function stageAllAvailable() {
+  stagedDatasetIds.value = stagedDatasetIds.value.concat(
+    unstagedSearchMatches.value.map((item) => item.id),
+  );
+}
 
 async function runPipelineForDatasets() {
   const pipeline = selectedPipeline.value;
@@ -356,6 +379,23 @@ onBeforeMount(async () => {
             single-line
             hide-details
           />
+        </v-col>
+        <v-spacer />
+        <v-col
+          cols="auto"
+          class="align-self-end"
+        >
+          <v-btn
+            :disabled="unstagedSearchMatches.length === 0"
+            color="success"
+            small
+            @click="stageAllAvailable"
+          >
+            <v-icon left>
+              mdi-check-all
+            </v-icon>
+            Select all
+          </v-btn>
         </v-col>
       </v-row>
       <v-data-table

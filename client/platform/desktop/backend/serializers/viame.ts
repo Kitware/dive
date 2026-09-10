@@ -3,7 +3,7 @@
  * dive_utils.serializers.viame python module
  */
 
-import csvparser from 'csv-parse';
+import { parse as csvparser } from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
@@ -367,14 +367,6 @@ function _parseRow(row: string[]) {
     geoFeatureCollection.features.push(_createGeoJsonFeature('LineString', headTail, 'HeadTails'));
   }
 
-  // ensure confidence pairs list is not empty
-  if (confidencePairs.length === 0) {
-    // extract Detection or Length Confidence field
-    const confidence = parseFloat(row[7]) || 1.0;
-    // add a dummy pair with a default type
-    confidencePairs.push(['unknown', confidence] as ConfidencePair);
-  }
-
   return {
     attributes, trackAttributes, confidencePairs, geoFeatureCollection, notes,
   };
@@ -420,6 +412,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
+  const fallbackConfidence: Record<TrackData['id'], number> = {};
   let error: Error | undefined;
   let multiFrameTracks = false;
   const warnings: string[] = [];
@@ -526,6 +519,12 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           }
         }
       }
+      dataMap.forEach((track) => {
+        if (track.confidencePairs.length === 0) {
+          // eslint-disable-next-line no-param-reassign
+          track.confidencePairs = [['unknown', fallbackConfidence[track.id] ?? 1.0]];
+        }
+      });
       const tracks = Object.fromEntries(dataMap);
 
       if (error !== undefined) {
@@ -602,7 +601,13 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           track.begin = Math.min(rowInfo.frame, track.begin);
           track.end = Math.max(rowInfo.frame, track.end);
           track.features.push(feature);
-          track.confidencePairs = confidencePairs;
+          // Pairs may be written on only one row of a track; rows without
+          // pairs must not clobber those already seen.
+          if (confidencePairs.length) {
+            track.confidencePairs = confidencePairs;
+          } else {
+            fallbackConfidence[track.id] = parseFloat(record[7]) || 1.0;
+          }
           Object.entries(trackAttributes).forEach(([key, val]) => {
             // "track is possibly undefined" seems like a bug
             if (track && track.attributes) {

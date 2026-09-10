@@ -71,10 +71,11 @@ export default defineComponent({
     const { openFromDisk } = useApi();
     // 'config' is the DIVE JSON configuration file; 'metadata' is the optional
     // pipeline sidecar — keep these names distinct from each other.
-    const openUpload = async (type: 'annotation' | 'config' | 'metadata') => {
+    const openUpload = async (type: 'annotation' | 'config' | 'species' | 'metadata') => {
       const argMap = {
         annotation: 'trackFileAbsPath',
         config: 'configFileAbsPath',
+        species: 'speciesFileAbsPath',
         metadata: 'metadataFileAbsPath',
       } as const;
       const ret = await openFromDisk(type);
@@ -259,6 +260,21 @@ export default defineComponent({
           @click="openUpload('config')"
           @click:prepend-inner="openUpload('config')"
           @click:clear="argCopy.configFileAbsPath = ''"
+        />
+        <v-text-field
+          :value="argCopy.speciesFileAbsPath"
+          outlined
+          clearable
+          dense
+          class="mt-3"
+          prepend-inner-icon="mdi-format-list-bulleted-type"
+          label="Species List (Optional)"
+          hint="Optional. KWCOCO categories declaring the types you can choose from."
+          persistent-hint
+          @input="argCopy.speciesFileAbsPath = $event"
+          @click="openUpload('species')"
+          @click:prepend-inner="openUpload('species')"
+          @click:clear="argCopy.speciesFileAbsPath = ''"
         />
         <v-text-field
           :value="argCopy.metadataFileAbsPath"

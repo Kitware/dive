@@ -67,7 +67,7 @@ interface ServerInfo {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'transform' | 'metadata', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'species' | 'text' | 'transform' | 'metadata', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -96,6 +96,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'config') {
     filters = [
       { name: 'configuration', extensions: ['json'] },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'species') {
+    filters = [
+      { name: 'species list', extensions: ['json'] },
       allFiles,
     ];
   }
@@ -133,6 +139,11 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'config') {
     if (!results.filePaths.every((item) => getExtension(item) === 'json')) {
       throw Error('Configuration File must be JSON');
+    }
+  }
+  if (datasetType === 'species') {
+    if (!results.filePaths.every((item) => getExtension(item) === 'json')) {
+      throw Error('Species List must be KWCOCO JSON');
     }
   }
   if (datasetType === 'large-image') {
