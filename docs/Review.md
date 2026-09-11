@@ -83,3 +83,8 @@ Type into an entry's type field and press Enter (or click away), or open its dro
 **Page actions** applies to every entry on the current page: set them all to one type, or mark them all correct.
 
 Nothing is written until you press **Save**; the Save button stays disabled until there is something to write, and a badge on it shows how many annotations are queued. **Discard** reloads the affected datasets. Leaving the page (or opening the viewer) with unsaved changes asks whether to **Save and Leave**, **Discard and Leave**, or **Stay**. After a clean leave, coming back to Review resumes the same datasets and page, opening Results when any are loaded. Starting Review from the library with a different selection begins a fresh session. Closing the browser tab or the application with unsaved changes asks for confirmation.
+
+
+When you return from the viewer, Review reloads saved annotations before showing the chips, so a later type edit preserves geometry changed in the viewer. The query and page are retained. If a dataset cannot be refreshed, its stale annotations are not editable; retry loading it on the Datasets panel. If **Discard and Leave** cannot reload the original annotations, Review stays open with your changes pending and shows an error.
+
+For multicamera queries, a match in any camera selects the logical track. Type changes, acceptance and deletion apply to all its displayed camera tracks, including cameras whose confidence or attributes did not match the query.

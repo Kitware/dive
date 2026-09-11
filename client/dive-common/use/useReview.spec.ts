@@ -1,4 +1,4 @@
-import { nextTick } from 'vue';
+import { effectScope, nextTick } from 'vue';
 import type { TrackData } from 'vue-media-annotator/track';
 import type { DatasetConfig } from 'dive-common/apispec';
 import { createReviewService, ReviewApi } from './useReview';
@@ -318,4 +318,119 @@ describe('createReviewService', () => {
     expect(service.datasets.value).toHaveLength(0);
     expect(service.types.value).toEqual([]);
   });
+});
+describe('review session regressions', () => {
+  it('does not strand another dataset when one is removed during loading', async () => {
+    let finish!: (value: Awaited<ReturnType<ReviewApi['loadDetections']>>) => void;
+    const api = makeApi({}, {
+      loadDetections: vi.fn(() => new Promise<Awaited<ReturnType<ReviewApi['loadDetections']>>>((resolve) => { finish = resolve; })),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('a', undefined, { defer: true });
+    const loading = service.addDataset('b');
+    await Promise.resolve();
+    service.removeDataset('a');
+    finish({
+      tracks: [], groups: [], sets: [], version: 2,
+    });
+    await loading;
+    expect(service.datasets.value[0].status).toBe('ready');
+    service.dispose();
+  });
+
+  it('edits both cameras when only one meets the type threshold', async () => {
+    const api = makeApi({
+      'm/left': [track(1, [['fish', 0.9]], [0])],
+      'm/right': [track(1, [['fish', 0.2]], [0])],
+    }, {
+      loadConfig: vi.fn(async (id) => (id === 'm' ? config(id, {
+        type: 'multi',
+        multiCamMedia: {
+          defaultDisplay: 'left',
+          cameras: {
+            left: { type: 'image-sequence', imageData: [], videoUrl: '' },
+            right: { type: 'image-sequence', imageData: [], videoUrl: '' },
+          },
+        },
+      }) : config(id))),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('m');
+    service.query.type = 'fish';
+    service.query.threshold = 0.5;
+    service.runQuery();
+    expect(service.entries.value[0].items).toHaveLength(2);
+    service.entries.value[0].items.forEach((item) => service.assignType(item, 'shark'));
+    await service.save();
+    const { calls } = (api.saveDetections as ReturnType<typeof vi.fn>).mock;
+    expect(calls.map(([id, args]) => [id, args.tracks.upsert[0].confidencePairs])).toEqual([
+      ['m/left', [['shark', 1]]], ['m/right', [['shark', 1]]],
+    ]);
+    service.dispose();
+  });
+
+  it('keeps query watches and dirty counts active after the owner unmounts', async () => {
+    const scope = effectScope();
+    const service = scope.run(() => createReviewService({
+      api: makeApi({ a: [track(1, [['fish', 0.9]], [0]), track(2, [['shark', 0.8]], [0])] }),
+    }))!;
+    await service.addDataset('a');
+    expect(service.pendingCount.value).toBe(0);
+    scope.stop();
+    service.query.type = 'shark';
+    await nextTick();
+    await new Promise((resolve) => setTimeout(resolve, 250));
+    expect(service.items.value.map((item) => item.trackId)).toEqual([2]);
+    service.assignType(service.items.value[0], 'ray');
+    expect(service.pendingCount.value).toBe(1);
+    service.dispose();
+  });
+
+  it('reports failure and retains edits when discard cannot reload', async () => {
+    const api = makeApi({ a: [track(1, [['fish', 0.9]], [0])] });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    service.assignType(service.items.value[0], 'shark');
+    api.loadDetections = vi.fn(async () => { throw new Error('offline'); });
+    expect(await service.discardChanges()).toBe(false);
+    expect(service.pendingCount.value).toBe(1);
+    expect(service.datasets.value[0].status).toBe('error');
+    service.dispose();
+  });
+});
+
+it('refreshes viewer changes before another review edit is saved', async () => {
+  const stored = { a: [track(1, [['fish', 0.9]], [0])] };
+  const api = makeApi(stored);
+  const service = createReviewService({ api });
+  await service.addDataset('a');
+  stored.a[0].features[0].bounds = [20, 20, 40, 40];
+  expect(await service.refreshOnResume()).toBe(true);
+  service.assignType(service.items.value[0], 'shark');
+  await service.save();
+  const args = (api.saveDetections as ReturnType<typeof vi.fn>).mock.calls[0][1];
+  expect(args.tracks.upsert[0].features[0].bounds).toEqual([20, 20, 40, 40]);
+  service.dispose();
+});
+
+it('does not expose stale tracks if the resume refresh fails', async () => {
+  const api = makeApi({ a: [track(1, [['fish', 0.9]], [0])] });
+  const service = createReviewService({ api });
+  await service.addDataset('a');
+  (api.loadDetections as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('offline'));
+  expect(await service.refreshOnResume()).toBe(false);
+  expect(service.items.value).toEqual([]);
+  expect(service.trackOf('a', 1)).toBeUndefined();
+  expect(service.datasets.value[0].status).toBe('error');
+  service.dispose();
+});
+
+it('preserves dirty data instead of replacing it on resume', async () => {
+  const service = createReviewService({ api: makeApi({ a: [track(1, [['fish', 0.9]], [0])] }) });
+  await service.addDataset('a');
+  service.assignType(service.items.value[0], 'shark');
+  expect(await service.refreshOnResume()).toBe(false);
+  expect(service.pendingCount.value).toBe(1);
+  expect(service.trackOf('a', 1)?.confidencePairs).toEqual([['shark', 1]]);
+  service.dispose();
 });

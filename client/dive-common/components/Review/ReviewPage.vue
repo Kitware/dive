@@ -74,7 +74,7 @@ export default defineComponent({
     // Empty first visit opens Datasets; coming back with loaded data opens Results.
     const hasReady = review.datasets.value.some((d) => d.status === 'ready');
     const view = ref<ReviewView>(hasReady ? 'results' : 'datasets');
-    if (hasReady) review.loadQueued();
+    const resuming = ref(!!resumed);
     const pageTypeInput = ref('');
     const showSettings = ref(false);
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
@@ -90,7 +90,7 @@ export default defineComponent({
         field.activateMenu();
       }
     }
-    const gridActive = computed(() => view.value === 'results');
+    const gridActive = computed(() => view.value === 'results' && !resuming.value);
     const cellScale = computed(() => cellScaleFor(review.grid.columns, review.grid.rows));
     const footerPx = computed(() => Math.round(CELL_FOOTER_BASE_PX * cellScale.value));
     const grid = useReviewGrid<ReviewEntry>({
@@ -109,6 +109,7 @@ export default defineComponent({
 
     /** Per-cell display data; carries dataRevision so edits re-render. */
     const cells = computed(() => {
+      if (resuming.value) return [];
       const revision = review.dataRevision.value;
       const { chipStore } = review;
       return grid.pageItems.value.map((entry) => {
@@ -330,8 +331,9 @@ export default defineComponent({
           next(false);
           return;
         }
-      } else {
-        await review.discardChanges();
+      } else if (!await review.discardChanges()) {
+        next(false);
+        return;
       }
       holdSession();
       next();
@@ -349,6 +351,9 @@ export default defineComponent({
       window.addEventListener('keydown', onKeydown);
       window.addEventListener('beforeunload', onBeforeUnload);
       if (resumed) {
+        await review.refreshOnResume();
+        await review.loadQueued();
+        resuming.value = false;
         await nextTick();
         grid.goToPage(resumed.page);
       }

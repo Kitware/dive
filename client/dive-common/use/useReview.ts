@@ -4,7 +4,7 @@
  * chips, and the type edits waiting to be saved back.
  */
 import {
-  computed, inject, provide, reactive, ref, Ref, watch,
+  computed, effectScope, inject, provide, reactive, ref, Ref, watch,
 } from 'vue';
 import { debounce } from 'lodash';
 import type { Api, DatasetConfig } from 'dive-common/apispec';
@@ -113,7 +113,8 @@ export interface ReviewService {
   /** Change a keyframe's box, polygons or head/tail points; re-renders the item's chips. */
   updateGeometry(item: ReviewItem, frame: number, edit: ReviewGeometryEdit): void;
   save(): Promise<void>;
-  discardChanges(): Promise<void>;
+  discardChanges(): Promise<boolean>;
+  refreshOnResume(): Promise<boolean>;
   clearError(): void;
   dispose(): void;
 }
@@ -208,6 +209,17 @@ function topPair(pairs: readonly ConfidencePair[]): { type: string; confidence: 
 }
 
 export function createReviewService(deps: ReviewServiceDeps): ReviewService {
+  const scope = effectScope(true);
+  const service = scope.run(() => createScopedReviewService(deps))!;
+  const { dispose } = service;
+  service.dispose = () => {
+    dispose();
+    scope.stop();
+  };
+  return service;
+}
+
+function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   const { api } = deps;
   const datasets = ref<ReviewDataset[]>([]);
   const available = ref<ScoringDatasetSummary[]>([]);
@@ -223,7 +235,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   /** Tracks and media, deliberately outside Vue reactivity (they can be large). */
   const loaded = new Map<string, LoadedDataset>();
   /** Loads still in flight, so a removal during load is honoured. */
-  let loadGeneration = 0;
+  const loadTokens = new Map<string, symbol>();
   /** Type colours as the annotator assigns them, seeded from each dataset's custom styles. */
   const styles = new StyleManager({ markChangesPending: () => undefined });
   /** Camera datasets expanded from a multicamera parent. */
@@ -291,11 +303,14 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     }
   }
 
-  async function load(id: string, generation: number) {
+  async function load(id: string) {
+    const token = Symbol(id);
+    loadTokens.set(id, token);
+    const isCurrent = () => loadTokens.get(id) === token && !!entry(id);
     loading.value = true;
     try {
       const config = await loadConfig(id);
-      if (generation !== loadGeneration || !entry(id)) return;
+      if (!isCurrent()) return;
       if (config.type === 'multi') {
         // Review the cameras of a multicamera dataset as separate sequences.
         const cameras = Object.keys(config.multiCamMedia?.cameras || {});
@@ -308,7 +323,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         return;
       }
       const detections = await api.loadDetections(id);
-      if (generation !== loadGeneration || !entry(id)) return;
+      if (!isCurrent()) return;
       dropLoaded(id);
       const tracks = new Map<AnnotationId, TrackData>();
       detections.tracks.forEach((track) => tracks.set(track.id, track));
@@ -337,7 +352,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       // Newly loaded tracks join the grid without any further action.
       runQuery();
     } catch (err) {
-      if (generation !== loadGeneration || !entry(id)) return;
+      if (!isCurrent()) return;
       patch(id, {
         status: 'error',
         error: err instanceof Error ? err.message : String(err),
@@ -363,14 +378,14 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       croppable: false,
     }];
     if (options.defer) return;
-    await load(id, loadGeneration);
+    await load(id);
   }
 
   /** Load every queued dataset; annotations are read and the query rerun as each arrives. */
   async function loadQueued() {
     const queued = datasets.value.filter((d) => d.status === 'queued').map((d) => d.id);
     queued.forEach((id) => patch(id, { status: 'loading' }));
-    await Promise.all(queued.map((id) => load(id, loadGeneration)));
+    await Promise.all(queued.map((id) => load(id)));
   }
 
   async function addDatasets(ids: string[]) {
@@ -381,7 +396,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   function removeDataset(id: string) {
     datasets.value = datasets.value.filter((d) => d.id !== id);
     dropLoaded(id);
-    loadGeneration += 1;
+    loadTokens.delete(id);
     dataRevision.value += 1;
     runQuery();
   }
@@ -389,7 +404,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
   async function reloadDataset(id: string) {
     if (!entry(id)) return;
     patch(id, { status: 'loading', error: undefined });
-    await load(id, loadGeneration);
+    await load(id);
   }
 
   function allTracks(): TrackData[] {
@@ -432,6 +447,27 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       if (dataset) {
         built.push(...buildReviewItems(id, dataset.tracks.values(), { ...query }, grid.maxSequenceFrames));
       }
+    });
+    // A matching camera selects the logical track. Include every other camera
+    // of that track, even when its label/confidence/attributes do not match.
+    const matched = new Map<string, Set<AnnotationId>>();
+    built.forEach((item) => {
+      const parent = memberships.get(item.datasetId)?.parent;
+      if (!parent) return;
+      if (!matched.has(parent)) matched.set(parent, new Set());
+      matched.get(parent)!.add(item.trackId);
+    });
+    const included = new Set(built.map((item) => `${item.datasetId}#${item.trackId}`));
+    loaded.forEach((dataset, id) => {
+      const parent = memberships.get(id)?.parent;
+      const trackIds = parent ? matched.get(parent) : undefined;
+      if (!trackIds) return;
+      const cameras = buildReviewItems(id, dataset.tracks.values(), {
+        ...DEFAULT_REVIEW_QUERY, mode: 'type', type: '', threshold: 0,
+      }, grid.maxSequenceFrames);
+      cameras.forEach((item) => {
+        if (trackIds.has(item.trackId) && !included.has(`${id}#${item.trackId}`)) built.push(item);
+      });
     });
     items.value = sortReviewItems(built, sort.value, order);
     stale.value = false;
@@ -646,6 +682,24 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     const dirty = Array.from(loaded.entries())
       .filter(([, d]) => d.pending.size > 0 || d.deleted.size > 0).map(([id]) => id);
     await Promise.all(dirty.map((id) => reloadDataset(id)));
+    const discarded = dirty.every((id) => !loaded.get(id)?.pending.size && !loaded.get(id)?.deleted.size);
+    if (!discarded) error.value = 'Could not discard all changes. Retry when the datasets are available.';
+    return discarded;
+  }
+
+  /** Reload clean snapshots before the resumed page can edit them. */
+  async function refreshOnResume() {
+    if (pendingCount.value > 0 || saving.value) {
+      error.value = 'Save or discard pending changes before refreshing the review session.';
+      return false;
+    }
+    const ids = datasets.value.filter((dataset) => dataset.status !== 'queued').map((dataset) => dataset.id);
+    ids.forEach((id) => dropLoaded(id));
+    chipStore.reset();
+    dataRevision.value += 1;
+    runQuery();
+    await Promise.all(ids.map((id) => reloadDataset(id)));
+    return ids.every((id) => entry(id)?.status === 'ready');
   }
 
   function clearError() {
@@ -654,7 +708,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
   function dispose() {
     runQuerySettled.cancel();
-    loadGeneration += 1;
+    loadTokens.clear();
     loaded.forEach((dataset) => dataset.frameSource?.dispose());
     loaded.clear();
     chipStore.reset();
@@ -699,6 +753,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     updateGeometry,
     save,
     discardChanges,
+    refreshOnResume,
     clearError,
     dispose,
   };
