@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
         :search="search"
         :loading="loading"
         item-key="name"
-        :items-per-page="25"
+        :items-per-page="-1"
         no-data-text="No add-ons available in this VIAME installation's catalog."
       >
         <template #[`item.status`]="{ item }">
