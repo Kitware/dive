@@ -41,7 +41,7 @@ import {
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
-import { datasets } from '../store/dataset';
+import { datasets, rememberAnnotation } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
 import { setCloseGuard } from '../store/closeGuard';
@@ -934,6 +934,17 @@ export default defineComponent({
     // until the toggle was flipped off and on again. The load-time auto-enable
     // is deferred to the viewer-ready watcher below instead.
     watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true));
+
+    watch(
+      () => viewerRef.value?.progress?.loaded === true,
+      (loaded) => {
+        // Read-only scoring previews should not replace the last editing sequence.
+        if (loaded && !scoringPreviewFile.value) {
+          rememberAnnotation(props.id);
+        }
+      },
+      { immediate: true },
+    );
 
     // Load-time auto-enable of a remembered setting: run once the viewer has
     // actually finished loading the dataset (progress.loaded), so the metadata
