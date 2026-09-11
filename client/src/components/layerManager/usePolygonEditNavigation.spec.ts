@@ -39,6 +39,7 @@ function harness() {
     registerFinalizeCreation: vi.fn(),
     cancelCreation: vi.fn(),
   };
+  const rectangle = layer();
   const refresh = vi.fn();
   useAnnotationClickHandling({
     camera: 'left',
@@ -50,7 +51,7 @@ function harness() {
     flickNumberRef: ref(0),
     editAnnotationLayer: edit,
     polyAnnotationLayer: polygons,
-    rectAnnotationLayer: layer(),
+    rectAnnotationLayer: rectangle,
     lineLayer: layer(),
     handler,
     alignedView: { mapNativePoint: (x: number, y: number) => [x, y] },
@@ -58,7 +59,7 @@ function harness() {
   } as never).wireHandlers();
   const click = (x: number, y: number) => edit.bus.$emit('polygon-edit-right-click', { x, y });
   return {
-    selected, key, mode, frame, camera, edit, polygons, handler, refresh, click,
+    selected, key, mode, frame, camera, edit, polygons, handler, refresh, click, rectangle,
   };
 }
 
@@ -126,4 +127,31 @@ it('ignores another camera and non-polygon editing modes', () => {
   h.camera.value = 'left'; h.mode.value = 'LineString'; h.click(21, 5);
   vi.runAllTimers();
   expect(h.handler.trackSelect).not.toHaveBeenCalled();
+});
+
+it.each(['before', 'after'])('enters the clicked polygon instead of the old key (polygon event %s rectangle)', (order) => {
+  const h = harness(); h.mode.value = false; h.selected.value = null; h.key.value = 'second';
+  if (order === 'before') h.polygons.bus.$emit('polygon-right-clicked', 1, 'first');
+  h.rectangle.bus.$emit('annotation-right-clicked', 1, true, undefined, { x: 5, y: 5 });
+  if (order === 'after') h.polygons.bus.$emit('polygon-right-clicked', 1, 'second');
+  vi.runAllTimers();
+  expect(h.selected.value).toBe(1);
+  expect(h.key.value).toBe('first');
+  expect(h.mode.value).toBe('Polygon');
+});
+
+it('enters the nearest polygon when right-clicking the detection between polygons', () => {
+  const h = harness(); h.mode.value = false; h.key.value = 'first';
+  h.rectangle.bus.$emit('annotation-right-clicked', 1, true, undefined, { x: 18, y: 5 });
+  vi.runAllTimers();
+  expect(h.key.value).toBe('second');
+  expect(h.mode.value).toBe('Polygon');
+});
+
+it('chooses the closest boundary when polygons overlap, including while switching edits', () => {
+  const h = harness();
+  h.polygons.formattedData[0].polygon.coordinates = [ring(0, 0, 40, 20)];
+  h.click(21, 5); vi.runAllTimers();
+  expect(h.key.value).toBe('second');
+  expect(h.mode.value).toBe('Polygon');
 });

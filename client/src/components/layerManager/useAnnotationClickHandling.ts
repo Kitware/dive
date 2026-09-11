@@ -11,6 +11,7 @@ import routeMulticamEditToCamera from './useMulticamEditRouting';
 import type CameraStore from '../../CameraStore';
 import type TrackStore from '../../TrackStore';
 import { pointInPolygon } from '../../utils';
+import pickPolygon from './polygonSelection';
 
 export default function useAnnotationClickHandling(options: {
   camera: string;
@@ -60,7 +61,7 @@ export default function useAnnotationClickHandling(options: {
   // it lands on overlapping features on different layers.
   let clickHandledThisTick = false;
 
-  const clicked = (trackId: number, editing: boolean, modifiers?: { ctrl: boolean }) => {
+  const clicked = (trackId: number, editing: boolean, modifiers?: { ctrl: boolean }, geo?: { x: number; y: number }) => {
     if (justFinalizedCreation) {
       return;
     }
@@ -69,6 +70,19 @@ export default function useAnnotationClickHandling(options: {
     }
     clickHandledThisTick = true;
     window.setTimeout(() => { clickHandledThisTick = false; }, 0);
+
+    if (editing && trackId !== null && geo && editAnnotationLayer.type === 'Polygon') {
+      if (selectedCamera.value !== camera) handler.selectCamera(camera, false);
+      if (selectedCamera.value !== camera) return;
+      const point = alignedView.mapNativePoint(geo.x, geo.y);
+      const polygon = pickPolygon(polyAnnotationLayer.formattedData, trackId, point, true);
+      if (polygon) {
+        editAnnotationLayer.disable();
+        handler.trackSelect(trackId, true);
+        finishPolygonClick(trackId, polygon.polygonKey, true);
+        return;
+      }
+    }
 
     if (selectedCamera.value !== camera) {
       if (editAnnotationLayer.getMode() === 'creation' && !editing) {
@@ -101,11 +115,11 @@ export default function useAnnotationClickHandling(options: {
   // GeoJS may finish the current edit later in the same mouse event. Apply
   // polygon navigation after all layers have processed that click.
   let polygonNavigationPending = false;
-  function finishPolygonClick(trackId: AnnotationId, polygonKey?: string) {
+  function finishPolygonClick(trackId: AnnotationId, polygonKey?: string, enterEditing = false) {
     if (polygonNavigationPending) return;
     polygonNavigationPending = true;
     const frame = frameNumberRef.value;
-    const switchPolygon = polygonKey !== undefined && polygonKey !== selectedKeyRef.value;
+    const switchPolygon = enterEditing || (polygonKey !== undefined && polygonKey !== selectedKeyRef.value);
     window.setTimeout(() => {
       polygonNavigationPending = false;
       if (selectedCamera.value !== camera || frameNumberRef.value !== frame
@@ -131,12 +145,7 @@ export default function useAnnotationClickHandling(options: {
       const trackId = selectedTrackIdRef.value;
       if (selectedCamera.value !== camera || trackId === null || editingModeRef.value !== 'Polygon') return;
       const point = alignedView.mapNativePoint(geo.x, geo.y);
-      const hit = polyAnnotationLayer.formattedData.find((item) => {
-        if (item.trackId !== trackId || item.isHole) return false;
-        const [outer, ...holes] = item.polygon.coordinates;
-        const positions = (ring: GeoJSON.Position[]) => ring.map(([x, y]) => ({ x, y }));
-        return pointInPolygon({ x: point[0], y: point[1] }, positions(outer), holes.map(positions));
-      });
+      const hit = pickPolygon(polyAnnotationLayer.formattedData, trackId as number, point);
       finishPolygonClick(trackId, hit?.polygonKey);
     });
 
@@ -160,6 +169,7 @@ export default function useAnnotationClickHandling(options: {
       // Visible masks must not replace the centerline's key when editing a line.
       if (editingModeRef.value === 'LineString'
           || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
+      if (polygonNavigationPending) return;
       if (selectedCamera.value === camera && trackId === selectedTrackIdRef.value
           && editingModeRef.value === 'Polygon' && editAnnotationLayer.getMode() !== 'creation') {
         // The edit-layer click resolves the actual polygon hit (including
