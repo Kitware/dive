@@ -1,17 +1,17 @@
 // @vitest-environment jsdom
 /* eslint-disable vue/one-component-per-file -- lightweight Vuetify test doubles */
-import { defineComponent, h } from 'vue';
+import Vue, { h } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import Addons from './Addons.vue';
 import type { AddonCatalog } from '../../addons';
 
 vi.mock('./NavigationBar.vue', () => ({ default: { render: () => null } }));
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
-const button = defineComponent({
+const button = Vue.extend({
   props: { disabled: Boolean },
   render() { return h('button', { attrs: { disabled: this.disabled }, on: this.$listeners }, this.$slots.default); },
 });
-const table = defineComponent({
+const table = Vue.extend({
   props: { items: { type: Array, default: () => [] } },
   render() {
     return h('div', this.items.map((item: { name: string }) => h('section', { attrs: { 'data-addon': item.name } }, [
