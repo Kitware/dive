@@ -49,6 +49,8 @@ def test_import_detection_length(column_length, attribute_length):
 def test_centerline_order_and_subpixel_coordinates():
     row = '1,img.png,0,0,0,100,100,1,-1,fish,1,(kp) tail 90 10,(kp) spine_010 60.123456789 40,(kp) head 10 10,(kp) spine_002 40 30,(kp) eye 12 11'
     features, *_ = viame._parse_row(row.split(','))
-    line = next(f for f in features['geometry']['features'] if f['geometry']['type'] == 'LineString')
+    line = next(
+        f for f in features['geometry']['features'] if f['geometry']['type'] == 'LineString'
+    )
     assert line['geometry']['coordinates'] == [[10, 10], [40, 30], [60.123456789, 40], [90, 10]]
     assert any(f['properties']['key'] == 'eye' for f in features['geometry']['features'])
