@@ -3,6 +3,8 @@ import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
+import { useReviewSessionHeld } from 'dive-common/review/reviewSession';
 import { useRoute, useRouter } from 'vue-router/composables';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -131,6 +133,10 @@ export default defineComponent({
       return typeof value === 'string' ? value : '';
     });
     const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+    /** Frame / track deep link from the review grid. */
+    const viewerFocus = computed(() => parseViewerFocus(route.query));
+    /** Jump back to Review when a session was parked by opening the viewer. */
+    const reviewSessionHeld = useReviewSessionHeld();
 
     function returnToCurrentAnnotations() {
       router.replace({ name: 'viewer', params: { id: props.id } });
@@ -2043,6 +2049,8 @@ export default defineComponent({
       onCalibrationDeleted,
       annotationSourceLabel,
       annotationSourceReturnable,
+      viewerFocus,
+      reviewSessionHeld,
       returnToCurrentAnnotations,
     };
   },
@@ -2057,6 +2065,8 @@ export default defineComponent({
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
       :annotation-source-label="annotationSourceLabel"
       :annotation-source-returnable="annotationSourceReturnable"
+      :initial-frame="viewerFocus.frame"
+      :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
       @return-to-current-annotations="returnToCurrentAnnotations"
@@ -2085,6 +2095,12 @@ export default defineComponent({
             Library<v-icon>mdi-folder-open</v-icon>
           </v-tab>
           <job-tab />
+          <v-tab
+            v-if="reviewSessionHeld"
+            :to="{ name: 'review' }"
+          >
+            Review<v-icon>mdi-view-grid-outline</v-icon>
+          </v-tab>
           <v-tab :to="{ name: 'training' }">
             Training<v-icon>mdi-brain</v-icon>
           </v-tab>

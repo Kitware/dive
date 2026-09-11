@@ -82,6 +82,9 @@ export default defineComponent({
         >
           Models <v-icon>mdi-brain</v-icon>
         </v-tab>
+        <v-tab to="/review">
+          Review <v-icon>mdi-view-grid-outline</v-icon>
+        </v-tab>
         <v-tab
           v-if="pipelinesEnabled"
           to="/scoring"

@@ -42,6 +42,9 @@ export default defineComponent({
       <v-tab :to="{ name: 'training' }">
         Training<v-icon>mdi-brain</v-icon>
       </v-tab>
+      <v-tab :to="{ name: 'review' }">
+        Review<v-icon>mdi-view-grid-outline</v-icon>
+      </v-tab>
       <v-tab :to="{ name: 'scoring' }">
         Scoring<v-icon>mdi-chart-box-outline</v-icon>
       </v-tab>
