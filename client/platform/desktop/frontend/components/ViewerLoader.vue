@@ -1,5 +1,9 @@
 <script lang="ts">
 import {
+  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState,
+} from 'dive-common/use/stereo/keypointTransfer';
+import { headTailFeatures, isHeadTailPoint } from 'vue-media-annotator/headTail';
+import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
@@ -1018,17 +1022,17 @@ export default defineComponent({
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function getStereoLineEndpoints(track: any, frameNum: number)
-      : [[number, number], [number, number]] | null {
+      : [number, number][] | null {
       if (!track) return null;
       const [feature] = track.getFeature(frameNum);
       if (!feature || !feature.geometry) return null;
       const lineFeat = feature.geometry.features.find(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (f: any) => f.geometry.type === 'LineString' && f.geometry.coordinates.length === 2,
+        (f: any) => f.geometry.type === 'LineString' && f.geometry.coordinates.length >= 2,
       );
       if (!lineFeat) return null;
       const c = lineFeat.geometry.coordinates as [number, number][];
-      return [c[0], c[1]];
+      return c;
     }
 
     /**
@@ -1073,7 +1077,7 @@ export default defineComponent({
     }
 
     const STEREO_MEASUREMENT_ATTRS = [
-      'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+      'length', 'curved_length', 'straight_length', 'curvature_ratio', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
     ];
 
     // Per-feature marker: a human (not the stereo warp) authored this camera's
@@ -1298,6 +1302,7 @@ export default defineComponent({
       // A length the user locked (length_method === 'user_set') is never
       // overwritten; the other measurements still track the shifting geometry.
       const lengthLocked = feature?.attributes?.[STEREO_LENGTH_METHOD_ATTR] === 'user_set';
+      track.setFeatureAttribute(frameNum, 'measurement_stale', false);
       const { length } = measurement;
       if (!lengthLocked && length !== undefined && Number.isFinite(length)) {
         if (feature && feature.keyframe) {
@@ -1343,7 +1348,10 @@ export default defineComponent({
       const rightLine = getStereoLineEndpoints(rightTrack, frameNum);
       if (!leftLine || !rightLine) return null;
 
+      if (leftLine.length > 2 || rightLine.length > 2) await ensureStereoFrame(frameNum);
       const response = await stereoMeasureLine({ leftLine, rightLine });
+      if (JSON.stringify(getStereoLineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
+          || JSON.stringify(getStereoLineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
       if (response.success && response.measurement) {
         ensureMeasurementAttributes();
         applyStereoMeasurement(leftTrack, frameNum, response.measurement);
@@ -1425,6 +1433,10 @@ export default defineComponent({
       forceAutoCompute = false,
       quiet = false,
     ): Promise<'transferred' | 'skipped' | 'failed'> {
+      if (params.type === 'point' && isHeadTailPoint(params.key)) {
+        viewerRef.value?.multiCamList.forEach((camera: string) => viewerRef.value?.cameraStore
+          ?.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
+      }
       // This handler only fires on human edits — the stereo warp writes
       // geometry directly, bypassing the annotation-complete event — so the
       // camera the user just drew/edited is now human-authored. Mark it
@@ -1432,7 +1444,9 @@ export default defineComponent({
       // can be long on a fresh launch, and a line drawn on the other camera
       // in the meantime must see this one as human-authored, not
       // machine-generated, so the warp can never overwrite it.
-      if (params.type === 'line') {
+      if (params.type === 'line' || (params.type === 'point' && isHeadTailPoint(params.key))) {
+        viewerRef.value?.multiCamList.forEach((camera: string) => viewerRef.value?.cameraStore
+          ?.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
         const sourceTrack = viewerRef.value?.cameraStore
           ?.getPossibleTrack(params.trackId, params.camera);
         sourceTrack?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
@@ -1491,6 +1505,13 @@ export default defineComponent({
         // Otherwise (auto-compute on, other side absent or still machine-generated)
         // fall through and (re)warp source -> other so the auto-generated line
         // keeps tracking edits.
+      } else if (params.type === 'point') {
+        if (!autoCompute || (!params.insert && !canMapPoint(otherTrack, params.frameNum, params.key, params.camera))) {
+          if (isHeadTailPoint(params.key) && updateLengths && otherHasFeature) {
+            await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+          }
+          return 'skipped';
+        }
       } else if (otherHasFeature) {
         // Box / polygon / segmentation: warp only once; leave existing untouched.
         return 'skipped';
@@ -1507,6 +1528,8 @@ export default defineComponent({
         stereoLoadingDialog.value = true;
       }
 
+      const pointTargetBefore = params.type === 'point'
+        ? pointTargetState(otherTrack, params.frameNum, params.key, params.insert, params.camera) : undefined;
       try {
         // Guarantee the backend has this frame's images before transferring. The
         // proactive watcher only fires on frame-number changes, so a draw on the
@@ -1514,42 +1537,69 @@ export default defineComponent({
         // deferred disparity wait.
         await ensureStereoFrame(params.frameNum);
 
-        if (params.type === 'line') {
-          const response = await stereoTransferLine({ line: params.line });
+        if (params.type === 'point') {
+          const cameras = Object.keys(stereoImagePathGetters.value);
+          if (cameras.length !== 2 || !cameras.includes(params.camera)) throw new Error('Stereo camera mapping is unavailable');
+          const source = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+          const response = await stereoTransferPoints({
+            points: [params.point],
+            strict: true,
+            sourceCamera: params.camera === cameras[0] ? 'left' : 'right',
+            leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+            rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+            frameTime: fps ? params.frameNum / fps : undefined,
+          });
+          const point = response.transferredPoints?.[0];
+          if (!response.success || response.validMatches?.[0] !== true || !point?.every(Number.isFinite)) {
+            throw new Error(response.error || 'No valid stereo match for this keypoint');
+          }
+          const currentTarget = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          if (!pointUnchanged(source, params.frameNum, params.key, params.point)
+              || pointTargetState(currentTarget, params.frameNum, params.key, params.insert, params.camera) !== pointTargetBefore) return 'skipped';
+          const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
+          if (track) {
+            applyMappedPoint(track, params.frameNum, params.key, point, params.camera, params.insert);
+            if (isHeadTailPoint(params.key) && updateLengths) await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+          }
+        } else if (params.type === 'line') {
+          const cameras = Object.keys(stereoImagePathGetters.value);
+          const fromRight = params.camera === cameras[1];
+          const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+          const response = params.line.length === 2 && !fromRight
+            ? await stereoTransferLine({ line: [params.line[0], params.line[1]] })
+            : await stereoTransferPoints({
+              points: params.line,
+              strict: true,
+              sourceCamera: fromRight ? 'right' : 'left',
+              leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+              rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+              frameTime: fps ? params.frameNum / fps : undefined,
+            }).then((r) => ({
+              ...r,
+              transferredLine: r.transferredPoints,
+              measurement: undefined,
+              success: r.success && r.validMatches?.length === params.line.length && r.validMatches.every(Boolean),
+            }));
           if (!response.success || !response.transferredLine) {
             throw new Error(response.error || 'Line transfer returned no result');
           }
 
+          const currentSource = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          if (JSON.stringify(getStereoLineEndpoints(currentSource, params.frameNum)) !== JSON.stringify(params.line)) return 'skipped';
           // Get or create the track on the other camera and set the warped line
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
-            const [p1, p2] = response.transferredLine;
-            // Preserve the source line's key and include head/tail Point markers
-            // so the warped line is a standard, line-mode-editable annotation.
-            const lineGeometry: GeoJSON.Feature[] = [
-              {
-                type: 'Feature',
-                geometry: { type: 'LineString', coordinates: response.transferredLine },
-                properties: { key: params.key },
-              },
-              {
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [p1[0], p1[1]] },
-                properties: { key: HeadPointKey },
-              },
-              {
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [p2[0], p2[1]] },
-                properties: { key: TailPointKey },
-              },
-            ];
-
-            // Compute bounds from the transferred line with 10% expansion to
-            // match the expansion applied on the source camera side (headtail.ts).
-            const minX = Math.min(p1[0], p2[0]);
-            const minY = Math.min(p1[1], p2[1]);
-            const maxX = Math.max(p1[0], p2[0]);
-            const maxY = Math.max(p1[1], p2[1]);
+            const points = response.transferredLine;
+            const lineGeometry = headTailFeatures(points).map((g) => ({
+              ...g,
+              properties: g.geometry.type === 'Point'
+                ? { ...g.properties, stereoSource: params.camera, stereoKey: g.properties?.key } : g.properties,
+            }));
+            const minX = Math.min(...points.map((p) => p[0]));
+            const minY = Math.min(...points.map((p) => p[1]));
+            const maxX = Math.max(...points.map((p) => p[0]));
+            const maxY = Math.max(...points.map((p) => p[1]));
             const width = maxX - minX;
             const height = maxY - minY;
             const padX = width * 0.10 || height * 0.10;
@@ -1584,6 +1634,9 @@ export default defineComponent({
               interpolate: false,
             }, lineGeometry);
 
+            if ((params.line.length > 2 || fromRight) && updateLengths) {
+              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            }
             // Report and store the full stereo measurement on both cameras
             // (length attributes are gated by the length-update feature).
             if (response.measurement && updateLengths) {
@@ -1821,7 +1874,7 @@ export default defineComponent({
             const geoFeatures = feature.geometry?.features || [];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const line = geoFeatures.find((g: any) => g.geometry?.type === 'LineString'
-              && g.geometry.coordinates?.length === 2);
+              && g.geometry.coordinates?.length >= 2);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const poly = geoFeatures.find((g: any) => g.geometry?.type === 'Polygon');
             const base = { camera: sourceCamera, trackId: track.id, frameNum };

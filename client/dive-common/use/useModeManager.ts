@@ -40,6 +40,7 @@ import SegmentationPointClick, {
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
 import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import { linePointEdit } from './stereo/keypointTransfer';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -76,8 +77,9 @@ interface SetAnnotationStateArgs {
 }
 
 export type StereoAnnotationCompleteParams =
+  | { type: 'point'; camera: string; trackId: number; frameNum: number; point: [number, number]; key: string; insert?: boolean; }
   | { type: 'line'; camera: string; trackId: number; frameNum: number;
-      line: [[number, number], [number, number]]; key: string; }
+      line: [number, number][]; key: string; }
   | { type: 'box'; camera: string; trackId: number; frameNum: number;
       bounds: [number, number, number, number]; }
   | { type: 'polygon'; camera: string; trackId: number; frameNum: number;
@@ -880,6 +882,9 @@ export default function useModeManager({
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
         const [real] = features;
+        const previousLine = real?.geometry?.features.find((g) => g.geometry.type === 'LineString' && g.properties?.key === key);
+        const previousCoordinates = previousLine?.geometry.type === 'LineString'
+          ? previousLine.geometry.coordinates.map((p) => [...p]) : undefined;
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
@@ -967,6 +972,26 @@ export default function useModeManager({
 
           mirrorFeatureToAlignedCameras(track.id, frameNum);
 
+          // Emit persisted named points, including a head placed before its tail.
+          // Completed lines use their existing whole-line transfer event instead.
+          if (onStereoAnnotationComplete && stereoInteractiveActive()
+              && !(data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2)) {
+            Object.entries(update.geoJsonFeatureRecord).forEach(([pointKey, geoms]) => {
+              geoms.forEach((geom) => {
+                if (geom.geometry.type === 'Point' && pointKey) {
+                  onStereoAnnotationComplete({
+                    type: 'point',
+                    camera: selectedCamera.value,
+                    trackId: track.id as number,
+                    frameNum,
+                    point: geom.geometry.coordinates as [number, number],
+                    key: pointKey,
+                  });
+                }
+              });
+            });
+          }
+
           // Only perform "initialization" after the first shape.
           // Treat this as a completed annotation if eventType is editing
           // Or none of the recieps reported that they were unfinished.
@@ -982,16 +1007,27 @@ export default function useModeManager({
                 && completedTrackId !== null) {
               // Check for LineString with exactly 2 points (line annotation)
               if (data.geometry.type === 'LineString'
-                  && data.geometry.coordinates.length === 2) {
+                  && data.geometry.coordinates.length >= 2) {
                 const coords = data.geometry.coordinates as [number, number][];
-                onStereoAnnotationComplete({
-                  type: 'line',
-                  camera: selectedCamera.value,
-                  trackId: completedTrackId as number,
-                  frameNum,
-                  line: [coords[0], coords[1]],
-                  key: selectedKey.value,
-                });
+                const editedPoint = linePointEdit(previousCoordinates, coords);
+                if (editedPoint) {
+                  onStereoAnnotationComplete({
+                    type: 'point',
+                    camera: selectedCamera.value,
+                    trackId: completedTrackId as number,
+                    frameNum,
+                    ...editedPoint,
+                  });
+                } else {
+                  onStereoAnnotationComplete({
+                    type: 'line',
+                    camera: selectedCamera.value,
+                    trackId: completedTrackId as number,
+                    frameNum,
+                    line: coords,
+                    key: selectedKey.value,
+                  });
+                }
               }
               // Check for completed Polygon (done=true from recipes)
               if (update.done.some((v) => v === true)) {
@@ -1042,9 +1078,23 @@ export default function useModeManager({
           }
         });
         mirrorFeatureToAlignedCameras(track.id, selectedCameraFrame());
+        const line = track.getFeatureGeometry(selectedCameraFrame(), { type: 'LineString', key: selectedKey.value })[0];
+        if (line?.geometry.type === 'LineString' && onStereoAnnotationComplete && stereoInteractiveActive()) {
+          onStereoAnnotationComplete({
+            type: 'line',
+            camera: selectedCamera.value,
+            trackId: track.id as number,
+            frameNum: selectedCameraFrame(),
+            line: line.geometry.coordinates as [number, number][],
+            key: selectedKey.value,
+          });
+        }
       }
     }
-    handleSelectFeatureHandle(-1);
+    // Clear the deleted handle, not the geometry key that keeps the editor on
+    // the remaining line (or on its surviving endpoint when only one remains).
+    handleSelectFeatureHandle(-1, selectedKey.value);
+    _nudgeEditingCanary();
   }
 
   /* If any recipes are active, remove the geometry they added */

@@ -123,6 +123,9 @@ export default function useAnnotationClickHandling(options: {
     lineLayer.bus.$on('annotation-right-clicked', clicked);
 
     polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
+      // Visible masks must not replace the centerline's key when editing a line.
+      if (editingModeRef.value === 'LineString'
+          || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
       if (editAnnotationLayer.getMode() === 'creation') {
         handler.cancelCreation();
       }
@@ -131,6 +134,8 @@ export default function useAnnotationClickHandling(options: {
     });
 
     polyAnnotationLayer.bus.$on('polygon-clicked', (_trackId: number, polygonKey: string) => {
+      if (editingModeRef.value === 'LineString'
+          || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
       if (editAnnotationLayer.getMode() === 'creation') {
         return;
       }
@@ -139,6 +144,8 @@ export default function useAnnotationClickHandling(options: {
     });
 
     polyAnnotationLayer.bus.$on('polygon-right-clicked-outside', () => {
+      if (editingModeRef.value === 'LineString'
+          || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
       if (editAnnotationLayer.getMode() === 'creation') {
         handler.cancelCreation();
         handler.selectFeatureHandle(-1, '');

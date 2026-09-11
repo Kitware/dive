@@ -1,4 +1,5 @@
 import fs from 'fs-extra';
+import { orderedHeadTail, spineIndex, syncHeadTail } from 'vue-media-annotator/headTail';
 import { isEmpty } from 'lodash';
 import { AnnotationSchema } from 'dive-common/apispec';
 import { JsonConfig } from 'platform/desktop/constants';
@@ -17,6 +18,7 @@ type CocoCategory = {
   id: number;
   name?: string;
   keypoints?: string[];
+  skeleton?: number[][];
   supercategory?: string | null;
   parents?: unknown;
 };
@@ -221,7 +223,8 @@ type CocoAnnotation = {
    * a dict, polygon/mask geometry is skipped (bbox and other fields still import).
    */
   iscrowd?: number;
-  keypoints?: number[];
+  keypoints?: number[] | { xy: number[]; keypoint_category?: string; keypoint_category_id?: number; visible?: number }[];
+  num_keypoints?: number;
   segmentation?: number[] | number[][] | Record<string, unknown>;
   dive_detection_attributes?: Record<string, unknown>;
   dive_track_attributes?: Record<string, unknown>;
@@ -247,6 +250,7 @@ type CocoDocument = CocoCategoryDocument & {
   images: CocoImage[];
   annotations: CocoAnnotation[];
   videos?: CocoVideo[];
+  keypoint_categories?: { id: number; name: string }[];
 };
 
 /**
@@ -278,13 +282,12 @@ function hasRleSegmentation(annotation: CocoAnnotation): boolean {
 function buildFeatureGeometry(
   annotation: CocoAnnotation,
   category?: CocoCategory,
+  keypointCategories: { id: number; name: string }[] = [],
 ): { geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>; rleSkipped: boolean } {
-  if (hasRleSegmentation(annotation)) {
-    return { rleSkipped: true };
-  }
+  const rleSkipped = hasRleSegmentation(annotation);
   const geometryFeatures:
     GeoJSON.Feature<TrackSupportedFeature, GeoJSON.GeoJsonProperties>[] = [];
-  const coordLists = extractPolygonCoordsLists(annotation.segmentation);
+  const coordLists = rleSkipped ? [] : extractPolygonCoordsLists(annotation.segmentation);
   coordLists.forEach((coords) => {
     geometryFeatures.push({
       type: 'Feature',
@@ -297,50 +300,35 @@ function buildFeatureGeometry(
   });
 
   const keypoints = annotation.keypoints || [];
-  if (Array.isArray(keypoints) && keypoints.length >= 3) {
-    const labels = category?.keypoints || [];
-    const headTail: [number, number][] = [];
-    for (let i = 0; i + 2 < keypoints.length; i += 3) {
-      const label = labels[Math.floor(i / 3)];
-      if (label === 'head' || label === 'tail') {
-        const x = keypoints[i];
-        const y = keypoints[i + 1];
-        const visible = keypoints[i + 2] > 0;
-        if (visible) {
-          const point: [number, number] = [x, y];
-          headTail.push(point);
-          geometryFeatures.push({
-            type: 'Feature',
-            properties: { key: label },
-            geometry: {
-              type: 'Point',
-              coordinates: point,
-            },
-          });
-        }
-      }
-    }
-    if (headTail.length === 2) {
-      geometryFeatures.push({
-        type: 'Feature',
-        properties: { key: 'HeadTails' },
-        geometry: {
-          type: 'LineString',
-          coordinates: headTail,
-        },
-      });
-    }
+  const points = new Map<string, number[]>();
+  if (keypoints.length && typeof keypoints[0] === 'number') {
+    const flat = keypoints as number[];
+    (category?.keypoints || []).forEach((label, i) => {
+      if (i * 3 + 2 < flat.length && flat[i * 3 + 2] > 0) points.set(label, flat.slice(i * 3, i * 3 + 2));
+    });
+  } else {
+    keypoints.forEach((kp) => {
+      if (typeof kp === 'number') return;
+      const label = kp.keypoint_category || keypointCategories.find((k) => k.id === kp.keypoint_category_id)?.name;
+      if (label && (kp.visible ?? 2) > 0) points.set(label, kp.xy);
+    });
   }
+  points.forEach((point, label) => {
+    if (!Array.isArray(point) || point.length < 2 || !point.slice(0, 2).every(Number.isFinite)) return;
+    geometryFeatures.push({ type: 'Feature', properties: { key: label }, geometry: { type: 'Point', coordinates: point.slice(0, 2) } });
+  });
+  const line = orderedHeadTail(geometryFeatures);
+  if (line) geometryFeatures.push({ type: 'Feature', properties: { key: 'HeadTails' }, geometry: { type: 'LineString', coordinates: line } });
 
   if (!geometryFeatures.length) {
-    return { rleSkipped: false };
+    return { rleSkipped };
   }
   return {
     geometry: {
       type: 'FeatureCollection' as const,
       features: geometryFeatures,
     },
-    rleSkipped: false,
+    rleSkipped,
   };
 }
 
@@ -540,7 +528,7 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
     } else if (typeof noteField === 'string' && noteField.trim()) {
       feature.notes = [noteField.trim()];
     }
-    const { geometry, rleSkipped } = buildFeatureGeometry(annotation, category);
+    const { geometry, rleSkipped } = buildFeatureGeometry(annotation, category, parsed.keypoint_categories);
     if (rleSkipped) {
       skippedRleMasks = true;
     }
@@ -597,6 +585,16 @@ async function serializeFile(
     excludeBelowThreshold: false,
   },
 ) {
+  const featurePoints = (feature: AnnotationSchema['tracks'][number]['features'][number]) => {
+    const geometry = feature.geometry?.features || [];
+    const hasLine = geometry.some((f) => f.geometry.type === 'LineString' && f.properties?.key === 'HeadTails');
+    return new Map((hasLine ? syncHeadTail(geometry) : geometry)
+      .filter((f) => f.geometry.type === 'Point' && f.properties?.key)
+      .map((f) => [f.properties?.key as string, (f.geometry as GeoJSON.Point).coordinates.slice(0, 2)]));
+  };
+  const names = new Set(Object.values(data.tracks).flatMap((t) => t.features.flatMap((f) => [...featurePoints(f).keys()])));
+  const spine = [...names].filter((k) => spineIndex(k) !== null).sort((a, b) => (spineIndex(a) as number) - (spineIndex(b) as number));
+  const labels = ['head', ...spine, 'tail', ...[...names].filter((k) => k !== 'head' && k !== 'tail' && spineIndex(k) === null).sort()];
   const images = new Map<number, CocoImage>();
   const annotations: CocoAnnotation[] = [];
   let annotationId = 1;
@@ -656,6 +654,7 @@ async function serializeFile(
           ...(emitVideo ? { video_id: 1 } : {}),
         });
       }
+      const points = featurePoints(feature);
       annotations.push({
         id: annotationId,
         image_id: imageId,
@@ -664,6 +663,7 @@ async function serializeFile(
         bbox: [x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1)],
         score,
         prob,
+        ...(points.size ? { keypoints: labels.flatMap((k) => (points.has(k) ? [...points.get(k)!, 2] : [0, 0, 0])), num_keypoints: points.size } : {}),
         dive_confidence_pairs: pairs.map(([name, confidence]) => [name, confidence]),
         ...(feature.attributes ? { dive_detection_attributes: feature.attributes } : {}),
         ...(track.attributes ? { dive_track_attributes: track.attributes } : {}),
@@ -676,7 +676,8 @@ async function serializeFile(
   const categoryDocs: CocoCategory[] = Array.from(categories.entries()).map(([name, id]) => ({
     id,
     name,
-    keypoints: ['head', 'tail'],
+    keypoints: labels,
+    skeleton: Array.from({ length: labels.indexOf('tail') }, (_, i) => [i + 1, i + 2]),
     ...(hierarchy[name] ? { supercategory: hierarchy[name] } : {}),
   }));
   // datasetInfo rides in the `info` block + dive_extensions; omitted entirely when empty.
