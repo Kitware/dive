@@ -716,6 +716,11 @@ interface StereoAggregateLengthsResponse {
 }
 
 interface StereoTransferPointsRequest {
+  sourceCamera?: 'left' | 'right';
+  strict?: boolean;
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   points: [number, number][];
 }
 
@@ -726,6 +731,7 @@ interface StereoTransferPointsResponse {
   transferredPoints?: [number, number][];
   originalPoints?: [number, number][];
   disparityValues?: number[];
+  validMatches?: boolean[];
 }
 
 async function stereoEnable(

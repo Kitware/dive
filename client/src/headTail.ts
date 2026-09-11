@@ -45,7 +45,11 @@ export function syncHeadTail(features: GeoJSON.Feature<Shape>[]): GeoJSON.Featur
   if (!coordinates || coordinates.length < 2) return features;
   const retained = features.filter((f) => !(f.geometry.type === 'Point' && isHeadTailPoint(f.properties?.key || ''))
     && !(f.geometry.type === 'LineString' && f.properties?.key === 'HeadTails'));
-  return [...retained, ...headTailFeatures(coordinates)];
+  const generated = headTailFeatures(coordinates).map((f) => {
+    const existing = features.find((old) => old.geometry.type === f.geometry.type && old.properties?.key === f.properties?.key);
+    return { ...f, properties: { ...existing?.properties, ...f.properties } };
+  });
+  return [...retained, ...generated];
 }
 
 /** Uniform arc-distance samples on the editable polyline (no index matching). */

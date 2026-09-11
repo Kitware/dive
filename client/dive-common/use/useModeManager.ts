@@ -40,6 +40,7 @@ import SegmentationPointClick, {
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
 import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import { linePointEdit } from './stereo/keypointTransfer';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
 
@@ -76,6 +77,7 @@ interface SetAnnotationStateArgs {
 }
 
 export type StereoAnnotationCompleteParams =
+  | { type: 'point'; camera: string; trackId: number; frameNum: number; point: [number, number]; key: string; insert?: boolean; }
   | { type: 'line'; camera: string; trackId: number; frameNum: number;
       line: [number, number][]; key: string; }
   | { type: 'box'; camera: string; trackId: number; frameNum: number;
@@ -880,6 +882,9 @@ export default function useModeManager({
         // newDetectionMode is true if there's no keyframe on frameNum
         const { features, interpolate } = track.canInterpolate(frameNum);
         const [real] = features;
+        const previousLine = real?.geometry?.features.find((g) => g.geometry.type === 'LineString' && g.properties?.key === key);
+        const previousCoordinates = previousLine?.geometry.type === 'LineString'
+          ? previousLine.geometry.coordinates.map((p) => [...p]) : undefined;
 
         // Give each recipe the opportunity to make changes
         recipes.forEach((recipe) => {
@@ -967,6 +972,26 @@ export default function useModeManager({
 
           mirrorFeatureToAlignedCameras(track.id, frameNum);
 
+          // Emit persisted named points, including a head placed before its tail.
+          // Completed lines use their existing whole-line transfer event instead.
+          if (onStereoAnnotationComplete && stereoInteractiveActive()
+              && !(data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2)) {
+            Object.entries(update.geoJsonFeatureRecord).forEach(([pointKey, geoms]) => {
+              geoms.forEach((geom) => {
+                if (geom.geometry.type === 'Point' && pointKey) {
+                  onStereoAnnotationComplete({
+                    type: 'point',
+                    camera: selectedCamera.value,
+                    trackId: track.id as number,
+                    frameNum,
+                    point: geom.geometry.coordinates as [number, number],
+                    key: pointKey,
+                  });
+                }
+              });
+            });
+          }
+
           // Only perform "initialization" after the first shape.
           // Treat this as a completed annotation if eventType is editing
           // Or none of the recieps reported that they were unfinished.
@@ -984,14 +1009,25 @@ export default function useModeManager({
               if (data.geometry.type === 'LineString'
                   && data.geometry.coordinates.length >= 2) {
                 const coords = data.geometry.coordinates as [number, number][];
-                onStereoAnnotationComplete({
-                  type: 'line',
-                  camera: selectedCamera.value,
-                  trackId: completedTrackId as number,
-                  frameNum,
-                  line: coords,
-                  key: selectedKey.value,
-                });
+                const editedPoint = linePointEdit(previousCoordinates, coords);
+                if (editedPoint) {
+                  onStereoAnnotationComplete({
+                    type: 'point',
+                    camera: selectedCamera.value,
+                    trackId: completedTrackId as number,
+                    frameNum,
+                    ...editedPoint,
+                  });
+                } else {
+                  onStereoAnnotationComplete({
+                    type: 'line',
+                    camera: selectedCamera.value,
+                    trackId: completedTrackId as number,
+                    frameNum,
+                    line: coords,
+                    key: selectedKey.value,
+                  });
+                }
               }
               // Check for completed Polygon (done=true from recipes)
               if (update.done.some((v) => v === true)) {

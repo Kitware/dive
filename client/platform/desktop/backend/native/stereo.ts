@@ -110,6 +110,11 @@ export interface StereoAggregateLengthsResponse {
 
 /** Request to transfer multiple points */
 export interface StereoTransferPointsRequest {
+  sourceCamera?: 'left' | 'right';
+  strict?: boolean;
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   points: [number, number][];
 }
 
@@ -121,6 +126,7 @@ export interface StereoTransferPointsResponse {
   transferredPoints?: [number, number][];
   originalPoints?: [number, number][];
   disparityValues?: number[];
+  validMatches?: boolean[];
 }
 
 /** Status response from the stereo service */
