@@ -15,7 +15,7 @@ it.each([false, 'Polygon'])('renders non-line-editing interior points as smaller
   const data = {
     feature: 'spine_001', editing, selected: false, styleType: ['fish', 1],
   };
-  expect(style.radius(data)).toBe(4.5);
+  expect(style.radius(data)).toBe(3);
   expect(style.fill(data)).toBe(true);
   expect(style.fillOpacity(data)).toBe(1);
   expect(style.fillColor(data)).toBe(style.strokeColor(data));
