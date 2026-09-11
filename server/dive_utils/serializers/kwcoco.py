@@ -7,6 +7,7 @@ KWCOCO-compatible extensions when they are present.
 
 import functools
 import math
+import re
 from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from dive_utils import constants, strNumericCompare, types
@@ -369,34 +370,37 @@ def _parse_annotation(
     class_name = category.get('name') or 'unknown'
     confidence_pair = (class_name, score)
 
-    # parse keypoints
+    # Both standard COCO triples and named KWCOCO points describe the same curve.
     keypoints = annotation.get('keypoints', [])
-    head_tail = []
-    for keypoint in keypoints:
-        if isinstance(keypoint, (int, float)):  # [x1, y1, v1, ...] coco format
-            keypoint_labels = category.get('keypoints', [])
-            n = min(len(keypoint_labels), int(len(keypoints) / 3))  # stopping index
-            for i in range(n):
-                point = keypoints[3 * i : 3 * i + 2]  # extract [x, y] pair
-                label = keypoint_labels[i]
-                if label in ('head', 'tail'):  # only allow head and tail keypoints
-                    head_tail.append(point)
-                    viame.create_geoJSONFeature(features, 'Point', point, label)
-            break
-
-        # dictionary kwcoco format
-        keypoint_category_id = keypoint['keypoint_category_id']
-        label = meta.keypoint_categories[keypoint_category_id]['name']
-        point = keypoint['xy']
-        if label in ('head', 'tail'):  # only allow head and tail keypoints
-            head_tail.append(keypoint['xy'])
-            viame.create_geoJSONFeature(features, 'Point', point, label)
-
-    # create head-tail line if keypoint pair exists
-    if len(head_tail) > 2:
-        raise ValueError('Multiple head/tail keypoints per annotation not supported')
-    elif len(head_tail) == 2:
-        viame.create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
+    points = {}
+    if isinstance(keypoints, list) and keypoints:
+        if isinstance(keypoints[0], (int, float)):
+            for i, label in enumerate(category.get('keypoints', [])):
+                if 3 * i + 2 < len(keypoints) and keypoints[3 * i + 2] > 0:
+                    points[label] = keypoints[3 * i : 3 * i + 2]
+        else:
+            for kp in keypoints:
+                label = kp.get('keypoint_category') or meta.keypoint_categories.get(
+                    kp.get('keypoint_category_id'), {}
+                ).get('name')
+                if label and kp.get('visible', 2) > 0:
+                    points[label] = kp.get('xy')
+    points = {
+        k: p
+        for k, p in points.items()
+        if isinstance(p, list)
+        and len(p) >= 2
+        and all(isinstance(v, (int, float)) and math.isfinite(v) for v in p[:2])
+    }
+    for label, point in points.items():
+        viame.create_geoJSONFeature(features, 'Point', point[:2], label)
+    if 'head' in points and 'tail' in points:
+        spine = sorted(
+            (k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)),
+            key=lambda k: int(k.split('_')[1]),
+        )
+        line = [points[k][:2] for k in ['head', *spine, 'tail']]
+        viame.create_geoJSONFeature(features, 'LineString', line, 'HeadTails')
 
     # parse polygons
     segmentation = annotation.get('segmentation', [])
@@ -619,31 +623,32 @@ def _feature_to_segmentation(feature: Feature) -> List[List[float]]:
     return segmentation
 
 
-def _feature_to_keypoints(feature: Feature) -> Tuple[List[float], int]:
-    """Extract head/tail keypoints from DIVE geometry in COCO format."""
+def _feature_points(feature: Feature) -> Dict[str, List[float]]:
+    """Use the edited centerline as authoritative, including line-only JSON geometry."""
     if not feature.geometry:
-        return [], 0
-    points: Dict[str, List[float]] = {}
-    for geo_feature in feature.geometry.features:
-        if geo_feature.geometry.type != 'Point':
-            continue
-        key = geo_feature.properties.get('key')
-        if key not in ('head', 'tail'):
-            continue
-        coords = geo_feature.geometry.coordinates
-        if not isinstance(coords, list) or len(coords) < 2:
-            continue
-        points[key] = [coords[0], coords[1], 2]
+        return {}
+    return {
+        f.properties['key']: list(f.geometry.coordinates[:2])
+        for f in viame._centerline_features(feature.geometry.features)
+        if f.geometry.type == 'Point' and f.properties.get('key')
+    }
+
+
+def _point_labels(points):
+    spine = sorted(
+        (k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)),
+        key=lambda k: int(k.split('_')[1]),
+    )
+    return ['head', *spine, 'tail', *sorted(set(points) - {'head', 'tail', *spine})]
+
+
+def _feature_to_keypoints(feature: Feature, labels=None) -> Tuple[List[float], int]:
+    points = _feature_points(feature)
     if not points:
         return [], 0
-    keypoints: List[float] = []
-    count = 0
-    for label in ('head', 'tail'):
-        value = points.get(label, [0, 0, 0])
-        keypoints.extend(value)
-        if value[2] > 0:
-            count += 1
-    return keypoints, count
+    labels = labels or _point_labels(points)
+    values = [points[k] + [2] if k in points else [0, 0, 0] for k in labels]
+    return [v for triple in values for v in triple], len(points)
 
 
 def export_dive_as_coco(
@@ -688,6 +693,9 @@ def export_dive_as_coco(
         add_category_name(name)
 
     categories = {name: index + 1 for index, name in enumerate(category_names)}
+    labels = _point_labels(
+        {k for track in parsed_tracks for f in track.features for k in _feature_points(f)}
+    )
     coco_annotations: List[dict] = []
     images: Dict[int, dict] = {}
     annotation_id = 1
@@ -721,7 +729,7 @@ def export_dive_as_coco(
                 image_doc['video_id'] = 1
             images.setdefault(image_id, image_doc)
             segmentation = _feature_to_segmentation(feature)
-            keypoints, num_keypoints = _feature_to_keypoints(feature)
+            keypoints, num_keypoints = _feature_to_keypoints(feature, labels)
             annotation = {
                 'id': annotation_id,
                 'image_id': image_id,
@@ -760,7 +768,8 @@ def export_dive_as_coco(
         if parent is not None:
             category['supercategory'] = parent
         # When keypoints are exported, publish the category labels explicitly.
-        category['keypoints'] = ['head', 'tail']
+        category['keypoints'] = labels
+        category['skeleton'] = [[i, i + 1] for i in range(1, labels.index('tail') + 1)]
         categories_doc.append(category)
 
     info: Dict[str, Any] = {

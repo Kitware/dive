@@ -756,3 +756,18 @@ point markers are regenerated on import/edit/export to prevent stale vertices.
 Line-only JSON can therefore be exported to CSV without losing interior points.
 Two-point head/tail files remain valid. Older DIVE versions may drop the new
 interior points; use the updated readers and writers for round trips.
+
+COCO import/export supports these centerlines in both desktop and web DIVE.
+Exports use category `keypoints` labels (`head`, `spine_001`, …, `tail`),
+1-based `skeleton` edges, and annotation `[x, y, visibility]` triples plus
+`num_keypoints`. A shared label list covers curves with different numbers of
+vertices; absent slots are `[0, 0, 0]` and do not become vertices on import.
+Coordinates retain subpixel precision. The edited `HeadTails` LineString is
+authoritative on export, including when it has no separate point markers.
+
+DIVE also imports VIAME's KWCOCO named-point lists, resolving either
+`keypoint_category` names or `keypoint_category_id` through `keypoint_categories`.
+Both formats reconstruct the editable line from head, numerically ordered spine
+points, and tail. Without both endpoints, points are retained without creating a
+complete line. Other named keypoints are retained separately. These fields store
+the sampled polyline, not spline coefficients or physical stereo correspondences.
