@@ -226,6 +226,74 @@ describe('createReviewService', () => {
     expect(service.pendingCount.value).toBe(1);
   });
 
+  it('keeps edits and deletions made while a save is in flight', async () => {
+    let resolveFirst: (() => void) | undefined;
+    const api = makeApi({
+      a: [track(1, [['fish', 0.6]], [0]), track(2, [['shark', 0.4]], [0]), track(3, [['ray', 0.5]], [0])],
+    }, {
+      saveDetections: vi.fn(() => new Promise<void>((resolve) => { resolveFirst = resolve; })),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    service.query.threshold = 0;
+    service.runQuery();
+    const first = service.items.value.find((i) => i.trackId === 1)!;
+    const second = service.items.value.find((i) => i.trackId === 2)!;
+    const third = service.items.value.find((i) => i.trackId === 3)!;
+
+    service.assignType(first, 'shark');
+    const savePromise = service.save();
+    await Promise.resolve();
+    expect(api.saveDetections).toHaveBeenCalledTimes(1);
+    expect((api.saveDetections as ReturnType<typeof vi.fn>).mock.calls[0][1].tracks.upsert
+      .map((t: TrackData) => t.id)).toEqual([1]);
+
+    // A later edit of another track, a re-edit of the submitted track, and a
+    // deletion must all survive acknowledgement of the first request.
+    service.assignType(second, 'fish');
+    service.assignType(first, 'ray');
+    service.deleteTrack(third);
+    expect(service.pendingCount.value).toBe(3);
+
+    resolveFirst?.();
+    await savePromise;
+    expect(service.pendingCount.value).toBe(3);
+    expect(service.isPending(first)).toBe(true);
+    expect(service.isPending(second)).toBe(true);
+    expect(service.trackOf('a', 1)?.confidencePairs).toEqual([['ray', 1]]);
+
+    (api.saveDetections as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+    await service.save();
+    expect(api.saveDetections).toHaveBeenCalledTimes(2);
+    const secondArgs = (api.saveDetections as ReturnType<typeof vi.fn>).mock.calls[1][1];
+    expect(secondArgs.tracks.upsert.map((t: TrackData) => t.id).sort()).toEqual([1, 2]);
+    expect(secondArgs.tracks.delete).toEqual([3]);
+    expect(service.pendingCount.value).toBe(0);
+  });
+
+  it('sends a snapshot so mid-flight edits do not alter the in-flight payload', async () => {
+    let resolveFirst: (() => void) | undefined;
+    const api = makeApi({ a: [track(1, [['fish', 0.6]], [0])] }, {
+      saveDetections: vi.fn(() => new Promise<void>((resolve) => { resolveFirst = resolve; })),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    service.runQuery();
+    const [item] = service.items.value;
+    service.assignType(item, 'shark');
+    const savePromise = service.save();
+    await Promise.resolve();
+    service.assignType(item, 'ray');
+    resolveFirst?.();
+    await savePromise;
+
+    const firstUpsert = (api.saveDetections as ReturnType<typeof vi.fn>).mock.calls[0][1]
+      .tracks.upsert[0] as TrackData;
+    expect(firstUpsert.confidencePairs).toEqual([['shark', 1]]);
+    expect(service.trackOf('a', 1)?.confidencePairs).toEqual([['ray', 1]]);
+    expect(service.pendingCount.value).toBe(1);
+  });
+
   it('discards edits by reloading the changed datasets', async () => {
     const api = makeApi({ a: [track(1, [['fish', 0.6]], [0])] });
     const service = createReviewService({ api });

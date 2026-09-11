@@ -124,6 +124,12 @@ interface LoadedDataset {
   hierarchy: TypeHierarchyIndex;
   frameSource: FrameSource | null;
   pending: Set<AnnotationId>;
+  /**
+   * Monotonic edit version per pending track. A save snapshots these and only
+   * acknowledges a track when the version still matches, so an edit made while
+   * the request is in flight stays dirty.
+   */
+  pendingVersions: Map<AnnotationId, number>;
   /** Tracks removed here and not yet deleted on the platform. */
   deleted: Set<AnnotationId>;
 }
@@ -316,6 +322,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
         hierarchy: compileHierarchy(config.typeHierarchy || {}),
         frameSource,
         pending: new Set(),
+        pendingVersions: new Map(),
         deleted: new Set(),
       });
       patch(id, {
@@ -486,13 +493,19 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     return count;
   });
 
+  /** Mark a track dirty and bump its edit version so in-flight saves cannot clear it. */
+  function markPending(dataset: LoadedDataset, trackId: AnnotationId) {
+    dataset.pending.add(trackId);
+    dataset.pendingVersions.set(trackId, (dataset.pendingVersions.get(trackId) ?? 0) + 1);
+  }
+
   function updatePairs(item: ReviewItem, update: (pairs: ConfidencePair[], hierarchy: TypeHierarchyIndex) => ConfidencePair[]) {
     const dataset = loaded.get(item.datasetId);
     const track = dataset?.tracks.get(item.trackId);
     if (!dataset || !track) return;
     const next = update(track.confidencePairs.map(([t, c]) => [t, c] as ConfidencePair), dataset.hierarchy);
     track.confidencePairs = next;
-    dataset.pending.add(item.trackId);
+    markPending(dataset, item.trackId);
     dataRevision.value += 1;
   }
 
@@ -521,6 +534,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     if (!dataset || !dataset.tracks.has(item.trackId)) return;
     dataset.tracks.delete(item.trackId);
     dataset.pending.delete(item.trackId);
+    dataset.pendingVersions.delete(item.trackId);
     dataset.deleted.add(item.trackId);
     // The entry leaves the grid at once; everything else stays put.
     items.value = items.value.filter(
@@ -548,7 +562,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       .sort((a, b) => a.frame - b.frame);
     track.begin = Math.min(track.begin, frame);
     track.end = Math.max(track.end, frame);
-    dataset.pending.add(item.trackId);
+    markPending(dataset, item.trackId);
     dataRevision.value += 1;
   }
 
@@ -579,7 +593,7 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
       });
       if (item.primary.frame === frame) Object.assign(item.primary, refreshed);
     }
-    dataset.pending.add(item.trackId);
+    markPending(dataset, item.trackId);
     dataRevision.value += 1;
     // The chip keeps its crop: the box is drawn over it, so the view does
     // not jump when an edit lands.
@@ -592,16 +606,31 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
     try {
       const targets = Array.from(loaded.entries())
         .filter(([, d]) => d.pending.size > 0 || d.deleted.size > 0);
+      // Snapshot payloads and versions before awaiting so mid-flight edits
+      // neither mutate what we send nor get cleared on success.
       const results = await Promise.allSettled(targets.map(async ([id, dataset]) => {
-        const upsert = Array.from(dataset.pending)
-          .map((trackId) => dataset.tracks.get(trackId))
-          .filter((t): t is TrackData => !!t);
+        const submittedVersions = new Map<AnnotationId, number>();
+        const upsert: TrackData[] = [];
+        dataset.pending.forEach((trackId) => {
+          const track = dataset.tracks.get(trackId);
+          if (!track) return;
+          submittedVersions.set(trackId, dataset.pendingVersions.get(trackId) ?? 0);
+          upsert.push(JSON.parse(JSON.stringify(track)) as TrackData);
+        });
+        const submittedDeleted = Array.from(dataset.deleted);
         await api.saveDetections(id, {
-          tracks: { upsert, delete: Array.from(dataset.deleted) },
+          tracks: { upsert, delete: submittedDeleted },
           groups: { upsert: [], delete: [] },
         });
-        dataset.pending.clear();
-        dataset.deleted.clear();
+        submittedVersions.forEach((version, trackId) => {
+          if (dataset.pendingVersions.get(trackId) === version) {
+            dataset.pending.delete(trackId);
+            dataset.pendingVersions.delete(trackId);
+          }
+        });
+        submittedDeleted.forEach((trackId) => {
+          dataset.deleted.delete(trackId);
+        });
       }));
       const failed = results.find((r) => r.status === 'rejected') as PromiseRejectedResult | undefined;
       if (failed) throw failed.reason;
