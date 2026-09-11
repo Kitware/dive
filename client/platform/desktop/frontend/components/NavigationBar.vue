@@ -26,11 +26,11 @@ export default defineComponent({
       color="accent"
     >
       <v-tab
-        :to="lastAnnotation ? { name: 'viewer', params: { id: lastAnnotation.id } } : undefined"
-        :disabled="!lastAnnotation"
-        :title="lastAnnotation ? `Resume editing ${lastAnnotation.name}` : 'Open a sequence to resume editing'"
+        v-if="lastAnnotation"
+        :to="{ name: 'viewer', params: { id: lastAnnotation.id } }"
+        :title="`Resume editing ${lastAnnotation.name}`"
       >
-        Resume Last<v-icon>mdi-history</v-icon>
+        Resume<v-icon>mdi-history</v-icon>
       </v-tab>
       <v-tab :to="{ name: 'recent' }">
         Library<v-icon>mdi-folder-open</v-icon>
