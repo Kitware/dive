@@ -240,3 +240,8 @@ It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launc
 See [Interactive Annotation troubleshooting](Interactive-Annotation.md#troubleshooting). Verify the VIAME install path, confirm VIAME includes interactive service support, and check the debug console for subprocess errors (message: "Unable to load the interactive service").
 
 ![Debugging Desktop](images/General/desktop-debug.png)
+
+
+When started through the VIAME launch scripts (`DIVE_VIAME_INSTALL_PATH` is set),
+the native window title is **VIAME - DIVE Interface**. Standalone launches use
+**DIVE Desktop**.
