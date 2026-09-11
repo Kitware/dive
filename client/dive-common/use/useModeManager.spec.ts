@@ -16,12 +16,15 @@ import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore
 import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import useModeManager from './useModeManager';
+import HeadTail from '../recipes/headtail';
+import { headTailFeatures } from '../../src/headTail';
+import type Recipe from '../../src/recipe';
 
 function translation(tx: number, ty: number): Matrix3 {
   return [[1, 0, tx], [0, 1, ty], [0, 0, 1]];
 }
 
-function makeHarness(markChangesPending: MarkChangesPending = () => undefined) {
+function makeHarness(markChangesPending: MarkChangesPending = () => undefined, recipes: Recipe[] = []) {
   const cameraStore = new CameraStore({ markChangesPending });
   cameraStore.removeCamera('singleCam');
   cameraStore.addCamera('left');
@@ -72,7 +75,7 @@ function makeHarness(markChangesPending: MarkChangesPending = () => undefined) {
     groupFilterControls,
     aggregateController,
     readonlyState: ref(false),
-    recipes: [],
+    recipes,
     alignedView,
   });
   modeManager.selectedCamera.value = 'left';
@@ -427,5 +430,29 @@ describe('useModeManager polygon clip on box resize', () => {
       type: 'Polygon',
       coordinates: [[[0, 0], [20, 0], [20, 20], [0, 40], [0, 0]]],
     });
+  });
+});
+
+describe('centerline editing continuity', () => {
+  it('keeps the saved line editable after deleting an interior vertex', () => {
+    const recipe = new HeadTail();
+    const { cameraStore, modeManager: manager } = makeHarness(undefined, [recipe]);
+    const id = manager.handler.trackAdd();
+    const track = cameraStore.getTrack(id, 'left');
+    track.setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 100, 100] }, headTailFeatures([[10, 10], [50, 50], [90, 10]]));
+    recipe.activate();
+    manager.handler.selectFeatureHandle(1, 'HeadTails');
+    manager.handler.removePoint();
+    expect(manager.selectedKey.value).toBe('HeadTails');
+    expect(manager.editingMode.value).toBe('LineString');
+    expect(manager.editingDetails.value).toBe('Editing');
+    expect(manager.selectedFeatureHandle.value).toBe(-1);
+    expect(track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toEqual([[10, 10], [90, 10]]);
+    // Move an endpoint through the same update path, without reactivating a tool.
+    manager.handler.updateGeoJSON('editing', 0, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[20, 20], [90, 10]] },
+    }, manager.selectedKey.value);
+    expect(track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toEqual([[20, 20], [90, 10]]);
+    expect(track.features[0].bounds).toEqual([0, 0, 100, 100]);
   });
 });
