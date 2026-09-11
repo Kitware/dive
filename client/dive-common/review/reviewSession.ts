@@ -1,3 +1,4 @@
+import { computed, shallowRef, type ComputedRef } from 'vue';
 import type { ReviewService } from 'dive-common/use/useReview';
 
 /**
@@ -16,21 +17,32 @@ export interface ReviewSession {
   datasetKey: string;
 }
 
-let held: ReviewSession | null = null;
+/** Shallow: the service itself must not be deeply unwrapped. */
+const held = shallowRef<ReviewSession | null>(null);
 
 export function sessionKey(ids: readonly string[]): string {
   return [...ids].sort().join('\n');
 }
 
 export function holdReviewSession(session: ReviewSession) {
-  held = session;
+  held.value = session;
 }
 
 /** The held session, if any; the caller now owns it. */
 export function takeReviewSession(): ReviewSession | null {
-  const session = held;
-  held = null;
+  const session = held.value;
+  held.value = null;
   return session;
+}
+
+/** Look at the held session without taking ownership. */
+export function peekReviewSession(): ReviewSession | null {
+  return held.value;
+}
+
+/** True while a review session is parked (e.g. the user opened the viewer). */
+export function useReviewSessionHeld(): ComputedRef<boolean> {
+  return computed(() => held.value !== null);
 }
 
 /**

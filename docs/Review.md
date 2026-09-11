@@ -37,7 +37,7 @@ The **Datasets** panel opens on a first visit with nothing loaded; coming back w
 * the dataset name (when more than one is loaded), track id, and frame or frame count;
 * any polygon outline and head/tail points the detection carries, drawn over the chip.
 
-Hover an entry for its actions (they grow under the mouse): **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **delete** (a red X; the annotation is removed on the next save), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
+Hover an entry for its actions (they grow under the mouse): **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **delete** (a red X; the annotation is removed on the next save), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track. While a review session is open, the viewer's top bar shows a **Review** tab so you can jump back to the same grid and page.
 
 Tracks cycle through their sampled frames at the dataset's real-time rate (sparser samples wait proportionally longer, so a loop lasts about as long as the track does). The arrows in the filmstrip badge step through them by hand, which pauses the cycling on that frame until the play button resumes it; starting an edit pauses it too.
 

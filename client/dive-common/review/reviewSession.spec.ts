@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import { ref } from 'vue';
 import type { ReviewService } from 'dive-common/use/useReview';
 import {
-  holdReviewSession, sessionKey, shouldResume, takeReviewSession,
+  holdReviewSession, peekReviewSession, sessionKey, shouldResume, takeReviewSession,
+  useReviewSessionHeld,
 } from './reviewSession';
 
 function session(datasetIds: string[], pending = 0) {
@@ -21,6 +22,19 @@ describe('review session', () => {
     holdReviewSession(held);
     expect(takeReviewSession()).toBe(held);
     expect(takeReviewSession()).toBeNull();
+  });
+
+  it('can be peeked without taking ownership', () => {
+    expect(peekReviewSession()).toBeNull();
+    const heldFlag = useReviewSessionHeld();
+    expect(heldFlag.value).toBe(false);
+    const held = session(['a']);
+    holdReviewSession(held);
+    expect(peekReviewSession()).toBe(held);
+    expect(heldFlag.value).toBe(true);
+    expect(takeReviewSession()).toBe(held);
+    expect(peekReviewSession()).toBeNull();
+    expect(heldFlag.value).toBe(false);
   });
 
   it('resumes for a plain visit, the same selection, or unsaved edits', () => {
