@@ -11,6 +11,8 @@ import type { ReviewService } from 'dive-common/use/useReview';
  */
 export interface ReviewSession {
   review: ReviewService;
+  /** Platform account that owns this in-memory session. */
+  owner?: string;
   view: 'results' | 'datasets';
   page: number;
   /** Key of the datasets the session was started with, see `sessionKey`. */
@@ -56,4 +58,9 @@ export function shouldResume(session: ReviewSession, initialIds: readonly string
   if (initialIds.length === 0) return true;
   if (session.review.pendingCount.value > 0) return true;
   return session.datasetKey === sessionKey(initialIds);
+}
+
+/** Release private annotations and decoded media when the web account changes. */
+export function clearReviewSession() {
+  takeReviewSession()?.review.dispose();
 }

@@ -54,6 +54,8 @@ export default defineComponent({
     ReviewDatasetsPanel, ReviewGrid, ReviewGridControls, ReviewCell, UserSettingsDialog,
   },
   props: {
+    sessionOwner: { type: String, default: '' },
+    retainSession: { type: Boolean, default: true },
     initialDatasetIds: {
       type: Array as PropType<string[]>,
       default: () => [],
@@ -64,7 +66,7 @@ export default defineComponent({
     // Coming back to the page resumes where it was left, unless the library
     // sent a new selection (and nothing is unsaved).
     const held = takeReviewSession();
-    const resumed = held && shouldResume(held, props.initialDatasetIds) ? held : null;
+    const resumed = held && (held.owner || '') === props.sessionOwner && shouldResume(held, props.initialDatasetIds) ? held : null;
     if (held && !resumed) held.review.dispose();
     const review = resumed ? resumed.review : createReviewService({ api });
     const datasetKey = resumed ? resumed.datasetKey : sessionKey(props.initialDatasetIds);
@@ -302,12 +304,14 @@ export default defineComponent({
     }
 
     function holdSession() {
+      if (!props.retainSession) return;
       holdReviewSession({
-        review, view: view.value, page: grid.page.value, datasetKey,
+        review, view: view.value, page: grid.page.value, datasetKey, owner: props.sessionOwner,
       });
     }
 
     onBeforeRouteLeave(async (_to, _from, next) => {
+      if (!props.retainSession) { next(); return; }
       const pending = review.pendingCount.value;
       if (pending === 0) {
         holdSession();
@@ -371,10 +375,11 @@ export default defineComponent({
       autoSave.cancel();
       grid.dispose();
       // Disposed here only when not handed over to the next visit.
-      if (!takeReviewSession()) review.dispose();
+      const parked = takeReviewSession();
+      if (!props.retainSession || !parked) review.dispose();
       else {
         holdReviewSession({
-          review, view: view.value, page: grid.page.value, datasetKey,
+          review, view: view.value, page: grid.page.value, datasetKey, owner: props.sessionOwner,
         });
       }
     });
