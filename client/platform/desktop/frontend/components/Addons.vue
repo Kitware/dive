@@ -14,7 +14,9 @@ const busy = computed(() => starting.value || !!catalog.value?.job?.running);
 const canInstall = computed(() => !!catalog.value?.installerAvailable && !catalog.value?.readOnly && !busy.value);
 const headers = [
   { text: 'Add-on', value: 'name' }, { text: 'Description', value: 'description' },
-  { text: 'Status', value: 'status', align: 'center' },
+  {
+    text: 'Status', value: 'status', align: 'center', class: 'addon-status-header',
+  },
   {
     text: 'Actions', value: 'actions', sortable: false, align: 'center',
   },
@@ -172,6 +174,9 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+/* Keep the label centered independently of the optional sorting arrow. */
+::v-deep .addon-status-header { position: relative; }
+::v-deep .addon-status-header .v-data-table-header__icon { position: absolute; top: 50%; margin-top: -9px; margin-left: 4px; }
 .addon-actions { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(170px, 1fr); gap: 12px; align-items: center; padding: 8px 0; }
 .addon-output { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow-y: auto; }
 </style>
