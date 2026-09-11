@@ -3,6 +3,7 @@ import {
 } from './headTail';
 import Track from './track';
 import HeadTail from '../dive-common/recipes/headtail';
+import { updateBounds } from './utils';
 
 describe('editable centerlines', () => {
   it('orders numeric names regardless of CSV column order', () => {
@@ -41,5 +42,45 @@ describe('editable centerlines', () => {
   it('samples a curve without dropping its endpoints', () => {
     const sampled = sampleHeadTail([[0, 0], [0, 10], [10, 10]], 5);
     expect(sampled).toEqual([[0, 0], [0, 5], [0, 10], [5, 10], [10, 10]]);
+  });
+});
+
+describe('centerline box preservation', () => {
+  it.each([
+    [[10, 10], [90, 20]],
+    [[20, 30], [50, 80], [80, 20]],
+    [[0, 0], [100, 100]],
+  ])('keeps an existing box for contained vertices %j', (...coordinates) => {
+    const track = new Track(0, { meta: {}, begin: 0, end: 0 });
+    track.setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 100, 100] }, headTailFeatures([[10, 10], [90, 10]]));
+    const recipe = new HeadTail(); recipe.activate();
+    const change = recipe.update('editing', 0, track, [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }], 'HeadTails');
+    expect(updateBounds(track.features[0].bounds, change.union, change.unionWithoutBounds)).toEqual([0, 0, 100, 100]);
+  });
+
+  it('expands only the necessary box edges and encloses fractional vertices', () => {
+    const track = new Track(0, { meta: {}, begin: 0, end: 0 });
+    track.setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 100, 100] }, headTailFeatures([[10, 10], [90, 10]]));
+    const recipe = new HeadTail(); recipe.activate();
+    const change = recipe.update('editing', 0, track, [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[-0.2, 10], [50, 120.1], [90, 10]] } }], 'HeadTails');
+    const bounds = updateBounds(track.features[0].bounds, change.union, change.unionWithoutBounds);
+    track.setFeature({ frame: 0, bounds });
+    expect(track.features[0].bounds).toEqual([-1, 0, 100, 121]);
+  });
+
+  it('uses initial padding once, then preserves that box on later edits', () => {
+    const track = new Track(0, { meta: {}, begin: 0, end: 0 });
+    track.setFeature({ frame: 0, keyframe: true });
+    const recipe = new HeadTail(); recipe.activate();
+    const apply = (mode: 'in-progress' | 'editing', coordinates: number[][]) => {
+      const change = recipe.update(mode, 0, track, [{ type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates } }], 'HeadTails');
+      const bounds = updateBounds(track.features[0].bounds, change.union, change.unionWithoutBounds);
+      track.setFeature({ frame: 0, bounds }, Object.entries(change.data).flatMap(([key, geoms]) => geoms.map((g) => ({ ...g, properties: { key } }))));
+    };
+    apply('in-progress', [[10, 10]]);
+    apply('editing', [[10, 10], [90, 30]]);
+    const initialBounds = [...track.features[0].bounds!];
+    apply('editing', [[20, 15], [80, 25]]);
+    expect(track.features[0].bounds).toEqual(initialBounds);
   });
 });

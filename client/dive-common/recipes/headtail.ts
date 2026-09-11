@@ -20,14 +20,6 @@ const PaddingVector: [number, number][] = [
   [1.10, 0.10],
   [-0.10, -0.10],
 ];
-/* No padding */
-const PaddingVectorZero: [number, number][] = [
-  [0, 0],
-  [0, 0],
-  [1, 0],
-  [1, 0],
-  [0, 0],
-];
 /* Cap how skinny a line's box may get: longer side at most this x the shorter. */
 const MAX_BOX_ASPECT_RATIO = 6;
 
@@ -38,8 +30,8 @@ export default class HeadTail implements Recipe {
 
   private startWithHead: boolean;
 
-  /* Whether the track had bounds before line creation started */
-  private hadBoundsOnCreate: boolean;
+  /* Only the initial completion of a newly boxed line may replace its interim box. */
+  private initialBoundsTarget: { track: Track; frame: number } | null;
 
   bus: Vue;
 
@@ -50,7 +42,7 @@ export default class HeadTail implements Recipe {
   constructor() {
     this.bus = new Vue();
     this.startWithHead = true;
-    this.hadBoundsOnCreate = false;
+    this.initialBoundsTarget = null;
     this.active = ref(false);
     this.name = 'HeadTail';
     this.toggleable = ref(true);
@@ -108,6 +100,17 @@ export default class HeadTail implements Recipe {
       results.push(withinBounds([x, y], bounds));
     }
     return (results.filter((item) => item).length === coords.length);
+  }
+
+  /** Expand an existing box only enough to enclose outlying vertices. */
+  private static encloseVertices(bounds: RectBounds, coordinates: GeoJSON.Position[]): GeoJSON.Polygon[] {
+    if (HeadTail.coordsInBounds(bounds, coordinates)) return [];
+    const xs = coordinates.map((p) => p[0]);
+    const ys = coordinates.map((p) => p[1]);
+    // Track stores integer boxes; round outward so fractional points stay inside.
+    const x0 = Math.floor(Math.min(...xs)); const x1 = Math.ceil(Math.max(...xs));
+    const y0 = Math.floor(Math.min(...ys)); const y1 = Math.ceil(Math.max(...ys));
+    return [{ type: 'Polygon', coordinates: [[[x0, y0], [x1, y0], [x1, y1], [x0, y1], [x0, y0]]] }];
   }
 
   /**
@@ -222,20 +225,9 @@ export default class HeadTail implements Recipe {
           } as GeoJSON.LineString;
         }
         if (geom.coordinates.length === 2) {
-          let union: GeoJSON.Polygon[];
-          if (bounds !== null) {
-            // If both are inside of the bbox don't adjust the union
-            if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
-              union = [];
-            } else if (tail.length > 0) { // If creating new box add padding
-              union = HeadTail.findBounds(geom, PaddingVectorZero);
-            } else {
-              union = HeadTail.findBounds(geom, PaddingVector);
-            }
-          } else {
-            // No existing box: make box 10% larger than tight box around vertices
-            union = HeadTail.tightBoundsExpanded(geom.coordinates, 0.10);
-          }
+          const initialBounds = (this.initialBoundsTarget?.track === track && this.initialBoundsTarget.frame === frameNum) || bounds === null;
+          this.initialBoundsTarget = null;
+          const union = initialBounds ? [] : HeadTail.encloseVertices(bounds!, geom.coordinates);
           // Both head and tail placed, replace them.
           return {
             ...EmptyResponse,
@@ -243,17 +235,14 @@ export default class HeadTail implements Recipe {
             newSelectedKey: HeadTailLineKey,
             done: true,
             union,
+            unionWithoutBounds: initialBounds ? HeadTail.tightBoundsExpanded(geom.coordinates, 0.10) : [],
           } as UpdateResponse;
         }
         if (geom.coordinates.length === 1) {
           // Only the head placed so far — record if the track already had bounds
-          this.hadBoundsOnCreate = bounds !== null;
+          this.initialBoundsTarget = bounds === null ? { track, frame: frameNum } : null;
           let union = HeadTail.findBounds(geom, PaddingVector);
-          if (bounds !== null) {
-            if (HeadTail.coordsInBounds(bounds, geom.coordinates)) {
-              union = [];
-            }
-          }
+          if (bounds !== null) union = HeadTail.encloseVertices(bounds, geom.coordinates);
 
           return {
             ...EmptyResponse,
@@ -267,9 +256,12 @@ export default class HeadTail implements Recipe {
       /**
        * IF recipe isn't active, but the key matches, we are editing
        */
-        if (this.active.value && !this.hadBoundsOnCreate) {
+        const bounds = track.getFeature(frameNum)[0]?.bounds;
+        const initialBounds = (this.initialBoundsTarget?.track === track && this.initialBoundsTarget.frame === frameNum) || !bounds;
+        this.initialBoundsTarget = null;
+        if (initialBounds) {
           // Creating a new line on a track without a pre-existing box:
-          // use unionWithoutBounds to replace interim bounds with 10% expanded box
+          // use unionWithoutBounds to replace interim bounds with 20% expanded box
           return {
             ...EmptyResponse,
             data: HeadTail.makeGeom(linestring.geometry, true),
@@ -280,7 +272,7 @@ export default class HeadTail implements Recipe {
         return {
           ...EmptyResponse,
           data: HeadTail.makeGeom(linestring.geometry, true),
-          union: HeadTail.findBounds(linestring.geometry, PaddingVectorZero),
+          union: HeadTail.encloseVertices(bounds!, linestring.geometry.coordinates),
           done: true,
         };
       }
@@ -333,6 +325,7 @@ export default class HeadTail implements Recipe {
 
   deactivate() {
     this.active.value = false;
+    this.initialBoundsTarget = null;
   }
 
   private headfirst() {

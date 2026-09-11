@@ -1091,7 +1091,10 @@ export default function useModeManager({
         }
       }
     }
-    handleSelectFeatureHandle(-1);
+    // Clear the deleted handle, not the geometry key that keeps the editor on
+    // the remaining line (or on its surviving endpoint when only one remains).
+    handleSelectFeatureHandle(-1, selectedKey.value);
+    _nudgeEditingCanary();
   }
 
   /* If any recipes are active, remove the geometry they added */

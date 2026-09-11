@@ -116,7 +116,10 @@ Use the existing head/tail line tool: place the two endpoints as usual, then
 right-click the detection to edit its existing line. Click a new location on a
 line segment to insert an interior vertex, or drag its small midpoint handle. Drag vertices to adjust the centerline, or select an interior
 vertex and use the existing Delete point action to remove it. Removing the final
-interior vertex restores a two-point line. No additional annotation mode is needed.
+interior vertex restores a two-point line. Deleting a vertex keeps the remaining
+line in edit mode. An existing detection box stays unchanged while all vertices
+are inside it; moving a vertex outside expands only the necessary box edges.
+No additional annotation mode is needed.
 
 The displayed line is an open polyline, ordered head to tail. Intermediate points
 are saved as `spine_001`, `spine_002`, etc.; insertion and deletion renumber them.
