@@ -109,3 +109,29 @@ Stereo settings appear only on stereo datasets (two cameras + calibration) in DI
 > **Stereo warp did not appear on the other camera**
 
 Confirm **Auto-compute location on other camera** is enabled, the track is linked across cameras, and the other camera has no existing detection at that frame. Human-edited lines are not overwritten.
+
+### Curved head/tail lines
+
+Use the existing head/tail line tool: place the two endpoints as usual, then
+select the line for editing. Drag a small segment midpoint handle to insert an
+interior vertex. Drag vertices to adjust the centerline, or select an interior
+vertex and use the existing Delete point action to remove it. Removing the final
+interior vertex restores a two-point line. No additional annotation mode is needed.
+
+The displayed line is an open polyline, ordered head to tail. Intermediate points
+are saved as `spine_001`, `spine_002`, etc.; insertion and deletion renumber them.
+These names describe order within a detection, not anatomical landmarks or stereo
+correspondences. Other keypoints and segmentation polygons remain separate.
+
+With stereo length updates enabled, edits clear derived measurements and trigger
+fresh correspondence along the curve. Failed matches leave the measurement stale
+instead of keeping an old length. Explicit `user_set` lengths stay locked. Curved
+measurement reports `curved_length`, `straight_length`, and `curvature_ratio` in
+addition to the usual length field; this ratio is a bend indicator, not local
+curvature. Computation follows the editable polyline, retaining its corners.
+
+Desktop dense stereo transfers new curved lines from the left/reference camera.
+Editing an existing curve on the right remeasures against the left curve; it does
+not overwrite the left curve with a backwards use of the left disparity map.
+Browser ONNX matching supports transfers in either direction. Both implementations
+rematch image locations rather than pairing equally numbered intermediate points.

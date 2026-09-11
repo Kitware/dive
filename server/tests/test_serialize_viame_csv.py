@@ -157,7 +157,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             }
         },
         [
-            "0,2.png,1,2,2,4,4,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(kp) head 22 46,(kp) tail 55 22",
+            "0,2.png,1,2,2,4,4,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(kp) head 22.4534 45.6564,(kp) tail 55.232 22.3445",
             "0,3.png,2,3,3,6,6,0.9,-1,bar,0.9,foo,0.2,baz,0.1",
             "0,4.png,3,4,4,8,8,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(poly) 1 2 3 4 5 6 7 8 9 10",
             "",
@@ -681,3 +681,17 @@ def test_export_csv_omits_track_when_no_pairs_meet_threshold():
     )
 
     assert [line.strip() for line in lines if line.strip()] == []
+
+
+def test_centerline_json_csv_roundtrip():
+    coords = [[10.123456789, 20], [20, 30.987654321], [30, 20]]
+    track = dict(id=1, begin=0, end=0, confidencePairs=[['fish', 1]], features=[dict(
+        frame=0, bounds=[0, 0, 100, 100], keyframe=True, geometry=dict(type='FeatureCollection', features=[
+            dict(type='Feature', properties=dict(key='HeadTails'),
+                 geometry=dict(type='LineString', coordinates=coords))]))])
+    rows = list(viame.export_tracks_as_csv([track], filenames=['img.png'], header=False))
+    row = next(r for r in rows if '(kp)' in r)
+    features, *_ = viame._parse_row(next(csv.reader([row])))
+    line = next(f for f in features['geometry']['features'] if f['geometry']['type'] == 'LineString')
+    assert line['geometry']['coordinates'] == coords
+    assert '(kp) spine_001 20 30.987654321' in row
