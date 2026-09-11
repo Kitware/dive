@@ -231,6 +231,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.bus.$emit('editing-annotation-sync', false, true);
           return;
         }
+        if (e.buttonsDown.right && this.type === 'Polygon' && this.featureLayer.annotations()[0]) {
+          this.bus.$emit('polygon-edit-right-click', e.geo);
+        }
         //Used to sync clicks that kick out of editing mode with application
         //This prevents that pseudo Edit state when left clicking on a object in edit mode
         if (!this.disableModeSync && (e.buttonsDown.left || e.buttonsDown.right)
