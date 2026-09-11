@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 /* eslint-disable vue/one-component-per-file -- lightweight Vuetify test doubles */
-import Vue, { h } from 'vue';
+import Vue, { h, PropType } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import Addons from './Addons.vue';
 import type { AddonCatalog } from '../../addons';
@@ -12,7 +12,7 @@ const button = Vue.extend({
   render() { return h('button', { attrs: { disabled: this.disabled }, on: this.$listeners }, this.$slots.default); },
 });
 const table = Vue.extend({
-  props: { items: { type: Array, default: () => [] } },
+  props: { items: { type: Array as PropType<{ name: string }[]>, default: () => [] } },
   render() {
     return h('div', this.items.map((item: { name: string }) => h('section', { attrs: { 'data-addon': item.name } }, [
       item.name, this.$scopedSlots['item.status']?.({ item }), this.$scopedSlots['item.actions']?.({ item }),
