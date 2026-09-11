@@ -14,7 +14,7 @@ const busy = computed(() => starting.value || !!catalog.value?.job?.running);
 const canInstall = computed(() => !!catalog.value?.installerAvailable && !catalog.value?.readOnly && !busy.value);
 const headers = [
   { text: 'Add-on', value: 'name' }, { text: 'Description', value: 'description' },
-  { text: 'Requires', value: 'requires' }, { text: 'Status', value: 'status' },
+  { text: 'Status', value: 'status' },
   { text: 'Actions', value: 'actions', sortable: false },
 ];
 async function refresh() {
@@ -109,9 +109,6 @@ onBeforeUnmount(() => {
         :items-per-page="25"
         no-data-text="No add-ons available in this VIAME installation's catalog."
       >
-        <template #[`item.requires`]="{ item }">
-          {{ item.requires.join(', ') }}
-        </template>
         <template #[`item.status`]="{ item }">
           <v-chip small :color="item.status === 'installed' ? 'success' : undefined">
             {{ item.status }}

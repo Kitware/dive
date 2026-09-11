@@ -76,7 +76,7 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
         return this.stateStyling.standard.opacity;
       },
       radius: (data: PointGeoJSData) => {
-        const scale = spineIndex(data.feature) !== null && data.editing !== 'LineString' ? 1.5 : 2;
+        const scale = spineIndex(data.feature) !== null && data.editing !== 'LineString' ? 1 : 2;
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth * scale;
         }
