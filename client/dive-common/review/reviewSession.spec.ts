@@ -1,8 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import {
+  describe, expect, it, vi,
+} from 'vitest';
 import { ref } from 'vue';
 import type { ReviewService } from 'dive-common/use/useReview';
 import {
-  holdReviewSession, peekReviewSession, sessionKey, shouldResume, takeReviewSession,
+  clearReviewSession, holdReviewSession, peekReviewSession, sessionKey, shouldResume, takeReviewSession,
   useReviewSessionHeld,
 } from './reviewSession';
 
@@ -16,6 +18,17 @@ function session(datasetIds: string[], pending = 0) {
 }
 
 describe('review session', () => {
+  it('disposes private state when an account session is cleared', () => {
+    const held = session(['private']);
+    held.review.dispose = vi.fn();
+    holdReviewSession(held);
+    clearReviewSession();
+    expect(held.review.dispose).toHaveBeenCalledOnce();
+    expect(peekReviewSession()).toBeNull();
+    clearReviewSession();
+    expect(held.review.dispose).toHaveBeenCalledOnce();
+  });
+
   it('is handed over once', () => {
     expect(takeReviewSession()).toBeNull();
     const held = session(['a']);

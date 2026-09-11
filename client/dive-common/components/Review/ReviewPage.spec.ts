@@ -48,9 +48,9 @@ interface PageState {
   leaveDialog: boolean;
 }
 
-function mountPage() {
+function mountPage(propsData = {}) {
   // Exercise the real setup/lifecycle and guard, without rendering Vuetify/media.
-  return shallowMount({ ...(ReviewPage as unknown as ComponentOptions<Vue>), render: (h: CreateElement) => h('div') });
+  return shallowMount({ ...(ReviewPage as unknown as ComponentOptions<Vue>), render: (h: CreateElement) => h('div') }, { propsData });
 }
 
 beforeEach(() => {
@@ -108,4 +108,35 @@ it('refreshes data and guards edits after leaving and remounting Review', async 
   await navigation;
   expect(next).toHaveBeenCalledWith(false);
   second.destroy();
+});
+
+it("does not resume another web account's annotations", async () => {
+  const first = mountPage({ sessionOwner: 'alice' });
+  const original = first.vm as unknown as PageState;
+  await original.review.addDataset('private');
+  await mocks.guard!({} as never, {} as never, vi.fn());
+  first.destroy();
+  const dispose = vi.spyOn(original.review, 'dispose');
+  const second = mountPage({ sessionOwner: 'bob' });
+  const fresh = second.vm as unknown as PageState;
+  expect(fresh.review).not.toBe(original.review);
+  expect(fresh.review.datasets.value).toEqual([]);
+  expect(dispose).toHaveBeenCalledOnce();
+  second.destroy();
+});
+
+it('disposes the active review instead of parking it on logout', async () => {
+  const wrapper = mountPage({ sessionOwner: 'alice' });
+  const page = wrapper.vm as unknown as PageState;
+  await page.review.addDataset('private');
+  page.review.assignType(page.review.items.value[0], 'shark');
+  await wrapper.setProps({ retainSession: false });
+  const next = vi.fn();
+  await mocks.guard!({} as never, {} as never, next);
+  expect(next).toHaveBeenCalledWith();
+  expect(page.leaveDialog).toBe(false);
+  const dispose = vi.spyOn(page.review, 'dispose');
+  wrapper.destroy();
+  expect(dispose).toHaveBeenCalledOnce();
+  expect(takeReviewSession()).toBeNull();
 });
