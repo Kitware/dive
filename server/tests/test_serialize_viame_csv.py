@@ -685,13 +685,34 @@ def test_export_csv_omits_track_when_no_pairs_meet_threshold():
 
 def test_centerline_json_csv_roundtrip():
     coords = [[10.123456789, 20], [20, 30.987654321], [30, 20]]
-    track = dict(id=1, begin=0, end=0, confidencePairs=[['fish', 1]], features=[dict(
-        frame=0, bounds=[0, 0, 100, 100], keyframe=True, geometry=dict(type='FeatureCollection', features=[
-            dict(type='Feature', properties=dict(key='HeadTails'),
-                 geometry=dict(type='LineString', coordinates=coords))]))])
+    track = dict(
+        id=1,
+        begin=0,
+        end=0,
+        confidencePairs=[['fish', 1]],
+        features=[
+            dict(
+                frame=0,
+                bounds=[0, 0, 100, 100],
+                keyframe=True,
+                geometry=dict(
+                    type='FeatureCollection',
+                    features=[
+                        dict(
+                            type='Feature',
+                            properties=dict(key='HeadTails'),
+                            geometry=dict(type='LineString', coordinates=coords),
+                        )
+                    ],
+                ),
+            )
+        ],
+    )
     rows = list(viame.export_tracks_as_csv([track], filenames=['img.png'], header=False))
     row = next(r for r in rows if '(kp)' in r)
     features, *_ = viame._parse_row(next(csv.reader([row])))
-    line = next(f for f in features['geometry']['features'] if f['geometry']['type'] == 'LineString')
+    line = next(
+        f for f in features['geometry']['features'] if f['geometry']['type'] == 'LineString'
+    )
     assert line['geometry']['coordinates'] == coords
     assert '(kp) spine_001 20 30.987654321' in row

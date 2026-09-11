@@ -12,7 +12,7 @@ import re
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 from dive_utils import constants, types
-from dive_utils.models import Feature, Track, GeoJSONFeature, interpolate
+from dive_utils.models import Feature, GeoJSONFeature, Track, interpolate
 
 
 def format_timestamp(fps: int, frame: int) -> str:
@@ -181,18 +181,37 @@ def _coordinate_text(value):
 
 def _centerline_features(features):
     """Serialize edited LineString vertices even when a JSON file has no markers."""
-    line = next((f for f in features if f.geometry.type == 'LineString'
-                 and f.properties.get('key') == 'HeadTails'), None)
+    line = next(
+        (
+            f
+            for f in features
+            if f.geometry.type == 'LineString' and f.properties.get('key') == 'HeadTails'
+        ),
+        None,
+    )
     if line is None or len(line.geometry.coordinates) < 2:
         return features
     points = line.geometry.coordinates
-    retained = [f for f in features if not (f.geometry.type == 'Point' and
-                (f.properties.get('key') in ('head', 'tail') or
-                 re.fullmatch(r'spine_0*[1-9][0-9]*', str(f.properties.get('key', '')))))]
+    retained = [
+        f
+        for f in features
+        if not (
+            f.geometry.type == 'Point'
+            and (
+                f.properties.get('key') in ('head', 'tail')
+                or re.fullmatch(r'spine_0*[1-9][0-9]*', str(f.properties.get('key', '')))
+            )
+        )
+    ]
     for i, point in enumerate(points):
         key = 'head' if i == 0 else 'tail' if i == len(points) - 1 else f'spine_{i:03d}'
-        retained.append(GeoJSONFeature(type='Feature', properties={'key': key},
-                       geometry={'type': 'Point', 'coordinates': point}))
+        retained.append(
+            GeoJSONFeature(
+                type='Feature',
+                properties={'key': key},
+                geometry={'type': 'Point', 'coordinates': point},
+            )
+        )
     return retained
 
 
@@ -264,12 +283,15 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
         if note_regex:
             notes.append(note_regex[1])
 
-    points = {f['properties']['key']: f['geometry']['coordinates']
-              for f in features.get('geometry', {}).get('features', [])
-              if f['geometry']['type'] == 'Point'}
+    points = {
+        f['properties']['key']: f['geometry']['coordinates']
+        for f in features.get('geometry', {}).get('features', [])
+        if f['geometry']['type'] == 'Point'
+    }
     if 'head' in points and 'tail' in points:
-        spine = sorted((k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)),
-                       key=lambda k: int(k[6:]))
+        spine = sorted(
+            (k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)), key=lambda k: int(k[6:])
+        )
         head_tail = [points['head']] + [points[k] for k in spine] + [points['tail']]
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
 
@@ -759,7 +781,8 @@ def export_tracks_as_csv(
                             coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
                             columns.append(
                                 f"(kp) {geoJSONFeature.properties['key']} "
-                                f"{_coordinate_text(coordinates[0])} {_coordinate_text(coordinates[1])}"
+                                f"{_coordinate_text(coordinates[0])} "
+                                f"{_coordinate_text(coordinates[1])}"
                             )
 
                 # Emitted last, matching the desktop TypeScript serializer's
