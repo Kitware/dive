@@ -1,0 +1,24 @@
+.md-typeset mark {
+  padding: 1px 4px;
+  border-radius: 3px;
+  color: white !important;
+  font-weight: bold;
+  border: 1px solid #424242;
+  background-color: #0277bd; /* DIVE primary color */
+}
+
+.md-typeset mark.error {
+  background-color: #F44336 !important; /* DIVE error color */
+}
+
+.md-typeset mark.success {
+  background-color: #5cb85c !important;
+}
+
+.md-typeset a {
+  text-decoration: underline;
+}
+
+.md-typeset a.md-button {
+  text-decoration: none;
+}
