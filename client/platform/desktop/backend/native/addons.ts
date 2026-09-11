@@ -7,6 +7,7 @@ import type {
   AddonCatalog, AddonInstallRequest, AddonJob, ViameAddon,
 } from 'platform/desktop/addons';
 import { observeChild } from './processManager';
+import { runElevatedInstaller } from './addonsElevation';
 
 const CSV_NAME = 'download_viame_addons.csv';
 let job: AddonJob | null = null;
@@ -61,6 +62,56 @@ export async function getAddons(settings: Settings): Promise<AddonCatalog> {
   };
 }
 
+const permissionFailure = (message: string) => /EACCES|EPERM|PermissionError|permission denied|access (?:is )?denied|WinError 5/i.test(message);
+
+/** Probe actual writes, since Windows ACLs are not reliably represented by access(W_OK). */
+async function checkWritable(installDir: string) {
+  await Promise.all([installDir, path.join(installDir, 'configs', 'pipelines')].map(async (directory) => {
+    if (!(await fs.pathExists(directory))) return;
+    const probe = await fs.mkdtemp(path.join(directory, '.dive-write-check-'));
+    await fs.remove(probe);
+  }));
+}
+
+export function progressOutput(jobState: AddonJob) {
+  const current = jobState;
+  let pending = '';
+  const line = (value: string) => {
+    const prefix = 'VIAME_ADDON_PROGRESS ';
+    if (value.startsWith(prefix)) {
+      try {
+        const event = JSON.parse(value.slice(prefix.length));
+        if (['download', 'verify', 'install'].includes(event.phase)) {
+          current.phase = event.phase;
+          const percent = typeof event.done === 'number' && typeof event.total === 'number' && event.total > 0
+            ? Math.max(0, Math.min(100, (100 * event.done) / event.total)) : undefined;
+          if (event.phase === 'download') current.downloadProgress = percent;
+          if (event.phase === 'install') current.installProgress = percent;
+          if (event.phase === 'verify' && !current.localArchive) current.downloadProgress = 100;
+          return;
+        }
+      } catch { /* Retain malformed output in the log for diagnosis. */ }
+    }
+    if (value.startsWith('Downloading ')) current.phase = 'download';
+    if (value.startsWith('Installing ')) {
+      current.phase = 'install';
+      if (!current.localArchive) current.downloadProgress = 100;
+    }
+    current.log = (`${current.log + value}\n`).slice(-65536);
+  };
+  return {
+    append(data: Buffer) {
+      pending += data.toString();
+      const lines = pending.split(/\r?\n/);
+      pending = lines.pop() || '';
+      lines.forEach(line);
+      // Do not allow an installer that never writes a newline to grow memory indefinitely.
+      if (pending.length > 65536) { line(pending.slice(-65536)); pending = ''; }
+    },
+    flush() { if (pending) line(pending); pending = ''; },
+  };
+}
+
 /** Start one installation in the main process so navigating away does not stop it. */
 export async function installAddon(settings: Settings, request: AddonInstallRequest): Promise<AddonJob> {
   if (starting || job?.running) throw new Error('An add-on installation is already running.');
@@ -89,26 +140,63 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
     const bundled = path.join(catalog.installDir, 'bin', process.platform === 'win32' ? 'python.exe' : 'python');
     const fallback = process.platform === 'win32' ? 'python' : 'python3';
     const python = (await fs.pathExists(bundled)) ? bundled : fallback;
+    let elevate = false;
+    try { await checkWritable(catalog.installDir); } catch (error) {
+      if (!permissionFailure(String(error))) throw error;
+      if (process.platform !== 'win32') throw new Error('Permission denied: DIVE cannot write to this VIAME installation. Ask an administrator to grant write access or choose a writable installation in Settings.');
+      elevate = true;
+    }
     const current: AddonJob = {
-      name: addon.name, installDir: catalog.installDir, running: true, log: '',
+      name: addon.name,
+      installDir: catalog.installDir,
+      running: true,
+      log: '',
+      phase: request.archive ? 'verify' : 'download',
+      localArchive: !!request.archive,
     };
     job = current;
-    // The installer only uses Python's standard library; no shell/setup script
-    // is required. Catalog names and paths remain separate argv entries.
-    const child = observeChild(spawn(python, args, {
-      cwd: catalog.installDir,
-      shell: false,
-      windowsHide: true,
-      env: { ...process.env, PYTHONUNBUFFERED: '1' },
-    }));
-    const append = (data: Buffer) => { current.log = (current.log + data.toString()).slice(-65536); };
-    child.stdout?.on('data', append);
-    child.stderr?.on('data', append);
-    child.on('error', (error) => { current.running = false; current.error = error.message; });
-    child.on('close', (code) => {
+    const output = progressOutput(current);
+    const failed = (error: Error) => { output.flush(); current.running = false; current.error = error.message; };
+    const finish = (code: number | null) => {
+      output.flush();
       current.running = false;
-      if (code !== 0 && !current.error) current.error = `Installation failed (exit ${code}). See the output below.`;
-    });
+      if (current.error) return;
+      if (code === 0) {
+        current.phase = 'complete'; current.installProgress = 100;
+        if (!current.localArchive) current.downloadProgress = 100;
+      } else if (!current.error) {
+        if (code === 1223) current.error = 'Administrator permission was canceled. Try again and approve the Windows permission prompt.';
+        else {
+          const details = current.log.trim().split('\n').slice(-8).join('\n');
+          current.error = permissionFailure(details)
+            ? `Permission denied while installing this pack. Check write access to ${current.installDir}.\n${details}`
+            : `Installation failed (exit ${code ?? 'unknown'}). ${details || 'The installer could not be started or did not report a reason.'}`;
+        }
+      }
+    };
+    const elevated = () => {
+      current.elevated = true; current.phase = 'elevation'; current.running = true;
+      current.log += 'Requesting administrator permission from Windows…\n';
+      runElevatedInstaller(python, args, catalog.installDir, output.append).then(finish, failed);
+    };
+    if (elevate) elevated();
+    else {
+      const child = observeChild(spawn(python, args, {
+        cwd: catalog.installDir,
+        shell: false,
+        windowsHide: true,
+        env: { ...process.env, PYTHONUNBUFFERED: '1', VIAME_ADDON_PROGRESS: '1' },
+      }));
+      child.stdout?.on('data', output.append);
+      child.stderr?.on('data', output.append);
+      child.on('error', failed);
+      child.on('close', (code) => {
+        output.flush();
+        if (code !== 0 && process.platform === 'win32' && !current.error && permissionFailure(current.log)
+            && !/rollback incomplete/i.test(current.log)) elevated();
+        else finish(code);
+      });
+    }
     return { ...current };
   } catch (error) {
     if (job?.running) {

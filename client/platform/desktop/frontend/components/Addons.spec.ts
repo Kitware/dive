@@ -56,16 +56,16 @@ it('refreshes filesystem status when the desktop regains focus', async () => {
   expect(wrapper.text()).toContain('not installed');
   catalog.addons[0].status = 'installed';
   window.dispatchEvent(new Event('focus')); await flush();
-  expect(wrapper.text()).toContain('Reinstall');
+  expect(wrapper.text()).toContain('Download and Install');
   wrapper.destroy();
 });
 
 it('starts an install and disables further installs while the job runs', async () => {
   const wrapper = mount(); await flush();
-  await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Install')!.trigger('click'); await flush();
+  await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!.trigger('click'); await flush();
   expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: undefined, force: false });
   expect(wrapper.text()).toContain('Installing');
-  const installButton = wrapper.findAll('button').wrappers.find((b) => b.text() === 'Install')!;
+  const installButton = wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!;
   expect(installButton.attributes('disabled')).toBeDefined();
   wrapper.destroy();
 });
@@ -73,7 +73,7 @@ it('starts an install and disables further installs while the job runs', async (
 it('passes downloaded ZIPs and explicit reinstall intent to the installer', async () => {
   catalog.addons[0].status = 'installed';
   const wrapper = mount(); await flush();
-  await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Install from ZIP')!.trigger('click'); await flush();
+  await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Import Local ZIP')!.trigger('click'); await flush();
   expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: '/tmp/pack.zip', force: true });
   wrapper.destroy();
 });
@@ -81,7 +81,7 @@ it('passes downloaded ZIPs and explicit reinstall intent to the installer', asyn
 it('does not install when the ZIP picker is canceled', async () => {
   showOpenDialog.mockResolvedValue({ canceled: true, filePaths: [] });
   const wrapper = mount(); await flush();
-  await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Install from ZIP')!.trigger('click'); await flush();
+  await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Import Local ZIP')!.trigger('click'); await flush();
   expect(invoke.mock.calls.some(([channel]) => channel === 'desktop:addons-install')).toBe(false);
   wrapper.destroy();
 });
@@ -92,6 +92,40 @@ it('shows unavailable installer and unknown-status explanations', async () => {
   const wrapper = mount(); await flush();
   expect(wrapper.text()).toContain('Update VIAME');
   expect(wrapper.text()).toContain('status is unknown');
-  expect(wrapper.findAll('button').wrappers.find((b) => b.text() === 'Install')!.attributes('disabled')).toBeDefined();
+  expect(wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!.attributes('disabled')).toBeDefined();
+  wrapper.destroy();
+});
+
+it('shows separate download and installation progress with detailed errors', async () => {
+  catalog.job = {
+    name: 'FISH',
+    installDir: '/opt/viame',
+    running: true,
+    log: '',
+    phase: 'download',
+    downloadProgress: 37,
+  };
+  const wrapper = mount(); await flush();
+  expect(wrapper.text()).toContain('Download 37%');
+  expect(wrapper.find('[aria-label="Download progress"]').attributes('value')).toBe('37');
+  catalog.job.phase = 'install';
+  catalog.job.downloadProgress = 100;
+  catalog.job.installProgress = 62;
+  window.dispatchEvent(new Event('focus')); await flush();
+  expect(wrapper.text()).toContain('Install 62%');
+  catalog.job.running = false;
+  catalog.job.error = 'Permission denied while installing this pack.';
+  window.dispatchEvent(new Event('focus')); await flush();
+  expect(wrapper.text()).toContain('Permission denied while installing this pack.');
+  wrapper.destroy();
+});
+
+it('omits download progress for an imported archive and explains pending elevation', async () => {
+  catalog.job = {
+    name: 'FISH', installDir: '/opt/viame', running: true, log: '', phase: 'elevation', localArchive: true,
+  };
+  const wrapper = mount(); await flush();
+  expect(wrapper.find('[aria-label="Download progress"]').exists()).toBe(false);
+  expect(wrapper.text()).toContain('Approve the Windows permission prompt');
   wrapper.destroy();
 });

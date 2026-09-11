@@ -14,8 +14,10 @@ const busy = computed(() => starting.value || !!catalog.value?.job?.running);
 const canInstall = computed(() => !!catalog.value?.installerAvailable && !catalog.value?.readOnly && !busy.value);
 const headers = [
   { text: 'Add-on', value: 'name' }, { text: 'Description', value: 'description' },
-  { text: 'Status', value: 'status' },
-  { text: 'Actions', value: 'actions', sortable: false },
+  { text: 'Status', value: 'status', align: 'center' },
+  {
+    text: 'Actions', value: 'actions', sortable: false, align: 'center',
+  },
 ];
 async function refresh() {
   if (loading.value) return;
@@ -36,7 +38,7 @@ async function install(addon: ViameAddon, fromFile = false) {
     let archive: string | undefined;
     if (fromFile) {
       const result = await window.diveDesktop.showOpenDialog({
-        title: `Install ${addon.name} from ZIP`,
+        title: `Import local ZIP for ${addon.name}`,
         properties: ['openFile'],
         filters: [{ name: 'Add-on archive', extensions: ['zip'] }],
       });
@@ -115,21 +117,47 @@ onBeforeUnmount(() => {
           </v-chip>
         </template>
         <template #[`item.actions`]="{ item }">
-          <v-btn v-if="!needsBrowser(item)" small class="ma-1" :disabled="!canInstall" @click="install(item)">
-            {{ item.status === 'installed' ? 'Reinstall' : 'Install' }}
-          </v-btn>
-          <v-btn v-else small class="ma-1" @click="download(item)">
-            Download in browser
-          </v-btn>
-          <v-btn small class="ma-1" :disabled="!canInstall" @click="install(item, true)">
-            Install from ZIP
-          </v-btn>
+          <div class="addon-actions">
+            <div>
+              <v-btn v-if="!needsBrowser(item)" small block :disabled="!canInstall" @click="install(item)">
+                Download and Install
+              </v-btn>
+              <v-btn v-else small block @click="download(item)">
+                Download in browser
+              </v-btn>
+            </div>
+            <div>
+              <v-btn small block :disabled="!canInstall" @click="install(item, true)">
+                Import Local ZIP
+              </v-btn>
+            </div>
+          </div>
         </template>
       </v-data-table>
       <v-card v-if="catalog && catalog.job" class="mt-4" outlined>
         <v-card-title>{{ catalog.job.name }} — {{ catalog.job.running ? 'Installing' : (catalog.job.error ? 'Failed' : 'Finished') }}</v-card-title>
         <v-card-text>
-          <v-progress-linear v-if="catalog.job.running" indeterminate class="mb-3" />
+          <v-alert v-if="catalog.job.running && catalog.job.phase === 'elevation'" type="info">
+            Waiting for administrator permission. Approve the Windows permission prompt to continue.
+          </v-alert>
+          <div v-if="!catalog.job.localArchive" class="mb-3">
+            <div>Download <span v-if="catalog.job.downloadProgress !== undefined">{{ Math.floor(catalog.job.downloadProgress) }}%</span></div>
+            <v-progress-linear
+              aria-label="Download progress"
+              :value="catalog.job.downloadProgress || 0"
+              :indeterminate="catalog.job.running && catalog.job.phase === 'download' && catalog.job.downloadProgress === undefined"
+              :color="catalog.job.error ? 'error' : 'primary'"
+            />
+          </div>
+          <div class="mb-3">
+            <div>{{ catalog.job.phase === 'verify' ? 'Verifying archive' : 'Install' }} <span v-if="catalog.job.installProgress !== undefined">{{ Math.floor(catalog.job.installProgress) }}%</span></div>
+            <v-progress-linear
+              aria-label="Install progress"
+              :value="catalog.job.installProgress || 0"
+              :indeterminate="catalog.job.running && (catalog.job.phase === 'verify' || (catalog.job.phase === 'install' && catalog.job.installProgress === undefined))"
+              :color="catalog.job.error ? 'error' : 'primary'"
+            />
+          </div>
           <p v-if="catalog.job.installDir !== catalog.installDir">
             Installation: {{ catalog.job.installDir }}
           </p>
@@ -144,5 +172,6 @@ onBeforeUnmount(() => {
 </template>
 
 <style scoped>
+.addon-actions { display: grid; grid-template-columns: minmax(210px, 1fr) minmax(170px, 1fr); gap: 12px; align-items: center; padding: 8px 0; }
 .addon-output { white-space: pre-wrap; overflow-wrap: anywhere; max-height: 300px; overflow-y: auto; }
 </style>
