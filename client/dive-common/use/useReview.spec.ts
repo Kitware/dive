@@ -53,6 +53,33 @@ function makeApi(tracksById: Record<string, TrackData[]>, overrides: Partial<Rev
 }
 
 describe('createReviewService', () => {
+  it('uses the web tracks-only reader without loading unused annotation data', async () => {
+    const loadReviewTracks = vi.fn(async () => [track(1, [['fish', 0.9]], [0])]);
+    const api = makeApi({}, { loadReviewTracks });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    expect(loadReviewTracks).toHaveBeenCalledWith('a');
+    expect(api.loadDetections).not.toHaveBeenCalled();
+    expect(service.items.value.map((item) => item.trackId)).toEqual([1]);
+    service.dispose();
+  });
+
+  it('does not start queued dataset reads after disposal', async () => {
+    let resolve!: (value: DatasetConfig) => void;
+    const blocked = new Promise<DatasetConfig>((done) => { resolve = done; });
+    const api = makeApi({}, { loadConfig: vi.fn(() => blocked) });
+    const service = createReviewService({ api });
+    const pending = service.addDatasets(['a', 'b', 'c', 'd', 'e']);
+    await vi.waitFor(() => expect(api.loadConfig).toHaveBeenCalledTimes(3));
+    service.dispose();
+    resolve(config('a'));
+    await pending;
+    expect(api.loadConfig).toHaveBeenCalledTimes(3);
+    expect(api.loadDetections).not.toHaveBeenCalled();
+    await service.addDataset('f');
+    expect(api.loadConfig).toHaveBeenCalledTimes(3);
+  });
+
   it('keeps deferred datasets queued until loadQueued', async () => {
     const api = makeApi({ a: [track(1, [['fish', 0.9]], [0])] });
     const service = createReviewService({ api });
@@ -329,6 +356,7 @@ describe('review session regressions', () => {
     await service.addDataset('a', undefined, { defer: true });
     const loading = service.addDataset('b');
     await Promise.resolve();
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'));
     service.removeDataset('a');
     finish({
       tracks: [], groups: [], sets: [], version: 2,

@@ -17,6 +17,7 @@ import {
   acceptPairAsCorrect, compileHierarchy, reassignPairs, TypeHierarchyIndex,
 } from 'dive-common/typeHierarchy';
 import { createFrameSource, FrameSource } from 'dive-common/review/frameSource';
+import createReviewRequestQueue from 'dive-common/review/requestQueue';
 import { createChipStore, ChipStore } from 'dive-common/review/chipStore';
 import {
   buildReviewItems, CameraMembership, collectAttributeKeys, collectTypes, frameRefFor, groupReviewItems,
@@ -44,7 +45,7 @@ export interface ReviewGeometryEdit {
 }
 
 export type ReviewApi = Pick<Api,
-  'loadConfig' | 'peekConfig' | 'loadDetections' | 'saveDetections'
+  'loadConfig' | 'peekConfig' | 'loadDetections' | 'loadReviewTracks' | 'saveDetections'
   | 'listScoringDatasets' | 'pickScoringDataset'>;
 
 export interface ReviewServiceDeps {
@@ -221,6 +222,8 @@ export function createReviewService(deps: ReviewServiceDeps): ReviewService {
 
 function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   const { api } = deps;
+  const requests = createReviewRequestQueue();
+  let disposed = false;
   const datasets = ref<ReviewDataset[]>([]);
   const available = ref<ScoringDatasetSummary[]>([]);
   const query = reactive<ReviewQuery>({ ...DEFAULT_REVIEW_QUERY });
@@ -277,7 +280,8 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   async function refreshAvailable() {
     if (!api.listScoringDatasets) return;
     try {
-      available.value = await api.listScoringDatasets();
+      const result = await requests.run(() => api.listScoringDatasets!());
+      if (!disposed) available.value = result;
     } catch (err) {
       fail(err, 'Could not list datasets');
     }
@@ -289,7 +293,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
 
   function frameSourceFor(config: DatasetConfig): FrameSource | null {
     try {
-      return createFrameSource(config);
+      return createFrameSource(config, { cacheSize: 2, cacheBytes: 16 * 1024 * 1024 });
     } catch {
       return null;
     }
@@ -309,7 +313,10 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     const isCurrent = () => loadTokens.get(id) === token && !!entry(id);
     loading.value = true;
     try {
-      const config = await loadConfig(id);
+      const config = await requests.run(() => {
+        if (!isCurrent()) throw new Error('Dataset removed');
+        return loadConfig(id);
+      });
       if (!isCurrent()) return;
       if (config.type === 'multi') {
         // Review the cameras of a multicamera dataset as separate sequences.
@@ -322,11 +329,14 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
         })));
         return;
       }
-      const detections = await api.loadDetections(id);
+      const detections = await requests.run(async () => {
+        if (!isCurrent()) throw new Error('Dataset removed');
+        return api.loadReviewTracks ? api.loadReviewTracks(id) : (await api.loadDetections(id)).tracks;
+      });
       if (!isCurrent()) return;
       dropLoaded(id);
       const tracks = new Map<AnnotationId, TrackData>();
-      detections.tracks.forEach((track) => tracks.set(track.id, track));
+      detections.forEach((track) => tracks.set(track.id, track));
       const frameSource = frameSourceFor(config);
       if (config.customTypeStyling) {
         styles.populateTypeStyles({ ...styles.customStyles.value, ...config.customTypeStyling });
@@ -368,7 +378,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
    * results are actually wanted.
    */
   async function addDataset(id: string, summary?: ScoringDatasetSummary, options: { defer?: boolean } = {}) {
-    if (!id || entry(id)) return;
+    if (disposed || !id || entry(id)) return;
     datasets.value = [...datasets.value, {
       id,
       name: summary?.name || datasetName(id),
@@ -654,10 +664,10 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
           upsert.push(JSON.parse(JSON.stringify(track)) as TrackData);
         });
         const submittedDeleted = Array.from(dataset.deleted);
-        await api.saveDetections(id, {
+        await requests.run(() => api.saveDetections(id, {
           tracks: { upsert, delete: submittedDeleted },
           groups: { upsert: [], delete: [] },
-        });
+        }));
         submittedVersions.forEach((version, trackId) => {
           if (dataset.pendingVersions.get(trackId) === version) {
             dataset.pending.delete(trackId);
@@ -707,6 +717,8 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   }
 
   function dispose() {
+    disposed = true;
+    requests.dispose();
     runQuerySettled.cancel();
     loadTokens.clear();
     loaded.forEach((dataset) => dataset.frameSource?.dispose());

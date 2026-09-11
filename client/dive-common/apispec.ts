@@ -500,6 +500,8 @@ interface Api {
    */
   peekConfig?(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  /** Tracks only, for bulk review; avoids fetching unused groups and annotation sets. */
+  loadReviewTracks?(datasetId: string): Promise<TrackData[]>;
   loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;

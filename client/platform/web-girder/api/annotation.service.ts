@@ -45,6 +45,14 @@ async function loadDetections(datasetId: string, revision?: number, set?: string
   };
 }
 
+/** Review needs only the live tracks; retain the normal Girder access checks. */
+async function loadReviewTracks(datasetId: string): Promise<TrackData[]> {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
+  return (await girderRest.get<TrackData[]>('dive_annotation/track', {
+    params: { folderId },
+  })).data;
+}
+
 async function loadRevisions(
   datasetId: string,
   limit?: number,
@@ -75,6 +83,7 @@ async function getLabels() {
 export {
   getLabels,
   loadDetections,
+  loadReviewTracks,
   loadRevisions,
   saveDetections,
 };
