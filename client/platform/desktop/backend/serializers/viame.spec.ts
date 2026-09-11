@@ -246,6 +246,35 @@ describe('VIAME Python Compatibility Check', () => {
   });
 });
 
+describe('Detection length import', () => {
+  [0, -1, -2.5, 12.5].forEach((columnLength) => {
+    [undefined, 0, -1, -2.5, 7.5].forEach((attributeLength) => {
+      it(`imports positive lengths from column ${columnLength} and attribute ${attributeLength}`, async () => {
+        let csv = `0,1.png,0,10,10,20,20,1,${columnLength},fish,0.9,(atr) other 3`;
+        if (attributeLength !== undefined) {
+          csv += `,(atr) length ${attributeLength}`;
+        }
+        const [data] = await parse(Readable.from([csv]));
+        const track = Object.values(data.tracks)[0];
+        const feature = track.features[0];
+        const expected = attributeLength !== undefined && attributeLength > 0
+          ? attributeLength : columnLength;
+        expect(feature.attributes?.other).toBe(3);
+        const { attributes } = processTrackAttributes([track]);
+        if (expected > 0) {
+          expect(feature.attributes?.length).toBe(expected);
+          expect(feature.fishLength).toBe(expected);
+          expect(attributes).toHaveProperty('detection_length');
+        } else {
+          expect(feature.attributes).not.toHaveProperty('length');
+          expect(feature).not.toHaveProperty('fishLength');
+          expect(attributes).not.toHaveProperty('detection_length');
+        }
+      });
+    });
+  });
+});
+
 describe('Attribute value parsing', () => {
   it('keeps filename-like attribute values as full strings', async () => {
     const csv = [
