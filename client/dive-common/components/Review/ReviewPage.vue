@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, PropType, ref, watch,
+  computed, nextTick, defineComponent, onBeforeUnmount, onMounted, PropType, ref, watch,
 } from 'vue';
 import { onBeforeRouteLeave } from 'vue-router/composables';
 import { debounce } from 'lodash';
@@ -11,6 +11,9 @@ import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { cellScaleFor } from 'dive-common/review/gridSettings';
 import { cycleIntervalFor } from 'dive-common/review/reviewItems';
+import {
+  holdReviewSession, sessionKey, shouldResume, takeReviewSession,
+} from 'dive-common/review/reviewSession';
 import { ReviewEntry, ReviewSortOrder } from 'dive-common/review/types';
 import type { ViewerFocus } from 'dive-common/review/viewerNavigation';
 import UserSettingsDialog from 'dive-common/components/UserSettingsDialog.vue';
@@ -58,11 +61,17 @@ export default defineComponent({
   },
   setup(props, { emit }) {
     const api = useApi();
-    const review = createReviewService({ api });
+    // Coming back to the page resumes where it was left, unless the library
+    // sent a new selection (and nothing is unsaved).
+    const held = takeReviewSession();
+    const resumed = held && shouldResume(held, props.initialDatasetIds) ? held : null;
+    if (held && !resumed) held.review.dispose();
+    const review = resumed ? resumed.review : createReviewService({ api });
+    const datasetKey = resumed ? resumed.datasetKey : sessionKey(props.initialDatasetIds);
     provideReview(review);
     const { prompt } = usePrompt();
 
-    const view = ref<ReviewView>('results');
+    const view = ref<ReviewView>(resumed ? resumed.view : 'results');
     const pageTypeInput = ref('');
     const showSettings = ref(false);
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
@@ -250,26 +259,12 @@ export default defineComponent({
       }
     }
 
-    onBeforeRouteLeave(async (_to, _from, next) => {
-      if (review.pendingCount.value === 0) {
-        next();
-        return;
-      }
-      const leave = await prompt({
-        title: 'Unsaved changes',
-        text: [
-          `${review.pendingCount.value} type change${review.pendingCount.value === 1 ? '' : 's'} have not been saved.`,
-          'Leave anyway and lose them?',
-        ],
-        confirm: true,
-        positiveButton: 'Leave',
-        negativeButton: 'Stay',
+    onBeforeRouteLeave((_to, _from, next) => {
+      // The session (datasets, view, page, unsaved edits) waits for the next visit.
+      holdReviewSession({
+        review, view: view.value, page: grid.page.value, datasetKey,
       });
-      if (leave) {
-        next();
-      } else {
-        next(false);
-      }
+      next();
     });
 
     async function applyInitial(ids: string[]) {
@@ -283,8 +278,15 @@ export default defineComponent({
     onMounted(async () => {
       window.addEventListener('keydown', onKeydown);
       window.addEventListener('beforeunload', onBeforeUnload);
+      if (resumed) {
+        await nextTick();
+        grid.goToPage(resumed.page);
+      }
       await review.refreshAvailable();
-      await applyInitial(props.initialDatasetIds);
+      // A resumed session kept for its unsaved edits still takes the new selection in.
+      if (!resumed || datasetKey !== sessionKey(props.initialDatasetIds)) {
+        await applyInitial(props.initialDatasetIds);
+      }
     });
     watch(() => props.initialDatasetIds, (ids) => { applyInitial(ids); });
     onBeforeUnmount(() => {
@@ -292,7 +294,13 @@ export default defineComponent({
       window.removeEventListener('beforeunload', onBeforeUnload);
       autoSave.cancel();
       grid.dispose();
-      review.dispose();
+      // Disposed here only when not handed over to the next visit.
+      if (!takeReviewSession()) review.dispose();
+      else {
+        holdReviewSession({
+          review, view: view.value, page: grid.page.value, datasetKey,
+        });
+      }
     });
 
     return {

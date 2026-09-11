@@ -82,4 +82,4 @@ Type into an entry's type field and press Enter (or click away), or open its dro
 
 **Page actions** applies to every entry on the current page: set them all to one type, or mark them all correct.
 
-Nothing is written until you press **Save**; the toolbar counts unsaved changes, and **Discard** reloads the affected datasets. Leaving the page with unsaved changes asks for confirmation.
+Nothing is written until you press **Save**; the toolbar counts unsaved changes, and **Discard** reloads the affected datasets. Leaving the page keeps the session: coming back to Review resumes the same datasets, view and page, unsaved changes included. Starting Review from the library with a different selection begins a fresh session, unless the previous one still has unsaved changes, in which case it is resumed and the new datasets are added to it. Closing the application with unsaved changes asks for confirmation.
