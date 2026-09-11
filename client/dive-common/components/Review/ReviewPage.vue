@@ -71,7 +71,10 @@ export default defineComponent({
     provideReview(review);
     const { prompt } = usePrompt();
 
-    const view = ref<ReviewView>(resumed ? resumed.view : 'results');
+    // Empty first visit opens Datasets; coming back with loaded data opens Results.
+    const hasReady = review.datasets.value.some((d) => d.status === 'ready');
+    const view = ref<ReviewView>(hasReady ? 'results' : 'datasets');
+    if (hasReady) review.loadQueued();
     const pageTypeInput = ref('');
     const showSettings = ref(false);
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);

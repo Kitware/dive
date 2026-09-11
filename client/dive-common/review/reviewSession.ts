@@ -3,9 +3,10 @@ import type { ReviewService } from 'dive-common/use/useReview';
 /**
  * The review page hands its state here when it is left and takes it back
  * when it is next shown, so navigating away and back resumes the same
- * datasets, view and page. Unsaved edits are resolved (saved or discarded)
- * before the leave completes. Only one session is held; a fresh start (new
- * datasets picked in the library) replaces it.
+ * datasets and page (Results when any are loaded, otherwise Datasets).
+ * Unsaved edits are resolved (saved or discarded) before the leave
+ * completes. Only one session is held; a fresh start (new datasets
+ * picked in the library) replaces it.
  */
 export interface ReviewSession {
   review: ReviewService;

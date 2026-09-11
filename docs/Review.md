@@ -29,7 +29,7 @@ Notes:
 
 ## The grid
 
-The **Results** panel opens by default and shows the annotations that match the current query as a grid. Until a dataset has been added on the **Datasets** panel it only says so. Each entry shows:
+The **Datasets** panel opens on a first visit with nothing loaded; coming back with loaded datasets opens **Results**. The Results grid shows the annotations that match the current query. Until a dataset has been added and loaded it only says so. Each entry shows:
 
 * the annotation's box, outlined, cropped out of the image or video frame with some extra context around it;
 * the confidence of the shown type (top left);
@@ -82,4 +82,4 @@ Type into an entry's type field and press Enter (or click away), or open its dro
 
 **Page actions** applies to every entry on the current page: set them all to one type, or mark them all correct.
 
-Nothing is written until you press **Save**; the Save button stays disabled until there is something to write, and a badge on it shows how many annotations are queued. **Discard** reloads the affected datasets. Leaving the page (or opening the viewer) with unsaved changes asks whether to **Save and Leave**, **Discard and Leave**, or **Stay**. After a clean leave, coming back to Review resumes the same datasets, view and page. Starting Review from the library with a different selection begins a fresh session. Closing the browser tab or the application with unsaved changes asks for confirmation.
+Nothing is written until you press **Save**; the Save button stays disabled until there is something to write, and a badge on it shows how many annotations are queued. **Discard** reloads the affected datasets. Leaving the page (or opening the viewer) with unsaved changes asks whether to **Save and Leave**, **Discard and Leave**, or **Stay**. After a clean leave, coming back to Review resumes the same datasets and page, opening Results when any are loaded. Starting Review from the library with a different selection begins a fresh session. Closing the browser tab or the application with unsaved changes asks for confirmation.
