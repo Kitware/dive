@@ -2185,6 +2185,9 @@ export default defineComponent({
           <v-tab :to="{ name: 'settings' }">
             Settings<v-icon>mdi-cog</v-icon>
           </v-tab>
+          <v-tab :to="{ name: 'addons' }">
+            Add-Ons<v-icon>mdi-puzzle</v-icon>
+          </v-tab>
         </v-tabs>
       </template>
       <template #title-right>
