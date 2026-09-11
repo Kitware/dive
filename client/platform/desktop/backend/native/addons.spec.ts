@@ -140,10 +140,13 @@ it('requests Windows elevation for an unwritable installation and reports cancel
 
 it('retries a Windows permission failure through UAC without hiding a second failure', async () => {
   Object.defineProperty(process, 'platform', { value: 'win32' });
-  vi.mocked(runElevatedInstaller).mockResolvedValueOnce(1);
+  vi.mocked(runElevatedInstaller).mockImplementationOnce(async (_python, _args, _cwd, append) => {
+    append(Buffer.from('error: HTTP Error 403: Forbidden\n'));
+    return 1;
+  });
   await installAddon(settings, { name: 'FISH' });
   child.stderr.write('PermissionError: [WinError 5] Access is denied\n');
   child.emit('close', 1);
   expect(runElevatedInstaller).toHaveBeenCalledOnce();
-  expect((await getAddons(settings)).job).toMatchObject({ running: false, elevated: true, error: expect.stringContaining('Permission denied') });
+  expect((await getAddons(settings)).job).toMatchObject({ running: false, elevated: true, error: expect.stringContaining('Installation failed (exit 1). error: HTTP Error 403') });
 });

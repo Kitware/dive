@@ -62,6 +62,7 @@ export async function getAddons(settings: Settings): Promise<AddonCatalog> {
   };
 }
 
+const ELEVATION_REQUEST = 'Requesting administrator permission from Windows…\n';
 const permissionFailure = (message: string) => /EACCES|EPERM|PermissionError|permission denied|access (?:is )?denied|WinError 5/i.test(message);
 
 /** Probe actual writes, since Windows ACLs are not reliably represented by access(W_OK). */
@@ -167,7 +168,8 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
       } else if (!current.error) {
         if (code === 1223) current.error = 'Administrator permission was canceled. Try again and approve the Windows permission prompt.';
         else {
-          const details = current.log.trim().split('\n').slice(-8).join('\n');
+          const attemptLog = current.log.split(ELEVATION_REQUEST).pop() || '';
+          const details = attemptLog.trim().split('\n').slice(-8).join('\n');
           current.error = permissionFailure(details)
             ? `Permission denied while installing this pack. Check write access to ${current.installDir}.\n${details}`
             : `Installation failed (exit ${code ?? 'unknown'}). ${details || 'The installer could not be started or did not report a reason.'}`;
@@ -176,7 +178,7 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
     };
     const elevated = () => {
       current.elevated = true; current.phase = 'elevation'; current.running = true;
-      current.log += 'Requesting administrator permission from Windows…\n';
+      current.log += ELEVATION_REQUEST;
       runElevatedInstaller(python, args, catalog.installDir, output.append).then(finish, failed);
     };
     if (elevate) elevated();
