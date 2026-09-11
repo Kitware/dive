@@ -1,4 +1,5 @@
 import { mergePairs } from 'dive-common/typeHierarchy';
+import { syncHeadTail } from './headTail';
 import { RectBounds, polygonEqualsBounds } from './utils';
 import {
   binarySearch,
@@ -293,6 +294,8 @@ export default class Track extends BaseAnnotation {
 
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
+    const oldLine = f.geometry?.features.find((g) => g.properties?.key === 'HeadTails' && g.geometry.type === 'LineString');
+    const oldCoordinates = JSON.stringify(oldLine?.geometry);
     this.features[feature.frame] = {
       ...f,
       ...feature,
@@ -328,6 +331,24 @@ export default class Track extends BaseAnnotation {
       }
     });
     if (fg.features.length) {
+      fg.features = syncHeadTail(fg.features);
+      const current = this.features[feature.frame];
+      const line = fg.features.find((g) => g.properties?.key === 'HeadTails' && g.geometry.type === 'LineString');
+      if (line?.geometry.type === 'LineString') {
+        current.head = [...line.geometry.coordinates[0]] as [number, number];
+        current.tail = [...line.geometry.coordinates[line.geometry.coordinates.length - 1]] as [number, number];
+      }
+      if (oldLine && oldCoordinates !== JSON.stringify(line?.geometry)) {
+        current.attributes = { ...current.attributes, measurement_stale: true };
+        delete this.attributes.avg_length;
+        // Keep explicitly user-entered lengths; derived results must be recomputed.
+        if (current.attributes.length_method !== 'user_set') {
+          current.fishLength = undefined;
+          ['length', 'curved_length', 'straight_length', 'curvature_ratio', 'avg_length',
+            'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms']
+            .forEach((key) => { delete current.attributes?.[key]; });
+        }
+      }
       this.features[feature.frame].geometry = fg;
     }
     this.maybeExpandBounds(feature.frame);
@@ -345,6 +366,20 @@ export default class Track extends BaseAnnotation {
     }
     this.notify('feature', f);
     return this.features[feature.frame];
+  }
+
+  /** Clear derived results after a geometry edit on either stereo camera. */
+  invalidateMeasurement(frame: number) {
+    const feature = this.features[frame];
+    if (!feature) return;
+    const attributes = { ...feature.attributes, measurement_stale: true } as StringKeyObject;
+    const locked = attributes.length_method === 'user_set';
+    ['curved_length', 'straight_length', 'curvature_ratio', 'avg_length',
+      'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms']
+      .forEach((key) => { delete attributes[key]; });
+    if (!locked) delete attributes.length;
+    this.setFeature({ frame, attributes, fishLength: locked ? feature.fishLength : undefined });
+    delete this.attributes.avg_length;
   }
 
   /* Get features by properties.key, geometry.type, or both */
@@ -688,6 +723,9 @@ export default class Track extends BaseAnnotation {
             ? { ...feature.geometry, features: kept }
             : undefined;
         }
+      }
+      if (feature.geometry?.features.some((g) => g.properties?.key === 'HeadTails')) {
+        feature.geometry = { ...feature.geometry, features: syncHeadTail(feature.geometry.features) };
       }
       sparseFeatures[f.frame] = feature;
     });

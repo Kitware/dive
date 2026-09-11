@@ -77,7 +77,7 @@ interface SetAnnotationStateArgs {
 
 export type StereoAnnotationCompleteParams =
   | { type: 'line'; camera: string; trackId: number; frameNum: number;
-      line: [[number, number], [number, number]]; key: string; }
+      line: [number, number][]; key: string; }
   | { type: 'box'; camera: string; trackId: number; frameNum: number;
       bounds: [number, number, number, number]; }
   | { type: 'polygon'; camera: string; trackId: number; frameNum: number;
@@ -982,14 +982,14 @@ export default function useModeManager({
                 && completedTrackId !== null) {
               // Check for LineString with exactly 2 points (line annotation)
               if (data.geometry.type === 'LineString'
-                  && data.geometry.coordinates.length === 2) {
+                  && data.geometry.coordinates.length >= 2) {
                 const coords = data.geometry.coordinates as [number, number][];
                 onStereoAnnotationComplete({
                   type: 'line',
                   camera: selectedCamera.value,
                   trackId: completedTrackId as number,
                   frameNum,
-                  line: [coords[0], coords[1]],
+                  line: coords,
                   key: selectedKey.value,
                 });
               }
@@ -1042,6 +1042,17 @@ export default function useModeManager({
           }
         });
         mirrorFeatureToAlignedCameras(track.id, selectedCameraFrame());
+        const line = track.getFeatureGeometry(selectedCameraFrame(), { type: 'LineString', key: selectedKey.value })[0];
+        if (line?.geometry.type === 'LineString' && onStereoAnnotationComplete && stereoInteractiveActive()) {
+          onStereoAnnotationComplete({
+            type: 'line',
+            camera: selectedCamera.value,
+            trackId: track.id as number,
+            frameNum: selectedCameraFrame(),
+            line: line.geometry.coordinates as [number, number][],
+            key: selectedKey.value,
+          });
+        }
       }
     }
     handleSelectFeatureHandle(-1);

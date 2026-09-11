@@ -266,7 +266,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             this.selectedHandleIndex = newIndex;
           }
           let divisor = 1;
-          if (this.type === 'Polygon' && this.selectedHandleIndex >= 0) {
+          if (['Polygon', 'LineString'].includes(this.type) && this.selectedHandleIndex >= 0) {
             divisor = 2;
           }
           window.setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
@@ -417,7 +417,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   hoverEditHandle(e: GeoEvent) {
-    const divisor = this.type === 'LineString' ? 1 : 2; //For Polygons we skip over edge handles (midpoints)
+    const divisor = 2; // Vertex/edge handles alternate for polygons and open lines.
     if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
         && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
@@ -426,7 +426,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (!e.handle.handle.selected) {
         this.hoverHandleIndex = -1;
       }
-    } else if (e.enable && e.handle.handle.type === 'center') {
+    } else if (e.enable && ['center', 'edge'].includes(e.handle.handle.type)) {
       this.hoverHandleIndex = -1;
     }
     if (e.enable) {
@@ -1053,7 +1053,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       return {
         handles: {
           rotate: false,
-          edge: this.type !== 'LineString',
+          edge: true,
         },
         fill: true,
         radius: (handle: EditHandleStyle): number => {

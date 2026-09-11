@@ -735,3 +735,24 @@ both are present.
 ```json
 { "id": 1, "name": "shark", "parents": ["fish"] }
 ```
+
+### Multi-point head/tail centerlines
+
+Centerlines reuse named keypoints and the existing `HeadTails` GeoJSON LineString.
+An example optional section in a VIAME CSV row is:
+
+```text
+(kp) head 100.25 120,(kp) spine_001 140 105.5,(kp) spine_002 180 115,(kp) tail 210 140
+```
+
+Point names are ordered `head`, numerically sorted `spine_N`, then `tail`.
+Writers preserve subpixel coordinates. The editor assigns zero-padded sequential
+names; indices may be renumbered after editing and are not cross-camera IDs.
+
+DIVE JSON stores the ordered coordinates in a feature with
+`properties.key = "HeadTails"` and `geometry.type = "LineString"`, alongside named
+Point features. When a line is present its coordinates are authoritative; its
+point markers are regenerated on import/edit/export to prevent stale vertices.
+Line-only JSON can therefore be exported to CSV without losing interior points.
+Two-point head/tail files remain valid. Older DIVE versions may drop the new
+interior points; use the updated readers and writers for round trips.
