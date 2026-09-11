@@ -113,8 +113,8 @@ Confirm **Auto-compute location on other camera** is enabled, the track is linke
 ### Curved head/tail lines
 
 Use the existing head/tail line tool: place the two endpoints as usual, then
-select the line for editing. Drag a small segment midpoint handle to insert an
-interior vertex. Drag vertices to adjust the centerline, or select an interior
+right-click the detection to edit its existing line. Click a new location on a
+line segment to insert an interior vertex, or drag its small midpoint handle. Drag vertices to adjust the centerline, or select an interior
 vertex and use the existing Delete point action to remove it. Removing the final
 interior vertex restores a two-point line. No additional annotation mode is needed.
 
