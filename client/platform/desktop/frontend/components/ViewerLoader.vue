@@ -45,6 +45,7 @@ import {
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
+import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import VideoSearchContext from './VideoSearchContext.vue';
 import {
@@ -87,6 +88,7 @@ export default defineComponent({
   components: {
     Export,
     JobTab,
+    AnnotationOtherMenu,
     DatasetSourceInfo,
     RunPipelineMenu,
     SidebarContext,
@@ -2176,15 +2178,10 @@ export default defineComponent({
             Library<v-icon>mdi-folder-open</v-icon>
           </v-tab>
           <job-tab />
-          <v-tab :to="{ name: 'training' }">
-            Training<v-icon>mdi-brain</v-icon>
-          </v-tab>
-          <v-tab :to="{ name: 'scoring' }">
-            Scoring<v-icon>mdi-chart-box-outline</v-icon>
-          </v-tab>
           <v-tab :to="{ name: 'settings' }">
             Settings<v-icon>mdi-cog</v-icon>
           </v-tab>
+          <annotation-other-menu />
         </v-tabs>
       </template>
       <template #title-right>

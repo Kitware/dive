@@ -141,7 +141,7 @@ Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with
 
 ## Add-Ons
 
-The **Add-Ons** tab, before **Settings** in the main desktop menu, manages model packs in the configured VIAME installation. It is omitted from the shorter annotation viewer menu.
+The **Add-Ons** tab, before **Settings** in the main desktop menu, manages model packs in the configured VIAME installation. While annotating, it is available under **Other**.
 
 Use **Download and Install** to download a pack or replace an installed pack, or **Import Local ZIP** to use a previously downloaded archive. Google Drive packs offer **Download in browser** followed by ZIP import. Installing a model pack does not install its prerequisite VIAME components.
 
@@ -254,3 +254,20 @@ It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launc
 See [Interactive Annotation troubleshooting](Interactive-Annotation.md#troubleshooting). Verify the VIAME install path, confirm VIAME includes interactive service support, and check the debug console for subprocess errors (message: "Unable to load the interactive service").
 
 ![Debugging Desktop](images/General/desktop-debug.png)
+
+
+When started through the VIAME launch scripts (`DIVE_VIAME_INSTALL_PATH` is set),
+the native window title is **VIAME - DIVE Interface**. Standalone launches use
+**DIVE Desktop**.
+
+## Desktop navigation
+
+While annotating a sequence, the top menu contains **Library**, **Jobs**,
+**Settings**, and **Other** with a downward arrow. **Other** opens the remaining
+pages, including Pipelines, Training, Review, and Scoring. Query and Add-Ons also
+appear when included in the desktop build. Navigation still follows the normal
+unsaved-annotation checks.
+
+The full desktop menu shows every available destination when there is room.
+As the window narrows, secondary destinations move into **Other** while Library,
+Jobs, and Settings remain visible. Widening the window restores the tabs.
