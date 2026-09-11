@@ -139,6 +139,16 @@ Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with
 1. Choose an appropriate training config file and any training parameters.  These are documented on the [training configuration page](Pipeline-Documentation.md).
 1. Click ==Train on (N) Datasets==.  Note that depending on what configuration and datasets you chose, training could take hours or days.
 
+## Add-Ons
+
+The rightmost **Add-Ons** tab manages model packs in the configured VIAME installation. It is available from both the desktop library and annotation viewer.
+
+Use **Install** to download a pack, **Reinstall** to replace an installed pack, or **Install from ZIP** to use a previously downloaded archive. Google Drive packs offer **Download in browser** followed by ZIP installation. Requirements listed beside each pack describe the VIAME components it needs; installing a model pack does not install those components.
+
+The manager reads `<VIAME Install Path>/bin/download_viame_addons.csv`. It checks each row's final-column file relative to `configs/pipelines`, so packs installed outside DIVE are recognized too. Status refreshes when you return to the window, press **Refresh**, or finish an installation. A catalog entry without a check file displays **unknown**, not “not installed.”
+
+Installation uses VIAME's `configs/add_ons.py`, retaining its checksum checks and archive handling. If the tool is missing, the catalog and installed status remain available, and DIVE asks you to update VIAME before installing. Installations continue when navigating to another page; return to Add-Ons to see output and errors. Installation is disabled in read-only mode. Like the VIAME add-ons tool, this page installs and reinstalls packs; it does not remove shared model or pipeline files.
+
 ## Desktop Settings
 
 DIVE Desktop requires a local installation of the VIAME toolkit to run ML pipelines and training.
@@ -227,7 +237,7 @@ See [Importing images and video above](#importing-datasets).  You most likely ne
 
 You may need to install VIAME Toolkit, or correct your **VIAME Install Base Path** setting.
 
-If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Download and install these based on the [VIAME installation docs](https://github.com/viame/VIAME#installations).  
+If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Open the **Add-Ons** tab to check and install them, or follow the [VIAME installation docs](https://github.com/viame/VIAME#installations).
 
 > Advanced troubleshooting
 
