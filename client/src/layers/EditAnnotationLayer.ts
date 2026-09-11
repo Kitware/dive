@@ -201,6 +201,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         finalPointProximity: 1,
         adjacentPointProximity: 1,
       });
+      // Handle segment insertion before GeoJS's default click handler, which
+      // otherwise exits edit mode when the click is not on a drag handle.
+      const defaultClick = this.featureLayer._handleMouseClick;
+      this.featureLayer.geoOff(geo.event.mouseclick, defaultClick);
+      this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
+        if (!this.insertLineVertex(e)) defaultClick(e);
+      });
       // For these we need to use an anonymous function to prevent geoJS from erroring
       this.featureLayer.geoOn(
         geo.event.annotation.edit_action,
@@ -216,6 +223,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.hoverEditHandle(e),
       );
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
+        if (this.type === 'LineString' && e.handled) return;
         // Right-click in creation mode (non-Point): cancel and fully deselect.
         // Point mode has its own right-click handler (handleContextMenu).
         if (e.buttonsDown.right && this.getMode() === 'creation' && this.type !== 'Point') {
@@ -225,7 +233,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         }
         //Used to sync clicks that kick out of editing mode with application
         //This prevents that pseudo Edit state when left clicking on a object in edit mode
-        if (!this.disableModeSync && (e.buttonsDown.left)
+        if (!this.disableModeSync && (e.buttonsDown.left || e.buttonsDown.right)
           && this.getMode() === 'disabled' && this.featureLayer.annotations()[0]) {
           this.bus.$emit('editing-annotation-sync', false);
         } else if (e.buttonsDown.left) {
@@ -414,6 +422,42 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     } else if (this.shapeInProgress) {
       this.shapeInProgress = null;
     }
+  }
+
+  /** Insert at the clicked position along an open line, in screen pixels. */
+  insertLineVertex(e: GeoEvent): boolean {
+    if (this.type !== 'LineString' || this.getMode() !== 'editing' || !e.buttonsDown.left) return false;
+    const annotation = this.featureLayer.annotations()[0];
+    if (!annotation || annotation.state() !== 'edit') return false;
+    const map = this.annotator.geoViewerRef.value;
+    const vertices: { x: number; y: number }[] = annotation.options('vertices');
+    const displayed = map.gcsToDisplay(vertices, null);
+    const click = map.gcsToDisplay(e.geo);
+    // Existing vertex clicks select handles for movement/deletion.
+    const tolerance = 8;
+    if (displayed.some((p: { x: number; y: number }) => Math.hypot(p.x - click.x, p.y - click.y) <= tolerance)) return false;
+    let segment = -1;
+    let nearest = tolerance;
+    displayed.slice(1).forEach((b: { x: number; y: number }, i: number) => {
+      const a = displayed[i];
+      const dx = b.x - a.x; const dy = b.y - a.y;
+      const t = ((click.x - a.x) * dx + (click.y - a.y) * dy) / (dx * dx + dy * dy);
+      if (t <= 0 || t >= 1) return;
+      const distance = Math.hypot(click.x - a.x - t * dx, click.y - a.y - t * dy);
+      if (distance <= nearest) { nearest = distance; segment = i; }
+    });
+    if (segment < 0) return false;
+    const coordinates = vertices.map((p) => ({ ...p }));
+    coordinates.splice(segment + 1, 0, map.displayToGcs(click, null));
+    annotation.options('vertices', coordinates);
+    this.selectedHandleIndex = (segment + 1) * 2;
+    this.hoverHandleIndex = this.selectedHandleIndex;
+    this.formattedData = [annotation.geojson()];
+    this.bus.$emit('update:geojson', 'editing', false, this.formattedData[0], this.type, this.selectedKey, this.skipNextFunc());
+    this.bus.$emit('update:selectedIndex', segment + 1, this.type, this.selectedKey);
+    e.handled = true;
+    this.redraw();
+    return true;
   }
 
   hoverEditHandle(e: GeoEvent) {
@@ -1054,6 +1098,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         handles: {
           rotate: false,
           edge: true,
+          // A two-point line's center handle obscures its insertion handle.
+          center: this.type !== 'LineString',
         },
         fill: true,
         radius: (handle: EditHandleStyle): number => {
