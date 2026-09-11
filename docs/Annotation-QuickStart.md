@@ -137,6 +137,8 @@ Every track is required to have a bounding box, but a polygon region may be adde
 
 DIVE supports multiple polygon regions on one detection and polygons with interior holes (for example, annotating a ring-shaped object). Holes are preserved in DIVE JSON and [VIAME CSV export](DataFormats.md#viame-csv-polygons-and-length) using `(poly)` and `(hole)` columns.
 
+While editing a polygon, right-click another polygon on the same detection to switch directly to editing it. Right-click the current polygon or empty space between polygons to finish polygon editing while keeping the detection selected. Right-click outside the detection to finish and deselect the detection.
+
 ## Interactive Segmentation (Desktop)
 
 [Interactive point-click segmentation](Interactive-Annotation.md#interactive-segmentation) is available in DIVE Desktop only. It helps you create polygon annotations by clicking include/exclude points instead of placing every vertex manually.

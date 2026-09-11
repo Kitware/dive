@@ -37,9 +37,9 @@ it.each(['polygon-clicked', 'polygon-right-clicked', 'polygon-right-clicked-outs
   expect(h.cancelCreation).not.toHaveBeenCalled();
 });
 
-it('still selects a mask key when the polygon editor is active', () => {
+it('still selects a mask key when selecting another detection in polygon mode', () => {
   const h = harness('Polygon');
-  h.polygon.bus.$emit('polygon-right-clicked', 1, 'segmentation');
+  h.polygon.bus.$emit('polygon-right-clicked', 2, 'segmentation');
   expect(h.selectedKey.value).toBe('segmentation');
   expect(h.selectFeatureHandle).toHaveBeenCalledWith(-1, 'segmentation');
 });

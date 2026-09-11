@@ -98,6 +98,27 @@ export default function useAnnotationClickHandling(options: {
     }
   };
 
+  // GeoJS may finish the current edit later in the same mouse event. Apply
+  // polygon navigation after all layers have processed that click.
+  let polygonNavigationPending = false;
+  function finishPolygonClick(trackId: AnnotationId, polygonKey?: string) {
+    if (polygonNavigationPending) return;
+    polygonNavigationPending = true;
+    const frame = frameNumberRef.value;
+    const switchPolygon = polygonKey !== undefined && polygonKey !== selectedKeyRef.value;
+    window.setTimeout(() => {
+      polygonNavigationPending = false;
+      if (selectedCamera.value !== camera || frameNumberRef.value !== frame
+          || selectedTrackIdRef.value !== trackId) return;
+      editAnnotationLayer.disable();
+      if (polygonKey !== undefined) handler.selectFeatureHandle(-1, polygonKey);
+      // Select explicitly: trackEdit toggles the whole detection off when it
+      // was already being edited, requiring an unwanted second right-click.
+      handler.trackSelect(trackId, switchPolygon);
+      refreshLayers();
+    }, 0);
+  }
+
   function wireHandlers() {
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean, deselect?: boolean) => {
       if (deselect) {
@@ -106,6 +127,19 @@ export default function useAnnotationClickHandling(options: {
         handler.trackSelect(selectedTrackIdRef.value, editing);
       }
     });
+    editAnnotationLayer.bus.$on('polygon-edit-right-click', (geo: { x: number; y: number }) => {
+      const trackId = selectedTrackIdRef.value;
+      if (selectedCamera.value !== camera || trackId === null || editingModeRef.value !== 'Polygon') return;
+      const point = alignedView.mapNativePoint(geo.x, geo.y);
+      const hit = polyAnnotationLayer.formattedData.find((item) => {
+        if (item.trackId !== trackId || item.isHole) return false;
+        const [outer, ...holes] = item.polygon.coordinates;
+        const positions = (ring: GeoJSON.Position[]) => ring.map(([x, y]) => ({ x, y }));
+        return pointInPolygon({ x: point[0], y: point[1] }, positions(outer), holes.map(positions));
+      });
+      finishPolygonClick(trackId, hit?.polygonKey);
+    });
+
     editAnnotationLayer.bus.$on('confirm-annotation', () => {
       handler.confirmRecipe();
     });
@@ -122,10 +156,16 @@ export default function useAnnotationClickHandling(options: {
     lineLayer.bus.$on('annotation-clicked', clicked);
     lineLayer.bus.$on('annotation-right-clicked', clicked);
 
-    polyAnnotationLayer.bus.$on('polygon-right-clicked', (_trackId: number, polygonKey: string) => {
+    polyAnnotationLayer.bus.$on('polygon-right-clicked', (trackId: number, polygonKey: string) => {
       // Visible masks must not replace the centerline's key when editing a line.
       if (editingModeRef.value === 'LineString'
           || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
+      if (selectedCamera.value === camera && trackId === selectedTrackIdRef.value
+          && editingModeRef.value === 'Polygon' && editAnnotationLayer.getMode() !== 'creation') {
+        // The edit-layer click resolves the actual polygon hit (including
+        // holes) and applies the switch after GeoJS finishes this mouse event.
+        return;
+      }
       if (editAnnotationLayer.getMode() === 'creation') {
         handler.cancelCreation();
       }
@@ -146,6 +186,11 @@ export default function useAnnotationClickHandling(options: {
     polyAnnotationLayer.bus.$on('polygon-right-clicked-outside', () => {
       if (editingModeRef.value === 'LineString'
           || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
+      if (selectedCamera.value === camera && selectedTrackIdRef.value !== null
+          && editingModeRef.value === 'Polygon' && editAnnotationLayer.getMode() !== 'creation') {
+        // The edit layer also receives clicks in gaps between polygons.
+        return;
+      }
       if (editAnnotationLayer.getMode() === 'creation') {
         handler.cancelCreation();
         handler.selectFeatureHandle(-1, '');
