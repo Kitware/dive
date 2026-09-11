@@ -130,8 +130,16 @@ measurement reports `curved_length`, `straight_length`, and `curvature_ratio` in
 addition to the usual length field; this ratio is a bend indicator, not local
 curvature. Computation follows the editable polyline, retaining its corners.
 
-Desktop dense stereo transfers new curved lines from the left/reference camera.
-Editing an existing curve on the right remeasures against the left curve; it does
-not overwrite the left curve with a backwards use of the left disparity map.
+Desktop dense stereo transfers points and curved lines in either direction.
+Right-camera edits use a separately computed, cached right-reference disparity map.
+The web stereo matcher also supports edits from either camera.
+
+With automatic mapping enabled, placing or moving a named keypoint maps it to
+the other camera, including when that camera already has a detection. Inserting
+an interior line vertex maps that vertex into the nearest segment of the other
+line, preserving its existing vertices. Automatically mapped points can follow
+subsequent edits; manually edited target points are protected. Failed matches
+and results that arrive after either affected annotation changes are discarded.
+These behaviors use the existing automatic mapping option in desktop and web.
 Browser ONNX matching supports transfers in either direction. Both implementations
 rematch image locations rather than pairing equally numbered intermediate points.
