@@ -81,7 +81,7 @@ onBeforeUnmount(() => {
           </v-icon>Refresh
         </v-btn>
       </div>
-      <p>Install additional VIAME model packs. Status includes add-ons installed outside DIVE.</p>
+      <p>Install additional VIAME model packs.</p>
       <p v-if="catalog" class="text-caption">
         Installation: {{ catalog.installDir }}
       </p>
