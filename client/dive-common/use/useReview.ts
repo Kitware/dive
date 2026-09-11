@@ -1,3 +1,4 @@
+import { orderedHeadTail } from 'vue-media-annotator/headTail';
 /**
  * State behind the Review page: the datasets under review (with their
  * tracks held in memory), the query, the grid settings, the rendered
@@ -174,7 +175,7 @@ function syncHeadTailLine(feature: Feature) {
     collection.features.push({
       type: 'Feature',
       properties: { key: 'HeadTails' },
-      geometry: { type: 'LineString', coordinates: [head.geometry.coordinates, tail.geometry.coordinates] },
+      geometry: { type: 'LineString', coordinates: orderedHeadTail(collection.features) || [head.geometry.coordinates, tail.geometry.coordinates] },
     });
   }
 }

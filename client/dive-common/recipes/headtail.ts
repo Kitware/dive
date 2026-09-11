@@ -1,6 +1,7 @@
 import Vue, { ref, Ref } from 'vue';
 
 import Track from 'vue-media-annotator/track';
+import { headTailFeatures, isHeadTailPoint } from 'vue-media-annotator/headTail';
 import Recipe, { UpdateResponse } from 'vue-media-annotator/recipe';
 import { EditAnnotationTypes } from 'vue-media-annotator/layers';
 import { Mousetrap } from 'vue-media-annotator/types';
@@ -88,6 +89,7 @@ export default class HeadTail implements Recipe {
         ],
       }];
     }
+    if (coords.length > 2) return HeadTail.tightBoundsExpanded(coords, 0);
     // If only 1 point is available so far
     return [{
       type: 'Polygon',
@@ -161,45 +163,20 @@ export default class HeadTail implements Recipe {
   }
 
   private static makeGeom(ls: GeoJSON.LineString, startWithHead: boolean) {
-    const firstFeature: GeoJSON.Feature<GeoJSON.Point> = {
-      type: 'Feature',
-      geometry: {
-        type: 'Point',
-        coordinates: [
-          ls.coordinates[0][0],
-          ls.coordinates[0][1],
-        ],
-      },
-      properties: {},
-    };
-    const ret: Record<string,
-      GeoJSON.Feature<GeoJSON.Point | GeoJSON.LineString | GeoJSON.Polygon>[]> = {
-        [startWithHead ? HeadPointKey : TailPointKey]: [firstFeature],
+    const coordinates = ls.coordinates.map((p) => [...p]);
+    if (coordinates.length < 2) {
+      return {
+        [startWithHead ? HeadPointKey : TailPointKey]: [{
+          type: 'Feature' as const,
+          properties: {},
+          geometry: { type: 'Point' as const, coordinates: coordinates[0] },
+        }],
       };
-    if (ls.coordinates.length === 2) {
-      const secondFeature: GeoJSON.Feature<GeoJSON.Point> = {
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [
-            ls.coordinates[1][0],
-            ls.coordinates[1][1],
-          ],
-        },
-        properties: {},
-      };
-      if (!startWithHead) {
-        ls.coordinates.reverse();
-      }
-      const headTailLine: GeoJSON.Feature<GeoJSON.LineString> = {
-        type: 'Feature',
-        geometry: ls,
-        properties: {},
-      };
-      ret[startWithHead ? TailPointKey : HeadPointKey] = [secondFeature];
-      ret[HeadTailLineKey] = [headTailLine];
     }
-    return ret;
+    if (!startWithHead) coordinates.reverse();
+    const result: Record<string, GeoJSON.Feature<GeoJSON.Point | GeoJSON.LineString | GeoJSON.Polygon>[]> = {};
+    headTailFeatures(coordinates).forEach((f) => { result[f.properties?.key] = [f]; });
+    return result;
   }
 
   update(
@@ -314,20 +291,31 @@ export default class HeadTail implements Recipe {
   // eslint-disable-next-line class-methods-use-this
   delete(frame: number, track: Track, key: string, type: EditAnnotationTypes) {
     if (key === HeadTailLineKey && type === 'LineString') {
-      track.removeFeatureGeometry(frame, { type: 'Point', key: HeadPointKey });
+      track.getFeatureGeometry(frame, { type: 'Point' }).forEach((f) => {
+        if (isHeadTailPoint(f.properties?.key || '')) track.removeFeatureGeometry(frame, { type: 'Point', key: f.properties?.key });
+      });
       track.removeFeatureGeometry(frame, { type: 'Point', key: TailPointKey });
       track.removeFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey });
+      track.setFeature({ frame, head: undefined, tail: undefined });
+      track.invalidateMeasurement(frame);
     }
   }
 
   // eslint-disable-next-line class-methods-use-this
   deletePoint(frame: number, track: Track, idx: number, key: string, type: EditAnnotationTypes) {
     if (key === HeadTailLineKey && type === 'LineString') {
-      track.removeFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey });
-      if (idx === 0) {
-        track.removeFeatureGeometry(frame, { type: 'Point', key: HeadPointKey });
+      const line = track.getFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey })[0];
+      if (!line || line.geometry.type !== 'LineString') return;
+      const coordinates = line.geometry.coordinates.map((p) => [...p]);
+      if (idx < 0 || idx >= coordinates.length) return;
+      if (coordinates.length > 2) {
+        coordinates.splice(idx, 1);
+        track.setFeature({ frame }, headTailFeatures(coordinates));
       } else {
-        track.removeFeatureGeometry(frame, { type: 'Point', key: TailPointKey });
+        track.removeFeatureGeometry(frame, { type: 'LineString', key: HeadTailLineKey });
+        track.removeFeatureGeometry(frame, { type: 'Point', key: idx === 0 ? HeadPointKey : TailPointKey });
+        track.setFeature({ frame, [idx === 0 ? 'head' : 'tail']: undefined });
+        track.invalidateMeasurement(frame);
       }
     }
   }
