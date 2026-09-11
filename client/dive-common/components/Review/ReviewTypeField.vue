@@ -111,6 +111,7 @@ export default defineComponent({
           pick(listed.value[highlighted.value]);
         } else {
           close();
+          commit();
           input.value?.blur();
         }
       } else if (event.key === 'Escape') {
