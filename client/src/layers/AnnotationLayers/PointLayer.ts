@@ -1,5 +1,6 @@
 import BaseLayer, { LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
+import { spineIndex } from '../../headTail';
 
 interface PointGeoJSData {
     trackId: number;
@@ -56,27 +57,33 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
   createStyle(): LayerStyle<PointGeoJSData> {
     return {
       ...super.createStyle(),
-      fill: (data: PointGeoJSData) => data.feature === 'head',
+      fill: (data: PointGeoJSData) => data.feature === 'head'
+        || (spineIndex(data.feature) !== null && data.editing !== 'LineString'),
       fillColor: (data: PointGeoJSData) => {
+        if (spineIndex(data.feature) !== null && data.editing !== 'LineString' && data.selected) {
+          return this.stateStyling.selected.color;
+        }
         if (data.styleType) {
           return this.typeStyling.value.color(data.styleType[0]);
         }
         return this.typeStyling.value.color('');
       },
       fillOpacity: (data: PointGeoJSData) => {
+        if (spineIndex(data.feature) !== null && data.editing !== 'LineString') return 1;
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);
         }
         return this.stateStyling.standard.opacity;
       },
       radius: (data: PointGeoJSData) => {
+        const scale = spineIndex(data.feature) !== null && data.editing !== 'LineString' ? 1.5 : 2;
         if (data.selected) {
-          return this.stateStyling.selected.strokeWidth * 2;
+          return this.stateStyling.selected.strokeWidth * scale;
         }
         if (data.styleType) {
-          return this.typeStyling.value.strokeWidth(data.styleType[0]) * 2;
+          return this.typeStyling.value.strokeWidth(data.styleType[0]) * scale;
         }
-        return this.stateStyling.standard.strokeWidth * 2;
+        return this.stateStyling.standard.strokeWidth * scale;
       },
       strokeWidth: (data: PointGeoJSData) => {
         if (data.selected) {
