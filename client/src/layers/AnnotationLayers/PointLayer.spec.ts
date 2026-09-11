@@ -30,6 +30,26 @@ it('preserves endpoint appearance and line-editing marker appearance', () => {
   expect(style.fillOpacity({ ...data, feature: 'head' })).toBe(0.4);
   expect(style.radius({ ...data, feature: 'tail' })).toBe(6);
   expect(style.fill({ ...data, feature: 'tail' })).toBe(false);
-  expect(style.radius({ ...data, feature: 'spine_001', editing: 'LineString' })).toBe(6);
-  expect(style.fill({ ...data, feature: 'spine_001', editing: 'LineString' })).toBe(false);
+  expect(style.radius({
+    ...data, feature: 'spine_001', editing: 'LineString', selected: true,
+  })).toBe(8);
+  expect(style.fill({
+    ...data, feature: 'spine_001', editing: 'LineString', selected: true,
+  })).toBe(false);
+});
+
+it('keeps highlighted and other non-edited interior markers compact', () => {
+  const style = styling();
+  const data = {
+    feature: 'spine_001', editing: false, selected: false, styleType: ['fish', 1],
+  };
+  const highlighted = { ...data, selected: true };
+  expect(style.radius(highlighted)).toBe(style.radius(data));
+  expect(style.strokeWidth(highlighted)).toBe(1.5);
+  expect(style.fillColor(highlighted)).toBe('yellow');
+  // The tool mode is shared by every detection, but only selected lines are edited.
+  expect(style.radius({ ...data, editing: 'LineString' })).toBe(3);
+  expect(style.fill({ ...data, editing: 'LineString' })).toBe(true);
+  expect(style.radius({ ...highlighted, editing: 'LineString' })).toBe(8);
+  expect(style.strokeWidth({ ...highlighted, editing: 'LineString' })).toBe(4);
 });
