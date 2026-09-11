@@ -68,12 +68,15 @@ def _resolve_detection_length(
     fish_length_from_column: float,
 ) -> Tuple[Dict[str, Any], Optional[float]]:
     """Resolve length from attributes.length or the VIAME length column."""
+    attributes = dict(attributes or {})
     attr_length: Optional[float] = None
     if attributes and 'length' in attributes:
         try:
             candidate = float(attributes['length'])
-            if candidate == candidate:  # not NaN
+            if candidate > 0:
                 attr_length = candidate
+            elif candidate <= 0:
+                attributes.pop('length')
         except (TypeError, ValueError):
             attr_length = None
 
