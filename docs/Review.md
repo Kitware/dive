@@ -88,3 +88,13 @@ Nothing is written until you press **Save**; the Save button stays disabled unti
 When you return from the viewer, Review reloads saved annotations before showing the chips, so a later type edit preserves geometry changed in the viewer. The query and page are retained. If a dataset cannot be refreshed, its stale annotations are not editable; retry loading it on the Datasets panel. If **Discard and Leave** cannot reload the original annotations, Review stays open with your changes pending and shows an error.
 
 For multicamera queries, a match in any camera selects the logical track. Type changes, acceptance and deletion apply to all its displayed camera tracks, including cameras whose confidence or attributes did not match the query.
+
+## Web resource use and shared deployments
+
+Review crops images and decodes playable videos in each user's browser. It uses the existing authenticated media endpoints; opening a grid does not launch a pipeline, worker job, or server-side frame extraction. Videos must already be playable in the browser, as in the annotation viewer.
+
+Each review session limits API operations to three at a time, including loading and saving across datasets. A config operation can make two HTTP requests. The web track reader skips groups and annotation-set listings, which the grid does not use. Chip rendering has a separate four-operation limit and prioritizes the visible page and the next page's primary chips. Queued work for skipped pages is dropped. Image loads and video metadata/seeks time out after 15 seconds, and disposing a session cancels pending media work and prevents queued API calls from starting.
+
+Review retains at most two decoded frames and 16 MiB of decoded pixels per dataset. Rendered chips are pruned when paging to retain 256 recent items, with the visible and prefetched pages protected. Selected annotations remain in browser memory, so the number and size of selected datasets still affect memory usage. These are per-browser limits, not a server-wide quota.
+
+A retained review session belongs to the signed-in account and is cleared on logout or account change. Saves use the existing dataset write permissions and update only changed tracks. Review does not add collaborative locking or conflict detection: coordinate assignments when multiple people edit the same tracks, since a later save can replace another person's edits.
