@@ -141,11 +141,15 @@ Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with
 
 ## Add-Ons
 
-The rightmost **Add-Ons** tab manages model packs in the configured VIAME installation. It is available from both the desktop library and annotation viewer.
+The **Add-Ons** tab, before **Settings** in the main desktop menu, manages model packs in the configured VIAME installation. It is omitted from the shorter annotation viewer menu.
 
-Use **Install** to download a pack, **Reinstall** to replace an installed pack, or **Install from ZIP** to use a previously downloaded archive. Google Drive packs offer **Download in browser** followed by ZIP installation. Requirements listed beside each pack describe the VIAME components it needs; installing a model pack does not install those components.
+Use **Download and Install** to download a pack or replace an installed pack, or **Import Local ZIP** to use a previously downloaded archive. Google Drive packs offer **Download in browser** followed by ZIP import. Installing a model pack does not install its prerequisite VIAME components.
 
 The manager reads `<VIAME Install Path>/bin/download_viame_addons.csv`. It checks each row's final-column file relative to `configs/pipelines`, so packs installed outside DIVE are recognized too. Status refreshes when you return to the window, press **Refresh**, or finish an installation. A catalog entry without a check file displays **unknown**, not “not installed.”
+
+Status and Actions are centered, with separate aligned columns for **Download and Install** and **Import Local ZIP**. Download and installation have separate progress bars; archive checksum verification shows an indeterminate bar. Percentage progress requires the updated VIAME add-on installer; older installers and downloads without a known size show indeterminate progress. Errors include the installer's download, checksum, or filesystem failure details.
+
+On Windows, DIVE requests administrator permission through the Windows UAC prompt when it cannot write to the VIAME installation. Only the installer runs elevated. Canceling the prompt is reported as an error; on other platforms, permission errors explain that write access must be granted or a writable installation selected.
 
 Installation uses VIAME's `configs/add_ons.py`, retaining its checksum checks and archive handling. If the tool is missing, the catalog and installed status remain available, and DIVE asks you to update VIAME before installing. Installations continue when navigating to another page; return to Add-Ons to see output and errors. Installation is disabled in read-only mode. Like the VIAME add-ons tool, this page installs and reinstalls packs; it does not remove shared model or pipeline files.
 

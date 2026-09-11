@@ -5,13 +5,16 @@ import path from 'path';
 import fs from 'fs-extra';
 import { spawn } from 'child_process';
 import type { Settings } from 'platform/desktop/constants';
+import { runElevatedInstaller } from './addonsElevation';
 import {
   getAddons, installAddon, markerPath, readAddonCatalog,
 } from './addons';
 
+vi.mock('./addonsElevation', () => ({ runElevatedInstaller: vi.fn() }));
 vi.mock('child_process', () => ({ spawn: vi.fn() }));
 vi.mock('./processManager', () => ({ observeChild: (child: unknown) => child }));
 
+const originalPlatform = process.platform;
 let root: string;
 let settings: Settings;
 let child: EventEmitter & { stdout: PassThrough; stderr: PassThrough };
@@ -32,6 +35,8 @@ beforeEach(async () => {
 });
 afterEach(async () => {
   child.emit('close', 0);
+  Object.defineProperty(process, 'platform', { value: originalPlatform });
+  vi.restoreAllMocks();
   vi.clearAllMocks();
   await fs.remove(root);
 });
@@ -82,7 +87,7 @@ it('rejects simultaneous installs and reports errors without losing the log', as
   expect(results.map((r) => r.status)).toEqual(['fulfilled', 'rejected']);
   child.stderr.write('checksum mismatch');
   child.emit('close', 1);
-  expect((await getAddons(settings)).job).toMatchObject({ running: false, log: 'checksum mismatch', error: expect.stringContaining('failed') });
+  expect((await getAddons(settings)).job).toMatchObject({ running: false, log: 'checksum mismatch\n', error: expect.stringContaining('failed') });
   await installAddon(settings, { name: 'OLD' });
   child.emit('error', new Error('Python unavailable'));
   expect((await getAddons(settings)).job?.error).toBe('Python unavailable');
@@ -94,4 +99,51 @@ it('requires reinstall intent for an existing pack and blocks read-only installs
   await expect(installAddon({ ...settings, readonlyMode: true }, { name: 'FISH', force: true })).rejects.toThrow('read-only');
   await expect(installAddon(settings, { name: '--all' })).rejects.toThrow('Unknown add-on');
   expect(spawn).not.toHaveBeenCalled();
+});
+
+it('reads split progress records and keeps download and install progress separate', async () => {
+  await installAddon(settings, { name: 'FISH' });
+  child.stdout.write('VIAME_ADDON_PROG');
+  child.stdout.write('RESS {"phase":"download","done":25,"total":100}\n');
+  expect((await getAddons(settings)).job).toMatchObject({ phase: 'download', downloadProgress: 25, log: '' });
+  child.stdout.write('VIAME_ADDON_PROGRESS {"phase":"verify"}\nVIAME_ADDON_PROGRESS {"phase":"install","done":40,"total":100}\n');
+  expect((await getAddons(settings)).job).toMatchObject({ phase: 'install', installProgress: 40 });
+  child.emit('close', 0);
+  expect((await getAddons(settings)).job).toMatchObject({ phase: 'complete', downloadProgress: 100, installProgress: 100 });
+});
+
+it('keeps older installer progress indeterminate and surfaces download errors', async () => {
+  await installAddon(settings, { name: 'FISH' });
+  child.stdout.write('Downloading FISH\n');
+  expect((await getAddons(settings)).job?.downloadProgress).toBeUndefined();
+  child.stderr.write('error: FISH: HTTP Error 403: Forbidden\n');
+  child.emit('close', 1);
+  expect((await getAddons(settings)).job?.error).toContain('HTTP Error 403: Forbidden');
+});
+
+it('reports an unwritable installation without starting the installer on Unix', async () => {
+  Object.defineProperty(process, 'platform', { value: 'linux' });
+  vi.spyOn(fs, 'mkdtemp').mockRejectedValueOnce(Object.assign(new Error('EACCES'), { code: 'EACCES' }));
+  await expect(installAddon(settings, { name: 'FISH' })).rejects.toThrow('Permission denied');
+  expect(spawn).not.toHaveBeenCalled();
+});
+
+it('requests Windows elevation for an unwritable installation and reports canceled permission', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  vi.spyOn(fs, 'mkdtemp').mockRejectedValueOnce(Object.assign(new Error('EPERM'), { code: 'EPERM' }));
+  vi.mocked(runElevatedInstaller).mockResolvedValueOnce(1223);
+  await installAddon(settings, { name: 'FISH' });
+  expect(runElevatedInstaller).toHaveBeenCalledOnce();
+  expect(spawn).not.toHaveBeenCalled();
+  expect((await getAddons(settings)).job?.error).toContain('permission was canceled');
+});
+
+it('retries a Windows permission failure through UAC without hiding a second failure', async () => {
+  Object.defineProperty(process, 'platform', { value: 'win32' });
+  vi.mocked(runElevatedInstaller).mockResolvedValueOnce(1);
+  await installAddon(settings, { name: 'FISH' });
+  child.stderr.write('PermissionError: [WinError 5] Access is denied\n');
+  child.emit('close', 1);
+  expect(runElevatedInstaller).toHaveBeenCalledOnce();
+  expect((await getAddons(settings)).job).toMatchObject({ running: false, elevated: true, error: expect.stringContaining('Permission denied') });
 });

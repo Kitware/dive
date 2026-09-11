@@ -18,6 +18,11 @@ export interface AddonJob {
   running: boolean;
   log: string;
   error?: string;
+  phase?: 'download' | 'verify' | 'install' | 'elevation' | 'complete';
+  downloadProgress?: number;
+  installProgress?: number;
+  localArchive?: boolean;
+  elevated?: boolean;
 }
 export interface AddonCatalog {
   installDir: string;
