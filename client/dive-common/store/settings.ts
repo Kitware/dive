@@ -252,8 +252,6 @@ function isStereoInteractiveModeEnabled(): boolean {
 }
 
 export default function setup(allTypes: Ref<Readonly<string[]>>) {
-  // Frame-only filtering is a temporary viewing choice, not the next sequence's default.
-  clientSettings.typeSettings.filterTypesByFrame = false;
   // If a type is deleted, reset the default new track type to unknown
   watch(allTypes, (newval) => {
     if (newval.indexOf(clientSettings.trackSettings.newTrackSettings.type) === -1) {

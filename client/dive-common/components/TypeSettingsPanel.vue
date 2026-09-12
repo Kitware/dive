@@ -28,7 +28,7 @@ export default defineComponent({
       showEmptyTypes: 'View types that are not used currently.',
       lockTypes: 'Only allows the use of defined types.',
       preventCascadeTypes: 'When a track has multiple types, this will prevent the type from displaying if the max type is not visible in the type list',
-      filterTypesByFrame: 'Filters the type list by only types that are visible in the current frame',
+      filterTypesByFrame: 'Show every type used in the sequence, including types with zero annotations on the current frame. Turn off to show only current-frame types. This choice is saved for future sequences.',
       showTotalCount: 'Show each type\'s count for the whole dataset. Rows read frame count / total count.',
       showFrameCount: 'Show each type\'s count on the current frame. Rows read frame count / total count.',
       maxCountButton: 'Show a max count button that will jump to the frame with the max count for the type',
@@ -244,7 +244,9 @@ export default defineComponent({
             <v-col class="py-1">
               <v-switch
                 v-model="clientSettings.typeSettings.filterTypesByFrame"
-                label="Filter Types by Frame"
+                label="Show types from entire sequence"
+                :true-value="false"
+                :false-value="true"
                 class="my-0 ml-1 pt-0"
                 dense
                 hide-details
