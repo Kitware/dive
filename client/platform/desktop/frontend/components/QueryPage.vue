@@ -18,6 +18,7 @@ import NavigationBar from './NavigationBar.vue';
 import QueryDatasetsPanel from './QueryDatasetsPanel.vue';
 import VideoSearchResultsGrid from './VideoSearchResultsGrid.vue';
 import QueryExemplar from './QueryExemplar.vue';
+import { takeQueryLaunch } from '../queryLaunch';
 
 type QueryView = 'query' | 'datasets';
 
@@ -136,6 +137,7 @@ export default defineComponent({
     }
 
     onMounted(async () => {
+      const launch = typeof route.query.launch === 'string' ? takeQueryLaunch(route.query.launch) : undefined;
       window.addEventListener('keydown', onKeydown);
       await page.refreshAvailable();
       if (initialDatasetIds.value.length) {
@@ -143,6 +145,16 @@ export default defineComponent({
         if (page.datasets.value.every((d) => d.index !== 'indexed')) view.value = 'datasets';
       } else if (page.datasets.value.length === 0) {
         view.value = 'datasets';
+      }
+      if (launch) {
+        view.value = 'query';
+        page.mode.value = 'image';
+        page.imagePath.value = launch.imagePath;
+        page.imageBox.value = launch.box || null;
+        page.warmStartModel.value = launch.modelPath || '';
+        page.onlySelected.value = false;
+        page.search.selectIndex(launch.streamName);
+        await page.runImageQuery();
       }
     });
     onBeforeUnmount(() => {
