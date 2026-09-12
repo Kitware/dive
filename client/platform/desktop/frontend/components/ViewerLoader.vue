@@ -2100,9 +2100,6 @@ export default defineComponent({
           <v-tab :to="{ name: 'review' }">
             Review<v-icon>mdi-view-grid-outline</v-icon>
           </v-tab>
-          <v-tab :to="{ name: 'settings' }">
-            Settings<v-icon>mdi-cog</v-icon>
-          </v-tab>
           <annotation-other-menu />
         </v-tabs>
       </template>
