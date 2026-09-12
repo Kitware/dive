@@ -71,7 +71,7 @@ let timer: ReturnType<typeof setInterval>;
 onMounted(() => {
   refresh();
   window.addEventListener('focus', refresh);
-  timer = setInterval(() => { if (catalog.value?.job?.running) refresh(); }, 1500);
+  timer = setInterval(() => { if (catalog.value?.job?.running) refresh(); }, 250);
 });
 onBeforeUnmount(() => {
   clearInterval(timer);
@@ -154,10 +154,11 @@ onBeforeUnmount(() => {
             <v-progress-linear v-if="starting" indeterminate aria-label="Starting installation" />
             <template v-if="catalog && catalog.job">
               <v-alert v-if="catalog.job.cancelRequested && catalog.job.running" type="info">
-                Canceling installation and restoring any replaced files. Waiting for the current operation to finish.
+                Stopping the installer…
               </v-alert>
               <v-alert v-else-if="catalog.job.cancelled" type="info">
                 Installation canceled.
+                <span v-if="catalog.job.phase === 'install'">File replacement was interrupted. Reinstall this pack before using it.</span>
               </v-alert>
               <v-alert v-else-if="catalog.job.phase === 'complete'" type="success">
                 Installation complete.
@@ -167,6 +168,9 @@ onBeforeUnmount(() => {
               </v-alert>
               <div v-if="!catalog.job.localArchive" class="mb-3">
                 <div>Download <span v-if="catalog.job.downloadProgress !== undefined">{{ Math.floor(catalog.job.downloadProgress) }}%</span></div>
+                <div v-if="catalog.job.downloadBytes !== undefined" class="text-caption">
+                  {{ (catalog.job.downloadBytes / 1048576).toFixed(1) }} MB downloaded<span v-if="catalog.job.downloadTotalBytes"> / {{ (catalog.job.downloadTotalBytes / 1048576).toFixed(1) }} MB</span>
+                </div>
                 <v-progress-linear
                   aria-label="Download progress"
                   :value="catalog.job.downloadProgress || 0"
@@ -193,14 +197,11 @@ onBeforeUnmount(() => {
                 <summary>Installation details</summary>
                 <pre class="addon-output">{{ catalog.job.log || 'Starting installer…' }}</pre>
               </details>
-              <p v-if="catalog.job.running && !catalog.job.canCancel" class="mt-3">
-                This VIAME installer does not support safe cancellation. Update VIAME to enable it.
-              </p>
             </template>
           </v-card-text>
           <v-card-actions>
             <v-spacer />
-            <v-btn v-if="busy" :disabled="starting || cancelling || !catalog || !catalog.job || !catalog.job.canCancel || catalog.job.cancelRequested" @click="cancel">
+            <v-btn v-if="busy" @click="cancel">
               {{ cancelling || (catalog && catalog.job && catalog.job.cancelRequested) ? 'Canceling…' : 'Cancel installation' }}
             </v-btn>
             <v-btn v-else @click="showProgress = false">

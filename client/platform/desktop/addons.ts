@@ -20,6 +20,8 @@ export interface AddonJob {
   error?: string;
   phase?: 'download' | 'verify' | 'install' | 'elevation' | 'complete';
   downloadProgress?: number;
+  downloadBytes?: number;
+  downloadTotalBytes?: number;
   installProgress?: number;
   localArchive?: boolean;
   elevated?: boolean;
