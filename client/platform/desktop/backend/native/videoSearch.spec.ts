@@ -82,3 +82,10 @@ it('indexes the first configured stereo camera and names it in the job log', asy
   const metadata = await fs.readJson(path.join(root, 'DIVE_SearchIndex/index_meta.json'));
   expect(Object.values(metadata.streams)).toEqual([expect.objectContaining({ datasetId: 'fish/left' })]);
 });
+
+it('registers failures while closing the previous search session for the error pop-up', async () => {
+  const job = await videoSearch.buildIndex(settings, args, (update) => updates.push(update), async () => { throw new Error('Could not close index'); });
+  expect(job.exitCode).toBe(1);
+  expect(updates.at(-1)?.body).toEqual(['ERROR: Could not close index']);
+  expect(updates.at(-1)?.endTime).toBeDefined();
+});

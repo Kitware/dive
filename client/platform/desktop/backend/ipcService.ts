@@ -646,8 +646,7 @@ export default function register() {
     // The build job needs the shared database to itself (and re-ingesting
     // invalidates whatever the open session has cached in memory).
     const manager = videoSearch.getQueryServiceManager();
-    await manager.closeIndex();
-    return videoSearch.buildIndex(settings.get(), args, updater);
+    return videoSearch.buildIndex(settings.get(), args, updater, () => manager.closeIndex());
   });
 
   ipcMain.handle('video-search-remove-index', async (_, datasetId: string) => {

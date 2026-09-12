@@ -222,6 +222,7 @@ async function buildIndex(
   settings: Settings,
   args: BuildSearchIndex,
   updater: DesktopJobUpdater,
+  beforeStart?: () => Promise<void>,
 ): Promise<DesktopJob> {
   const jobBase: DesktopJob = {
     key: `search_index_${crypto.randomBytes(16).toString('hex')}`,
@@ -237,6 +238,7 @@ async function buildIndex(
   };
   updater({ ...jobBase, body: ['Preparing search index…'] });
   try {
+    await beforeStart?.();
     return await startIndexBuild(settings, args, updater, jobBase);
   } catch (error) {
     jobBase.exitCode = 1;
