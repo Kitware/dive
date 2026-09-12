@@ -108,7 +108,7 @@ onBeforeUnmount(() => {
       </div>
       <p>Install additional VIAME model packs.</p>
       <p v-if="catalog" class="text-caption">
-        Installation: {{ catalog.installDir }}
+        Target Location: {{ catalog.installDir }}
       </p>
       <v-alert v-if="error && !showProgress" type="error">
         {{ error }} <router-link :to="{ name: 'settings' }">
