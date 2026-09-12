@@ -54,6 +54,8 @@ export default defineComponent({
     ReviewDatasetsPanel, ReviewGrid, ReviewGridControls, ReviewCell, UserSettingsDialog,
   },
   props: {
+    sessionOwner: { type: String, default: '' },
+    retainSession: { type: Boolean, default: true },
     initialDatasetIds: {
       type: Array as PropType<string[]>,
       default: () => [],
@@ -64,14 +66,17 @@ export default defineComponent({
     // Coming back to the page resumes where it was left, unless the library
     // sent a new selection (and nothing is unsaved).
     const held = takeReviewSession();
-    const resumed = held && shouldResume(held, props.initialDatasetIds) ? held : null;
+    const resumed = held && (held.owner || '') === props.sessionOwner && shouldResume(held, props.initialDatasetIds) ? held : null;
     if (held && !resumed) held.review.dispose();
     const review = resumed ? resumed.review : createReviewService({ api });
     const datasetKey = resumed ? resumed.datasetKey : sessionKey(props.initialDatasetIds);
     provideReview(review);
     const { prompt } = usePrompt();
 
-    const view = ref<ReviewView>(resumed ? resumed.view : 'results');
+    // Empty first visit opens Datasets; coming back with loaded data opens Results.
+    const hasReady = review.datasets.value.some((d) => d.status === 'ready');
+    const view = ref<ReviewView>(hasReady ? 'results' : 'datasets');
+    const resuming = ref(!!resumed);
     const pageTypeInput = ref('');
     const showSettings = ref(false);
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
@@ -87,7 +92,7 @@ export default defineComponent({
         field.activateMenu();
       }
     }
-    const gridActive = computed(() => view.value === 'results');
+    const gridActive = computed(() => view.value === 'results' && !resuming.value);
     const cellScale = computed(() => cellScaleFor(review.grid.columns, review.grid.rows));
     const footerPx = computed(() => Math.round(CELL_FOOTER_BASE_PX * cellScale.value));
     const grid = useReviewGrid<ReviewEntry>({
@@ -106,6 +111,7 @@ export default defineComponent({
 
     /** Per-cell display data; carries dataRevision so edits re-render. */
     const cells = computed(() => {
+      if (resuming.value) return [];
       const revision = review.dataRevision.value;
       const { chipStore } = review;
       return grid.pageItems.value.map((entry) => {
@@ -228,6 +234,44 @@ export default defineComponent({
       if (ok) await review.discardChanges();
     }
 
+    const saveTooltipText = computed(() => {
+      if (review.saving.value) return 'Saving changes...';
+      const count = review.pendingCount.value;
+      if (count === 0) return 'No unsaved changes';
+      const changeLabel = count === 1 ? 'change' : 'changes';
+      let tooltip = `Save ${count} ${changeLabel}`;
+      if (clientSettings.autoSaveSettings.enabled) {
+        tooltip += `. Auto-save is on (delay: ${clientSettings.autoSaveSettings.delaySeconds} seconds)`;
+      }
+      return tooltip;
+    });
+
+    // Three-way leave prompt: save, discard, or stay. The shared prompt service
+    // is only two-button, so this dialog lives on the page.
+    const leaveDialog = ref(false);
+    const leavePendingCount = ref(0);
+    let leaveResolve: ((choice: 'save' | 'discard' | 'cancel') => void) | null = null;
+
+    function askLeaveUnsaved(count: number): Promise<'save' | 'discard' | 'cancel'> {
+      leavePendingCount.value = count;
+      leaveDialog.value = true;
+      return new Promise((resolve) => {
+        leaveResolve = resolve;
+      });
+    }
+
+    function resolveLeave(choice: 'save' | 'discard' | 'cancel') {
+      const resolve = leaveResolve;
+      leaveResolve = null;
+      leaveDialog.value = false;
+      resolve?.(choice);
+    }
+
+    function onLeaveDialogInput(show: boolean) {
+      if (!show) resolveLeave('cancel');
+      else leaveDialog.value = true;
+    }
+
     function onKeydown(event: KeyboardEvent) {
       grid.handleKeydown(event);
     }
@@ -259,11 +303,43 @@ export default defineComponent({
       }
     }
 
-    onBeforeRouteLeave((_to, _from, next) => {
-      // The session (datasets, view, page, unsaved edits) waits for the next visit.
+    function holdSession() {
+      if (!props.retainSession) return;
       holdReviewSession({
-        review, view: view.value, page: grid.page.value, datasetKey,
+        review, view: view.value, page: grid.page.value, datasetKey, owner: props.sessionOwner,
       });
+    }
+
+    onBeforeRouteLeave(async (_to, _from, next) => {
+      if (!props.retainSession) { next(); return; }
+      const pending = review.pendingCount.value;
+      if (pending === 0) {
+        holdSession();
+        next();
+        return;
+      }
+      // Cancel any pending auto-save so it does not race the user's choice.
+      autoSave.cancel();
+      const choice = await askLeaveUnsaved(pending);
+      if (choice === 'cancel') {
+        if (clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) {
+          autoSave();
+        }
+        next(false);
+        return;
+      }
+      if (choice === 'save') {
+        await review.save();
+        if (review.pendingCount.value > 0) {
+          // Save failed; the page already shows the error — stay put.
+          next(false);
+          return;
+        }
+      } else if (!await review.discardChanges()) {
+        next(false);
+        return;
+      }
+      holdSession();
       next();
     });
 
@@ -279,11 +355,15 @@ export default defineComponent({
       window.addEventListener('keydown', onKeydown);
       window.addEventListener('beforeunload', onBeforeUnload);
       if (resumed) {
+        await review.refreshOnResume();
+        await review.loadQueued();
+        resuming.value = false;
         await nextTick();
         grid.goToPage(resumed.page);
       }
       await review.refreshAvailable();
-      // A resumed session kept for its unsaved edits still takes the new selection in.
+      // A resumed session still takes a new library selection in when the
+      // held key differs (pending edits are resolved on leave nowadays).
       if (!resumed || datasetKey !== sessionKey(props.initialDatasetIds)) {
         await applyInitial(props.initialDatasetIds);
       }
@@ -295,10 +375,11 @@ export default defineComponent({
       autoSave.cancel();
       grid.dispose();
       // Disposed here only when not handed over to the next visit.
-      if (!takeReviewSession()) review.dispose();
+      const parked = takeReviewSession();
+      if (!props.retainSession || !parked) review.dispose();
       else {
         holdReviewSession({
-          review, view: view.value, page: grid.page.value, datasetKey,
+          review, view: view.value, page: grid.page.value, datasetKey, owner: props.sessionOwner,
         });
       }
     });
@@ -330,6 +411,12 @@ export default defineComponent({
       applyTypeToPage,
       acceptPage,
       discard,
+      saveTooltipText,
+      leaveDialog,
+      leavePendingCount,
+      resolveLeave,
+      onLeaveDialogInput,
+      clientSettings,
     };
   },
 });
@@ -466,12 +553,6 @@ export default defineComponent({
 
       <v-spacer />
 
-      <span
-        v-if="review.pendingCount.value > 0"
-        class="text-caption amber--text mr-2"
-      >
-        {{ review.pendingCount.value }} unsaved
-      </span>
       <v-btn
         small
         text
@@ -490,22 +571,41 @@ export default defineComponent({
       >
         <v-icon>mdi-cog</v-icon>
       </v-btn>
-      <v-btn
-        small
-        depressed
-        color="primary"
-        :disabled="review.pendingCount.value === 0"
-        :loading="review.saving.value"
-        @click="review.save()"
-      >
-        <v-icon
-          small
-          left
-        >
-          mdi-content-save
-        </v-icon>
-        Save
-      </v-btn>
+      <v-tooltip bottom>
+        <template #activator="{ on }">
+          <v-badge
+            overlap
+            bottom
+            :content="review.pendingCount.value"
+            :value="review.pendingCount.value > 0"
+            offset-x="14"
+            offset-y="12"
+          >
+            <v-btn
+              small
+              depressed
+              color="primary"
+              :disabled="review.pendingCount.value === 0"
+              :loading="review.saving.value"
+              v-on="on"
+              @click="review.save()"
+            >
+              <v-icon
+                small
+                left
+              >
+                {{
+                  clientSettings.autoSaveSettings.enabled
+                    ? 'mdi-content-save-cog'
+                    : 'mdi-content-save'
+                }}
+              </v-icon>
+              Save
+            </v-btn>
+          </v-badge>
+        </template>
+        <span>{{ saveTooltipText }}</span>
+      </v-tooltip>
     </div>
 
     <ReviewGridControls
@@ -705,6 +805,47 @@ export default defineComponent({
       :value="showSettings"
       @input="showSettings = $event"
     />
+
+    <v-dialog
+      :value="leaveDialog"
+      max-width="560"
+      persistent
+      @input="onLeaveDialogInput"
+    >
+      <v-card>
+        <v-card-title style="word-break: normal;">
+          Unsaved changes
+        </v-card-title>
+        <v-card-text>
+          You have {{ leavePendingCount }} unsaved
+          change{{ leavePendingCount === 1 ? '' : 's' }}.
+          Save them before leaving, or discard them?
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            text
+            @click="resolveLeave('cancel')"
+          >
+            Stay
+          </v-btn>
+          <v-spacer />
+          <v-btn
+            text
+            @click="resolveLeave('discard')"
+          >
+            Discard and Leave
+          </v-btn>
+          <v-btn
+            color="primary"
+            text
+            :loading="review.saving.value"
+            @click="resolveLeave('save')"
+          >
+            Save and Leave
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
 
     <datalist :id="typeListId">
       <option

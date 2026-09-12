@@ -29,7 +29,7 @@ Notes:
 
 ## The grid
 
-The **Results** panel opens by default and shows the annotations that match the current query as a grid. Until a dataset has been added on the **Datasets** panel it only says so. Each entry shows:
+The **Datasets** panel opens on a first visit with nothing loaded; coming back with loaded datasets opens **Results**. The Results grid shows the annotations that match the current query. Until a dataset has been added and loaded it only says so. Each entry shows:
 
 * the annotation's box, outlined, cropped out of the image or video frame with some extra context around it;
 * the confidence of the shown type (top left);
@@ -37,7 +37,7 @@ The **Results** panel opens by default and shows the annotations that match the 
 * the dataset name (when more than one is loaded), track id, and frame or frame count;
 * any polygon outline and head/tail points the detection carries, drawn over the chip.
 
-Hover an entry for its actions (they grow under the mouse): **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **delete** (a red X; the annotation is removed on the next save), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track.
+Hover an entry for its actions (they grow under the mouse): **mark correct** (sets the shown type's confidence to 1 and drops other candidate types), **delete** (a red X; the annotation is removed on the next save), **edit geometry**, and **open in viewer**. Double clicking the image also opens the annotation viewer on that dataset, seeks to the frame the entry is showing, and selects the track. While a review session is open, the viewer's top bar shows a **Review** tab so you can jump back to the same grid and page.
 
 Tracks cycle through their sampled frames at the dataset's real-time rate (sparser samples wait proportionally longer, so a loop lasts about as long as the track does). The arrows in the filmstrip badge step through them by hand, which pauses the cycling on that frame until the play button resumes it; starting an edit pauses it too.
 
@@ -82,8 +82,23 @@ Type into an entry's type field and press Enter (or click away), or open its dro
 
 **Page actions** applies to every entry on the current page: set them all to one type, or mark them all correct.
 
-Nothing is written until you press **Save**; the toolbar counts unsaved changes, and **Discard** reloads the affected datasets. Leaving the page keeps the session: coming back to Review resumes the same datasets, view and page, unsaved changes included. Starting Review from the library with a different selection begins a fresh session, unless the previous one still has unsaved changes, in which case it is resumed and the new datasets are added to it. Closing the application with unsaved changes asks for confirmation.
+Nothing is written until you press **Save**; the Save button stays disabled until there is something to write, and a badge on it shows how many annotations are queued. **Discard** reloads the affected datasets. Leaving the page (or opening the viewer) with unsaved changes asks whether to **Save and Leave**, **Discard and Leave**, or **Stay**. After a clean leave, coming back to Review resumes the same datasets and page, opening Results when any are loaded. Starting Review from the library with a different selection begins a fresh session. Closing the browser tab or the application with unsaved changes asks for confirmation.
+
+
+When you return from the viewer, Review reloads saved annotations before showing the chips, so a later type edit preserves geometry changed in the viewer. The query and page are retained. If a dataset cannot be refreshed, its stale annotations are not editable; retry loading it on the Datasets panel. If **Discard and Leave** cannot reload the original annotations, Review stays open with your changes pending and shows an error.
+
+For multicamera queries, a match in any camera selects the logical track. Type changes, acceptance and deletion apply to all its displayed camera tracks, including cameras whose confidence or attributes did not match the query.
+
+## Web resource use and shared deployments
+
+Review crops images and decodes playable videos in each user's browser. It uses the existing authenticated media endpoints; opening a grid does not launch a pipeline, worker job, or server-side frame extraction. Videos must already be playable in the browser, as in the annotation viewer.
+
+Each review session limits API operations to three at a time, including loading and saving across datasets. A config operation can make two HTTP requests. The web track reader skips groups and annotation-set listings, which the grid does not use. Chip rendering has a separate four-operation limit and prioritizes the visible page and the next page's primary chips. Queued work for skipped pages is dropped. Image loads and video metadata/seeks time out after 15 seconds, and disposing a session cancels pending media work and prevents queued API calls from starting.
+
+Review retains at most two decoded frames and 16 MiB of decoded pixels per dataset. Rendered chips are pruned when paging to retain 256 recent items, with the visible and prefetched pages protected. Selected annotations remain in browser memory, so the number and size of selected datasets still affect memory usage. These are per-browser limits, not a server-wide quota.
+
+A retained review session belongs to the signed-in account and is cleared on logout or account change. Saves use the existing dataset write permissions and update only changed tracks. Review does not add collaborative locking or conflict detection: coordinate assignments when multiple people edit the same tracks, since a later save can replace another person's edits.
 
 ## Search results
 
-On DIVE Desktop, the Video Search panel's results grid is the same chip grid: ranked similarity results from every indexed dataset are cropped and paged with the controls described above, each entry is accepted or rejected with the buttons in its corner, and clicking an entry from the open dataset seeks the viewer to it. Grid shape, zoom and context settings are shared with the Review page.
+On DIVE Desktop, the Video Search panel uses the same chip grid for ranked similarity results across indexed datasets. Accept or reject entries with their corner buttons; clicking an entry from the open dataset seeks the viewer to it. Grid shape, zoom and context settings are shared with Review.

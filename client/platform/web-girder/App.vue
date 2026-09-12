@@ -1,16 +1,19 @@
 <template>
   <v-app>
-    <router-view />
+    <router-view :key="accountId" />
     <ScoringDatasetPickerDialog />
   </v-app>
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { computed, defineComponent, watch } from 'vue';
+import { clearReviewSession } from 'dive-common/review/reviewSession';
 import { provideApi } from 'dive-common/apispec';
 import { useRoute } from 'vue-router/composables';
 import { useDataset } from 'platform/web-girder/store/useDataset';
 import { useLocation } from 'platform/web-girder/store/useLocation';
+import { clearMultiCamMetaCache } from './api/multicamResolve';
+import { useGirderRest } from './plugins/girder';
 import type { GirderConfig } from './constants';
 import {
   getPipelineList,
@@ -30,6 +33,7 @@ import {
   importAnnotationFile,
   importCameraRegistration,
   loadDetections,
+  loadReviewTracks,
   loadDatasetConfig,
   saveDetections,
   unwrap,
@@ -65,6 +69,12 @@ export default defineComponent({
   name: 'App',
   components: { ScoringDatasetPickerDialog },
   setup() {
+    const girderRest = useGirderRest();
+    const accountId = computed(() => girderRest.user?._id || '');
+    watch(accountId, () => {
+      clearReviewSession();
+      clearMultiCamMetaCache();
+    });
     const route = useRoute();
     const { loadDataset } = useDataset();
     const { setLocationFromRoute } = useLocation();
@@ -88,6 +98,7 @@ export default defineComponent({
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
       loadDetections,
+      loadReviewTracks,
       loadFrameMetadata,
       saveDetections: unwrap(saveDetections),
       saveConfig: unwrap(saveConfig),
@@ -120,6 +131,7 @@ export default defineComponent({
       saveScoringExport,
       exportScoringPdf,
     });
+    return { accountId };
   },
 });
 </script>

@@ -509,6 +509,8 @@ interface Api {
    */
   nativeVideoFrameUrl?(videoPath: string, frame: number, fps: number): Promise<string>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  /** Tracks only, for bulk review; avoids fetching unused groups and annotation sets. */
+  loadReviewTracks?(datasetId: string): Promise<TrackData[]>;
   loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
