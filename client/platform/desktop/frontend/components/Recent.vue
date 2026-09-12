@@ -689,27 +689,6 @@ export default defineComponent({
                   <template #activator="{ on }">
                     <v-btn
                       class="ml-2 align-self-center"
-                      color="error"
-                      outlined
-                      small
-                      v-on="on"
-                      @click="confirmDeleteSelected"
-                    >
-                      <v-icon
-                        left
-                        small
-                      >
-                        mdi-delete
-                      </v-icon>
-                      Delete ({{ selectedRecents.length }})
-                    </v-btn>
-                  </template>
-                  <span>Delete all selected datasets</span>
-                </v-tooltip>
-                <v-tooltip bottom>
-                  <template #activator="{ on }">
-                    <v-btn
-                      class="ml-2 align-self-center"
                       color="primary"
                       outlined
                       small
@@ -726,6 +705,27 @@ export default defineComponent({
                     </v-btn>
                   </template>
                   <span>Score the selected datasets against ground truth</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="error"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="confirmDeleteSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-delete
+                      </v-icon>
+                      Delete ({{ selectedRecents.length }})
+                    </v-btn>
+                  </template>
+                  <span>Delete all selected datasets</span>
                 </v-tooltip>
               </template>
               <v-text-field

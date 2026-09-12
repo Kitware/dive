@@ -7,6 +7,7 @@
 import {
   computed, reactive, ref, Ref, watch,
 } from 'vue';
+import { JobType } from 'platform/desktop/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import type { ScoringDatasetSummary } from 'dive-common/scoring/types';
 import type { VideoSearchIndexMethod, VideoSearchResult } from 'dive-common/apispec';
@@ -14,9 +15,9 @@ import type { ReviewItem } from 'dive-common/review/types';
 import {
   listScoringDatasets, loadConfig, segmentationSam3Installed, textQuery,
   videoInfo, videoSearchBuildIndex, videoSearchExtractFrame, videoSearchIndexStatus,
-  videoSearchInstalled, videoSearchRemoveIndex,
+  videoSearchInstalled, videoSearchRemoveIndex, videoSearchListIndexes,
 } from 'platform/desktop/frontend/api';
-import { runningJobs } from 'platform/desktop/frontend/store/jobs';
+import { runningJobs, recentHistory, queuedGpuJobs } from 'platform/desktop/frontend/store/jobs';
 import { createVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import {
   textHitItem, textQueryFrames, textQueryHits, TextQueryHit,
@@ -45,9 +46,12 @@ export interface VideoQuerySource {
 /** Index build jobs are titled "Add search index (...)" or "Update search index (...)". */
 const BuildJobTitle = /search index/i;
 
+// Keep the selected index rows when routing away; each visit reconciles disk and job state.
+const selectedIndexRows = ref<QueryDataset[]>([]);
+
 export function createQueryPage() {
   const available = ref<ScoringDatasetSummary[]>([]);
-  const datasets = ref<QueryDataset[]>([]);
+  const datasets = selectedIndexRows;
   const installed = ref<boolean | null>(null);
   const sam3Installed = ref<boolean | null>(null);
   const error = ref<string | null>(null);
@@ -100,6 +104,14 @@ export function createQueryPage() {
     try {
       available.value = await listScoringDatasets();
       if (installed.value === null) installed.value = await videoSearchInstalled();
+      const indexed = installed.value ? await videoSearchListIndexes() : [];
+      const jobIds = recentHistory.value.filter(({ job }) => BuildJobTitle.test(job.title))
+        .flatMap(({ job }) => job.datasetIds);
+      // A stereo build job lists its parent for navigation and its child for indexing.
+      const candidates = Array.from(new Set([...indexed.map((item) => item.datasetId), ...jobIds,
+        ...queuedGpuJobs.value.filter((job) => job.type === JobType.BuildSearchIndex).map((job) => job.datasetId)]));
+      await addDatasets(candidates.filter((id) => !candidates.some((other) => other.startsWith(`${id}/`))));
+      await Promise.all(datasets.value.map((dataset) => refreshIndexStatus(dataset.id)));
       if (sam3Installed.value === null) {
         sam3Installed.value = (await segmentationSam3Installed()).installed;
       }
@@ -110,10 +122,27 @@ export function createQueryPage() {
 
   async function refreshIndexStatus(id: string) {
     if (!entry(id)) return;
+    if (queuedGpuJobs.value.some((job) => job.type === JobType.BuildSearchIndex && job.datasetId === id)) {
+      patch(id, { index: 'building', error: undefined });
+      return;
+    }
+    const latest = recentHistory.value.filter(({ job }) => (
+      BuildJobTitle.test(job.title) && job.datasetIds.includes(id)
+    )).sort((a, b) => +new Date(b.job.startTime) - +new Date(a.job.startTime))[0];
+    if (latest && latest.job.endTime === undefined) {
+      patch(id, { index: 'building', error: undefined });
+      return;
+    }
+    if (latest && latest.job.exitCode !== 0) {
+      const details = latest.truncatedLogs.slice(-8).join('\n');
+      patch(id, { index: 'error', error: details || `Index generation failed (exit ${latest.job.exitCode ?? 'unknown'})` });
+      return;
+    }
     try {
       const status = await videoSearchIndexStatus(id);
       if (!entry(id)) return;
-      patch(id, { index: status.indexed ? 'indexed' : 'not-indexed', error: undefined });
+      const index = status.indexed ? 'indexed' : 'not-indexed';
+      patch(id, { index: isBuilding(id) ? 'building' : index, error: undefined });
     } catch (err) {
       if (!entry(id)) return;
       patch(id, { index: 'error', error: err instanceof Error ? err.message : String(err) });
@@ -154,11 +183,12 @@ export function createQueryPage() {
   }
 
   function isBuilding(id: string) {
-    return runningJobs.value.some((item) => (
-      item.job.exitCode === null
+    return queuedGpuJobs.value.some((job) => job.type === JobType.BuildSearchIndex && job.datasetId === id)
+      || runningJobs.value.some((item) => (
+        item.job.exitCode === null
       && item.job.datasetIds.includes(id)
       && BuildJobTitle.test(item.job.title)
-    ));
+      ));
   }
 
   /** How long a queued build may take to show up as a running job. */
@@ -189,25 +219,10 @@ export function createQueryPage() {
     await refreshIndexStatus(id);
   }
 
-  // Index builds finish in the job queue; pick their results up as they do.
-  watch(runningJobs, (current, previous) => {
-    datasets.value.forEach((dataset) => {
-      const building = isBuilding(dataset.id);
-      if (building && dataset.index !== 'building') {
-        patch(dataset.id, { index: 'building' });
-      } else if (!building && dataset.index === 'building') {
-        const finished = previous.some((item) => (
-          item.job.datasetIds.includes(dataset.id)
-          && BuildJobTitle.test(item.job.title)
-          && !current.some((c) => c.job.key === item.job.key)
-        ));
-        if (finished || !building) {
-          // A finished build changes the shared index; the next query reopens it.
-          search.state.sessionOpen = false;
-          refreshIndexStatus(dataset.id);
-        }
-      }
-    });
+  // Observe terminal state as well as running jobs, so failures remain visible on return.
+  watch(() => recentHistory.value.map(({ job }) => `${job.key}:${job.endTime}:${job.exitCode}`).join('|'), () => {
+    search.state.sessionOpen = false;
+    datasets.value.forEach((dataset) => { refreshIndexStatus(dataset.id); });
   });
 
   const indexedIds = computed(() => datasets.value.filter((d) => d.index === 'indexed').map((d) => d.id));

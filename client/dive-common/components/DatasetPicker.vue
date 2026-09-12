@@ -182,7 +182,7 @@ export default defineComponent({
       </v-btn>
       <v-btn
         small
-        color="success"
+        color="grey lighten-1"
         outlined
         :disabled="addable.length === 0"
         class="ml-2"
@@ -193,7 +193,7 @@ export default defineComponent({
           small
           left
         >
-          mdi-check-all
+          mdi-select-all
         </v-icon>
         Select all{{ addable.length ? ` (${addable.length})` : '' }}
       </v-btn>
