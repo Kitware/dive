@@ -3,8 +3,10 @@ import { shallowMount } from '@vue/test-utils';
 import { reactive, ref } from 'vue';
 import { videoSearchListIndexes } from '../api';
 import VideoSearchContext from './VideoSearchContext.vue';
+import { takeQueryLaunch } from '../queryLaunch';
 
-const mocks = vi.hoisted(() => ({ search: null as unknown }));
+const mocks = vi.hoisted(() => ({ search: null as unknown, push: vi.fn(async (location: unknown) => location) }));
+vi.mock('vue-router/composables', () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock('../api', () => ({ videoSearchListIndexes: vi.fn() }));
 vi.mock('../useVideoSearch', () => ({ useVideoSearch: () => mocks.search }));
 vi.mock('../useSearchChips', () => ({ createSearchChips: () => ({ chips: ref({}), dispose: vi.fn() }) }));
@@ -49,5 +51,30 @@ it.each([0, 2])('offers index creation on the Query Datasets page with %s indexe
       { text: 'Beta', value: 'b-stream' },
     ]);
   } else expect(wrapper.text()).toContain('No search index is available yet');
+  wrapper.destroy();
+});
+
+it('launches an image query on the Query page without querying or rendering results in the sidebar', async () => {
+  const queryFromImage = vi.fn();
+  mocks.search = {
+    datasetId: 'current',
+    state: reactive({
+      installed: true, status: { datasetCount: 1 }, selectedStream: 'a-stream', results: [], busy: null,
+    }),
+    refreshStatus: vi.fn(),
+    selectIndex: vi.fn(),
+    queryFromImage,
+  };
+  window.diveDesktop = { showOpenDialog: vi.fn(async () => ({ canceled: false, filePaths: ['/image.jpg'] })) } as never;
+  const wrapper = shallowMount(VideoSearchContext, { stubs: ['v-btn', 'v-select', 'v-divider', 'v-alert', 'v-progress-linear'] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await (wrapper.vm as unknown as { queryFromImageFile(): Promise<void> }).queryFromImageFile();
+  const location = mocks.push.mock.calls.at(-1)?.[0] as unknown as { name: string; query: { launch: string } };
+  expect(location.name).toBe('query');
+  expect(takeQueryLaunch(location.query.launch)).toMatchObject({ imagePath: '/image.jpg', streamName: 'a-stream' });
+  expect(takeQueryLaunch(location.query.launch)).toBeUndefined();
+  expect(queryFromImage).not.toHaveBeenCalled();
+  expect(wrapper.find('.results-list').exists()).toBe(false);
+  expect(wrapper.findAll('.query-launch-button')).toHaveLength(3);
   wrapper.destroy();
 });

@@ -52,3 +52,9 @@ one entry per video or sequence; rebuilding replaces that entry. **Remove from
 index** deletes one sequence's search data, while **Delete entire index** removes
 the whole shared index. Both ask for confirmation and keep source media and
 annotations. Index deletion is disabled while index builds are queued or running.
+
+The sequence editor’s **Video Search** panel is a launch point. Its large search
+buttons open Query and run the selected annotation, image, or saved-model search
+there. The chosen index and annotation crop are preserved; results and refinement
+appear on Query rather than in the sidebar. Leaving the editor still follows the
+normal unsaved-annotation checks.

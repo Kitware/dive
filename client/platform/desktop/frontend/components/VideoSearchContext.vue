@@ -1,35 +1,32 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch,
+  computed, defineComponent, onMounted, ref, watch,
 } from 'vue';
 import {
   useCameraStore,
-  useHandler,
   useSelectedCamera,
   useSelectedTrackId,
   useTime,
 } from 'vue-media-annotator/provides';
-import type { VideoSearchResult, VideoSearchIndexInfo } from 'dive-common/apispec';
-import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import type { VideoSearchIndexInfo } from 'dive-common/apispec';
+import { isNavigationFailure } from 'vue-router';
+import { useRouter } from 'vue-router/composables';
 import { videoSearchListIndexes } from 'platform/desktop/frontend/api';
 import { runningJobs } from 'platform/desktop/frontend/store/jobs';
 import { useVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
-import { createSearchChips } from 'platform/desktop/frontend/useSearchChips';
-import { searchResultFrame as resultFrame } from 'dive-common/review/searchResultItems';
-import VideoSearchResultsGrid from 'platform/desktop/frontend/components/VideoSearchResultsGrid.vue';
+import { holdQueryLaunch, takeQueryLaunch, QueryLaunch } from '../queryLaunch';
 
 export default defineComponent({
   name: 'VideoSearchContext',
   description: 'Video Search',
-  components: { VideoSearchResultsGrid },
   setup() {
     const search = useVideoSearch();
-    const handler = useHandler();
+    const router = useRouter();
+    const launching = ref(false);
     const { frame } = useTime();
     const selectedTrackId = useSelectedTrackId();
     const selectedCamera = useSelectedCamera();
     const cameraStore = useCameraStore();
-    const { prompt } = usePrompt();
 
     const indexes = ref<VideoSearchIndexInfo[]>([]);
     const indexChoices = computed(() => [
@@ -49,17 +46,7 @@ export default defineComponent({
         }
       } catch (err) { search.state.error = (err as Error).message; }
     }
-    const saveModelName = ref('');
-    const saveModelDialog = ref(false);
-    const resultsGridOpen = ref(false);
-    /** Cropped result chips shared with the results grid. */
-    const searchChips = search ? createSearchChips(search) : null;
-    const thumbnails = computed(() => searchChips?.chips.value ?? {});
-    onBeforeUnmount(() => searchChips?.dispose());
-
     const state = computed(() => search?.state ?? null);
-
-    const displayedResults = computed(() => state.value?.results ?? []);
 
     /** Any completed index build can add a new choice to the shared database. */
     watch(runningJobs, (current, previous) => {
@@ -100,8 +87,12 @@ export default defineComponent({
 
     async function queryFromSelectedTrack() {
       if (!search || !selectedTrackBox.value) return;
-      const [x1, y1, x2, y2] = selectedTrackBox.value;
-      await search.queryFromFrame(frame.value, [[x1, y1, x2, y2]]);
+      launching.value = true;
+      try {
+        const box = [...selectedTrackBox.value] as [number, number, number, number];
+        const imagePath = await search.exemplarImageForFrame(frame.value);
+        await launchQuery({ imagePath, box, streamName: search.state.selectedStream });
+      } catch (err) { search.state.error = (err as Error).message; } finally { launching.value = false; }
     }
 
     async function queryFromImageFile(warmStart = false) {
@@ -126,36 +117,18 @@ export default defineComponent({
         ],
       });
       if (ret.canceled || !ret.filePaths?.length) return;
-      await search.queryFromImage(ret.filePaths[0], undefined, modelPath);
+      await launchQuery({ imagePath: ret.filePaths[0], modelPath, streamName: search.state.selectedStream });
     }
 
-    async function saveModel() {
-      if (!search || !saveModelName.value) return;
-      const outputDir = await search.saveModel(saveModelName.value);
-      saveModelDialog.value = false;
-      if (outputDir) {
-        await prompt({
-          title: 'Model Saved',
-          text: [`Saved trained model to ${outputDir}.`,
-            'It is now available as a trained pipeline in the Run Pipeline menu.'],
-          positiveButton: 'Okay',
-        });
-      }
-    }
-
-    function seekToResult(result: VideoSearchResult) {
-      // Only results from the currently open dataset can be seeked to.
-      if (!search || !search.resultIsLocal(result)) {
-        return;
-      }
-      const target = resultFrame(result);
-      if (target !== null) {
-        handler.seekFrame(target);
-      }
-    }
-
-    function isLocalResult(result: VideoSearchResult): boolean {
-      return search !== null && search.resultIsLocal(result);
+    async function launchQuery(launch: QueryLaunch) {
+      launching.value = true;
+      const key = holdQueryLaunch(launch);
+      try {
+        await router.push({ name: 'query', query: { launch: key } });
+      } catch (err) {
+        takeQueryLaunch(key);
+        if (search && !isNavigationFailure(err)) search.state.error = (err as Error).message;
+      } finally { launching.value = false; }
     }
 
     return {
@@ -164,20 +137,11 @@ export default defineComponent({
       indexes,
       indexChoices,
       buildLocation,
-      selectedTrackId,
       selectedTrackBox,
-      saveModelName,
-      saveModelDialog,
-      resultsGridOpen,
-      searchChips,
-      thumbnails,
-      resultFrame,
+      launching,
       queryFromSelectedTrack,
       queryFromImageFile,
-      saveModel,
-      seekToResult,
-      isLocalResult,
-      displayedResults,
+
     };
   },
 });
@@ -226,28 +190,29 @@ export default defineComponent({
       </div>
       <div class="mb-3">
         <v-btn
-          x-small
+          large
           block
-          class="mb-1"
+          class="query-launch-button mb-3"
           color="primary"
-          :disabled="!indexes.length || selectedTrackBox === null || !!state.busy"
+          :disabled="!indexes.length || selectedTrackBox === null || !!state.busy || launching"
           @click="queryFromSelectedTrack"
         >
           Search from selected annotation
         </v-btn>
         <v-btn
-          x-small
+          large
           block
-          class="mb-1"
-          :disabled="!indexes.length || !!state.busy"
+          class="query-launch-button mb-3"
+          :disabled="!indexes.length || !!state.busy || launching"
           @click="queryFromImageFile(false)"
         >
           Search from image file...
         </v-btn>
         <v-btn
-          x-small
+          large
           block
-          :disabled="!indexes.length || !!state.busy"
+          class="query-launch-button mb-3"
+          :disabled="!indexes.length || !!state.busy || launching"
           @click="queryFromImageFile(true)"
         >
           Search with saved model (.svm)...
@@ -271,172 +236,19 @@ export default defineComponent({
       >
         {{ state.error }}
       </v-alert>
-
-      <!-- Results + refinement -->
-      <template v-if="displayedResults.length">
-        <v-divider class="mb-2" />
-        <div class="d-flex align-center mb-1">
-          <div class="text-subtitle-2">
-            Results ({{ displayedResults.length }})
-            <span v-if="state.iteration" class="text-caption">
-              — iteration {{ state.iteration }}
-            </span>
-          </div>
-          <v-spacer />
-          <v-btn
-            icon
-            x-small
-            class="mr-1"
-            title="Review results in a grid"
-            @click="resultsGridOpen = true"
-          >
-            <v-icon small>
-              mdi-view-grid
-            </v-icon>
-          </v-btn>
-          <v-btn
-            x-small
-            color="primary"
-            :disabled="!!state.busy"
-            @click="search.refine()"
-          >
-            Refine
-          </v-btn>
-          <v-btn
-            x-small
-            class="ml-1"
-            :disabled="!state.modelAvailable || !!state.busy"
-            @click="saveModelDialog = true"
-          >
-            Save Model
-          </v-btn>
-        </div>
-        <div class="results-list">
-          <v-card
-            v-for="result in displayedResults"
-            :key="result.ref"
-            outlined
-            class="d-flex align-center pa-1 mb-1 result-row"
-            :class="{ 'result-row-remote': !isLocalResult(result) }"
-            @click="seekToResult(result)"
-          >
-            <img
-              v-if="thumbnails[result.ref]"
-              :src="thumbnails[result.ref]"
-              class="result-thumb mr-2"
-            >
-            <div
-              v-else
-              class="result-thumb result-thumb-placeholder mr-2"
-            />
-            <div class="flex-grow-1">
-              <div class="text-caption">
-                Frame {{ resultFrame(result) }}
-              </div>
-              <div class="text-caption grey--text">
-                {{ (result.relevancy_score * 100).toFixed(1) }}%
-              </div>
-              <div
-                v-if="search.resultDatasetName(result)"
-                class="text-caption blue-grey--text text--lighten-1 result-dataset"
-              >
-                {{ search.resultDatasetName(result) }}
-              </div>
-            </div>
-            <v-btn
-              icon
-              x-small
-              :color="state.adjudications[result.ref] === 'positive' ? 'success' : 'grey'"
-              @click.stop="search.mark(result.ref, 'positive')"
-            >
-              <v-icon small>
-                mdi-thumb-up
-              </v-icon>
-            </v-btn>
-            <v-btn
-              icon
-              x-small
-              :color="state.adjudications[result.ref] === 'negative' ? 'error' : 'grey'"
-              @click.stop="search.mark(result.ref, 'negative')"
-            >
-              <v-icon small>
-                mdi-thumb-down
-              </v-icon>
-            </v-btn>
-          </v-card>
-        </div>
-      </template>
-
-      <!-- Save model dialog -->
-      <v-dialog
-        v-model="saveModelDialog"
-        max-width="420"
-      >
-        <v-card>
-          <v-card-title>Save Trained Model</v-card-title>
-          <v-card-text>
-            <v-text-field
-              v-model="saveModelName"
-              label="Model name"
-              hint="Becomes a runnable trained pipeline usable on other datasets"
-              persistent-hint
-              autofocus
-            />
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn text @click="saveModelDialog = false">
-              Cancel
-            </v-btn>
-            <v-btn
-              color="primary"
-              :disabled="!saveModelName"
-              @click="saveModel"
-            >
-              Save
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </v-dialog>
-
-      <!-- Full-window adjudication grid over the same session state -->
-      <video-search-results-grid
-        v-if="searchChips"
-        v-model="resultsGridOpen"
-        :search-chips="searchChips"
-      />
     </div>
   </div>
 </template>
 
 <style scoped>
-.video-search-context {
-  overflow-y: auto;
-  height: 100%;
+.query-launch-button {
+  min-height: 64px;
+  height: auto !important;
+  padding: 16px !important;
+  font-size: 14px;
 }
-.results-list {
-  overflow-y: auto;
-  max-height: calc(100vh - 480px);
-}
-.result-row {
-  cursor: pointer;
-}
-.result-row-remote {
-  cursor: default;
-}
-.result-dataset {
-  max-width: 140px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-.result-thumb {
-  width: 48px;
-  height: 48px;
-  object-fit: contain;
-  background: #222;
-}
-.result-thumb-placeholder {
-  background: #333;
+.query-launch-button ::v-deep .v-btn__content {
+  white-space: normal;
+  line-height: 1.5;
 }
 </style>
