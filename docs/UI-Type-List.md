@@ -134,3 +134,7 @@ Type settings also configure [suppression](UI-Suppression.md):
 * **Suppression Overlap (%)** — minimum percent of a detection that must lie under suppression regions for it to be hidden (default **99**). Shown only when a suppression type is set.
 
 The active suppression type shows an ==:material-eye-off:== icon in the type list. Detections may also be flagged with an attribute of the same name; see [Suppression](UI-Suppression.md) for region vs attribute behavior and display options.
+
+**Show types from entire sequence** in Type Settings is enabled by default,
+including types with zero annotations on the current frame. Turn it off to show
+only current-frame types. The choice is saved and applies to future sequences.

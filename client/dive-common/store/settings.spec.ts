@@ -26,3 +26,14 @@ describe('clientSettings hydration', () => {
     expect(clientSettings.typeSettings.trackSortDir).toBe('count');
   });
 });
+
+it.each([false, true])('preserves the saved frame-only choice when opening a sequence (%s)', async (frameOnly) => {
+  localStorage.setItem('Settings', JSON.stringify({ typeSettings: { filterTypesByFrame: frameOnly } }));
+  vi.resetModules();
+  const { effectScope, ref } = await import('vue');
+  const { default: setup, clientSettings } = await import('./settings');
+  const scope = effectScope();
+  scope.run(() => setup(ref(['fish', 'shark'])));
+  expect(clientSettings.typeSettings.filterTypesByFrame).toBe(frameOnly);
+  scope.stop();
+});

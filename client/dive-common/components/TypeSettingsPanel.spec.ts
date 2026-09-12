@@ -59,7 +59,7 @@ describe('TypeSettingsPanel hierarchy state', () => {
   it('leaves the other type settings enabled', () => {
     const { wrapper } = mountPanel({ allTypes: [], hierarchyActive: true });
     const switches = wrapper.findAll('v-switch').wrappers;
-    ['Show Empty', 'Lock Types', 'Filter Types by Frame', 'Show Max Count Button'].forEach(
+    ['Show Empty', 'Lock Types', 'Show types from entire sequence', 'Show Max Count Button'].forEach(
       (label) => expect(switches.find((item) => item.attributes('label') === label)
         ?.attributes('disabled')).toBeUndefined(),
     );
