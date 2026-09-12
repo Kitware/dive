@@ -9,17 +9,20 @@ import type {
 } from 'platform/desktop/addons';
 import { observeChild } from './processManager';
 import { runElevatedInstaller } from './addonsElevation';
+import addonRunner from './addonRunner';
 
 const CSV_NAME = 'download_viame_addons.csv';
 let job: AddonJob | null = null;
 let starting = false;
+let cancelDuringStart = false;
 let cancelFile: string | undefined;
 
-/** Request cooperative cancellation; never kill an installer during file replacement. */
+/** The runner watches this request even while network reads or installation are blocked. */
 export async function cancelAddon(): Promise<AddonJob | null> {
+  if (starting) cancelDuringStart = true;
   const current = job;
   if (!current?.running) return current ? { ...current } : null;
-  if (!current.canCancel || !cancelFile) throw new Error('Update VIAME to enable safe installation cancellation.');
+  if (!cancelFile) return { ...current };
   try { await fs.writeFile(cancelFile, 'cancel'); } catch (error) {
     if (current.running) throw error;
     return { ...current };
@@ -101,7 +104,11 @@ export function progressOutput(jobState: AddonJob) {
           current.phase = event.phase;
           const percent = typeof event.done === 'number' && typeof event.total === 'number' && event.total > 0
             ? Math.max(0, Math.min(100, (100 * event.done) / event.total)) : undefined;
-          if (event.phase === 'download') current.downloadProgress = percent;
+          if (event.phase === 'download') {
+            current.downloadProgress = percent;
+            current.downloadBytes = event.done;
+            current.downloadTotalBytes = event.total;
+          }
           if (event.phase === 'install') current.installProgress = percent;
           if (event.phase === 'verify' && !current.localArchive) current.downloadProgress = 100;
           return;
@@ -136,6 +143,7 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
       || (request.archive !== undefined && typeof request.archive !== 'string')
       || (request.force !== undefined && typeof request.force !== 'boolean')) throw new Error('Invalid add-on installation request.');
   starting = true;
+  cancelDuringStart = false;
   let cleanupJob = () => {};
   try {
     const catalog = await getAddons(settings);
@@ -170,10 +178,10 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
       log: '',
       phase: request.archive ? 'verify' : 'download',
       localArchive: !!request.archive,
-      canCancel: (await fs.readFile(path.join(catalog.installDir, 'configs', 'add_ons.py'), 'utf8')).includes('VIAME_ADDON_CANCEL_FILE'),
+      canCancel: true,
     };
-    const cancelDirectory = current.canCancel ? await fs.mkdtemp(path.join(os.tmpdir(), 'dive-addon-cancel-')) : undefined;
-    const requestFile = cancelDirectory ? path.join(cancelDirectory, 'cancel') : undefined;
+    const cancelDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'dive-addon-cancel-'));
+    const requestFile = path.join(cancelDirectory, 'cancel');
     cancelFile = requestFile;
     job = current;
     const cleanup = () => {
@@ -181,6 +189,16 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
       if (cancelDirectory) fs.remove(cancelDirectory).catch(() => { /* A stale cancellation file cannot affect another job. */ });
     };
     cleanupJob = cleanup;
+    const runner = path.join(cancelDirectory, 'runner.py');
+    await fs.writeFile(runner, addonRunner);
+    args.splice(1, 0, runner);
+    if (cancelDuringStart) {
+      current.running = false;
+      current.cancelRequested = true;
+      current.cancelled = true;
+      cleanup();
+      return { ...current };
+    }
     const output = progressOutput(current);
     const failed = (error: Error) => { output.flush(); current.running = false; current.error = error.message; cleanup(); };
     const finish = (code: number | null) => {

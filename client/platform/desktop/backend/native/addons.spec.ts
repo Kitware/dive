@@ -74,7 +74,7 @@ it('delegates installation with separate argv, preserving paths with spaces', as
   await fs.writeFile(archive, 'archive');
   await installAddon(settings, { name: 'FISH', archive, force: true });
   const [, args, options] = vi.mocked(spawn).mock.calls[0];
-  expect(args).toEqual(['-u', path.join(root, 'configs/add_ons.py'), '--install-dir', root,
+  expect(args).toEqual(['-u', expect.stringContaining('runner.py'), path.join(root, 'configs/add_ons.py'), '--install-dir', root,
     '--csv', path.join(root, 'bin/download_viame_addons.csv'), 'install', 'FISH', '--force', '--from-file', archive]);
   expect(options).toMatchObject({ shell: false, cwd: root });
   child.stdout.write('Installed model\n');
@@ -151,7 +151,7 @@ it('retries a Windows permission failure through UAC without hiding a second fai
   expect((await getAddons(settings)).job).toMatchObject({ running: false, elevated: true, error: expect.stringContaining('Installation failed (exit 1). error: HTTP Error 403') });
 });
 
-it('requests cooperative cancellation and waits for rollback before marking canceled', async () => {
+it('requests cancellation and waits for process exit before marking canceled', async () => {
   await fs.outputFile(path.join(root, 'configs/add_ons.py'), '# VIAME_ADDON_CANCEL_FILE');
   expect(await installAddon(settings, { name: 'FISH' })).toMatchObject({ canCancel: true });
   const options = vi.mocked(spawn).mock.calls[0][2];
@@ -181,10 +181,20 @@ it('preserves rollback errors after cancellation and does not report a late requ
   expect((await getAddons(settings)).job?.cancelled).toBeUndefined();
 });
 
-it('refuses unsafe cancellation with an older installer', async () => {
-  await installAddon(settings, { name: 'FISH' });
-  await expect(cancelAddon()).rejects.toThrow('Update VIAME');
-  expect((await getAddons(settings)).job?.running).toBe(true);
+it('supports hard cancellation with an older installer', async () => {
+  expect(await installAddon(settings, { name: 'FISH' })).toMatchObject({ canCancel: true });
+  await cancelAddon();
+  const file = vi.mocked(spawn).mock.calls[0][2]?.env?.VIAME_ADDON_CANCEL_FILE as string;
+  expect(await fs.pathExists(file)).toBe(true);
+  child.emit('close', 130);
+  expect((await getAddons(settings)).job).toMatchObject({ running: false, cancelled: true });
+});
+
+it('honors cancellation while preparing the installer without spawning it', async () => {
+  const installing = installAddon(settings, { name: 'FISH' });
+  await cancelAddon();
+  expect(await installing).toMatchObject({ running: false, cancelled: true });
+  expect(spawn).not.toHaveBeenCalled();
 });
 
 it('passes cancellation through Windows elevation', async () => {
