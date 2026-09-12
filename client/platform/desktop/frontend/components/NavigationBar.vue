@@ -1,6 +1,7 @@
 <script>
 import { defineComponent } from 'vue';
 import JobTab from './JobTab.vue';
+import { lastAnnotation } from '../store/dataset';
 
 export default defineComponent({
   components: { JobTab },
@@ -9,6 +10,9 @@ export default defineComponent({
       type: String,
       default: 'DIVE',
     },
+  },
+  setup() {
+    return { lastAnnotation };
   },
 });
 </script>
@@ -21,6 +25,13 @@ export default defineComponent({
       style="flex-basis:0; flex-grow:0;"
       color="accent"
     >
+      <v-tab
+        v-if="lastAnnotation"
+        :to="{ name: 'viewer', params: { id: lastAnnotation.id } }"
+        :title="`Resume editing ${lastAnnotation.name}`"
+      >
+        Resume<v-icon>mdi-history</v-icon>
+      </v-tab>
       <v-tab :to="{ name: 'recent' }">
         Library<v-icon>mdi-folder-open</v-icon>
       </v-tab>

@@ -236,17 +236,21 @@ export default defineComponent({
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
-    const allSelected = computed(() => filteredRecents.value.length > 0
-      && filteredRecents.value.every((item) => selectedIds.value.has(item.id)));
-    const someSelected = computed(() => filteredRecents.value.some(
+    const visibleRecents = ref([] as JsonConfigCache[]);
+    const allSelected = computed(() => visibleRecents.value.length > 0
+      && visibleRecents.value.every((item) => selectedIds.value.has(item.id)));
+    const someSelected = computed(() => visibleRecents.value.some(
       (item) => selectedIds.value.has(item.id),
     ));
 
     function toggleSelectAll() {
       if (allSelected.value) {
-        selectedRecents.value = [];
+        const visibleIds = new Set(visibleRecents.value.map((item) => item.id));
+        selectedRecents.value = selectedRecents.value.filter((item) => !visibleIds.has(item.id));
       } else {
-        selectedRecents.value = filteredRecents.value.slice();
+        selectedRecents.value = selectedRecents.value.concat(
+          visibleRecents.value.filter((item) => !selectedIds.value.has(item.id)),
+        );
       }
     }
 
@@ -380,6 +384,7 @@ export default defineComponent({
       multiCamOpenType,
       stereo,
       filteredRecents,
+      visibleRecents,
       selectedRecents,
       allSelected,
       someSelected,
@@ -397,7 +402,7 @@ export default defineComponent({
       knownVersion,
       checkingMedia,
       clientSettings,
-      itemsPerPageOptions,
+      itemsPerPageOptions: [...itemsPerPageOptions, 1000, -1],
       queuedConversionDatasetIds,
     };
   },
@@ -756,6 +761,7 @@ export default defineComponent({
               :footer-props="{ itemsPerPageOptions }"
               :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
+              @current-items="visibleRecents = $event"
             >
               <template #[`header.select`]>
                 <v-simple-checkbox

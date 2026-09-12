@@ -339,7 +339,7 @@ export function groupReviewItems(
       entries.push({ key: item.key, items: [item], labels: [''] });
       return;
     }
-    const key = item.key.replace(item.datasetId, membership.parent);
+    const key = `${membership.parent}#${item.trackId}`;
     let group = byKey.get(key);
     if (!group) {
       group = { items: [], ranks: [], labels: [] };

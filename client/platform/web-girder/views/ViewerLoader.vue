@@ -26,6 +26,7 @@ import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
 import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
+import { useReviewSessionHeld } from 'dive-common/review/reviewSession';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
@@ -430,6 +431,8 @@ export default defineComponent({
     const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
     /** Frame / track deep link from the review grid. */
     const viewerFocus = computed(() => parseViewerFocus(route.query));
+    /** Jump back to Review when a session was parked by opening the viewer. */
+    const reviewSessionHeld = useReviewSessionHeld();
 
     function returnToCurrentAnnotations() {
       router.replace({ name: 'viewer', params: { id: props.id } });
@@ -474,6 +477,7 @@ export default defineComponent({
       annotationSourceLabel,
       annotationSourceReturnable,
       viewerFocus,
+      reviewSessionHeld,
       returnToCurrentAnnotations,
     };
   },
@@ -515,6 +519,13 @@ export default defineComponent({
             <v-icon>mdi-database</v-icon>
           </v-tab>
           <JobsTab />
+          <v-tab
+            v-if="reviewSessionHeld"
+            :to="{ name: 'review' }"
+          >
+            Review
+            <v-icon>mdi-view-grid-outline</v-icon>
+          </v-tab>
         </v-tabs>
       </template>
       <template #title-right>

@@ -379,11 +379,14 @@ function _parseFeature(row: string[]) {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
   };
-  if (rowInfo.fishLength !== -1 && Number.isFinite(rowInfo.fishLength)) {
+  if (rowInfo.fishLength > 0 && Number.isFinite(rowInfo.fishLength)) {
     feature.fishLength = rowInfo.fishLength;
   }
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
+  }
+  if (feature.attributes?.length !== undefined && Number(feature.attributes.length) <= 0) {
+    delete feature.attributes.length;
   }
   const syncedFeature = syncDetectionLengthFields(feature);
   if (rowData.geoFeatureCollection.features.length > 0) {

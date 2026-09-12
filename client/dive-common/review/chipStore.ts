@@ -22,12 +22,11 @@ export interface ChipStoreOptions {
 }
 
 export interface ChipStoreDeps {
-  /**
-   * Frame access for a dataset; null when the dataset cannot be cropped.
-   * May resolve lazily (e.g. loading the dataset's config on first use).
-   */
+  /** Frame access for a dataset; null when the dataset cannot be cropped. */
   frameSourceFor(datasetId: string): FrameSource | null | Promise<FrameSource | null>;
   concurrency?: number;
+  /** Retain recent rendered items when paging; visible items are always kept. */
+  cacheSize?: number;
 }
 
 interface ChipJob {
@@ -177,6 +176,9 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
       }
     });
     sequenceQueue.splice(0, sequenceQueue.length, ...sequenceQueue.filter(keep));
+    const cached = [...Object.keys(chips.value), ...Object.keys(failures.value)];
+    const excess = Math.max(0, cached.length - Math.max(deps.cacheSize ?? 256, visibleKeys.size));
+    cached.filter((key) => !visibleKeys.has(key)).slice(0, excess).forEach(invalidate);
   }
 
   /**

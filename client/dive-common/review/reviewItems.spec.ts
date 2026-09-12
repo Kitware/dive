@@ -255,3 +255,23 @@ describe('groupReviewItems', () => {
     expect(entries[1].labels).toEqual(['']);
   });
 });
+
+it('groups detection matches from different frames into the same camera track', () => {
+  const left = track(7, [['fish', 1]], [0]);
+  const right = track(7, [['fish', 1]], [4]);
+  left.features[0].attributes = { checked: true };
+  right.features[0].attributes = { checked: true };
+  const query = { ...DEFAULT_REVIEW_QUERY, mode: 'attribute' as const, attributeKey: 'checked' };
+  const items = [
+    ...buildReviewItems('rig/left', [left], query, 8),
+    ...buildReviewItems('rig/right', [right], query, 8),
+  ];
+  const entries = groupReviewItems(
+    items,
+    (id) => ({ parent: 'rig', camera: id, rank: id === 'rig/left' ? 0 : 1 }),
+    (item) => (item.datasetId === 'rig/left' ? left : right),
+    8,
+  );
+  expect(entries).toHaveLength(1);
+  expect(entries[0].items).toHaveLength(2);
+});
