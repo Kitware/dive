@@ -263,11 +263,11 @@ the native window title is **VIAME - DIVE Interface**. Standalone launches use
 ## Desktop navigation
 
 While annotating a sequence, the top menu contains **Library**, **Jobs**,
-**Review**, **Settings**, and **Other** with downward arrows. **Other** opens the remaining
-pages, including Pipelines, Training, Review, and Scoring. Query and Add-Ons also
-appear when included in the desktop build. Navigation still follows the normal
+**Review**, and **Other** with downward arrows. **Other** opens Settings,
+Pipelines, Training, Scoring, and Query when available. Add-Ons is available
+from the full desktop menu. Navigation still follows the normal
 unsaved-annotation checks.
 
 The full desktop menu shows every available destination when there is room.
-As the window narrows, secondary destinations move into **Other** while Library,
-Jobs, and Settings remain visible. Widening the window restores the tabs.
+As the window narrows, secondary destinations move into **Other** while Library
+and Jobs remain visible. Settings moves into Other. Widening the window restores the tabs.

@@ -17,8 +17,8 @@ export const desktopDestinations: DesktopDestination[] = [
   { name: 'addons', label: 'Add-Ons', icon: 'mdi-puzzle' },
   { name: 'settings', label: 'Settings', icon: 'mdi-cog' },
 ];
-export const primaryDestinations = ['recent', 'jobs', 'settings'];
-export const annotationPrimaryDestinations = ['recent', 'jobs', 'review', 'settings'];
+export const primaryDestinations = ['recent', 'jobs'];
+export const annotationPrimaryDestinations = ['recent', 'jobs', 'review'];
 
 /** Reserve the Other button before choosing which secondary tabs fit. */
 export function navigationOverflow(items: DesktopDestination[], width: number) {
