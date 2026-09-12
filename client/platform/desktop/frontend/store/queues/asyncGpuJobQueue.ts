@@ -39,7 +39,7 @@ export default class AsyncGpuJobQueue extends AsyncJobQueue<GpuJobSpec> {
     } else {
       throw new Error('Unsupported job arguments provided to beginJob.');
     }
-    this.processingJobs.push(newJob);
+    if (!newJob.endTime) this.processingJobs.push(newJob);
   }
 
   removeJobFromQueue(removeSpec: GpuJobSpec): void {

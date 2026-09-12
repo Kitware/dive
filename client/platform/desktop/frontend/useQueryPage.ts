@@ -7,6 +7,7 @@
 import {
   computed, reactive, ref, Ref, watch,
 } from 'vue';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import type { ScoringDatasetSummary } from 'dive-common/scoring/types';
 import type { VideoSearchIndexMethod, VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewItem } from 'dive-common/review/types';
@@ -122,6 +123,22 @@ export function createQueryPage() {
   async function addDataset(id: string, summary?: ScoringDatasetSummary) {
     if (!id || entry(id)) return;
     const known = summary || available.value.find((d) => d.id === id);
+    if (!known || known.type === 'multi') {
+      try {
+        const config = await loadConfig(id);
+        if (config.multiCamMedia) {
+          const [camera] = orderedMultiCamCameraNames(config.multiCamMedia);
+          if (!camera) throw new Error('This multicamera dataset has no cameras to index');
+          await addDataset(`${id}/${camera}`, {
+            ...known,
+            id: `${id}/${camera}`,
+            name: `${known?.name || config.name} / ${camera}`,
+            type: config.multiCamMedia.cameras[camera].type,
+          } as ScoringDatasetSummary);
+          return;
+        }
+      } catch (err) { fail(err, 'Could not select the first camera'); return; }
+    }
     datasets.value = [...datasets.value, {
       id, name: known?.name || id, type: known?.type, index: 'checking',
     }];

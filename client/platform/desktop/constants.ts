@@ -289,7 +289,7 @@ export interface DesktopJob {
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training' | 'conversion' | 'export' | 'scoring';
+  jobType: 'pipeline' | 'training' | 'conversion' | 'export' | 'scoring' | 'indexing';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation

@@ -70,6 +70,11 @@ export function updateHistory(args: DesktopJobUpdate) {
     existing.truncatedLogs.splice(0, existing.truncatedLogs.length - truncateOutputAtLines);
     existing.totalLogLength += args.body.length;
   }
+  // Preparation registers a job before its process and working directory exist.
+  ['pid', 'command', 'title', 'workingDir', 'datasetIds'].forEach((field) => {
+    const key = field as 'pid' | 'command' | 'title' | 'workingDir' | 'datasetIds';
+    if (args[key] !== undefined) set(existing.job, key, args[key]);
+  });
   // Only update exitCode if explicitly set
   if (args.exitCode !== undefined) {
     set(existing.job, 'exitCode', args.exitCode);

@@ -40,6 +40,7 @@ import {
   Settings, DesktopJob, DesktopJobUpdater,
   SearchIndexMeta, BuildSearchIndex, JsonConfig,
 } from 'platform/desktop/constants';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import type {
   VideoSearchIndexStatus, VideoSearchIndexInfo, SearchIndexBackend,
 } from 'dive-common/apispec';
@@ -222,18 +223,51 @@ async function buildIndex(
   args: BuildSearchIndex,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  const { datasetId, method } = args;
+  const jobBase: DesktopJob = {
+    key: `search_index_${crypto.randomBytes(16).toString('hex')}`,
+    command: '',
+    workingDir: '',
+    jobType: 'indexing',
+    pid: -1,
+    args,
+    title: `Add search index (${args.method})`,
+    datasetIds: [args.datasetId],
+    exitCode: null,
+    startTime: new Date(),
+  };
+  updater({ ...jobBase, body: ['Preparing search index…'] });
+  try {
+    return await startIndexBuild(settings, args, updater, jobBase);
+  } catch (error) {
+    jobBase.exitCode = 1;
+    jobBase.endTime = new Date();
+    updater({ ...jobBase, body: [`ERROR: ${error instanceof Error ? error.message : String(error)}`] });
+    return jobBase;
+  }
+}
+
+async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updater: DesktopJobUpdater, registeredJob: DesktopJob): Promise<DesktopJob> {
+  const jobBase = registeredJob;
+  const { method } = args;
+  let { datasetId } = args;
   const platform = getCurrentPlatform();
   const isValid = await platform.validateViamePath(settings);
   if (isValid !== true) {
     throw new Error(isValid);
   }
 
-  const projectInfo = await common.getValidatedProjectDir(settings, datasetId);
-  const meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
+  let projectInfo = await common.getValidatedProjectDir(settings, datasetId);
+  let meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   if (meta.multiCam) {
-    throw new Error('Search indexes are not yet supported on multi-camera datasets');
+    const [camera] = orderedMultiCamCameraNames(meta.multiCam);
+    if (!camera) throw new Error('This multicamera dataset has no cameras to index');
+    datasetId = `${datasetId}/${camera}`;
+    jobBase.datasetIds = [args.datasetId, datasetId];
+    updater({ ...jobBase, body: [`Indexing first camera: ${camera} (${datasetId})`] });
+    projectInfo = await common.getValidatedProjectDir(settings, datasetId);
+    meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   }
+  updater({ ...jobBase, body: [`Index source: ${datasetId}`] });
 
   const indexDir = getIndexDir(settings);
   await fs.ensureDir(indexDir);
@@ -313,30 +347,32 @@ async function buildIndex(
     cwd: indexDir,
   }));
   if (job.pid === undefined) {
+    job.on('error', () => { /* The preparation failure is reported below. */ });
     throw new Error('Failed to spawn the search index build');
   }
 
-  const jobBase: DesktopJob = {
-    key: `search_index_${job.pid}_${jobWorkDir}`,
+  Object.assign(jobBase, {
     command: fullCommand,
-    jobType: 'pipeline',
     pid: job.pid,
-    args,
     title: `${existing ? 'Update' : 'Add'} search index (${method})`,
     workingDir: jobWorkDir,
-    datasetIds: [datasetId],
-    exitCode: job.exitCode,
-    startTime: new Date(),
-  };
+  });
 
-  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase, null, 2));
+  fs.writeFile(npath.join(jobWorkDir, 'dive_job_manifest.json'), JSON.stringify(jobBase, null, 2))
+    .catch((error) => updater({ ...jobBase, body: [`Could not save job manifest: ${error}`] }));
 
-  updater({ ...jobBase, body: [''] });
+  updater({ ...jobBase, body: [`Command: ${fullCommand}`] });
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
-  job.on('exit', async (code) => {
+  job.on('error', (error) => {
+    jobBase.exitCode = 1;
+    jobBase.endTime = new Date();
+    updater({ ...jobBase, body: [`ERROR: ${error.message}`] });
+  });
+  job.on('close', async (code) => {
+    if (jobBase.endTime) return;
     if (code === 0) {
       try {
         const latest = await readIndexMeta(settings);
@@ -349,12 +385,13 @@ async function buildIndex(
         };
         await writeIndexMeta(settings, latest);
       } catch (err) {
-        console.error('Failed to write search index metadata', err);
+        jobBase.exitCode = 1;
+        updater({ ...jobBase, body: [`ERROR: Failed to write search index metadata: ${err}`] });
       }
     }
-    updater({
-      ...jobBase, body: [''], exitCode: code, endTime: new Date(),
-    });
+    jobBase.exitCode = jobBase.exitCode ?? code;
+    jobBase.endTime = new Date();
+    updater({ ...jobBase, body: [''] });
   });
   return jobBase;
 }
