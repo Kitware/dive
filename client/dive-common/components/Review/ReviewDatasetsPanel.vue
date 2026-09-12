@@ -81,7 +81,7 @@ export default defineComponent({
       :selected-ids="selectedIds"
       :picker-label="usePicker ? 'Browse…' : ''"
       :picking="picking"
-      hint="Every dataset here contributes its annotations to the grid. Multicamera datasets are added one camera at a time."
+      hint="Every dataset here contributes its annotations to the grid. Multicamera sequences appear once and include all cameras in shared review cells."
       no-data-text="No datasets in the library."
       compact
       class="mb-3"
