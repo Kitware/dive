@@ -156,7 +156,7 @@ it('opens the current sequence alone in Results on the first Review visit', asyn
   wrapper.destroy();
 });
 
-it.each(['untouched', 'selected', 'cleared'])('only seeds an untouched previous selection (%s)', async (selection) => {
+it.each(['untouched', 'selected', 'cleared'])('seeds any empty previous selection (%s)', async (selection) => {
   const first = mountPage();
   const original = first.vm as unknown as PageState;
   await settlePage();
@@ -168,9 +168,9 @@ it.each(['untouched', 'selected', 'cleared'])('only seeds an untouched previous 
   const page = second.vm as unknown as PageState;
   await settlePage();
   expect(page.review).toBe(original.review);
-  const expected = { untouched: ['current'], selected: ['prior'], cleared: [] };
+  const expected = { untouched: ['current'], selected: ['prior'], cleared: ['current'] };
   expect(page.review.datasets.value.map((d) => d.id)).toEqual(expected[selection as keyof typeof expected]);
-  expect(page.view).toBe(selection === 'cleared' ? 'datasets' : 'results');
+  expect(page.view).toBe('results');
   second.destroy();
 });
 
@@ -190,4 +190,19 @@ it('keeps a plain first Review visit on Datasets', async () => {
   expect(page.review.datasets.value).toEqual([]);
   expect(page.view).toBe('datasets');
   wrapper.destroy();
+});
+
+it('repopulates a cleared list when returning from the same sequence that started Review', async () => {
+  const first = mountPage({ fallbackDatasetId: 'current' });
+  await settlePage();
+  const original = first.vm as unknown as PageState;
+  original.review.removeDataset('current');
+  await mocks.guard!({} as never, {} as never, vi.fn());
+  first.destroy();
+  const second = mountPage({ fallbackDatasetId: 'current' });
+  await settlePage();
+  const page = second.vm as unknown as PageState;
+  expect(page.review.datasets.value.map((dataset) => dataset.id)).toEqual(['current']);
+  expect(page.view).toBe('results');
+  second.destroy();
 });

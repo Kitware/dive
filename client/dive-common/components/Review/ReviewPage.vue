@@ -55,7 +55,7 @@ export default defineComponent({
   },
   props: {
     sessionOwner: { type: String, default: '' },
-    /** Current viewer dataset, used only before a Review selection has been made. */
+    /** Current viewer dataset, used whenever the Review selection is empty. */
     fallbackDatasetId: { type: String, default: '' },
     retainSession: { type: Boolean, default: true },
     initialDatasetIds: {
@@ -72,8 +72,7 @@ export default defineComponent({
     if (held && !resumed) held.review.dispose();
     const review = resumed ? resumed.review : createReviewService({ api });
     let initialIds = props.initialDatasetIds;
-    if (!initialIds.length && !review.hasSelectedDatasets.value
-      && review.datasets.value.length === 0 && props.fallbackDatasetId) {
+    if (!initialIds.length && review.datasets.value.length === 0 && props.fallbackDatasetId) {
       initialIds = [props.fallbackDatasetId];
     }
     const datasetKey = resumed ? resumed.datasetKey : sessionKey(initialIds);
@@ -371,7 +370,7 @@ export default defineComponent({
       await review.refreshAvailable();
       // A resumed session still takes a new library selection in when the
       // held key differs (pending edits are resolved on leave nowadays).
-      if (!resumed || datasetKey !== sessionKey(initialIds)) {
+      if (!resumed || datasetKey !== sessionKey(initialIds) || review.datasets.value.length === 0) {
         await applyInitial(initialIds);
       }
     });
