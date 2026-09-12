@@ -225,7 +225,7 @@ export default defineComponent({
             >
               mdi-database
             </v-icon>
-            Datasets
+            Indexes
             <span class="ml-1 grey--text">({{ page.datasets.value.length }})</span>
           </v-btn>
         </v-btn-toggle>
@@ -305,18 +305,18 @@ export default defineComponent({
             Video search tools were not found in the VIAME install.
           </div>
           <div
-            v-else-if="page.datasets.value.length === 0"
+            v-else-if="page.indexedIds.value.length === 0 && page.mode.value !== 'text'"
             class="d-flex flex-column align-center justify-center fill-height grey--text"
           >
             <div class="mb-3">
-              No datasets are selected. Select one or more on the Datasets panel.
+              No searchable indices are available. Select one or more on the Indexes panel.
             </div>
             <v-btn
               small
               outlined
               @click="view = 'datasets'"
             >
-              Datasets
+              Indexes
             </v-btn>
           </div>
           <div

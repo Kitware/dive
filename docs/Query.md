@@ -2,9 +2,9 @@
 
 The **Query** page (DIVE Desktop) searches many datasets at once. Pick the datasets, build a search index over them, then search from an image, a frame of a video, or a text description. Hits come back as the same chip grid the Review page uses, and a similarity search can be refined by marking hits correct or incorrect.
 
-Open it from the **Query** tab, or select datasets in the **Library** and click **Index** to open the Datasets panel with those sequences selected.
+Open it from the **Query** tab, or select datasets in the **Library** and click **Index** to open the Indexes panel with those sequences selected.
 
-## Datasets panel
+## Indexes panel
 
 Add datasets with the same picker as the Training and Pipelines pages: search the library, add rows one at a time or with **Select all**, and drop them with **Remove all**. Each selected dataset shows whether it is in the search index. **Build index** indexes every selected dataset that is not indexed yet (each row also has its own build button), choosing how the index is made:
 
@@ -39,5 +39,9 @@ similarity search still uses the shared database. Changing this selection clears
 the previous results and feedback so the next query starts fresh.
 
 Use **Create index** when no index exists, or **Build a new index** below the
-selector, to open Query's **Datasets** panel with the current sequence selected.
+selector, to open Query's **Indexes** panel with the current sequence selected.
 Index type, building, and removal are managed on that page.
+
+The Indexes list survives navigation and restores saved index membership and
+indexing jobs on return. Rows show in-progress builds, successful indexes, or
+failed builds with their job error, even when the job finished on another page.
