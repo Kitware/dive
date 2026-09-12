@@ -10,6 +10,8 @@ const error = ref('');
 const loading = ref(false);
 const starting = ref(false);
 const showProgress = ref(false);
+const cancelDismissed = ref(false);
+let refreshing = false;
 const selectedName = ref('');
 const cancelling = ref(false);
 const search = ref('');
@@ -24,21 +26,24 @@ const headers = [
     text: 'Actions', value: 'actions', sortable: false, align: 'center',
   },
 ];
-async function refresh() {
-  if (loading.value) return;
-  loading.value = true;
+async function refresh(silent = false) {
+  if (refreshing) return;
+  refreshing = true;
+  if (!silent) loading.value = true;
   try {
     catalog.value = await window.diveDesktop.invoke<AddonCatalog>('desktop:addons-list');
-    if (catalog.value.job?.running) showProgress.value = true;
+    if (catalog.value.job?.running && !cancelDismissed.value) showProgress.value = true;
+    if (cancelDismissed.value && catalog.value.job?.error) error.value = catalog.value.job.error;
   } catch (err) {
     error.value = (err as Error).message;
-  } finally { loading.value = false; }
+  } finally { loading.value = false; refreshing = false; }
 }
 async function install(addon: ViameAddon, fromFile = false) {
   if (!canInstall.value) return;
   starting.value = true;
   error.value = '';
   selectedName.value = addon.name;
+  cancelDismissed.value = false;
   try {
     let archive: string | undefined;
     if (fromFile) {
@@ -56,26 +61,33 @@ async function install(addon: ViameAddon, fromFile = false) {
       name: addon.name, force: addon.status === 'installed', archive,
     });
     if (catalog.value) catalog.value.job = job;
-    await refresh();
+    await refresh(true);
   } catch (err) { error.value = (err as Error).message; showProgress.value = true; } finally { starting.value = false; }
 }
 async function cancel() {
   cancelling.value = true;
+  cancelDismissed.value = true;
+  showProgress.value = false;
   error.value = '';
   try {
     const job = await window.diveDesktop.invoke<AddonJob | null>('desktop:addons-cancel');
     if (catalog.value) catalog.value.job = job;
-  } catch (err) { error.value = (err as Error).message; } finally { cancelling.value = false; }
+  } catch (err) {
+    error.value = (err as Error).message;
+    cancelDismissed.value = false;
+    showProgress.value = true;
+  } finally { cancelling.value = false; }
 }
+const refreshQuietly = () => refresh(true);
 let timer: ReturnType<typeof setInterval>;
 onMounted(() => {
   refresh();
-  window.addEventListener('focus', refresh);
-  timer = setInterval(() => { if (catalog.value?.job?.running) refresh(); }, 250);
+  window.addEventListener('focus', refreshQuietly);
+  timer = setInterval(() => { if (catalog.value?.job?.running) refresh(true); }, 250);
 });
 onBeforeUnmount(() => {
   clearInterval(timer);
-  window.removeEventListener('focus', refresh);
+  window.removeEventListener('focus', refreshQuietly);
 });
 </script>
 
@@ -88,7 +100,7 @@ onBeforeUnmount(() => {
           VIAME Add-Ons
         </h1>
         <v-spacer />
-        <v-btn :loading="loading" @click="refresh">
+        <v-btn :loading="loading" @click="refresh()">
           <v-icon left>
             mdi-refresh
           </v-icon>Refresh
@@ -102,6 +114,9 @@ onBeforeUnmount(() => {
         {{ error }} <router-link :to="{ name: 'settings' }">
           Open Settings
         </router-link>
+      </v-alert>
+      <v-alert v-if="cancelDismissed && catalog && catalog.job && catalog.job.cancelled && catalog.job.phase === 'install'" type="warning">
+        File replacement was interrupted. Reinstall {{ catalog.job.name }} before using it.
       </v-alert>
       <v-alert v-if="catalog && !catalog.installerAvailable" type="warning">
         This VIAME installation does not include the add-on installer. Update VIAME to enable installation here.

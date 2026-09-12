@@ -151,7 +151,7 @@ Status and Actions are centered, with separate aligned columns for **Download an
 
 On Windows, DIVE requests administrator permission through the Windows UAC prompt when it cannot write to the VIAME installation. Only the installer runs elevated. Canceling the prompt is reported as an error; on other platforms, permission errors explain that write access must be granted or a writable installation selected.
 
-Installation uses VIAME's `configs/add_ons.py`, retaining its checksum checks and archive handling. If the tool is missing, the catalog and installed status remain available, and DIVE asks you to update VIAME before installing. The pop-up stays open during installation; close it after completion or cancellation. Returning to Add-Ons reopens progress for any running installation. Installation is disabled in read-only mode. Like the VIAME add-ons tool, this page installs and reinstalls packs; it does not remove shared model or pipeline files.
+Installation uses VIAME's `configs/add_ons.py`, retaining its checksum checks and archive handling. If the tool is missing, the catalog and installed status remain available, and DIVE asks you to update VIAME before installing. Background progress polling does not animate Refresh. Cancel closes the progress pop-up immediately and returns to the add-ons list; the installer finishes stopping in the background. Close the pop-up after a successful installation. Returning to Add-Ons reopens progress for any running installation. Installation is disabled in read-only mode. Like the VIAME add-ons tool, this page installs and reinstalls packs; it does not remove shared model or pipeline files.
 
 ## Desktop Settings
 
