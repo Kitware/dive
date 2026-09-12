@@ -23,6 +23,9 @@ export interface AddonJob {
   installProgress?: number;
   localArchive?: boolean;
   elevated?: boolean;
+  canCancel?: boolean;
+  cancelRequested?: boolean;
+  cancelled?: boolean;
 }
 export interface AddonCatalog {
   installDir: string;
