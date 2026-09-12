@@ -224,7 +224,7 @@ describe('createReviewService', () => {
     const right = entry.items[1];
     expect(right.frames.map((f) => f.missing ?? false)).toEqual([true, false]);
 
-    service.addKeyframe(right, 0, right.frames[0].bounds);
+    service.addKeyframe(right, 0, right.frames[0].bounds!);
     expect(service.trackOf('m/right', 3)?.features.map((f) => f.frame)).toEqual([0, 4]);
     expect(service.trackOf('m/right', 3)?.begin).toBe(0);
     expect(service.entries.value[0].items[1].frames.every((f) => !f.missing)).toBe(true);

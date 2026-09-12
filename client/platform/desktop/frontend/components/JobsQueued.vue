@@ -43,6 +43,9 @@ export default defineComponent({
       if (jobSpec.type === JobType.ExportTrainedPipeline) {
         return `export trained pipeline: ${jobSpec.path}`;
       }
+      if (jobSpec.type === JobType.BuildSearchIndex) {
+        return `indexing: ${datasetName(jobSpec.datasetId)} (${jobSpec.method})`;
+      }
       if (jobSpec.type === JobType.RunTraining) {
         const title = `training: ${datasetName(jobSpec.datasetIds[0])}`;
         if (jobSpec.datasetIds.length > 1) {
@@ -69,7 +72,7 @@ export default defineComponent({
       if (jobSpec.type === JobType.Conversion) {
         return [jobSpec.meta.id];
       }
-      if (jobSpec.type === JobType.RunPipeline) {
+      if (jobSpec.type === JobType.RunPipeline || jobSpec.type === JobType.BuildSearchIndex) {
         return [jobSpec.datasetId];
       }
       if (jobSpec.type === JobType.RunTraining) {

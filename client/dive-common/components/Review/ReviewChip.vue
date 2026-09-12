@@ -8,7 +8,8 @@ import type { ReviewFrameRef, ReviewPolygon } from 'dive-common/review/types';
 
 /** Geometry of one frame while it is being edited, in image coordinates. */
 interface GeometryDraft {
-  bounds: RectBounds;
+  /** Null for entries without a box (whole-frame results). */
+  bounds: RectBounds | null;
   polygons: ReviewPolygon[];
   head: [number, number] | null;
   tail: [number, number] | null;
@@ -26,7 +27,7 @@ export interface ReviewChipGeometryEdit {
   /** Sequence slot edited (0 is the primary frame). */
   slot: number;
   frame: number;
-  bounds: RectBounds;
+  bounds: RectBounds | null;
   polygons: ReviewPolygon[];
   head: [number, number] | null;
   tail: [number, number] | null;
@@ -339,7 +340,7 @@ export default defineComponent({
 
     const boxRect = computed(() => {
       const g = shownGeometry.value;
-      if (!g) return null;
+      if (!g || !g.bounds) return null;
       const [x1, y1, x2, y2] = g.bounds;
       const a = chip([Math.min(x1, x2), Math.min(y1, y2)]);
       const b = chip([Math.max(x1, x2), Math.max(y1, y2)]);
@@ -399,7 +400,7 @@ export default defineComponent({
 
     function cloneDraft(g: GeometryDraft): GeometryDraft {
       return {
-        bounds: [...g.bounds] as RectBounds,
+        bounds: g.bounds ? [...g.bounds] as RectBounds : null,
         polygons: g.polygons.map((polygon) => polygon.map((p) => [p[0], p[1]] as [number, number])),
         head: g.head ? [g.head[0], g.head[1]] : null,
         tail: g.tail ? [g.tail[0], g.tail[1]] : null,
@@ -409,7 +410,7 @@ export default defineComponent({
     /** Turn the interpolated position into a real box the user can then adjust. */
     function addBox() {
       const frame = currentFrame.value;
-      if (!props.editable || !frame || !frame.missing) return;
+      if (!props.editable || !frame || !frame.missing || !frame.bounds) return;
       emit('add-box', { frame: frame.frame, bounds: frame.bounds });
     }
 
@@ -605,7 +606,7 @@ export default defineComponent({
       const dy = current[1] - drag.startImage[1];
       const { target, startDraft } = drag;
       if (target.kind === 'box') {
-        draft.value.bounds = moveBox(target.handle, startDraft.bounds, dx, dy);
+        if (startDraft.bounds) draft.value.bounds = moveBox(target.handle, startDraft.bounds, dx, dy);
       } else if (target.kind === 'vertex') {
         const origin = startDraft.polygons[target.polygon]?.[target.vertex];
         if (origin) {

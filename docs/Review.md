@@ -98,3 +98,7 @@ Each review session limits API operations to three at a time, including loading 
 Review retains at most two decoded frames and 16 MiB of decoded pixels per dataset. Rendered chips are pruned when paging to retain 256 recent items, with the visible and prefetched pages protected. Selected annotations remain in browser memory, so the number and size of selected datasets still affect memory usage. These are per-browser limits, not a server-wide quota.
 
 A retained review session belongs to the signed-in account and is cleared on logout or account change. Saves use the existing dataset write permissions and update only changed tracks. Review does not add collaborative locking or conflict detection: coordinate assignments when multiple people edit the same tracks, since a later save can replace another person's edits.
+
+## Search results
+
+On DIVE Desktop, the Video Search panel uses the same chip grid for ranked similarity results across indexed datasets. Accept or reject entries with their corner buttons; clicking an entry from the open dataset seeks the viewer to it. Grid shape, zoom and context settings are shared with Review.

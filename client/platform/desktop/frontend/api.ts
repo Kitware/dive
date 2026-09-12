@@ -12,6 +12,7 @@ import type {
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
   PipelineJobResult,
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
+  VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
 } from 'dive-common/apispec';
 
 import {
@@ -28,6 +29,7 @@ import {
   DesktopJob,
   MultiCamBatchScanResult,
   RunScoring,
+  BuildSearchIndex,
 } from 'platform/desktop/constants';
 
 import { gpuJobQueue, cpuJobQueue, jobHistory } from './store/jobs';
@@ -621,6 +623,76 @@ async function runTextQueryPipeline(
 }
 
 /**
+ * Video Search / IQR API
+ */
+
+async function videoSearchInstalled(): Promise<boolean> {
+  return window.diveDesktop.invoke('video-search-installed');
+}
+
+async function videoSearchIndexStatus(datasetId: string): Promise<VideoSearchIndexStatus> {
+  return window.diveDesktop.invoke('video-search-index-status', datasetId);
+}
+
+/** Queue a search index build; progress arrives via job-update events. */
+function videoSearchBuildIndex(datasetId: string, method: VideoSearchIndexMethod): void {
+  const args: BuildSearchIndex = { type: JobType.BuildSearchIndex, datasetId, method };
+  gpuJobQueue.enqueue(args);
+}
+
+/** Delete the entire shared search index from disk. */
+async function videoSearchDeleteIndex(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-delete-index');
+}
+
+async function videoSearchListIndexes(): Promise<VideoSearchIndexInfo[]> {
+  return window.diveDesktop.invoke('video-search-list-indexes');
+}
+
+async function videoSearchOpenIndex(): Promise<{
+  success: boolean; streams: VideoSearchIndexInfo[];
+}> {
+  return window.diveDesktop.invoke('video-search-open-index');
+}
+
+/** Remove one dataset's rows from the shared search index. */
+async function videoSearchRemoveIndex(datasetId: string): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-remove-index', datasetId);
+}
+
+async function videoSearchFormulate(imagePath: string, boxes?: number[][]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-formulate', { imagePath, boxes });
+}
+
+async function videoSearchQuery(
+  options: { threshold?: number; iqrModelB64?: string; iqrModelPath?: string } = {},
+): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-query', options);
+}
+
+/** Build a local media-server URL for an arbitrary file (e.g. thumbnails). */
+async function getMediaUrl(filePath: string): Promise<string> {
+  await getClient();
+  return `${_baseURL}/media?path=${encodeURIComponent(filePath)}`;
+}
+
+async function videoSearchRefine(positiveIds: string[], negativeIds: string[]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-refine', { positiveIds, negativeIds });
+}
+
+async function videoSearchExportModel(name: string): Promise<{ success: boolean; outputDir: string }> {
+  return window.diveDesktop.invoke('video-search-export-model', { name });
+}
+
+async function videoSearchClose(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-close');
+}
+
+async function videoSearchExtractFrame(videoPath: string, frameNum: number, fps: number): Promise<string> {
+  return window.diveDesktop.invoke('video-search-extract-frame', { videoPath, frameNum, fps });
+}
+
+/**
  * Interactive Stereo API
  */
 
@@ -820,6 +892,13 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
   return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
+/** Frame rate, size and length of a video file on disk, read by the backend. */
+async function videoInfo(videoPath: string) {
+  const client = await getClient();
+  const { data } = await client.get<{ fps: number; width: number; height: number; frameCount?: number; duration?: number }>('video-info', { params: { path: videoPath } });
+  return data;
+}
+
 async function loadConfig(id: string) {
   const client = await getClient();
   const { data } = await client.get<DesktopConfig>(`dataset/${id}/meta`);
@@ -945,6 +1024,7 @@ export {
   /* Standard Specification APIs */
   loadConfig,
   peekConfig,
+  videoInfo,
   loadDetections,
   loadFrameMetadata,
   getPipelineList,
@@ -1020,6 +1100,21 @@ export {
   refineDetections,
   runTextQueryPipeline,
   /* Auto Register APIs */
+  /* Video Search / IQR */
+  videoSearchInstalled,
+  videoSearchIndexStatus,
+  videoSearchBuildIndex,
+  videoSearchRemoveIndex,
+  videoSearchDeleteIndex,
+  videoSearchListIndexes,
+  videoSearchOpenIndex,
+  videoSearchFormulate,
+  videoSearchQuery,
+  videoSearchRefine,
+  videoSearchExportModel,
+  videoSearchClose,
+  videoSearchExtractFrame,
+  getMediaUrl,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,

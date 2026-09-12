@@ -182,7 +182,7 @@ export default defineComponent({
       const item = entry.items[viewIndex];
       if (!item) return;
       review.updateGeometry(item, edit.frame, {
-        bounds: edit.bounds,
+        bounds: edit.bounds ?? undefined,
         polygons: edit.polygons,
         head: edit.head,
         tail: edit.tail,

@@ -40,7 +40,8 @@ export interface ReviewFrameGeometry {
 /** One box of a track shown in a chip, in the dataset's own frame numbers. */
 export interface ReviewFrameRef extends ReviewFrameGeometry {
   frame: number;
-  bounds: RectBounds;
+  /** The box to crop around; null shows the whole frame. */
+  bounds: RectBounds | null;
   /**
    * The track has no detection on this frame in this camera; `bounds` is
    * interpolated from its neighbours so the chip can still be cropped there,

@@ -141,6 +141,11 @@ export default defineComponent({
       type: String,
       default: '#00e5ff',
     },
+    /** Outline the cell as accepted or rejected (e.g. search adjudication). */
+    highlight: {
+      type: String as PropType<'' | 'positive' | 'negative'>,
+      default: '',
+    },
   },
   setup(props, { emit }) {
     /** Chips currently in edit mode, to outline the whole entry. */
@@ -244,7 +249,12 @@ export default defineComponent({
 <template>
   <div
     class="review-cell"
-    :class="{ 'cell-pending': pending, 'cell-editing': editingCount > 0 }"
+    :class="{
+      'cell-pending': pending,
+      'cell-editing': editingCount > 0,
+      'cell-positive': highlight === 'positive',
+      'cell-negative': highlight === 'negative',
+    }"
     :style="{ '--cell-scale': scale }"
   >
     <div class="cell-views">
@@ -330,6 +340,14 @@ export default defineComponent({
 
   &.cell-editing {
     border-color: #90caf9;
+  }
+
+  &.cell-positive {
+    border-color: #4caf50;
+  }
+
+  &.cell-negative {
+    border-color: #f44336;
   }
 }
 

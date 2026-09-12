@@ -15,6 +15,7 @@ import {
   ConversionArgs,
   DesktopJob,
   RunScoring,
+  BuildSearchIndex,
 } from 'platform/desktop/constants';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { closeChildById } from 'platform/desktop/backend/native/processManager';
@@ -31,6 +32,7 @@ import { listen } from './server';
 import {
   getInteractiveServiceManager,
 } from './native/interactive';
+import * as videoSearch from './native/videoSearch';
 import {
   SegmentationPredictRequest,
   SegmentationStereoSegmentRequest,
@@ -227,6 +229,11 @@ export default function register() {
 
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.deleteDataset(settings.get(), datasetId);
+    // Also drop the dataset's rows from the shared search index (best
+    // effort; the index tolerates stale entries if this fails).
+    videoSearch.removeFromIndex(settings.get(), datasetId).catch((err) => {
+      console.error(`Failed to remove ${datasetId} from the search index:`, err);
+    });
     return ret;
   });
 
@@ -614,4 +621,95 @@ export default function register() {
     const stereoService = getInteractiveServiceManager();
     return { enabled: stereoService.isEnabled() };
   });
+
+  /**
+   * Video Search / IQR Service
+   */
+
+  ipcMain.handle('video-search-installed', async () => (
+    videoSearch.isVideoSearchInstalled(settings.get())
+  ));
+
+  ipcMain.handle('video-search-index-status', async (_, datasetId: string) => (
+    videoSearch.getIndexStatus(settings.get(), datasetId)
+  ));
+
+  ipcMain.handle('video-search-build-index', async (event, args: BuildSearchIndex) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    // The build job needs the shared database to itself (and re-ingesting
+    // invalidates whatever the open session has cached in memory).
+    const manager = videoSearch.getQueryServiceManager();
+    return videoSearch.buildIndex(settings.get(), args, updater, () => manager.closeIndex());
+  });
+
+  ipcMain.handle('video-search-remove-index', async (_, datasetId: string) => {
+    await videoSearch.removeFromIndex(settings.get(), datasetId);
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-delete-index', async () => {
+    await videoSearch.deleteEntireIndex(settings.get());
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-list-indexes', async () => (
+    videoSearch.listIndexedDatasets(settings.get())
+  ));
+
+  ipcMain.handle('video-search-open-index', async () => {
+    const currentSettings = settings.get();
+    const streams = await videoSearch.listIndexedDatasets(currentSettings);
+    if (!streams.length) {
+      throw new Error('The search index is empty; add a dataset to it first');
+    }
+    const manager = videoSearch.getQueryServiceManager();
+    const indexMeta = await videoSearch.readIndexMeta(currentSettings);
+    await manager.openIndexes(
+      currentSettings,
+      [videoSearch.getIndexDir(currentSettings)],
+      indexMeta.backend ?? 'postgres',
+    );
+    return { success: true, streams };
+  });
+
+  ipcMain.handle('video-search-formulate', async (_, args: { imagePath: string; boxes?: number[][] }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.formulateQuery(args.imagePath, args.boxes);
+  });
+
+  ipcMain.handle('video-search-query', async (
+    _,
+    args: { threshold?: number; iqrModelB64?: string; iqrModelPath?: string },
+  ) => {
+    const manager = videoSearch.getQueryServiceManager();
+    let modelB64 = args.iqrModelB64;
+    if (!modelB64 && args.iqrModelPath) {
+      // Warm-start from a saved .svm file on disk
+      modelB64 = (await fs.promises.readFile(args.iqrModelPath)).toString('base64');
+    }
+    return manager.processQuery(args.threshold, modelB64);
+  });
+
+  ipcMain.handle('video-search-refine', async (_, args: { positiveIds: string[]; negativeIds: string[] }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.refine(args.positiveIds, args.negativeIds);
+  });
+
+  ipcMain.handle('video-search-export-model', async (_, args: { name: string }) => {
+    const outputDir = await videoSearch.exportSearchModel(settings.get(), args.name);
+    return { success: true, outputDir };
+  });
+
+  ipcMain.handle('video-search-close', async () => {
+    const manager = videoSearch.getQueryServiceManager();
+    await manager.closeIndex();
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-extract-frame', async (
+    _,
+    args: { videoPath: string; frameNum: number; fps: number },
+  ) => videoSearch.extractVideoFrame(args.videoPath, args.frameNum, args.fps));
 }
