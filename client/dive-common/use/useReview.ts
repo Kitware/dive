@@ -68,6 +68,8 @@ export interface ReviewDataset {
 
 export interface ReviewService {
   datasets: Readonly<Ref<ReviewDataset[]>>;
+  /** Remains true after the user clears a previously selected dataset list. */
+  hasSelectedDatasets: Readonly<Ref<boolean>>;
   available: Readonly<Ref<ScoringDatasetSummary[]>>;
   query: ReviewQuery;
   grid: ReviewGridSettings;
@@ -225,6 +227,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   const requests = createReviewRequestQueue();
   let disposed = false;
   const datasets = ref<ReviewDataset[]>([]);
+  const hasSelectedDatasets = ref(false);
   const available = ref<ScoringDatasetSummary[]>([]);
   const query = reactive<ReviewQuery>({ ...DEFAULT_REVIEW_QUERY });
   const grid = usePersistentGridSettings();
@@ -379,6 +382,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
    */
   async function addDataset(id: string, summary?: ScoringDatasetSummary, options: { defer?: boolean } = {}) {
     if (disposed || !id || entry(id)) return;
+    hasSelectedDatasets.value = true;
     datasets.value = [...datasets.value, {
       id,
       name: summary?.name || datasetName(id),
@@ -728,6 +732,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
 
   return {
     datasets,
+    hasSelectedDatasets,
     available,
     query,
     grid,

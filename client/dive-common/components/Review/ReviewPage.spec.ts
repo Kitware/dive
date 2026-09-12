@@ -44,6 +44,7 @@ vi.mock('./ReviewCell.vue', () => ({ default: {} }));
 
 interface PageState {
   review: ReviewService;
+  view: 'results' | 'datasets';
   resolveLeave(choice: 'save' | 'discard' | 'cancel'): void;
   leaveDialog: boolean;
 }
@@ -139,4 +140,55 @@ it('disposes the active review instead of parking it on logout', async () => {
   wrapper.destroy();
   expect(dispose).toHaveBeenCalledOnce();
   expect(takeReviewSession()).toBeNull();
+});
+
+async function settlePage() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await nextTick();
+}
+
+it('opens the current sequence alone in Results on the first Review visit', async () => {
+  const wrapper = mountPage({ fallbackDatasetId: 'current' });
+  const page = wrapper.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review.datasets.value.map((d) => d.id)).toEqual(['current']);
+  expect(page.view).toBe('results');
+  wrapper.destroy();
+});
+
+it.each(['untouched', 'selected', 'cleared'])('only seeds an untouched previous selection (%s)', async (selection) => {
+  const first = mountPage();
+  const original = first.vm as unknown as PageState;
+  await settlePage();
+  if (selection !== 'untouched') await original.review.addDataset('prior');
+  if (selection === 'cleared') original.review.removeDataset('prior');
+  await mocks.guard!({} as never, {} as never, vi.fn());
+  first.destroy();
+  const second = mountPage({ fallbackDatasetId: 'current' });
+  const page = second.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review).toBe(original.review);
+  expect(page.review.datasets.value.map((d) => d.id)).toEqual(
+    selection === 'untouched' ? ['current'] : (selection === 'selected' ? ['prior'] : []),
+  );
+  expect(page.view).toBe(selection === 'cleared' ? 'datasets' : 'results');
+  second.destroy();
+});
+
+it('preserves explicit Library selections over the current sequence fallback', async () => {
+  const wrapper = mountPage({ initialDatasetIds: ['library'], fallbackDatasetId: 'current' });
+  const page = wrapper.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review.datasets.value.map((d) => d.id)).toEqual(['library']);
+  expect(page.view).toBe('results');
+  wrapper.destroy();
+});
+
+it('keeps a plain first Review visit on Datasets', async () => {
+  const wrapper = mountPage();
+  const page = wrapper.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review.datasets.value).toEqual([]);
+  expect(page.view).toBe('datasets');
+  wrapper.destroy();
 });

@@ -55,6 +55,8 @@ export default defineComponent({
   },
   props: {
     sessionOwner: { type: String, default: '' },
+    /** Current viewer dataset, used only before a Review selection has been made. */
+    fallbackDatasetId: { type: String, default: '' },
     retainSession: { type: Boolean, default: true },
     initialDatasetIds: {
       type: Array as PropType<string[]>,
@@ -69,7 +71,10 @@ export default defineComponent({
     const resumed = held && (held.owner || '') === props.sessionOwner && shouldResume(held, props.initialDatasetIds) ? held : null;
     if (held && !resumed) held.review.dispose();
     const review = resumed ? resumed.review : createReviewService({ api });
-    const datasetKey = resumed ? resumed.datasetKey : sessionKey(props.initialDatasetIds);
+    const initialIds = props.initialDatasetIds.length ? props.initialDatasetIds
+      : (!review.hasSelectedDatasets.value && review.datasets.value.length === 0 && props.fallbackDatasetId
+        ? [props.fallbackDatasetId] : []);
+    const datasetKey = resumed ? resumed.datasetKey : sessionKey(initialIds);
     provideReview(review);
     const { prompt } = usePrompt();
 
@@ -364,8 +369,8 @@ export default defineComponent({
       await review.refreshAvailable();
       // A resumed session still takes a new library selection in when the
       // held key differs (pending edits are resolved on leave nowadays).
-      if (!resumed || datasetKey !== sessionKey(props.initialDatasetIds)) {
-        await applyInitial(props.initialDatasetIds);
+      if (!resumed || datasetKey !== sessionKey(initialIds)) {
+        await applyInitial(initialIds);
       }
     });
     watch(() => props.initialDatasetIds, (ids) => { applyInitial(ids); });

@@ -98,3 +98,8 @@ Each review session limits API operations to three at a time, including loading 
 Review retains at most two decoded frames and 16 MiB of decoded pixels per dataset. Rendered chips are pruned when paging to retain 256 recent items, with the visible and prefetched pages protected. Selected annotations remain in browser memory, so the number and size of selected datasets still affect memory usage. These are per-browser limits, not a server-wide quota.
 
 A retained review session belongs to the signed-in account and is cleared on logout or account change. Saves use the existing dataset write permissions and update only changed tracks. Review does not add collaborative locking or conflict detection: coordinate assignments when multiple people edit the same tracks, since a later save can replace another person's edits.
+
+When opening **Review** from a sequence for the first time, DIVE selects that
+sequence and opens **Results** after it loads. A previous Review selection is
+retained, including a list you intentionally emptied. Visiting Review without
+selecting any datasets still allows this first selection from a sequence.
