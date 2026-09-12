@@ -1,4 +1,5 @@
 import path from 'path';
+import os from 'os';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
 import { parse } from 'csv-parse';
@@ -12,6 +13,20 @@ import { runElevatedInstaller } from './addonsElevation';
 const CSV_NAME = 'download_viame_addons.csv';
 let job: AddonJob | null = null;
 let starting = false;
+let cancelFile: string | undefined;
+
+/** Request cooperative cancellation; never kill an installer during file replacement. */
+export async function cancelAddon(): Promise<AddonJob | null> {
+  const current = job;
+  if (!current?.running) return current ? { ...current } : null;
+  if (!current.canCancel || !cancelFile) throw new Error('Update VIAME to enable safe installation cancellation.');
+  try { await fs.writeFile(cancelFile, 'cancel'); } catch (error) {
+    if (current.running) throw error;
+    return { ...current };
+  }
+  current.cancelRequested = true;
+  return { ...current };
+}
 
 /** The final CSV column is relative to configs/pipelines, as in VIAME add-ons. */
 export function markerPath(installDir: string, marker: string): string {
@@ -121,6 +136,7 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
       || (request.archive !== undefined && typeof request.archive !== 'string')
       || (request.force !== undefined && typeof request.force !== 'boolean')) throw new Error('Invalid add-on installation request.');
   starting = true;
+  let cleanupJob = () => {};
   try {
     const catalog = await getAddons(settings);
     const addon = catalog.addons.find((item) => item.name === request.name);
@@ -154,15 +170,27 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
       log: '',
       phase: request.archive ? 'verify' : 'download',
       localArchive: !!request.archive,
+      canCancel: (await fs.readFile(path.join(catalog.installDir, 'configs', 'add_ons.py'), 'utf8')).includes('VIAME_ADDON_CANCEL_FILE'),
     };
+    const cancelDirectory = current.canCancel ? await fs.mkdtemp(path.join(os.tmpdir(), 'dive-addon-cancel-')) : undefined;
+    const requestFile = cancelDirectory ? path.join(cancelDirectory, 'cancel') : undefined;
+    cancelFile = requestFile;
     job = current;
+    const cleanup = () => {
+      if (cancelFile === requestFile) cancelFile = undefined;
+      if (cancelDirectory) fs.remove(cancelDirectory).catch(() => { /* A stale cancellation file cannot affect another job. */ });
+    };
+    cleanupJob = cleanup;
     const output = progressOutput(current);
-    const failed = (error: Error) => { output.flush(); current.running = false; current.error = error.message; };
+    const failed = (error: Error) => { output.flush(); current.running = false; current.error = error.message; cleanup(); };
     const finish = (code: number | null) => {
       output.flush();
       current.running = false;
+      cleanup();
       if (current.error) return;
-      if (code === 0) {
+      if (code === 130 && current.cancelRequested) {
+        current.cancelled = true;
+      } else if (code === 0) {
         current.phase = 'complete'; current.installProgress = 100;
         if (!current.localArchive) current.downloadProgress = 100;
       } else if (!current.error) {
@@ -179,7 +207,7 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
     const elevated = () => {
       current.elevated = true; current.phase = 'elevation'; current.running = true;
       current.log += ELEVATION_REQUEST;
-      runElevatedInstaller(python, args, catalog.installDir, output.append).then(finish, failed);
+      runElevatedInstaller(python, args, catalog.installDir, output.append, requestFile).then(finish, failed);
     };
     if (elevate) elevated();
     else {
@@ -187,20 +215,23 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
         cwd: catalog.installDir,
         shell: false,
         windowsHide: true,
-        env: { ...process.env, PYTHONUNBUFFERED: '1', VIAME_ADDON_PROGRESS: '1' },
+        env: {
+          ...process.env, PYTHONUNBUFFERED: '1', VIAME_ADDON_PROGRESS: '1', VIAME_ADDON_CANCEL_FILE: requestFile || '',
+        },
       }));
       child.stdout?.on('data', output.append);
       child.stderr?.on('data', output.append);
       child.on('error', failed);
       child.on('close', (code) => {
         output.flush();
-        if (code !== 0 && process.platform === 'win32' && !current.error && permissionFailure(current.log)
+        if (code !== 0 && process.platform === 'win32' && !current.error && !current.cancelRequested && permissionFailure(current.log)
             && !/rollback incomplete/i.test(current.log)) elevated();
         else finish(code);
       });
     }
     return { ...current };
   } catch (error) {
+    cleanupJob();
     if (job?.running) {
       job.running = false;
       job.error = (error as Error).message;
