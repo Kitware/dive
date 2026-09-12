@@ -44,6 +44,7 @@ vi.mock('./ReviewCell.vue', () => ({ default: {} }));
 
 interface PageState {
   review: ReviewService;
+  view: 'results' | 'datasets';
   resolveLeave(choice: 'save' | 'discard' | 'cancel'): void;
   leaveDialog: boolean;
 }
@@ -139,4 +140,69 @@ it('disposes the active review instead of parking it on logout', async () => {
   wrapper.destroy();
   expect(dispose).toHaveBeenCalledOnce();
   expect(takeReviewSession()).toBeNull();
+});
+
+async function settlePage() {
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await nextTick();
+}
+
+it('opens the current sequence alone in Results on the first Review visit', async () => {
+  const wrapper = mountPage({ fallbackDatasetId: 'current' });
+  const page = wrapper.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review.datasets.value.map((d) => d.id)).toEqual(['current']);
+  expect(page.view).toBe('results');
+  wrapper.destroy();
+});
+
+it.each(['untouched', 'selected', 'cleared'])('seeds any empty previous selection (%s)', async (selection) => {
+  const first = mountPage();
+  const original = first.vm as unknown as PageState;
+  await settlePage();
+  if (selection !== 'untouched') await original.review.addDataset('prior');
+  if (selection === 'cleared') original.review.removeDataset('prior');
+  await mocks.guard!({} as never, {} as never, vi.fn());
+  first.destroy();
+  const second = mountPage({ fallbackDatasetId: 'current' });
+  const page = second.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review).toBe(original.review);
+  const expected = { untouched: ['current'], selected: ['prior'], cleared: ['current'] };
+  expect(page.review.datasets.value.map((d) => d.id)).toEqual(expected[selection as keyof typeof expected]);
+  expect(page.view).toBe('results');
+  second.destroy();
+});
+
+it('preserves explicit Library selections over the current sequence fallback', async () => {
+  const wrapper = mountPage({ initialDatasetIds: ['library'], fallbackDatasetId: 'current' });
+  const page = wrapper.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review.datasets.value.map((d) => d.id)).toEqual(['library']);
+  expect(page.view).toBe('results');
+  wrapper.destroy();
+});
+
+it('keeps a plain first Review visit on Datasets', async () => {
+  const wrapper = mountPage();
+  const page = wrapper.vm as unknown as PageState;
+  await settlePage();
+  expect(page.review.datasets.value).toEqual([]);
+  expect(page.view).toBe('datasets');
+  wrapper.destroy();
+});
+
+it('repopulates a cleared list when returning from the same sequence that started Review', async () => {
+  const first = mountPage({ fallbackDatasetId: 'current' });
+  await settlePage();
+  const original = first.vm as unknown as PageState;
+  original.review.removeDataset('current');
+  await mocks.guard!({} as never, {} as never, vi.fn());
+  first.destroy();
+  const second = mountPage({ fallbackDatasetId: 'current' });
+  await settlePage();
+  const page = second.vm as unknown as PageState;
+  expect(page.review.datasets.value.map((dataset) => dataset.id)).toEqual(['current']);
+  expect(page.view).toBe('results');
+  second.destroy();
 });

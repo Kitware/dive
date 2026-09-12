@@ -243,6 +243,31 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   const styles = new StyleManager({ markChangesPending: () => undefined });
   /** Camera datasets expanded from a multicamera parent. */
   const memberships = new Map<string, CameraMembership>();
+  const parentNames = new Map<string, string>();
+  const selectedDatasets = computed<ReviewDataset[]>(() => {
+    // Keep cameras separate internally for reads, edits, and saves; present one sequence row.
+    const groups = new Map<string, ReviewDataset[]>();
+    datasets.value.forEach((dataset) => {
+      const id = memberships.get(dataset.id)?.parent ?? dataset.id;
+      if (!groups.has(id)) groups.set(id, []);
+      groups.get(id)!.push(dataset);
+    });
+    return Array.from(groups, ([id, cameras]) => {
+      if (!parentNames.has(id)) return cameras[0];
+      const status = (['loading', 'error', 'queued', 'ready'] as ReviewDatasetStatus[])
+        .find((value) => cameras.some((camera) => camera.status === value))!;
+      const trackIds = new Set(cameras.flatMap((camera) => [...(loaded.get(camera.id)?.tracks.keys() || [])]));
+      return {
+        id,
+        name: parentNames.get(id)!,
+        type: 'multi',
+        status,
+        error: cameras.filter((camera) => camera.error).map((camera) => `${camera.name}: ${camera.error}`).join('\n') || undefined,
+        trackCount: trackIds.size,
+        croppable: cameras.some((camera) => camera.croppable),
+      };
+    });
+  });
 
   // Query changes apply as soon as they settle; the grid only reshuffles
   // for those, never for edits made in it.
@@ -264,7 +289,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   }
 
   function datasetName(id: string) {
-    return datasets.value.find((d) => d.id === id)?.name
+    return parentNames.get(id) || datasets.value.find((d) => d.id === id)?.name
       || available.value.find((d) => d.id === id)?.name
       || id;
   }
@@ -319,9 +344,11 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
       });
       if (!isCurrent()) return;
       if (config.type === 'multi') {
-        // Review the cameras of a multicamera dataset as separate sequences.
+        // Load each camera separately while exposing the parent as one selected sequence.
         const cameras = Object.keys(config.multiCamMedia?.cameras || {});
         const parentName = entry(id)?.name || config.name;
+        if (!cameras.length) throw new Error('This sequence has no cameras');
+        parentNames.set(id, parentName);
         datasets.value = datasets.value.filter((d) => d.id !== id);
         cameras.forEach((camera, rank) => memberships.set(`${id}/${camera}`, { parent: id, camera, rank }));
         await Promise.all(cameras.map((camera) => addDataset(`${id}/${camera}`, {
@@ -378,7 +405,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
    * results are actually wanted.
    */
   async function addDataset(id: string, summary?: ScoringDatasetSummary, options: { defer?: boolean } = {}) {
-    if (disposed || !id || entry(id)) return;
+    if (disposed || !id || entry(id) || selectedDatasets.value.some((dataset) => dataset.id === id)) return;
     datasets.value = [...datasets.value, {
       id,
       name: summary?.name || datasetName(id),
@@ -403,18 +430,29 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     await Promise.all(unique.map((id) => addDataset(id)));
   }
 
+  function cameraIds(id: string) {
+    return datasets.value.filter((dataset) => dataset.id === id || memberships.get(dataset.id)?.parent === id)
+      .map((dataset) => dataset.id);
+  }
+
   function removeDataset(id: string) {
-    datasets.value = datasets.value.filter((d) => d.id !== id);
-    dropLoaded(id);
-    loadTokens.delete(id);
+    const ids = new Set(cameraIds(id));
+    datasets.value = datasets.value.filter((dataset) => !ids.has(dataset.id));
+    ids.forEach((cameraId) => {
+      dropLoaded(cameraId);
+      loadTokens.delete(cameraId);
+      memberships.delete(cameraId);
+    });
+    parentNames.delete(id);
     dataRevision.value += 1;
     runQuery();
   }
 
   async function reloadDataset(id: string) {
-    if (!entry(id)) return;
-    patch(id, { status: 'loading', error: undefined });
-    await load(id);
+    await Promise.all(cameraIds(id).map(async (cameraId) => {
+      patch(cameraId, { status: 'loading', error: undefined });
+      await load(cameraId);
+    }));
   }
 
   function allTracks(): TrackData[] {
@@ -727,7 +765,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   }
 
   return {
-    datasets,
+    datasets: selectedDatasets,
     available,
     query,
     grid,
