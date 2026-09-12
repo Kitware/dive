@@ -7,7 +7,7 @@ import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
-import { simplifyTrainingName } from 'dive-common/constants';
+import { simplifyTrainingName, isValidEmail } from 'dive-common/constants';
 import { useBrand } from 'platform/web-girder/store/useBrand';
 import { useConfig } from 'platform/web-girder/store/useConfig';
 
@@ -39,6 +39,13 @@ export default defineComponent({
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
     const annotatedFramesOnly = ref<boolean>(false);
+    const monitorEmail = ref<string>('');
+    const emailRules = [
+      (val: string | null) => (!val || isValidEmail(val) || 'Enter a valid email address'),
+    ];
+    const monitorEmailValid = computed(() => (
+      !monitorEmail.value || isValidEmail(monitorEmail.value)
+    ));
     const fineTuning = ref<boolean>(false);
     const selectedFineTune = ref<string>('');
     const {
@@ -92,30 +99,22 @@ export default defineComponent({
 
     async function runTrainingOnFolder() {
       const outputPipelineName = trainingOutputName.value;
-      if (trainingDisabled.value || !outputPipelineName || jobsDisabled.value) {
+      if (trainingDisabled.value || !outputPipelineName || jobsDisabled.value
+        || !monitorEmailValid.value) {
         return;
       }
       await _runTrainingRequest(() => {
         if (!trainingConfigurations.value || !selectedTrainingConfig.value) {
           throw new Error('Training configurations not found.');
         }
-        if (labelText.value) {
-          return runTraining(
-            props.selectedDatasetIds,
-            outputPipelineName,
-            selectedTrainingConfig.value,
-            annotatedFramesOnly.value,
-            labelText.value,
-            selectedFineTuneObject.value,
-          );
-        }
         return runTraining(
           props.selectedDatasetIds,
           outputPipelineName,
           selectedTrainingConfig.value,
           annotatedFramesOnly.value,
-          undefined,
+          labelText.value || undefined,
           selectedFineTuneObject.value,
+          monitorEmail.value.trim() || undefined,
         );
       });
       menuOpen.value = false;
@@ -140,6 +139,9 @@ export default defineComponent({
       brandData,
       trainingConfigurations,
       selectedTrainingConfig,
+      monitorEmail,
+      emailRules,
+      monitorEmailValid,
       annotatedFramesOnly,
       trainingOutputName,
       menuOpen,
@@ -281,15 +283,34 @@ export default defineComponent({
                 {{ simplifyTrainingName(item.name || item) }}
               </template>
             </v-select>
-            <v-file-input
-              v-model="labelFile"
-              icon="mdi-folder-open"
-              label="Labels.txt mapping file (optional)"
-              hint="Combine or rename output classes using a labels.txt file"
-              persistent-hint
-              clearable
-              @click:clear="clearLabelText"
-            />
+            <v-row dense>
+              <v-col cols="12" sm="6">
+                <v-file-input
+                  v-model="labelFile"
+                  icon="mdi-folder-open"
+                  label="Labels .txt, .csv, or .json (optional)"
+                  hint="Combine or rename output classes using a labels .txt, .csv, or .json file"
+                  outlined
+                  dense
+                  persistent-hint
+                  clearable
+                  @click:clear="clearLabelText"
+                />
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="monitorEmail"
+                  :rules="emailRules"
+                  prepend-icon="mdi-email-outline"
+                  outlined
+                  dense
+                  clearable
+                  label="Email progress reports to (optional)"
+                  hint="Sends training progress, error and completion reports; requires mail to be configured on the training worker"
+                  persistent-hint
+                />
+              </v-col>
+            </v-row>
             <v-checkbox
               v-model="annotatedFramesOnly"
               label="Use annotated frames only"
@@ -316,12 +337,13 @@ export default defineComponent({
               hint="Model to Fine Tune"
               persistent-hint
             />
+
             <v-btn
               depressed
               block
               color="primary"
               class="mt-4"
-              :disabled="!trainingOutputName || !selectedTrainingConfig"
+              :disabled="!trainingOutputName || !selectedTrainingConfig || !monitorEmailValid"
               @click="runTrainingOnFolder"
             >
               Train on {{ selectedDatasetIds.length }} dataset(s)

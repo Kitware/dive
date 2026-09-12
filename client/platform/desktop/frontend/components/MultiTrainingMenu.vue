@@ -15,7 +15,7 @@ import {
   Pipelines, TrainingConfigs, useApi, Pipe,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
+import { itemsPerPageOptions, simplifyTrainingName, isValidEmail } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
 
@@ -128,6 +128,9 @@ export default defineComponent({
     const nameRules = [
       (val: string) => (!trainedPipelines.value.includes(val) || 'A Trained pipeline with that name already exists'),
     ];
+    const emailRules = [
+      (val: string | null) => (!val || isValidEmail(val) || 'Enter a valid email address'),
+    ];
 
     const data = reactive({
       stagedItems: {} as Record<string, JsonConfigCache>,
@@ -143,6 +146,7 @@ export default defineComponent({
         models: {},
       } as TrainingConfigs,
       annotatedFramesOnly: false,
+      monitorEmail: '',
     });
 
     const headersTmpl: DataTableHeader[] = [
@@ -220,6 +224,7 @@ export default defineComponent({
       stagedItems.value.length > 0
         && data.selectedTrainingConfig
         && data.trainingOutputName
+        && (!data.monitorEmail || isValidEmail(data.monitorEmail))
     ));
 
     async function deleteModel(item: Pipe) {
@@ -295,6 +300,7 @@ export default defineComponent({
           data.annotatedFramesOnly,
           labelText.value || undefined,
           foundTrainingModel,
+          data.monitorEmail.trim() || undefined,
         );
         router.push({ name: 'jobs' });
       } catch (err) {
@@ -364,6 +370,7 @@ export default defineComponent({
       resumeJob,
       discardJob,
       nameRules,
+      emailRules,
       itemsPerPageOptions,
       clientSettings,
       modelNames,
@@ -469,13 +476,13 @@ export default defineComponent({
         class="my-4 pt-0"
         dense
       >
-        <v-col sm="5">
+        <v-col cols="12" sm="6">
           <v-file-input
             v-model="labelFile"
             icon="mdi-folder-open"
-            label="Labels.txt mapping file (optional)"
-            hint="Combine or rename output classes using a labels.txt file"
-            persistant-hint
+            label="Labels .txt, .csv, or .json (optional)"
+            hint="Combine or rename output classes using a labels .txt, .csv, or .json file"
+            persistent-hint
             dense
             outlined
             hide-details
@@ -483,7 +490,19 @@ export default defineComponent({
             @click:clear="clearLabelText"
           />
         </v-col>
-        <v-spacer />
+        <v-col cols="12" sm="6">
+          <v-text-field
+            v-model="data.monitorEmail"
+            :rules="emailRules"
+            prepend-icon="mdi-email-outline"
+            outlined
+            dense
+            clearable
+            label="Email progress reports to (optional)"
+            hint="Sends training progress, error and completion reports; requires mail to be configured for VIAME"
+            persistent-hint
+          />
+        </v-col>
       </v-row>
       <div class="d-flex flex-row mt-4">
         <v-checkbox

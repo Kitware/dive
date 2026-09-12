@@ -207,6 +207,7 @@ class TrainingJob(TypedDict):
     annotated_frames_only: bool  # Train on only the annotated frames
     label_txt: Optional[str]  # Contents of a labels.txt to include in training
     model: Optional[TrainingModelTuneArgs]  # Model for fine-tune training
+    monitor_email: Optional[str]  # Address for progress reports from viame monitor
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]  # Force using the transcoded version

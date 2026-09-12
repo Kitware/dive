@@ -247,6 +247,11 @@ function simplifyTrainingName(item: string) {
   return item.replace('.conf', '');
 }
 
+/** Loose check for a single mailbox address, enough to catch typos in forms. */
+function isValidEmail(address: string) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address.trim());
+}
+
 export {
   DefaultVideoFPS,
   ImageSequenceType,
@@ -289,4 +294,5 @@ export {
   JsonConfigRegEx,
   JsonSpeciesRegEx,
   simplifyTrainingName,
+  isValidEmail,
 };
