@@ -9,8 +9,9 @@ import {
   useSelectedTrackId,
   useTime,
 } from 'vue-media-annotator/provides';
-import type { VideoSearchResult, VideoSearchIndexMethod } from 'dive-common/apispec';
+import type { VideoSearchResult, VideoSearchIndexInfo } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { videoSearchListIndexes } from 'platform/desktop/frontend/api';
 import { runningJobs } from 'platform/desktop/frontend/store/jobs';
 import { useVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import { createSearchChips } from 'platform/desktop/frontend/useSearchChips';
@@ -30,7 +31,24 @@ export default defineComponent({
     const cameraStore = useCameraStore();
     const { prompt } = usePrompt();
 
-    const buildMethod = ref<VideoSearchIndexMethod>('detections');
+    const indexes = ref<VideoSearchIndexInfo[]>([]);
+    const indexChoices = computed(() => [
+      { text: 'All indexed sequences', value: '' },
+      ...indexes.value.map((index) => ({ text: index.name, value: index.streamName })),
+    ]);
+    const buildLocation = computed(() => ({
+      name: 'query', query: { datasetIds: search?.datasetId || '', view: 'datasets' },
+    }));
+    async function refreshIndexes() {
+      if (!search) return;
+      await search.refreshStatus();
+      try {
+        indexes.value = search.state.status?.datasetCount ? await videoSearchListIndexes() : [];
+        if (search.state.selectedStream && !indexes.value.some((index) => index.streamName === search.state.selectedStream)) {
+          search.selectIndex(null);
+        }
+      } catch (err) { search.state.error = (err as Error).message; }
+    }
     const saveModelName = ref('');
     const saveModelDialog = ref(false);
     const resultsGridOpen = ref(false);
@@ -41,31 +59,17 @@ export default defineComponent({
 
     const state = computed(() => search?.state ?? null);
 
-    /** Display filter: limit visible results to the current dataset. */
-    const onlyThisDataset = ref(false);
-    const displayedResults = computed(() => {
-      const all = state.value?.results ?? [];
-      if (!onlyThisDataset.value || !search) return all;
-      return all.filter((r) => search.resultDatasetId(r) === search.datasetId);
-    });
+    const displayedResults = computed(() => state.value?.results ?? []);
 
-    const indexBuilding = computed(() => runningJobs.value.some((item) => (
-      item.job.exitCode === null
-      && search !== null
-      && item.job.datasetIds.includes(search.datasetId)
-      && /search index/i.test(item.job.title)
-    )));
-
-    /** Refresh index status whenever a build job for this dataset finishes. */
+    /** Any completed index build can add a new choice to the shared database. */
     watch(runningJobs, (current, previous) => {
       if (!search) return;
       const finished = previous.some((item) => (
-        item.job.datasetIds.includes(search.datasetId)
-        && /search index/i.test(item.job.title)
+        /search index/i.test(item.job.title)
         && !current.some((c) => c.job.key === item.job.key)
       ));
       if (finished) {
-        search.refreshStatus();
+        refreshIndexes();
       }
     });
 
@@ -75,7 +79,7 @@ export default defineComponent({
     // another dataset's index opens.
     onMounted(() => {
       if (search) {
-        search.refreshStatus();
+        refreshIndexes();
       }
     });
 
@@ -125,21 +129,6 @@ export default defineComponent({
       await search.queryFromImage(ret.filePaths[0], undefined, modelPath);
     }
 
-    async function removeFromIndexConfirm() {
-      if (!search) return;
-      const confirmed = await prompt({
-        title: 'Remove From Search Index',
-        text: ['Remove this dataset from the search index?',
-          'It can be re-added later, but indexing takes time.'],
-        confirm: true,
-        positiveButton: 'Remove',
-        negativeButton: 'Cancel',
-      });
-      if (confirmed) {
-        await search.removeFromIndex();
-      }
-    }
-
     async function saveModel() {
       if (!search || !saveModelName.value) return;
       const outputDir = await search.saveModel(saveModelName.value);
@@ -172,8 +161,9 @@ export default defineComponent({
     return {
       search,
       state,
-      buildMethod,
-      indexBuilding,
+      indexes,
+      indexChoices,
+      buildLocation,
       selectedTrackId,
       selectedTrackBox,
       saveModelName,
@@ -184,11 +174,9 @@ export default defineComponent({
       resultFrame,
       queryFromSelectedTrack,
       queryFromImageFile,
-      removeFromIndexConfirm,
       saveModel,
       seekToResult,
       isLocalResult,
-      onlyThisDataset,
       displayedResults,
     };
   },
@@ -209,56 +197,27 @@ export default defineComponent({
       </v-alert>
     </div>
     <div v-else>
-      <!-- Index management -->
-      <div class="text-subtitle-2 mb-1">
+      <div class="text-subtitle-2 mb-2">
         Search Index
-        <v-chip
-          x-small
-          class="ml-1"
-          :color="state.status && state.status.indexed ? 'success' : 'grey'"
-        >
-          {{ indexBuilding ? 'indexing...' : (state.status && state.status.indexed ? 'indexed' : 'not indexed') }}
-        </v-chip>
       </div>
-      <div
-        v-if="state.status && state.status.datasetCount"
-        class="text-caption grey--text mb-1"
-      >
-        {{ state.status.datasetCount }} dataset(s) in the shared search index
+      <v-select
+        v-if="indexes.length"
+        :value="state.selectedStream || ''"
+        :items="indexChoices"
+        :disabled="!!state.busy"
+        dense
+        outlined
+        hide-details
+        label="Index to search"
+        class="mb-2"
+        @change="search.selectIndex($event || null)"
+      />
+      <div v-else class="text-caption mb-2">
+        No search index is available yet.
       </div>
-      <div class="d-flex align-center mb-1">
-        <v-select
-          v-model="buildMethod"
-          :items="[
-            { text: 'Around generic detections', value: 'detections' },
-            { text: 'Detection and tracking', value: 'tracking' },
-            { text: 'Around existing annotations', value: 'existing' },
-          ]"
-          dense
-          hide-details
-          label="Index type"
-          class="mr-2"
-        />
-      </div>
-      <div class="mb-3">
-        <v-btn
-          x-small
-          color="primary"
-          :disabled="indexBuilding || !!state.busy"
-          @click="search.buildIndex(buildMethod)"
-        >
-          {{ state.status && state.status.indexed ? 'Update' : 'Add to index' }}
-        </v-btn>
-        <v-btn
-          x-small
-          color="error"
-          class="ml-2"
-          :disabled="!(state.status && state.status.indexed) || indexBuilding || !!state.busy"
-          @click="removeFromIndexConfirm"
-        >
-          Remove
-        </v-btn>
-      </div>
+      <v-btn small text color="primary" :to="buildLocation" class="mb-3">
+        {{ indexes.length ? 'Build a new index' : 'Create index' }}
+      </v-btn>
       <v-divider class="mb-2" />
 
       <!-- Query formulation -->
@@ -271,7 +230,7 @@ export default defineComponent({
           block
           class="mb-1"
           color="primary"
-          :disabled="!(state.status && state.status.datasetCount) || selectedTrackBox === null || !!state.busy"
+          :disabled="!indexes.length || selectedTrackBox === null || !!state.busy"
           @click="queryFromSelectedTrack"
         >
           Search from selected annotation
@@ -280,7 +239,7 @@ export default defineComponent({
           x-small
           block
           class="mb-1"
-          :disabled="!(state.status && state.status.datasetCount) || !!state.busy"
+          :disabled="!indexes.length || !!state.busy"
           @click="queryFromImageFile(false)"
         >
           Search from image file...
@@ -288,21 +247,12 @@ export default defineComponent({
         <v-btn
           x-small
           block
-          :disabled="!(state.status && state.status.datasetCount) || !!state.busy"
+          :disabled="!indexes.length || !!state.busy"
           @click="queryFromImageFile(true)"
         >
           Search with saved model (.svm)...
         </v-btn>
       </div>
-
-      <v-checkbox
-        v-if="state.status && state.status.datasetCount > 1"
-        v-model="onlyThisDataset"
-        dense
-        hide-details
-        class="mt-0 mb-2"
-        label="Only show results from this dataset"
-      />
 
       <v-progress-linear
         v-if="state.busy"

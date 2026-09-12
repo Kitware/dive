@@ -2,7 +2,7 @@
 
 The **Query** page (DIVE Desktop) searches many datasets at once. Pick the datasets, build a search index over them, then search from an image, a frame of a video, or a text description. Hits come back as the same chip grid the Review page uses, and a similarity search can be refined by marking hits correct or incorrect.
 
-Open it from the **Query** tab, or select datasets in the **Library** and click **Query**.
+Open it from the **Query** tab, or select datasets in the **Library** and click **Index** to open the Datasets panel with those sequences selected.
 
 ## Datasets panel
 
@@ -31,3 +31,13 @@ Double clicking any result opens its dataset in the viewer at that frame.
 Index builds appear in **Jobs** while preparing and running, with their dataset, indexing method, live stdout/stderr, and final result. Expand the job's output to diagnose failures; the process log is also saved as `runlog.txt` in its working directory. Builds waiting for the GPU appear under **Queued Jobs** as indexing jobs. Startup failures remain in job history.
 
 Selecting a stereo or multicamera sequence uses its first camera in the configured display order. Query shows that camera by name and indexes its media and, for the existing-detections method, its annotations. The other cameras are not indexed automatically. Results refer to the indexed camera, keeping thumbnails and frame numbers aligned with its media.
+
+Inside an annotation sequence, **Video Search** lists the available indexed
+sequences, with an option to search all of them. Selecting an indexed sequence
+limits the ranked results and result grid to that sequence; the underlying
+similarity search still uses the shared database. Changing this selection clears
+the previous results and feedback so the next query starts fresh.
+
+Use **Create index** when no index exists, or **Build a new index** below the
+selector, to open Query's **Datasets** panel with the current sequence selected.
+Index type, building, and removal are managed on that page.

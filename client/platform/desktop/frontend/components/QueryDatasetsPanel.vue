@@ -108,7 +108,7 @@ export default defineComponent({
       v-if="page.datasets.value.length === 0"
       class="text-caption grey--text py-2"
     >
-      None yet. Add datasets from the list above, or select them in the library and choose Query.
+      None yet. Add datasets from the list above, or select them in the library and choose Index.
     </div>
     <template v-else>
       <div class="d-flex align-center flex-wrap mb-2 build-row">

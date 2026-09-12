@@ -288,8 +288,8 @@ export default defineComponent({
       router.push({ name: 'review', query: selectedIdsQuery() });
     }
 
-    function querySelected() {
-      router.push({ name: 'query', query: selectedIdsQuery() });
+    function indexSelected() {
+      router.push({ name: 'query', query: { ...selectedIdsQuery(), view: 'datasets' } });
     }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
@@ -387,7 +387,7 @@ export default defineComponent({
       runTrainingOnSelected,
       scoreSelected,
       reviewSelected,
-      querySelected,
+      indexSelected,
       isSelected,
       toggleSelected,
       toggleSelectAll,
@@ -652,7 +652,7 @@ export default defineComponent({
                       >
                         mdi-brain
                       </v-icon>
-                      Run Training
+                      Training
                     </v-btn>
                   </template>
                   <span>Train a model on the selected datasets</span>
@@ -665,18 +665,18 @@ export default defineComponent({
                       outlined
                       small
                       v-on="on"
-                      @click="scoreSelected"
+                      @click="indexSelected"
                     >
                       <v-icon
                         left
                         small
                       >
-                        mdi-chart-box-outline
+                        mdi-database-plus
                       </v-icon>
-                      Score
+                      Index
                     </v-btn>
                   </template>
-                  <span>Score the selected datasets against ground truth</span>
+                  <span>Build search indexes for the selected datasets</span>
                 </v-tooltip>
                 <v-tooltip bottom>
                   <template #activator="{ on }">
@@ -703,27 +703,6 @@ export default defineComponent({
                   <template #activator="{ on }">
                     <v-btn
                       class="ml-2 align-self-center"
-                      color="primary"
-                      outlined
-                      small
-                      v-on="on"
-                      @click="querySelected"
-                    >
-                      <v-icon
-                        left
-                        small
-                      >
-                        mdi-image-search-outline
-                      </v-icon>
-                      Query
-                    </v-btn>
-                  </template>
-                  <span>Index the selected datasets and search them by image, video frame or text</span>
-                </v-tooltip>
-                <v-tooltip bottom>
-                  <template #activator="{ on }">
-                    <v-btn
-                      class="ml-2 align-self-center"
                       color="error"
                       outlined
                       small
@@ -740,6 +719,27 @@ export default defineComponent({
                     </v-btn>
                   </template>
                   <span>Delete all selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="scoreSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-chart-box-outline
+                      </v-icon>
+                      Score
+                    </v-btn>
+                  </template>
+                  <span>Score the selected datasets against ground truth</span>
                 </v-tooltip>
               </template>
               <v-text-field
