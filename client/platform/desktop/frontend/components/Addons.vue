@@ -9,6 +9,9 @@ const catalog = ref<AddonCatalog | null>(null);
 const error = ref('');
 const loading = ref(false);
 const starting = ref(false);
+const showProgress = ref(false);
+const selectedName = ref('');
+const cancelling = ref(false);
 const search = ref('');
 const busy = computed(() => starting.value || !!catalog.value?.job?.running);
 const canInstall = computed(() => !!catalog.value?.installerAvailable && !catalog.value?.readOnly && !busy.value);
@@ -26,9 +29,8 @@ async function refresh() {
   loading.value = true;
   try {
     catalog.value = await window.diveDesktop.invoke<AddonCatalog>('desktop:addons-list');
-    error.value = '';
+    if (catalog.value.job?.running) showProgress.value = true;
   } catch (err) {
-    catalog.value = null;
     error.value = (err as Error).message;
   } finally { loading.value = false; }
 }
@@ -36,6 +38,7 @@ async function install(addon: ViameAddon, fromFile = false) {
   if (!canInstall.value) return;
   starting.value = true;
   error.value = '';
+  selectedName.value = addon.name;
   try {
     let archive: string | undefined;
     if (fromFile) {
@@ -47,17 +50,23 @@ async function install(addon: ViameAddon, fromFile = false) {
       if (result.canceled || !result.filePaths.length) return;
       [archive] = result.filePaths;
     }
+    if (catalog.value) catalog.value.job = null;
+    showProgress.value = true;
     const job = await window.diveDesktop.invoke<AddonJob>('desktop:addons-install', {
       name: addon.name, force: addon.status === 'installed', archive,
     });
     if (catalog.value) catalog.value.job = job;
     await refresh();
-  } catch (err) { error.value = (err as Error).message; } finally { starting.value = false; }
+  } catch (err) { error.value = (err as Error).message; showProgress.value = true; } finally { starting.value = false; }
 }
-async function download(addon: ViameAddon) {
-  try { await window.diveDesktop.invoke('open-link-in-browser', addon.url); } catch (err) { error.value = (err as Error).message; }
+async function cancel() {
+  cancelling.value = true;
+  error.value = '';
+  try {
+    const job = await window.diveDesktop.invoke<AddonJob | null>('desktop:addons-cancel');
+    if (catalog.value) catalog.value.job = job;
+  } catch (err) { error.value = (err as Error).message; } finally { cancelling.value = false; }
 }
-function needsBrowser(addon: ViameAddon) { return addon.url.includes('drive.google.com'); }
 let timer: ReturnType<typeof setInterval>;
 onMounted(() => {
   refresh();
@@ -89,7 +98,7 @@ onBeforeUnmount(() => {
       <p v-if="catalog" class="text-caption">
         Installation: {{ catalog.installDir }}
       </p>
-      <v-alert v-if="error" type="error">
+      <v-alert v-if="error && !showProgress" type="error">
         {{ error }} <router-link :to="{ name: 'settings' }">
           Open Settings
         </router-link>
@@ -121,11 +130,8 @@ onBeforeUnmount(() => {
         <template #[`item.actions`]="{ item }">
           <div class="addon-actions">
             <div>
-              <v-btn v-if="!needsBrowser(item)" small block :disabled="!canInstall" @click="install(item)">
+              <v-btn small block :disabled="!canInstall" @click="install(item)">
                 Download and Install
-              </v-btn>
-              <v-btn v-else small block @click="download(item)">
-                Download in browser
               </v-btn>
             </div>
             <div>
@@ -136,39 +142,73 @@ onBeforeUnmount(() => {
           </div>
         </template>
       </v-data-table>
-      <v-card v-if="catalog && catalog.job" class="mt-4" outlined>
-        <v-card-title>{{ catalog.job.name }} — {{ catalog.job.running ? 'Installing' : (catalog.job.error ? 'Failed' : 'Finished') }}</v-card-title>
-        <v-card-text>
-          <v-alert v-if="catalog.job.running && catalog.job.phase === 'elevation'" type="info">
-            Waiting for administrator permission. Approve the Windows permission prompt to continue.
-          </v-alert>
-          <div v-if="!catalog.job.localArchive" class="mb-3">
-            <div>Download <span v-if="catalog.job.downloadProgress !== undefined">{{ Math.floor(catalog.job.downloadProgress) }}%</span></div>
-            <v-progress-linear
-              aria-label="Download progress"
-              :value="catalog.job.downloadProgress || 0"
-              :indeterminate="catalog.job.running && catalog.job.phase === 'download' && catalog.job.downloadProgress === undefined"
-              :color="catalog.job.error ? 'error' : 'primary'"
-            />
-          </div>
-          <div class="mb-3">
-            <div>{{ catalog.job.phase === 'verify' ? 'Verifying archive' : 'Install' }} <span v-if="catalog.job.installProgress !== undefined">{{ Math.floor(catalog.job.installProgress) }}%</span></div>
-            <v-progress-linear
-              aria-label="Install progress"
-              :value="catalog.job.installProgress || 0"
-              :indeterminate="catalog.job.running && (catalog.job.phase === 'verify' || (catalog.job.phase === 'install' && catalog.job.installProgress === undefined))"
-              :color="catalog.job.error ? 'error' : 'primary'"
-            />
-          </div>
-          <p v-if="catalog.job.installDir !== catalog.installDir">
-            Installation: {{ catalog.job.installDir }}
-          </p>
-          <v-alert v-if="catalog.job.error" type="error">
-            {{ catalog.job.error }}
-          </v-alert>
-          <pre class="addon-output">{{ catalog.job.log || 'Starting installer…' }}</pre>
-        </v-card-text>
-      </v-card>
+      <v-dialog v-model="showProgress" :persistent="busy" max-width="640" scrollable>
+        <v-card>
+          <v-card-title class="text-break">
+            {{ catalog && catalog.job ? catalog.job.name : selectedName }} — {{ starting ? 'Starting installation' : (catalog && catalog.job && catalog.job.running ? 'Installing' : 'Installation result') }}
+          </v-card-title>
+          <v-card-text aria-live="polite">
+            <v-alert v-if="error" type="error">
+              {{ error }}
+            </v-alert>
+            <v-progress-linear v-if="starting" indeterminate aria-label="Starting installation" />
+            <template v-if="catalog && catalog.job">
+              <v-alert v-if="catalog.job.cancelRequested && catalog.job.running" type="info">
+                Canceling installation and restoring any replaced files. Waiting for the current operation to finish.
+              </v-alert>
+              <v-alert v-else-if="catalog.job.cancelled" type="info">
+                Installation canceled.
+              </v-alert>
+              <v-alert v-else-if="catalog.job.phase === 'complete'" type="success">
+                Installation complete.
+              </v-alert>
+              <v-alert v-if="catalog.job.running && catalog.job.phase === 'elevation'" type="info">
+                Waiting for administrator permission. Approve the Windows permission prompt to continue.
+              </v-alert>
+              <div v-if="!catalog.job.localArchive" class="mb-3">
+                <div>Download <span v-if="catalog.job.downloadProgress !== undefined">{{ Math.floor(catalog.job.downloadProgress) }}%</span></div>
+                <v-progress-linear
+                  aria-label="Download progress"
+                  :value="catalog.job.downloadProgress || 0"
+                  :indeterminate="catalog.job.running && catalog.job.phase === 'download' && catalog.job.downloadProgress === undefined"
+                  :color="catalog.job.error ? 'error' : 'primary'"
+                />
+              </div>
+              <div class="mb-3">
+                <div>{{ catalog.job.phase === 'verify' ? 'Verifying archive' : 'Install' }} <span v-if="catalog.job.installProgress !== undefined">{{ Math.floor(catalog.job.installProgress) }}%</span></div>
+                <v-progress-linear
+                  aria-label="Install progress"
+                  :value="catalog.job.installProgress || 0"
+                  :indeterminate="catalog.job.running && (catalog.job.phase === 'verify' || (catalog.job.phase === 'install' && catalog.job.installProgress === undefined))"
+                  :color="catalog.job.error ? 'error' : 'primary'"
+                />
+              </div>
+              <p v-if="catalog.job.installDir !== catalog.installDir">
+                Installation: {{ catalog.job.installDir }}
+              </p>
+              <v-alert v-if="catalog.job.error" type="error">
+                {{ catalog.job.error }}
+              </v-alert>
+              <details>
+                <summary>Installation details</summary>
+                <pre class="addon-output">{{ catalog.job.log || 'Starting installer…' }}</pre>
+              </details>
+              <p v-if="catalog.job.running && !catalog.job.canCancel" class="mt-3">
+                This VIAME installer does not support safe cancellation. Update VIAME to enable it.
+              </p>
+            </template>
+          </v-card-text>
+          <v-card-actions>
+            <v-spacer />
+            <v-btn v-if="busy" :disabled="starting || cancelling || !catalog || !catalog.job || !catalog.job.canCancel || catalog.job.cancelRequested" @click="cancel">
+              {{ cancelling || (catalog && catalog.job && catalog.job.cancelRequested) ? 'Canceling…' : 'Cancel installation' }}
+            </v-btn>
+            <v-btn v-else @click="showProgress = false">
+              Close
+            </v-btn>
+          </v-card-actions>
+        </v-card>
+      </v-dialog>
     </v-container>
   </v-main>
 </template>

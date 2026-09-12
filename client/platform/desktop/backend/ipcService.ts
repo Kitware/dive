@@ -27,7 +27,7 @@ import beginMultiCamImport from './native/multiCamImport';
 import scanMultiCamBatch from './native/multiCollectImport';
 import scanStereoBatch from './native/stereoCollectImport';
 import settings from './state/settings';
-import { getAddons, installAddon } from './native/addons';
+import { cancelAddon, getAddons, installAddon } from './native/addons';
 import type { AddonInstallRequest } from '../addons';
 import { listen } from './server';
 import {
@@ -92,6 +92,7 @@ function getDiveVersion() {
 export default function register() {
   ipcMain.handle('desktop:addons-list', () => getAddons(settings.get()));
   ipcMain.handle('desktop:addons-install', (_, request: AddonInstallRequest) => installAddon(settings.get(), request));
+  ipcMain.handle('desktop:addons-cancel', () => cancelAddon());
   /**
    * Platform-agnostic methods
    */

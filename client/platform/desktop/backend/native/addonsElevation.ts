@@ -10,13 +10,15 @@ export function windowsArgument(value: string): string {
 }
 
 /** Elevate only the installer. DIVE remains unelevated and reads its output from a temporary log. */
-export async function runElevatedInstaller(python: string, args: string[], cwd: string, append: (data: Buffer) => void): Promise<number | null> {
+export async function runElevatedInstaller(python: string, args: string[], cwd: string, append: (data: Buffer) => void, cancelFile?: string): Promise<number | null> {
   const directory = await fs.mkdtemp(path.join(os.tmpdir(), 'dive-addon-elevation-'));
   const log = path.join(directory, 'output.log');
   const request = path.join(directory, 'request.json');
   const wrapper = path.join(directory, 'install.py');
   try {
-    await fs.writeJSON(request, { args: args.slice(1), log, cwd });
+    await fs.writeJSON(request, {
+      args: args.slice(1), log, cwd, cancelFile,
+    });
     // Arguments are data in JSON, never executable Python or PowerShell text.
     await fs.writeFile(wrapper, [
       'import json, os, runpy, sys',
@@ -24,6 +26,7 @@ export async function runElevatedInstaller(python: string, args: string[], cwd: 
       "with open(r['log'], 'w', encoding='utf-8', buffering=1) as output:",
       '    sys.stdout = sys.stderr = output',
       "    os.environ['VIAME_ADDON_PROGRESS'] = '1'",
+      "    if r.get('cancelFile'): os.environ['VIAME_ADDON_CANCEL_FILE'] = r['cancelFile']",
       "    os.chdir(r['cwd'])",
       "    sys.argv = r['args']",
       '    try:',
