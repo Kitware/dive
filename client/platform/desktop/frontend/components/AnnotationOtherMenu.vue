@@ -16,7 +16,7 @@ const items = computed(() => props.destinations || desktopDestinations.filter((i
     <template #activator="{ on, attrs }">
       <button v-ripple type="button" class="v-tab annotation-other-menu" v-bind="attrs" v-on="on">
         Other
-        <v-icon>mdi-chevron-down</v-icon>
+        <v-icon size="28">mdi-chevron-double-down</v-icon>
       </button>
     </template>
     <v-list dense>
