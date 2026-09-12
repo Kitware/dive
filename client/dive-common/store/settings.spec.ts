@@ -26,3 +26,16 @@ describe('clientSettings hydration', () => {
     expect(clientSettings.typeSettings.trackSortDir).toBe('count');
   });
 });
+
+it('starts each sequence with sequence-wide type rows even after frame-only filtering', async () => {
+  const { effectScope, ref } = await import('vue');
+  const { default: setup, clientSettings } = await import('./settings');
+  clientSettings.typeSettings.filterTypesByFrame = true;
+  const scope = effectScope();
+  scope.run(() => setup(ref(['fish', 'shark'])));
+  expect(clientSettings.typeSettings.filterTypesByFrame).toBe(false);
+  // Frame-only filtering remains available as an explicit choice in the current sequence.
+  clientSettings.typeSettings.filterTypesByFrame = true;
+  expect(clientSettings.typeSettings.filterTypesByFrame).toBe(true);
+  scope.stop();
+});
