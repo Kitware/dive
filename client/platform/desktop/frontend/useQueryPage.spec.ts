@@ -1,9 +1,13 @@
 import { effectScope } from 'vue';
-import { loadConfig, videoSearchIndexStatus, videoSearchListIndexes } from './api';
-import { recentHistory } from './store/jobs';
+import {
+  loadConfig, videoSearchIndexStatus, videoSearchListIndexes, videoSearchRemoveIndex, videoSearchDeleteIndex,
+} from './api';
+import { recentHistory, runningJobs } from './store/jobs';
 import { createQueryPage } from './useQueryPage';
 
 vi.mock('./api', () => ({
+  videoSearchRemoveIndex: vi.fn(),
+  videoSearchDeleteIndex: vi.fn(),
   loadConfig: vi.fn(),
   videoSearchIndexStatus: vi.fn(),
   videoSearchListIndexes: vi.fn(async () => []),
@@ -77,5 +81,54 @@ it('discovers completed indexes even without a prior page selection', async () =
   page.datasets.value.forEach((dataset) => page.removeDataset(dataset.id));
   await page.refreshAvailable();
   expect(page.indexedIds.value).toEqual(['existing']);
+  scope.stop();
+});
+
+it('keeps index membership visible independently of the build selection and refreshes after removal', async () => {
+  recentHistory.value.splice(0);
+  vi.mocked(loadConfig).mockResolvedValue({ name: 'Indexed', type: 'video' } as never);
+  vi.mocked(videoSearchIndexStatus).mockResolvedValue({ indexed: true } as never);
+  vi.mocked(videoSearchListIndexes).mockResolvedValue([{ datasetId: 'indexed', name: 'Indexed', streamName: 'stream' }]);
+  const scope = effectScope();
+  const page = scope.run(() => createQueryPage())!;
+  await page.refreshAvailable();
+  page.removeDataset('indexed');
+  expect(page.indexMembers.value.map((member) => member.datasetId)).toEqual(['indexed']);
+  vi.mocked(videoSearchRemoveIndex).mockResolvedValue({ success: true });
+  vi.mocked(videoSearchListIndexes).mockResolvedValue([]);
+  await page.removeFromIndex('indexed');
+  expect(videoSearchRemoveIndex).toHaveBeenCalledWith('indexed');
+  expect(page.indexMembers.value).toEqual([]);
+  scope.stop();
+});
+
+it('prevents index deletion during a build and clears membership after deleting the entire index', async () => {
+  const scope = effectScope();
+  const page = scope.run(() => createQueryPage())!;
+  vi.mocked(videoSearchDeleteIndex).mockClear().mockResolvedValue({ success: true });
+  runningJobs.value.push({ job: { title: 'Add search index (detections)' } } as never);
+  await page.deleteEntireIndex();
+  expect(videoSearchDeleteIndex).not.toHaveBeenCalled();
+  runningJobs.value.splice(0);
+  vi.mocked(videoSearchListIndexes).mockResolvedValue([]);
+  vi.mocked(videoSearchIndexStatus).mockResolvedValue({ indexed: false } as never);
+  page.search.state.results = [{ ref: 'old-result' }] as never;
+  await page.deleteEntireIndex();
+  expect(videoSearchDeleteIndex).toHaveBeenCalledOnce();
+  expect(page.indexMembers.value).toEqual([]);
+  expect(page.search.state.results).toEqual([]);
+  expect(page.changingIndex.value).toBe(false);
+  scope.stop();
+});
+
+it('reports deletion errors without clearing successful index entries', async () => {
+  const scope = effectScope();
+  const page = scope.run(() => createQueryPage())!;
+  page.indexMembers.value = [{ datasetId: 'indexed', name: 'Indexed', streamName: 'stream' }];
+  vi.mocked(videoSearchDeleteIndex).mockRejectedValue(new Error('Permission denied'));
+  await page.deleteEntireIndex();
+  expect(page.error.value).toBe('Permission denied');
+  expect(page.indexMembers.value).toHaveLength(1);
+  expect(page.changingIndex.value).toBe(false);
   scope.stop();
 });

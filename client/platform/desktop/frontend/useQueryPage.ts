@@ -10,12 +10,12 @@ import {
 import { JobType } from 'platform/desktop/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import type { ScoringDatasetSummary } from 'dive-common/scoring/types';
-import type { VideoSearchIndexMethod, VideoSearchResult } from 'dive-common/apispec';
+import type { VideoSearchIndexMethod, VideoSearchResult, VideoSearchIndexInfo } from 'dive-common/apispec';
 import type { ReviewItem } from 'dive-common/review/types';
 import {
   listScoringDatasets, loadConfig, segmentationSam3Installed, textQuery,
   videoInfo, videoSearchBuildIndex, videoSearchExtractFrame, videoSearchIndexStatus,
-  videoSearchInstalled, videoSearchRemoveIndex, videoSearchListIndexes,
+  videoSearchInstalled, videoSearchRemoveIndex, videoSearchListIndexes, videoSearchDeleteIndex,
 } from 'platform/desktop/frontend/api';
 import { runningJobs, recentHistory, queuedGpuJobs } from 'platform/desktop/frontend/store/jobs';
 import { createVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
@@ -52,6 +52,11 @@ const selectedIndexRows = ref<QueryDataset[]>([]);
 export function createQueryPage() {
   const available = ref<ScoringDatasetSummary[]>([]);
   const datasets = selectedIndexRows;
+  const indexMembers = ref<VideoSearchIndexInfo[]>([]);
+  const changingIndex = ref(false);
+  const indexJobsActive = computed(() => runningJobs.value.some(({ job }) => BuildJobTitle.test(job.title))
+    || queuedGpuJobs.value.some((job) => job.type === JobType.BuildSearchIndex));
+  const indexActionsDisabled = computed(() => changingIndex.value || indexJobsActive.value || !!search.state.busy);
   const installed = ref<boolean | null>(null);
   const sam3Installed = ref<boolean | null>(null);
   const error = ref<string | null>(null);
@@ -100,11 +105,18 @@ export function createQueryPage() {
     return entry(id)?.name || available.value.find((d) => d.id === id)?.name || id;
   }
 
+  async function refreshIndexMembers() {
+    const members = await videoSearchListIndexes();
+    const statuses = await Promise.all(members.map((member) => videoSearchIndexStatus(member.datasetId)));
+    indexMembers.value = members.filter((_member, index) => statuses[index].indexed);
+  }
+
   async function refreshAvailable() {
     try {
       available.value = await listScoringDatasets();
       if (installed.value === null) installed.value = await videoSearchInstalled();
-      const indexed = installed.value ? await videoSearchListIndexes() : [];
+      if (installed.value) await refreshIndexMembers();
+      const indexed = indexMembers.value;
       const jobIds = recentHistory.value.filter(({ job }) => BuildJobTitle.test(job.title))
         .flatMap(({ job }) => job.datasetIds);
       // A stereo build job lists its parent for navigation and its child for indexing.
@@ -196,6 +208,7 @@ export function createQueryPage() {
 
   /** Queue an index build (a GPU job) for each dataset given. */
   function buildIndex(ids: string[], method: VideoSearchIndexMethod) {
+    if (changingIndex.value) return;
     ids.forEach((id) => {
       if (!entry(id) || isBuilding(id)) return;
       videoSearchBuildIndex(id, method);
@@ -208,21 +221,37 @@ export function createQueryPage() {
     });
   }
 
-  async function removeFromIndex(id: string) {
+  async function changeIndex(remove: () => Promise<unknown>) {
+    if (indexActionsDisabled.value) return;
+    changingIndex.value = true;
+    error.value = null;
     try {
-      await videoSearchRemoveIndex(id);
+      await remove();
       search.state.sessionOpen = false;
       search.state.streams = {};
+      search.state.results = [];
+      search.state.adjudications = {};
+      search.state.modelAvailable = false;
+      await refreshIndexMembers();
+      await Promise.all(datasets.value.map((dataset) => refreshIndexStatus(dataset.id)));
     } catch (err) {
-      fail(err, 'Could not remove the dataset from the index');
-    }
-    await refreshIndexStatus(id);
+      fail(err, 'Could not update the search index');
+    } finally { changingIndex.value = false; }
+  }
+
+  async function removeFromIndex(id: string) {
+    await changeIndex(() => videoSearchRemoveIndex(id));
+  }
+
+  async function deleteEntireIndex() {
+    await changeIndex(() => videoSearchDeleteIndex());
   }
 
   // Observe terminal state as well as running jobs, so failures remain visible on return.
   watch(() => recentHistory.value.map(({ job }) => `${job.key}:${job.endTime}:${job.exitCode}`).join('|'), () => {
     search.state.sessionOpen = false;
     datasets.value.forEach((dataset) => { refreshIndexStatus(dataset.id); });
+    if (installed.value) refreshIndexMembers().catch((err) => fail(err, 'Could not list indexed sequences'));
   });
 
   const indexedIds = computed(() => datasets.value.filter((d) => d.index === 'indexed').map((d) => d.id));
@@ -368,6 +397,10 @@ export function createQueryPage() {
   return {
     available,
     datasets,
+    indexMembers,
+    indexActionsDisabled,
+    changingIndex,
+    deleteEntireIndex,
     installed,
     sam3Installed,
     error,
