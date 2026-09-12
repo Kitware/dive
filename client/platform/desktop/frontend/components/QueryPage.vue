@@ -39,7 +39,7 @@ export default defineComponent({
     const router = useRouter();
     const page = createQueryPage();
     provideVideoSearch(page.search);
-    const view = ref<QueryView>('query');
+    const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : 'query');
     const searchChips = createSearchChips(page.search);
     const textChips = createItemChips(page.textItems);
     const gridSettings = usePersistentGridSettings();

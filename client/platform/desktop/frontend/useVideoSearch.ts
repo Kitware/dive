@@ -52,6 +52,7 @@ interface VideoSearchState {
    */
   queryGeneration: number;
   modelAvailable: boolean;
+  selectedStream: string | null;
 }
 
 /** Renderer-safe path join (node 'path' is unavailable here). */
@@ -90,6 +91,7 @@ export function createVideoSearch(
     iteration: 0,
     queryGeneration: 0,
     modelAvailable: false,
+    selectedStream: null,
   });
 
   /** Media info per dataset for cross-dataset result display. */
@@ -216,7 +218,8 @@ export function createVideoSearch(
 
   function applyResponse(response: VideoSearchQueryResponse) {
     if (response.results) {
-      state.results = response.results;
+      state.results = state.selectedStream
+        ? response.results.filter((result) => result.stream_id === state.selectedStream) : response.results;
       // Keep adjudications for refs that are still present so marks
       // survive re-ranking across refinement rounds.
       const keep: Record<string, Adjudication | undefined> = {};
@@ -335,6 +338,11 @@ export function createVideoSearch(
     getMediaInfo,
     getMediaInfoFor,
     refreshStatus,
+    selectIndex(streamName: string | null) {
+      if (state.busy || state.selectedStream === streamName) return;
+      state.selectedStream = streamName;
+      resetQueryState();
+    },
     buildIndex,
     removeFromIndex,
     queryFromImage,
