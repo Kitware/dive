@@ -283,15 +283,34 @@ export default defineComponent({
                 {{ simplifyTrainingName(item.name || item) }}
               </template>
             </v-select>
-            <v-file-input
-              v-model="labelFile"
-              icon="mdi-folder-open"
-              label="Labels.txt mapping file (optional)"
-              hint="Combine or rename output classes using a labels.txt file"
-              persistent-hint
-              clearable
-              @click:clear="clearLabelText"
-            />
+            <v-row dense>
+              <v-col cols="12" sm="6">
+                <v-file-input
+                  v-model="labelFile"
+                  icon="mdi-folder-open"
+                  label="Labels .txt, .csv, or .json (optional)"
+                  hint="Combine or rename output classes using a labels .txt, .csv, or .json file"
+                  outlined
+                  dense
+                  persistent-hint
+                  clearable
+                  @click:clear="clearLabelText"
+                />
+              </v-col>
+              <v-col cols="12" sm="6">
+                <v-text-field
+                  v-model="monitorEmail"
+                  :rules="emailRules"
+                  prepend-icon="mdi-email-outline"
+                  outlined
+                  dense
+                  clearable
+                  label="Email progress reports to (optional)"
+                  hint="Sends training progress, error and completion reports; requires mail to be configured on the training worker"
+                  persistent-hint
+                />
+              </v-col>
+            </v-row>
             <v-checkbox
               v-model="annotatedFramesOnly"
               label="Use annotated frames only"
@@ -318,16 +337,7 @@ export default defineComponent({
               hint="Model to Fine Tune"
               persistent-hint
             />
-            <v-text-field
-              v-model="monitorEmail"
-              :rules="emailRules"
-              outlined
-              class="my-4"
-              clearable
-              label="Email progress reports to (optional)"
-              hint="Sends training progress, error and completion reports; requires mail to be configured on the training worker"
-              persistent-hint
-            />
+
             <v-btn
               depressed
               block
