@@ -21,12 +21,14 @@ export default defineComponent({
       return typeof joined === 'string' ? joined.split(',').filter((id) => id) : [];
     });
 
+    const fallbackDatasetId = computed(() => (typeof route.query.fromDataset === 'string' ? route.query.fromDataset : ''));
+
     function openViewer(datasetId: string, focus: ViewerFocus) {
       router.push(reviewViewerLocation(datasetId, focus));
     }
 
     return {
-      initialDatasetIds, openViewer, owner, retainSession,
+      initialDatasetIds, fallbackDatasetId, openViewer, owner, retainSession,
     };
   },
 });
@@ -35,6 +37,7 @@ export default defineComponent({
 <template>
   <ReviewPage
     :initial-dataset-ids="initialDatasetIds"
+    :fallback-dataset-id="fallbackDatasetId"
     :session-owner="owner"
     :retain-session="retainSession"
     @open-viewer="openViewer"

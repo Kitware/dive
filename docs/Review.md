@@ -99,6 +99,11 @@ Review retains at most two decoded frames and 16 MiB of decoded pixels per datas
 
 A retained review session belongs to the signed-in account and is cleared on logout or account change. Saves use the existing dataset write permissions and update only changed tracks. Review does not add collaborative locking or conflict detection: coordinate assignments when multiple people edit the same tracks, since a later save can replace another person's edits.
 
+When opening **Review** from a sequence for the first time, DIVE selects that
+sequence and opens **Results** after it loads. A previous Review selection is
+retained, including a list you intentionally emptied. Visiting Review without
+selecting any datasets still allows this first selection from a sequence.
+
 ## Search results
 
 On DIVE Desktop, the Video Search panel uses the same chip grid for ranked similarity results across indexed datasets. Accept or reject entries with their corner buttons; clicking an entry from the open dataset seeks the viewer to it. Grid shape, zoom and context settings are shared with Review.

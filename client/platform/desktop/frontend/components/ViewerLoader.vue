@@ -2178,7 +2178,7 @@ export default defineComponent({
             Library<v-icon>mdi-folder-open</v-icon>
           </v-tab>
           <job-tab />
-          <v-tab :to="{ name: 'review' }">
+          <v-tab :to="{ name: 'review', query: { fromDataset: id } }">
             Review<v-icon>mdi-view-grid-outline</v-icon>
           </v-tab>
           <annotation-other-menu />
