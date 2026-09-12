@@ -168,9 +168,8 @@ it.each(['untouched', 'selected', 'cleared'])('only seeds an untouched previous 
   const page = second.vm as unknown as PageState;
   await settlePage();
   expect(page.review).toBe(original.review);
-  expect(page.review.datasets.value.map((d) => d.id)).toEqual(
-    selection === 'untouched' ? ['current'] : (selection === 'selected' ? ['prior'] : []),
-  );
+  const expected = { untouched: ['current'], selected: ['prior'], cleared: [] };
+  expect(page.review.datasets.value.map((d) => d.id)).toEqual(expected[selection as keyof typeof expected]);
   expect(page.view).toBe(selection === 'cleared' ? 'datasets' : 'results');
   second.destroy();
 });

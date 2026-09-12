@@ -71,9 +71,11 @@ export default defineComponent({
     const resumed = held && (held.owner || '') === props.sessionOwner && shouldResume(held, props.initialDatasetIds) ? held : null;
     if (held && !resumed) held.review.dispose();
     const review = resumed ? resumed.review : createReviewService({ api });
-    const initialIds = props.initialDatasetIds.length ? props.initialDatasetIds
-      : (!review.hasSelectedDatasets.value && review.datasets.value.length === 0 && props.fallbackDatasetId
-        ? [props.fallbackDatasetId] : []);
+    let initialIds = props.initialDatasetIds;
+    if (!initialIds.length && !review.hasSelectedDatasets.value
+      && review.datasets.value.length === 0 && props.fallbackDatasetId) {
+      initialIds = [props.fallbackDatasetId];
+    }
     const datasetKey = resumed ? resumed.datasetKey : sessionKey(initialIds);
     provideReview(review);
     const { prompt } = usePrompt();
