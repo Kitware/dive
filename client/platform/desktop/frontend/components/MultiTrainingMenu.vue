@@ -476,13 +476,13 @@ export default defineComponent({
         class="my-4 pt-0"
         dense
       >
-        <v-col sm="5">
+        <v-col cols="12" sm="6">
           <v-file-input
             v-model="labelFile"
             icon="mdi-folder-open"
-            label="Labels.txt mapping file (optional)"
-            hint="Combine or rename output classes using a labels.txt file"
-            persistant-hint
+            label="Labels .txt, .csv, or .json (optional)"
+            hint="Combine or rename output classes using a labels .txt, .csv, or .json file"
+            persistent-hint
             dense
             outlined
             hide-details
@@ -490,7 +490,19 @@ export default defineComponent({
             @click:clear="clearLabelText"
           />
         </v-col>
-        <v-spacer />
+        <v-col cols="12" sm="6">
+          <v-text-field
+            v-model="data.monitorEmail"
+            :rules="emailRules"
+            prepend-icon="mdi-email-outline"
+            outlined
+            dense
+            clearable
+            label="Email progress reports to (optional)"
+            hint="Sends training progress, error and completion reports; requires mail to be configured for VIAME"
+            persistent-hint
+          />
+        </v-col>
       </v-row>
       <div class="d-flex flex-row mt-4">
         <v-checkbox
@@ -516,23 +528,6 @@ export default defineComponent({
           label="Fine Tune Model"
         />
       </div>
-      <v-row
-        class="mt-4 pt-0"
-        dense
-      >
-        <v-col sm="5">
-          <v-text-field
-            v-model="data.monitorEmail"
-            :rules="emailRules"
-            outlined
-            dense
-            clearable
-            label="Email progress reports to (optional)"
-            hint="Sends training progress, error and completion reports; requires mail to be configured for VIAME"
-            persistent-hint
-          />
-        </v-col>
-      </v-row>
     </div>
     <div>
       <v-card-title class="text-h4 px-0">
