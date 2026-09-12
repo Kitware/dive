@@ -106,7 +106,7 @@ onBeforeUnmount(() => {
           </v-icon>Refresh
         </v-btn>
       </div>
-      <p>Install additional VIAME model packs.</p>
+      <p>Install additional model packs for either added functionality or problem-specific use cases.</p>
       <p v-if="catalog" class="text-caption">
         Target Location: {{ catalog.installDir }}
       </p>
