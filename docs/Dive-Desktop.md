@@ -245,7 +245,7 @@ See [Interactive Annotation troubleshooting](Interactive-Annotation.md#troublesh
 ## Desktop navigation
 
 While annotating a sequence, the top menu contains **Library**, **Jobs**,
-**Settings**, and **Other** with a downward arrow. **Other** opens the remaining
+**Review**, **Settings**, and **Other** with downward arrows. **Other** opens the remaining
 pages, including Pipelines, Training, Review, and Scoring. Query and Add-Ons also
 appear when included in the desktop build. Navigation still follows the normal
 unsaved-annotation checks.

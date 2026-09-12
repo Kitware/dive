@@ -1,13 +1,13 @@
 <script setup lang="ts">
 import { computed, PropType } from 'vue';
 import { useRouter } from 'vue-router/composables';
-import { desktopDestinations, primaryDestinations, DesktopDestination } from './desktopNavigation';
+import { desktopDestinations, annotationPrimaryDestinations, DesktopDestination } from './desktopNavigation';
 
 const props = defineProps({
   destinations: { type: Array as PropType<DesktopDestination[]>, default: undefined },
 });
 const router = useRouter();
-const items = computed(() => props.destinations || desktopDestinations.filter((item) => !primaryDestinations.includes(item.name)
+const items = computed(() => props.destinations || desktopDestinations.filter((item) => !annotationPrimaryDestinations.includes(item.name)
   && router.getRoutes().some((route) => route.name === item.name)));
 </script>
 
