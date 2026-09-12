@@ -14,10 +14,10 @@ const items = computed(() => props.destinations || desktopDestinations.filter((i
 <template>
   <v-menu offset-y>
     <template #activator="{ on, attrs }">
-      <v-btn text class="annotation-other-menu" v-bind="attrs" v-on="on">
-        <span>Other</span>
+      <button v-ripple type="button" class="v-tab annotation-other-menu" v-bind="attrs" v-on="on">
+        Other
         <v-icon>mdi-chevron-down</v-icon>
-      </v-btn>
+      </button>
     </template>
     <v-list dense>
       <v-list-item v-for="item in items" :key="item.name" :to="{ name: item.name, params: item.params }" :title="item.title">
@@ -29,6 +29,5 @@ const items = computed(() => props.destinations || desktopDestinations.filter((i
 </template>
 
 <style scoped>
-.annotation-other-menu { min-width: var(--desktop-tab-width, 100px) !important; max-width: var(--desktop-tab-width, 100px); height: 72px !important; }
-.annotation-other-menu ::v-deep .v-btn__content { flex-direction: column; gap: 4px; }
+.annotation-other-menu { min-width: var(--desktop-tab-width, 100px) !important; max-width: var(--desktop-tab-width, 100px); font-family: inherit; }
 </style>
