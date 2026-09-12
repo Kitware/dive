@@ -27,15 +27,13 @@ describe('clientSettings hydration', () => {
   });
 });
 
-it('starts each sequence with sequence-wide type rows even after frame-only filtering', async () => {
+it.each([false, true])('preserves the saved frame-only choice when opening a sequence (%s)', async (frameOnly) => {
+  localStorage.setItem('Settings', JSON.stringify({ typeSettings: { filterTypesByFrame: frameOnly } }));
+  vi.resetModules();
   const { effectScope, ref } = await import('vue');
   const { default: setup, clientSettings } = await import('./settings');
-  clientSettings.typeSettings.filterTypesByFrame = true;
   const scope = effectScope();
   scope.run(() => setup(ref(['fish', 'shark'])));
-  expect(clientSettings.typeSettings.filterTypesByFrame).toBe(false);
-  // Frame-only filtering remains available as an explicit choice in the current sequence.
-  clientSettings.typeSettings.filterTypesByFrame = true;
-  expect(clientSettings.typeSettings.filterTypesByFrame).toBe(true);
+  expect(clientSettings.typeSettings.filterTypesByFrame).toBe(frameOnly);
   scope.stop();
 });

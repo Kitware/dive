@@ -135,6 +135,6 @@ Type settings also configure [suppression](UI-Suppression.md):
 
 The active suppression type shows an ==:material-eye-off:== icon in the type list. Detections may also be flagged with an attribute of the same name; see [Suppression](UI-Suppression.md) for region vs attribute behavior and display options.
 
-Each newly opened sequence starts with types from the whole sequence visible,
-including types with zero annotations on the current frame. **Filter Types by
-Frame** remains available in Type Settings for the current sequence.
+**Show types from entire sequence** in Type Settings is enabled by default,
+including types with zero annotations on the current frame. Turn it off to show
+only current-frame types. The choice is saved and applies to future sequences.
