@@ -45,3 +45,10 @@ Index type, building, and removal are managed on that page.
 The Indexes list survives navigation and restores saved index membership and
 indexing jobs on return. Rows show in-progress builds, successful indexes, or
 failed builds with their job error, even when the job finished on another page.
+
+The top of **Indexes** lists successfully generated entries in the shared search
+index, independently of the selection used to queue new builds below. There is
+one entry per video or sequence; rebuilding replaces that entry. **Remove from
+index** deletes one sequence's search data, while **Delete entire index** removes
+the whole shared index. Both ask for confirmation and keep source media and
+annotations. Index deletion is disabled while index builds are queued or running.
