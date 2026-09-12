@@ -240,3 +240,16 @@ It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launc
 See [Interactive Annotation troubleshooting](Interactive-Annotation.md#troubleshooting). Verify the VIAME install path, confirm VIAME includes interactive service support, and check the debug console for subprocess errors (message: "Unable to load the interactive service").
 
 ![Debugging Desktop](images/General/desktop-debug.png)
+
+
+## Desktop navigation
+
+While annotating a sequence, the top menu contains **Library**, **Jobs**,
+**Review**, and **Other** with downward arrows. **Other** opens Settings,
+Pipelines, Training, Scoring, and Query when available. Add-Ons is available
+from the full desktop menu. Navigation still follows the normal
+unsaved-annotation checks.
+
+The full desktop menu shows every available destination when there is room.
+As the window narrows, secondary destinations move into **Other** while Library
+and Jobs remain visible. Settings moves into Other. Widening the window restores the tabs.
