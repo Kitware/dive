@@ -27,3 +27,7 @@ Both run a similarity search over every indexed dataset (limited to the listed d
 **Text.** Type what to find. Sampled frames of every listed dataset (every N frames, up to a per-dataset cap) are searched with the SAM3 text model, which must be installed as a VIAME add-on. Hits show in the grid with their label and score. Each hit offers **Search the index for objects like this one**, which turns it into an image query, and **Open in the annotation viewer**.
 
 Double clicking any result opens its dataset in the viewer at that frame.
+
+Index builds appear in **Jobs** while preparing and running, with their dataset, indexing method, live stdout/stderr, and final result. Expand the job's output to diagnose failures; the process log is also saved as `runlog.txt` in its working directory. Builds waiting for the GPU appear under **Queued Jobs** as indexing jobs. Startup failures remain in job history.
+
+Selecting a stereo or multicamera sequence uses its first camera in the configured display order. Query shows that camera by name and indexes its media and, for the existing-detections method, its annotations. The other cameras are not indexed automatically. Results refer to the indexed camera, keeping thumbnails and frame numbers aligned with its media.
