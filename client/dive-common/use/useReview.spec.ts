@@ -115,8 +115,8 @@ describe('createReviewService', () => {
     expect(service.items.value[0].frames).toHaveLength(3);
   });
 
-  it('expands a multicamera parent into its cameras', async () => {
-    const api = makeApi({ 'm/left': [track(1, [['fish', 1]], [0])], 'm/right': [] }, {
+  it('lists a multicamera sequence once while loading, grouping, reloading, and removing its cameras', async () => {
+    const api = makeApi({ 'm/left': [track(1, [['fish', 1]], [0])], 'm/right': [track(1, [['fish', 1]], [0])] }, {
       loadConfig: vi.fn(async (id: string) => (id === 'm'
         ? config(id, {
           type: 'multi',
@@ -133,9 +133,19 @@ describe('createReviewService', () => {
     const service = createReviewService({ api });
     await service.addDataset('m', { id: 'm', name: 'Rig' });
     expect(service.datasets.value.map((d) => [d.id, d.name, d.status])).toEqual([
-      ['m/left', 'Rig (left)', 'ready'],
-      ['m/right', 'Rig (right)', 'ready'],
+      ['m', 'Rig', 'ready'],
     ]);
+    expect(service.datasets.value[0].trackCount).toBe(1);
+    expect(service.entries.value).toHaveLength(1);
+    expect(service.entries.value[0].items).toHaveLength(2);
+    await service.reloadDataset('m');
+    expect(service.entries.value[0].items).toHaveLength(2);
+    service.removeDataset('m');
+    expect(service.datasets.value).toEqual([]);
+    expect(service.entries.value).toEqual([]);
+    await service.addDataset('m', { id: 'm', name: 'Rig' });
+    expect(service.datasets.value).toHaveLength(1);
+    expect(service.entries.value[0].items).toHaveLength(2);
   });
 
   it('reassigns and accepts types, tracks pending edits, and saves them', async () => {

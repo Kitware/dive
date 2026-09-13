@@ -15,6 +15,8 @@ const initialDatasetIds = computed(() => {
   return values.flatMap((value) => (value || '').split(',')).filter(Boolean);
 });
 
+const fallbackDatasetId = computed(() => (typeof route.query.fromDataset === 'string' ? route.query.fromDataset : ''));
+
 function openViewer(datasetId: string, focus: ViewerFocus) {
   router.push(reviewViewerLocation(datasetId, focus));
 }
@@ -25,6 +27,7 @@ function openViewer(datasetId: string, focus: ViewerFocus) {
     <navigation-bar />
     <shared-review-page
       :initial-dataset-ids="initialDatasetIds"
+      :fallback-dataset-id="fallbackDatasetId"
       @open-viewer="openViewer"
     />
   </v-main>

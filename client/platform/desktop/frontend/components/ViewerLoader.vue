@@ -8,7 +8,6 @@ import {
 } from 'vue';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
-import { useReviewSessionHeld } from 'dive-common/review/reviewSession';
 import { useRoute, useRouter } from 'vue-router/composables';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
@@ -141,8 +140,6 @@ export default defineComponent({
     const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
     /** Frame / track deep link from the review grid. */
     const viewerFocus = computed(() => parseViewerFocus(route.query));
-    /** Jump back to Review when a session was parked by opening the viewer. */
-    const reviewSessionHeld = useReviewSessionHeld();
 
     function returnToCurrentAnnotations() {
       router.replace({ name: 'viewer', params: { id: props.id } });
@@ -2105,7 +2102,6 @@ export default defineComponent({
       annotationSourceLabel,
       annotationSourceReturnable,
       viewerFocus,
-      reviewSessionHeld,
       returnToCurrentAnnotations,
     };
   },
@@ -2150,7 +2146,9 @@ export default defineComponent({
             Library<v-icon>mdi-folder-open</v-icon>
           </v-tab>
           <job-tab />
-          <v-tab :to="{ name: 'review' }">
+          <v-tab
+            :to="{ name: 'review', query: { fromDataset: id } }"
+          >
             Review<v-icon>mdi-view-grid-outline</v-icon>
           </v-tab>
           <annotation-other-menu />
