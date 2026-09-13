@@ -23,7 +23,9 @@ The panel is on the left, results on the right.
 
 **Video.** Choose one of the listed datasets or a video file, enter a frame number and press **Show frame**, then optionally drag a box on the frame. Press **Search**.
 
-Both run a similarity search over every indexed dataset (limited to the listed datasets unless the switch is turned off). Mark results correct or incorrect and press **Refine** to re-rank; **Save model** keeps the refined classifier as a trained pipeline. A saved `.svm` model can also start a search (*Start from a saved model*).
+Both run a similarity search over every indexed dataset (limited to the listed datasets unless the switch is turned off). Mark results correct or incorrect and press **Refine** to re-rank; **Hide reviewed** hides the marked ones. **Save model** keeps the refined classifier as a trained pipeline. A saved `.svm` model can also start a search (*Start from a saved model*).
+
+Results can be turned into annotations without leaving the page: type a type under a chip or edit its box, and the result joins its dataset's annotations (revising an existing annotation on that frame when one overlaps it). **Save** on the results toolbar writes them; see the Review page docs for details.
 
 **Text.** Type what to find. Sampled frames of every listed dataset (every N frames, up to a per-dataset cap) are searched with the SAM3 text model, which must be installed as a VIAME add-on. Hits show in the grid with their label and score. Each hit offers **Search the index for objects like this one**, which turns it into an image query, and **Open in the annotation viewer**.
 

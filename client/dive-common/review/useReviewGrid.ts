@@ -40,6 +40,11 @@ export interface ReviewGridOptions<T> {
   footerPx?: number | Ref<number>;
   /** Box outline burned into the chips; empty draws none (the cell overlays it). */
   outline?: string;
+  /**
+   * Keep the current page (clamped) when the items change instead of
+   * returning to the first one, for lists that shrink as entries are hidden.
+   */
+  retainPage?: boolean;
 }
 
 /** How long paging must be idle before chips load, so skipped pages never render. */
@@ -96,7 +101,7 @@ export function useReviewGrid<T = ReviewItem>(options: ReviewGridOptions<T>) {
   watch(page, onPageChanged);
   watch(active, ensureVisible);
   watch(items, () => {
-    page.value = 0;
+    page.value = options.retainPage ? Math.min(page.value, pageCount.value - 1) : 0;
     ensureVisible();
   });
   watch(perPage, () => {

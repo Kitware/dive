@@ -101,4 +101,6 @@ A retained review session belongs to the signed-in account and is cleared on log
 
 ## Search results
 
-On DIVE Desktop, the Video Search panel uses the same chip grid for ranked similarity results across indexed datasets. Accept or reject entries with their corner buttons; clicking an entry from the open dataset seeks the viewer to it. Grid shape, zoom and context settings are shared with Review.
+On DIVE Desktop, the Query page shows ranked similarity results across indexed datasets in the same chip grid, with the same editing. Accept or reject entries with their corner buttons and **Refine** to re-rank; **Hide reviewed** (right of the context slider) takes the accepted and rejected entries out of the grid so only the unmarked ones remain.
+
+Every result is also an annotation in waiting. Typing a type under a chip, or editing its box (the edit action or a right click), adopts the result into its dataset: when the dataset already has an annotation whose box overlaps the result on that frame, the edit revises that annotation; otherwise a new track is created from the result's frames and boxes, under the typed type (or `unknown` for a box edit). Adopted entries show their track id, can be deleted, and are written with **Save** on the results toolbar, or by auto-save when it is enabled; **Discard** drops them, and leaving the page with unsaved changes asks first. Opening an adopted entry selects its track in the viewer. Grid shape, zoom and context settings are shared with Review.

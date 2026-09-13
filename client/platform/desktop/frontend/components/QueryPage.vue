@@ -2,11 +2,17 @@
 import {
   computed, defineComponent, onBeforeUnmount, onMounted, ref, watch,
 } from 'vue';
-import { useRoute, useRouter } from 'vue-router/composables';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router/composables';
+import { debounce } from 'lodash';
+import { useApi } from 'dive-common/apispec';
+import { clientSettings } from 'dive-common/store/settings';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { getMediaUrl } from 'platform/desktop/frontend/api';
 import { createQueryPage } from 'platform/desktop/frontend/useQueryPage';
 import { provideVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import { createItemChips, createSearchChips } from 'platform/desktop/frontend/useSearchChips';
+import { createSearchReview } from 'platform/desktop/frontend/useSearchReview';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { reviewViewerLocation } from 'dive-common/review/viewerNavigation';
@@ -40,8 +46,16 @@ export default defineComponent({
     const router = useRouter();
     const page = createQueryPage();
     provideVideoSearch(page.search);
+    // Results edited as annotations are held (and saved) by a review service.
+    const review = createReviewService({ api: useApi() });
+    provideReview(review);
+    const searchReview = createSearchReview(page.search, review);
+    const { prompt } = usePrompt();
     const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : 'query');
-    const searchChips = createSearchChips(page.search);
+    const searchChips = createSearchChips(page.search, {
+      itemFor: (result) => searchReview.itemOf(result),
+      hidden: (result) => searchReview.isRemoved(result),
+    });
     const textChips = createItemChips(page.textItems);
     const gridSettings = usePersistentGridSettings();
     const textGridActive = computed(() => view.value === 'query' && page.mode.value === 'text');
@@ -111,9 +125,54 @@ export default defineComponent({
       [page.warmStartModel.value] = ret.filePaths;
     }
 
-    function openViewer(datasetId: string, frame?: number) {
-      router.push(reviewViewerLocation(datasetId, frame === undefined ? {} : { frame }));
+    function openViewer(datasetId: string, frame?: number, trackId?: number) {
+      router.push(reviewViewerLocation(datasetId, {
+        ...(frame === undefined ? {} : { frame }),
+        ...(trackId === undefined ? {} : { trackId }),
+      }));
     }
+
+    // Auto-save follows the annotator's setting, as on the Review page.
+    const autoSaveDelayMs = () => Math.max(1, Number(clientSettings.autoSaveSettings.delaySeconds) || 60) * 1000;
+    const autoSaveNow = () => {
+      if (review.pendingCount.value > 0 && !review.saving.value) review.save();
+    };
+    let autoSave = debounce(autoSaveNow, autoSaveDelayMs());
+    watch(() => clientSettings.autoSaveSettings.delaySeconds, () => {
+      autoSave.cancel();
+      autoSave = debounce(autoSaveNow, autoSaveDelayMs());
+    });
+    watch(review.pendingCount, (count, previous) => {
+      if (clientSettings.autoSaveSettings.enabled && count > previous) autoSave();
+    });
+
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (review.pendingCount.value > 0) {
+        event.preventDefault();
+        // eslint-disable-next-line no-param-reassign
+        event.returnValue = '';
+      }
+    }
+
+    onBeforeRouteLeave(async (_to, _from, next) => {
+      const pending = review.pendingCount.value;
+      if (pending === 0) { next(); return; }
+      autoSave.cancel();
+      const ok = await prompt({
+        title: 'Unsaved annotation changes',
+        text: [
+          `${pending} annotation change${pending === 1 ? '' : 's'} from the search results ${pending === 1 ? 'is' : 'are'} not saved.`,
+          'Save before leaving? Use Discard on the results toolbar to drop them instead.',
+        ],
+        confirm: true,
+        positiveButton: 'Save and leave',
+        negativeButton: 'Stay',
+      });
+      if (!ok) { next(false); return; }
+      await review.save();
+      // A failed save leaves its error on the page; stay put.
+      next(review.pendingCount.value === 0 ? undefined : false);
+    });
 
     const textCells = computed(() => textGrid.pageItems.value.map((item) => {
       const hit = page.hitOf(item.key);
@@ -139,6 +198,7 @@ export default defineComponent({
     onMounted(async () => {
       const launch = typeof route.query.launch === 'string' ? takeQueryLaunch(route.query.launch) : undefined;
       window.addEventListener('keydown', onKeydown);
+      window.addEventListener('beforeunload', onBeforeUnload);
       await page.refreshAvailable();
       if (initialDatasetIds.value.length) {
         await page.addDatasets(initialDatasetIds.value);
@@ -159,10 +219,13 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
+      window.removeEventListener('beforeunload', onBeforeUnload);
+      autoSave.cancel();
       page.cancelTextQuery();
       textGrid.dispose();
       searchChips.dispose();
       textChips.dispose();
+      review.dispose();
     });
 
     async function saveModel() {
@@ -184,6 +247,7 @@ export default defineComponent({
       page,
       view,
       searchChips,
+      searchReview,
       textChips,
       gridSettings,
       textGrid,
@@ -629,6 +693,7 @@ export default defineComponent({
                 v-if="page.mode.value !== 'text'"
                 inline
                 :search-chips="searchChips"
+                :search-review="searchReview"
                 @open-result="openViewer"
               />
               <div

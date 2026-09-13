@@ -296,9 +296,12 @@ export default defineComponent({
       >
         <template
           v-if="$scopedSlots.actions"
-          #actions
+          #actions="scope"
         >
-          <slot name="actions" />
+          <slot
+            name="actions"
+            v-bind="scope"
+          />
         </template>
       </ReviewChip>
     </div>
