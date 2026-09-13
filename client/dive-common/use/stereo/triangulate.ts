@@ -15,6 +15,9 @@
 import { StereoRig } from './calibration';
 
 export interface StereoMeasurement {
+  curved_length?: number;
+  straight_length?: number;
+  curvature_ratio?: number;
   length: number;
   midpoint_x: number;
   midpoint_y: number;

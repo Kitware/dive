@@ -16,9 +16,15 @@
 
 import CameraStore from 'vue-media-annotator/CameraStore';
 import Track from 'vue-media-annotator/track';
+import {
+  headTailFeatures, sampleHeadTail, distanceToHeadTail, isHeadTailPoint,
+} from 'vue-media-annotator/headTail';
 import { RectBounds } from 'vue-media-annotator/utils';
-import { HeadPointKey, TailPointKey, HeadTailLineKey } from 'dive-common/recipes/headtail';
+import { HeadTailLineKey } from 'dive-common/recipes/headtail';
 import type { StereoAnnotationCompleteParams } from '../useModeManager';
+import {
+  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState,
+} from './keypointTransfer';
 import { StereoOnnxMatcher, SearchRange } from './StereoOnnxMatcher';
 import { StereoRig, invertRig } from './calibration';
 import { rgbaToGray, RgbaImage } from './image';
@@ -67,11 +73,11 @@ export const STEREO_USER_LINE_ATTR = 'stereo_user_line';
 /** 'stereo' = auto-computed from the warped lines, 'user_set' = locked by the user. */
 export const STEREO_LENGTH_METHOD_ATTR = 'length_method';
 export const STEREO_MEASUREMENT_ATTRS = [
-  'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+  'length', 'curved_length', 'straight_length', 'curvature_ratio', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
 ] as const;
 
 type Point = [number, number];
-type Line = [Point, Point];
+type Line = Point[];
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -135,39 +141,27 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     if (!features) return null;
     const lineFeat = features.find(
       (f) => f.geometry.type === 'LineString'
-        && (f.geometry.coordinates as Point[]).length === 2,
+        && (f.geometry.coordinates as Point[]).length >= 2,
     );
     if (!lineFeat) return null;
     const c = lineFeat.geometry.coordinates as unknown as Point[];
-    return [c[0], c[1]];
+    return c;
   }
 
   /** Replace a track feature's head/tail line, preserving any other geometry. */
-  function applyLine(track: Track | undefined, frameNum: number, line: Line, key?: string) {
+  function applyLine(track: Track | undefined, frameNum: number, line: Line, sourceCamera: string) {
     if (!track) return;
-    const [feature] = track.getFeature(frameNum);
-    const [p1, p2] = line;
-    const preserved = (feature?.geometry?.features ?? []).filter((f) => {
-      if (f.geometry.type === 'LineString') return false;
-      const k = f.properties?.key;
-      return k !== HeadPointKey && k !== TailPointKey;
-    });
-    const geometry: GeoJSON.Feature[] = [
-      ...preserved,
-      {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: line },
-        properties: { key: key ?? HeadTailLineKey },
-      },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: p1 }, properties: { key: HeadPointKey } },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: p2 }, properties: { key: TailPointKey } },
-    ];
+    const geometry = headTailFeatures(line).map((g) => ({
+      ...g,
+      properties: g.geometry.type === 'Point'
+        ? { ...g.properties, stereoSource: sourceCamera, stereoKey: g.properties?.key } : g.properties,
+    }));
     track.setFeature({
       frame: frameNum,
       flick: 0,
       keyframe: true,
       interpolate: false,
-      bounds: boundsFromPoints([p1, p2], BOX_PAD, true),
+      bounds: boundsFromPoints(line, BOX_PAD, true),
     }, geometry as GeoJSON.Feature<GeoJSON.Geometry>[] as never);
   }
 
@@ -179,6 +173,7 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   function applyMeasurement(track: Track | undefined, frameNum: number, m: StereoMeasurement) {
     if (!track) return;
     const [feature] = track.getFeature(frameNum);
+    track.setFeatureAttribute(frameNum, 'measurement_stale', false);
     const lengthLocked = feature?.attributes?.[STEREO_LENGTH_METHOD_ATTR] === 'user_set';
     if (!lengthLocked && Number.isFinite(m.length) && feature?.keyframe) {
       track.setFeature({ frame: frameNum, fishLength: round2(m.length) });
@@ -187,7 +182,7 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     STEREO_MEASUREMENT_ATTRS.forEach((name) => {
       if (name === 'length' && lengthLocked) return;
       const v = m[name as keyof StereoMeasurement];
-      if (Number.isFinite(v)) track.setFeatureAttribute(frameNum, name, round2(v));
+      if (typeof v === 'number' && Number.isFinite(v)) track.setFeatureAttribute(frameNum, name, round2(v));
     });
   }
 
@@ -235,10 +230,36 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     const rig = await getRig();
     if (!rig) throw new Error('No stereo calibration is available for this dataset.');
 
-    const measurement = measureLine(rig, leftLine, rightLine);
+    let measurement: StereoMeasurement | null;
+    if (leftLine.length > 2 || rightLine.length > 2) {
+      const samples = sampleHeadTail(leftLine);
+      const matches = await warp(samples, leftCamera, rightCamera, frameNum);
+      if (!matches.every((m) => m.accepted && distanceToHeadTail([m.x, m.y], rightLine) <= 5)) {
+        throw new Error('Incomplete or inconsistent centerline correspondence.');
+      }
+      const target = matches.map((m): Point => [m.x, m.y]);
+      const pieces = samples.slice(1).map((p, i) => measureLine(rig, [samples[i], p], [target[i], target[i + 1]]));
+      const chord = measureLine(rig, [samples[0], samples[samples.length - 1]], [target[0], target[target.length - 1]]);
+      if (!chord || chord.length <= 0 || pieces.some((p) => !p || !Number.isFinite(p.length) || p.length <= 0 || p.stereo_rms > 5)) {
+        throw new Error('Invalid reconstructed centerline.');
+      }
+      const length = pieces.reduce((sum, p) => sum + (p as StereoMeasurement).length, 0);
+      measurement = {
+        ...chord,
+        length,
+        curved_length: length,
+        straight_length: chord.length,
+        curvature_ratio: length / chord.length,
+        stereo_rms: Math.max(...pieces.map((p) => (p as StereoMeasurement).stereo_rms)),
+      };
+    } else {
+      measurement = measureLine(rig, [leftLine[0], leftLine[1]], [rightLine[0], rightLine[1]]);
+    }
     if (!measurement) {
       throw new Error('The two lines could not be triangulated; check that the calibration matches these cameras.');
     }
+    if (JSON.stringify(lineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
+        || JSON.stringify(lineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
     config.ensureMeasurementAttributes?.();
     applyMeasurement(leftTrack, frameNum, measurement);
     applyMeasurement(rightTrack, frameNum, measurement);
@@ -291,10 +312,14 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     quiet = false,
   ): Promise<'transferred' | 'skipped' | 'failed'> {
     if (params.type === 'segmentation') return 'skipped';
+    if (params.type === 'point' && isHeadTailPoint(params.key)) {
+      getMultiCamList().forEach((camera) => cameraStore.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
+    }
 
     // The warp writes geometry directly rather than re-emitting this event, so
     // reaching here means the user authored this camera's line.
-    if (params.type === 'line') {
+    if (params.type === 'line' || (params.type === 'point' && isHeadTailPoint(params.key))) {
+      getMultiCamList().forEach((camera) => cameraStore.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
       cameraStore.getPossibleTrack(params.trackId, params.camera)
         ?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
     }
@@ -324,13 +349,37 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
         }
         return 'skipped';
       }
+    } else if (params.type === 'point') {
+      if (!shouldWarp || (!params.insert && !canMapPoint(otherTrack, params.frameNum, params.key, params.camera))) {
+        if (isHeadTailPoint(params.key) && measureLengths() && otherHasFeature) {
+          try { await measureAndReport(params.trackId, params.frameNum); } catch (err) { config.onError?.(`Stereo measurement failed. ${(err as Error).message}`); }
+        }
+        return 'skipped';
+      }
     } else if (otherHasFeature || !shouldWarp) {
       return 'skipped';
     }
 
     if (!quiet) config.onStatus?.('Computing stereo correspondence...');
     try {
-      if (params.type === 'box') {
+      if (params.type === 'point') {
+        const source = cameraStore.getPossibleTrack(params.trackId, params.camera);
+        const targetBefore = pointTargetState(otherTrack, params.frameNum, params.key, params.insert, params.camera);
+        const result = await warp([params.point], params.camera, otherCamera, params.frameNum);
+        if (result.length !== 1 || !result[0].accepted || !Number.isFinite(result[0].x) || !Number.isFinite(result[0].y)) {
+          throw new Error('No confident stereo match for this keypoint.');
+        }
+        const currentTarget = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+        if (!pointUnchanged(source, params.frameNum, params.key, params.point)
+            || pointTargetState(currentTarget, params.frameNum, params.key, params.insert, params.camera) !== targetBefore) return 'skipped';
+        const track = getOrCreateTrack(params.trackId, params.camera, otherCamera, params.frameNum);
+        if (!track) throw new Error('Could not create the target detection.');
+        applyMappedPoint(track, params.frameNum, params.key, [result[0].x, result[0].y], params.camera, params.insert);
+        config.onChange?.(otherCamera, track);
+        if (isHeadTailPoint(params.key) && measureLengths()) {
+          try { await measureAndReport(params.trackId, params.frameNum); } catch (err) { config.onError?.(`Point transferred; stereo measurement failed. ${(err as Error).message}`); }
+        }
+      } else if (params.type === 'box') {
         const [x1, y1, x2, y2] = params.bounds;
         const corners: Point[] = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
         const res = await warp(corners, params.camera, otherCamera, params.frameNum);
@@ -372,12 +421,12 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
         config.onChange?.(otherCamera, track);
       } else {
         const res = await warp(params.line, params.camera, otherCamera, params.frameNum);
-        if (!res[0].accepted || !res[1].accepted) {
+        if (!res.every((r) => r.accepted)) {
           throw new Error('No confident stereo match for the line endpoints.');
         }
         const track = getOrCreateTrack(params.trackId, params.camera, otherCamera, params.frameNum);
         if (!track) throw new Error('Could not create the track on the other camera.');
-        applyLine(track, params.frameNum, [[res[0].x, res[0].y], [res[1].x, res[1].y]], params.key);
+        applyLine(track, params.frameNum, res.map((r): Point => [r.x, r.y]), params.camera);
         config.onChange?.(otherCamera, track);
         if (measureLengths()) await measureAndReport(params.trackId, params.frameNum);
       }

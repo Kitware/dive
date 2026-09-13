@@ -139,6 +139,20 @@ Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with
 1. Choose an appropriate training config file and any training parameters.  These are documented on the [training configuration page](Pipeline-Documentation.md).
 1. Click ==Train on (N) Datasets==.  Note that depending on what configuration and datasets you chose, training could take hours or days.
 
+## Add-Ons
+
+The **Add-Ons** tab, before **Settings** in the main desktop menu, manages model packs in the configured VIAME installation. It is omitted from the shorter annotation viewer menu.
+
+Use **Download and Install** to download a pack or replace an installed pack, or **Import Local ZIP** to use a previously downloaded archive. Public Google Drive packs, including SAM3, also support **Download and Install** with an updated VIAME installation (gdown 6.1 or later). ZIP import remains available for files downloaded in a browser. Installing a model pack does not install its prerequisite VIAME components.
+
+The manager reads `<VIAME Install Path>/bin/download_viame_addons.csv`. It checks each row's final-column file relative to `configs/pipelines`, so packs installed outside DIVE are recognized too. Status refreshes when you return to the window, press **Refresh**, or finish an installation. A catalog entry without a check file displays **unknown**, not “not installed.”
+
+Status and Actions are centered, with separate aligned columns for **Download and Install** and **Import Local ZIP**. A progress pop-up opens automatically with separate download and installation progress bars; archive checksum verification shows an indeterminate bar. Download percentages and transferred bytes are shown for both current and older installers when the server provides the total size. Downloads without a known size show transferred bytes with an indeterminate bar. Installation percentages require the updated VIAME installer. The pop-up displays completion, cancellation, and download, checksum, or filesystem errors. **Cancel installation** stays enabled during startup, download, and installation. DIVE can stop blocked downloads and installers even with older VIAME versions, including inside an elevated Windows installer. Canceling before Windows permission is approved prevents installation from starting afterward. A hard stop during file replacement can leave a pack incomplete; reinstall that pack before using it.
+
+On Windows, DIVE requests administrator permission through the Windows UAC prompt when it cannot write to the VIAME installation. Only the installer runs elevated. Canceling the prompt is reported as an error; on other platforms, permission errors explain that write access must be granted or a writable installation selected.
+
+Installation uses VIAME's `configs/add_ons.py`, retaining its checksum checks and archive handling. If the tool is missing, the catalog and installed status remain available, and DIVE asks you to update VIAME before installing. Background progress polling does not animate Refresh. Cancel closes the progress pop-up immediately and returns to the add-ons list; the installer finishes stopping in the background. Close the pop-up after a successful installation. Returning to Add-Ons reopens progress for any running installation. Installation is disabled in read-only mode. Like the VIAME add-ons tool, this page installs and reinstalls packs; it does not remove shared model or pipeline files.
+
 ## Desktop Settings
 
 DIVE Desktop requires a local installation of the VIAME toolkit to run ML pipelines and training.
@@ -227,7 +241,7 @@ See [Importing images and video above](#importing-datasets).  You most likely ne
 
 You may need to install VIAME Toolkit, or correct your **VIAME Install Base Path** setting.
 
-If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Download and install these based on the [VIAME installation docs](https://github.com/viame/VIAME#installations).  
+If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Open the **Add-Ons** tab to check and install them, or follow the [VIAME installation docs](https://github.com/viame/VIAME#installations).
 
 > Advanced troubleshooting
 

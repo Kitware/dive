@@ -313,6 +313,11 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                                 },
                                 {
                                     "type": "Feature",
+                                    "geometry": {"type": "Point", "coordinates": [58.45, 262.91]},
+                                    "properties": {"key": "eye"},
+                                },
+                                {
+                                    "type": "Feature",
                                     "geometry": {
                                         "type": "LineString",
                                         "coordinates": [
@@ -358,6 +363,19 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [73, 125, 142, 184],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [136.825, 131.145],
+                                    },
+                                    "properties": {"key": "eye"},
+                                }
+                            ],
+                        },
                     }
                 ],
                 "confidencePairs": [["eff", 1.0]],
@@ -1321,3 +1339,107 @@ def test_repeated_category_names_are_listed_once_in_first_seen_order():
     # Nameless slots never count as repeats of each other.
     assert kwcoco.repeated_category_names({'categories': [{'id': 1}, {'id': 2}]}) == []
     assert kwcoco.repeated_category_names({'categories': [{'id': 1, 'name': 'a'}]}) == []
+
+
+@pytest.mark.parametrize('named', [False, True])
+def test_centerline_keypoints_roundtrip(named):
+    labels = ['tail', 'spine_010', 'head', 'spine_002', 'spine_003', 'eye']
+    triples = [
+        [90.5, 20.25, 2],
+        [60.1, 35.2, 2],
+        [10.25, 20.5, 2],
+        [30.75, 40.125, 1],
+        [0, 0, 0],
+        [12.5, 18.5, 2],
+    ]
+    keypoints = [v for triple in triples for v in triple]
+    if named:
+        keypoints = [
+            {'keypoint_category_id': 10 + i * 3, 'xy': p[:2], 'visible': p[2]}
+            for i, p in enumerate(triples)
+        ]
+    doc = {
+        'images': [{'id': 1, 'file_name': 'fish.png'}],
+        'categories': [{'id': 7, 'name': 'fish', 'keypoints': labels}],
+        'keypoint_categories': [{'id': 10 + i * 3, 'name': k} for i, k in enumerate(labels)],
+        'annotations': [
+            {
+                'id': 1,
+                'image_id': 1,
+                'category_id': 7,
+                'bbox': [0, 0, 100, 50],
+                'keypoints': keypoints,
+            }
+        ],
+    }
+    tracks, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(doc)
+    feature = next(iter(tracks['tracks'].values()))['features'][0]
+    geometry = feature['geometry']['features']
+    expected = [triples[i][:2] for i in [2, 3, 1, 0]]
+    assert (
+        next(g for g in geometry if g['geometry']['type'] == 'LineString')['geometry'][
+            'coordinates'
+        ]
+        == expected
+    )
+    assert not any(g['properties']['key'] == 'spine_003' for g in geometry)
+    # Test line-only geometry and stale point markers: the edited line wins.
+    feature['geometry']['features'] = [g for g in geometry if g['geometry']['type'] == 'LineString']
+    out = kwcoco.export_dive_as_coco(tracks['tracks'].values(), {0: 'fish.png'}, 'fish')
+    assert out['categories'][0]['keypoints'] == ['head', 'spine_001', 'spine_002', 'tail']
+    assert out['categories'][0]['skeleton'] == [[1, 2], [2, 3], [3, 4]]
+    assert out['annotations'][0]['num_keypoints'] == 4
+    again, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    geo = next(iter(again['tracks'].values()))['features'][0]['geometry']['features']
+    assert (
+        next(g for g in geo if g['geometry']['type'] == 'LineString')['geometry']['coordinates']
+        == expected
+    )
+
+
+def test_centerlines_with_different_vertex_counts_share_coco_schema():
+    lines = [[[1.25, 2.5], [4.5, 6.25], [9.5, 3.25]], [[2.5, 3.5], [8.5, 4.5]]]
+    tracks = [
+        dict(
+            id=1,
+            begin=0,
+            end=1,
+            confidencePairs=[['fish', 1]],
+            features=[
+                dict(
+                    frame=i,
+                    bounds=[0, 0, 10, 10],
+                    geometry={
+                        'type': 'FeatureCollection',
+                        'features': [
+                            {
+                                'type': 'Feature',
+                                'properties': {'key': 'HeadTails'},
+                                'geometry': {'type': 'LineString', 'coordinates': line},
+                            }
+                        ],
+                    },
+                )
+                for i, line in enumerate(lines)
+            ],
+        )
+    ]
+    out = kwcoco.export_dive_as_coco(tracks, {0: 'a.png', 1: 'b.png'}, 'fish')
+    assert out['annotations'][1]['keypoints'] == [2.5, 3.5, 2, 0, 0, 0, 8.5, 4.5, 2]
+    assert out['annotations'][1]['num_keypoints'] == 2
+    result, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    for feature, line in zip(result['tracks']['1']['features'], lines):
+        geometry = feature['geometry']['features']
+        assert (
+            next(g for g in geometry if g['geometry']['type'] == 'LineString')['geometry'][
+                'coordinates'
+            ]
+            == line
+        )
+    # No tail means no complete centerline, even with visible interior points.
+    out['annotations'][0]['keypoints'][-1] = 0
+    result, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    assert all(
+        g['geometry']['type'] != 'LineString'
+        for g in result['tracks']['1']['features'][0]['geometry']['features']
+    )

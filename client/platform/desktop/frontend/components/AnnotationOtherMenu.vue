@@ -2,13 +2,17 @@
 import { computed, PropType } from 'vue';
 import { useRouter } from 'vue-router/composables';
 import { desktopDestinations, annotationPrimaryDestinations, DesktopDestination } from './desktopNavigation';
+import { viamePathValid } from '../store/settings';
 
 const props = defineProps({
   destinations: { type: Array as PropType<DesktopDestination[]>, default: undefined },
 });
 const router = useRouter();
-const items = computed(() => props.destinations || desktopDestinations.filter((item) => !annotationPrimaryDestinations.includes(item.name)
-  && router.getRoutes().some((route) => route.name === item.name)));
+const items = computed(() => props.destinations || desktopDestinations.filter((item) => {
+  if (annotationPrimaryDestinations.includes(item.name)) return false;
+  if (item.name === 'addons' && !viamePathValid.value) return false;
+  return router.getRoutes().some((route) => route.name === item.name);
+}));
 </script>
 
 <template>
