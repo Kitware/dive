@@ -104,6 +104,9 @@ export default defineComponent({
     }, { immediate: true });
 
     const datasetChoices = computed(() => page.datasets.value.map((d) => ({ value: d.id, text: d.name })));
+    /** The controls-and-results layout is up; its left column then carries the view and mode toggles. */
+    const showLayout = computed(() => view.value === 'query' && page.installed.value !== false
+      && (page.indexedIds.value.length > 0 || page.mode.value === 'text'));
 
     /** Dataset ids handed off by the library selection. */
     const initialDatasetIds = computed(() => {
@@ -197,9 +200,7 @@ export default defineComponent({
 
     const textCountLabel = computed(() => {
       const count = page.textHits.value.length;
-      const base = `${count} hit${count === 1 ? '' : 's'}`;
-      const { running, done, total } = page.textProgress;
-      return running ? `${base} · ${done}/${total} frames` : base;
+      return `${count} hit${count === 1 ? '' : 's'}`;
     });
 
     function onKeydown(event: KeyboardEvent) {
@@ -262,6 +263,7 @@ export default defineComponent({
     return {
       page,
       view,
+      showLayout,
       searchChips,
       searchReview,
       resultsMemory,
@@ -291,7 +293,10 @@ export default defineComponent({
   <v-main>
     <navigation-bar />
     <div class="query-page">
-      <div class="query-toolbar d-flex align-center flex-wrap px-2 pt-2">
+      <div
+        v-if="!showLayout"
+        class="query-toolbar d-flex align-center flex-wrap px-2 pt-2"
+      >
         <v-btn-toggle
           :value="view"
           mandatory
@@ -325,55 +330,7 @@ export default defineComponent({
             <span class="ml-1 grey--text">({{ page.datasets.value.length }})</span>
           </v-btn>
         </v-btn-toggle>
-
-        <template v-if="view === 'query'">
-          <v-btn-toggle
-            :value="page.mode.value"
-            mandatory
-            dense
-            class="mr-3"
-            @change="page.mode.value = $event"
-          >
-            <v-btn
-              small
-              value="image"
-            >
-              Image
-            </v-btn>
-            <v-btn
-              small
-              value="video"
-            >
-              Video
-            </v-btn>
-            <v-btn
-              small
-              value="text"
-            >
-              Text
-            </v-btn>
-          </v-btn-toggle>
-          <span class="text-caption grey--text">
-            {{ page.indexedIds.value.length }} of {{ page.datasets.value.length }} datasets indexed
-          </span>
-        </template>
         <v-spacer />
-        <v-btn
-          v-if="view === 'query' && page.mode.value !== 'text'"
-          small
-          outlined
-          :disabled="!page.search.state.modelAvailable || !!page.search.state.busy"
-          class="mr-2"
-          @click="saveModel"
-        >
-          <v-icon
-            small
-            left
-          >
-            mdi-content-save
-          </v-icon>
-          Save model
-        </v-btn>
       </div>
 
       <v-alert
@@ -387,7 +344,7 @@ export default defineComponent({
         {{ page.error.value }}
       </v-alert>
 
-      <div class="query-body px-2 pb-2">
+      <div class="query-body px-2 pb-2 pt-2">
         <QueryDatasetsPanel
           v-if="view === 'datasets'"
           :page="page"
@@ -421,6 +378,72 @@ export default defineComponent({
           >
             <!-- Query controls -->
             <div class="query-controls">
+              <div class="d-flex align-center mb-2">
+                <v-btn-toggle
+                  :value="view"
+                  mandatory
+                  dense
+                  class="mr-3"
+                  @change="view = $event"
+                >
+                  <v-btn
+                    small
+                    value="query"
+                  >
+                    <v-icon
+                      small
+                      left
+                    >
+                      mdi-image-search-outline
+                    </v-icon>
+                    Query
+                  </v-btn>
+                  <v-btn
+                    small
+                    value="datasets"
+                  >
+                    <v-icon
+                      small
+                      left
+                    >
+                      mdi-database
+                    </v-icon>
+                    Index
+                    <span class="ml-1 grey--text">({{ page.datasets.value.length }})</span>
+                  </v-btn>
+                </v-btn-toggle>
+              </div>
+              <div class="d-flex align-center flex-wrap mb-3 mode-row">
+                <v-btn-toggle
+                  :value="page.mode.value"
+                  mandatory
+                  dense
+                  class="mr-3"
+                  @change="page.mode.value = $event"
+                >
+                  <v-btn
+                    small
+                    value="image"
+                  >
+                    Image
+                  </v-btn>
+                  <v-btn
+                    small
+                    value="video"
+                  >
+                    Video
+                  </v-btn>
+                  <v-btn
+                    small
+                    value="text"
+                  >
+                    Text
+                  </v-btn>
+                </v-btn-toggle>
+                <span class="text-caption grey--text">
+                  {{ page.indexedIds.value.length }} of {{ page.datasets.value.length }} indexed
+                </span>
+              </div>
               <template v-if="page.mode.value === 'image'">
                 <div class="text-subtitle-2 mb-1">
                   Search from an image
@@ -647,37 +670,22 @@ export default defineComponent({
                     hide-details
                   />
                 </div>
-                <div class="d-flex align-center">
-                  <v-btn
+                <v-btn
+                  small
+                  depressed
+                  color="primary"
+                  :disabled="!page.text.prompt.trim() || page.textProgress.running || page.sam3Installed.value === false"
+                  :loading="page.textProgress.running"
+                  @click="page.runTextQuery()"
+                >
+                  <v-icon
                     small
-                    depressed
-                    color="primary"
-                    :disabled="!page.text.prompt.trim() || page.textProgress.running || page.sam3Installed.value === false"
-                    @click="page.runTextQuery()"
+                    left
                   >
-                    <v-icon
-                      small
-                      left
-                    >
-                      mdi-text-search
-                    </v-icon>
-                    Search {{ page.datasets.value.length }} datasets
-                  </v-btn>
-                  <v-btn
-                    v-if="page.textProgress.running"
-                    small
-                    text
-                    class="ml-2"
-                    @click="page.cancelTextQuery()"
-                  >
-                    Stop
-                  </v-btn>
-                </div>
-                <v-progress-linear
-                  v-if="page.textProgress.running"
-                  :value="page.textProgress.total ? (100 * page.textProgress.done) / page.textProgress.total : 0"
-                  class="mt-2"
-                />
+                    mdi-text-search
+                  </v-icon>
+                  Search {{ page.datasets.value.length }} datasets
+                </v-btn>
               </template>
 
               <div class="mt-4">
@@ -716,11 +724,38 @@ export default defineComponent({
                 :search-review="searchReview"
                 :memory="resultsMemory"
                 @open-result="openViewer"
+                @save-model="saveModel"
               />
-              <div
+              <v-card
                 v-else
+                flat
                 class="text-results d-flex flex-column"
               >
+                <v-toolbar
+                  dense
+                  flat
+                  color="grey darken-4"
+                  class="flex-grow-0"
+                >
+                  <v-toolbar-title class="text-subtitle-1">
+                    Text Query Hits
+                  </v-toolbar-title>
+                  <v-spacer />
+                  <span
+                    v-if="page.textProgress.running"
+                    class="text-caption mr-3"
+                  >
+                    {{ page.textProgress.done }} / {{ page.textProgress.total }} frames
+                  </span>
+                  <v-btn
+                    small
+                    outlined
+                    :disabled="!page.textProgress.running"
+                    @click="page.cancelTextQuery()"
+                  >
+                    Stop
+                  </v-btn>
+                </v-toolbar>
                 <ReviewGridControls
                   :grid="gridSettings"
                   :page="textGrid.page.value"
@@ -734,11 +769,16 @@ export default defineComponent({
                   @set-padding="textGrid.setPadding"
                   @zoom="textGrid.zoom"
                 />
+                <v-progress-linear
+                  v-if="page.textProgress.running"
+                  :value="page.textProgress.total ? (100 * page.textProgress.done) / page.textProgress.total : 0"
+                  class="flex-grow-0"
+                />
                 <div
                   v-if="page.textHits.value.length === 0"
                   class="d-flex align-center justify-center flex-grow-1 grey--text"
                 >
-                  {{ page.textProgress.running ? 'Searching…' : 'No text query hits yet.' }}
+                  {{ page.textProgress.running ? 'Searching…' : 'No text query hits to review.' }}
                 </div>
                 <div
                   v-else
@@ -793,7 +833,7 @@ export default defineComponent({
                     </ReviewCell>
                   </ReviewGrid>
                 </div>
-              </div>
+              </v-card>
             </div>
           </div>
         </template>
@@ -849,6 +889,10 @@ export default defineComponent({
 
 .query-toolbar {
   flex: 0 0 auto;
+  gap: 4px 0;
+}
+
+.mode-row {
   gap: 4px 0;
 }
 

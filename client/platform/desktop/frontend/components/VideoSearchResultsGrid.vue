@@ -303,6 +303,22 @@ export default defineComponent({
           </v-btn>
           <v-btn
             small
+            outlined
+            class="ml-2"
+            :disabled="!state.modelAvailable || !!state.busy"
+            title="Keep the refined classifier as a trained pipeline"
+            @click="$emit('save-model')"
+          >
+            <v-icon
+              small
+              left
+            >
+              mdi-content-save-outline
+            </v-icon>
+            Save model
+          </v-btn>
+          <v-btn
+            small
             color="primary"
             class="ml-2"
             :disabled="!searchReview.hasChanges.value"
@@ -316,7 +332,7 @@ export default defineComponent({
             >
               mdi-content-save
             </v-icon>
-            Save<span
+            Save Annotations<span
               v-if="searchReview.changeCount.value"
               class="ml-1"
             >({{ searchReview.changeCount.value }})</span>
