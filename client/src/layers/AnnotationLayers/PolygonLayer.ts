@@ -109,7 +109,7 @@ export default class PolygonLayer extends BaseLayer<PolyGeoJSData> {
           // Track-level events only when not drawingOther
           if (!this.drawingOther) {
             if (!e.data.editing || (e.data.editing && !e.data.selected)) {
-              this.bus.$emit('annotation-right-clicked', e.data.trackId, true);
+              this.bus.$emit('annotation-right-clicked', e.data.trackId, true, undefined, e.mouse.geo);
             }
           }
         }
