@@ -63,7 +63,6 @@ const pipelines = {
   'filter_enhance.pipe': '',
   'filter_extract_left.pipe': '',
   'filter_split_and_debayer.pipe': '',
-  'filter_to_kwa.pipe': '',
   'full_frame_classifier_local.pipe': '',
   'full_frame_classifier_svm.pipe': '',
   'utility_empty_frame_lbls_1fr.pipe': '',

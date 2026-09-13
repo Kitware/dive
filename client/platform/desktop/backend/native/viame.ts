@@ -407,7 +407,6 @@ async function runPipeline(
   }
 
   if (isFilterPipe) {
-    command.push(`-s kwa_writer:output_directory="${outputDir}/"`);
     // Multicam filter pipes have one writer per camera (image_writer,
     // image_writer2, image_writer3); extra -s keys for absent processes are
     // ignored by the runner.
