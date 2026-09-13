@@ -4,6 +4,7 @@ import {
 } from 'vue';
 import type { AddonCatalog, AddonJob, ViameAddon } from 'platform/desktop/addons';
 import NavigationBar from './NavigationBar.vue';
+import { viamePathValid } from '../store/settings';
 
 const catalog = ref<AddonCatalog | null>(null);
 const error = ref('');
@@ -27,6 +28,12 @@ const headers = [
   },
 ];
 async function refresh(silent = false) {
+  if (!viamePathValid.value) {
+    catalog.value = null;
+    error.value = '';
+    loading.value = false;
+    return;
+  }
   if (refreshing) return;
   refreshing = true;
   if (!silent) loading.value = true;
@@ -100,13 +107,21 @@ onBeforeUnmount(() => {
           VIAME Add-Ons
         </h1>
         <v-spacer />
-        <v-btn :loading="loading" @click="refresh()">
+        <v-btn v-if="viamePathValid" :loading="loading" @click="refresh()">
           <v-icon left>
             mdi-refresh
           </v-icon>Refresh
         </v-btn>
       </div>
       <p>Install additional model packs for either added functionality or problem-specific use cases.</p>
+      <v-alert v-if="!viamePathValid" type="warning">
+        Configure a valid VIAME installation in
+        <router-link :to="{ name: 'settings' }">
+          Settings
+        </router-link>
+        before managing add-ons.
+      </v-alert>
+      <template v-else>
       <p v-if="catalog" class="text-caption">
         Target Location: {{ catalog.installDir }}
       </p>
@@ -225,6 +240,7 @@ onBeforeUnmount(() => {
           </v-card-actions>
         </v-card>
       </v-dialog>
+      </template>
     </v-container>
   </v-main>
 </template>

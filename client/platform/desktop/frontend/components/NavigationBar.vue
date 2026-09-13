@@ -2,6 +2,7 @@
 import { defineComponent } from 'vue';
 import JobTab from './JobTab.vue';
 import { lastAnnotation } from '../store/dataset';
+import { viamePathValid } from '../store/settings';
 
 export default defineComponent({
   components: { JobTab },
@@ -12,7 +13,7 @@ export default defineComponent({
     },
   },
   setup() {
-    return { lastAnnotation };
+    return { lastAnnotation, viamePathValid };
   },
 });
 </script>
@@ -48,7 +49,10 @@ export default defineComponent({
       <v-tab :to="{ name: 'scoring' }">
         Scoring<v-icon>mdi-chart-box-outline</v-icon>
       </v-tab>
-      <v-tab :to="{ name: 'addons' }">
+      <v-tab
+        v-if="viamePathValid"
+        :to="{ name: 'addons' }"
+      >
         Add-Ons<v-icon>mdi-puzzle</v-icon>
       </v-tab>
       <v-tab :to="{ name: 'settings' }">

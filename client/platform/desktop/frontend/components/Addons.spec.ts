@@ -1,11 +1,14 @@
 // @vitest-environment jsdom
 /* eslint-disable vue/one-component-per-file -- lightweight Vuetify test doubles */
-import Vue, { h, PropType } from 'vue';
+import Vue, { h, PropType, ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import Addons from './Addons.vue';
 import type { AddonCatalog } from '../../addons';
 
 vi.mock('./NavigationBar.vue', () => ({ default: { render: () => null } }));
+vi.mock('../store/settings', () => ({
+  viamePathValid: ref(true),
+}));
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 const button = Vue.extend({
   props: { disabled: Boolean },
