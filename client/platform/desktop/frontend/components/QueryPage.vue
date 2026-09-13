@@ -1,12 +1,17 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch,
+  computed, defineComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch,
 } from 'vue';
-import { useRoute, useRouter } from 'vue-router/composables';
+import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router/composables';
+import { useApi } from 'dive-common/apispec';
+import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { getMediaUrl } from 'platform/desktop/frontend/api';
 import { createQueryPage } from 'platform/desktop/frontend/useQueryPage';
 import { provideVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import { createItemChips, createSearchChips } from 'platform/desktop/frontend/useSearchChips';
+import { createSearchReview, OverlapChoice, OverlapSummary } from 'platform/desktop/frontend/useSearchReview';
+import { holdQuerySession, takeQuerySession } from 'platform/desktop/frontend/querySession';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { reviewViewerLocation } from 'dive-common/review/viewerNavigation';
@@ -21,6 +26,14 @@ import QueryExemplar from './QueryExemplar.vue';
 import { takeQueryLaunch } from '../queryLaunch';
 
 type QueryView = 'query' | 'datasets';
+
+/** The overlap dialog's choices, laid out left to right, top to bottom. */
+const OverlapOptions: { choice: OverlapChoice; label: string; hint: string }[] = [
+  { choice: 'overwrite-overlapping', label: 'Replace Overlapping', hint: 'Delete only the existing annotations these results overlap, then save every result.' },
+  { choice: 'overwrite-all', label: 'Replace All Existing', hint: 'Delete every existing annotation in these sequences, then save the results.' },
+  { choice: 'keep-originals', label: 'Save Non-Overlapping Only', hint: 'Keep the existing annotations and save just the results that do not overlap them.' },
+  { choice: 'discard', label: 'Discard All Results', hint: 'Save nothing and drop every result change.' },
+];
 
 /** Footer height of a text-hit cell (label and frame line), for the chip aspect. */
 const TextCellFooterPx = 44;
@@ -38,11 +51,38 @@ export default defineComponent({
   setup() {
     const route = useRoute();
     const router = useRouter();
-    const page = createQueryPage();
+    // Coming back (e.g. from a result opened in the viewer) resumes the
+    // session that was parked on leaving: exemplar, results, marks, edits.
+    const resumed = takeQuerySession();
+    const page = resumed?.page ?? createQueryPage();
     provideVideoSearch(page.search);
-    const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : 'query');
-    const searchChips = createSearchChips(page.search);
-    const textChips = createItemChips(page.textItems);
+    // Results edited as annotations are held (and saved) by a review service.
+    const review = resumed?.review ?? createReviewService({ api: useApi() });
+    provideReview(review);
+    const { prompt } = usePrompt();
+
+    // Results that overlap annotations a dataset already has: the user
+    // picks how to save them in a four-way dialog owned by this page.
+    const overlapDialog = ref<OverlapSummary | null>(null);
+    let overlapResolve: ((choice: OverlapChoice) => void) | null = null;
+    function resolveOverlap(summary: OverlapSummary): Promise<OverlapChoice> {
+      overlapDialog.value = summary;
+      return new Promise((resolve) => { overlapResolve = resolve; });
+    }
+    function chooseOverlap(choice: OverlapChoice) {
+      const resolve = overlapResolve;
+      overlapResolve = null;
+      overlapDialog.value = null;
+      resolve?.(choice);
+    }
+    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review, { resolveOverlap });
+    const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : (resumed?.view ?? 'query'));
+    const searchChips = resumed?.searchChips ?? createSearchChips(page.search, {
+      itemFor: (result) => searchReview.itemOf(result),
+      hidden: (result) => searchReview.isRemoved(result),
+    });
+    const textChips = resumed?.textChips ?? createItemChips(page.textItems);
+    const resultsMemory = resumed?.results ?? reactive({ page: 0, hideReviewed: false });
     const gridSettings = usePersistentGridSettings();
     const textGridActive = computed(() => view.value === 'query' && page.mode.value === 'text');
     const textGrid = useReviewGrid({
@@ -57,11 +97,11 @@ export default defineComponent({
     const imageUrl = ref('');
     watch(page.imagePath, async (path) => {
       imageUrl.value = path ? await getMediaUrl(path) : '';
-    });
+    }, { immediate: true });
     const videoFrameUrl = ref('');
     watch(page.videoFramePath, async (path) => {
       videoFrameUrl.value = path ? await getMediaUrl(path) : '';
-    });
+    }, { immediate: true });
 
     const datasetChoices = computed(() => page.datasets.value.map((d) => ({ value: d.id, text: d.name })));
 
@@ -111,9 +151,39 @@ export default defineComponent({
       [page.warmStartModel.value] = ret.filePaths;
     }
 
-    function openViewer(datasetId: string, frame?: number) {
-      router.push(reviewViewerLocation(datasetId, frame === undefined ? {} : { frame }));
+    function openViewer(datasetId: string, frame?: number, trackId?: number) {
+      router.push(reviewViewerLocation(datasetId, {
+        ...(frame === undefined ? {} : { frame }),
+        ...(trackId === undefined ? {} : { trackId }),
+      }));
     }
+
+    function onBeforeUnload(event: BeforeUnloadEvent) {
+      if (searchReview.hasChanges.value) {
+        event.preventDefault();
+        // eslint-disable-next-line no-param-reassign
+        event.returnValue = '';
+      }
+    }
+
+    onBeforeRouteLeave(async (_to, _from, next) => {
+      if (!searchReview.hasChanges.value) { next(); return; }
+      const pending = searchReview.changeCount.value;
+      const ok = await prompt({
+        title: 'Unsaved annotation changes',
+        text: [
+          `${pending} result${pending === 1 ? '' : 's'} would be saved as annotation${pending === 1 ? '' : 's'}.`,
+          'Save before leaving? Use Discard on the results toolbar to drop them instead.',
+        ],
+        confirm: true,
+        positiveButton: 'Save and leave',
+        negativeButton: 'Stay',
+      });
+      if (!ok) { next(false); return; }
+      const outcome = await searchReview.save();
+      // A failed save leaves its error on the page; stay put.
+      next(outcome === 'failed' ? false : undefined);
+    });
 
     const textCells = computed(() => textGrid.pageItems.value.map((item) => {
       const hit = page.hitOf(item.key);
@@ -139,6 +209,11 @@ export default defineComponent({
     onMounted(async () => {
       const launch = typeof route.query.launch === 'string' ? takeQueryLaunch(route.query.launch) : undefined;
       window.addEventListener('keydown', onKeydown);
+      window.addEventListener('beforeunload', onBeforeUnload);
+      if (resumed) {
+        await nextTick();
+        textGrid.goToPage(resumed.textPage);
+      }
       await page.refreshAvailable();
       if (initialDatasetIds.value.length) {
         await page.addDatasets(initialDatasetIds.value);
@@ -159,10 +234,14 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
+      window.removeEventListener('beforeunload', onBeforeUnload);
       page.cancelTextQuery();
+      const textPage = textGrid.page.value;
       textGrid.dispose();
-      searchChips.dispose();
-      textChips.dispose();
+      // Parked for the next visit rather than disposed; chips stay cached.
+      holdQuerySession({
+        page, review, searchReview, searchChips, textChips, view: view.value, results: resultsMemory, textPage,
+      });
     });
 
     async function saveModel() {
@@ -184,6 +263,11 @@ export default defineComponent({
       page,
       view,
       searchChips,
+      searchReview,
+      resultsMemory,
+      overlapDialog,
+      overlapOptions: OverlapOptions,
+      chooseOverlap,
       textChips,
       gridSettings,
       textGrid,
@@ -237,7 +321,7 @@ export default defineComponent({
             >
               mdi-database
             </v-icon>
-            Indexes
+            Index
             <span class="ml-1 grey--text">({{ page.datasets.value.length }})</span>
           </v-btn>
         </v-btn-toggle>
@@ -321,14 +405,14 @@ export default defineComponent({
             class="d-flex flex-column align-center justify-center fill-height grey--text"
           >
             <div class="mb-3">
-              No searchable indices are available. Select one or more on the Indexes panel.
+              No searchable indices are available. Select one or more on the Index panel.
             </div>
             <v-btn
               small
               outlined
               @click="view = 'datasets'"
             >
-              Indexes
+              Index
             </v-btn>
           </div>
           <div
@@ -629,6 +713,8 @@ export default defineComponent({
                 v-if="page.mode.value !== 'text'"
                 inline
                 :search-chips="searchChips"
+                :search-review="searchReview"
+                :memory="resultsMemory"
                 @open-result="openViewer"
               />
               <div
@@ -713,6 +799,41 @@ export default defineComponent({
         </template>
       </div>
     </div>
+    <v-dialog
+      :value="overlapDialog !== null"
+      max-width="640"
+      persistent
+    >
+      <v-card v-if="overlapDialog">
+        <v-card-title style="word-break: normal;">
+          Results overlap existing annotations
+        </v-card-title>
+        <v-card-text>
+          {{ overlapDialog.overlapping }} of the {{ overlapDialog.total }} result{{ overlapDialog.total === 1 ? '' : 's' }}
+          to save overlap{{ overlapDialog.overlapping === 1 ? 's' : '' }} annotations already in
+          {{ overlapDialog.datasetIds.map((id) => page.datasetName(id)).join(', ') }}. How should they be saved?
+        </v-card-text>
+        <div class="overlap-grid pa-4">
+          <div
+            v-for="option in overlapOptions"
+            :key="option.choice"
+            class="overlap-option text-center"
+          >
+            <v-btn
+              depressed
+              block
+              :color="option.choice === 'discard' ? 'error' : 'primary'"
+              @click="chooseOverlap(option.choice)"
+            >
+              {{ option.label }}
+            </v-btn>
+            <div class="text-caption grey--text mt-1">
+              {{ option.hint }}
+            </div>
+          </div>
+        </div>
+      </v-card>
+    </v-dialog>
   </v-main>
 </template>
 
@@ -775,6 +896,18 @@ export default defineComponent({
 
 .frame-field {
   max-width: 140px;
+}
+
+.overlap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  justify-items: center;
+}
+
+.overlap-option {
+  width: 100%;
+  max-width: 280px;
 }
 
 .text-fields {

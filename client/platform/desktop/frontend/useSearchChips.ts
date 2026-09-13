@@ -10,6 +10,7 @@
  * queries, so the store is reset whenever a new query starts.
  */
 import { computed, Ref, watch } from 'vue';
+import type { VideoSearchResult } from 'dive-common/apispec';
 import { loadConfig } from 'platform/desktop/frontend/api';
 import type { VideoSearchContextType } from 'platform/desktop/frontend/useVideoSearch';
 import { createChipStore } from 'dive-common/review/chipStore';
@@ -23,7 +24,14 @@ const EagerLoadCount = 50;
 /** Thumbnail resolution for the panel list; the grid re-renders at its own size. */
 const PanelChipSize = 128;
 
-export function createSearchChips(search: VideoSearchContextType) {
+export interface SearchChipsOptions {
+  /** A replacement item for a result (e.g. once it is an editable annotation). */
+  itemFor?: (result: VideoSearchResult) => ReviewItem | undefined;
+  /** Results to leave out of the grid. */
+  hidden?: (result: VideoSearchResult) => boolean;
+}
+
+export function createSearchChips(search: VideoSearchContextType, options: SearchChipsOptions = {}) {
   const registry = createFrameSourceRegistry(loadConfig);
   const store = createChipStore({ frameSourceFor: registry.frameSourceFor }, {
     padding: DEFAULT_REVIEW_GRID.padding, size: PanelChipSize, aspect: 1, outline: '#00e5ff',
@@ -31,7 +39,8 @@ export function createSearchChips(search: VideoSearchContextType) {
 
   /** Every current result as a grid item, in rank order. */
   const items = computed<ReviewItem[]>(() => search.state.results
-    .map((result) => searchResultItem(
+    .filter((result) => !options.hidden?.(result))
+    .map((result) => options.itemFor?.(result) ?? searchResultItem(
       result,
       search.resultDatasetId(result) ?? '',
       DEFAULT_REVIEW_GRID.maxSequenceFrames,

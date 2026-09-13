@@ -261,6 +261,51 @@ export interface CameraMembership {
  * its nearest keyframes with boxes (held at the ends), or null when the
  * track has no boxes there at all.
  */
+/** Intersection over union of two boxes, 0 when either is empty. */
+export function boxIou(a: RectBounds, b: RectBounds): number {
+  const width = Math.min(a[2], b[2]) - Math.max(a[0], b[0]);
+  const height = Math.min(a[3], b[3]) - Math.max(a[1], b[1]);
+  if (width <= 0 || height <= 0) return 0;
+  const intersection = width * height;
+  const union = (a[2] - a[0]) * (a[3] - a[1]) + (b[2] - b[0]) * (b[3] - b[1]) - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+/** The track whose keyframe box on `frame` best overlaps `bounds`, at or above `minIou`. */
+export function findTrackAt(
+  tracks: Iterable<TrackData>,
+  frame: number,
+  bounds: RectBounds,
+  minIou: number,
+): TrackData | undefined {
+  let best: { track: TrackData; iou: number } | undefined;
+  Array.from(tracks).forEach((track) => {
+    if (frame < track.begin || frame > track.end) return;
+    const feature = track.features.find((f) => f.frame === frame && f.bounds);
+    if (!feature?.bounds) return;
+    const iou = boxIou(feature.bounds, bounds);
+    if (iou >= minIou && (!best || iou > best.iou)) best = { track, iou };
+  });
+  return best?.track;
+}
+
+/** Tracks among `candidates` with a keyframe box overlapping one of `track`'s by at least `minIou`. */
+export function tracksOverlapping(
+  candidates: Iterable<TrackData>,
+  track: TrackData,
+  minIou: number,
+): TrackData[] {
+  const boxes = new Map<number, RectBounds>();
+  track.features.forEach((f) => { if (f.bounds) boxes.set(f.frame, f.bounds); });
+  return Array.from(candidates).filter((candidate) => (
+    candidate.id !== track.id
+    && candidate.features.some((f) => {
+      const box = boxes.get(f.frame);
+      return !!box && !!f.bounds && boxIou(f.bounds, box) >= minIou;
+    })
+  ));
+}
+
 export function interpolateBounds(track: TrackData, frame: number): RectBounds | null {
   const features = boxedFeatures(track);
   if (features.length === 0) return null;

@@ -1,5 +1,7 @@
 import type { VideoSearchResult } from 'dive-common/apispec';
-import { sampleSearchStates, searchResultFrame, searchResultItem } from './searchResultItems';
+import {
+  sampleSearchStates, searchResultFrame, searchResultItem, searchResultTrack,
+} from './searchResultItems';
 
 function result(states: { frame: number; bbox?: [number, number, number, number] }[], extra: Partial<VideoSearchResult> = {}): VideoSearchResult {
   return {
@@ -43,5 +45,29 @@ describe('searchResultItem', () => {
 
   it('never repeats a frame when sampling', () => {
     expect(sampleSearchStates(result([{ frame: 1 }, { frame: 1 }, { frame: 1 }]), 8)).toHaveLength(1);
+  });
+});
+
+describe('searchResultTrack', () => {
+  it('builds one rounded keyframe per boxed state under the given type', () => {
+    const data = searchResultTrack(result([
+      { frame: 3, bbox: [10.4, 20.6, 5.2, 30.1] },
+      { frame: 3, bbox: [0, 0, 1, 1] },
+      { frame: 1, bbox: [1, 1, 2, 2] },
+      { frame: 5 },
+    ]), 'fish');
+    expect(data).toMatchObject({ begin: 1, end: 3, confidencePairs: [['fish', 1]] });
+    expect(data?.features).toEqual([
+      {
+        frame: 1, keyframe: true, interpolate: false, bounds: [1, 1, 2, 2],
+      },
+      {
+        frame: 3, keyframe: true, interpolate: false, bounds: [5, 21, 10, 30],
+      },
+    ]);
+  });
+
+  it('is null for a result without boxes', () => {
+    expect(searchResultTrack(result([{ frame: 2 }]), 'fish')).toBeNull();
   });
 });

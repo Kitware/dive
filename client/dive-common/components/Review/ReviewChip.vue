@@ -968,7 +968,11 @@ export default defineComponent({
       class="cell-actions"
       @click.stop
     >
-      <slot name="actions">
+      <slot
+        name="actions"
+        :begin-edit="beginEdit"
+        :frame="currentFrame ? currentFrame.frame : undefined"
+      >
         <v-tooltip
           bottom
           open-delay="600"

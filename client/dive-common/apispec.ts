@@ -781,7 +781,7 @@ export interface RefineDetectionsResponse {
  * Video Search / IQR (rapid model generation) Types
  */
 
-export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing';
+export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing' | 'frames';
 
 /**
  * One indexed media stream (video/sequence identifier) in the shared search
@@ -854,6 +854,8 @@ export interface VideoSearchIndexInfo {
   datasetId: string;
   /** Dataset display name */
   name: string;
+  /** How the entry was built. */
+  method: VideoSearchIndexMethod;
 }
 
 export interface VideoSearchQueryResponse {

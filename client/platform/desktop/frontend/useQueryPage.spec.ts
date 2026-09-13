@@ -75,7 +75,9 @@ it('discovers completed indexes even without a prior page selection', async () =
   recentHistory.value.splice(0);
   vi.mocked(loadConfig).mockResolvedValue({ name: 'Existing', type: 'video' } as never);
   vi.mocked(videoSearchIndexStatus).mockResolvedValue({ indexed: true } as never);
-  vi.mocked(videoSearchListIndexes).mockResolvedValue([{ datasetId: 'existing', name: 'Existing', streamName: 'stream' }]);
+  vi.mocked(videoSearchListIndexes).mockResolvedValue([{
+    datasetId: 'existing', name: 'Existing', streamName: 'stream', method: 'detections',
+  }]);
   const scope = effectScope();
   const page = scope.run(() => createQueryPage())!;
   page.datasets.value.forEach((dataset) => page.removeDataset(dataset.id));
@@ -88,7 +90,9 @@ it('keeps index membership visible independently of the build selection and refr
   recentHistory.value.splice(0);
   vi.mocked(loadConfig).mockResolvedValue({ name: 'Indexed', type: 'video' } as never);
   vi.mocked(videoSearchIndexStatus).mockResolvedValue({ indexed: true } as never);
-  vi.mocked(videoSearchListIndexes).mockResolvedValue([{ datasetId: 'indexed', name: 'Indexed', streamName: 'stream' }]);
+  vi.mocked(videoSearchListIndexes).mockResolvedValue([{
+    datasetId: 'indexed', name: 'Indexed', streamName: 'stream', method: 'detections',
+  }]);
   const scope = effectScope();
   const page = scope.run(() => createQueryPage())!;
   await page.refreshAvailable();
@@ -124,7 +128,9 @@ it('prevents index deletion during a build and clears membership after deleting 
 it('reports deletion errors without clearing successful index entries', async () => {
   const scope = effectScope();
   const page = scope.run(() => createQueryPage())!;
-  page.indexMembers.value = [{ datasetId: 'indexed', name: 'Indexed', streamName: 'stream' }];
+  page.indexMembers.value = [{
+    datasetId: 'indexed', name: 'Indexed', streamName: 'stream', method: 'detections',
+  }];
   vi.mocked(videoSearchDeleteIndex).mockRejectedValue(new Error('Permission denied'));
   await page.deleteEntireIndex();
   expect(page.error.value).toBe('Permission denied');

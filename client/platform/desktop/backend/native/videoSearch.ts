@@ -76,6 +76,7 @@ const IndexMethods: Record<BuildSearchIndex['method'], string> = {
   detections: 'detections',
   tracking: 'tracking',
   existing: 'existing',
+  frames: 'frames',
 };
 
 function getCurrentPlatform() {
@@ -203,7 +204,9 @@ async function listIndexedDatasets(settings: Settings): Promise<VideoSearchIndex
       } catch {
         // Dataset may have been deleted; keep the id as the display name.
       }
-      return { streamName, datasetId: stream.datasetId, name };
+      return {
+        streamName, datasetId: stream.datasetId, name, method: stream.method,
+      };
     }),
   );
   return entries;

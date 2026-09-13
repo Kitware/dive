@@ -21,8 +21,8 @@ import { createFrameSource, FrameSource } from 'dive-common/review/frameSource';
 import createReviewRequestQueue from 'dive-common/review/requestQueue';
 import { createChipStore, ChipStore } from 'dive-common/review/chipStore';
 import {
-  buildReviewItems, CameraMembership, collectAttributeKeys, collectTypes, frameRefFor, groupReviewItems,
-  sortReviewItems,
+  buildReviewItems, CameraMembership, collectAttributeKeys, collectTypes, findTrackAt as findTrackIn,
+  frameRefFor, groupReviewItems, sortReviewItems,
 } from 'dive-common/review/reviewItems';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import {
@@ -105,6 +105,20 @@ export interface ReviewService {
   datasetFps(id: string): number;
   /** The multicamera parent a camera dataset was expanded from, or the id itself. */
   parentOf(id: string): string;
+  /** Load a dataset that is not loaded yet; true once its tracks are in memory. */
+  ensureLoaded(id: string): Promise<boolean>;
+  /** The loaded track whose keyframe box on `frame` overlaps `bounds` by at least `minIou`. */
+  findTrackAt(datasetId: string, frame: number, bounds: RectBounds, minIou?: number): TrackData | undefined;
+  /** Add a track to a loaded dataset under a free id; written on the next save. */
+  insertTrack(datasetId: string, track: Omit<TrackData, 'id'>): TrackData | undefined;
+  /** A grid item for one loaded track, under `key` when given. */
+  itemFor(datasetId: string, trackId: AnnotationId, key?: string): ReviewItem | null;
+  /** Every track of a loaded dataset as currently edited. */
+  tracksOf(datasetId: string): TrackData[];
+  /** Forget an inserted track that was never saved; nothing is written for it. */
+  discardTrack(datasetId: string, trackId: AnnotationId): void;
+  /** Remove a track by id; deleted on the next save. */
+  deleteTrackById(datasetId: string, trackId: AnnotationId): void;
   /** Add a keyframe with a box to a track, e.g. where one camera lacks a detection. */
   addKeyframe(item: ReviewItem, frame: number, bounds: RectBounds): void;
   /** Remove the track behind an item; written on the next save. */
@@ -242,6 +256,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   const loaded = new Map<string, LoadedDataset>();
   /** Loads still in flight, so a removal during load is honoured. */
   const loadTokens = new Map<string, symbol>();
+  const loadPromises = new Map<string, Promise<void>>();
   /** Type colours as the annotator assigns them, seeded from each dataset's custom styles. */
   const styles = new StyleManager({ markChangesPending: () => undefined });
   /** Camera datasets expanded from a multicamera parent. */
@@ -336,7 +351,15 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     }
   }
 
-  async function load(id: string) {
+  function load(id: string) {
+    const promise = runLoad(id).finally(() => {
+      if (loadPromises.get(id) === promise) loadPromises.delete(id);
+    });
+    loadPromises.set(id, promise);
+    return promise;
+  }
+
+  async function runLoad(id: string) {
     const token = Symbol(id);
     loadTokens.set(id, token);
     const isCurrent = () => loadTokens.get(id) === token && !!entry(id);
@@ -534,6 +557,47 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     return loaded.get(datasetId)?.tracks.get(trackId);
   }
 
+  async function ensureLoaded(id: string) {
+    const current = entry(id);
+    if (!current) {
+      await addDataset(id);
+    } else if (current.status === 'queued') {
+      patch(id, { status: 'loading' });
+      await load(id);
+    } else {
+      await loadPromises.get(id);
+    }
+    return entry(id)?.status === 'ready';
+  }
+
+  function findTrackAt(datasetId: string, frame: number, bounds: RectBounds, minIou = 0.5) {
+    const dataset = loaded.get(datasetId);
+    return dataset ? findTrackIn(dataset.tracks.values(), frame, bounds, minIou) : undefined;
+  }
+
+  function insertTrack(datasetId: string, track: Omit<TrackData, 'id'>) {
+    const dataset = loaded.get(datasetId);
+    if (!dataset) return undefined;
+    let id = 0;
+    dataset.tracks.forEach((existing) => { id = Math.max(id, existing.id + 1); });
+    dataset.deleted.forEach((deleted) => { id = Math.max(id, deleted + 1); });
+    const inserted: TrackData = { ...track, id };
+    dataset.tracks.set(id, inserted);
+    markPending(dataset, id);
+    dataRevision.value += 1;
+    return inserted;
+  }
+
+  function itemFor(datasetId: string, trackId: AnnotationId, key?: string) {
+    const track = trackOf(datasetId, trackId);
+    if (!track) return null;
+    const [item] = buildReviewItems(datasetId, [track], {
+      ...DEFAULT_REVIEW_QUERY, mode: 'type', type: '', threshold: 0,
+    }, grid.maxSequenceFrames);
+    if (!item) return null;
+    return key ? { ...item, key } : item;
+  }
+
   function parentOf(id: string) {
     return memberships.get(id)?.parent ?? id;
   }
@@ -618,18 +682,34 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     updatePairs(item, (pairs, hierarchy) => acceptPairAsCorrect(hierarchy, pairs, current.type));
   }
 
-  function deleteTrack(item: ReviewItem) {
-    const dataset = loaded.get(item.datasetId);
-    if (!dataset || !dataset.tracks.has(item.trackId)) return;
-    dataset.tracks.delete(item.trackId);
-    dataset.pending.delete(item.trackId);
-    dataset.pendingVersions.delete(item.trackId);
-    dataset.deleted.add(item.trackId);
+  function tracksOf(datasetId: string) {
+    return Array.from(loaded.get(datasetId)?.tracks.values() ?? []);
+  }
+
+  function forgetTrack(datasetId: string, trackId: AnnotationId, markDeleted: boolean) {
+    const dataset = loaded.get(datasetId);
+    if (!dataset || !dataset.tracks.has(trackId)) return;
+    dataset.tracks.delete(trackId);
+    dataset.pending.delete(trackId);
+    dataset.pendingVersions.delete(trackId);
+    if (markDeleted) dataset.deleted.add(trackId);
     // The entry leaves the grid at once; everything else stays put.
     items.value = items.value.filter(
-      (other) => !(other.datasetId === item.datasetId && other.trackId === item.trackId),
+      (other) => !(other.datasetId === datasetId && other.trackId === trackId),
     );
     dataRevision.value += 1;
+  }
+
+  function discardTrack(datasetId: string, trackId: AnnotationId) {
+    forgetTrack(datasetId, trackId, false);
+  }
+
+  function deleteTrackById(datasetId: string, trackId: AnnotationId) {
+    forgetTrack(datasetId, trackId, true);
+  }
+
+  function deleteTrack(item: ReviewItem) {
+    deleteTrackById(item.datasetId, item.trackId);
   }
 
   function addKeyframe(item: ReviewItem, frame: number, bounds: RectBounds) {
@@ -800,6 +880,13 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     colorFor,
     datasetFps,
     parentOf,
+    ensureLoaded,
+    findTrackAt,
+    insertTrack,
+    itemFor,
+    tracksOf,
+    discardTrack,
+    deleteTrackById,
     addKeyframe,
     deleteTrack,
     isPending,
