@@ -735,6 +735,9 @@ interface StereoTransferLineRequest {
 }
 
 interface StereoMeasurement {
+  curved_length?: number;
+  straight_length?: number;
+  curvature_ratio?: number;
   length: number;
   midpoint_x: number;
   midpoint_y: number;
@@ -760,8 +763,8 @@ interface StereoTransferLineResponse {
 }
 
 interface StereoMeasureLineRequest {
-  leftLine: [[number, number], [number, number]];
-  rightLine: [[number, number], [number, number]];
+  leftLine: [number, number][];
+  rightLine: [number, number][];
 }
 
 interface StereoMeasureLineResponse {
@@ -785,6 +788,11 @@ interface StereoAggregateLengthsResponse {
 }
 
 interface StereoTransferPointsRequest {
+  sourceCamera?: 'left' | 'right';
+  strict?: boolean;
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   points: [number, number][];
 }
 
@@ -795,6 +803,7 @@ interface StereoTransferPointsResponse {
   transferredPoints?: [number, number][];
   originalPoints?: [number, number][];
   disparityValues?: number[];
+  validMatches?: boolean[];
 }
 
 async function stereoEnable(

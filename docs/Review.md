@@ -99,6 +99,14 @@ Review retains at most two decoded frames and 16 MiB of decoded pixels per datas
 
 A retained review session belongs to the signed-in account and is cleared on logout or account change. Saves use the existing dataset write permissions and update only changed tracks. Review does not add collaborative locking or conflict detection: coordinate assignments when multiple people edit the same tracks, since a later save can replace another person's edits.
 
+When opening **Review** from a sequence with an empty dataset list, DIVE selects
+that sequence and opens **Results** after it loads. This also applies after
+clearing a previous selection. A nonempty selection is retained.
+
+Stereo and multicamera sequences appear as one entry in the dataset list.
+Reloading or removing that entry affects all cameras. Annotations with the same
+track ID across cameras share one grid cell, showing each camera's view.
+
 ## Search results
 
 On DIVE Desktop, the Query page shows ranked similarity results across indexed datasets in the same chip grid, with the same editing. Accept or reject entries with their corner buttons and **Refine** to re-rank; **Hide reviewed** (right of the context slider) takes the accepted and rejected entries out of the grid so only the unmarked ones remain.
