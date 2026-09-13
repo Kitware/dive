@@ -323,4 +323,12 @@ export default defineComponent({
 .datasets-table ::v-deep td {
   padding: 4px 8px !important;
 }
+
+// Line the table text up with the section titles and captions.
+.datasets-table ::v-deep th:first-child,
+.datasets-table ::v-deep td:first-child,
+.query-datasets ::v-deep .picker-table th:first-child,
+.query-datasets ::v-deep .picker-table td:first-child {
+  padding-left: 0 !important;
+}
 </style>
