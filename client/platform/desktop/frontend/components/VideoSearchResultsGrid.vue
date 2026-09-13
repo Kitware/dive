@@ -434,7 +434,7 @@ export default defineComponent({
                 icon
                 small
                 class="chip-action"
-                :color="cell.adjudication === 'positive' ? 'success' : 'grey lighten-1'"
+                color="success"
                 title="Mark as a correct match"
                 @click.stop="mark(cell.item, 'positive')"
               >
@@ -446,7 +446,7 @@ export default defineComponent({
                 icon
                 small
                 class="chip-action"
-                :color="cell.adjudication === 'negative' ? 'error' : 'grey lighten-1'"
+                color="error"
                 title="Mark as an incorrect match"
                 @click.stop="mark(cell.item, 'negative')"
               >
