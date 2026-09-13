@@ -70,7 +70,6 @@ def append_new_dataset_media_writers(
     """
     out_prefix = f'{output_path}/'
     if is_filter_pipeline(pipeline):
-        command.append(f'-s kwa_writer:output_directory={shlex.quote(out_prefix)}')
         # Multicam filter pipes use image_writer / image_writer2 / image_writer3.
         command.append(f'-s image_writer:file_name_prefix={shlex.quote(out_prefix)}')
         command.append(f'-s image_writer2:file_name_prefix={shlex.quote(out_prefix)}')

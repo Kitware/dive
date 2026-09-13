@@ -14,7 +14,6 @@ def test_append_new_dataset_media_writers_filter(tmp_path: Path):
     assert result is None
     joined = ' '.join(command)
     assert 'image_writer:file_name_prefix=' in joined
-    assert 'kwa_writer:output_directory=' in joined
 
 
 def test_append_new_dataset_media_writers_disparity(tmp_path: Path):
