@@ -237,7 +237,7 @@ export default defineComponent({
             >
               mdi-database
             </v-icon>
-            Indexes
+            Index
             <span class="ml-1 grey--text">({{ page.datasets.value.length }})</span>
           </v-btn>
         </v-btn-toggle>
@@ -321,14 +321,14 @@ export default defineComponent({
             class="d-flex flex-column align-center justify-center fill-height grey--text"
           >
             <div class="mb-3">
-              No searchable indices are available. Select one or more on the Indexes panel.
+              No searchable indices are available. Select one or more on the Index panel.
             </div>
             <v-btn
               small
               outlined
               @click="view = 'datasets'"
             >
-              Indexes
+              Index
             </v-btn>
           </div>
           <div

@@ -11,7 +11,15 @@ const IndexMethodItems: { text: string; value: VideoSearchIndexMethod }[] = [
   { text: 'Around generic detections', value: 'detections' },
   { text: 'Detection and tracking', value: 'tracking' },
   { text: 'Around existing annotations', value: 'existing' },
+  { text: 'Whole frames', value: 'frames' },
 ];
+
+const IndexMethodLabels: Record<VideoSearchIndexMethod, string> = {
+  detections: 'Detections',
+  tracking: 'Tracking',
+  existing: 'Annotations',
+  frames: 'Frames',
+};
 
 /**
  * Which datasets queries search: pick them from the library with the
@@ -33,6 +41,12 @@ export default defineComponent({
 
     const pendingDatasets = computed(() => props.page.datasets.value.filter((dataset) => dataset.index !== 'indexed'));
     const listedIds = computed(() => props.page.datasets.value.map((d) => d.id));
+    // Indexed datasets are listed above; a multicamera dataset is indexed through its first camera.
+    const addableDatasets = computed(() => {
+      const indexed = props.page.indexMembers.value.map((member) => member.datasetId);
+      return props.page.available.value.filter((dataset) => !indexed
+        .some((id) => id === dataset.id || id.startsWith(`${dataset.id}/`)));
+    });
 
     function removeMany(ids: string[]) {
       ids.forEach((id) => props.page.removeDataset(id));
@@ -85,7 +99,9 @@ export default defineComponent({
 
     return {
       listedIds,
+      addableDatasets,
       pendingDatasets,
+      methodLabel: (method?: VideoSearchIndexMethod) => (method ? IndexMethodLabels[method] : ''),
       deleteIndex,
       removeMany,
       method,
@@ -118,7 +134,9 @@ export default defineComponent({
     <v-simple-table v-if="page.indexMembers.value.length" dense class="datasets-table mb-4">
       <thead>
         <tr>
-          <th>Video / sequence</th><th class="text-right">
+          <th>Video / sequence</th>
+          <th>Index type</th>
+          <th class="text-right">
             Actions
           </th>
         </tr>
@@ -126,6 +144,9 @@ export default defineComponent({
       <tbody>
         <tr v-for="member in page.indexMembers.value" :key="member.streamName">
           <td><a @click="open(member.datasetId)">{{ member.name }}</a></td>
+          <td class="text-caption">
+            {{ methodLabel(member.method) }}
+          </td>
           <td class="text-right">
             <v-btn small text color="error" :disabled="page.indexActionsDisabled.value" @click="removeIndex(member.datasetId)">
               Remove from index
@@ -142,7 +163,7 @@ export default defineComponent({
       Build index
     </h3>
     <DatasetPicker
-      :items="page.available.value"
+      :items="addableDatasets"
       :selected-ids="listedIds"
       hint="Queries search the indexed datasets listed here. Build an index for a dataset before searching it."
       no-data-text="No datasets in the library."
@@ -276,6 +297,10 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+.query-datasets {
+  padding-top: 12px;
+}
+
 .build-row {
   gap: 4px;
 }

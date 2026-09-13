@@ -31,8 +31,12 @@ it.each([0, 2])('offers index creation on the Query Datasets page with %s indexe
     selectIndex: vi.fn(),
   };
   vi.mocked(videoSearchListIndexes).mockResolvedValue([
-    { name: 'Alpha', datasetId: 'a', streamName: 'a-stream' },
-    { name: 'Beta', datasetId: 'b', streamName: 'b-stream' },
+    {
+      name: 'Alpha', datasetId: 'a', streamName: 'a-stream', method: 'detections',
+    },
+    {
+      name: 'Beta', datasetId: 'b', streamName: 'b-stream', method: 'detections',
+    },
   ]);
   const wrapper = shallowMount(VideoSearchContext, { stubs: ['v-btn', 'v-select', 'v-divider', 'v-dialog', 'v-card', 'v-card-title', 'v-card-text', 'v-card-actions', 'v-text-field', 'v-spacer'] });
   await new Promise((resolve) => setTimeout(resolve, 0));

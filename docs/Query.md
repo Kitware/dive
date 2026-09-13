@@ -2,15 +2,16 @@
 
 The **Query** page (DIVE Desktop) searches many datasets at once. Pick the datasets, build a search index over them, then search from an image, a frame of a video, or a text description. Hits come back as the same chip grid the Review page uses, and a similarity search can be refined by marking hits correct or incorrect.
 
-Open it from the **Query** tab, or select datasets in the **Library** and click **Index** to open the Indexes panel with those sequences selected.
+Open it from the **Query** tab, or select datasets in the **Library** and click **Index** to open the Index panel with those sequences selected.
 
-## Indexes panel
+## Index panel
 
 Add datasets with the same picker as the Training and Pipelines pages: search the library, add rows one at a time or with **Select all**, and drop them with **Remove all**. Each selected dataset shows whether it is in the search index. **Build index** indexes every selected dataset that is not indexed yet (each row also has its own build button), choosing how the index is made:
 
 * *Around generic detections*: run the generic object detector and describe its boxes.
 * *Detection and tracking*: detect and track, then describe the tracks.
 * *Around existing annotations*: describe the dataset's current annotations.
+* *Whole frames*: describe each frame as a whole, with no detector.
 
 Indexing runs as jobs on the Jobs page; the rows update as they finish. **Build all not indexed** queues every unindexed dataset. All indexed datasets share one index, so a dataset indexed here is also searchable from the viewer's Video Search panel, and the reverse.
 
@@ -39,14 +40,14 @@ similarity search still uses the shared database. Changing this selection clears
 the previous results and feedback so the next query starts fresh.
 
 Use **Create index** when no index exists, or **Build a new index** below the
-selector, to open Query's **Indexes** panel with the current sequence selected.
+selector, to open Query's **Index** panel with the current sequence selected.
 Index type, building, and removal are managed on that page.
 
-The Indexes list survives navigation and restores saved index membership and
+The Index list survives navigation and restores saved index membership and
 indexing jobs on return. Rows show in-progress builds, successful indexes, or
 failed builds with their job error, even when the job finished on another page.
 
-The top of **Indexes** lists successfully generated entries in the shared search
+The top of **Index** lists successfully generated entries in the shared search
 index, independently of the selection used to queue new builds below. There is
 one entry per video or sequence; rebuilding replaces that entry. **Remove from
 index** deletes one sequence's search data, while **Delete entire index** removes

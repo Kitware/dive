@@ -13,8 +13,12 @@ beforeEach(() => {
   vi.mocked(videoSearchOpenIndex).mockResolvedValue({
     success: true,
     streams: [
-      { streamName: 'left', datasetId: 'a', name: 'Alpha' },
-      { streamName: 'right', datasetId: 'b', name: 'Beta' },
+      {
+        streamName: 'left', datasetId: 'a', name: 'Alpha', method: 'detections',
+      },
+      {
+        streamName: 'right', datasetId: 'b', name: 'Beta', method: 'detections',
+      },
     ],
   });
   vi.mocked(videoSearchFormulate).mockResolvedValue({ results } as never);

@@ -266,7 +266,7 @@ export function createVideoSearch(
       await ensureSession();
       resetQueryState();
       let response = await videoSearchFormulate(imagePath, boxes);
-      if (!response.results || warmStartModelPath) {
+      if (!response.results?.length || warmStartModelPath) {
         response = await videoSearchQuery(
           warmStartModelPath ? { iqrModelPath: warmStartModelPath } : {},
         );
@@ -282,7 +282,7 @@ export function createVideoSearch(
       resetQueryState();
       const imagePath = await exemplarImageForFrame(frameNum);
       let response = await videoSearchFormulate(imagePath, boxes);
-      if (!response.results || warmStartModelPath) {
+      if (!response.results?.length || warmStartModelPath) {
         response = await videoSearchQuery(
           warmStartModelPath ? { iqrModelPath: warmStartModelPath } : {},
         );
