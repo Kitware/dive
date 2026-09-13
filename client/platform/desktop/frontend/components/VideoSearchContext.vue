@@ -197,7 +197,7 @@ export default defineComponent({
           :disabled="!indexes.length || selectedTrackBox === null || !!state.busy || launching"
           @click="queryFromSelectedTrack"
         >
-          Search from selected annotation
+          Search from<br>selected annotation
         </v-btn>
         <v-btn
           large
@@ -206,7 +206,7 @@ export default defineComponent({
           :disabled="!indexes.length || !!state.busy || launching"
           @click="queryFromImageFile(false)"
         >
-          Search from image file...
+          Search from<br>image file...
         </v-btn>
         <v-btn
           large
@@ -215,7 +215,7 @@ export default defineComponent({
           :disabled="!indexes.length || !!state.busy || launching"
           @click="queryFromImageFile(true)"
         >
-          Search with saved model (.svm)...
+          Search with<br>saved model (.svm)...
         </v-btn>
       </div>
 
@@ -244,11 +244,14 @@ export default defineComponent({
 .query-launch-button {
   min-height: 64px;
   height: auto !important;
-  padding: 16px !important;
-  font-size: 14px;
+  padding: 12px 8px !important;
+  font-size: 12.5px;
+  letter-spacing: 0.02em;
 }
 .query-launch-button ::v-deep .v-btn__content {
+  display: block;
+  text-align: center;
   white-space: normal;
-  line-height: 1.5;
+  line-height: 1.4;
 }
 </style>

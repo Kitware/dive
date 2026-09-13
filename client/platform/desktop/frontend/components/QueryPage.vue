@@ -358,22 +358,6 @@ export default defineComponent({
           </span>
         </template>
         <v-spacer />
-        <v-btn
-          v-if="view === 'query' && page.mode.value !== 'text'"
-          small
-          outlined
-          :disabled="!page.search.state.modelAvailable || !!page.search.state.busy"
-          class="mr-2"
-          @click="saveModel"
-        >
-          <v-icon
-            small
-            left
-          >
-            mdi-content-save
-          </v-icon>
-          Save model
-        </v-btn>
       </div>
 
       <v-alert
@@ -716,6 +700,7 @@ export default defineComponent({
                 :search-review="searchReview"
                 :memory="resultsMemory"
                 @open-result="openViewer"
+                @save-model="saveModel"
               />
               <div
                 v-else
