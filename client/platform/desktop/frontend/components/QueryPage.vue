@@ -104,6 +104,9 @@ export default defineComponent({
     }, { immediate: true });
 
     const datasetChoices = computed(() => page.datasets.value.map((d) => ({ value: d.id, text: d.name })));
+    /** The controls-and-results layout is up; its left column then carries the view and mode toggles. */
+    const showLayout = computed(() => view.value === 'query' && page.installed.value !== false
+      && (page.indexedIds.value.length > 0 || page.mode.value === 'text'));
 
     /** Dataset ids handed off by the library selection. */
     const initialDatasetIds = computed(() => {
@@ -262,6 +265,7 @@ export default defineComponent({
     return {
       page,
       view,
+      showLayout,
       searchChips,
       searchReview,
       resultsMemory,
@@ -291,7 +295,10 @@ export default defineComponent({
   <v-main>
     <navigation-bar />
     <div class="query-page">
-      <div class="query-toolbar d-flex align-center flex-wrap px-2 pt-2">
+      <div
+        v-if="!showLayout"
+        class="query-toolbar d-flex align-center flex-wrap px-2 pt-2"
+      >
         <v-btn-toggle
           :value="view"
           mandatory
@@ -325,38 +332,6 @@ export default defineComponent({
             <span class="ml-1 grey--text">({{ page.datasets.value.length }})</span>
           </v-btn>
         </v-btn-toggle>
-
-        <template v-if="view === 'query'">
-          <v-btn-toggle
-            :value="page.mode.value"
-            mandatory
-            dense
-            class="mr-3"
-            @change="page.mode.value = $event"
-          >
-            <v-btn
-              small
-              value="image"
-            >
-              Image
-            </v-btn>
-            <v-btn
-              small
-              value="video"
-            >
-              Video
-            </v-btn>
-            <v-btn
-              small
-              value="text"
-            >
-              Text
-            </v-btn>
-          </v-btn-toggle>
-          <span class="text-caption grey--text">
-            {{ page.indexedIds.value.length }} of {{ page.datasets.value.length }} datasets indexed
-          </span>
-        </template>
         <v-spacer />
       </div>
 
@@ -371,7 +346,7 @@ export default defineComponent({
         {{ page.error.value }}
       </v-alert>
 
-      <div class="query-body px-2 pb-2">
+      <div class="query-body px-2 pb-2 pt-2">
         <QueryDatasetsPanel
           v-if="view === 'datasets'"
           :page="page"
@@ -405,6 +380,72 @@ export default defineComponent({
           >
             <!-- Query controls -->
             <div class="query-controls">
+              <div class="d-flex align-center mb-2">
+                <v-btn-toggle
+                  :value="view"
+                  mandatory
+                  dense
+                  class="mr-3"
+                  @change="view = $event"
+                >
+                  <v-btn
+                    small
+                    value="query"
+                  >
+                    <v-icon
+                      small
+                      left
+                    >
+                      mdi-image-search-outline
+                    </v-icon>
+                    Query
+                  </v-btn>
+                  <v-btn
+                    small
+                    value="datasets"
+                  >
+                    <v-icon
+                      small
+                      left
+                    >
+                      mdi-database
+                    </v-icon>
+                    Index
+                    <span class="ml-1 grey--text">({{ page.datasets.value.length }})</span>
+                  </v-btn>
+                </v-btn-toggle>
+              </div>
+              <div class="d-flex align-center flex-wrap mb-3 mode-row">
+                <v-btn-toggle
+                  :value="page.mode.value"
+                  mandatory
+                  dense
+                  class="mr-3"
+                  @change="page.mode.value = $event"
+                >
+                  <v-btn
+                    small
+                    value="image"
+                  >
+                    Image
+                  </v-btn>
+                  <v-btn
+                    small
+                    value="video"
+                  >
+                    Video
+                  </v-btn>
+                  <v-btn
+                    small
+                    value="text"
+                  >
+                    Text
+                  </v-btn>
+                </v-btn-toggle>
+                <span class="text-caption grey--text">
+                  {{ page.indexedIds.value.length }} of {{ page.datasets.value.length }} indexed
+                </span>
+              </div>
               <template v-if="page.mode.value === 'image'">
                 <div class="text-subtitle-2 mb-1">
                   Search from an image
@@ -834,6 +875,10 @@ export default defineComponent({
 
 .query-toolbar {
   flex: 0 0 auto;
+  gap: 4px 0;
+}
+
+.mode-row {
   gap: 4px 0;
 }
 
