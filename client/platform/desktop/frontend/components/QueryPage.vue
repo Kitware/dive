@@ -200,9 +200,7 @@ export default defineComponent({
 
     const textCountLabel = computed(() => {
       const count = page.textHits.value.length;
-      const base = `${count} hit${count === 1 ? '' : 's'}`;
-      const { running, done, total } = page.textProgress;
-      return running ? `${base} · ${done}/${total} frames` : base;
+      return `${count} hit${count === 1 ? '' : 's'}`;
     });
 
     function onKeydown(event: KeyboardEvent) {
@@ -672,37 +670,22 @@ export default defineComponent({
                     hide-details
                   />
                 </div>
-                <div class="d-flex align-center">
-                  <v-btn
+                <v-btn
+                  small
+                  depressed
+                  color="primary"
+                  :disabled="!page.text.prompt.trim() || page.textProgress.running || page.sam3Installed.value === false"
+                  :loading="page.textProgress.running"
+                  @click="page.runTextQuery()"
+                >
+                  <v-icon
                     small
-                    depressed
-                    color="primary"
-                    :disabled="!page.text.prompt.trim() || page.textProgress.running || page.sam3Installed.value === false"
-                    @click="page.runTextQuery()"
+                    left
                   >
-                    <v-icon
-                      small
-                      left
-                    >
-                      mdi-text-search
-                    </v-icon>
-                    Search {{ page.datasets.value.length }} datasets
-                  </v-btn>
-                  <v-btn
-                    v-if="page.textProgress.running"
-                    small
-                    text
-                    class="ml-2"
-                    @click="page.cancelTextQuery()"
-                  >
-                    Stop
-                  </v-btn>
-                </div>
-                <v-progress-linear
-                  v-if="page.textProgress.running"
-                  :value="page.textProgress.total ? (100 * page.textProgress.done) / page.textProgress.total : 0"
-                  class="mt-2"
-                />
+                    mdi-text-search
+                  </v-icon>
+                  Search {{ page.datasets.value.length }} datasets
+                </v-btn>
               </template>
 
               <div class="mt-4">
@@ -743,10 +726,36 @@ export default defineComponent({
                 @open-result="openViewer"
                 @save-model="saveModel"
               />
-              <div
+              <v-card
                 v-else
+                flat
                 class="text-results d-flex flex-column"
               >
+                <v-toolbar
+                  dense
+                  flat
+                  color="grey darken-4"
+                  class="flex-grow-0"
+                >
+                  <v-toolbar-title class="text-subtitle-1">
+                    Text Query Hits
+                  </v-toolbar-title>
+                  <v-spacer />
+                  <span
+                    v-if="page.textProgress.running"
+                    class="text-caption mr-3"
+                  >
+                    {{ page.textProgress.done }} / {{ page.textProgress.total }} frames
+                  </span>
+                  <v-btn
+                    small
+                    outlined
+                    :disabled="!page.textProgress.running"
+                    @click="page.cancelTextQuery()"
+                  >
+                    Stop
+                  </v-btn>
+                </v-toolbar>
                 <ReviewGridControls
                   :grid="gridSettings"
                   :page="textGrid.page.value"
@@ -760,11 +769,16 @@ export default defineComponent({
                   @set-padding="textGrid.setPadding"
                   @zoom="textGrid.zoom"
                 />
+                <v-progress-linear
+                  v-if="page.textProgress.running"
+                  :value="page.textProgress.total ? (100 * page.textProgress.done) / page.textProgress.total : 0"
+                  class="flex-grow-0"
+                />
                 <div
                   v-if="page.textHits.value.length === 0"
                   class="d-flex align-center justify-center flex-grow-1 grey--text"
                 >
-                  {{ page.textProgress.running ? 'Searching…' : 'No text query hits yet.' }}
+                  {{ page.textProgress.running ? 'Searching…' : 'No text query hits to review.' }}
                 </div>
                 <div
                   v-else
@@ -819,7 +833,7 @@ export default defineComponent({
                     </ReviewCell>
                   </ReviewGrid>
                 </div>
-              </div>
+              </v-card>
             </div>
           </div>
         </template>
