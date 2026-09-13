@@ -103,6 +103,14 @@ function makeTrack(id: number) {
       const f = features.get(frame);
       if (f) f.attributes[key] = value;
     },
+    invalidateMeasurement: (frame: number) => {
+      const f = features.get(frame);
+      if (f) {
+        delete f.fishLength;
+        delete f.attributes.length;
+        f.attributes.measurement_stale = true;
+      }
+    },
     setAttribute: (key: string, value: unknown) => { attributes[key] = value; },
   };
   return track;
@@ -117,7 +125,7 @@ function setLine(track: ReturnType<typeof makeTrack>, frame: number, line: [numb
   }] as GeoJSON.Feature[]);
 }
 
-function makeHarness(rig: StereoRig) {
+function makeHarness(rig: StereoRig, matcher: unknown = null) {
   const tracks: Record<string, Map<number, ReturnType<typeof makeTrack>>> = {
     left: new Map(), right: new Map(),
   };
@@ -136,8 +144,8 @@ function makeHarness(rig: StereoRig) {
     getLeftCameraName: () => 'left',
     getRig: async () => rig,
     // Both cameras already carry a human line, so no warp runs in these cases.
-    getMatcher: async () => null,
-    getFrame: async () => null,
+    getMatcher: async () => matcher as never,
+    getFrame: async () => (matcher ? { width: 200, height: 200, data: new Uint8ClampedArray(200 * 200 * 4) } : null),
     getRange: () => ({ minDisparity: 2, maxDisparity: 300 }),
     autoCompute: () => false,
     measureLengths: () => true,
@@ -231,4 +239,31 @@ describe('useStereoOnnxTransfer measurement', () => {
     });
     expect(onError).toHaveBeenCalledWith(expect.stringContaining('calibration'));
   });
+});
+
+it('remeasures a curved line without pairing vertex indices across views', async () => {
+  const k = Float32Array.from([100, 0, 100, 0, 100, 100, 0, 0, 1]);
+  const rig: StereoRig = {
+    Kl: k,
+    Kr: k,
+    distl: new Float32Array(8),
+    distr: new Float32Array(8),
+    R: Float32Array.from(IDENTITY),
+    T: Float32Array.from([-1, 0, 0]),
+  };
+  const matcher = { warpPoints: vi.fn(async (points: [number, number][]) => points.map(([x, y]) => ({ x: x - 10, y, accepted: true }))) };
+  const { tracks, transfer, onMeasurement } = makeHarness(rig, matcher);
+  const left = makeTrack(1); const right = makeTrack(1);
+  tracks.left.set(1, left); tracks.right.set(1, right);
+  const line: [number, number][] = [[80, 80], [110, 110], [140, 80]];
+  setLine(left, 0, line);
+  setLine(right, 0, [[70, 80], [85, 95], [100, 110], [130, 80]]);
+  await transfer.handleStereoAnnotationComplete({
+    type: 'line', camera: 'left', trackId: 1, frameNum: 0, line, key: 'HeadTails',
+  });
+  const result = onMeasurement.mock.calls[0][0];
+  expect(result.curved_length).toBeCloseTo(6 * Math.sqrt(2), 4);
+  expect(result.straight_length).toBeCloseTo(6, 4);
+  expect(left.features[0].attributes.measurement_stale).toBe(false);
+  expect(matcher.warpPoints.mock.calls[0][0].length).toBeGreaterThan(line.length);
 });

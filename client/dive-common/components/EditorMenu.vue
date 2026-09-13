@@ -214,12 +214,12 @@ export default defineComponent({
       Creating: {
         rectangle: 'Drag to draw rectangle. Press ESC to exit.',
         Polygon: 'Click to place vertices. Right click to close.',
-        LineString: 'Click to place head/tail points.',
+        LineString: 'Place head/tail points, then drag segment midpoints to add vertices.',
       },
       Editing: {
         rectangle: 'Drag vertices to resize the rectangle',
         Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
-        LineString: 'Click endpoints to select for deletion.',
+        LineString: 'Click a vertex to select it for deletion.',
       },
     };
 

@@ -20,11 +20,10 @@ import { splitExt } from 'platform/desktop/backend/native/utils';
 import Track, {
   TrackData, Feature, TrackSupportedFeature,
 } from 'vue-media-annotator/track';
+import { orderedHeadTail, syncHeadTail } from 'vue-media-annotator/headTail';
 import { ConfidencePair, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
 const CommentRegex = /^\s*#/g;
-const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
-const TailRegex = /^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
 // Polygon format: (poly) coordinates
@@ -283,21 +282,12 @@ function _parseRow(row: string[]) {
     })
     .filter((val) => val[0] !== '')
     .sort((a, b) => b[1] - a[1]);
-  const headTail: [number, number][] = [];
+
   const start = 9 + (confidencePairs.length * 2);
   row.slice(start).forEach((value) => {
-    /* Head */
-    const head = getCaptureGroups(HeadRegex, value);
-    if (head !== null) {
-      headTail[0] = [parseFloat(head[1]), parseFloat(head[2])];
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[0]], 'head'));
-    }
-
-    /* Tail */
-    const tail = getCaptureGroups(TailRegex, value);
-    if (tail !== null) {
-      headTail[1] = [parseFloat(tail[1]), parseFloat(tail[2])];
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[1]], 'tail'));
+    const kp = /^\(kp\)\s+(\S+)\s+(\S+)\s+(\S+)\s*$/.exec(value);
+    if (kp && Number.isFinite(Number(kp[2])) && Number.isFinite(Number(kp[3]))) {
+      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [[Number(kp[2]), Number(kp[3])]], kp[1]));
     }
 
     /* Detection Attribute */
@@ -363,7 +353,8 @@ function _parseRow(row: string[]) {
     }
   });
 
-  if (headTail[0] !== undefined && headTail[1] !== undefined) {
+  const headTail = orderedHeadTail(geoFeatureCollection.features);
+  if (headTail) {
     geoFeatureCollection.features.push(_createGeoJsonFeature('LineString', headTail, 'HeadTails'));
   }
 
@@ -773,7 +764,7 @@ async function serialize(
 
             /* Geometry */
             if (feature.geometry && feature.geometry.type === 'FeatureCollection') {
-              feature.geometry.features.forEach((geoJSONFeature) => {
+              syncHeadTail(feature.geometry.features).forEach((geoJSONFeature) => {
                 if (geoJSONFeature.geometry.type === 'Polygon') {
                   const allRings = geoJSONFeature.geometry.coordinates as number[][][];
 
@@ -793,7 +784,7 @@ async function serialize(
                     const kpname = geoJSONFeature.properties.key;
                     const { coordinates } = geoJSONFeature.geometry;
                     row.push(
-                      `${KeypointToken} ${kpname} ${coordinates.map(Math.round).join(' ')}`,
+                      `${KeypointToken} ${kpname} ${coordinates.join(' ')}`,
                     );
                   }
                 }

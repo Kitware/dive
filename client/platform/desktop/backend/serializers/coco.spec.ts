@@ -826,3 +826,58 @@ describe('KWCOCO species list', () => {
 afterEach(() => {
   mockfs.restore();
 });
+
+it.each([false, true])('round-trips ordered centerlines from COCO and KWCOCO (named=%s)', async (named) => {
+  const labels = ['tail', 'spine_010', 'head', 'spine_002', 'spine_003', 'eye'];
+  const triples = [[90.5, 20.25, 2], [60.1, 35.2, 2], [10.25, 20.5, 2], [30.75, 40.125, 1], [0, 0, 0], [12.5, 18.5, 2]];
+  const doc = {
+    images: [{ id: 1, file_name: 'fish.png', frame_index: 0 }],
+    categories: [{ id: 7, name: 'fish', keypoints: labels }],
+    keypoint_categories: labels.map((name, i) => ({ id: 10 + i * 3, name })),
+    annotations: [{
+      id: 1,
+      image_id: 1,
+      category_id: 7,
+      bbox: [0, 0, 100, 50],
+      keypoints: named ? triples.map((p, i) => ({ keypoint_category_id: 10 + i * 3, xy: p.slice(0, 2), visible: p[2] })) : triples.flat(),
+    }],
+  };
+  await fs.writeJSON('/input/curve.json', doc);
+  const [parsed] = await parseFile('/input/curve.json');
+  const feature = Object.values(parsed.tracks)[0].features[0];
+  const geometry = feature.geometry!.features;
+  const expected = [2, 3, 1, 0].map((i) => triples[i].slice(0, 2));
+  expect(geometry.find((g) => g.geometry.type === 'LineString')!.geometry.coordinates).toEqual(expected);
+  expect(geometry.some((g) => g.properties?.key === 'spine_003')).toBe(false);
+  feature.geometry!.features = geometry.filter((g) => g.geometry.type === 'LineString');
+  await serializeFile('/output/curve.json', parsed, imageMeta);
+  const out = await fs.readJSON('/output/curve.json');
+  expect(out.categories[0].keypoints).toEqual(['head', 'spine_001', 'spine_002', 'tail']);
+  expect(out.categories[0].skeleton).toEqual([[1, 2], [2, 3], [3, 4]]);
+  expect(out.annotations[0].num_keypoints).toBe(4);
+  const [again] = await parseFile('/output/curve.json');
+  expect(Object.values(again.tracks)[0].features[0].geometry!.features.find((g) => g.geometry.type === 'LineString')!.geometry.coordinates).toEqual(expected);
+});
+
+it('pads shorter centerlines without inventing vertices or missing endpoints', async () => {
+  const source = JSON.parse(JSON.stringify(annotationSchema)) as AnnotationSchema;
+  const lines = [[[1.25, 2.5], [4.5, 6.25], [9.5, 3.25]], [[2.5, 3.5], [8.5, 4.5]]];
+  source.tracks[3].end = 1;
+  source.tracks[3].features = lines.map((coordinates, frame) => ({
+    frame,
+    bounds: [0, 0, 10, 10],
+    geometry: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { key: 'HeadTails' }, geometry: { type: 'LineString', coordinates } }] },
+  }));
+  await serializeFile('/output/curves.json', source, imageMeta);
+  const out = await fs.readJSON('/output/curves.json');
+  expect(out.annotations[1].keypoints).toEqual([2.5, 3.5, 2, 0, 0, 0, 8.5, 4.5, 2]);
+  expect(out.annotations[1].num_keypoints).toBe(2);
+  const [again] = await parseFile('/output/curves.json');
+  again.tracks[3].features.forEach((f, i) => {
+    expect(f.geometry!.features.find((g) => g.geometry.type === 'LineString')!.geometry.coordinates).toEqual(lines[i]);
+  });
+  out.annotations[0].keypoints[out.annotations[0].keypoints.length - 1] = 0;
+  await fs.writeJSON('/output/missing.json', out);
+  const [missing] = await parseFile('/output/missing.json');
+  expect(missing.tracks[3].features[0].geometry!.features.some((g) => g.geometry.type === 'LineString')).toBe(false);
+});
