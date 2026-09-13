@@ -27,6 +27,14 @@ import { takeQueryLaunch } from '../queryLaunch';
 
 type QueryView = 'query' | 'datasets';
 
+/** The overlap dialog's choices, laid out left to right, top to bottom. */
+const OverlapOptions: { choice: OverlapChoice; label: string; hint: string }[] = [
+  { choice: 'overwrite-overlapping', label: 'Replace Overlapping', hint: 'Delete only the existing annotations these results overlap, then save every result.' },
+  { choice: 'overwrite-all', label: 'Replace All Existing', hint: 'Delete every existing annotation in these sequences, then save the results.' },
+  { choice: 'keep-originals', label: 'Save Non-Overlapping Only', hint: 'Keep the existing annotations and save just the results that do not overlap them.' },
+  { choice: 'discard', label: 'Discard All Results', hint: 'Save nothing and drop every result change.' },
+];
+
 /** Footer height of a text-hit cell (label and frame line), for the chip aspect. */
 const TextCellFooterPx = 44;
 
@@ -258,6 +266,7 @@ export default defineComponent({
       searchReview,
       resultsMemory,
       overlapDialog,
+      overlapOptions: OverlapOptions,
       chooseOverlap,
       textChips,
       gridSettings,
@@ -804,39 +813,25 @@ export default defineComponent({
           to save overlap{{ overlapDialog.overlapping === 1 ? 's' : '' }} annotations already in
           {{ overlapDialog.datasetIds.map((id) => page.datasetName(id)).join(', ') }}. How should they be saved?
         </v-card-text>
-        <v-card-actions class="flex-wrap overlap-actions">
-          <v-btn
-            text
-            color="error"
-            title="Save nothing and drop every result change"
-            @click="chooseOverlap('discard')"
+        <div class="overlap-grid pa-4">
+          <div
+            v-for="option in overlapOptions"
+            :key="option.choice"
+            class="overlap-option text-center"
           >
-            Discard results
-          </v-btn>
-          <v-spacer />
-          <v-btn
-            text
-            title="Save the other results and leave the overlapping ones out"
-            @click="chooseOverlap('keep-originals')"
-          >
-            Keep originals
-          </v-btn>
-          <v-btn
-            text
-            title="Delete only the overlapped annotations and save every result"
-            @click="chooseOverlap('overwrite-overlapping')"
-          >
-            Replace overlapping
-          </v-btn>
-          <v-btn
-            text
-            color="primary"
-            title="Delete every annotation in those sequences and save the results"
-            @click="chooseOverlap('overwrite-all')"
-          >
-            Replace all annotations
-          </v-btn>
-        </v-card-actions>
+            <v-btn
+              depressed
+              block
+              :color="option.choice === 'discard' ? 'error' : 'primary'"
+              @click="chooseOverlap(option.choice)"
+            >
+              {{ option.label }}
+            </v-btn>
+            <div class="text-caption grey--text mt-1">
+              {{ option.hint }}
+            </div>
+          </div>
+        </div>
       </v-card>
     </v-dialog>
   </v-main>
@@ -903,8 +898,16 @@ export default defineComponent({
   max-width: 140px;
 }
 
-.overlap-actions {
-  gap: 4px;
+.overlap-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px 16px;
+  justify-items: center;
+}
+
+.overlap-option {
+  width: 100%;
+  max-width: 280px;
 }
 
 .text-fields {
