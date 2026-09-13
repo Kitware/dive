@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch,
+  computed, defineComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch,
 } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router/composables';
 import { debounce } from 'lodash';
@@ -13,6 +13,7 @@ import { createQueryPage } from 'platform/desktop/frontend/useQueryPage';
 import { provideVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import { createItemChips, createSearchChips } from 'platform/desktop/frontend/useSearchChips';
 import { createSearchReview } from 'platform/desktop/frontend/useSearchReview';
+import { holdQuerySession, takeQuerySession } from 'platform/desktop/frontend/querySession';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { reviewViewerLocation } from 'dive-common/review/viewerNavigation';
@@ -44,19 +45,23 @@ export default defineComponent({
   setup() {
     const route = useRoute();
     const router = useRouter();
-    const page = createQueryPage();
+    // Coming back (e.g. from a result opened in the viewer) resumes the
+    // session that was parked on leaving: exemplar, results, marks, edits.
+    const resumed = takeQuerySession();
+    const page = resumed?.page ?? createQueryPage();
     provideVideoSearch(page.search);
     // Results edited as annotations are held (and saved) by a review service.
-    const review = createReviewService({ api: useApi() });
+    const review = resumed?.review ?? createReviewService({ api: useApi() });
     provideReview(review);
-    const searchReview = createSearchReview(page.search, review);
+    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review);
     const { prompt } = usePrompt();
-    const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : 'query');
-    const searchChips = createSearchChips(page.search, {
+    const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : (resumed?.view ?? 'query'));
+    const searchChips = resumed?.searchChips ?? createSearchChips(page.search, {
       itemFor: (result) => searchReview.itemOf(result),
       hidden: (result) => searchReview.isRemoved(result),
     });
-    const textChips = createItemChips(page.textItems);
+    const textChips = resumed?.textChips ?? createItemChips(page.textItems);
+    const resultsMemory = resumed?.results ?? reactive({ page: 0, hideReviewed: false });
     const gridSettings = usePersistentGridSettings();
     const textGridActive = computed(() => view.value === 'query' && page.mode.value === 'text');
     const textGrid = useReviewGrid({
@@ -71,11 +76,11 @@ export default defineComponent({
     const imageUrl = ref('');
     watch(page.imagePath, async (path) => {
       imageUrl.value = path ? await getMediaUrl(path) : '';
-    });
+    }, { immediate: true });
     const videoFrameUrl = ref('');
     watch(page.videoFramePath, async (path) => {
       videoFrameUrl.value = path ? await getMediaUrl(path) : '';
-    });
+    }, { immediate: true });
 
     const datasetChoices = computed(() => page.datasets.value.map((d) => ({ value: d.id, text: d.name })));
 
@@ -199,6 +204,10 @@ export default defineComponent({
       const launch = typeof route.query.launch === 'string' ? takeQueryLaunch(route.query.launch) : undefined;
       window.addEventListener('keydown', onKeydown);
       window.addEventListener('beforeunload', onBeforeUnload);
+      if (resumed) {
+        await nextTick();
+        textGrid.goToPage(resumed.textPage);
+      }
       await page.refreshAvailable();
       if (initialDatasetIds.value.length) {
         await page.addDatasets(initialDatasetIds.value);
@@ -222,10 +231,12 @@ export default defineComponent({
       window.removeEventListener('beforeunload', onBeforeUnload);
       autoSave.cancel();
       page.cancelTextQuery();
+      const textPage = textGrid.page.value;
       textGrid.dispose();
-      searchChips.dispose();
-      textChips.dispose();
-      review.dispose();
+      // Parked for the next visit rather than disposed; chips stay cached.
+      holdQuerySession({
+        page, review, searchReview, searchChips, textChips, view: view.value, results: resultsMemory, textPage,
+      });
     });
 
     async function saveModel() {
@@ -248,6 +259,7 @@ export default defineComponent({
       view,
       searchChips,
       searchReview,
+      resultsMemory,
       textChips,
       gridSettings,
       textGrid,
@@ -694,6 +706,7 @@ export default defineComponent({
                 inline
                 :search-chips="searchChips"
                 :search-review="searchReview"
+                :memory="resultsMemory"
                 @open-result="openViewer"
               />
               <div

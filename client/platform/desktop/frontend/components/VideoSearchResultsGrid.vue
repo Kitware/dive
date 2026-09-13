@@ -7,6 +7,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import type { SearchChips } from 'platform/desktop/frontend/useSearchChips';
 import type { SearchReview } from 'platform/desktop/frontend/useSearchReview';
+import type { ResultsGridMemory } from 'platform/desktop/frontend/querySession';
 import { useReview } from 'dive-common/use/useReview';
 import type { ReviewService } from 'dive-common/use/useReview';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
@@ -53,6 +54,11 @@ export default defineComponent({
       type: Object as PropType<SearchReview | null>,
       default: null,
     },
+    /** Grid page and filter to start from, kept up to date so a later visit resumes them. */
+    memory: {
+      type: Object as PropType<ResultsGridMemory | null>,
+      default: null,
+    },
   },
   setup(props, { emit }) {
     const search = useVideoSearch();
@@ -68,7 +74,7 @@ export default defineComponent({
     const resultsByRef = computed(() => new Map(results.value.map((r) => [r.ref, r])));
     const adjudications = computed(() => state.value?.adjudications ?? {});
 
-    const hideReviewed = ref(false);
+    const hideReviewed = ref(props.memory?.hideReviewed ?? false);
     const reviewedCount = computed(() => props.searchChips.items.value
       .filter((item) => adjudications.value[item.key]).length);
     const visibleItems = computed(() => (hideReviewed.value
@@ -86,6 +92,12 @@ export default defineComponent({
       retainPage: true,
     });
     watch(() => state.value?.queryGeneration, () => grid.goToPage(0));
+    if (props.memory) {
+      grid.goToPage(props.memory.page);
+      watch([grid.page, hideReviewed], ([page, hide]) => {
+        Object.assign(props.memory as ResultsGridMemory, { page, hideReviewed: hide });
+      });
+    }
 
     const adjudicationCounts = computed(() => {
       const counts = { positive: 0, negative: 0 };
