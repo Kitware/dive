@@ -200,14 +200,18 @@ export default defineComponent({
     }
 
     async function discard() {
-      if (!review || review.pendingCount.value === 0) return;
-      const count = review.pendingCount.value;
+      if (!props.searchReview || !props.searchReview.hasChanges.value) return;
+      const count = props.searchReview.changeCount.value;
       const ok = await prompt({
         title: 'Discard changes',
-        text: `Throw away ${count} unsaved annotation change${count === 1 ? '' : 's'}?`,
+        text: `Throw away ${count} unsaved annotation change${count === 1 ? '' : 's'} from the results?`,
         confirm: true,
       });
-      if (ok) await review.discardChanges();
+      if (ok) await props.searchReview.discardAll();
+    }
+
+    function save() {
+      props.searchReview?.save();
     }
 
     return {
@@ -230,6 +234,7 @@ export default defineComponent({
       editGeometry,
       remove,
       discard,
+      save,
     };
   },
 });
@@ -285,12 +290,12 @@ export default defineComponent({
         >
           Refine
         </v-btn>
-        <template v-if="review">
+        <template v-if="review && searchReview">
           <v-btn
             small
             outlined
             class="ml-2"
-            :disabled="review.pendingCount.value === 0 || review.saving.value"
+            :disabled="!searchReview.hasChanges.value || review.saving.value"
             title="Throw away the unsaved annotation changes"
             @click="discard"
           >
@@ -300,10 +305,10 @@ export default defineComponent({
             small
             color="primary"
             class="ml-2"
-            :disabled="review.pendingCount.value === 0"
+            :disabled="!searchReview.hasChanges.value"
             :loading="review.saving.value"
-            title="Save the changed annotations to their datasets"
-            @click="review.save()"
+            title="Save accepted and typed results as annotations of their datasets"
+            @click="save"
           >
             <v-icon
               small
@@ -312,9 +317,9 @@ export default defineComponent({
               mdi-content-save
             </v-icon>
             Save<span
-              v-if="review.pendingCount.value"
+              v-if="searchReview.changeCount.value"
               class="ml-1"
-            >({{ review.pendingCount.value }})</span>
+            >({{ searchReview.changeCount.value }})</span>
           </v-btn>
         </template>
         <v-btn

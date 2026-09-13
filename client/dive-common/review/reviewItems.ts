@@ -289,6 +289,23 @@ export function findTrackAt(
   return best?.track;
 }
 
+/** Tracks among `candidates` with a keyframe box overlapping one of `track`'s by at least `minIou`. */
+export function tracksOverlapping(
+  candidates: Iterable<TrackData>,
+  track: TrackData,
+  minIou: number,
+): TrackData[] {
+  const boxes = new Map<number, RectBounds>();
+  track.features.forEach((f) => { if (f.bounds) boxes.set(f.frame, f.bounds); });
+  return Array.from(candidates).filter((candidate) => (
+    candidate.id !== track.id
+    && candidate.features.some((f) => {
+      const box = boxes.get(f.frame);
+      return !!box && !!f.bounds && boxIou(f.bounds, box) >= minIou;
+    })
+  ));
+}
+
 export function interpolateBounds(track: TrackData, frame: number): RectBounds | null {
   const features = boxedFeatures(track);
   if (features.length === 0) return null;

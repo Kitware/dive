@@ -25,7 +25,7 @@ The panel is on the left, results on the right.
 
 Both run a similarity search over every indexed dataset (limited to the listed datasets unless the switch is turned off). Mark results correct or incorrect and press **Refine** to re-rank; **Hide reviewed** hides the marked ones. **Save model** keeps the refined classifier as a trained pipeline. A saved `.svm` model can also start a search (*Start from a saved model*).
 
-Results can be turned into annotations without leaving the page: type a type under a chip or edit its box, and the result joins its dataset's annotations (revising an existing annotation on that frame when one overlaps it). **Save** on the results toolbar writes them; see the Review page docs for details.
+Results can be turned into annotations without leaving the page: accepted results, and results given a type or an edited box, are written to their datasets by **Save** on the results toolbar (rejected results only when typed). Results that overlap existing annotations prompt for whether to keep the originals, replace the overlapped ones, replace every annotation in those sequences, or discard the results; see the Review page docs for details.
 
 **Text.** Type what to find. Sampled frames of every listed dataset (every N frames, up to a per-dataset cap) are searched with the SAM3 text model, which must be installed as a VIAME add-on. Hits show in the grid with their label and score. Each hit offers **Search the index for objects like this one**, which turns it into an image query, and **Open in the annotation viewer**.
 

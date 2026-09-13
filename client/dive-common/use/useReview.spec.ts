@@ -492,3 +492,26 @@ describe('adopting outside tracks', () => {
     service.dispose();
   });
 });
+
+describe('discarding and deleting tracks by id', () => {
+  it('forgets an unsaved insert without deleting anything, and deletes by id', async () => {
+    const api = makeApi({ a: [track(1, [['fish', 0.9]], [0])] });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    const inserted = service.insertTrack('a', {
+      begin: 2, end: 2, confidencePairs: [['crab', 1]], attributes: {}, features: [{ frame: 2, keyframe: true, bounds: [0, 0, 5, 5] }],
+    })!;
+    expect(service.tracksOf('a').map((t) => t.id)).toEqual([1, inserted.id]);
+    service.discardTrack('a', inserted.id);
+    expect(service.tracksOf('a').map((t) => t.id)).toEqual([1]);
+    expect(service.pendingCount.value).toBe(0);
+
+    service.deleteTrackById('a', 1);
+    expect(service.tracksOf('a')).toEqual([]);
+    await service.save();
+    expect(api.saveDetections).toHaveBeenCalledWith('a', expect.objectContaining({
+      tracks: { upsert: [], delete: [1] },
+    }));
+    service.dispose();
+  });
+});

@@ -11,6 +11,7 @@ import {
   matchTypePair,
   sampleFrames,
   sortReviewItems,
+  tracksOverlapping,
 } from './reviewItems';
 import { DEFAULT_REVIEW_QUERY } from './types';
 
@@ -274,4 +275,18 @@ it('groups detection matches from different frames into the same camera track', 
   );
   expect(entries).toHaveLength(1);
   expect(entries[0].items).toHaveLength(2);
+});
+
+describe('tracksOverlapping', () => {
+  const box = (id: number, frame: number, bounds: [number, number, number, number]): TrackData => ({
+    id, begin: frame, end: frame, confidencePairs: [['fish', 1]], attributes: {}, features: [{ frame, keyframe: true, bounds }],
+  });
+
+  it('matches only tracks whose box on the same frame overlaps enough', () => {
+    const probe = box(99, 3, [0, 0, 10, 10]);
+    const hits = tracksOverlapping([
+      box(1, 3, [1, 1, 11, 11]), box(2, 4, [0, 0, 10, 10]), box(3, 3, [9, 9, 20, 20]), box(99, 3, [0, 0, 10, 10]),
+    ], probe, 0.5);
+    expect(hits.map((t) => t.id)).toEqual([1]);
+  });
 });

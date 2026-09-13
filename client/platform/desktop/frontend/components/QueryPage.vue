@@ -3,16 +3,14 @@ import {
   computed, defineComponent, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch,
 } from 'vue';
 import { onBeforeRouteLeave, useRoute, useRouter } from 'vue-router/composables';
-import { debounce } from 'lodash';
 import { useApi } from 'dive-common/apispec';
-import { clientSettings } from 'dive-common/store/settings';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { getMediaUrl } from 'platform/desktop/frontend/api';
 import { createQueryPage } from 'platform/desktop/frontend/useQueryPage';
 import { provideVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import { createItemChips, createSearchChips } from 'platform/desktop/frontend/useSearchChips';
-import { createSearchReview } from 'platform/desktop/frontend/useSearchReview';
+import { createSearchReview, OverlapChoice, OverlapSummary } from 'platform/desktop/frontend/useSearchReview';
 import { holdQuerySession, takeQuerySession } from 'platform/desktop/frontend/querySession';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
@@ -53,8 +51,23 @@ export default defineComponent({
     // Results edited as annotations are held (and saved) by a review service.
     const review = resumed?.review ?? createReviewService({ api: useApi() });
     provideReview(review);
-    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review);
     const { prompt } = usePrompt();
+
+    // Results that overlap annotations a dataset already has: the user
+    // picks how to save them in a four-way dialog owned by this page.
+    const overlapDialog = ref<OverlapSummary | null>(null);
+    let overlapResolve: ((choice: OverlapChoice) => void) | null = null;
+    function resolveOverlap(summary: OverlapSummary): Promise<OverlapChoice> {
+      overlapDialog.value = summary;
+      return new Promise((resolve) => { overlapResolve = resolve; });
+    }
+    function chooseOverlap(choice: OverlapChoice) {
+      const resolve = overlapResolve;
+      overlapResolve = null;
+      overlapDialog.value = null;
+      resolve?.(choice);
+    }
+    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review, { resolveOverlap });
     const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : (resumed?.view ?? 'query'));
     const searchChips = resumed?.searchChips ?? createSearchChips(page.search, {
       itemFor: (result) => searchReview.itemOf(result),
@@ -137,22 +150,8 @@ export default defineComponent({
       }));
     }
 
-    // Auto-save follows the annotator's setting, as on the Review page.
-    const autoSaveDelayMs = () => Math.max(1, Number(clientSettings.autoSaveSettings.delaySeconds) || 60) * 1000;
-    const autoSaveNow = () => {
-      if (review.pendingCount.value > 0 && !review.saving.value) review.save();
-    };
-    let autoSave = debounce(autoSaveNow, autoSaveDelayMs());
-    watch(() => clientSettings.autoSaveSettings.delaySeconds, () => {
-      autoSave.cancel();
-      autoSave = debounce(autoSaveNow, autoSaveDelayMs());
-    });
-    watch(review.pendingCount, (count, previous) => {
-      if (clientSettings.autoSaveSettings.enabled && count > previous) autoSave();
-    });
-
     function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (review.pendingCount.value > 0) {
+      if (searchReview.hasChanges.value) {
         event.preventDefault();
         // eslint-disable-next-line no-param-reassign
         event.returnValue = '';
@@ -160,13 +159,12 @@ export default defineComponent({
     }
 
     onBeforeRouteLeave(async (_to, _from, next) => {
-      const pending = review.pendingCount.value;
-      if (pending === 0) { next(); return; }
-      autoSave.cancel();
+      if (!searchReview.hasChanges.value) { next(); return; }
+      const pending = searchReview.changeCount.value;
       const ok = await prompt({
         title: 'Unsaved annotation changes',
         text: [
-          `${pending} annotation change${pending === 1 ? '' : 's'} from the search results ${pending === 1 ? 'is' : 'are'} not saved.`,
+          `${pending} result${pending === 1 ? '' : 's'} would be saved as annotation${pending === 1 ? '' : 's'}.`,
           'Save before leaving? Use Discard on the results toolbar to drop them instead.',
         ],
         confirm: true,
@@ -174,9 +172,9 @@ export default defineComponent({
         negativeButton: 'Stay',
       });
       if (!ok) { next(false); return; }
-      await review.save();
+      const outcome = await searchReview.save();
       // A failed save leaves its error on the page; stay put.
-      next(review.pendingCount.value === 0 ? undefined : false);
+      next(outcome === 'failed' ? false : undefined);
     });
 
     const textCells = computed(() => textGrid.pageItems.value.map((item) => {
@@ -229,7 +227,6 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      autoSave.cancel();
       page.cancelTextQuery();
       const textPage = textGrid.page.value;
       textGrid.dispose();
@@ -260,6 +257,8 @@ export default defineComponent({
       searchChips,
       searchReview,
       resultsMemory,
+      overlapDialog,
+      chooseOverlap,
       textChips,
       gridSettings,
       textGrid,
@@ -791,6 +790,55 @@ export default defineComponent({
         </template>
       </div>
     </div>
+    <v-dialog
+      :value="overlapDialog !== null"
+      max-width="640"
+      persistent
+    >
+      <v-card v-if="overlapDialog">
+        <v-card-title style="word-break: normal;">
+          Results overlap existing annotations
+        </v-card-title>
+        <v-card-text>
+          {{ overlapDialog.overlapping }} of the {{ overlapDialog.total }} result{{ overlapDialog.total === 1 ? '' : 's' }}
+          to save overlap{{ overlapDialog.overlapping === 1 ? 's' : '' }} annotations already in
+          {{ overlapDialog.datasetIds.map((id) => page.datasetName(id)).join(', ') }}. How should they be saved?
+        </v-card-text>
+        <v-card-actions class="flex-wrap overlap-actions">
+          <v-btn
+            text
+            color="error"
+            title="Save nothing and drop every result change"
+            @click="chooseOverlap('discard')"
+          >
+            Discard results
+          </v-btn>
+          <v-spacer />
+          <v-btn
+            text
+            title="Save the other results and leave the overlapping ones out"
+            @click="chooseOverlap('keep-originals')"
+          >
+            Keep originals
+          </v-btn>
+          <v-btn
+            text
+            title="Delete only the overlapped annotations and save every result"
+            @click="chooseOverlap('overwrite-overlapping')"
+          >
+            Replace overlapping
+          </v-btn>
+          <v-btn
+            text
+            color="primary"
+            title="Delete every annotation in those sequences and save the results"
+            @click="chooseOverlap('overwrite-all')"
+          >
+            Replace all annotations
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-main>
 </template>
 
@@ -853,6 +901,10 @@ export default defineComponent({
 
 .frame-field {
   max-width: 140px;
+}
+
+.overlap-actions {
+  gap: 4px;
 }
 
 .text-fields {
