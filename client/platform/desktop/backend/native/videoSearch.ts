@@ -858,10 +858,15 @@ export async function shutdownQueryService(): Promise<void> {
  * the membership metadata. Stale ITQ hash entries are tolerated by the
  * query engine and cleaned up on the next index build.
  */
+/** Exact id, or a multicamera child (`parent/camera`) of that id. */
+function streamDatasetMatches(streamDatasetId: string, datasetId: string): boolean {
+  return streamDatasetId === datasetId || streamDatasetId.startsWith(`${datasetId}/`);
+}
+
 async function removeFromIndex(settings: Settings, datasetId: string): Promise<void> {
   const meta = await readIndexMeta(settings);
   const streams = Object.keys(meta.streams)
-    .filter((s) => meta.streams[s].datasetId === datasetId);
+    .filter((s) => streamDatasetMatches(meta.streams[s].datasetId, datasetId));
   if (!streams.length) {
     return;
   }

@@ -89,3 +89,21 @@ it('registers failures while closing the previous search session for the error p
   expect(updates.at(-1)?.body).toEqual(['ERROR: Could not close index']);
   expect(updates.at(-1)?.endTime).toBeDefined();
 });
+
+it('removes multicamera streams when the parent dataset id is deleted', async () => {
+  const indexDir = path.join(root, 'DIVE_SearchIndex');
+  await fs.ensureDir(path.join(indexDir, 'database'));
+  await fs.writeJson(path.join(indexDir, 'index_meta.json'), {
+    version: 1,
+    backend: 'files',
+    streams: {
+      left: { datasetId: 'fish/left', method: 'detections', createdAt: '2024-01-01' },
+      alone: { datasetId: 'other', method: 'detections', createdAt: '2024-01-01' },
+    },
+  });
+  await fs.writeFile(path.join(indexDir, 'database', 'left.index'), 'x');
+  await videoSearch.removeFromIndex(settings, 'fish');
+  const metadata = await fs.readJson(path.join(indexDir, 'index_meta.json'));
+  expect(Object.keys(metadata.streams)).toEqual(['alone']);
+  expect(await fs.pathExists(path.join(indexDir, 'database', 'left.index'))).toBe(false);
+});
