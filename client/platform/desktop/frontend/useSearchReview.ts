@@ -8,7 +8,9 @@
  * originals, replace the overlapped ones, replace every original, or
  * drop the results altogether.
  */
-import { computed, effectScope, ref, watch } from 'vue';
+import {
+  computed, effectScope, ref, watch,
+} from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewCellGeometryEdit } from 'dive-common/components/Review/ReviewCell.vue';
 import { tracksOverlapping } from 'dive-common/review/reviewItems';

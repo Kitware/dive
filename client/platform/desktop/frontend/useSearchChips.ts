@@ -9,7 +9,9 @@
  * generation (state.queryGeneration): the service can reuse refs across
  * queries, so the store is reset whenever a new query starts.
  */
-import { computed, effectScope, Ref, watch } from 'vue';
+import {
+  computed, effectScope, Ref, watch,
+} from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import { loadConfig } from 'platform/desktop/frontend/api';
 import type { VideoSearchContextType } from 'platform/desktop/frontend/useVideoSearch';
