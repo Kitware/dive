@@ -20,8 +20,9 @@ const provideMocks = vi.hoisted(() => ({
   intervalSearch: vi.fn<(range: [number, number]) => string[]>(() => []),
   getPossible: vi.fn(),
   annotationMap: new Map<number, unknown>(),
-  selectedCameraValue: 'singleCam',
-  selectedCameraRef: undefined as { value: string } | undefined,
+  camMapRef: undefined as
+    | { value: Map<string, { trackStore: Record<string, unknown> }> }
+    | undefined,
   datasetIdRef: undefined as { value: string } | undefined,
 }));
 
@@ -56,15 +57,17 @@ function mountFilterList(props: Record<string, unknown>) {
 }
 
 vi.mock('../provides', () => ({
-  useCameraStore: () => ({
-    camMap: ref(new Map([['singleCam', {
+  useCameraStore: () => {
+    const camMap = ref(new Map([['singleCam', {
       trackStore: {
         annotationMap: provideMocks.annotationMap,
         intervalTree: { search: provideMocks.intervalSearch },
         getPossible: provideMocks.getPossible,
       },
-    }]])),
-  }),
+    }]]));
+    provideMocks.camMapRef = camMap;
+    return { camMap };
+  },
   useHandler: () => ({ seekFrame: provideMocks.seekFrame }),
   useDatasetId: () => {
     const datasetId = ref('dataset-a');
@@ -72,11 +75,6 @@ vi.mock('../provides', () => ({
     return datasetId;
   },
   useReadOnlyMode: () => ref(false),
-  useSelectedCamera: () => {
-    const selectedCamera = ref(provideMocks.selectedCameraValue);
-    provideMocks.selectedCameraRef = selectedCamera;
-    return selectedCamera;
-  },
   useTime: () => ({ frame: ref(0) }),
   usePendingSaveCount: () => ref(0),
 }));
@@ -187,8 +185,7 @@ describe('FilterList hierarchy members', () => {
     provideMocks.intervalSearch.mockReset().mockReturnValue([]);
     provideMocks.getPossible.mockReset();
     provideMocks.annotationMap.clear();
-    provideMocks.selectedCameraValue = 'singleCam';
-    provideMocks.selectedCameraRef = undefined;
+    provideMocks.camMapRef = undefined;
     provideMocks.datasetIdRef = undefined;
     clientSettings.typeSettings.showTotalCount = true;
     clientSettings.typeSettings.showFrameCount = true;
@@ -741,16 +738,29 @@ describe('FilterList hierarchy members', () => {
     expect(provideMocks.intervalSearch).toHaveBeenCalledTimes(intervalSearchCalls);
   });
 
-  it('starts current-frame counts when an asynchronous camera selection becomes available', async () => {
+  it('unions current-frame counts across cameras in a multicamera instance', async () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
-    clientSettings.typeSettings.filterTypesByFrame = false;
+    clientSettings.typeSettings.filterTypesByFrame = true;
     clientSettings.typeSettings.suppressionType = '';
-    provideMocks.selectedCameraValue = '';
-    provideMocks.intervalSearch.mockReturnValue(['1']);
-    const { filterControls, styleManager, tracks } = makeCountHierarchyFixture();
-    provideMocks.getPossible.mockImplementation((id: number) => (
-      tracks.find((track) => track.id === id)
-    ));
+    const camATracks = [
+      new Track(1, {
+        confidencePairs: [['leaf', 1]],
+        features: featuresAt([0]),
+      }),
+    ];
+    const camBTracks = [
+      new Track(2, {
+        confidencePairs: [['sibling', 1]],
+        features: featuresAt([0]),
+      }),
+    ];
+    const allTracks = [...camATracks, ...camBTracks];
+    const { filterControls, styleManager } = makeCountHierarchyFixture({
+      tracks: allTracks,
+      checkedTypes: ['root', 'branch', 'leaf', 'sibling'],
+    });
+    const camASearch = vi.fn<(range: [number, number]) => string[]>(() => ['1']);
+    const camBSearch = vi.fn<(range: [number, number]) => string[]>(() => ['2']);
     const { vm } = mountFilterList({
       filterControls,
       styleManager,
@@ -758,18 +768,36 @@ describe('FilterList hierarchy members', () => {
       height: 240,
       headerHeight: 80,
     });
-
-    expect(vm.virtualTypes.find(({ type }) => type === 'root')?.displayText)
-      .toBe('0 / 3\u00A0 root');
-
-    if (!provideMocks.selectedCameraRef) {
-      throw new Error('selected camera ref was not captured');
+    if (!provideMocks.camMapRef) {
+      throw new Error('camMap ref was not captured');
     }
-    provideMocks.selectedCameraRef.value = 'singleCam';
+    provideMocks.camMapRef.value = new Map([
+      ['camA', {
+        trackStore: {
+          annotationMap: new Map(camATracks.map((t) => [t.id, t])),
+          intervalTree: { search: camASearch },
+          getPossible: (id: number) => camATracks.find((track) => track.id === id),
+        },
+      }],
+      ['camB', {
+        trackStore: {
+          annotationMap: new Map(camBTracks.map((t) => [t.id, t])),
+          intervalTree: { search: camBSearch },
+          getPossible: (id: number) => camBTracks.find((track) => track.id === id),
+        },
+      }],
+    ]);
     await nextTick();
 
-    expect(vm.virtualTypes.find(({ type }) => type === 'root')?.displayText)
-      .toBe('1 / 3\u00A0 root');
+    expect(vm.visibleTypes).toEqual(['root', 'branch', 'leaf', 'sibling']);
+    expect(vm.virtualTypes.map(({ displayText }) => displayText)).toEqual([
+      '2 / 2\u00A0 root',
+      '1 / 1\u00A0 branch',
+      '1 / 1\u00A0 leaf',
+      '1 / 1\u00A0 sibling',
+    ]);
+    expect(camASearch).toHaveBeenCalled();
+    expect(camBSearch).toHaveBeenCalled();
   });
 
   it.each([
