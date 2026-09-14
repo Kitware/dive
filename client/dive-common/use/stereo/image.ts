@@ -22,6 +22,10 @@ const R_W = 0.299;
 const G_W = 0.587;
 const B_W = 0.114;
 
+export function isGrayImage(img: RgbaImage | GrayImage): img is GrayImage {
+  return img.data instanceof Float32Array;
+}
+
 /** Convert RGBA pixel data to BT.601 grayscale (matches cv2 BGR2GRAY). */
 export function rgbaToGray(img: RgbaImage): GrayImage {
   const { data, width, height } = img;
@@ -30,6 +34,10 @@ export function rgbaToGray(img: RgbaImage): GrayImage {
     out[i] = R_W * data[p] + G_W * data[p + 1] + B_W * data[p + 2];
   }
   return { data: out, width, height };
+}
+
+export function toGray(img: RgbaImage | GrayImage): GrayImage {
+  return isGrayImage(img) ? img : rgbaToGray(img);
 }
 
 /**

@@ -1,0 +1,105 @@
+import hashlib
+import io
+from pathlib import Path
+import zipfile
+
+import pytest
+
+from dive_utils import stereo_models
+
+CSV = (
+    'DEFAULT-FISH, https://example.com/fish/download, Default fish, '
+    '1b71862b7fa39def315c0c08c44048a7, ALL-PLATFORMS, "PYTORCH, ONNX", models/fish.zip\n'
+    'FAST-FDN-STEREO, https://example.com/stereo/download, Fast foundation stereo,  '
+    '29D4CDE2E33500E74844D07C5AB3DEE0, ALL-PLATFORMS, "PYTORCH", \n'
+)
+
+YAML = 'image_size:\n- 576\n- 960\nvalid_iters: 8\n'
+
+
+def make_addon_zip(yaml_text=YAML, extra_onnx=False) -> bytes:
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, 'w') as archive:
+        archive.writestr('configs/pipelines/interactive_stereo_default.conf', 'include x.conf\n')
+        archive.writestr('configs/pipelines/models/fast_foundation_stereo_l.onnx', b'onnx-bytes')
+        archive.writestr('configs/pipelines/models/fast_foundation_stereo_l.yaml', yaml_text)
+        if extra_onnx:
+            archive.writestr('configs/pipelines/models/other.onnx', b'x')
+    return buffer.getvalue()
+
+
+def fake_downloader(payload: bytes):
+    def download(url: str, dest: Path) -> str:
+        dest.write_bytes(payload)
+        return hashlib.md5(payload).hexdigest()
+
+    return download
+
+
+def test_parse_addon_rows_strips_whitespace_and_lowercases_md5():
+    rows = stereo_models.parse_addon_rows(CSV)
+    stereo = stereo_models.find_addon(rows, 'FAST-FDN-STEREO')
+    assert stereo == stereo_models.AddonSource(
+        'FAST-FDN-STEREO',
+        'https://example.com/stereo/download',
+        '29d4cde2e33500e74844d07c5ab3dee0',
+    )
+    assert stereo_models.find_addon(rows, 'MISSING') is None
+
+
+def test_parse_image_size_block_and_flow():
+    assert stereo_models.parse_image_size(YAML) == (576, 960)
+    assert stereo_models.parse_image_size('image_size: [320, 736]\n') == (320, 736)
+    assert stereo_models.parse_image_size('valid_iters: 8\n') is None
+
+
+def test_ensure_model_downloads_once_and_verifies_md5(tmp_path):
+    payload = make_addon_zip()
+    addon = stereo_models.AddonSource(
+        'FAST-FDN-STEREO', 'https://example.com/stereo', hashlib.md5(payload).hexdigest()
+    )
+    calls = []
+
+    def download(url, dest):
+        calls.append(url)
+        return fake_downloader(payload)(url, dest)
+
+    model = stereo_models.ensure_model(addon, tmp_path, download)
+    assert model.onnx_path.read_bytes() == b'onnx-bytes'
+    assert (model.height, model.width) == (576, 960)
+    assert model.md5 == addon.md5
+    assert model.onnx_path.parent == tmp_path / addon.name / addon.md5
+
+    again = stereo_models.ensure_model(addon, tmp_path, download)
+    assert again.onnx_path == model.onnx_path
+    assert calls == ['https://example.com/stereo']
+
+
+def test_ensure_model_rejects_md5_mismatch(tmp_path):
+    payload = make_addon_zip()
+    addon = stereo_models.AddonSource('FAST-FDN-STEREO', 'https://example.com/stereo', 'f' * 32)
+    with pytest.raises(stereo_models.ModelUnavailable):
+        stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload))
+    assert not (tmp_path / addon.name / addon.md5).exists()
+
+
+def test_ensure_model_replaces_previous_md5(tmp_path):
+    old_payload = make_addon_zip(yaml_text='image_size: [320, 736]\n')
+    new_payload = make_addon_zip()
+    old = stereo_models.AddonSource(
+        'FAST-FDN-STEREO', 'https://example.com/old', hashlib.md5(old_payload).hexdigest()
+    )
+    new = stereo_models.AddonSource(
+        'FAST-FDN-STEREO', 'https://example.com/new', hashlib.md5(new_payload).hexdigest()
+    )
+    stereo_models.ensure_model(old, tmp_path, fake_downloader(old_payload))
+    model = stereo_models.ensure_model(new, tmp_path, fake_downloader(new_payload))
+    assert (model.height, model.width) == (576, 960)
+    assert not (tmp_path / old.name / old.md5).exists()
+
+
+def test_extract_model_requires_exactly_one_onnx(tmp_path):
+    zip_path = tmp_path / 'addon.zip'
+    zip_path.write_bytes(make_addon_zip(extra_onnx=True))
+    with pytest.raises(stereo_models.ModelUnavailable):
+        stereo_models.extract_model(zip_path, tmp_path / 'out')

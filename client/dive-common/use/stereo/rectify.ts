@@ -21,8 +21,13 @@ export interface Rectification {
   /** Rectifying rotations for the source and target cameras. */
   R1: Mat3;
   R2: Mat3;
-  /** Shared focal length and principal point of the rectified pair. */
-  f: number;
+  /**
+   * Shared focal lengths and principal point of the rectified pair, in
+   * rectified pixels. `fx` and `fy` differ when the rectified size has a
+   * different aspect ratio from the source.
+   */
+  fx: number;
+  fy: number;
   cx: number;
   cy: number;
   /** Rectified image size these were solved for. */
@@ -78,15 +83,26 @@ export function rodrigues(v: ArrayLike<number>): Mat3 {
 }
 
 /**
- * Solve the rectifying rotations for a rig.
+ * Solve the rectifying rotations for a rig whose frames are `sourceWidth` x
+ * `sourceHeight`, producing rectified images of `width` x `height` (default:
+ * the source size).
  *
- * The focal length is the smaller of the two cameras' so the rectified frustum
- * stays inside both, and the principal point is centred on the output. This is
- * OpenCV's `alpha = 0`-free behaviour: no zoom-to-valid-region crop, which on a
- * rig whose baseline sits far from horizontal demands an extreme zoom and can
- * push the whole scene off canvas.
+ * As in OpenCV, the focal length is the mean of the two cameras' along the axis
+ * perpendicular to the baseline, and the principal point is placed so the
+ * average of each camera's undistorted, rotated corners lands at the centre.
+ * Both are then scaled by the output/source size ratio per axis, which fuses
+ * rectification with a resize to the output resolution. This is the
+ * `alpha = -1` behaviour: no zoom-to-valid-region crop, which on a rig whose
+ * baseline sits far from horizontal demands an extreme zoom and can push the
+ * whole scene off canvas.
  */
-export function computeRectification(rig: StereoRig, width: number, height: number): Rectification {
+export function computeRectification(
+  rig: StereoRig,
+  sourceWidth: number,
+  sourceHeight: number,
+  width = sourceWidth,
+  height = sourceHeight,
+): Rectification {
   // Half-rotate both cameras toward each other: r = R^(-1/2).
   const om = rodriguesInv(rig.R);
   const r = rodrigues([-om[0] / 2, -om[1] / 2, -om[2] / 2]);
@@ -113,13 +129,39 @@ export function computeRectification(rig: StereoRig, width: number, height: numb
     const scale = Math.acos(Math.abs(t[idx]) / nt) / nw;
     wR = rodrigues([ww[0] * scale, ww[1] * scale, ww[2] * scale]);
   }
+  const R1 = matMul(wR, transpose(r));
+  const R2 = matMul(wR, r);
+
+  const perp = horizontal ? 4 : 0;
+  const f = (rig.Kl[perp] + rig.Kr[perp]) / 2;
+  const fx = f * (width / sourceWidth);
+  const fy = f * (height / sourceHeight);
+
+  const corners: [number, number][] = [
+    [0, 0], [sourceWidth - 1, 0], [0, sourceHeight - 1], [sourceWidth - 1, sourceHeight - 1],
+  ];
+  const centres = [false, true].map((target) => {
+    const K = target ? rig.Kr : rig.Kl;
+    const d = target ? rig.distr : rig.distl;
+    const R = target ? R2 : R1;
+    let sx = 0;
+    let sy = 0;
+    corners.forEach(([px, py]) => {
+      const [nx, ny] = unmap(px, py, K, d);
+      const p = matVec(R, [nx, ny, 1]);
+      sx += p[0] / p[2];
+      sy += p[1] / p[2];
+    });
+    return [(width - 1) / 2 - fx * (sx / 4), (height - 1) / 2 - fy * (sy / 4)];
+  });
 
   return {
-    R1: matMul(wR, transpose(r)),
-    R2: matMul(wR, r),
-    f: Math.min(rig.Kl[0], rig.Kr[0]),
-    cx: (width - 1) / 2,
-    cy: (height - 1) / 2,
+    R1,
+    R2,
+    fx,
+    fy,
+    cx: (centres[0][0] + centres[1][0]) / 2,
+    cy: (centres[0][1] + centres[1][1]) / 2,
     width,
     height,
   };
@@ -133,7 +175,7 @@ export function rectifyPoint(px: number, py: number, rig: StereoRig, rect: Recti
   const [nx, ny] = unmap(px, py, K, d);
   const p = matVec(R, [nx, ny, 1]);
   if (p[2] === 0) return [NaN, NaN];
-  return [rect.f * (p[0] / p[2]) + rect.cx, rect.f * (p[1] / p[2]) + rect.cy];
+  return [rect.fx * (p[0] / p[2]) + rect.cx, rect.fy * (p[1] / p[2]) + rect.cy];
 }
 
 /** Rectified pixel -> source pixel (the inverse of {@link rectifyPoint}). */
@@ -141,7 +183,7 @@ export function unrectifyPoint(rx: number, ry: number, rig: StereoRig, rect: Rec
   const K = target ? rig.Kr : rig.Kl;
   const d = target ? rig.distr : rig.distl;
   const R = target ? rect.R2 : rect.R1;
-  const p = matVec(transpose(R), [(rx - rect.cx) / rect.f, (ry - rect.cy) / rect.f, 1]);
+  const p = matVec(transpose(R), [(rx - rect.cx) / rect.fx, (ry - rect.cy) / rect.fy, 1]);
   if (p[2] === 0) return [NaN, NaN];
   return mapPoint(p[0] / p[2], p[1] / p[2], K, d);
 }

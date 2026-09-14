@@ -82,6 +82,29 @@ describe('computeRectification', () => {
     });
   });
 
+  it('scales the rectified view to a different output size', () => {
+    // The network input is smaller than the frame, so rectification must also
+    // resize: the same source pixel lands at the same relative position, and a
+    // point at a source corner stays inside the output instead of being cropped.
+    const rig = makeRig();
+    const full = computeRectification(rig, 1280, 800);
+    const small = computeRectification(rig, 1280, 800, W, H);
+    expect(small.fx).toBeCloseTo(full.fx * (W / 1280), 6);
+    expect(small.fy).toBeCloseTo(full.fy * (H / 800), 6);
+    // Pixel centres: position relative to the image centre scales with the size.
+    [[0, 0], [1279, 799], [640, 400]].forEach(([px, py]) => {
+      const [fx, fy] = rectifyPoint(px, py, rig, full, false);
+      const [sx, sy] = rectifyPoint(px, py, rig, small, false);
+      expect(sx - (W - 1) / 2).toBeCloseTo((fx - (1280 - 1) / 2) * (W / 1280), 3);
+      expect(sy - (H - 1) / 2).toBeCloseTo((fy - (800 - 1) / 2) * (H / 800), 3);
+    });
+    const [cx, cy] = rectifyPoint(640, 400, rig, small, false);
+    expect(cx).toBeGreaterThan(W * 0.3);
+    expect(cx).toBeLessThan(W * 0.7);
+    expect(cy).toBeGreaterThan(H * 0.3);
+    expect(cy).toBeLessThan(H * 0.7);
+  });
+
   it('gives a positive disparity that shrinks with range', () => {
     const rig = makeRig();
     const rect = computeRectification(rig, W, H);
@@ -100,6 +123,15 @@ describe('computeRectification', () => {
 });
 
 describe('rectifyPoint / unrectifyPoint', () => {
+  it('keeps corresponding points on one row when the output size differs', () => {
+    const rig = makeRig();
+    const rect = computeRectification(rig, 1280, 800, W, H);
+    const p: [number, number, number] = [150, -80, 2200];
+    const [, ly] = rectifyPoint(...projectInto(p, rig, false), rig, rect, false);
+    const [, ry] = rectifyPoint(...projectInto(p, rig, true), rig, rect, true);
+    expect(ry).toBeCloseTo(ly, 2);
+  });
+
   it('round-trips a pixel on both cameras, with and without distortion', () => {
     const plain = makeRig();
     const distorted: StereoRig = {
@@ -108,7 +140,7 @@ describe('rectifyPoint / unrectifyPoint', () => {
       distr: Float32Array.from([-0.15, 0.09, -0.001, 0.002, 0, 0, 0, 0]),
     };
     [plain, distorted].forEach((rig) => {
-      const rect = computeRectification(rig, W, H);
+      const rect = computeRectification(rig, 1280, 800, W, H);
       [false, true].forEach((target) => {
         [[640, 400], [300, 180], [900, 550]].forEach(([px, py]) => {
           const [rx, ry] = rectifyPoint(px, py, rig, rect, target);

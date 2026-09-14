@@ -41,7 +41,7 @@ export default defineComponent({
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
       stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
-      stereoMatchMethod: 'How a point is matched on the other camera. Template matching correlates the source patch along the epipolar line. Foundation stereo runs a dense disparity network over the pair once, which is steadier where the patch is hard to match but needs its model to be configured.',
+      stereoMatchMethod: 'How points are located on the other camera. "Lower Accuracy, Higher Speed" template-matches each point along its epipolar line. "Higher Accuracy, Lower Speed" runs the Fast Foundation Stereo model over the whole image pair (downloaded once, about 100 MB) and reads every point from its disparity map, which is computed ahead of time whenever you change frames.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -449,6 +449,7 @@ export default defineComponent({
           </v-col>
         </v-row>
         <v-row
+          v-if="!isDesktopRuntime"
           align="end"
           dense
         >
@@ -459,7 +460,7 @@ export default defineComponent({
               class="my-0 ml-1 pt-0"
               dense
               hide-details
-              label="Correspondence method"
+              label="Point matching"
             />
           </v-col>
           <v-col

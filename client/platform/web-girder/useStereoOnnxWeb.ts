@@ -1,18 +1,27 @@
 /**
  * Web wiring for client-side stereo transfer (warp a detection to the other
- * camera and triangulate its length) using the VIAME "match" ONNX model.
+ * camera and triangulate its length) using the selected correspondence model.
  * Assembles the platform providers that {@link useStereoOnnxTransfer} needs:
  *  - calibration, taken from the session's file stash when the user just
  *    imported one and otherwise downloaded from the dataset's Girder folder,
- *  - the ONNX matcher (lazily created from a served model asset),
+ *  - the matcher for the selected method (lazily created and cached),
  *  - per-camera frame pixels, read from the GeoJS viewer for the frame on
  *    screen and fetched from the frame's image URL for any other frame.
  *
- * The exported model must be served as a static asset (default
- * `/models/stereo_match.onnx`; produce it with
- * `plugins/onnx/export_stereo_mapping.py --model match`). If no calibration or
- * model is available the transfer reports the failure and no-ops.
+ * The NCC model is a static asset (`/models/stereo_match.onnx`, produced with
+ * `plugins/onnx/export_stereo_mapping.py --model match`). The foundation model
+ * is the export VIAME publishes in its FAST-FDN-STEREO add-on: the girder
+ * server resolves it from VIAME's add-on list and serves it, and the bytes are
+ * kept in the browser's Cache API keyed by the add-on's md5 so a page reload
+ * does not re-download ~100 MB. If no calibration or model is available the
+ * transfer reports the failure and no-ops.
+ *
+ * Because the foundation method costs one network pass per frame rather than
+ * per point, its disparity map is computed as soon as the viewer lands on a
+ * frame, so the warp itself is quick when the user draws.
  */
+
+import { watch } from 'vue';
 
 import { clientSettings } from 'dive-common/store/settings';
 import useStereoOnnxTransfer from 'dive-common/use/stereo/useStereoOnnxTransfer';
@@ -31,16 +40,8 @@ import type { StereoMeasurement } from 'dive-common/use/stereo/triangulate';
 import { getCalibrationFile, getLastCalibration } from './multicamFileRegistry';
 
 const DEFAULT_MODEL_URL = '/models/stereo_match.onnx';
-/**
- * Fast-FoundationStereo is opt-in and unbundled: the exports run ~100 MB, so
- * unlike the NCC graph this one is not committed. Serve an export here (or pass
- * `foundationModelUrl`) and give its sidecar `image_size` as
- * `foundationModelSpec`; with no model served the dropdown's foundation option
- * reports that it could not load and the warp no-ops, exactly as a missing
- * calibration does.
- */
-const DEFAULT_FOUNDATION_MODEL_URL = '/models/stereo_foundation.onnx';
-const DEFAULT_FOUNDATION_SPEC: FoundationModelSpec = { height: 576, width: 960 };
+/** Browser cache holding the foundation model bytes across page loads. */
+const MODEL_CACHE_NAME = 'dive-stereo-models';
 // Mirrors epipolar_min_disparity / epipolar_max_disparity in VIAME's
 // configs/pipelines/interactive_stereo_template.conf, which is what the desktop
 // interactive stereo service loads. Scene-dependent, and hidden config there
@@ -55,8 +56,12 @@ export interface StereoOnnxWebOptions {
   /** Dataset (folder) id used to look up the stored calibration. */
   getDatasetId: () => string;
   modelUrl?: string;
+  /**
+   * Serve the foundation model from a fixed URL instead of the girder
+   * endpoint; `foundationModelSpec` (the export's sidecar `image_size`) is then
+   * required.
+   */
   foundationModelUrl?: string;
-  /** Input resolution of the foundation export (its sidecar yaml `image_size`). */
   foundationModelSpec?: FoundationModelSpec;
   /** Overrides the user's dropdown choice; mainly for tests. */
   getMatchMethod?: () => StereoMatchMethod;
@@ -97,13 +102,53 @@ async function urlToRgba(url: string): Promise<RgbaImage | null> {
   }
 }
 
+async function openModelCache(): Promise<Cache | null> {
+  if (typeof caches === 'undefined') return null;
+  try {
+    return await caches.open(MODEL_CACHE_NAME);
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * The foundation model bytes for the export the server currently serves. The
+ * md5 comes from VIAME's add-on list, so a re-published export changes the
+ * cache key and the stale copy is dropped.
+ */
+async function fetchFoundationModel(): Promise<{ bytes: ArrayBuffer; spec: FoundationModelSpec }> {
+  // Imported lazily: the girder client touches `window` at load time, which
+  // breaks node-environment unit tests that import this file.
+  const { getStereoFoundationModelSpec, getStereoFoundationModel } = await import(
+    'platform/web-girder/api/configuration.service'
+  );
+  const { data: spec } = await getStereoFoundationModelSpec();
+  const cacheUrl = `${window.location.origin}/dive-stereo-models/${spec.md5}/${spec.name}`;
+  const cache = await openModelCache();
+  if (cache) {
+    const hit = await cache.match(cacheUrl);
+    if (hit) return { bytes: await hit.arrayBuffer(), spec };
+  }
+  const { data: bytes } = await getStereoFoundationModel();
+  if (cache) {
+    try {
+      const keys = await cache.keys();
+      await Promise.all(keys.map((request) => cache.delete(request)));
+      await cache.put(cacheUrl, new Response(bytes, {
+        headers: { 'Content-Type': 'application/octet-stream' },
+      }));
+    } catch (err) {
+      console.warn('[StereoOnnx] could not cache the foundation model', err);
+    }
+  }
+  return { bytes, spec };
+}
+
 export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   const modelUrl = opts.modelUrl ?? DEFAULT_MODEL_URL;
-  const foundationModelUrl = opts.foundationModelUrl ?? DEFAULT_FOUNDATION_MODEL_URL;
-  const foundationSpec = opts.foundationModelSpec ?? DEFAULT_FOUNDATION_SPEC;
   // Cached per method: switching the dropdown must not reload the other model,
   // and a method that failed to load must not be retried on every warp.
-  const matchers: Partial<Record<StereoMatchMethod, StereoMatcher | null>> = {};
+  const matchers: Partial<Record<StereoMatchMethod, Promise<StereoMatcher | null>>> = {};
   let rig: StereoRig | null = null;
   let rigKey: string | null = null;
 
@@ -112,19 +157,38 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return clientSettings.stereoSettings.matchMethod ?? DEFAULT_STEREO_MATCH_METHOD;
   }
 
-  async function getMatcher(): Promise<StereoMatcher | null> {
-    const method = currentMethod();
-    if (method in matchers) return matchers[method] ?? null;
-    const url = method === 'foundation' ? foundationModelUrl : modelUrl;
-    try {
-      matchers[method] = method === 'foundation'
-        ? await StereoFoundationMatcher.create(url, foundationSpec)
-        : await StereoOnnxMatcher.create(url);
-    } catch (err) {
-      console.warn('[StereoOnnx] failed to load model', method, url, err);
-      matchers[method] = null;
+  async function createFoundationMatcher(): Promise<StereoMatcher> {
+    if (opts.foundationModelUrl) {
+      if (!opts.foundationModelSpec) {
+        throw new Error('foundationModelSpec is required with foundationModelUrl');
+      }
+      return StereoFoundationMatcher.create(opts.foundationModelUrl, opts.foundationModelSpec);
     }
-    return matchers[method] ?? null;
+    opts.onStatus?.('Loading the stereo model (about 100 MB on first use)...');
+    try {
+      const { bytes, spec } = await fetchFoundationModel();
+      return await StereoFoundationMatcher.create(new Uint8Array(bytes), {
+        height: spec.height, width: spec.width,
+      });
+    } finally {
+      opts.onStatus?.(null);
+    }
+  }
+
+  function getMatcher(): Promise<StereoMatcher | null> {
+    const method = currentMethod();
+    const existing = matchers[method];
+    if (existing) return existing;
+    const created = (method === 'foundation'
+      ? createFoundationMatcher()
+      : StereoOnnxMatcher.create(modelUrl)
+    ).catch((err) => {
+      console.warn('[StereoOnnx] failed to load model', method, err);
+      opts.onError?.(`The stereo matching model could not be loaded. ${(err as Error).message ?? err}`);
+      return null;
+    });
+    matchers[method] = created;
+    return created;
   }
 
   function parseRig(name: string, buffer: ArrayBuffer): Promise<StereoRig> {
@@ -208,6 +272,18 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return url ? urlToRgba(url) : null;
   }
 
+  /** The frame the viewer is on, once its media has loaded. */
+  function currentFrame(): number | undefined {
+    const viewer = opts.getViewer();
+    if (!viewer?.progress?.loaded) return undefined;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return fromViewer<any>(viewer.aggregateController)?.frame?.value;
+    } catch {
+      return undefined;
+    }
+  }
+
   // ViewerLoader is reused across /viewer/:id navigations while <Viewer :key="id">
   // remounts, so never close over a specific Viewer — rebuild when cameraStore
   // identity changes, and resolve multiCamList via getViewer() each call.
@@ -240,6 +316,41 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return transfer;
   }
 
+  /**
+   * Only the foundation method has per-frame work to do ahead of time, and only
+   * when warps will actually happen (auto-compute on, two cameras).
+   */
+  function precomputeWanted(): boolean {
+    return currentMethod() === 'foundation'
+      && clientSettings.stereoSettings.autoComputeOtherCamera
+      && (fromViewer<string[]>(opts.getViewer()?.multiCamList) ?? []).length >= 2;
+  }
+
+  // A precompute failure is the model failing on this browser/GPU, which the
+  // user should hear about once rather than on every frame change.
+  let precomputeErrorReported = false;
+
+  /** Compute the current frame's disparity maps ahead of any warp there. */
+  function precomputeCurrentFrame() {
+    const frame = currentFrame();
+    if (frame === undefined || !precomputeWanted()) return;
+    getTransfer()?.precomputeFrame(frame, () => currentFrame() === frame && precomputeWanted())
+      .catch((err) => {
+        console.warn('[StereoOnnx] disparity precompute failed', err);
+        if (!precomputeErrorReported) {
+          precomputeErrorReported = true;
+          opts.onError?.(`The higher-accuracy stereo model could not run in this browser. ${(err as Error).message ?? err}`);
+        }
+      });
+  }
+
+  watch(
+    () => [currentFrame(), precomputeWanted()] as const,
+    ([frame, wanted]) => {
+      if (frame !== undefined && wanted) precomputeCurrentFrame();
+    },
+  );
+
   type Transfer = ReturnType<typeof useStereoOnnxTransfer>;
 
   async function handleStereoAnnotationComplete(
@@ -256,5 +367,10 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return getTransfer()?.warpAllFromCamera(cameraName);
   }
 
-  return { handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera };
+  return {
+    handleStereoAnnotationComplete,
+    handleStereoTrackLinked,
+    warpAllFromCamera,
+    precomputeCurrentFrame,
+  };
 }

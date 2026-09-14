@@ -11,6 +11,16 @@ export interface BrandData {
   trainingMessage?: string;
 }
 
+/** The served Fast-FoundationStereo export, as `dive_configuration/stereo_foundation_model/spec` reports it. */
+export interface StereoFoundationModelSpec {
+  name: string;
+  url: string;
+  md5: string;
+  height: number;
+  width: number;
+  size: number;
+}
+
 export interface StatsResponse {
   table_stats: {
     datasets: number; // Total count of datasets
@@ -89,6 +99,16 @@ function getAddons() {
   return girderRest.get<AddOns>('dive_configuration/addons');
 }
 
+function getStereoFoundationModelSpec() {
+  return girderRest.get<StereoFoundationModelSpec>('dive_configuration/stereo_foundation_model/spec');
+}
+
+function getStereoFoundationModel() {
+  return girderRest.get<ArrayBuffer>('dive_configuration/stereo_foundation_model', {
+    responseType: 'arraybuffer',
+  });
+}
+
 function postAddons(urls: string[], forceDownload: boolean) {
   return girderRest.post(`dive_configuration/upgrade_pipelines?force=${forceDownload}`, urls);
 }
@@ -116,6 +136,8 @@ export {
   getPipelineList,
   getTrainingConfigurations,
   getAddons,
+  getStereoFoundationModelSpec,
+  getStereoFoundationModel,
   postAddons,
   updateContainers,
   getStats,

@@ -94,6 +94,9 @@ services:
       - memcached
     volumes:
       - girder_assetstore:/home/assetstore
+      # Models the girder service fetches on demand (e.g. the stereo model the
+      # web client runs), kept across container recreation.
+      - girder_model_cache:/tmp/dive_models
       # Bind mount nocopy public data
       - type: bind
         source: ${PUBLIC_DATA_PATH:-./docker/girder_data}
@@ -108,6 +111,7 @@ services:
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
       - "GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder"
       - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+      - "DIVE_MODEL_CACHE_DIR=/tmp/dive_models"
 
       # Rabbitmq management variables
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
@@ -233,4 +237,5 @@ volumes:
   addons:
   mongo_db:
   girder_assetstore:
+  girder_model_cache:
   redis_data:

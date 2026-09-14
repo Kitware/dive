@@ -5,12 +5,13 @@ length, entirely in the browser / Electron renderer — no backend — running t
 correspondence model with `onnxruntime-web`.
 
 Two correspondence methods are available, chosen from **Track Settings → Stereo
-Settings → Correspondence method**:
+Settings → Point matching** (web only; desktop's method is set by the VIAME
+interactive stereo config instead):
 
 | Method | Model | How it matches |
 | --- | --- | --- |
-| **Template matching (NCC)** — default | VIAME's epipolar template-matching model (stereo measurement "method 1"), bundled | Per point: generate epipolar candidates, NCC the source patch along that curve |
-| **Foundation stereo (disparity)** | A Fast-FoundationStereo ONNX export, **not bundled** | Once per frame: rectify the pair, run a dense disparity network, read each point's shift out of the map |
+| **Lower Accuracy, Higher Speed** — default | VIAME's epipolar template-matching model (stereo measurement "method 1"), bundled | Per point: generate epipolar candidates, NCC the source patch along that curve |
+| **Higher Accuracy, Lower Speed** | The Fast-FoundationStereo export from VIAME's `FAST-FDN-STEREO` add-on, served by the girder server | Once per frame: rectify the pair, run a dense disparity network, read each point's shift out of the map |
 
 They are interchangeable behind the `StereoMatcher` interface, so everything
 downstream — box/line/polygon warping, measurement, bulk transfer — is identical
@@ -26,15 +27,15 @@ work client-side so it also works on the web.
 | File | Role |
 | --- | --- |
 | `StereoOnnxMatcher.ts` | Loads the `match` ONNX model and warps source points → target points via NCC along the epipolar curve. |
-| `StereoFoundationMatcher.ts` | Loads a Fast-FoundationStereo ONNX export, rectifies the pair into the network's input resolution, and reads each point's correspondence from the dense disparity map. |
+| `StereoFoundationMatcher.ts` | Loads a Fast-FoundationStereo ONNX export, rectifies the pair into the network's input resolution, caches the dense disparity map per frame, and reads each point's correspondence from it. |
 | `stereoMatcher.ts` | The `StereoMatcher` contract both matchers satisfy, the `StereoMatchMethod` union, and the dropdown's labels. |
 | `rectify.ts` | Stereo rectification ported from OpenCV `cvStereoRectify` (Rodrigues, rectifying rotations, point rectify/unrectify, and the inverse map used to sample a rectified image). Only the foundation method needs it. |
 | `calibration.ts` | `StereoRig` + loaders (`rigFromNpz`, `rigFromJson`) mirroring VIAME's `read_stereo_rig`; `invertRig` to swap the source/target camera. |
 | `npz.ts` | Minimal `.npz`/`.npy` reader (calibration files are NumPy archives). |
-| `image.ts` | RGBA → BT.601 grayscale (matches OpenCV `BGR2GRAY` used by the C++ NCC). |
+| `image.ts` | RGBA → BT.601 grayscale (matches OpenCV `BGR2GRAY` used by the C++ NCC). Matchers take RGBA frames; the NCC one converts, the foundation one keeps colour. |
 | `frameSource.ts` | Pull full-resolution frame pixels from a GeoJS viewer / image element. |
 | `triangulate.ts` | Two-view triangulation, stereo measurement (length / midpoint / range / RMS) and length aggregation, porting `viame::core::compute_stereo_measurement`. |
-| `useStereoOnnxTransfer.ts` | Platform-agnostic composable: warp a box, head/tail line or polygon to the other camera, measure linked lines, and bulk-warp a camera's detections. |
+| `useStereoOnnxTransfer.ts` | Platform-agnostic composable: warp a box, head/tail line or polygon to the other camera, measure linked lines, bulk-warp a camera's detections, and precompute a frame's disparity ahead of a warp. |
 
 The web glue lives in `platform/web-girder/useStereoOnnxWeb.ts` and is bound to
 the `Viewer`'s `stereo-annotation-complete` and `stereo-track-linked` events in
@@ -133,36 +134,68 @@ contrast — it either mismatches or declines. A dense disparity network does no
 depend on patch correlation, and it costs one network pass per frame no matter
 how many points are warped, so bulk-warping a whole camera amortises well.
 
-Its trade is setup: the model is large and must be supplied.
+Its trade is cost: the model is large (~100 MB) and each pass runs a ViT-L, so
+it needs a GPU.
 
-### Supplying the model
+### Where the model comes from
 
-Unlike the NCC graph (small, committed at `client/public/models/stereo_match.onnx`),
-Fast-FoundationStereo exports run ~100 MB and are **not** committed. Obtain an
-export from the Fast-FoundationStereo release, serve it, and point the web glue
-at it:
+The export is the one VIAME publishes in its `FAST-FDN-STEREO` add-on
+(`fast_foundation_stereo_l.onnx` + sidecar `.yaml`), the same file
+`plugins/onnx/fast_foundation_stereo.py` runs server-side. Nothing is pinned
+in DIVE:
 
-```ts
-useStereoOnnxWeb({
-  ...,
-  foundationModelUrl: '/models/stereo_foundation.onnx',
-  foundationModelSpec: { height: 576, width: 960 },  // the export's sidecar image_size
-});
-```
+1. The girder server reads the add-on's URL and md5 from VIAME's
+   `cmake/download_viame_addons.csv` (the list the add-on installer already
+   uses), downloads the zip once into `DIVE_MODEL_CACHE_DIR`
+   (default `/tmp/dive_models`, a named volume in `docker-compose.yml`) and
+   keeps just the model and yaml. A re-published add-on has a new md5, so it is
+   fetched and the old copy dropped.
+2. `GET dive_configuration/stereo_foundation_model/spec` reports the export's
+   `image_size` and md5; `GET dive_configuration/stereo_foundation_model`
+   streams the bytes.
+3. The client stores the bytes in the browser Cache API keyed by md5, so a page
+   reload does not re-download.
 
-The default URL is `/models/stereo_foundation.onnx` and the default spec is
-576×960. `foundationModelSpec` **must** match the export: the graph fixes its
-input resolution, and the sidecar `.yaml` shipped beside each export gives it as
-`image_size: [H, W]`. With no model served, selecting the method reports that it
-could not load and the warp no-ops — the same way a missing calibration does.
+For tests or a custom export, `useStereoOnnxWeb({ foundationModelUrl,
+foundationModelSpec })` bypasses the server.
+
+### Runtime requirements
+
+The export runs only on onnxruntime-web's **WebGPU** provider: the CPU (wasm)
+path needs ~7 GB of activations, past the 4 GB a wasm heap can address, so the
+matcher refuses to start without `navigator.gpu` and says so. An inference
+failure (unsupported operator, out of GPU memory) is remembered by the matcher
+and surfaced once, rather than retried on every frame change.
+
+**As of onnxruntime-web 1.27–1.31 the add-on's current export does not run on
+WebGPU either**, checked in headless Chrome against the stock export:
+
+| Provider | Stops at |
+| --- | --- |
+| WebGPU (JSEP, the default `onnxruntime-web` bundle) | `Conv` 3D with asymmetric padding (`0,1,1,0,1,1`); after rewriting those into `Pad` + `Conv`, `ConvTranspose` 3D ("only support 2-dimensional conv") |
+| WebGPU (native EP, `onnxruntime-web/webgpu`) | a 48-input `Concat` ("Too many storage buffers in shader: 11, max 10") |
+
+The graph also carries several `[1, 8, 28, 48, 144, 240]` fp32 intermediates
+(1.5 GB each) and peaks near 16 GB on the CUDA provider, so even with operator
+coverage it needs a browser-exposed GPU with a very large buffer budget. A
+web-viable export therefore needs to come from the VIAME side: a smaller
+`image_size` / fewer refinement iterations to shrink the cost volume, and 3D
+cost-aggregation ops expressed in a form onnxruntime-web supports (or a
+`Pad`-rewrite plus `ConvTranspose` decomposition, and `Concat` split into ≤8
+inputs for the native EP). The client and server here already take whatever
+the `FAST-FDN-STEREO` add-on ships, so a re-published export needs no DIVE
+change beyond the CSV md5 it carries.
 
 ### How it works
 
-1. Solve the rectifying rotations for the rig once per calibration
-   (`computeRectification`), sized to the network's input resolution.
+1. Solve the rectifying rotations for the rig once per calibration and frame
+   size (`computeRectification`), fused with a resize to the network's input
+   resolution: as in OpenCV, the focal length and principal point are scaled by
+   the output/source size ratio, so the whole frame lands in the network input
+   rather than a centre crop of it.
 2. Build the rectified pair by inverse-mapping each output pixel back to its
-   source pixel and bilinear-sampling. Rectify and resize are fused, so the cost
-   is the network's resolution rather than the frame's.
+   source pixel and bilinear-sampling RGB, then ImageNet-normalise — the same
+   preprocessing as the VIAME plugin.
 3. Run the network to get dense disparity in rectified pixels.
 4. Per point: rectify it, pool the disparities in a small window by median,
    shift `x` by that disparity, and unrectify into the target image.
@@ -178,14 +211,34 @@ accepted when that clears `DEFAULT_MIN_VALID_FRACTION` **and** the implied
 disparity falls inside the configured search range — the same range that bounds
 the NCC search.
 
+### Precomputation and caching
+
+Because the pass is per frame, `useStereoOnnxWeb` watches the viewer's frame
+and, whenever the foundation method and auto-compute are on, calls
+`precomputeFrame` for it: both warp directions (left→right, then right→left)
+are queued, so the map is normally ready before the user finishes drawing.
+The matcher keeps an LRU of `DEFAULT_DISPARITY_CACHE_SIZE` maps (8, i.e. four
+frames in both directions), runs one inference at a time, dedupes concurrent
+requests for the same frame, and drops a queued prefetch whose frame the user
+has already left — unless a warp is waiting on it, which upgrades it.
+
 ### Testing status
 
-- **Tested** (`tests/rectify.spec.ts`): Rodrigues round-trip, orthonormality of
-  the rectifying rotations, the defining rectification property (a 3D point
-  lands on the same row in both rectified views), disparity positive and
-  decreasing with range, and pixel round-trip through rectify/unrectify with and
-  without distortion.
-- **Not tested**: `StereoFoundationMatcher` end-to-end, which needs a ~100 MB
-  model the repo does not carry. The geometry it depends on is covered above;
-  the network call, disparity pooling and the settings dropdown have not been
-  exercised against a real export in a running viewer.
+- **Tested** (`tests/rectify.spec.ts`, `tests/stereoFoundation.spec.ts`):
+  Rodrigues round-trip, orthonormality of the rectifying rotations, the
+  defining rectification property (a 3D point lands on the same row in both
+  rectified views, also when the output size differs from the source),
+  disparity positive and decreasing with range, pixel round-trip through
+  rectify/unrectify with and without distortion, the resize scaling; and,
+  against a fake session returning a known disparity, the ImageNet
+  preprocessing, point shift and range rejection, per-frame cache reuse,
+  prefetch dropping/upgrading, serialised inference and LRU eviction.
+- **Verified out of band**: the add-on's export run on CPU onnxruntime in
+  Python with this preprocessing puts the fixture's head/tail disparities
+  within 1 px of the NCC reference; the padding rewrite leaves the output
+  bit-identical.
+- **Not runnable yet**: the WebGPU pass with the add-on's current export (see
+  *Runtime requirements*), so the end-to-end warp, the settings dropdown and
+  the frame watcher have not been exercised in a running viewer. Set
+  `DIVE_STEREO_FOUNDATION_MODEL` to an export to have the Node suite check its
+  I/O contract.

@@ -96,8 +96,9 @@ interface AnnotationSettings {
     // Warp an annotation drawn on one camera to the other camera when that
     // camera has no detection for it yet.
     autoComputeOtherCamera: boolean;
-    // Which correspondence method the warp uses: 'ncc' template matching or
-    // 'foundation' dense disparity.
+    // Which correspondence method the web client's warp uses: 'ncc' template
+    // matching (faster) or 'foundation' dense disparity (more accurate).
+    // Desktop's method comes from the VIAME interactive stereo config instead.
     matchMethod: StereoMatchMethod;
     loading: boolean;
     loadingMessage: string;

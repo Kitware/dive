@@ -10,19 +10,23 @@
  * on footage where template correlation struggles (obstructed views, repetitive
  * substrate, low contrast).
  *
- * The model is NOT bundled: the exports are ~100 MB, far past what belongs in
- * the repo. Point {@link StereoFoundationMatcher.create} at a served or
- * user-supplied model. Exports are published with the Fast-FoundationStereo
- * release as `<tag>_iters_<n>_res_<H>x<W>.onnx` plus a sidecar `.yaml` giving
- * `image_size`; the graph takes `left_image`/`right_image` as [1,3,H,W] RGB in
- * [0,1] and returns `disparity` as [1,1,H,W] in rectified pixels.
+ * The export is the one VIAME ships in its `FAST-FDN-STEREO` add-on
+ * (`fast_foundation_stereo_l.onnx` plus a sidecar `.yaml` giving `image_size`),
+ * the same file `plugins/onnx/fast_foundation_stereo.py` runs server-side. The
+ * runtime contract is shared with that plugin: `left_image`/`right_image` are
+ * [1,3,H,W] ImageNet-normalised RGB at the export's fixed resolution, and
+ * `disparity` is [1,1,H,W] in rectified pixels of that resolution.
+ *
+ * Disparity maps are cached per frame pair so a warp that follows a
+ * {@link StereoFoundationMatcher.prepare} for the same frame is immediate.
  */
 
 import * as ort from 'onnxruntime-web';
 
-import { GrayImage } from './image';
+import { RgbaImage, GrayImage, isGrayImage } from './image';
 import { StereoRig } from './calibration';
 import type { WarpOptions, WarpResult } from './StereoOnnxMatcher';
+import type { StereoMatcher } from './stereoMatcher';
 import {
   Rectification, computeRectification, rectifyPoint, rectifyMapper, unrectifyPoint,
 } from './rectify';
@@ -44,10 +48,49 @@ export const DEFAULT_SAMPLE_RADIUS = 3;
  */
 export const DEFAULT_MIN_VALID_FRACTION = 0.34;
 
+/** Disparity maps kept per matcher: two directions per frame, so ~4 frames. */
+export const DEFAULT_DISPARITY_CACHE_SIZE = 8;
+
+const IMAGENET_MEAN = [0.485, 0.456, 0.406];
+const IMAGENET_STD = [0.229, 0.224, 0.225];
+
 export interface FoundationModelSpec {
   /** Network input size, from the export's sidecar yaml `image_size: [H, W]`. */
   height: number;
   width: number;
+}
+
+/** The slice of an ONNX session the matcher uses; tests substitute a fake. */
+export interface DisparitySession {
+  run(feeds: Record<string, ort.Tensor>): Promise<Record<string, ort.Tensor>>;
+}
+
+export interface FoundationMatcherOptions {
+  /**
+   * Defaults to WebGPU, the only provider that can run this export in a
+   * browser: the CPU (wasm) path needs several GB of activations, past the
+   * 4 GB a wasm heap can hold, so it is not offered as a fallback.
+   */
+  executionProviders?: string[];
+  cacheSize?: number;
+}
+
+export const WEBGPU_REQUIRED_MESSAGE = 'The higher-accuracy stereo model needs WebGPU, which this browser does not provide. '
+  + 'Use a current Chrome or Edge, or switch the point matching setting to the faster method.';
+
+function defaultExecutionProviders(): string[] {
+  const hasWebGpu = typeof navigator !== 'undefined' && 'gpu' in navigator && !!navigator.gpu;
+  if (!hasWebGpu) throw new Error(WEBGPU_REQUIRED_MESSAGE);
+  return ['webgpu'];
+}
+
+function rigKey(rig: StereoRig): string {
+  return `${rig.Kl.join(',')}|${rig.Kr.join(',')}|${rig.R.join(',')}|${rig.T.join(',')}`;
+}
+
+function cacheKey(frameKey: string | undefined, rig: StereoRig, source: { width: number; height: number }): string | null {
+  if (frameKey === undefined) return null;
+  return `${frameKey}|${source.width}x${source.height}|${rigKey(rig)}`;
 }
 
 /** Bilinear sample of a single-channel image, NaN outside. */
@@ -66,35 +109,99 @@ function sampleBilinear(data: Float32Array, width: number, height: number, x: nu
   return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
 }
 
-/** Remap a grayscale frame through an inverse map into an RGB [1,3,H,W] tensor. */
-function remapToRgbTensor(src: GrayImage, mapX: Float32Array, mapY: Float32Array, width: number, height: number): ort.Tensor {
+/**
+ * Remap a frame through an inverse map into an ImageNet-normalised RGB
+ * [1,3,H,W] tensor. Pixels that map outside the source are filled black, as
+ * OpenCV's remap would.
+ */
+export function remapToInputTensor(
+  src: RgbaImage | GrayImage,
+  mapX: Float32Array,
+  mapY: Float32Array,
+  width: number,
+  height: number,
+): ort.Tensor {
   const plane = width * height;
   const out = new Float32Array(plane * 3);
+  const { data, width: sw, height: sh } = src;
+  const gray = isGrayImage(src);
+  const stride = gray ? 1 : 4;
+  const rgb = [0, 0, 0];
   for (let i = 0; i < plane; i += 1) {
-    const v = sampleBilinear(src.data, src.width, src.height, mapX[i], mapY[i]);
-    const g = Number.isNaN(v) ? 0 : v;
-    out[i] = g;
-    out[plane + i] = g;
-    out[2 * plane + i] = g;
+    const x = mapX[i];
+    const y = mapY[i];
+    rgb[0] = 0;
+    rgb[1] = 0;
+    rgb[2] = 0;
+    if (x >= 0 && y >= 0 && x <= sw - 1 && y <= sh - 1) {
+      const x0 = Math.floor(x);
+      const y0 = Math.floor(y);
+      const x1 = Math.min(x0 + 1, sw - 1);
+      const y1 = Math.min(y0 + 1, sh - 1);
+      const fx = x - x0;
+      const fy = y - y0;
+      const w00 = (1 - fx) * (1 - fy);
+      const w10 = fx * (1 - fy);
+      const w01 = (1 - fx) * fy;
+      const w11 = fx * fy;
+      const i00 = (y0 * sw + x0) * stride;
+      const i10 = (y0 * sw + x1) * stride;
+      const i01 = (y1 * sw + x0) * stride;
+      const i11 = (y1 * sw + x1) * stride;
+      for (let c = 0; c < 3; c += 1) {
+        const o = gray ? 0 : c;
+        rgb[c] = data[i00 + o] * w00 + data[i10 + o] * w10 + data[i01 + o] * w01 + data[i11 + o] * w11;
+      }
+    }
+    for (let c = 0; c < 3; c += 1) {
+      out[c * plane + i] = (rgb[c] / 255 - IMAGENET_MEAN[c]) / IMAGENET_STD[c];
+    }
   }
   return new ort.Tensor('float32', out, [1, 3, height, width]);
 }
 
-export class StereoFoundationMatcher {
-  private session: ort.InferenceSession;
+interface Geometry {
+  key: string;
+  rect: Rectification;
+  src: { mapX: Float32Array; mapY: Float32Array };
+  tgt: { mapX: Float32Array; mapY: Float32Array };
+}
+
+interface PendingDisparity {
+  promise: Promise<Float32Array | null>;
+  /** Cleared when a warp needs the result, so the staleness check cannot skip it. */
+  prefetch: boolean;
+}
+
+export class StereoFoundationMatcher implements StereoMatcher {
+  private session: DisparitySession;
 
   private spec: FoundationModelSpec;
 
-  /** Rectification + inverse maps, rebuilt only when the rig or size changes. */
-  private cache: {
-    key: string; rect: Rectification;
-    src: { mapX: Float32Array; mapY: Float32Array };
-    tgt: { mapX: Float32Array; mapY: Float32Array };
-  } | null = null;
+  private cacheSize: number;
 
-  private constructor(session: ort.InferenceSession, spec: FoundationModelSpec) {
+  /** Rectification + inverse maps, rebuilt only when the rig or size changes. */
+  private geometryCache: Geometry | null = null;
+
+  /** Insertion-ordered so the first entry is the least recently used. */
+  private disparities = new Map<string, Float32Array>();
+
+  private pending = new Map<string, PendingDisparity>();
+
+  /** The wasm/WebGPU session runs one inference at a time. */
+  private queue: Promise<unknown> = Promise.resolve();
+
+  /**
+   * An inference failure is a property of this model + runtime (unsupported
+   * operator, out of GPU memory), not of one frame, so it is remembered and
+   * rethrown instead of re-running a doomed pass on every frame change.
+   */
+  private failure: Error | null = null;
+
+  constructor(session: DisparitySession, spec: FoundationModelSpec, cacheSize = DEFAULT_DISPARITY_CACHE_SIZE) {
     this.session = session;
     this.spec = spec;
+    this.cacheSize = cacheSize;
   }
 
   /**
@@ -104,29 +211,131 @@ export class StereoFoundationMatcher {
   static async create(
     model: string | ArrayBuffer | Uint8Array,
     spec: FoundationModelSpec,
-    opts: { threads?: number } = {},
+    opts: FoundationMatcherOptions = {},
   ): Promise<StereoFoundationMatcher> {
-    ort.env.wasm.numThreads = opts.threads ?? 1;
+    const executionProviders = opts.executionProviders ?? defaultExecutionProviders();
     ort.env.wasm.proxy = false;
     const session = await ort.InferenceSession.create(model as string, {
-      executionProviders: ['wasm'],
+      executionProviders,
       graphOptimizationLevel: 'all',
     });
-    return new StereoFoundationMatcher(session, spec);
+    return new StereoFoundationMatcher(session, spec, opts.cacheSize);
+  }
+
+  get inputSize(): FoundationModelSpec {
+    return { ...this.spec };
   }
 
   /** Rectification and inverse maps for this rig at the model's resolution. */
-  private geometry(rig: StereoRig) {
-    const key = `${rig.Kl.join(',')}|${rig.R.join(',')}|${rig.T.join(',')}`;
-    if (this.cache && this.cache.key === key) return this.cache;
-    const rect = computeRectification(rig, this.spec.width, this.spec.height);
-    this.cache = {
+  private geometry(rig: StereoRig, source: { width: number; height: number }): Geometry {
+    const key = `${source.width}x${source.height}|${rigKey(rig)}`;
+    if (this.geometryCache && this.geometryCache.key === key) return this.geometryCache;
+    const rect = computeRectification(rig, source.width, source.height, this.spec.width, this.spec.height);
+    this.geometryCache = {
       key,
       rect,
       src: rectifyMapper(rig, rect, false),
       tgt: rectifyMapper(rig, rect, true),
     };
-    return this.cache;
+    return this.geometryCache;
+  }
+
+  private async infer(source: RgbaImage | GrayImage, target: RgbaImage | GrayImage, rig: StereoRig): Promise<Float32Array> {
+    if (this.failure) throw this.failure;
+    const { src, tgt } = this.geometry(rig, source);
+    const { width, height } = this.spec;
+    let out: Record<string, ort.Tensor>;
+    try {
+      out = await this.session.run({
+        left_image: remapToInputTensor(source, src.mapX, src.mapY, width, height),
+        right_image: remapToInputTensor(target, tgt.mapX, tgt.mapY, width, height),
+      });
+    } catch (err) {
+      this.failure = err instanceof Error ? err : new Error(String(err));
+      throw this.failure;
+    }
+    const disparity = out.disparity.data as Float32Array;
+    for (let i = 0; i < disparity.length; i += 1) {
+      if (!(disparity[i] > 0)) disparity[i] = 0;
+    }
+    return disparity;
+  }
+
+  private remember(key: string, disparity: Float32Array) {
+    this.disparities.delete(key);
+    this.disparities.set(key, disparity);
+    while (this.disparities.size > this.cacheSize) {
+      const oldest = this.disparities.keys().next().value as string;
+      this.disparities.delete(oldest);
+    }
+  }
+
+  /**
+   * The disparity map for a pair, from the cache when present. Requests are
+   * serialised; a `prefetch` request whose `stillWanted` has turned false by
+   * the time it reaches the front of the queue resolves `null` without running.
+   */
+  private disparityFor(
+    key: string | null,
+    source: RgbaImage | GrayImage,
+    target: RgbaImage | GrayImage,
+    rig: StereoRig,
+    prefetch: boolean,
+    stillWanted: () => boolean = () => true,
+  ): Promise<Float32Array | null> {
+    if (key !== null) {
+      const hit = this.disparities.get(key);
+      if (hit) {
+        this.remember(key, hit);
+        return Promise.resolve(hit);
+      }
+      const inflight = this.pending.get(key);
+      if (inflight) {
+        if (!prefetch) inflight.prefetch = false;
+        return inflight.promise;
+      }
+    }
+    const entry: PendingDisparity = { prefetch, promise: Promise.resolve(null) };
+    entry.promise = this.queue.then(async () => {
+      if (entry.prefetch && !stillWanted()) return null;
+      const hit = key !== null ? this.disparities.get(key) : undefined;
+      if (hit) return hit;
+      const disparity = await this.infer(source, target, rig);
+      if (key !== null) this.remember(key, disparity);
+      return disparity;
+    });
+    this.queue = entry.promise.catch(() => undefined);
+    if (key !== null) {
+      this.pending.set(key, entry);
+      entry.promise.finally(() => this.pending.delete(key)).catch(() => undefined);
+    }
+    return entry.promise;
+  }
+
+  /** The error that stopped this matcher, if an inference has failed. */
+  get lastFailure(): Error | null {
+    return this.failure;
+  }
+
+  /** Whether a disparity map is already cached for this frame pair. */
+  isPrepared(frameKey: string, rig: StereoRig, source: { width: number; height: number }): boolean {
+    const key = cacheKey(frameKey, rig, source);
+    return key !== null && this.disparities.has(key);
+  }
+
+  /**
+   * Compute and cache the disparity map for a frame pair ahead of any warp
+   * against it. Resolves once the map is cached or the request was dropped as
+   * stale.
+   */
+  async prepare(
+    frameKey: string,
+    source: RgbaImage | GrayImage,
+    target: RgbaImage | GrayImage,
+    rig: StereoRig,
+    stillWanted: () => boolean = () => true,
+  ): Promise<void> {
+    await this.disparityFor(cacheKey(frameKey, rig, source), source, target, rig, true, stillWanted);
   }
 
   /**
@@ -138,20 +347,15 @@ export class StereoFoundationMatcher {
    */
   async warpPoints(
     points: [number, number][],
-    source: GrayImage,
-    target: GrayImage,
+    source: RgbaImage | GrayImage,
+    target: RgbaImage | GrayImage,
     rig: StereoRig,
     opts: WarpOptions,
   ): Promise<WarpResult[]> {
-    const { rect, src, tgt } = this.geometry(rig);
+    const { rect } = this.geometry(rig, source);
     const { width, height } = this.spec;
-
-    const feeds: Record<string, ort.Tensor> = {
-      left_image: remapToRgbTensor(source, src.mapX, src.mapY, width, height),
-      right_image: remapToRgbTensor(target, tgt.mapX, tgt.mapY, width, height),
-    };
-    const out = await this.session.run(feeds);
-    const disparity = out.disparity.data as Float32Array;
+    const disparity = await this.disparityFor(cacheKey(opts.frameKey, rig, source), source, target, rig, false);
+    if (!disparity) throw new Error('The stereo disparity map could not be computed.');
 
     const radius = DEFAULT_SAMPLE_RADIUS;
     const minValid = DEFAULT_MIN_VALID_FRACTION;
@@ -174,8 +378,10 @@ export class StereoFoundationMatcher {
       for (let dy = -radius; dy <= radius; dy += 1) {
         for (let dx = -radius; dx <= radius; dx += 1) {
           considered += 1;
-          const v = sampleBilinear(disparity, width, height, rx + dx, ry + dy);
-          if (Number.isFinite(v) && v > 0) samples.push(v);
+          const sx = rx + dx;
+          const v = sampleBilinear(disparity, width, height, sx, ry + dy);
+          // A match that would land left of the target image is invisible.
+          if (Number.isFinite(v) && v > 0 && sx - v >= 0) samples.push(v);
         }
       }
       if (!samples.length) return fail;
