@@ -141,7 +141,8 @@ it needs a GPU.
 
 The export is the one VIAME publishes in its `FAST-FDN-STEREO` add-on
 (`fast_foundation_stereo_l.onnx` + sidecar `.yaml`), the same file
-`plugins/onnx/fast_foundation_stereo.py` runs server-side. Nothing is pinned
+`plugins/onnx/fast_foundation_stereo.py` runs server-side (see *Runtime
+requirements* for why it has to be VIAME's web build of it). Nothing is pinned
 in DIVE:
 
 1. The girder server reads the add-on's URL and md5 from VIAME's
@@ -161,30 +162,35 @@ foundationModelSpec })` bypasses the server.
 
 ### Runtime requirements
 
-The export runs only on onnxruntime-web's **WebGPU** provider: the CPU (wasm)
-path needs ~7 GB of activations, past the 4 GB a wasm heap can address, so the
-matcher refuses to start without `navigator.gpu` and says so. An inference
-failure (unsupported operator, out of GPU memory) is remembered by the matcher
-and surfaced once, rather than retried on every frame change.
+The export runs only on a GPU: the CPU (wasm) path needs several GB of
+activations, past the 4 GB a wasm heap can address, so the matcher refuses to
+start without `navigator.gpu` and says so. An inference failure (unsupported
+operator, out of GPU memory) is remembered by the matcher and surfaced once,
+rather than retried on every frame change.
 
-**As of onnxruntime-web 1.27–1.31 the add-on's current export does not run on
-WebGPU either**, checked in headless Chrome against the stock export:
+Two runtime choices are deliberate, both verified probe-by-probe against CPU
+onnxruntime on the fixture pair (headless Chrome, SwiftShader adapter):
 
-| Provider | Stops at |
-| --- | --- |
-| WebGPU (JSEP, the default `onnxruntime-web` bundle) | `Conv` 3D with asymmetric padding (`0,1,1,0,1,1`); after rewriting those into `Pad` + `Conv`, `ConvTranspose` 3D ("only support 2-dimensional conv") |
-| WebGPU (native EP, `onnxruntime-web/webgpu`) | a 48-input `Concat` ("Too many storage buffers in shader: 11, max 10") |
+- **The native WebGPU provider** (`onnxruntime-web/webgpu`, imported lazily),
+  not the default bundle's JSEP kernels: JSEP returns an all-zero cost volume
+  for this graph (a Reshape/Cast of the right-camera features reads wrong data)
+  on 1.27, 1.29 and 1.31-dev alike.
+- **`graphOptimizationLevel: 'basic'`**: with `'all'`, one of the provider's
+  extended-level fusions corrupts the GRU gate convolutions and the disparity
+  drifts by ~2 px; at `'basic'` (and `'disabled'`) the browser output matches
+  CPU to 5e-5 px.
 
-The graph also carries several `[1, 8, 28, 48, 144, 240]` fp32 intermediates
-(1.5 GB each) and peaks near 16 GB on the CUDA provider, so even with operator
-coverage it needs a browser-exposed GPU with a very large buffer budget. A
-web-viable export therefore needs to come from the VIAME side: a smaller
-`image_size` / fewer refinement iterations to shrink the cost volume, and 3D
-cost-aggregation ops expressed in a form onnxruntime-web supports (or a
-`Pad`-rewrite plus `ConvTranspose` decomposition, and `Concat` split into ≤8
-inputs for the native EP). The client and server here already take whatever
-the `FAST-FDN-STEREO` add-on ships, so a re-published export needs no DIVE
-change beyond the CSV md5 it carries.
+The **export itself must be VIAME's web build** of the model
+(`plugins/onnx/export_fast_foundation_stereo_web.py`, the file the
+`FAST-FDN-STEREO` add-on ships): NVIDIA's stock single-file export materialises
+1.5 GB correlation tensors and uses 3-D `ConvTranspose` and asymmetric 3-D
+`Conv` padding that no onnxruntime-web provider runs. The web build is
+numerically identical (~1e-4 px on CPU) and also cuts CPU peak memory from
+16 GB to 3 GB.
+
+Real-GPU timing has not been measured (this machine's Chrome only exposes the
+SwiftShader software adapter); `Desktop/Active/fast-fdn-stereo-web/webgpu_harness`
+is a self-contained page that reports it.
 
 ### How it works
 
@@ -237,8 +243,9 @@ has already left — unless a warp is waiting on it, which upgrades it.
   Python with this preprocessing puts the fixture's head/tail disparities
   within 1 px of the NCC reference; the padding rewrite leaves the output
   bit-identical.
-- **Not runnable yet**: the WebGPU pass with the add-on's current export (see
-  *Runtime requirements*), so the end-to-end warp, the settings dropdown and
-  the frame watcher have not been exercised in a running viewer. Set
+- **Verified in a browser (SwiftShader)**: the web export on the native WebGPU
+  provider at `basic` optimisation matches CPU onnxruntime to 5e-5 px on the
+  fixture pair. **Not yet exercised**: a real GPU adapter (timing), and the
+  end-to-end warp, settings dropdown and frame watcher in a running viewer. Set
   `DIVE_STEREO_FOUNDATION_MODEL` to an export to have the Node suite check its
   I/O contract.

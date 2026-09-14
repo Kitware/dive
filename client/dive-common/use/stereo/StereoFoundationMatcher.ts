@@ -32,6 +32,17 @@ import {
 } from './rectify';
 
 /**
+ * The foundation model runs on onnxruntime-web's *native* WebGPU provider
+ * (`onnxruntime-web/webgpu`), not the default bundle's JSEP kernels: the JSEP
+ * provider returns an all-zero cost volume for this graph (verified probe by
+ * probe against CPU), while the native provider matches CPU through the
+ * refinement stage. The bundle is imported lazily so Node tests and pages that
+ * never select the method do not load it, and feeds are built with that
+ * bundle's own Tensor class because onnxruntime-common checks `instanceof`.
+ */
+type OrtModule = typeof ort;
+
+/**
  * Half-width of the window whose disparities are pooled for one point.
  *
  * A head or tail tip is a couple of pixels wide at the network's working
@@ -63,6 +74,12 @@ export interface FoundationModelSpec {
 /** The slice of an ONNX session the matcher uses; tests substitute a fake. */
 export interface DisparitySession {
   run(feeds: Record<string, ort.Tensor>): Promise<Record<string, ort.Tensor>>;
+}
+
+/** A model input: NCHW float32 planes plus dims, wrapped into a Tensor by the matcher. */
+export interface InputPlanes {
+  data: Float32Array;
+  dims: [number, number, number, number];
 }
 
 export interface FoundationMatcherOptions {
@@ -120,7 +137,7 @@ export function remapToInputTensor(
   mapY: Float32Array,
   width: number,
   height: number,
-): ort.Tensor {
+): InputPlanes {
   const plane = width * height;
   const out = new Float32Array(plane * 3);
   const { data, width: sw, height: sh } = src;
@@ -157,7 +174,7 @@ export function remapToInputTensor(
       out[c * plane + i] = (rgb[c] / 255 - IMAGENET_MEAN[c]) / IMAGENET_STD[c];
     }
   }
-  return new ort.Tensor('float32', out, [1, 3, height, width]);
+  return { data: out, dims: [1, 3, height, width] };
 }
 
 interface Geometry {
@@ -175,6 +192,9 @@ interface PendingDisparity {
 
 export class StereoFoundationMatcher implements StereoMatcher {
   private session: DisparitySession;
+
+  /** The runtime whose Tensor class the session accepts. */
+  private ort: OrtModule;
 
   private spec: FoundationModelSpec;
 
@@ -198,10 +218,16 @@ export class StereoFoundationMatcher implements StereoMatcher {
    */
   private failure: Error | null = null;
 
-  constructor(session: DisparitySession, spec: FoundationModelSpec, cacheSize = DEFAULT_DISPARITY_CACHE_SIZE) {
+  constructor(
+    session: DisparitySession,
+    spec: FoundationModelSpec,
+    cacheSize = DEFAULT_DISPARITY_CACHE_SIZE,
+    runtime: OrtModule = ort,
+  ) {
     this.session = session;
     this.spec = spec;
     this.cacheSize = cacheSize;
+    this.ort = runtime;
   }
 
   /**
@@ -214,12 +240,16 @@ export class StereoFoundationMatcher implements StereoMatcher {
     opts: FoundationMatcherOptions = {},
   ): Promise<StereoFoundationMatcher> {
     const executionProviders = opts.executionProviders ?? defaultExecutionProviders();
-    ort.env.wasm.proxy = false;
-    const session = await ort.InferenceSession.create(model as string, {
+    // eslint-disable-next-line import/no-unresolved
+    const runtime = (await import('onnxruntime-web/webgpu')) as unknown as OrtModule;
+    runtime.env.wasm.proxy = false;
+    const session = await runtime.InferenceSession.create(model as string, {
       executionProviders,
-      graphOptimizationLevel: 'all',
+      // 'basic' (level 1) is exact against CPU; one of the extended-level
+      // fusions the WebGPU provider applies corrupts the GRU gates (~2 px).
+      graphOptimizationLevel: 'basic',
     });
-    return new StereoFoundationMatcher(session, spec, opts.cacheSize);
+    return new StereoFoundationMatcher(session, spec, opts.cacheSize, runtime);
   }
 
   get inputSize(): FoundationModelSpec {
@@ -244,11 +274,13 @@ export class StereoFoundationMatcher implements StereoMatcher {
     if (this.failure) throw this.failure;
     const { src, tgt } = this.geometry(rig, source);
     const { width, height } = this.spec;
+    const left = remapToInputTensor(source, src.mapX, src.mapY, width, height);
+    const right = remapToInputTensor(target, tgt.mapX, tgt.mapY, width, height);
     let out: Record<string, ort.Tensor>;
     try {
       out = await this.session.run({
-        left_image: remapToInputTensor(source, src.mapX, src.mapY, width, height),
-        right_image: remapToInputTensor(target, tgt.mapX, tgt.mapY, width, height),
+        left_image: new this.ort.Tensor('float32', left.data, left.dims),
+        right_image: new this.ort.Tensor('float32', right.data, right.dims),
       });
     } catch (err) {
       this.failure = err instanceof Error ? err : new Error(String(err));

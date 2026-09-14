@@ -74,7 +74,7 @@ describe('remapToInputTensor', () => {
     const mapY = Float32Array.from([1, 2, 1]);
     const t = remapToInputTensor(img, mapX, mapY, 3, 1);
     expect(t.dims).toEqual([1, 3, 1, 3]);
-    const d = t.data as Float32Array;
+    const d = t.data;
     expect(d[0]).toBeCloseTo((1 - 0.485) / 0.229, 4);
     expect(d[3]).toBeCloseTo((128 / 255 - 0.456) / 0.224, 4);
     expect(d[6]).toBeCloseTo((0 - 0.406) / 0.225, 4);
@@ -85,7 +85,7 @@ describe('remapToInputTensor', () => {
   it('accepts a grayscale frame by replicating it across channels', () => {
     const gray = { data: Float32Array.from([200, 200, 200, 200]), width: 2, height: 2 };
     const t = remapToInputTensor(gray, Float32Array.from([0.5]), Float32Array.from([0.5]), 1, 1);
-    const d = t.data as Float32Array;
+    const d = t.data;
     expect(d[0]).toBeCloseTo((200 / 255 - 0.485) / 0.229, 4);
     expect(d[1]).toBeCloseTo((200 / 255 - 0.456) / 0.224, 4);
   });
