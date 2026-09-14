@@ -501,6 +501,21 @@ describe('adopting outside tracks', () => {
     expect(service.trackOf('a', 1)).toBeDefined();
     service.dispose();
   });
+
+  it('retries ensureLoaded after a previous load error', async () => {
+    const api = makeApi({}, {
+      loadDetections: vi.fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({ tracks: [track(1, [['fish', 0.9]], [0])], groups: [] }),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    expect(service.datasets.value[0].status).toBe('error');
+    expect(await service.ensureLoaded('a')).toBe(true);
+    expect(service.datasets.value[0].status).toBe('ready');
+    expect(service.trackOf('a', 1)).toBeDefined();
+    service.dispose();
+  });
 });
 
 describe('discarding and deleting tracks by id', () => {

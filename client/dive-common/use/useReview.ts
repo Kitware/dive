@@ -557,8 +557,9 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     const current = entry(id);
     if (!current) {
       await addDataset(id);
-    } else if (current.status === 'queued') {
-      patch(id, { status: 'loading' });
+    } else if (current.status === 'queued' || current.status === 'error') {
+      // Retry a previous failure; queued datasets still need their first load.
+      patch(id, { status: 'loading', error: undefined });
       await load(id);
     } else {
       await loadPromises.get(id);
