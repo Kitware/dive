@@ -52,7 +52,6 @@ vi.mock('../../provides', () => ({
   }),
   useMultiSelectList: () => ref([]),
   useCameraStore: () => state.cameraStore,
-  useSelectedCamera: () => ref('singleCam'),
   usePendingSaveCount: () => ref(0),
 }));
 

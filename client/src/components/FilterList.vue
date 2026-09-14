@@ -11,7 +11,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { compileHierarchy } from 'dive-common/typeHierarchy';
 import {
-  useCameraStore, useDatasetId, useHandler, useReadOnlyMode, useSelectedCamera, useTime,
+  useCameraStore, useDatasetId, useHandler, useReadOnlyMode, useTime,
   usePendingSaveCount,
 } from '../provides';
 import TooltipBtn from './TooltipButton.vue';
@@ -111,15 +111,11 @@ export default defineComponent({
     const readOnlyMode = useReadOnlyMode();
     const datasetId = useDatasetId();
     const cameraStore = useCameraStore();
-    const selectedCamera = useSelectedCamera();
     const { frame } = useTime();
     // Bumped on every annotation edit (add/move/delete); read in the frame
     // counts so they re-evaluate suppression when a region is moved, since a
     // track's geometry is not itself a reactive dependency.
     const pendingSaveCount = usePendingSaveCount();
-    const trackStore = computed(() => (
-      cameraStore.camMap.value.get(selectedCamera.value)?.trackStore
-    ));
     // Ordering of these lists should match
     const sortingMethods: ('a-z' | 'count' | 'frame count')[] = ['a-z', 'count', 'frame count'];
     const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending', 'mdi-sort-clock-ascending-outline'];
@@ -282,40 +278,49 @@ export default defineComponent({
       // (which mutates geometry, not the reactive track set) re-runs the count.
       // It is always >= 0, so this reads the dependency without changing logic.
       const editRevision = pendingSaveCount.value;
-      const activeTrackStore = trackStore.value;
-      if (!activeTrackStore) {
+      const camMap = cameraStore.camMap.value;
+      if (camMap.size === 0) {
         return [];
       }
-      const trackIdsForFrame = activeTrackStore.intervalTree
-        .search([targetFrame, targetFrame])
-        .map((str) => parseInt(str, 10));
-      // Detections suppressed by a region on this frame are dropped so the
-      // per-frame type counts read off the interface exclude them, and
-      // attribute-suppressed detections (visible, real type retained) don't
-      // count toward their own type either.
+      // Union across cameras: a logical track counts if any camera has an
+      // unsuppressed keyframe on this frame (multicam lists are shared).
+      const idsOnFrame = new Set<number>();
       const suppType = clientSettings.typeSettings.suppressionType;
-      const suppressedIds = editRevision >= 0
-        ? getSuppressedTrackIds(
-          activeTrackStore,
-          targetFrame,
-          suppType,
-          clientSettings.typeSettings.suppressionThreshold,
-          { revision: editRevision, resolver: suppressionResolutionRef.value },
-        )
-        : new Set<number>();
-      const filteredKeyFrameTracks = filteredTracksRef.value.filter((track) => {
-        if (suppressedIds.has(track.annotation.id)) {
-          return false;
-        }
-        const realTrack = activeTrackStore.getPossible(track.annotation.id);
-        if (realTrack && hasSuppressionAttribute(realTrack, targetFrame, suppType)) {
-          return false;
-        }
-        const keyframe = realTrack?.getFeature(targetFrame)[0];
-        return !!keyframe?.keyframe;
+      const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
+      const suppressionResolver = suppressionResolutionRef.value;
+      camMap.forEach(({ trackStore: store }) => {
+        const trackIdsForFrame = store.intervalTree
+          .search([targetFrame, targetFrame])
+          .map((str) => parseInt(str, 10));
+        // Detections suppressed by a region on this frame are dropped so the
+        // per-frame type counts read off the interface exclude them, and
+        // attribute-suppressed detections (visible, real type retained) don't
+        // count toward their own type either.
+        const suppressedIds = editRevision >= 0
+          ? getSuppressedTrackIds(
+            store,
+            targetFrame,
+            suppType,
+            suppThreshold,
+            { revision: editRevision, resolver: suppressionResolver },
+          )
+          : new Set<number>();
+        trackIdsForFrame.forEach((id) => {
+          if (suppressedIds.has(id)) {
+            return;
+          }
+          const realTrack = store.getPossible(id);
+          if (realTrack && hasSuppressionAttribute(realTrack, targetFrame, suppType)) {
+            return;
+          }
+          const keyframe = realTrack?.getFeature(targetFrame)[0];
+          if (keyframe?.keyframe) {
+            idsOnFrame.add(id);
+          }
+        });
       });
-      return filteredKeyFrameTracks.filter(
-        (track) => trackIdsForFrame.includes(track.annotation.id),
+      return filteredTracksRef.value.filter(
+        (track) => idsOnFrame.has(track.annotation.id),
       );
     }
 
@@ -486,31 +491,42 @@ export default defineComponent({
       const tracksFilteredByType = filteredTracksRef.value.filter(({ annotation, context }) => (
         subtreeSet.has(annotation.getType(context.confidencePairIndex))
       ));
-      const activeTrackStore = trackStore.value;
-      if (!activeTrackStore) {
+      const camMap = cameraStore.camMap.value;
+      if (camMap.size === 0) {
         handler.seekFrame(-1);
         return;
       }
-      /* The displayed frame counts are selected-camera scoped, so the peak is too. */
+      /* Peak matches displayed frame counts: union of unsuppressed keyframes across cameras. */
       const suppType = clientSettings.typeSettings.suppressionType;
-      const isRegionSuppressed = createRegionSuppressionTester(
-        activeTrackStore,
-        suppType,
-        clientSettings.typeSettings.suppressionThreshold,
-        suppressionResolutionRef.value,
-      );
+      const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
+      const suppressionResolver = suppressionResolutionRef.value;
+      const regionTesters = new Map<string, ReturnType<typeof createRegionSuppressionTester>>();
+      camMap.forEach(({ trackStore: store }, cameraName) => {
+        regionTesters.set(
+          cameraName,
+          createRegionSuppressionTester(store, suppType, suppThreshold, suppressionResolver),
+        );
+      });
       const countByFrame = new Map<number, number>();
       tracksFilteredByType.forEach(({ annotation }) => {
-        const realTrack = activeTrackStore.getPossible(annotation.id);
-        realTrack?.features
-          .filter((item) => item?.keyframe)
-          .forEach((item) => {
-            if (hasSuppressionAttribute(realTrack, item.frame, suppType)
-              || isRegionSuppressed(realTrack, item.frame)) {
-              return;
-            }
-            countByFrame.set(item.frame, (countByFrame.get(item.frame) || 0) + 1);
-          });
+        // One credit per logical track per frame, even if several cameras share it.
+        const framesForTrack = new Set<number>();
+        camMap.forEach(({ trackStore: store }, cameraName) => {
+          const realTrack = store.getPossible(annotation.id);
+          const isRegionSuppressed = regionTesters.get(cameraName);
+          realTrack?.features
+            .filter((item) => item?.keyframe)
+            .forEach((item) => {
+              if (hasSuppressionAttribute(realTrack, item.frame, suppType)
+                || isRegionSuppressed?.(realTrack, item.frame)) {
+                return;
+              }
+              framesForTrack.add(item.frame);
+            });
+        });
+        framesForTrack.forEach((candidateFrame) => {
+          countByFrame.set(candidateFrame, (countByFrame.get(candidateFrame) || 0) + 1);
+        });
       });
 
       let maxFrame = -1;
