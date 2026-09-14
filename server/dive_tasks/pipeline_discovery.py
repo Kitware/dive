@@ -1,12 +1,17 @@
+import os
 from pathlib import Path
 import re
 from typing import Dict, List, Optional
 
+from dive_utils.constants import TrainingModelExtensions
 from dive_utils.types import (
     AvailableJobSchema,
+    DiveParam,
     PipelineCategory,
     PipelineDescription,
+    PipeMetadata,
     TrainingConfigurationSummary,
+    TrainingModelDescription,
 )
 
 DefaultTrainingConfiguration = "train_detector_default.conf"
@@ -14,38 +19,327 @@ AllowedTrainingConfigs = r"train_.*\.conf$"
 DisallowedTrainingConfigs = (
     r".*(_nf|\.continue)\.viame_csv\.conf$|.*\.continue\.conf$|.*\.habcam\.conf$|.*\.kw18\.conf$"
 )
-AllowedStaticPipelines = r"^detector_.+|^tracker_.+|^utility_.+|^generate_.+"
+# Align with desktop getPipelineList allow patterns (common.ts).
+AllowedStaticPipelines = (
+    r"^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_.+|"
+    r"^stereo_.+|.*[23]-cam.+"
+)
+
 DisallowedStaticPipelines = (
+    r"common_stereo_.*\.pipe|"
     # Remove utilities pipes which hold no meaning in web
     r".*local.*|"
+    r".*seagis.*|"
     r".*hough.*|"
     r".*_svm_models\.pipe|"
     r"detector_extract_chips\.pipe|"
     # Remove tracker pipelines which hold no meaning in web
     r"tracker_stabilized_iou\.pipe|"
-    r"tracker_short_term\.pipe|"
-    # Remove seal and sea lion specialized pipelines un-runnable in web
-    r"detector_arctic_.*fusion.*\.pipe|"
-    r".*[2|3]-cam\.pipe"
+    r"tracker_short_term\.pipe"
 )
+
+
+def parse_pipe_type_and_name(pipe_stem: str) -> tuple[str, str]:
+    """
+    Derive pipeline category and display name from a .pipe stem.
+
+    Matches desktop: 2-cam/3-cam pipelines use their own category; 1-cam stay under
+    detector/tracker/utility prefixes.
+    """
+    parts = pipe_stem.split('_')
+    if len(parts) > 1 and parts[-1] == 'cam' and parts[-2] != '1':
+        pipe_type = f'{parts[-2]}-cam'
+        return pipe_type, ' '.join(parts)
+    multicam_suffix = re.search(r'(?:^|_)([23])-cam$', pipe_stem)
+    if multicam_suffix:
+        pipe_type = f'{multicam_suffix.group(1)}-cam'
+        return pipe_type, pipe_stem.replace('_', ' ')
+    pipe_type = parts[0]
+    return pipe_type, ' '.join(parts[1:])
+
+
+def _parse_dive_param_lines(lines: List[str]) -> "tuple[List[DiveParam], List[str]]":
+    """Parse DIVE_PARAM declarations and include directives from pipe lines."""
+    params: List[DiveParam] = []
+    includes: List[str] = []
+    context_stack: List[str] = []
+    for line_raw in lines:
+        trimmed = line_raw.strip()
+        if not trimmed:
+            continue
+
+        include_match = re.match(r'^include\s+(\S+)', trimmed, re.IGNORECASE)
+        if include_match:
+            includes.append(include_match.group(1))
+            continue
+
+        process_match = re.match(r'^process\s+([\w-]+)', trimmed, re.IGNORECASE)
+        if process_match:
+            context_stack = [process_match.group(1)]
+            continue
+
+        block_match = re.match(r'^block\s+([\w:-]+)', trimmed, re.IGNORECASE)
+        if block_match:
+            context_stack.append(block_match.group(1))
+            continue
+
+        if trimmed.lower() == 'endblock':
+            if context_stack:
+                context_stack.pop()
+            continue
+
+        # `config <key>` opens a config block; its entries are keyed
+        # under the block name (e.g. `config global` + `:scale` ->
+        # `global:scale`).
+        config_block_match = re.match(r'^config\s+([\w:.-]+)\s*(?:#.*)?$', trimmed, re.IGNORECASE)
+        if config_block_match:
+            context_stack = config_block_match.group(1).split(':')
+            continue
+
+        dive_match = re.search(
+            r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE
+        )
+        if dive_match:
+            label, raw_args = dive_match.groups()
+            args = [arg.strip() for arg in raw_args.split(',')]
+            param_type = args[0]
+            rest_args = args[1:]
+            # `required` is a flag keyword — strip it from type_props,
+            # everything else stays positional for the type.
+            is_required = any(a.lower() == 'required' for a in rest_args)
+            pipeline_type_args = [a for a in rest_args if a.lower() != 'required']
+
+            # `config <key> = <value>` — absolute kwiver key, no
+            # process/block prefix. Used for global / cross-referenced
+            # settings.
+            config_match = re.match(r'^config\s+([\w:.-]+)\s*=\s*([^#]+)', trimmed, re.IGNORECASE)
+            # Otherwise a regular per-process/block parameter assignment.
+            param_line_match = (
+                re.match(
+                    r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed, re.IGNORECASE
+                )
+                if not config_match
+                else None
+            )
+
+            full_key = None
+            default_val = None
+            if config_match:
+                full_key = config_match.group(1)
+                default_val = config_match.group(2).strip()
+            elif param_line_match:
+                local_key = param_line_match.group(1)
+                default_val = param_line_match.group(2).strip()
+                full_key = ":".join(context_stack + [local_key])
+
+            if full_key is not None and default_val is not None:
+                param_dict: DiveParam = {
+                    "label": label,
+                    "type": param_type,
+                    "type_props": pipeline_type_args,
+                    "key": full_key,
+                    "default": default_val,
+                }
+                if is_required:
+                    param_dict["required"] = True
+                params.append(param_dict)
+    return params, includes
+
+
+def _collect_dive_params(file_path: Path, collected: "Dict[str, DiveParam]", visited: set) -> None:
+    """Collect DIVE_PARAMs from a pipe and, recursively, from its includes.
+
+    Wrapper pipes inherit the params of the pipes they include; a file's own
+    declarations override inherited ones for the same key, matching kwiver's
+    config override order. Includes that cannot be read next to the including
+    file (e.g. $ENV{...} paths resolved by kwiver's own search path) simply
+    contribute no params.
+    """
+    resolved = file_path.resolve()
+    if resolved in visited:
+        return
+    visited.add(resolved)
+    try:
+        with open(resolved, 'r', encoding='utf-8') as f:
+            lines = f.read().splitlines()
+    except OSError:
+        return
+    params, includes = _parse_dive_param_lines(lines)
+    for include in includes:
+        if '$' not in include:
+            _collect_dive_params(resolved.parent / include, collected, visited)
+    for param in params:
+        collected[param["key"]] = param
+
+
+def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
+    metadata: PipeMetadata = {"diveParams": []}
+
+    collected: Dict[str, DiveParam] = {}
+    _collect_dive_params(file_path, collected, set())
+    metadata["diveParams"] = list(collected.values())
+
+    in_description = False
+    full_description_parts: List[str] = []
+    # `process warpN` followed by `:: warp_detections|warp_image` marks an
+    # input whose camera must be registered onto camera 1.
+    last_process_name: Optional[str] = None
+    registration_warps: List[int] = []
+
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            for line in f:
+                line_raw = line.rstrip('\n\r')
+                trimmed = line_raw.strip()
+                if not trimmed:
+                    continue
+
+                process_match = re.match(r'^process\s+(\S+)', trimmed)
+                if process_match:
+                    last_process_name = process_match.group(1)
+                elif (
+                    re.match(r'^::\s*(warp_detections|warp_image)\b', trimmed) and last_process_name
+                ):
+                    warp_match = re.match(r'^warp(\d+)$', last_process_name)
+                    if warp_match:
+                        registration_warps.append(int(warp_match.group(1)))
+
+                # --- Description extraction (Multiline) ---
+                desc_start_match = re.match(r'^#\s*Description:\s*(.*)', line_raw, re.IGNORECASE)
+                if desc_start_match:
+                    in_description = True
+                    content = desc_start_match.group(1).strip()
+                    if content:
+                        full_description_parts.append(content)
+                    continue
+
+                if in_description:
+                    is_stop_condition = (
+                        re.match(r'^#\s*$', line_raw)
+                        or re.match(r'^#\s*=', line_raw)
+                        or re.match(
+                            r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
+                            r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
+                            line_raw,
+                            re.IGNORECASE,
+                        )
+                        or not line_raw.startswith('#')
+                    )
+
+                    if is_stop_condition:
+                        in_description = False
+                    else:
+                        continued_text = re.sub(r'^#\s*', '', line_raw).strip()
+                        if continued_text:
+                            full_description_parts.append(continued_text)
+
+                # --- Input / Output extraction ---
+                input_match = re.match(r'^#\s*Input:\s*(.*)', line_raw, re.IGNORECASE)
+                if input_match:
+                    metadata["inputType"] = input_match.group(1).strip()
+
+                output_match = re.match(r'^#\s*Output:\s*(.*)', line_raw, re.IGNORECASE)
+                if output_match:
+                    metadata["outputType"] = output_match.group(1).strip()
+
+                calibration_match = re.match(
+                    r'^#\s*Requires\s+Calibration:\s*(.*)', line_raw, re.IGNORECASE
+                )
+                if calibration_match:
+                    metadata["requiresCalibration"] = calibration_match.group(
+                        1
+                    ).strip().lower() in (
+                        'true',
+                        'yes',
+                        '1',
+                    )
+
+                # `# Metadata File: <block>:<key>` opts a pipe in to receiving the
+                # dataset's optional metadata file as a `-s <block>:<key>=<path>` override.
+                metadata_file_match = re.match(
+                    r'^#\s*Metadata\s+File:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if metadata_file_match:
+                    value = metadata_file_match.group(1).strip()
+                    if value:
+                        metadata["metadataFileKey"] = value
+
+                # `# Image List Keys: <k> [k...]` binds the run's input image
+                # list(s) (one per camera; multicam comma-joined) to each listed
+                # KWIVER key, so pipes (e.g. the sea-lion registration stabilizer)
+                # read the same image list DIVE feeds the input reader.
+                image_list_match = re.match(
+                    r'^#\s*Image\s+List\s+Keys?:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if image_list_match:
+                    keys = [k for k in re.split(r'[\s,]+', image_list_match.group(1).strip()) if k]
+                    if keys:
+                        metadata["imageListKeys"] = keys
+
+                # `# Calibration Keys: <k> [k...]` binds the dataset's stereo
+                # calibration file to each listed KWIVER key. Needed because
+                # `$CONFIG{global:...}` indirection cannot receive `-s` overrides
+                # (macros expand at parse time, `-s` blocks are appended last), so a
+                # pipe must name the consuming process key directly.
+                calibration_keys_match = re.match(
+                    r'^#\s*Calibration\s+Keys?:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if calibration_keys_match:
+                    keys = [
+                        k for k in re.split(r'[\s,]+', calibration_keys_match.group(1).strip()) if k
+                    ]
+                    if keys:
+                        metadata["calibrationKeys"] = keys
+
+                # `# Camera Order: EO, UV, IR` names the camera role fed to each
+                # inputN of a 2-cam/3-cam pipe; DIVE matches dataset cameras onto
+                # it by name at run time (multicam_pipeline.resolve_pipeline_camera_order).
+                camera_order_match = re.match(
+                    r'^#\s*Camera\s+Order:\s*(.+)', line_raw, re.IGNORECASE
+                )
+                if camera_order_match:
+                    slots = [
+                        s for s in re.split(r'[\s,]+', camera_order_match.group(1).strip()) if s
+                    ]
+                    if slots:
+                        metadata["cameraOrder"] = slots
+
+        if registration_warps:
+            metadata["registrationWarps"] = sorted(set(registration_warps))
+
+        if full_description_parts:
+            metadata["description"] = " ".join(full_description_parts)
+        else:
+            metadata["description"] = None
+
+    except Exception as e:
+        print(f"Error while reading {file_path} metadata: {e}")
+
+    return metadata
 
 
 def load_static_pipelines(search_path: Path) -> Dict[str, PipelineCategory]:
     pipedict: Dict[str, PipelineCategory] = {}
 
     pipelist = [
-        path.name
+        path
         for path in search_path.glob("./*.pipe")
-        if re.match(AllowedStaticPipelines, path.name)
-        and not re.match(DisallowedStaticPipelines, path.name)
+        if re.match(AllowedStaticPipelines, path.name, re.IGNORECASE)
+        and not re.match(DisallowedStaticPipelines, path.name, re.IGNORECASE)
     ]
 
-    for pipe in pipelist:
-        pipe_type, *nameparts = pipe.replace(".pipe", "").split("_")
+    for pipe_path in pipelist:
+        pipe = pipe_path.name
+        pipe_stem = pipe.replace('.pipe', '')
+        pipe_type, pipe_name = parse_pipe_type_and_name(pipe_stem)
+
+        metadata = extract_pipe_metadata(pipe_path)
+
         pipe_info: PipelineDescription = {
-            "name": " ".join(nameparts),
+            "name": pipe_name,
             "type": pipe_type,
             "pipe": pipe,
+            "metadata": metadata,
             "folderId": None,
         }
         print(f"Discovered pipe {pipe_info}")
@@ -83,8 +377,34 @@ def load_training_configurations(search_path: Path) -> TrainingConfigurationSumm
     }
 
 
+def load_training_models(search_path: Path) -> Dict[str, TrainingModelDescription]:
+    model_dict: Dict[str, TrainingModelDescription] = {}
+
+    # Use a list comprehension and glob to find matching files
+    matching_models = []
+    for root, _dirs, files in os.walk(search_path):
+        for file in files:
+            if file.endswith(
+                TrainingModelExtensions
+            ):  # The arg can be a tuple of suffixes to look for
+                matching_models.append(os.path.join(root, file))
+
+    for match in matching_models:
+        print(f"Discovered Model: {match}")
+        model_info: TrainingModelDescription = {
+            "name": os.path.basename(match),
+            "path": str(match),
+            "type": Path(match).suffix,
+            "folderId": None,
+        }
+        model_dict[Path(match).stem] = model_info
+
+    return model_dict
+
+
 def discover_configs(search_path: Path) -> AvailableJobSchema:
     return {
         'pipelines': load_static_pipelines(search_path),
         'training': load_training_configurations(search_path),
+        'models': load_training_models(search_path),
     }

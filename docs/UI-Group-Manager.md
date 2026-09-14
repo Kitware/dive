@@ -24,7 +24,7 @@ See the [data format documentation](DataFormats.md) for the complete capabilitie
 The group type summary list allows for enabling and disabling annotations based on their group and bulk-editing group type characteristics.
 
 * Groups do not have separate "selected" and "editing" states, so selecting a group puts it into editing mode.
-* Group type styles can be edited in the same fashion as [track type styles](UI-Type-List.md#type-style-editor) in the left sidebar using ==:material-pencil:== (the edit pencil).
+* Group type styles can be edited in the same fashion as [track type styles](UI-Type-List.md#type-style-editor) in the left sidebar using ==:material-pencil:== (the edit pencil). Group colors follow the same [Type color scope](UI-Type-List.md#type-color-scope-and-saved-styles) setting as track types (Shared by default), and can be managed under **Saved Styles** in User Settings.
 
 ### Group Instance List
 

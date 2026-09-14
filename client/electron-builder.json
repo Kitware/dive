@@ -1,0 +1,42 @@
+{
+  "appId": "com.kitware.viame",
+  "productName": "DIVE-Desktop",
+  "copyright": "Copyright © 2022 Kitware, Inc.",
+  "directories": {
+    "buildResources": "platform/desktop/buildResources",
+    "output": "dist_electron"
+  },
+  "files": [
+    "dist_desktop/**",
+    ".electron/main/**",
+    "node_modules/**",
+    "package.json"
+  ],
+  "extraFiles": [
+    {
+      "from": "node_modules/ffmpeg-ffprobe-static",
+      "to": "resources/ffmpeg-ffprobe-static",
+      "filter": [
+        "ff*"
+      ]
+    }
+  ],
+  "extraMetadata": {
+    "main": ".electron/main/background.js",
+    "name": "DIVE-Desktop"
+  },
+  "linux": {
+    "target": [
+      "AppImage",
+      "tar.gz"
+    ],
+    "artifactName": "DIVE-Desktop-${version}.${ext}"
+  },
+  "win": {
+    "target": [
+      "portable",
+      "zip"
+    ],
+    "artifactName": "DIVE-Desktop-${version}.${ext}"
+  }
+}

@@ -11,29 +11,143 @@
 
 ## General architecture
 
-Electron applications are comprised of two main threads
+A DIVE Desktop build is a normal Electron app with **three separate Vite targets** (main, preload, renderer):
 
-* a node.js main thread with full access to the node environment
-* a renderer thread which is like a browser tab that runs under a stricter security policy
+* **Main process** — Node.js, full OS and Node APIs. Owns the window, starts the embedded HTTP server, registers `ipcMain` handlers, and runs desktop-only backend code under `backend/`.
+* **Preload script** — A small bundle that runs in an isolated world before the renderer loads. It is the only place that may call Node/Electron APIs on behalf of the UI; it exposes a vetted API on `window.diveDesktop` via `contextBridge`.
+* **Renderer process** — The Vue UI (`desktop.html` and the desktop frontend). It behaves like a browser tab: **no Node integration**, **context isolation enabled**. It talks to the main process only through `window.diveDesktop` and to the local backend over HTTP.
 
-Due to security concerns in the renderer thread, this app uses a small embedded node.js webserver to serve media content (images and videos) from disk.  This is actually the most reasonable way to stream bytes with range requests into a browser environment.
+Because the renderer cannot read the filesystem directly, the app runs a small **Express server inside the main process** to stream media (range requests), expose REST-shaped dataset routes, and handle large payloads more comfortably than raw IPC.
 
-* The common frontend api is implemented in `api/`
-* The backend services are implemented in `backend/`
+* Shared web/client logic lives under `src/` and `dive-common/`; the **desktop-specific frontend adapter** (IPC + axios to the local server) is `frontend/api.ts`.
+* **Desktop backend** (filesystem, jobs, platform helpers) lives under `backend/`.
+
+## Configuration and build (client package root)
+
+Tooling paths are relative to the **`client/`** directory (the npm package that owns Electron).
+
+### `client/electron.vite.config.ts`
+
+[electron-vite](https://electron-vite.org/) reads this file for `electron-vite dev` and `electron-vite build`. It defines three builds:
+
+| Target | Source | Output | Role |
+|--------|--------|--------|------|
+| **main** | `platform/desktop/background.ts` | `client/.electron/main/background.js` | Electron entry; window, lifecycle, starts server + IPC |
+| **preload** | `platform/desktop/preload.ts` | `client/.electron/main/preload.js` | `contextBridge` → `window.diveDesktop` |
+| **renderer** | `desktop.html` (Vue app) | `client/dist_desktop/` | Packaged UI assets (`base: './'` for `file://` loading) |
+
+The renderer section also configures the **dev server** (host/port from `VITE_PORT`, optional `VITE_API_PROXY_TARGET` for Girder when developing against a remote API).
+
+### `client/electron-builder.json`
+
+After `electron-vite build`, **`electron-builder --config electron-builder.json`** produces installers under `client/dist_electron/`. Important fields:
+
+* **`files`** — Ships `dist_desktop/**`, `.electron/main/**`, `node_modules/**`, and `package.json` into the app bundle.
+* **`extraMetadata.main`** — Sets the packaged app entry to `.electron/main/background.js` (overriding the library `main` field used for the npm package).
+* **`extraFiles`** — Bundles static ffmpeg/ffprobe binaries for media tooling.
+* **`directories.buildResources`** — Icons and other assets under `platform/desktop/buildResources`.
+
+### npm scripts (in `client/package.json`)
+
+* **`serve:electron`** / **`dev:electron`** — `electron-vite dev`: compiles main/preload, serves the renderer from Vite, opens Electron with `ELECTRON_ENTRY=.electron/main/background.js` (and related env). Use this to develop interactive segmentation and stereo features locally.
+* **`build:electron`** — `electron-vite build` then `electron-builder --config electron-builder.json`.
+* **`build:electron:dir`** — same as `build:electron` but produces an unpacked directory instead of an installer (faster iteration for testing).
+
+## Launching from the command line
+
+DIVE Desktop can be started directly on a dataset, skipping the import wizard:
+
+```bash
+dive-desktop --import <media> [--annotations <file>] [--metadata <file>] [--name <name>]
+```
+
+* **`--import`, `-i`** — the media to open. Anything the import wizard accepts: an image-sequence directory, an image-list text file (one image path per line), or a video.
+* **`--annotations`, `-a`** — optional VIAME CSV or DIVE JSON to load onto the dataset.
+* **`--metadata`** — optional pipeline metadata sidecar (`.json` / `.txt` / `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker.
+* **`--name`, `-n`** — optional display name; defaults to the media basename.
+
+Relative paths are resolved against the working directory. For example, to review a detector's output over an image list:
+
+```bash
+dive-desktop --import input_list.txt --annotations detections.csv --name "Sea Lions"
+```
+
+### Multi-camera and stereo
+
+Name each camera with a repeated `--camera` instead of using `--import`:
+
+```bash
+dive-desktop --camera left=/data/left --camera right=/data/right \
+             --annotations left=/data/left.csv --annotations right=/data/right.csv \
+             --calibration /data/calibration_matrices.npz \
+             --metadata /data/flight_log.csv
+```
+
+* **`--camera`, `-c`** — `<name>=<media>`, repeated once per camera (two or more). Each media path is the same set of things `--import` accepts. Only the first `=` separates, so Windows paths survive. Flag order is the display order.
+* **`--annotations`, `-a`** — becomes `<camera>=<file>` in multi-camera mode. Give it once per camera that has annotations; cameras may be omitted.
+* **`--calibration`** — stereo calibration file (`.npz` or `.json`). Multi-camera only.
+* **`--metadata`** — optional pipeline metadata sidecar; available for single-camera and multi-camera imports alike.
+* **`--default-display`** — camera shown on open. Defaults to `left` when present, else the first camera.
+
+**Stereo is not a separate flag.** As elsewhere in DIVE, a dataset whose cameras are named exactly `left` and `right` is typed `stereo`; any other set of names is `multicam`. So the example above produces a stereo dataset, and adding a `--calibration` is what makes stereo measurement work.
+
+Every camera must be the same kind of media — all videos or all image sequences — since one dataset type covers them all. `--import` and `--camera` are mutually exclusive.
+
+### Notes
+
+Single-camera datasets go through the same backend calls as the wizard (`beginMediaImport` → `finalizeMediaImport` → `dataFileImport`); multi-camera ones go through `beginMultiCamImport` → `finalizeMediaImport`, which ingests the per-camera track files and copies/normalizes the calibration. Either way the result is a normal dataset: it is added to the recents list and can be reopened from the dataset list later. Media that requires transcoding is converted first, and the viewer opens when the conversion job completes. In that case the main process logs a message and the renderer gets `desktop:cli-transcoding` so a dialog appears whether the app just started or another dataset is already open; recents also show the converting status immediately.
+
+If an instance is already running, the single-instance lock forwards the arguments to it and the dataset opens in the existing window.
+
+Glob/keyword multi-camera import (`MultiCamImportKeywordArgs`, one folder matched by per-camera glob) is not exposed on the command line; use one `--camera` per source instead.
+
+Implementation: `backend/cliImport.ts` (argument parsing and import), wired up in `background.ts`. The renderer asks for any pending CLI dataset once mounted (`desktop:cli-open-pending`) and is told to navigate via `desktop:open-dataset`, so an import that finishes before the window is ready is not missed. Transcoding waits use `desktop:cli-transcoding` before that navigation.
+
+Note this is distinct from `divecli` (`backend/cli.ts`), a separate headless entrypoint for format conversion and running pipelines, which does not open the GUI.
+
+## Interactive service (segmentation + stereo)
+
+Desktop-only interactive annotation runs through a single persistent Python subprocess managed by `backend/native/interactive.ts`. It hosts:
+
+* **Interactive segmentation** — point-click mask prediction (`backend/native/segmentation.ts`, IPC via `ipcService.ts`)
+* **Interactive stereo** — line transfer, length measurement, dense disparity (`backend/native/stereo.ts`)
+
+Models load lazily on first use. The renderer calls into the service through `frontend/api.ts`; shared UI types live in `dive-common/apispec.ts`. The segmentation recipe is `dive-common/recipes/segmentationpointclick.ts`; stereo wiring is in `platform/desktop/frontend/components/ViewerLoader.vue` and `dive-common/use/useModeManager.ts`.
+
+User documentation: [Interactive Annotation](../../docs/Interactive-Annotation.md).
+
+## Main process, preload, and renderer
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│ Main (background.ts)                                             │
+│  • BrowserWindow + session                                       │
+│  • backend/server.ts  → Express on localhost (dataset REST, media)│
+│  • backend/ipcService.ts → ipcMain.handle / ipcMain.on           │
+└───────────────┬───────────────────────────────┬───────────────────┘
+                │ preload.js (contextBridge)     │ HTTP
+                ▼                                ▼
+┌───────────────────────────────┐    ┌─────────────────────────────┐
+│ Renderer (Vue, desktop.html)   │    │ axios baseURL http://host:  │
+│  window.diveDesktop.invoke…    │    │ port/api (after server-info) │
+└───────────────────────────────┘    └─────────────────────────────┘
+```
+
+* **`background.ts`** creates the window with `nodeIntegration: false`, `contextIsolation: true`, and `preload` pointing at `preload.js` next to the compiled main bundle. It calls `listen()` from `backend/server.ts` and `ipcListen()` from `backend/ipcService.ts`. In development it loads `desktop.html` from the Vite dev server URL; when packaged it loads `dist_desktop/desktop.html` from disk.
+* **`preload.ts`** exposes `window.diveDesktop`: thin wrappers around `ipcRenderer.invoke`, `send`, `on`, plus helpers for native dialogs, app paths, and a small `runtime` snapshot. Types for the renderer are in `client/src/@types/desktop-preload.d.ts`.
+* **Renderer** uses `frontend/api.ts`: IPC for commands and structured work (pipelines, import/export, `server-info`, etc.), and **HTTP** (axios) for metadata saves and other `/api/...` routes served by Express. Some operations use IPC even when data is large (for example `load-detections` is handled in main via `common.loadDetections`); streaming media goes through the HTTP `/api/media` path.
+
+## IPC, HTTP, and data flow
+
+* **IPC (`ipcMain` / `window.diveDesktop`)** — Good for control messages, dialogs, job orchestration, and returning JSON that has already been read or produced in main. Handlers are registered in `backend/ipcService.ts`; the preload keeps the renderer from importing Electron directly.
+* **HTTP (Express in main)** — Used for dataset-style REST endpoints and **range requests** for video/images (`backend/server.ts`). The renderer obtains `host:port` via the `server-info` IPC handler, then builds an axios client with `baseURL` `http://…/api`.
+* **Main → renderer** — `background.ts` can push updates with `webContents.send` (for example job progress); the preload’s `on` API subscribes on the renderer side.
+
+Older notes still apply: avoid blocking synchronous IPC for anything non-trivial; prefer async IPC or HTTP for heavier work.
 
 ## Desktop Dependencies
 
 Currently, desktop-only dependencies are installed into devdependencies and linting errors are ignored inline.  This is to prevent desktop's dependencies from polluting the installation of `vue-media-annotator` from NPM.  Separating the many packaging needs of this project is an open discussion.
-
-## IPC and data flow
-
-Several kinds of inter-process communication are used between renderer and main.
-
-* Synchronous IPC for short messages that resolve quickly.  Blocking IPC should generally be avoided.
-* Asynchronous IPC for short messages that take longer.  This will be the majority of cases.
-* HTTP Service running in main for very long messages.  IPC isn't good for passing large blobs.
-  * Mostly used to read images and video from disk.
-* Direct use of node.js native libraries from renderer, for loading large blobs to and from disk where streaming isn't useful.  HTTP is used for range queries, but for annotation files, there is no benefit to using the HTTP interface over direct filesystem access since JSON files must be loaded into memory 100% to be useful.
 
 ## Platform-specific methods
 
@@ -43,38 +157,38 @@ Due to tight OS coupling, some methods will have to be implemented to target a s
 
 Desktop has the capability to import and run pipelines on stereo and multicamera pipelines.  There is a Root folder as well as individual folders for each camera.  To achieve this the folder structure for storage of data is slightly different.
 
-* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `meta.json` file will contain a parmeter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`. 
-* Camera Folders - Individual folders for each camera which behave like their own dataset with their own meta.json and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
+* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `dataset.json` file will contain a parameter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`. Legacy datasets may still have `meta.json`; DIVE reads that as a fallback and migrates to `dataset.json` on the next save.
+* Camera Folders - Individual folders for each camera which behave like their own dataset with their own `dataset.json` and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
 
 ``` text
 DIVE_Projects
 ├── stereodataset_jp7hq88vfv
-│  ├── meta.json
+│  ├── dataset.json
 │  ├── result_06-01-2021_10-55-38.627.json
 │  ├── left
 |  |  ├── auxiliary
 |  │  │  └── result_06-01-2021_10-52-28.347.json
-│  │  ├── meta.json
+│  │  ├── dataset.json
 │  │  └── result_06-01-2021_10-55-38.627.json
 │  └── right
 |     ├── auxiliary
 |     │  └── result_06-01-2021_10-52-28.347.json
-│     ├── meta.json
+│     ├── dataset.json
 │     └── result_06-01-2021_10-55-38.627.json
 └── multicamera_jrgdq760gu
-   ├── meta.json
+   ├── dataset.json
    ├── result_06-18-2021_22-50-38.435.json
    ├── camera1
    |  ├── auxiliary
-   │  ├── meta.json
+   │  ├── dataset.json
    │  └── result_06-18-2021_22-50-38.435.json
    ├── camera2
    |  ├── auxiliary
-   │  ├── meta.json
+   │  ├── dataset.json
    │  └── result_06-18-2021_22-50-38.234.json
    └──── camera3
       ├── auxiliary
-      ├── meta.json
+      ├── dataset.json
       └── result_06-18-2021_22-50-38.126.json
 ```
 
@@ -84,7 +198,7 @@ When multicamera pipelines are run they will create individual annotation files 
 
 ### MultiCamera Ids and Requests
 
-Internally to reference difference cameras the system creates a datasetId which combines the base datasetId with the cameraName.  So in the example above `stereodataset_jp7hq88vfv` and the `left` camera would be referenced by `stereodataset_jp7hq88vfv/left`.  That is the Id that would be used to loadMetadata, saveMetadata, loadDetections and saveDetections.
+Internally to reference difference cameras the system creates a datasetId which combines the base datasetId with the cameraName.  So in the example above `stereodataset_jp7hq88vfv` and the `left` camera would be referenced by `stereodataset_jp7hq88vfv/left`.  That is the Id that would be used to loadConfig, saveConfig, loadDetections and saveDetections.
 
 ### MultiCamera Display/Loading Process
 

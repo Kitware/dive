@@ -1,4 +1,7 @@
-from typing import Dict, List, Tuple
+import csv
+import io
+import json
+from typing import Dict, List, Optional, Tuple
 
 import pytest
 
@@ -154,7 +157,7 @@ test_tuple: List[Tuple[dict, list, list]] = [
             }
         },
         [
-            "0,2.png,1,2,2,4,4,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(kp) head 22 46,(kp) tail 55 22",
+            "0,2.png,1,2,2,4,4,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(kp) head 22.4534 45.6564,(kp) tail 55.232 22.3445",
             "0,3.png,2,3,3,6,6,0.9,-1,bar,0.9,foo,0.2,baz,0.1",
             "0,4.png,3,4,4,8,8,0.9,-1,bar,0.9,foo,0.2,baz,0.1,(poly) 1 2 3 4 5 6 7 8 9 10",
             "",
@@ -188,6 +191,133 @@ test_tuple: List[Tuple[dict, list, list]] = [
         [
             "0,1.png,0,884,510,1219,737,1.0,-1,typestring,1.0,(atr) detectionAttr frame 0 attr,(trk-atr) trackATTR TestTrack ATTR With Space",
             "0,2.png,1,111,222,3333,444,1.0,-1,typestring,1.0,(atr) detectionAttr frame 1 attr,(trk-atr) trackATTR TestTrack ATTR With Space",
+            "",
+        ],
+        [],
+    ),
+    # Testing multi-polygon with different keys
+    (
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [["fish", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [100, 100, 500, 500],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": ""},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [[100, 100], [200, 100], [200, 200], [100, 200]]
+                                        ],
+                                    },
+                                },
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": "1"},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [[300, 300], [400, 300], [400, 400], [300, 400]]
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 0,
+            },
+        },
+        [
+            "0,1.png,0,100,100,500,500,1.0,-1,fish,1.0,(poly) 100 100 200 100 200 200 100 200,(poly) 300 300 400 300 400 400 300 400",
+            "",
+        ],
+        [],
+    ),
+    # Testing polygon with hole
+    (
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [["object", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [100, 100, 500, 500],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": ""},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [[100, 100], [500, 100], [500, 500], [100, 500]],
+                                            [[200, 200], [400, 200], [400, 400], [200, 400]],
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 0,
+            },
+        },
+        [
+            "0,1.png,0,100,100,500,500,1.0,-1,object,1.0,(poly) 100 100 500 100 500 500 100 500,(hole) 200 200 400 200 400 400 200 400",
+            "",
+        ],
+        [],
+    ),
+    # Testing keyed polygon with hole
+    (
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [["region", 1.0]],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [0, 0, 1000, 1000],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {"key": "2"},
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [[0, 0], [1000, 0], [1000, 1000], [0, 1000]],
+                                            [[100, 100], [200, 100], [200, 200], [100, 200]],
+                                            [[300, 300], [400, 300], [400, 400], [300, 400]],
+                                        ],
+                                    },
+                                },
+                            ],
+                        },
+                    },
+                ],
+                "begin": 0,
+                "end": 0,
+            },
+        },
+        [
+            "0,1.png,0,0,0,1000,1000,1.0,-1,region,1.0,(poly) 0 0 1000 0 1000 1000 0 1000,(hole) 100 100 200 100 200 200 100 200,(hole) 300 300 400 300 400 400 300 400",
             "",
         ],
         [],
@@ -353,12 +483,236 @@ def test_image_filenames():
     image_map = {'1': 0, '2': 1, '3': 2}
     for test in image_filename_tests:
         if not test['warning']:
-            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(
+            converted, _, warnings, fps, _datasetInfo = viame.load_csv_as_tracks_and_attributes(
                 test['csv'], image_map
             )
             assert len(converted['tracks'].values()) > 0
         else:
-            converted, _, warnings, fps = viame.load_csv_as_tracks_and_attributes(
+            converted, _, warnings, fps, _datasetInfo = viame.load_csv_as_tracks_and_attributes(
                 test['csv'], image_map
             )
             assert len(warnings) > 0
+
+
+def _metadata_fields(csv_text: str) -> Optional[List[str]]:
+    """Parse the exported CSV and return the entries of the ``# metadata`` row (sans the marker)."""
+    for row in csv.reader(io.StringIO(csv_text)):
+        if row and row[0] == '# metadata':
+            return row[1:]
+    return None
+
+
+def _dataset_info_entry(fields: List[str]) -> Optional[dict]:
+    entries = [f for f in fields if f.startswith('dataset_info: ')]
+    if not entries:
+        return None
+    assert len(entries) == 1
+    return json.loads(entries[0][len('dataset_info: ') :])
+
+
+def test_dataset_info_on_metadata_line():
+    """A populated datasetInfo is emitted as one nested JSON entry; numerics stay numeric."""
+    datasetInfo = {
+        "gfishsite_id": "2024TXN012",
+        "cruise": 2403,
+        "sta_lat": 26.8195,
+        "year": 2024,
+    }
+    csv_text = ''.join(viame.export_tracks_as_csv([], header=True, datasetInfo=datasetInfo))
+    fields = _metadata_fields(csv_text)
+    assert fields is not None
+    parsed = _dataset_info_entry(fields)
+    # round-trips as a single key with numeric fields preserved and ids kept as strings
+    assert parsed == datasetInfo
+    assert isinstance(parsed['cruise'], int)
+    assert isinstance(parsed['sta_lat'], float)
+    assert isinstance(parsed['gfishsite_id'], str)
+
+
+@pytest.mark.parametrize("datasetInfo", [None, {}])
+def test_dataset_info_absent_when_empty(datasetInfo):
+    """No dataset_info entry (no `dataset_info: {}` noise) when empty/absent."""
+    csv_text = ''.join(viame.export_tracks_as_csv([], header=True, datasetInfo=datasetInfo))
+    fields = _metadata_fields(csv_text)
+    assert fields is not None
+    assert not any(f.startswith('dataset_info') for f in fields)
+
+
+def test_dataset_info_restored_on_parse_roundtrip():
+    """Exported datasetInfo on the # metadata line round-trips as the 5th return value."""
+    datasetInfo = {"gfishsite_id": "2024TXN012", "cruise": 2403}
+    tracks = test_tuple[0][0]
+    csv_text = ''.join(
+        viame.export_tracks_as_csv(
+            tracks.values(), filenames=filenames, header=True, datasetInfo=datasetInfo
+        )
+    )
+    rows = csv_text.splitlines()
+    annotations, _attributes, _warnings, _fps, parsed_info = (
+        viame.load_csv_as_tracks_and_attributes(rows)
+    )
+    assert len(annotations['tracks']) == len(tracks)
+    assert parsed_info == datasetInfo
+
+
+def test_fps_parsed_case_insensitively_from_metadata():
+    """Lowercase ``fps:`` (what DIVE and native VIAME write) is read back on import.
+
+    Regression for an importer that only matched a capitalized ``Fps:`` and so silently
+    dropped the frame rate from real VIAME CSVs.
+    """
+    csv_text = ''.join(viame.export_tracks_as_csv([], header=True, fps=23.976))
+    assert '# metadata' in csv_text and 'fps: 23.976' in csv_text  # exported lowercase
+    rows = csv_text.splitlines()
+    _annotations, _attributes, _warnings, fps, _info = viame.load_csv_as_tracks_and_attributes(rows)
+    assert float(fps) == 23.976
+
+
+def test_filename_like_attribute_values_stay_strings():
+    """Filename-like (atr) values must not be truncated or coerced to numbers.
+
+    Regression for parsers that used ``float()`` / ``parseFloat`` on attribute
+    values: leading digits of ``0123ABC456`` became ``123``, and underscore
+    digit separators (``20240624_120000``) were accepted by Python's ``float()``.
+    Real numbers and booleans still convert as before; inferred datatypes follow.
+    """
+    rows = [
+        "0,1.png,0,10,10,20,20,1,-1,seal,0.9,"
+        "(atr) source_image 0123ABC456,"
+        "(atr) other_file 20240624_120000_C0_0042.jpg,"
+        "(atr) score 12.5,(atr) flag true",
+    ]
+    annotations, attributes, _warnings, _fps, _info = viame.load_csv_as_tracks_and_attributes(rows)
+    attrs = annotations['tracks']['0']['features'][0]['attributes']
+    assert attrs['source_image'] == '0123ABC456'
+    assert attrs['other_file'] == '20240624_120000_C0_0042.jpg'
+    assert attrs['score'] == 12.5
+    assert attrs['flag'] is True
+    assert attributes['detection_source_image']['datatype'] == 'text'
+    assert attributes['detection_other_file']['datatype'] == 'text'
+    assert attributes['detection_score']['datatype'] == 'number'
+    assert attributes['detection_flag']['datatype'] == 'boolean'
+
+
+def test_notes_round_trip_through_csv_export():
+    """Detection notes survive an export -> import cycle.
+
+    Regression for an exporter that parsed ``(note)`` columns on import but never
+    wrote them on export, so notes were silently dropped by every server-side CSV
+    round trip while the desktop TypeScript serializer preserved them.
+    """
+    tracks = {
+        "0": {
+            "id": 0,
+            "attributes": {},
+            "confidencePairs": [["fish", 0.9]],
+            "features": [
+                {
+                    "frame": 0,
+                    "bounds": [884, 510, 1219, 737],
+                    "notes": ["needs review", "occluded by kelp"],
+                }
+            ],
+            "begin": 0,
+            "end": 0,
+        }
+    }
+
+    csv_text = ''.join(viame.export_tracks_as_csv(tracks.values(), filenames=filenames))
+    assert '(note) needs review' in csv_text
+    assert '(note) occluded by kelp' in csv_text
+
+    rows = csv_text.splitlines()
+    annotations, _attributes, _warnings, _fps, _info = viame.load_csv_as_tracks_and_attributes(rows)
+    assert annotations['tracks']['0']['features'][0]['notes'] == [
+        "needs review",
+        "occluded by kelp",
+    ]
+
+
+def test_export_csv_prunes_pairs_below_threshold_without_mutating_source():
+    tracks = {
+        "7": {
+            "id": 7,
+            "begin": 0,
+            "end": 0,
+            "confidencePairs": [["fish", 0.8], ["shark", 0.4]],
+            "attributes": {},
+            "features": [{"frame": 0, "bounds": [1, 2, 3, 4]}],
+        }
+    }
+    source_pairs = list(tracks["7"]["confidencePairs"])
+
+    lines = list(
+        viame.export_tracks_as_csv(
+            tracks.values(),
+            filenames=filenames,
+            header=False,
+            excludeBelowThreshold=True,
+            thresholds={"default": 0.5},
+        )
+    )
+
+    assert lines[0].strip() == "7,1.png,0,1,2,3,4,0.8,-1,fish,0.8"
+    assert "shark" not in lines[0]
+    assert tracks["7"]["confidencePairs"] == source_pairs
+
+
+def test_export_csv_omits_track_when_no_pairs_meet_threshold():
+    tracks = {
+        "7": {
+            "id": 7,
+            "begin": 0,
+            "end": 0,
+            "confidencePairs": [["shark", 0.4]],
+            "attributes": {},
+            "features": [{"frame": 0, "bounds": [1, 2, 3, 4]}],
+        }
+    }
+
+    lines = list(
+        viame.export_tracks_as_csv(
+            tracks.values(),
+            filenames=filenames,
+            header=False,
+            excludeBelowThreshold=True,
+            thresholds={"default": 0.5},
+        )
+    )
+
+    assert [line.strip() for line in lines if line.strip()] == []
+
+
+def test_centerline_json_csv_roundtrip():
+    coords = [[10.123456789, 20], [20, 30.987654321], [30, 20]]
+    track = dict(
+        id=1,
+        begin=0,
+        end=0,
+        confidencePairs=[['fish', 1]],
+        features=[
+            dict(
+                frame=0,
+                bounds=[0, 0, 100, 100],
+                keyframe=True,
+                geometry=dict(
+                    type='FeatureCollection',
+                    features=[
+                        dict(
+                            type='Feature',
+                            properties=dict(key='HeadTails'),
+                            geometry=dict(type='LineString', coordinates=coords),
+                        )
+                    ],
+                ),
+            )
+        ],
+    )
+    rows = list(viame.export_tracks_as_csv([track], filenames=['img.png'], header=False))
+    row = next(r for r in rows if '(kp)' in r)
+    features, *_ = viame._parse_row(next(csv.reader([row])))
+    line = next(
+        f for f in features['geometry']['features'] if f['geometry']['type'] == 'LineString'
+    )
+    assert line['geometry']['coordinates'] == coords
+    assert '(kp) spine_001 20 30.987654321' in row

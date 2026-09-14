@@ -1,4 +1,6 @@
-import { RectBounds } from './utils';
+import { mergePairs } from 'dive-common/typeHierarchy';
+import { syncHeadTail } from './headTail';
+import { RectBounds, polygonEqualsBounds } from './utils';
 import {
   binarySearch,
   listInsert,
@@ -27,6 +29,7 @@ export interface Feature {
   attributes?: StringKeyObject & { userAttributes?: StringKeyObject };
   head?: [number, number];
   tail?: [number, number];
+  notes?: string[];
 }
 
 /** TrackData is the json schema for Track transport */
@@ -178,7 +181,8 @@ export default class Track extends BaseAnnotation {
         begin: this.begin,
         end: this.getPreviousKeyframe(frame - 1) || this.begin,
         features: this.features.slice(this.begin, frame),
-        confidencePairs: this.confidencePairs,
+        confidencePairs: this.confidencePairs
+          .map(([type, confidence]) => [type, confidence] as [string, number]),
         attributes: this.attributes,
       }),
       Track.fromJSON({
@@ -187,7 +191,8 @@ export default class Track extends BaseAnnotation {
         begin: this.getNextKeyframe(frame) || this.end,
         end: this.end,
         features: this.features.slice(frame),
-        confidencePairs: this.confidencePairs,
+        confidencePairs: this.confidencePairs
+          .map(([type, confidence]) => [type, confidence] as [string, number]),
         attributes: this.attributes,
       }),
     ];
@@ -197,18 +202,21 @@ export default class Track extends BaseAnnotation {
    * Merge other into track at frame, preferring features from
    * self if there are conflicts
    */
-  merge(others: Track[], disableNotifier = false) {
-    if (disableNotifier) {
-      this.notifierEnabled = false;
+  merge(others: Track[]) {
+    const previousPairs = this.confidencePairs;
+    const mergedPairs = mergePairs([
+      this.confidencePairs,
+      ...others.map((other) => other.confidencePairs),
+    ]);
+    const pairsChanged = mergedPairs.length !== previousPairs.length
+      || mergedPairs.some(([type, confidence], index) => (
+        previousPairs[index]?.[0] !== type || previousPairs[index]?.[1] !== confidence
+      ));
+    if (pairsChanged) {
+      this.confidencePairs = mergedPairs;
+      this.notify('confidencePairs', previousPairs);
     }
     others.forEach((other) => {
-      other.confidencePairs.forEach((pair) => {
-        const match = this.confidencePairs.find(([name]) => name === pair[0]);
-        // Only set confidence if greater
-        if (match === undefined || match[1] < pair[1]) {
-          this.setType(...pair);
-        }
-      });
       other.features.forEach((f) => {
         if (this.getFeature(f.frame)[0] === null) {
           this.setFeature(f, f.geometry?.features);
@@ -223,9 +231,6 @@ export default class Track extends BaseAnnotation {
         });
       }
     });
-    if (disableNotifier) {
-      this.notifierEnabled = true;
-    }
   }
 
   toggleKeyframe(frame: number) {
@@ -289,6 +294,8 @@ export default class Track extends BaseAnnotation {
 
   setFeature(feature: Feature, geometry: GeoJSON.Feature<TrackSupportedFeature>[] = []): Feature {
     const f = this.features[feature.frame] || {};
+    const oldLine = f.geometry?.features.find((g) => g.properties?.key === 'HeadTails' && g.geometry.type === 'LineString');
+    const oldCoordinates = JSON.stringify(oldLine?.geometry);
     this.features[feature.frame] = {
       ...f,
       ...feature,
@@ -310,7 +317,10 @@ export default class Track extends BaseAnnotation {
     geometry.forEach((geo) => {
       const i = fg.features
         .findIndex((item) => {
-          const keyMatch = !geo.properties?.key || item.properties?.key === geo.properties?.key;
+          // Compare keys directly, treating undefined/null as empty string
+          const geoKey = geo.properties?.key ?? '';
+          const itemKey = item.properties?.key ?? '';
+          const keyMatch = geoKey === itemKey;
           const typeMatch = item.geometry.type === geo.geometry.type;
           return keyMatch && typeMatch;
         });
@@ -321,6 +331,24 @@ export default class Track extends BaseAnnotation {
       }
     });
     if (fg.features.length) {
+      fg.features = syncHeadTail(fg.features);
+      const current = this.features[feature.frame];
+      const line = fg.features.find((g) => g.properties?.key === 'HeadTails' && g.geometry.type === 'LineString');
+      if (line?.geometry.type === 'LineString') {
+        current.head = [...line.geometry.coordinates[0]] as [number, number];
+        current.tail = [...line.geometry.coordinates[line.geometry.coordinates.length - 1]] as [number, number];
+      }
+      if (oldLine && oldCoordinates !== JSON.stringify(line?.geometry)) {
+        current.attributes = { ...current.attributes, measurement_stale: true };
+        delete this.attributes.avg_length;
+        // Keep explicitly user-entered lengths; derived results must be recomputed.
+        if (current.attributes.length_method !== 'user_set') {
+          current.fishLength = undefined;
+          ['length', 'curved_length', 'straight_length', 'curvature_ratio', 'avg_length',
+            'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms']
+            .forEach((key) => { delete current.attributes?.[key]; });
+        }
+      }
       this.features[feature.frame].geometry = fg;
     }
     this.maybeExpandBounds(feature.frame);
@@ -340,6 +368,20 @@ export default class Track extends BaseAnnotation {
     return this.features[feature.frame];
   }
 
+  /** Clear derived results after a geometry edit on either stereo camera. */
+  invalidateMeasurement(frame: number) {
+    const feature = this.features[frame];
+    if (!feature) return;
+    const attributes = { ...feature.attributes, measurement_stale: true } as StringKeyObject;
+    const locked = attributes.length_method === 'user_set';
+    ['curved_length', 'straight_length', 'curvature_ratio', 'avg_length',
+      'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms']
+      .forEach((key) => { delete attributes[key]; });
+    if (!locked) delete attributes.length;
+    this.setFeature({ frame, attributes, fishLength: locked ? feature.fishLength : undefined });
+    delete this.attributes.avg_length;
+  }
+
   /* Get features by properties.key, geometry.type, or both */
   getFeatureGeometry(frame: number, { key, type }:
     { key?: string; type?: GeoJSON.GeoJsonGeometryTypes | '' | 'rectangle' }) {
@@ -348,7 +390,9 @@ export default class Track extends BaseAnnotation {
       return [];
     }
     return feature.geometry.features.filter((item) => {
-      const matchesKey = !key || item.properties?.key === key;
+      // Check key match: undefined means match all, otherwise compare (treating undefined/null as '')
+      const matchesKey = key === undefined
+        || (item.properties?.key ?? '') === key;
       const matchesType = !type || item.geometry.type === type;
       return matchesKey && matchesType;
     });
@@ -361,7 +405,9 @@ export default class Track extends BaseAnnotation {
       return false;
     }
     const index = feature.geometry.features.findIndex((item) => {
-      const matchesKey = !key || item.properties?.key === key;
+      // Check key match: undefined means match all, otherwise compare (treating undefined/null as '')
+      const matchesKey = key === undefined
+        || (item.properties?.key ?? '') === key;
       const matchesType = !type || item.geometry.type === type;
       return matchesKey && matchesType;
     });
@@ -371,6 +417,133 @@ export default class Track extends BaseAnnotation {
       return true;
     }
     return false;
+  }
+
+  setFeatureNotes(frame: number, notes: string) {
+    const notesArray = notes.trim() ? [notes.trim()] : undefined;
+    // Try exact frame first (most common case - using track.begin)
+    if (this.features[frame]) {
+      this.features[frame].notes = notesArray;
+      this.notify('feature', this.features[frame]);
+      return;
+    }
+    // Otherwise find the nearest keyframe (prefer previous/lower)
+    const [, lower, upper] = this.getFeature(frame);
+    const targetFeature = lower || upper;
+    if (targetFeature) {
+      targetFeature.notes = notesArray;
+      this.notify('feature', targetFeature);
+    }
+  }
+
+  /**
+   * Get all polygon features for a frame
+   * @returns Array of polygon GeoJSON features with their keys
+   */
+  getPolygonFeatures(frame: number): Array<{
+    key: string;
+    geometry: GeoJSON.Polygon;
+    hasHoles: boolean;
+    holeCount: number;
+  }> {
+    const feature = this.features[frame];
+    if (!feature?.geometry) {
+      return [];
+    }
+    const polygons: Array<{
+      key: string;
+      geometry: GeoJSON.Polygon;
+      hasHoles: boolean;
+      holeCount: number;
+    }> = [];
+    feature.geometry.features.forEach((item) => {
+      if (item.geometry.type === 'Polygon') {
+        const coords = item.geometry.coordinates as GeoJSON.Position[][];
+        polygons.push({
+          key: item.properties?.key || '',
+          geometry: item.geometry,
+          hasHoles: coords.length > 1,
+          holeCount: Math.max(0, coords.length - 1),
+        });
+      }
+    });
+    return polygons;
+  }
+
+  /**
+   * Add a hole to an existing polygon
+   * @param frame frame number
+   * @param key polygon key to add hole to
+   * @param holeCoords coordinates of the hole (array of [x,y] positions)
+   * @returns true if hole was added successfully
+   */
+  addHoleToPolygon(frame: number, key: string, holeCoords: GeoJSON.Position[]): boolean {
+    const feature = this.features[frame];
+    if (!feature?.geometry) {
+      return false;
+    }
+    const polygonFeature = feature.geometry.features.find(
+      (item) => item.geometry.type === 'Polygon' && (item.properties?.key ?? '') === key,
+    );
+    if (polygonFeature && polygonFeature.geometry.type === 'Polygon') {
+      (polygonFeature.geometry.coordinates as GeoJSON.Position[][]).push(holeCoords);
+      this.notify('feature', feature);
+      return true;
+    }
+    return false;
+  }
+
+  /**
+   * Remove a hole from a polygon
+   * @param frame frame number
+   * @param key polygon key
+   * @param holeIndex index of the hole to remove (0 = first hole, which is coordinates[1])
+   * @returns true if hole was removed successfully
+   */
+  removeHoleFromPolygon(frame: number, key: string, holeIndex: number): boolean {
+    const feature = this.features[frame];
+    if (!feature?.geometry) {
+      return false;
+    }
+    const polygonFeature = feature.geometry.features.find(
+      (item) => item.geometry.type === 'Polygon' && (item.properties?.key ?? '') === key,
+    );
+    if (polygonFeature && polygonFeature.geometry.type === 'Polygon') {
+      const coords = polygonFeature.geometry.coordinates as GeoJSON.Position[][];
+      // holeIndex 0 corresponds to coords[1], holeIndex 1 to coords[2], etc.
+      const actualIndex = holeIndex + 1;
+      if (actualIndex > 0 && actualIndex < coords.length) {
+        coords.splice(actualIndex, 1);
+        this.notify('feature', feature);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  /**
+   * Get the next available polygon key for this frame
+   * @param frame frame number
+   * @returns next available key (e.g., "1", "2", etc.)
+   */
+  getNextPolygonKey(frame: number): string {
+    const polygons = this.getPolygonFeatures(frame);
+    if (polygons.length === 0) {
+      return '';
+    }
+    // Find the highest numeric key and increment
+    let maxKey = 0;
+    polygons.forEach((p) => {
+      if (p.key === '') {
+        maxKey = Math.max(maxKey, 0);
+      } else {
+        const numKey = parseInt(p.key, 10);
+        if (!Number.isNaN(numKey)) {
+          maxKey = Math.max(maxKey, numKey);
+        }
+      }
+    });
+    return String(maxKey + 1);
   }
 
   setFeatureAttribute(frame: number, name: string, value: unknown, user: null | string = null) {
@@ -403,35 +576,41 @@ export default class Track extends BaseAnnotation {
    * [exact_feature_match, previous_keyframe, next_keyframe]
    */
   getFeature(frame: number): [Feature | null, Feature | null, Feature | null] {
-    // First, try a direct keyframe hit
-    const maybeFrame = this.features[frame];
+    return Track.getFeatureFrom(this.features, this.featureIndex, this.begin, this.end, frame);
+  }
+
+  static getFeatureFrom(
+    features: readonly (Feature | undefined)[],
+    featureIndex: readonly number[],
+    begin: number,
+    end: number,
+    frame: number,
+  ): [Feature | null, Feature | null, Feature | null] {
+    const maybeFrame = features[frame];
     if (maybeFrame) {
       return [maybeFrame, maybeFrame, maybeFrame];
     }
-    // Then see if we are outside the track bounds
-    if (frame < this.begin || frame > this.end) {
-      if (frame <= this.begin) {
-        return [null, this.features[this.begin], null];
+    if (frame < begin || frame > end) {
+      if (frame <= begin) {
+        return [null, features[begin] as Feature, null];
       }
-      return [null, null, this.features[this.end]];
+      return [null, null, features[end] as Feature];
     }
-    // Then try to interpolate
-    const position = binarySearch(this.featureIndex, frame);
-    const maybeInterpolated = getSurroundingElements(this.featureIndex, position);
+    const position = binarySearch(featureIndex, frame);
+    const maybeInterpolated = getSurroundingElements(featureIndex, position);
 
     if (maybeInterpolated !== null) {
-      const [d0, d1] = maybeInterpolated.map((_frame) => this.features[_frame]);
-      return [Track.interpolate(frame, d0, d1), d0, d1];
+      const [d0, d1] = maybeInterpolated.map((_frame) => features[_frame]);
+      return [Track.interpolate(frame, d0 as Feature, d1 as Feature), d0 as Feature, d1 as Feature];
     }
 
-    if (this.featureIndex.length !== 0) {
+    if (featureIndex.length !== 0) {
       throw new Error(`Unexpected condition: Track bounds mis-aligned with feature array.
-        begin=${this.begin}
-        end=${this.end}
-        firstFeature=${this.featureIndex[0]}
+        begin=${begin}
+        end=${end}
+        firstFeature=${featureIndex[0]}
       `);
     }
-    // Should only reach here when there are no features (empty)
     return [null, null, null];
   }
 
@@ -526,10 +705,29 @@ export default class Track extends BaseAnnotation {
   static fromJSON(json: TrackData, set?: string): Track {
     const sparseFeatures: Array<Feature> = [];
     json.features.forEach((f) => {
-      sparseFeatures[f.frame] = {
+      if (f === null || f === undefined) return;
+      const feature: Feature = {
         keyframe: true,
         ...f,
       };
+      // A polygon that is just the full detection box carries no information
+      // beyond the box itself and makes editing harder; drop such polygons
+      // when loading.
+      if (feature.bounds && feature.geometry?.features?.length) {
+        const kept = feature.geometry.features.filter((geo) => !(
+          geo.geometry?.type === 'Polygon'
+          && polygonEqualsBounds(geo.geometry, feature.bounds as RectBounds)
+        ));
+        if (kept.length !== feature.geometry.features.length) {
+          feature.geometry = kept.length
+            ? { ...feature.geometry, features: kept }
+            : undefined;
+        }
+      }
+      if (feature.geometry?.features.some((g) => g.properties?.key === 'HeadTails')) {
+        feature.geometry = { ...feature.geometry, features: syncHeadTail(feature.geometry.features) };
+      }
+      sparseFeatures[f.frame] = feature;
     });
     // accept either number or string, convert to number
     const intTrackId = parseInt(json.id.toString(), 10);

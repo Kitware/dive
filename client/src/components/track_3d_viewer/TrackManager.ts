@@ -99,7 +99,7 @@ export default class TrackManager {
       if (frameTracker && frameTracker.trackIds.length > 0) {
         frameTracker.trackIds.forEach((trackId) => {
           trackActors.add(
-            // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
             this.tracksMap.get(trackId)!.trackActor,
           );
         });

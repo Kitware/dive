@@ -1,71 +1,17 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, PropType, toRef, watch,
+  defineComponent, onBeforeUnmount, PropType, watch, toRef,
 } from 'vue';
+import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
+import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
+import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
-/**
- * For MPEG codecs, the PTS (Presentation Timestamp)
- * should be forced ahead 1 tick. currentTime has a finite
- * resolution of 90MHZ
- *
- * Chrome has a PTS precision bug:
- * https://bugs.chromium.org/p/chromium/issues/detail?id=555376
- * "currentTime must be in the range [PTS, PTS + duration)",
- * but Chrome behaves as if currentTime in = [PTS, PTS + duration]
- *
- * Firefox behaves correctly, so it's harmless to advance a single
- * tick into the already correct PTS.
- *
- * Other browsers can be wrong by more than an entire frame and are
- * futile to attempt to correct.
- *
- * TODO: VideoAnnotator _should_not_ report this PTS force hack
- * when reporting currentTime, as it would be inaccurate re: the
- * MPEG specification.
- */
-const OnePTSTick = 1 / (90 * 1000);
-/**
- * The Kwiver seek function performs seek based on
- * downsampled frame number such that the converse of the
- * function (maping timestamp to downsampled frame)
- * is consistent with the implementation in kwiver:
- *
- * https://github.com/Kitware/kwiver/blob/1c97ad72c8b6237cb4b9618665d042be16825005/sprokit/processes/core/downsample_process.cxx#L267
- */
-function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
-  /**
-   * If the downsample rate is truly lower than the original,
-   * ceiling to find the sample boundary, else floor
-   */
-  const roundOrFloor = frameRate < originalFps ? Math.ceil : Math.floor;
-  /**
-   * requestedTimeInSeconds is the position, in seconds, that was
-   * requested for seek
-   */
-  const requestedTimeInSeconds = frame / frameRate;
-  /**
-   * RequestedTrueVideoFrame is the floating point frame number
-   * expected to be found at requested time
-   */
-  const requestedTrueVideoFrame = requestedTimeInSeconds * originalFps;
-  /**
-   * nextTrueFrameBoundary is the time, in seconds, of the
-   * next frame transition boundary ASSUMING even frame spacing.
-   *
-   * For videos with b frames or inconsistent frame widths, this
-   * will only be an aggregate approximation
-   */
-  const nextTrueFrameBoundary = (
-    roundOrFloor(requestedTrueVideoFrame) / originalFps
-  );
-  /**
-   * Return one tick over the appropriate boundary
-   */
-  return nextTrueFrameBoundary + OnePTSTick;
-}
+import { kwiverSeek, OnePTSTick } from './videoSeek';
+
 export default defineComponent({
   name: 'VideoAnnotator',
+  components: { AnnotatorImageCursor },
   props: {
     videoUrl: {
       type: String,
@@ -87,18 +33,26 @@ export default defineComponent({
       type: Number as PropType<number | null>,
       default: null,
     },
-    // Range is [0, inf.)
-    brightness: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
-    },
     camera: {
       type: String as PropType<string>,
       default: 'singleCam',
     },
-    intercept: {
-      type: Number as PropType<number | undefined>,
-      default: undefined,
+    imageEnhancementOutputs: {
+      type: Object as PropType<ImageEnhancementOutputs>,
+      default: () => ({
+        brightness: { slope: 1, intercept: 0 },
+        contrast: { slope: 1, intercept: 0.5 },
+        saturation: { values: 1 },
+        sharpen: { kernelMatrix: '0 -1 0 -1 5 -1 0 -1 0', divisor: 1 },
+      }),
+    },
+    isDefaultImage: {
+      type: Boolean,
+      default: true,
+    },
+    filterId: {
+      type: String as PropType<string>,
+      default: 'imageEnhancements',
     },
   },
   setup(props) {
@@ -111,11 +65,20 @@ export default defineComponent({
       container,
       initializeViewer,
       mediaController,
-    } = cameraInitializer(props.camera, {
+      externallyDriven,
+    } = cameraInitializer(props.camera, 'video', {
       // allow hoisting for these functions.
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
-      seek, pause, play, setVolume, setSpeed,
+      seek,
+      pause,
+      play,
+      setVolume,
+      setSpeed,
     });
+    const { playbackCursor } = useAnnotatorImageCursor(
+      toRef(data, 'imageCursor'),
+      toRef(data, 'cursor'),
+      toRef(data, 'imageCursorEditing'),
+    );
     function makeVideo() {
       const video = document.createElement('video');
       video.preload = 'auto';
@@ -129,7 +92,26 @@ export default defineComponent({
         video.pause();
       }
     });
-    async function seek(frame: number) {
+    async function seek(frame: number | undefined) {
+      if (frame === undefined) {
+        // No frame for this camera at the current aligned-timeline slot: blank
+        // the pane. Leaves data.frame untouched -- it's read elsewhere (e.g.
+        // annotation-overlay lookups) and this phase doesn't touch annotation
+        // storage. In practice unreachable today since a video-backed camera
+        // (empty imageData) always disqualifies the whole dataset from aligned
+        // mode (see alignedTimeline.ts's canAlign) -- kept for symmetry/safety.
+        data.hasFrame = false;
+        if (quadFeatureLayer !== undefined) {
+          quadFeatureLayer.node().css('visibility', 'hidden');
+        }
+        return;
+      }
+      if (!data.hasFrame) {
+        data.hasFrame = true;
+        if (quadFeatureLayer !== undefined) {
+          quadFeatureLayer.node().css('visibility', '');
+        }
+      }
       /** Only perform seek for whole frame numbers */
       const requestedFrame = Math.round(frame);
       /** Different seek approaches based on known information */
@@ -138,7 +120,7 @@ export default defineComponent({
         data.currentTime = kwiverSeek(frame, props.frameRate, props.originalFps);
       } else {
         /** Else fall back to a reasonable default */
-        data.currentTime = (frame / props.frameRate) + OnePTSTick;
+        data.currentTime = frame / props.frameRate + OnePTSTick;
       }
       video.currentTime = data.currentTime;
       data.frame = requestedFrame;
@@ -163,6 +145,8 @@ export default defineComponent({
         data.frame = Math.floor(newFrame);
         data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
+        // Keep shared time.frame in sync so Timeline playhead tracks playback
+        props.updateTime(data);
         geoViewer.value.scheduleAnimationFrame(syncWithVideo);
       }
       data.currentTime = video.currentTime;
@@ -172,7 +156,12 @@ export default defineComponent({
         await video.play();
         data.playing = true;
         props.updateTime(data);
-        syncWithVideo();
+        // When a global aligned timeline is driving playback, the aggregate
+        // controller's own centralized tick calls seek() directly -- this
+        // camera must not also free-run its own loop.
+        if (!externallyDriven.value) {
+          syncWithVideo();
+        }
       } catch (ex) {
         console.error(ex);
       }
@@ -190,11 +179,20 @@ export default defineComponent({
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let quadFeatureLayer = undefined as any;
-    const setBrightnessFilter = (on: boolean) => {
-      if (quadFeatureLayer !== undefined) {
-        quadFeatureLayer.node().css('filter', on ? 'url(#brightness)' : '');
-      }
-    };
+    watch(
+      () => props.isDefaultImage,
+      (newVal) => {
+        if (quadFeatureLayer !== undefined) {
+          if (newVal) {
+            quadFeatureLayer.node().css('filter', '');
+          } else {
+            quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
+          }
+          data.imageRevision += 1;
+        }
+      },
+      { deep: true },
+    );
     /**
      * Initialize the Quad feature layer once
      * video metadata has been fetched.
@@ -222,7 +220,6 @@ export default defineComponent({
         features: ['quad.video'],
         autoshareRenderer: false,
       });
-      setBrightnessFilter(props.brightness !== undefined);
       quadFeatureLayer
         .createFeature('quad')
         .data([
@@ -233,9 +230,15 @@ export default defineComponent({
           },
         ])
         .draw();
+      // The <video> element renders in place from here on, so this is the
+      // one swap imageRevision watchers ever see for a video pane.
+      data.imageRevision += 1;
       // Force the first frame to load on slow networks.
       // See https://github.com/Kitware/dive/issues/447 for more details.
       seek(0);
+      if (!props.isDefaultImage) {
+        quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
+      }
       data.ready = true;
       data.volume = video.volume;
       data.speed = video.playbackRate;
@@ -244,19 +247,22 @@ export default defineComponent({
     }
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
-    watch(toRef(props, 'brightness'), (brightness, oldBrightness) => {
-      if ((brightness === undefined) !== (oldBrightness === undefined)) {
-        setBrightnessFilter(brightness !== undefined);
-      }
-    });
     function pendingUpdate() {
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
+      // The aligned-view warp is a canvas snapshot of this <video> element,
+      // redrawn only on an imageRevision bump -- unlike the native pane,
+      // which the browser keeps live on its own. loadedmetadata bumps it
+      // once for the initial frame; without another bump here, a scrub
+      // leaves the warp showing whatever the video displayed mid-seek
+      // (often a black frame) instead of the frame the seek landed on.
+      data.imageRevision += 1;
     }
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);
     video.addEventListener('error', logError);
     return {
       data,
+      playbackCursor,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
@@ -267,34 +273,60 @@ export default defineComponent({
 </script>
 
 <template>
-  <div
-    class="video-annotator"
-    :style="{ cursor: data.cursor }"
-  >
-    <svg
-      width="0"
-      height="0"
-      style="position: absolute; top: -1px; left: -1px"
-    >
+  <div class="video-annotator" :style="{ cursor: data.cursor }">
+    <svg width="0" height="0" style="position: absolute; top: -1px; left: -1px">
       <defs>
-        <filter id="brightness">
-          <feComponentTransfer color-interpolation-filters="sRGB">
+        <filter :id="filterId">
+          <feComponentTransfer id="feBrightness">
             <feFuncR
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
             <feFuncG
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
             <feFuncB
               type="linear"
-              :slope="brightness"
-              :intercept="intercept"
+              :slope="imageEnhancementOutputs.brightness.slope"
+              :intercept="imageEnhancementOutputs.brightness.intercept"
             />
           </feComponentTransfer>
+          <!-- Contrast -->
+          <feComponentTransfer id="feContrast">
+            <feFuncR
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+            <feFuncG
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+            <feFuncB
+              type="linear"
+              :slope="imageEnhancementOutputs.contrast.slope"
+              :intercept="imageEnhancementOutputs.contrast.intercept"
+            />
+          </feComponentTransfer>
+          <!-- Saturation -->
+          <feColorMatrix
+            id="feSaturate"
+            type="saturate"
+            :values="imageEnhancementOutputs.saturation.values.toString()"
+          />
+          <!-- Sharpening -->
+          <feConvolveMatrix
+            id="feSharpen"
+            order="3"
+            :divisor="imageEnhancementOutputs.sharpen.divisor"
+            :kernelMatrix="imageEnhancementOutputs.sharpen.kernelMatrix"
+            edgeMode="duplicate"
+          />
+          <feComposite in2="SourceGraphic" operator="in" />
         </filter>
       </defs>
     </svg>
@@ -302,15 +334,26 @@ export default defineComponent({
       ref="imageCursorRef"
       class="imageCursor"
     >
-      <v-icon> {{ data.imageCursor }} </v-icon>
+      <AnnotatorImageCursor
+        :image-cursor="data.imageCursor"
+        :image-cursor-editing="data.imageCursorEditing"
+        :cursor="data.cursor"
+      />
     </div>
     <div
       ref="containerRef"
       class="playback-container"
+      :style="{ cursor: playbackCursor }"
       @mousemove="cursorHandler.handleMouseMove"
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"
     />
+    <div
+      v-if="data.ready && !data.hasFrame"
+      class="no-frame-overlay"
+    >
+      No frame at this instant
+    </div>
     <slot name="control" />
     <slot v-if="data.ready" />
   </div>

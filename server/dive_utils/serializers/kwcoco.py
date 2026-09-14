@@ -1,19 +1,335 @@
 """
-KWCOCO JSON format deserializer
+COCO / KWCOCO JSON serializer and deserializer.
+
+This module intentionally accepts the COCO base schema while also handling
+KWCOCO-compatible extensions when they are present.
 """
 
 import functools
-from typing import Any, Dict, List, Tuple
+import math
+import re
+from typing import Any, Dict, Iterable, List, Optional, Set, Tuple
 
 from dive_utils import constants, strNumericCompare, types
 from dive_utils.models import CocoMetadata, Feature, Track
 
 from . import viame
 
+RLE_SEGMENTATION_WARNING = (
+    'The COCO file included run-length encoded segmentation masks that are not supported. '
+    'Bounding boxes and other annotation data were imported, but masks were skipped.'
+)
+
+PROB_TOP_K = 10
+PROB_EPSILON = 0.001
+
+PROB_LENGTH_MISMATCH_WARNING = (
+    'Some annotations had a "prob" array whose length did not match the number of categories. '
+    'Class probabilities were ignored for those annotations; the primary category and score '
+    'were imported instead.'
+)
+PROB_DUPLICATE_CATEGORY_WARNING = (
+    'The COCO file contains duplicate category names, so "prob" arrays cannot be mapped to '
+    'class names. Class probabilities were ignored; primary categories and scores were '
+    'imported instead.'
+)
+DIVE_CONFIDENCE_PAIRS_WARNING = (
+    'Some annotations had malformed "dive_confidence_pairs" values. Those values were '
+    'ignored; a valid "prob" vector or the primary category and score were imported instead.'
+)
+SUPERCATEGORY_MULTI_PARENT_WARNING = (
+    'Some COCO categories declare multiple parents via "parents", which DIVE cannot '
+    'represent. Only single-parent "supercategory" or one-element "parents" edges were imported.'
+)
+SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING = (
+    'The COCO file contains duplicate category names, so category hierarchy edges cannot be '
+    'mapped to class names. The dataset type hierarchy was left unchanged.'
+)
+CATEGORY_MISSING_NAME_WARNING = (
+    'Some COCO categories have no non-empty string name. Those positional category slots were '
+    'ignored when importing classifications and hierarchy edges.'
+)
+SUPERCATEGORY_INVALID_WARNING = (
+    'The category hierarchy in the COCO file could not be applied: {reason}. '
+    'Annotations were imported without changing the dataset type hierarchy.'
+)
+
+
+def _has_duplicate_names(names: List[Optional[str]]) -> bool:
+    usable_names = [name for name in names if isinstance(name, str) and name]
+    return len(set(usable_names)) != len(usable_names)
+
+
+def _parent_from_category(category: Dict[str, Any]) -> Optional[str]:
+    """Prefer COCO supercategory; fall back to a single KWCOCO parents entry."""
+    parent = category.get('supercategory')
+    if isinstance(parent, str) and parent:
+        return parent
+    parents = category.get('parents')
+    if isinstance(parents, list) and len(parents) == 1:
+        candidate = parents[0]
+        if isinstance(candidate, str) and candidate:
+            return candidate
+    return None
+
+
+def _confidence_pairs_from_prob(
+    prob: List[Any], ordered_names: List[Optional[str]]
+) -> Optional[List[Tuple[str, float]]]:
+    """Map a positional KWCOCO probability vector to DIVE confidence pairs."""
+    if len(prob) != len(ordered_names):
+        return None
+    pairs = [
+        (name, min(1.0, max(0.0, float(value))))
+        for name, value in zip(ordered_names, prob)
+        if isinstance(name, str)
+        and name
+        and isinstance(value, (int, float))
+        and not isinstance(value, bool)
+        and math.isfinite(value)
+    ]
+    pairs = [pair for pair in pairs if pair[1] > PROB_EPSILON]
+    pairs.sort(key=lambda pair: pair[1], reverse=True)
+    return pairs[:PROB_TOP_K] or None
+
+
+def _confidence_pairs_from_extension(value: Any) -> Optional[List[Tuple[str, float]]]:
+    """Read DIVE's sparse confidence extension without pruning zero-valued pairs."""
+    if not isinstance(value, list) or not value:
+        return None
+    pairs: List[Tuple[str, float]] = []
+    names = set()
+    for pair in value:
+        if not isinstance(pair, (list, tuple)) or len(pair) != 2:
+            return None
+        name, confidence = pair
+        if (
+            not isinstance(name, str)
+            or not name
+            or name in names
+            or not isinstance(confidence, (int, float))
+            or isinstance(confidence, bool)
+            or not math.isfinite(confidence)
+            or confidence < 0
+            or confidence > 1
+        ):
+            return None
+        names.add(name)
+        pairs.append((name, float(confidence)))
+    return pairs
+
+
+def type_hierarchy_from_categories(
+    coco: Dict[str, Any],
+) -> Tuple[Optional[Dict[str, str]], List[str]]:
+    """Derive DIVE child-to-parent edges from KWCOCO category supercategories."""
+    categories = coco.get('categories', [])
+    warnings: List[str] = []
+    if any(
+        isinstance(category.get('parents'), list) and len(category['parents']) > 1
+        for category in categories
+    ):
+        warnings.append(SUPERCATEGORY_MULTI_PARENT_WARNING)
+
+    names = [category.get('name') for category in categories]
+    if any(not isinstance(name, str) or not name for name in names):
+        warnings.append(CATEGORY_MISSING_NAME_WARNING)
+    if _has_duplicate_names(names):
+        warnings.append(SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING)
+        return None, warnings
+
+    hierarchy: Dict[str, str] = {}
+    for category in categories:
+        name = category.get('name')
+        parent = _parent_from_category(category)
+        # Some producers spell roots as a self-supercategory; it is not an edge.
+        if isinstance(name, str) and name and parent and name != parent:
+            hierarchy[name] = parent
+    return hierarchy or None, warnings
+
+
+def is_coco_species_list(coco: Dict[str, Any]) -> bool:
+    """Whether a document is a DIVE species list: a KWCOCO category block and nothing else.
+
+    A species list is the ``categories`` array of a KWCOCO file with no media and no
+    annotations behind it, so it declares which classes a dataset may use without
+    asserting that any of them were observed. ``is_coco_json`` requires ``images`` and
+    ``annotations``, so a curated list is not a COCO document by that test; callers must
+    check this predicate first. A file that carries media or annotations is an ordinary
+    COCO document even when its annotation list is empty.
+    """
+    if not isinstance(coco, dict):
+        return False
+    categories = coco.get('categories')
+    if not isinstance(categories, list) or not categories:
+        return False
+    if not all(isinstance(category, dict) for category in categories):
+        return False
+    if not any(
+        isinstance(category.get('name'), str) and category.get('name') for category in categories
+    ):
+        return False
+    return not coco.get('images') and not coco.get('annotations')
+
+
+def repeated_category_names(coco: Dict[str, Any]) -> List[str]:
+    """Category names a KWCOCO category block uses more than once, in first-seen order.
+
+    A repeat makes a species list ambiguous: two slots claim the same class and may
+    disagree about its parent, and ``type_hierarchy_from_categories`` drops the whole
+    hierarchy rather than guess. A species list is imported for its classes, so callers
+    fail the import on a repeat instead of declaring the de-duplicated names.
+    """
+    seen: Set[str] = set()
+    repeated: List[str] = []
+    for category in coco.get('categories', []):
+        if not isinstance(category, dict):
+            continue
+        name = category.get('name')
+        if not isinstance(name, str) or not name:
+            continue
+        if name in seen and name not in repeated:
+            repeated.append(name)
+        seen.add(name)
+    return repeated
+
+
+def species_list_from_categories(coco: Dict[str, Any]) -> List[str]:
+    """Species names a KWCOCO category block declares, in file order without repeats.
+
+    Nameless category slots are skipped; ``type_hierarchy_from_categories`` reports them,
+    so this does not warn a second time for the same file. Repeats are folded together
+    here only so the reader never declares a name twice; ``repeated_category_names``
+    is how an import decides whether to accept the file at all.
+    """
+    names: List[str] = []
+    seen: Set[str] = set()
+    for category in coco.get('categories', []):
+        if not isinstance(category, dict):
+            continue
+        name = category.get('name')
+        if not isinstance(name, str) or not name or name in seen:
+            continue
+        seen.add(name)
+        names.append(name)
+    return names
+
+
+def _has_valid_bbox(annotation: dict) -> bool:
+    bbox = annotation.get('bbox')
+    return isinstance(bbox, list) and len(bbox) == 4
+
+
+def _is_rle_segmentation(annotation: dict, segmentation=None) -> bool:
+    """Return True if annotation uses COCO RLE / crowd segmentation.
+
+    In COCO, ``iscrowd: 1`` marks a crowd region whose ``segmentation`` is RLE
+    (a dict with ``counts`` and ``size``), not a polygon list. ``iscrowd: 0`` is a
+    single instance with polygon segmentation. DIVE does not decode RLE masks;
+    bbox and other fields may still import, but mask geometry is skipped.
+    """
+    if segmentation is None:
+        segmentation = annotation.get('segmentation', [])
+    return bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
+
+
+def _extract_polygon_coords_lists(segmentation) -> List[List[Tuple[float, float]]]:
+    """Parse COCO / KWCOCO polygon segmentations into coordinate lists."""
+    if not segmentation or isinstance(segmentation, dict):
+        return []
+
+    if len(segmentation) > 1 and isinstance(segmentation[0], (int, float)):
+        polygons = [segmentation]
+    elif len(segmentation) == 1:
+        polygons = [segmentation[0]]
+    else:
+        polygons = segmentation
+
+    coord_lists: List[List[Tuple[float, float]]] = []
+    for polygon in polygons:
+        if isinstance(polygon, dict):
+            coords = polygon.get('exterior', [])
+        elif isinstance(polygon, list):
+            coords = list(zip(polygon[::2], polygon[1::2]))
+        else:
+            continue
+        if coords:
+            coord_lists.append(coords)
+    return coord_lists
+
+
+def _bbox_from_points(points: List[Tuple[float, float]]) -> List[float]:
+    xs = [point[0] for point in points]
+    ys = [point[1] for point in points]
+    x_min = min(xs)
+    y_min = min(ys)
+    return [x_min, y_min, max(xs) - x_min, max(ys) - y_min]
+
+
+def _annotation_has_importable_bounds(annotation: dict) -> bool:
+    if _has_valid_bbox(annotation):
+        return True
+    if _is_rle_segmentation(annotation):
+        return False
+    return bool(_extract_polygon_coords_lists(annotation.get('segmentation', [])))
+
+
+def _missing_bounds_error(annotation_ids: List) -> str:
+    shown = ', '.join(str(annotation_id) for annotation_id in annotation_ids[:10])
+    extra = f' (and {len(annotation_ids) - 10} more)' if len(annotation_ids) > 10 else ''
+    return (
+        f'{len(annotation_ids)} COCO annotation(s) cannot be imported because '
+        f'they have no bbox and '
+        f'no usable polygon segmentation (ids: {shown}{extra}). '
+        'Provide bbox [x, y, width, height] or polygon segmentation as [[x1, y1, ...]]. '
+        'Annotations with only RLE segmentation masks still require a bbox.'
+    )
+
+
+def _resolve_coco_bbox(annotation: dict) -> List[float]:
+    if _has_valid_bbox(annotation):
+        return list(annotation['bbox'])
+
+    coord_lists = _extract_polygon_coords_lists(annotation.get('segmentation', []))
+    all_points = [point for coords in coord_lists for point in coords]
+    if all_points:
+        return _bbox_from_points(all_points)
+
+    raise ValueError(_missing_bounds_error([annotation.get('id', '?')]))
+
+
+def _validate_annotation_bounds(annotations: List[dict]) -> None:
+    missing_ids = [
+        annotation.get('id', '?')
+        for annotation in annotations
+        if not _annotation_has_importable_bounds(annotation)
+    ]
+    if missing_ids:
+        raise ValueError(_missing_bounds_error(missing_ids))
+
+
+def frame_rate_from_coco(coco: Dict[str, Any]) -> Optional[float]:
+    """Rate the annotations were produced at, the counterpart of the CSV header's fps.
+
+    Neither MS-COCO nor KWCOCO define a frame rate, so this reads the field VIAME
+    writes on the video entry. Image-sequence documents describe no video and
+    carry none, which is not an error.
+    """
+    for video in coco.get('videos') or []:
+        if not isinstance(video, dict):
+            continue
+        rate = video.get('annotation_fps')
+        if isinstance(rate, bool) or not isinstance(rate, (int, float)):
+            continue
+        if math.isfinite(rate) and rate > 0:
+            return float(rate)
+    return None
+
 
 def is_coco_json(coco: Dict[str, Any]):
-    # Required COCO fields according to https://cocodataset.org/#format-data
-    keys = ['info', 'images', 'annotations', 'categories']
+    # Minimal COCO fields according to https://cocodataset.org/#format-data.
+    # `info` and `licenses` are optional in common exports.
+    keys = ['images', 'annotations', 'categories']
     return all(key in coco for key in keys)
 
 
@@ -29,7 +345,7 @@ def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int
     # handle int and string types, throw error on UUID
     trackId = int(annotation.get('track_id', annotation_id))
 
-    bounds = annotation['bbox']
+    bounds = _resolve_coco_bbox(annotation)
     # update from [TL_x, TL_y, width, height] to [TL_x, TL_y, BR_x, BR_y]
     bounds[2] += bounds[0]
     bounds[3] += bounds[1]
@@ -37,93 +353,96 @@ def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int
     return trackId, filename, frame, bounds
 
 
-def _parse_annotation(annotation: dict, meta: CocoMetadata) -> Tuple[dict, dict, dict, list]:
+def _parse_annotation(
+    annotation: dict, meta: CocoMetadata
+) -> Tuple[dict, dict, dict, list, List[str], bool]:
     """
     Parse a single KWCOCO annotation into its composite track and detection parts
     """
     features: Dict[str, Any] = {}
     attributes: Dict[str, Any] = {}
     track_attributes: Dict[str, Any] = {}
+    notes: List[str] = []
 
     category_id = annotation['category_id']
     score = annotation.get('score', 1.0)  # may not exist, default to 1.0
-    class_name = meta.categories[category_id]['name']
+    category = meta.categories.get(category_id, {})
+    class_name = category.get('name') or 'unknown'
     confidence_pair = (class_name, score)
 
-    # parse keypoints
+    # Both standard COCO triples and named KWCOCO points describe the same curve.
     keypoints = annotation.get('keypoints', [])
-    head_tail = []
-    for keypoint in keypoints:
-        if isinstance(keypoint, (int, float)):  # [x1, y1, v1, ...] coco format
-            keypoint_labels = meta.categories[category_id].get('keypoints', [])
-            n = min(len(keypoint_labels), int(len(keypoints) / 3))  # stopping index
-            for i in range(n):
-                point = keypoints[3 * i : 3 * i + 2]  # extract [x, y] pair
-                label = keypoint_labels[i]
-                if label in ('head', 'tail'):  # only allow head and tail keypoints
-                    head_tail.append(point)
-                    viame.create_geoJSONFeature(features, 'Point', point, label)
-            break
-
-        # dictionary kwcoco format
-        keypoint_category_id = keypoint['keypoint_category_id']
-        label = meta.keypoint_categories[keypoint_category_id]['name']
-        point = keypoint['xy']
-        if label in ('head', 'tail'):  # only allow head and tail keypoints
-            head_tail.append(keypoint['xy'])
-            viame.create_geoJSONFeature(features, 'Point', point, label)
-
-    # create head-tail line if keypoint pair exists
-    if len(head_tail) > 2:
-        raise ValueError('Multiple head/tail keypoints per annotation not supported')
-    elif len(head_tail) == 2:
-        viame.create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
+    points = {}
+    if isinstance(keypoints, list) and keypoints:
+        if isinstance(keypoints[0], (int, float)):
+            for i, label in enumerate(category.get('keypoints', [])):
+                if 3 * i + 2 < len(keypoints) and keypoints[3 * i + 2] > 0:
+                    points[label] = keypoints[3 * i : 3 * i + 2]
+        else:
+            for kp in keypoints:
+                label = kp.get('keypoint_category') or meta.keypoint_categories.get(
+                    kp.get('keypoint_category_id'), {}
+                ).get('name')
+                if label and kp.get('visible', 2) > 0:
+                    points[label] = kp.get('xy')
+    points = {
+        k: p
+        for k, p in points.items()
+        if isinstance(p, list)
+        and len(p) >= 2
+        and all(isinstance(v, (int, float)) and math.isfinite(v) for v in p[:2])
+    }
+    for label, point in points.items():
+        viame.create_geoJSONFeature(features, 'Point', point[:2], label)
+    if 'head' in points and 'tail' in points:
+        spine = sorted(
+            (k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)),
+            key=lambda k: int(k.split('_')[1]),
+        )
+        line = [points[k][:2] for k in ['head', *spine, 'tail']]
+        viame.create_geoJSONFeature(features, 'LineString', line, 'HeadTails')
 
     # parse polygons
     segmentation = annotation.get('segmentation', [])
-    rle = bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
+    rle_skipped = _is_rle_segmentation(annotation, segmentation)
 
-    if rle:  # run-length encoding polygon
-        raise ValueError('Run-Length Encoding not supported')
+    if segmentation and not rle_skipped:
+        coord_lists = _extract_polygon_coords_lists(segmentation)
+        if coord_lists:
+            viame.create_geoJSONFeature(features, 'Polygon', coord_lists[0])
 
-    if segmentation:
-        if rle:  # run-length encoding polygon
-            raise ValueError('Run-Length Encoding not supported')
-        else:  # standard coordinates polygon
-            # expected [[x1, y1, ...], [x1, y1, ...], ...] standard format
+    # DIVE extension fields for non-standard COCO attributes.
+    detection_attributes = annotation.get(
+        'dive_detection_attributes', annotation.get('attributes', {})
+    )
+    if isinstance(detection_attributes, dict):
+        attributes.update(detection_attributes)
+    track_attributes_value = annotation.get(
+        'dive_track_attributes',
+        annotation.get('track_attributes', {}),
+    )
+    if isinstance(track_attributes_value, dict):
+        track_attributes.update(track_attributes_value)
 
-            if len(segmentation) > 1:
-                if isinstance(segmentation[0], (int, float)):
-                    # received [x1, y1, ...] format
-                    polygon = segmentation
-                else:
-                    polygon = segmentation[0]
-            else:
-                polygon = segmentation[0]  # get first polygon only
+    note_values = annotation.get('dive_notes', annotation.get('notes', []))
+    if isinstance(note_values, list):
+        notes.extend([str(value).strip() for value in note_values if str(value).strip()])
+    elif isinstance(note_values, str) and note_values.strip():
+        notes.append(note_values.strip())
 
-            if isinstance(polygon, dict):  # dictionary kwcoco format
-                coords = polygon.get('exterior', [])
-            elif isinstance(polygon, list):  # list coco format
-                coords = list(zip(polygon[::2], polygon[1::2]))
-            else:
-                raise ValueError('Incorrect polygon segmentation')
-
-            if coords:
-                viame.create_geoJSONFeature(features, 'Polygon', coords)
-
-    # TODO: process attributes and track_attributes
-
-    return features, attributes, track_attributes, [confidence_pair]
+    return features, attributes, track_attributes, [confidence_pair], notes, rle_skipped
 
 
 def _parse_annotation_for_tracks(
     annotation: dict, meta: CocoMetadata
-) -> Tuple[Feature, dict, dict, list]:
+) -> Tuple[Feature, dict, dict, list, bool]:
     (
         features,
         attributes,
         track_attributes,
         confidence_pairs,
+        notes,
+        rle_skipped,
     ) = _parse_annotation(annotation, meta)
     trackId, filename, frame, bounds = annotation_info(annotation, meta)
 
@@ -131,20 +450,22 @@ def _parse_annotation_for_tracks(
         frame=frame,
         bounds=bounds,
         attributes=attributes or None,
+        notes=notes or None,
         fishLength=None,
         **features,
     )
 
     # Pass the rest of the unchanged info through as well
-    return feature, attributes, track_attributes, confidence_pairs
+    return feature, attributes, track_attributes, confidence_pairs, rle_skipped
 
 
-def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
+def load_coco_metadata(coco: Dict[str, Any]) -> CocoMetadata:
     categories = coco.get('categories', [])
     keypoint_categories = coco.get('keypoint_categories', [])
     images = coco.get('images', [])
     videos = coco.get('videos', [])
     annotations = coco.get('annotations', [])
+    datasetInfo = (coco.get('info') or {}).get('dive_dataset_info') or {}
 
     # check if annotations have track IDs
     has_track_id = annotations and 'track_id' in annotations[0]
@@ -179,28 +500,71 @@ def load_coco_metadata(coco: Dict[str, List[dict]]) -> CocoMetadata:
         keypoint_categories=keypoint_categories_map,
         images=images_map,
         videos=videos_map,
+        datasetInfo=datasetInfo,
+        ordered_category_names=[category.get('name') for category in categories],
     )
 
 
 def load_coco_as_tracks_and_attributes(
-    coco: Dict[str, List[dict]],
-) -> Tuple[types.DIVEAnnotationSchema, dict]:
-    """
-    Convert KWCOCO json to DIVE json tracks.
+    coco: Dict[str, Any],
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes, types.Warnings, types.DatasetInfo]:
+    """Convert KWCOCO json to DIVE json tracks.
+
+    Returns (annotations, attributes, warnings, dataset_info); dataset_info is empty when the
+    file carries no ``info.dive_dataset_info`` block.
     """
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
+    warnings: types.Warnings = []
+    skipped_rle_masks = False
     meta = load_coco_metadata(coco)
     annotations = coco.get('annotations', [])
+    _validate_annotation_bounds(annotations)
 
+    ordered_names = meta.ordered_category_names
+    duplicate_category_names = _has_duplicate_names(ordered_names)
+    prob_length_mismatch = False
+    prob_ignored_for_duplicates = False
+
+    # Process each logical track in frame order so confidence pairs describe its
+    # temporal endpoint regardless of annotation order in the source file.  COCO
+    # annotation IDs make equal-frame selection deterministic as well.
+    annotations = sorted(
+        annotations,
+        key=lambda annotation: (
+            meta.images[annotation['image_id']]['frame_index'],
+            annotation['id'],
+        ),
+    )
+
+    malformed_extension = False
     for annotation in annotations:
         (
             feature,
             attributes,
             track_attributes,
             confidence_pairs,
+            rle_skipped,
         ) = _parse_annotation_for_tracks(annotation, meta)
+        skipped_rle_masks = skipped_rle_masks or rle_skipped
+
+        extension_present = 'dive_confidence_pairs' in annotation
+        extension_pairs = _confidence_pairs_from_extension(annotation.get('dive_confidence_pairs'))
+        if extension_pairs is not None:
+            confidence_pairs = extension_pairs
+        else:
+            malformed_extension = malformed_extension or extension_present
+            prob = annotation.get('prob')
+            if isinstance(prob, list):
+                if duplicate_category_names:
+                    prob_ignored_for_duplicates = True
+                else:
+                    prob_pairs = _confidence_pairs_from_prob(prob, ordered_names)
+                    if prob_pairs is None and len(prob) != len(ordered_names):
+                        prob_length_mismatch = True
+                    elif prob_pairs:
+                        confidence_pairs = prob_pairs
 
         trackId, _, frame, _ = annotation_info(annotation, meta)
 
@@ -229,4 +593,204 @@ def load_coco_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return converted, metadata_attributes
+    if skipped_rle_masks:
+        warnings.append(RLE_SEGMENTATION_WARNING)
+    if prob_length_mismatch:
+        warnings.append(PROB_LENGTH_MISMATCH_WARNING)
+    if prob_ignored_for_duplicates:
+        warnings.append(PROB_DUPLICATE_CATEGORY_WARNING)
+    if malformed_extension:
+        warnings.append(DIVE_CONFIDENCE_PAIRS_WARNING)
+    return converted, metadata_attributes, warnings, meta.datasetInfo
+
+
+def _feature_to_segmentation(feature: Feature) -> List[List[float]]:
+    """Convert DIVE polygon geometry to COCO segmentation format."""
+    segmentation: List[List[float]] = []
+    if not feature.geometry:
+        return segmentation
+    for geo_feature in feature.geometry.features:
+        if geo_feature.geometry.type != 'Polygon':
+            continue
+        coordinates = geo_feature.geometry.coordinates
+        if not coordinates or not coordinates[0]:
+            continue
+        flat_coords: List[float] = []
+        for x, y in coordinates[0]:
+            flat_coords.extend([x, y])
+        if flat_coords:
+            segmentation.append(flat_coords)
+    return segmentation
+
+
+def _feature_points(feature: Feature) -> Dict[str, List[float]]:
+    """Use the edited centerline as authoritative, including line-only JSON geometry."""
+    if not feature.geometry:
+        return {}
+    return {
+        f.properties['key']: list(f.geometry.coordinates[:2])
+        for f in viame._centerline_features(feature.geometry.features)
+        if f.geometry.type == 'Point' and f.properties.get('key')
+    }
+
+
+def _point_labels(points):
+    spine = sorted(
+        (k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)),
+        key=lambda k: int(k.split('_')[1]),
+    )
+    return ['head', *spine, 'tail', *sorted(set(points) - {'head', 'tail', *spine})]
+
+
+def _feature_to_keypoints(feature: Feature, labels=None) -> Tuple[List[float], int]:
+    points = _feature_points(feature)
+    if not points:
+        return [], 0
+    labels = labels or _point_labels(points)
+    values = [points[k] + [2] if k in points else [0, 0, 0] for k in labels]
+    return [v for triple in values for v in triple], len(points)
+
+
+def export_dive_as_coco(
+    tracks: Iterable[dict],
+    image_filenames: Dict[int, str],
+    dataset_name: str,
+    datasetInfo: Optional[types.DatasetInfo] = None,
+    typeHierarchy: Optional[Dict[str, str]] = None,
+    fps: Optional[float] = None,
+) -> Dict[str, Any]:
+    """
+    Export DIVE tracks to a single-dataset COCO JSON document.
+
+    Args:
+        tracks: Track documents matching ``dive_utils.models.Track`` schema.
+        image_filenames: Frame-indexed filename mapping for the dataset.
+        dataset_name: Human-readable dataset name used in the COCO info block.
+        datasetInfo: per-dataset station metadata; when present, written under
+            ``info.dive_dataset_info`` and advertised in ``info.dive_extensions``.
+            Omitted entirely when empty.
+        typeHierarchy: DIVE child-to-parent category hierarchy, emitted through
+            KWCOCO's ``categories[].supercategory`` field.
+        fps: Annotation frame rate for a video dataset. When usable (finite and
+            greater than zero), written on a one-entry ``videos`` table with
+            ``images[].video_id`` set — the same convention VIAME uses and DIVE
+            imports. Callers should pass this only for video datasets; image
+            sequences omit ``videos`` so re-import does not treat them as video.
+    """
+    parsed_tracks = [Track(**track_doc) for track_doc in tracks]
+    category_names: List[str] = []
+
+    def add_category_name(name: str) -> None:
+        if name not in category_names:
+            category_names.append(name)
+
+    for track in parsed_tracks:
+        for name, _confidence in track.confidencePairs:
+            add_category_name(name)
+    for name in sorted((typeHierarchy or {}).keys()):
+        add_category_name(name)
+    for name in sorted(set((typeHierarchy or {}).values())):
+        add_category_name(name)
+
+    categories = {name: index + 1 for index, name in enumerate(category_names)}
+    labels = _point_labels(
+        {k for track in parsed_tracks for f in track.features for k in _feature_points(f)}
+    )
+    coco_annotations: List[dict] = []
+    images: Dict[int, dict] = {}
+    annotation_id = 1
+    emit_video = (
+        isinstance(fps, (int, float))
+        and not isinstance(fps, bool)
+        and math.isfinite(fps)
+        and fps > 0
+    )
+
+    for track in parsed_tracks:
+        for feature in track.features:
+            if feature.frame not in image_filenames:
+                continue
+            if not feature.bounds:
+                continue
+            if not track.confidencePairs:
+                continue
+            class_name, score = max(track.confidencePairs, key=lambda x: x[1])
+            category_id = categories[class_name]
+            x1, y1, x2, y2 = feature.bounds
+            width = max(0, x2 - x1)
+            height = max(0, y2 - y1)
+            image_id = feature.frame + 1
+            image_doc: Dict[str, Any] = {
+                'id': image_id,
+                'file_name': image_filenames[feature.frame],
+                'frame_index': feature.frame,
+            }
+            if emit_video:
+                image_doc['video_id'] = 1
+            images.setdefault(image_id, image_doc)
+            segmentation = _feature_to_segmentation(feature)
+            keypoints, num_keypoints = _feature_to_keypoints(feature, labels)
+            annotation = {
+                'id': annotation_id,
+                'image_id': image_id,
+                'category_id': category_id,
+                'bbox': [x1, y1, width, height],
+                'area': width * height,
+                # Single-instance polygon export; DIVE does not emit crowd RLE (iscrowd: 1).
+                'iscrowd': 0,
+                'score': score,
+                # KWCOCO probability vectors align with document category order.
+                'prob': [dict(track.confidencePairs).get(name, 0.0) for name in category_names],
+                # Preserve sparse membership and explicit zero confidence without
+                # requiring consumers to infer it from a dense probability vector.
+                'dive_confidence_pairs': [list(pair) for pair in track.confidencePairs],
+            }
+            # Keep a stable object identity across frames when track data exists.
+            annotation['track_id'] = track.id
+            if feature.attributes:
+                annotation['dive_detection_attributes'] = feature.attributes
+            if track.attributes:
+                annotation['dive_track_attributes'] = track.attributes
+            if feature.notes:
+                annotation['dive_notes'] = feature.notes
+            if segmentation:
+                annotation['segmentation'] = segmentation
+            if keypoints:
+                annotation['keypoints'] = keypoints
+                annotation['num_keypoints'] = num_keypoints
+            coco_annotations.append(annotation)
+            annotation_id += 1
+
+    categories_doc: List[dict] = []
+    for class_name, category_id in categories.items():
+        category: Dict[str, Any] = {'id': category_id, 'name': class_name}
+        parent = (typeHierarchy or {}).get(class_name)
+        if parent is not None:
+            category['supercategory'] = parent
+        # When keypoints are exported, publish the category labels explicitly.
+        category['keypoints'] = labels
+        category['skeleton'] = [[i, i + 1] for i in range(1, labels.index('tail') + 1)]
+        categories_doc.append(category)
+
+    info: Dict[str, Any] = {
+        'description': f'DIVE export for {dataset_name}',
+        'dive_extensions': [
+            'dive_detection_attributes',
+            'dive_track_attributes',
+            'dive_notes',
+            'dive_confidence_pairs',
+        ],
+    }
+    if datasetInfo:
+        info['dive_dataset_info'] = datasetInfo
+        info['dive_extensions'].append('dive_dataset_info')
+
+    coco: Dict[str, Any] = {
+        'info': info,
+        'images': list(images.values()),
+        'annotations': coco_annotations,
+        'categories': categories_doc,
+    }
+    if emit_video:
+        coco['videos'] = [{'id': 1, 'name': dataset_name, 'annotation_fps': float(fps)}]
+    return coco

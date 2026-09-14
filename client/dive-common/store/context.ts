@@ -5,8 +5,9 @@ import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideBar.vue';
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
+import RegistrationTools from 'dive-common/components/CameraRegistration/RegistrationTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
-import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
+import DatasetInfo from 'dive-common/components/DatasetInfo/DatasetInfo.vue';
 
 interface ContextState {
   last: string;
@@ -19,42 +20,53 @@ interface ComponentMapItem {
   component: Component;
 }
 
+// The pane the context sidebar opens on, here and after every dataset load via resetActive.
+const DEFAULT_CONTEXT = 'DatasetInfo';
+
 const state: ContextState = reactive({
-  last: 'TypeThreshold',
+  last: DEFAULT_CONTEXT,
   active: null,
   subCategory: null,
 });
 
-const componentMap: Record<string, ComponentMapItem> = {
-  [TypeThreshold.name]: {
+const componentMapEntries: ComponentMapItem[] = [
+  {
+    description: 'Dataset Info',
+    component: DatasetInfo,
+  },
+  {
     description: 'Threshold Controls',
     component: TypeThreshold,
   },
-  [ImageEnhancements.name]: {
+  {
     description: 'Image Enhancements',
     component: ImageEnhancements,
   },
-  [GroupSidebar.name]: {
+  {
     description: 'Group Manager',
     component: GroupSidebar,
   },
-  [MultiCamTools.name]: {
+  {
     description: 'Multi Camera Tools',
     component: MultiCamTools,
   },
-  [AttributesSideBar.name]: {
+  {
+    description: 'Camera Registration',
+    component: RegistrationTools,
+  },
+  {
     description: 'Attribute Details',
     component: AttributesSideBar,
   },
-  [AttributeTrackFilters.name]: {
+  {
     description: 'Attribute Track Filters',
     component: AttributeTrackFilters,
   },
-  [TrackViewerSettings.name]: {
-    description: 'Track Viewer Settings',
-    component: TrackViewerSettings,
-  },
-};
+];
+
+const componentMap: Record<string, ComponentMapItem> = Object.fromEntries(
+  componentMapEntries.map((item) => [item.component.name || 'default', item]),
+);
 
 function register(item: ComponentMapItem) {
   componentMap[item.component.name || 'default'] = item;
@@ -67,7 +79,7 @@ function unregister(item: ComponentMapItem) {
 }
 
 function resetActive() {
-  state.last = 'TypeThreshold';
+  state.last = DEFAULT_CONTEXT;
   state.active = null;
 }
 

@@ -1,9 +1,10 @@
 import Vue from 'vue';
-import Vuetify from 'vuetify/lib';
-import colors from 'vuetify/lib/util/colors';
+import Vuetify from 'vuetify';
+import colors from 'vuetify/es5/util/colors';
 import { merge } from 'lodash';
 
 import '@mdi/font/css/materialdesignicons.css';
+import 'vuetify/dist/vuetify.min.css';
 import { ThemeOptions } from 'vuetify/types/services/theme';
 import { vuetifyConfig } from '@girder/components/src';
 

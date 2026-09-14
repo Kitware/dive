@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -10,9 +10,9 @@ from girder.models.token import Token
 
 from dive_utils import asbool, fromMeta
 from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, TypeMarker
-from dive_utils.types import PipelineDescription
+from dive_utils.types import PipelineDescription, PipelineParams, TrainingModelTuneArgs
 
-from . import crud, crud_rpc
+from . import crud, crud_rpc, worker_capabilities
 
 
 class RpcResource(Resource):
@@ -25,6 +25,7 @@ class RpcResource(Resource):
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("POST", ("export",), self.export_pipeline_onnx)
         self.route("POST", ("train",), self.run_training)
+        self.route("POST", ("score",), self.run_scoring)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("convert_dive", ":id"), self.convert_dive)
         self.route("POST", ("convert_large_image", ":id"), self.convert_large_image)
@@ -50,10 +51,25 @@ class RpcResource(Resource):
             required=False,
         )
         .jsonParam("pipeline", "The pipeline to run on the dataset", required=True)
+        .jsonParam(
+            "pipelineParams",
+            "Optional pipeline parameter groups (kwiverParams and runtimeParams)",
+            required=False,
+            default=None,
+        )
     )
-    def run_pipeline_task(self, folder, forceTranscoded, pipeline: PipelineDescription):
-        return crud_rpc.run_pipeline(self.getCurrentUser(), folder, pipeline, forceTranscoded)
-    
+    def run_pipeline_task(
+        self,
+        folder,
+        forceTranscoded,
+        pipeline: PipelineDescription,
+        pipelineParams: Optional[PipelineParams],
+    ):
+        worker_capabilities.require_pipeline_worker()
+        return crud_rpc.run_pipeline(
+            self.getCurrentUser(), folder, pipeline, forceTranscoded, pipelineParams
+        )
+
     @access.user
     @autoDescribeRoute(
         Description("Export pipeline to ONNX")
@@ -77,17 +93,27 @@ class RpcResource(Resource):
         )
     )
     def export_pipeline_onnx(self, modelFolderId, exportFolderId):
-        return crud_rpc.export_trained_pipeline(self.getCurrentUser(), modelFolderId, exportFolderId)
+        worker_capabilities.require_pipeline_worker()
+        return crud_rpc.export_trained_pipeline(
+            self.getCurrentUser(), modelFolderId, exportFolderId
+        )
 
     @access.user
     @autoDescribeRoute(
         Description("Run training on a folder")
         .jsonParam(
             "body",
-            description="JSON object with Array of folderIds to run training on\
-             and labels.txt file content",
+            description=(
+                "JSON object with Array of folderIds to run training on"
+                " and labels.txt file content.  Optionally a model that can be used"
+                " for fine tune training"
+            ),
             paramType="body",
-            schema={"folderIds": List[str], "labelText": str},
+            schema={
+                "folderIds": List[str],
+                "labelText": str,
+                "model": Optional[TrainingModelTuneArgs],
+            },
         )
         .param(
             "pipelineName",
@@ -119,6 +145,7 @@ class RpcResource(Resource):
         )
     )
     def run_training(self, body, pipelineName, config, annotatedFramesOnly, forceTranscoded):
+        worker_capabilities.require_training_worker()
         user = self.getCurrentUser()
         token = Token().createToken(user=user, days=14)
         run_training_args = crud.get_validated_model(crud_rpc.RunTrainingArgs, **body)
@@ -131,6 +158,26 @@ class RpcResource(Resource):
             annotatedFramesOnly,
             forceTranscoded,
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Score a list of sequence pairs together with viame score").jsonParam(
+            "body",
+            description=(
+                "schema: RunScoringArgs. Each pair's computed and truth name a dataset plus an "
+                "optional annotation set and revision; the result is stored on the first "
+                "pair's computed dataset."
+            ),
+            paramType="body",
+            requireObject=True,
+        )
+    )
+    def run_scoring(self, body):
+        worker_capabilities.require_pipeline_worker()
+        user = self.getCurrentUser()
+        token = Token().createToken(user=user, days=14)
+        run_scoring_args = crud.get_validated_model(crud_rpc.RunScoringArgs, **body)
+        return crud_rpc.run_scoring(user, token, run_scoring_args)
 
     @access.user
     @autoDescribeRoute(
@@ -255,6 +302,7 @@ class RpcResource(Resource):
         )
     )
     def convert_large_image(self, folder):
+        worker_capabilities.require_jobs_enabled()
         return crud_rpc.convert_large_image(self.getCurrentUser(), folder)
 
     @access.user

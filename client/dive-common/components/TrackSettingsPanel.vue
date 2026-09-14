@@ -7,7 +7,8 @@ import {
   computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
-import { useCameraStore } from '../../src/provides';
+import isDesktopRuntime from 'dive-common/isDesktopRuntime';
+import { useCameraStore } from 'vue-media-annotator/provides';
 
 export default defineComponent({
   name: 'TrackSettingsPanel',
@@ -16,6 +17,10 @@ export default defineComponent({
     allTypes: {
       type: Array as PropType<Array<string>>,
       required: true,
+    },
+    isStereoDataset: {
+      type: Boolean,
+      default: false,
     },
   },
 
@@ -34,20 +39,24 @@ export default defineComponent({
       stereoMatching: 'When manually adding detections, control whether to create a mirror feature in other cameras.',
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
       autoZoom: 'Automatically zoom to the track when selected',
+      showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
+      stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
+      stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
     const typeList = computed(() => ['unknown'].concat(props.allTypes));
     const cameraStore = useCameraStore();
-    const multiCam = ref(cameraStore.camMap.value.size > 1);
+    const multiCam = computed(() => cameraStore.camMap.value.size > 1);
 
     return {
       clientSettings,
+      multiCam,
+      isDesktopRuntime: isDesktopRuntime(),
       itemHeight,
       help,
       modes,
       typeList,
-      multiCam,
     };
   },
 });
@@ -214,7 +223,6 @@ export default defineComponent({
             </v-tooltip>
           </v-col>
         </v-row>
-
         <v-row v-if="multiCam">
           <v-col class="py-1">
             <v-switch
@@ -232,6 +240,7 @@ export default defineComponent({
           >
             <v-tooltip
               open-delay="200"
+              max-width="200"
               bottom
             >
               <template #activator="{ on }">
@@ -359,6 +368,121 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
+      <v-divider class="my-2" />
+      <div class="subheading">
+        Multi Camera Settings
+      </div>
+      <v-row
+        align="end"
+        dense
+      >
+        <v-col class="py-1">
+          <v-switch
+            v-model="clientSettings.multiCamSettings.showToolbar"
+            class="my-0 ml-1 pt-0"
+            dense
+            label="Show Toolbar"
+            hide-details
+          />
+        </v-col>
+        <v-col
+          cols="2"
+          class="py-1"
+          align="right"
+        >
+          <v-tooltip
+            open-delay="200"
+            max-width="200"
+            bottom
+          >
+            <template #activator="{ on }">
+              <v-icon
+                small
+                v-on="on"
+              >
+                mdi-help
+              </v-icon>
+            </template>
+            <span>{{ help.showMultiCamToolbar }}</span>
+          </v-tooltip>
+        </v-col>
+      </v-row>
+      <template v-if="isStereoDataset">
+        <v-divider class="my-2" />
+        <div class="subheading">
+          Stereo Settings
+        </div>
+        <v-row
+          align="end"
+          dense
+        >
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.stereoSettings.updateLengthsOnModify"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Update lengths when modified"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.stereoUpdateLengths }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row
+          align="end"
+          dense
+        >
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.stereoSettings.autoComputeOtherCamera"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Auto-compute location on other camera"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.stereoAutoCompute }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+      </template>
     </v-card>
   </div>
 </template>

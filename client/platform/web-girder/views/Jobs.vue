@@ -1,11 +1,12 @@
 <script lang="ts">
 import {
-  defineComponent, ref, toRef, watch,
+  defineComponent, ref, watch,
 } from 'vue';
 import { GirderJobList } from '@girder/components/src';
 import { setUsePrivateQueue } from 'platform/web-girder/api';
 import { useGirderRest } from 'platform/web-girder/plugins/girder';
-import { useStore } from '../store/types';
+import { useConfig } from '../store/useConfig';
+import { useJobs } from '../store/useJobs';
 
 export default defineComponent({
   name: 'Jobs',
@@ -14,11 +15,11 @@ export default defineComponent({
     const privateQueueEnabled = ref(false);
     const loading = ref(true);
     const restClient = useGirderRest();
-    const store = useStore();
+    const { distributedWorkerEnabled } = useConfig();
+    const { runningJobIds } = useJobs();
     const outstandingJobs = ref(0);
-    const distributedWorkerEnabled = ref(false);
 
-    watch(toRef(store.getters, 'Jobs/runningJobIds'), () => {
+    watch(runningJobIds, () => {
       restClient.get('job/queued').then(({ data }) => {
         outstandingJobs.value = data.outstanding;
       });
@@ -30,10 +31,6 @@ export default defineComponent({
       privateQueueEnabled.value = resp.data.user_private_queue_enabled;
       loading.value = false;
     }
-
-    restClient.get('dive_configuration').then((data) => {
-      distributedWorkerEnabled.value = !!(data.data.distributedWorker);
-    });
 
     restClient.fetchUser()
       .then((user) => {
@@ -209,9 +206,11 @@ export default defineComponent({
       --gpus all \
       --ipc host \
       --volume "/opt/noaa/viame:/tmp/addons/extracted:ro" \
+      -e "WORKER_CONCURRENCY=2" \
       -e "DIVE_USERNAME=username" \
       -e "DIVE_PASSWORD=CHANGEME" \
-      kitware/viame-worker:latest</pre>
+      -e "DIVE_API_URL=https://viame.kitware.com/api/v1" \
+      kitware/viame-worker:gpu</pre>
         </v-card-text>
       </v-card>
     </v-card>

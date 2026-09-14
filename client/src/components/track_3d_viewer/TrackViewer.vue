@@ -119,11 +119,11 @@ export default defineComponent({
 
       openglRenderWindow.value = vtkOpenGLRenderWindow.newInstance();
       renderWindow.addView(openglRenderWindow.value);
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       openglRenderWindow.value.setContainer(vtkContainer.value!);
 
       // Initialize the openglRenderWindow original size
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       const { width, height } = vtkContainer.value!.getBoundingClientRect();
       openglRenderWindow.value.setSize(width, height);
       viewportDimensions.value.width = width;
@@ -141,7 +141,7 @@ export default defineComponent({
       });
       const { labelTextCanvas } = initializeLabelDrawer();
       // Initialize the openglRenderWindow original size
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       vtkContainer.value!.appendChild(labelTextCanvas);
       renderWindow.addRenderer(renderer.value);
 
@@ -222,7 +222,7 @@ export default defineComponent({
 
       vtkContainerResizeObserver = new ResizeObserver((entries: readonly ResizeObserverEntry[]) => {
         const vtkContainerEntry = entries[0];
-        // eslint-disable-next-line no-shadow
+
         const { width, height } = vtkContainerEntry.contentRect;
         if (openglRenderWindow.value) openglRenderWindow.value.setSize(width, height);
 
@@ -234,7 +234,7 @@ export default defineComponent({
         viewUtils.rerender();
       });
       // Observe the renderWindow container so we automatically resize the openglRenderWindow
-      // eslint-disable-next-line @typescript-eslint/no-non-null-assertion
+
       vtkContainerResizeObserver.observe(vtkContainer.value!);
       renderer.value.resetCamera();
       viewUtils.rerender();

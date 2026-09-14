@@ -2,8 +2,10 @@ import {
   ref, Ref, computed, set as VueSet, del as VueDel,
 } from 'vue';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
+import { ensureStereoLengthRendering } from 'dive-common/utils/stereoLengthRendering';
 import { StyleManager, Track } from '..';
 import CameraStore from '../CameraStore';
+import { isReservedAttributeName, RESERVED_ATTRIBUTES } from '../utils';
 import { LineChartData } from './useLineChart';
 import {
   Attribute, AttributeFilter, AttributeKeyFilter,
@@ -50,7 +52,13 @@ export default function UseAttributes(
   });
   const timelineEnabled: Ref<boolean> = ref(false);
 
-  function loadAttributes(metadataAttributes: Record<string, Attribute>) {
+  function loadAttributes(
+    metadataAttributes: Record<string, Attribute>,
+    options?: { enableStereoLengthRender?: boolean },
+  ) {
+    if (options?.enableStereoLengthRender) {
+      ensureStereoLengthRendering(metadataAttributes);
+    }
     attributes.value = metadataAttributes;
     Object.values(attributes.value).forEach((attribute) => {
       if (attribute.color === undefined) {
@@ -64,6 +72,14 @@ export default function UseAttributes(
 
   function setAttribute({ data, oldAttribute }:
      {data: Attribute; oldAttribute?: Attribute }, updateAllTracks = false) {
+    // Validate that the attribute name is not reserved
+    if (isReservedAttributeName(data.name, data.belongs)) {
+      const reservedList = RESERVED_ATTRIBUTES[data.belongs];
+      throw new Error(
+        `Attribute name "${data.name}" is reserved. Reserved ${data.belongs} attributes: ${reservedList.join(', ')}`,
+      );
+    }
+
     if (oldAttribute && data.key !== oldAttribute.key) {
       // Name change should delete the old attribute and create a new one with the updated id
       VueDel(attributes.value, oldAttribute.key);

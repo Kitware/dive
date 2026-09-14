@@ -53,8 +53,20 @@ const otherVideoTypes = [
 ];
 
 const calibrationFileTypes = [
-  'npz',
+  'cam',
   'conf',
+  'json',
+  'npz',
+  'yml',
+  'zip',
+];
+
+// Optional per-dataset metadata file (e.g. sea-lion flight log) that is stored
+// alongside the dataset and handed to opt-in pipelines at run time.
+const metadataFileTypes = [
+  'json',
+  'txt',
+  'csv',
 ];
 
 const fileVideoTypes = [
@@ -73,10 +85,67 @@ const fileVideoTypes = [
 const largeImageTypes = [
   'image/geotiff',
   'image/tiff',
+  'image/tif',
   'image/x-tiff',
   'image/nitf',
   'image/ntf',
 ];
+
+/** Extension-only formats for basic image sequences (aligned with server validImageFormats). */
+const basicImageFileExtensions = [
+  'png',
+  'jpg',
+  'jpeg',
+  'sgi',
+  'bmp',
+  'pgm',
+];
+
+/** Extension-only formats for large-image uploads (aligned with server validLargeImageFormats). */
+const largeImageFileExtensions = [
+  'nitf',
+  'tif',
+  'tiff',
+  'ntf',
+  'vrt',
+  'r0',
+  'r1',
+  'r2',
+  'r3',
+  'r4',
+  'r5',
+  'r6',
+];
+
+/** Desktop Electron open-dialog extensions (GeoTIFF/TIFF only; tiles served via geotiff.js). */
+const largeImageDesktopTypes = [
+  'geotiff',
+  'tiff',
+  'tif',
+];
+
+/** MIME types and dotted extensions for HTML file input accept on web. */
+const largeImageWebAccept = [
+  ...largeImageTypes,
+  ...largeImageFileExtensions.map((ext) => `.${ext}`),
+].join(',');
+
+/** Dotted extensions for desktop-mode file inputs in the web upload UI. */
+const largeImageDesktopAccept = largeImageDesktopTypes.map((ext) => `.${ext}`).join(',');
+
+function getLargeImageFileAccept(): string {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) {
+    return largeImageDesktopAccept;
+  }
+  return largeImageWebAccept;
+}
+
+function getLargeImageAllowedExtensions(): string[] {
+  if (typeof navigator !== 'undefined' && navigator.userAgent.includes('Electron')) {
+    return largeImageDesktopTypes;
+  }
+  return largeImageFileExtensions;
+}
 
 const websafeImageTypes = [
   // 'image/apng',
@@ -88,6 +157,14 @@ const websafeImageTypes = [
   // 'image/webp',
 ];
 
+/** Dotted extensions for HTML file-input accept (multi-dot names like a.b.c.png need these). */
+const websafeImageFileExtensions = [
+  'gif',
+  'jpg',
+  'jpeg',
+  'png',
+];
+
 const otherImageTypes = [
   'image/avif',
   'image/tiff',
@@ -96,6 +173,25 @@ const otherImageTypes = [
   'image/sgi',
   'image/x-portable-graymap',
 ];
+
+const otherImageFileExtensions = [
+  'avif',
+  'tif',
+  'tiff',
+  'bmp',
+  'sgi',
+  'pgm',
+];
+
+/** MIME types plus dotted extensions for image-sequence file inputs. */
+function getImageSequenceFileAccept(): string {
+  return [
+    ...websafeImageFileExtensions.map((ext) => `.${ext}`),
+    ...otherImageFileExtensions.map((ext) => `.${ext}`),
+    ...websafeImageTypes,
+    ...otherImageTypes,
+  ].join(',');
+}
 
 const inputAnnotationTypes = [
   'application/json',
@@ -115,18 +211,38 @@ const listFileTypes = [
   'txt',
 ];
 
+/**
+ * Per-camera registration transform files: DIVE registration .json (the
+ * registration panel's save format).
+ */
+const transformFileTypes = [
+  'json',
+];
+
 const zipFileTypes = [
   'zip',
 ];
 
-const stereoCalibrationConfigurationFileTypes = [
-  'conf',
-];
-
-const stereoPipelineMarker = 'measurement';
+const stereoPipelineMarker = 'stereo';
+/** Girder item meta key marking the original stereoscopic calibration upload (pipeline input). */
+const calibrationFileMarker = 'calibrationFile';
+/** Girder item meta key marking the JSON camera-rig used for calibration display. */
+const jsonCalibrationFileMarker = 'jsonCalibrationFile';
+/** Girder item meta key marking a frame-metadata attachment for Girder UI. */
+const frameMetadataFileMarker = 'frameMetadata';
+/** Pipeline name/category substrings hidden from the web run-pipeline menu. */
+const webExcludedPipelineTerms = ['seagis'];
 const multiCamPipelineMarkers = ['2-cam', '3-cam'];
+const pipelineCreatesDatasetMarkers = ['transcode', 'filter'];
 
-const JsonMetaRegEx = /^.*\.?(meta|config)\.json$/;
+const JsonConfigRegEx = /^.*\.?(meta|config)\.json$/;
+/**
+ * A KWCOCO species list: the classes a dataset may use, travelling beside the media as
+ * configuration rather than annotations. Deliberately not folded into JsonConfigRegEx,
+ * which also names the portable config.json that identifies an exported dataset
+ * directory and supplies a dataset's own metadata on import.
+ */
+const JsonSpeciesRegEx = /^.*\.?species\.json$/i;
 
 function simplifyTrainingName(item: string) {
   return item.replace('.conf', '');
@@ -142,19 +258,36 @@ export {
   FPSOptions,
   itemsPerPageOptions,
   calibrationFileTypes,
+  metadataFileTypes,
   fileVideoTypes,
   otherImageTypes,
+  otherImageFileExtensions,
   otherVideoTypes,
   websafeImageTypes,
+  websafeImageFileExtensions,
   websafeVideoTypes,
+  getImageSequenceFileAccept,
   inputAnnotationTypes,
   largeImageTypes,
+  basicImageFileExtensions,
+  largeImageFileExtensions,
+  largeImageDesktopTypes,
+  largeImageWebAccept,
+  largeImageDesktopAccept,
+  getLargeImageFileAccept,
+  getLargeImageAllowedExtensions,
   inputAnnotationFileTypes,
   listFileTypes,
+  transformFileTypes,
   zipFileTypes,
   stereoPipelineMarker,
+  calibrationFileMarker,
+  jsonCalibrationFileMarker,
+  frameMetadataFileMarker,
+  webExcludedPipelineTerms,
   multiCamPipelineMarkers,
-  JsonMetaRegEx,
+  pipelineCreatesDatasetMarkers,
+  JsonConfigRegEx,
+  JsonSpeciesRegEx,
   simplifyTrainingName,
-  stereoCalibrationConfigurationFileTypes,
 };

@@ -2,10 +2,12 @@
 import {
   computed, defineComponent, onBeforeMount, ref,
 } from 'vue';
+import { isAxiosError } from 'axios';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { Pipelines, useApi, Pipe } from 'dive-common/apispec';
 import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
+import { useConfig } from 'platform/web-girder/store/useConfig';
 
 export default defineComponent({
   name: 'TrainedModels',
@@ -15,11 +17,16 @@ export default defineComponent({
     } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
+    const { getPipelinesEnabled, getTrainingEnabled } = useConfig();
 
     const unsortedPipelines = ref({} as Pipelines);
     const search = ref('');
 
     onBeforeMount(async () => {
+      if (!getPipelinesEnabled() && !getTrainingEnabled()) {
+        router.push('/');
+        return;
+      }
       unsortedPipelines.value = await getPipelineList();
     });
 
@@ -45,7 +52,7 @@ export default defineComponent({
           unsortedPipelines.value = await getPipelineList();
         } catch (err) {
           let text = 'Unable to delete model';
-          if (err.response?.status === 403) text = 'You do not have permission to run training on the selected resource(s).';
+          if (isAxiosError(err) && err.response?.status === 403) text = 'You do not have permission to run training on the selected resource(s).';
           prompt({
             title: 'Delete Failed',
             text,

@@ -1,22 +1,22 @@
-import { ipcRenderer } from 'electron';
 import Vue, { ref, computed } from 'vue';
-import { JsonMeta } from 'platform/desktop/constants';
+import { JsonConfig } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
 import { initializedSettings } from './settings';
 
 const RecentsKey = 'desktop.recent';
 
 /**
- * JsonMetaCache is a subset of JsonMeta
+ * JsonConfigCache is a subset of JsonConfig
  * cached in localStorage for quickly listing
  * known datasets
  */
-export interface JsonMetaCache {
+export interface JsonConfigCache {
   version: number;
   type: DatasetType | 'multi';
   id: string;
   fps: number;
   name: string;
+  error?: string
   createdAt: string;
   accessedAt: string;
   originalBasePath: string;
@@ -25,13 +25,14 @@ export interface JsonMetaCache {
   transcodedVideoFile?: string;
   subType: SubType;
   cameraNumber: number;
+  calibration?: string | null;
 }
 
 /**
- * Handle migration for changes in JsonMetaCache schema
+ * Handle migration for changes in JsonConfigCache schema
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
+function hydrateJsonConfigCacheValue(input: any): JsonConfigCache {
   return {
     originalVideoFile: '',
     transcodedVideoFile: '',
@@ -42,11 +43,21 @@ function hydrateJsonMetaCacheValue(input: any): JsonMetaCache {
   };
 }
 
-const datasets = ref({} as Record<string, JsonMetaCache>);
+const datasets = ref({} as Record<string, JsonConfigCache>);
+
+// Remember annotation navigation separately from library selections and jobs.
+const lastAnnotationId = ref<string | null>(null);
+const lastAnnotation = computed(() => (
+  lastAnnotationId.value ? datasets.value[lastAnnotationId.value] : undefined
+));
+
+function rememberAnnotation(datasetId: string) {
+  lastAnnotationId.value = datasetId;
+}
 
 const recents = computed(() => (Object.values(datasets.value)));
 
-function setRecents(meta: JsonMeta, accessTime?: string) {
+function setRecents(meta: JsonConfig, accessTime?: string) {
   Vue.set(datasets.value, meta.id, {
     version: meta.version,
     type: meta.type,
@@ -60,55 +71,71 @@ function setRecents(meta: JsonMeta, accessTime?: string) {
     imageListPath: meta.imageListPath,
     transcodedVideoFile: meta.transcodedVideoFile,
     subType: meta.subType,
+    error: meta.error,
     cameraNumber: Object.keys(meta.multiCam?.cameras || {}).length,
-  } as JsonMetaCache);
+    calibration: meta.multiCam?.calibration ?? null,
+  } as JsonConfigCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
 }
 
 function clearRecents() {
+  lastAnnotationId.value = null;
   datasets.value = {};
   window.localStorage.setItem(RecentsKey, JSON.stringify([]));
 }
 
+/**
+ * Sync Recents with project folders on disk.
+ *
+ * Removes cache entries whose project dirs are missing or invalid, adds newly
+ * discovered datasets, and refreshes metadata for existing ones while
+ * preserving each entry's accessedAt timestamp.
+ */
 async function autoDiscover() {
-  clearRecents();
   /* Make sure settings are ready on backend */
   await initializedSettings;
-  /* Nothing came from localStorage, try to populate from autodiscovery */
-  const discovered: JsonMeta[] = await ipcRenderer.invoke('autodiscover-data');
-  discovered.forEach((d) => setRecents(d));
+  const discovered = await window.diveDesktop.invoke<JsonConfig[]>('autodiscover-data');
+  const discoveredIds = new Set(discovered.map((d) => d.id));
+
+  Object.keys(datasets.value).forEach((id) => {
+    if (!discoveredIds.has(id)) {
+      removeRecents(id);
+    }
+  });
+
+  discovered.forEach((d) => {
+    const existing = datasets.value[d.id];
+    setRecents(d, existing?.accessedAt);
+  });
 }
 
 /**
  * Load recent datasets from localstorage.
  *
  * Note that the localStorage copy is just a cache and not a source of truth.
- * The real dataset JsonMeta must be loaded from disk through the
- * loadMetadata() backend method.
+ * The real dataset JsonConfig must be loaded from disk through the
+ * loadConfig() backend method.
  */
 async function load() {
-  let loaded = [];
   try {
     const arr = window.localStorage.getItem(RecentsKey);
     if (arr) {
       const maybeArr = JSON.parse(arr);
       if (maybeArr.length) { // verify maybeArr is an array
-        maybeArr.forEach((meta: JsonMetaCache) => (
-          Vue.set(datasets.value, meta.id, hydrateJsonMetaCacheValue(meta))
+        maybeArr.forEach((meta: JsonConfigCache) => (
+          Vue.set(datasets.value, meta.id, hydrateJsonConfigCacheValue(meta))
         ));
-        loaded = maybeArr;
       }
     }
   } catch (err) {
     throw new Error(`could not load meta from localstorage: ${err}`);
   }
-  if (loaded.length === 0) {
-    autoDiscover();
-  }
+  /* Prune missing/dead projects and pick up new ones without wiping access times */
+  await autoDiscover();
 }
 
-function locateDuplicates(meta: JsonMeta) {
+function locateDuplicates(meta: JsonConfig) {
   return recents.value.filter((candidate) => (
     candidate.originalBasePath === meta.originalBasePath
     && (
@@ -120,6 +147,9 @@ function locateDuplicates(meta: JsonMeta) {
 }
 
 function removeRecents(datasetId: string) {
+  if (lastAnnotationId.value === datasetId) {
+    lastAnnotationId.value = null;
+  }
   if (datasets.value[datasetId]) {
     Vue.delete(datasets.value, datasetId);
   }
@@ -128,6 +158,8 @@ function removeRecents(datasetId: string) {
 }
 
 export {
+  lastAnnotation,
+  rememberAnnotation,
   datasets,
   recents,
   autoDiscover,

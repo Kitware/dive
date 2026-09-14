@@ -75,6 +75,17 @@ If you have data in S3 or MinIO, you can mirror it in DIVE for annotation.
 * You should not make changes to folder contents once a folder has been mirrored into DIVE.  Adding or removing images in a particular folder may cause annotation alignment issues.
 * Adding entire new folders is supported, and will require a re-index of your S3 bucket.
 
+For the full bucket layout — videos, image sequences, annotation pairing, and frame-metadata sidecars — see **[AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md)**.
+
+### S3/MinIO and Annotation Importing
+
+During import, annotations associated with image sequences or videos are discovered automatically. Summary:
+
+* **Video** — annotation file (CSV or JSON) must share the video basename: `video.mp4` → `video.csv` or `video.json`. Optional suffixes `_tracks` or `_detections` are also accepted (e.g. `video_tracks.csv`, `video_detections.json`).
+* **Image sequence** — any CSV or JSON in the same folder as the frames is imported as annotations.
+
+Optional **frame metadata** attachments (flight logs and similar) can also be discovered by reserved or video-paired filenames. Details, examples, and post-import behavior are in [AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md).
+
 ### Pub/Sub notifications
 
 Creating pub/sub notifications is **optional**, but will keep your mount point up-to-date automatically with new data added to the bucket.  In order to make use of this feature, your DIVE server must have a public static IP address or domain name.
@@ -101,3 +112,5 @@ If you have your own dive deployment, you can create a bucket mirror yourself th
     1. For **Destination type**, use the folder ID you chose as the mount point above.
 
 The import may take several minutes.  You should begin to see datasets appear inside the mount point folder you chose.
+
+After the index completes, DIVE runs postprocess jobs (transcode if needed, attach annotations and metadata). On self-hosted Compose deployments, ensure **`localworker`** is running. Layout requirements and what to verify after import are covered in [AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md).

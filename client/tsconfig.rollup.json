@@ -1,8 +1,0 @@
-{
-  "extends": "./tsconfig.json",
-  "compilerOptions": {
-    "target": "ES2018",
-    "module": "es2020",
-    "outDir": "./lib/",    
-  },
-}

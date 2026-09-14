@@ -1,7 +1,7 @@
 import type { GirderModel } from '@girder/components/src';
 import girderRest from 'platform/web-girder/plugins/girder';
 
-function deleteResources(resources: Array<GirderModel>) {
+function deleteResources(resources: Array<Pick<GirderModel, '_id' | '_modelType'>>) {
   const formData = new FormData();
   formData.set(
     'resources',
@@ -17,9 +17,13 @@ function deleteResources(resources: Array<GirderModel>) {
   return girderRest.delete('resource', { data: formData });
 }
 
-function getItemsInFolder(folderId: string, limit: number) {
+function deleteItem(itemId: string) {
+  return girderRest.delete(`item/${itemId}`);
+}
+
+function getItemsInFolder(folderId: string, limit: number, offset = 0) {
   return girderRest.get<GirderModel[]>('item', {
-    params: { folderId, limit },
+    params: { folderId, limit, offset },
   });
 }
 
@@ -62,6 +66,7 @@ async function getSharedWithMeFolders(
 
 export {
   deleteResources,
+  deleteItem,
   getItemsInFolder,
   getFolder,
   setUsePrivateQueue,

@@ -1,0 +1,16 @@
+/* Controls that stay in the layout but only become visible and clickable while
+   their row is hovered or holds keyboard focus. */
+.hover-show-parent {
+  .hover-show-child {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  &:hover,
+  &:focus-within {
+    .hover-show-child {
+      opacity: 1;
+      pointer-events: auto;
+    }
+  }
+}

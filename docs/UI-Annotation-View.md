@@ -27,3 +27,5 @@ The annotation window will look different based on the current mode and what vis
 * **Interpolated Annotation** - If a track has an interpolated box on the current frame it will appear slightly faded.
     
     ![Interpolated Editing](images/InterpolatedEditing.png)
+
+* **Suppressed Annotation** - When [suppression](UI-Suppression.md) is configured, detections covered by a suppression region are hidden. Detections flagged with the suppression attribute stay visible with their real type and may show dashed/fill styling and an ==:material-eye-off:== tag (controlled from the visibility menu).

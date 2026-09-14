@@ -1,4 +1,3 @@
-/// <reference types="jest" />
 import fs from 'fs-extra';
 import { cloneDeep } from 'lodash';
 import { strNumericCompare } from './sharedUtils';

@@ -1,5 +1,3 @@
-/* eslint-disable import/prefer-default-export */
-/* eslint-disable no-console */
 /* eslint-disable no-plusplus */
 
 import vtkLookupTable from '@kitware/vtk.js/Common/Core/LookupTable';

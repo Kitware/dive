@@ -1,4 +1,5 @@
 /* eslint-disable class-methods-use-this */
+import geo, { GeoEvent } from 'geojs';
 import { cloneDeep } from 'lodash';
 
 import BaseLayer, { LayerStyle, BaseLayerParams } from '../BaseLayer';
@@ -24,7 +25,23 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     const layer = this.annotator.geoViewerRef.value.createLayer('feature', {
       features: ['point', 'line'],
     });
-    this.featureLayer = layer.createFeature('line');
+    this.featureLayer = layer
+      .createFeature('line', { selectionAPI: true })
+      .geoOn(geo.event.feature.mouseclick, (e: GeoEvent) => {
+        if (e.mouse.buttonsDown.left) {
+          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
+            this.bus.$emit('annotation-clicked', e.data.trackId, false);
+          }
+        } else if (e.mouse.buttonsDown.right) {
+          if (!e.data.editing || (e.data.editing && !e.data.selected)) {
+            this.bus.$emit('annotation-right-clicked', e.data.trackId, true);
+          }
+        }
+      });
+    this.featureLayer.geoOn(
+      geo.event.feature.mouseclick_order,
+      this.featureLayer.mouseOverOrderHighestIndex,
+    );
     super.initialize();
   }
 
@@ -101,7 +118,7 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
     return {
       ...super.createStyle(),
       // Style conversion to get array objects to work in geoJS
-      position: (point) => ({ x: point[0], y: point[1] }),
+      position: (point) => this.transformPoint(point),
       strokeColor: (_point, _index, data) => {
         if (data.selected) {
           return this.stateStyling.selected.color;

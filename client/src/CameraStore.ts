@@ -1,13 +1,53 @@
 import {
-  Ref, computed, shallowRef, triggerRef,
+  ComputedRef, Ref, computed, ref, shallowRef, triggerRef,
 } from 'vue';
 import { cloneDeep, uniq } from 'lodash';
-import type Track from './track';
+import {
+  acceptPairAsCorrect,
+  compileHierarchy,
+  mergePairs,
+  reassignPairs,
+  removePair,
+  setPairConfidence,
+  TypeHierarchyIndex,
+} from 'dive-common/typeHierarchy';
+import Track from './track';
 import type Group from './Group';
 import { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { MarkChangesPending, SortedAnnotation } from './BaseAnnotationStore';
 import GroupStore from './GroupStore';
 import TrackStore from './TrackStore';
+import { createTrackProjection, TrackProjection } from './TrackProjection';
+
+const FLAT_HIERARCHY_INDEX = compileHierarchy({});
+
+interface TrackAssignmentOptions {
+  hierarchyIndex?: TypeHierarchyIndex;
+  replaceType?: string;
+  confidence?: number;
+}
+
+function confidencePairsEqual(
+  left: readonly ConfidencePair[],
+  right: readonly ConfidencePair[],
+): boolean {
+  return left.length === right.length
+    && left.every(([type, confidence], index) => (
+      type === right[index][0] && confidence === right[index][1]
+    ));
+}
+
+export function formatDivergentClassificationWarning(
+  trackIds: readonly AnnotationId[],
+): string | null {
+  if (trackIds.length === 0) {
+    return null;
+  }
+  const sortedIds = [...trackIds].sort((a, b) => a - b);
+  const shownIds = sortedIds.slice(0, 10).join(', ');
+  const suffix = sortedIds.length > 10 ? ', …' : '';
+  return `${sortedIds.length} tracks have divergent per-camera classifications (tracks ${shownIds}${suffix})`;
+}
 
 /**
  * CameraStore is a warapper for holding and collating tracks from multiple cameras.
@@ -26,10 +66,27 @@ export default class CameraStore {
 
   defaultGroup: [string, number];
 
+  private projectionCache: Map<AnnotationId, ComputedRef<TrackProjection | null>>;
+
+  /**
+   * The dataset's persisted camera display order (multiCamMedia.cameraOrder,
+   * via orderedMultiCamCameraNames), set by the viewer at load.
+   *
+   * camMap's own key order is insertion order: cameras are added one at a
+   * time inside an awaited per-camera load loop, and entries can survive a
+   * dataset switch, so it is not a dependable statement of rig order. Anything
+   * where "which camera is first/last" carries meaning -- the registration
+   * reference camera, the direction a loop-closure residual is measured in --
+   * must read this instead.
+   */
+  displayOrder: Ref<string[]>;
+
   constructor({ markChangesPending }: { markChangesPending: MarkChangesPending }) {
     this.markChangesPending = markChangesPending;
     const cameraName = 'singleCam';
     this.defaultGroup = ['no-group', 1.0];
+    this.projectionCache = new Map();
+    this.displayOrder = ref([]);
     this.camMap = shallowRef(new Map([[cameraName, {
       trackStore: new TrackStore({ markChangesPending, cameraName }),
       groupStore: new GroupStore({ markChangesPending, cameraName }),
@@ -45,7 +102,7 @@ export default class CameraStore {
          * This allows the full range begin/end for the track across multiple cameras to
          * be displayed.
          */
-      return uniq(idList).map((id) => this.getTracksMergedForSorted(id));
+      return uniq(idList).map((id) => this.getTrackProjectionForSorted(id));
     });
     this.sortedGroups = computed(() => {
       let list: SortedAnnotation<Group>[] = [];
@@ -77,27 +134,14 @@ export default class CameraStore {
   }
 
   getAnyPossibleTrack(trackId: Readonly<AnnotationId>) {
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (tempTrack) {
-        track = tempTrack;
-      }
-    });
-    if (track) {
-      return track;
-    }
-    return undefined;
+    // Map iteration order defines the canonical camera for logical-track reads.
+    return Array.from(this.camMap.value.values())
+      .map((camera) => camera.trackStore.getPossible(trackId))
+      .find((track): track is Track => track !== undefined);
   }
 
   getAnyTrack(trackId: Readonly<AnnotationId>) {
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (tempTrack) {
-        track = tempTrack;
-      }
-    });
+    const track = this.getAnyPossibleTrack(trackId);
     if (track) {
       return track;
     }
@@ -116,38 +160,93 @@ export default class CameraStore {
     return trackList;
   }
 
-  getTracksMerged(
-    trackId: Readonly<AnnotationId>,
-  ): Track {
-    if (this.camMap.value.size === 1) {
-      return this.getTrack(trackId);
-    }
-    let track: Track | undefined;
-    this.camMap.value.forEach((camera) => {
-      const tempTrack = camera.trackStore.getPossible(trackId);
-      if (!track && tempTrack) {
-        track = cloneDeep(tempTrack);
-      } else if (track && tempTrack) {
-        // Merge track bounds and data together
-        // We don't care about feature data just that features are at X frame
-        track.merge([tempTrack], true);
-      }
+  divergentClassificationTrackIds(): AnnotationId[] {
+    const vectorsByTrack = new Map<AnnotationId, ConfidencePair[][]>();
+    this.camMap.value.forEach(({ trackStore }) => {
+      trackStore.annotationIds.value.forEach((trackId) => {
+        const track = trackStore.get(trackId);
+        const vectors = vectorsByTrack.get(trackId) || [];
+        vectors.push(track.confidencePairs);
+        vectorsByTrack.set(trackId, vectors);
+      });
     });
-    if (!track) {
-      throw Error(`TrackId: ${trackId} is not found in any camera`);
-    }
-    return track;
+    return Array.from(vectorsByTrack.entries())
+      .filter(([, vectors]) => vectors.length > 1
+        && vectors.slice(1).some((vector) => !confidencePairsEqual(vectors[0], vector)))
+      .map(([trackId]) => trackId)
+      .sort((a, b) => a - b);
   }
 
-  getTracksMergedForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
-    const track = this.getTracksMerged(trackId);
+  /**
+   * Each entry rebuilds when a replica in any camera changes, when replicas are
+   * inserted or removed, or when the camera set or order changes. Between edits,
+   * callers receive the same projection object, so it is a stable identity.
+   */
+  private cachedProjection(trackId: Readonly<AnnotationId>): ComputedRef<TrackProjection | null> {
+    const cached = this.projectionCache.get(trackId);
+    if (cached !== undefined) {
+      return cached;
+    }
+    const entry = computed(() => {
+      const replicas: Track[] = [];
+      this.camMap.value.forEach(({ trackStore }) => {
+        if (trackStore.annotationIds.value.includes(trackId)) {
+          const track = trackStore.getPossible(trackId);
+          if (track) {
+            replicas.push(track);
+          }
+        }
+      });
+      if (replicas.length === 0) {
+        return null;
+      }
+      // An edit to any replica, not only the canonical one, invalidates this entry.
+      replicas.forEach((track) => track.revision.value);
+      return createTrackProjection(replicas);
+    });
+    this.projectionCache.set(trackId, entry);
+    return entry;
+  }
+
+  getTrackProjection(trackId: Readonly<AnnotationId>): TrackProjection {
+    const projection = this.cachedProjection(trackId).value;
+    if (projection === null) {
+      throw Error(`TrackId: ${trackId} is not found in any camera`);
+    }
+    return projection;
+  }
+
+  /**
+   * The sorted list is recomputed on every annotation mutation, so it reads only the
+   * logical range and classification rather than building a full TrackProjection, whose
+   * per-feature deep copies would scale with the whole dataset on each edit. Safe only
+   * once projections take classification from the canonical camera instead of merging.
+   */
+  getTrackProjectionForSorted(trackId: Readonly<AnnotationId>): SortedAnnotation<Track> {
+    const tracks = this.getTrackAll(trackId);
+    if (tracks.length === 0) {
+      throw Error(`TrackId: ${trackId} is not found in any camera`);
+    }
+    const confidencePairs = tracks[0].confidencePairs
+      .map(([type, confidence]) => [type, confidence] as ConfidencePair);
     return {
-      id: track.id,
-      confidencePairs: track.confidencePairs,
-      begin: track.begin,
-      end: track.end,
-      getType: (index?: number) => (track.confidencePairs[index || 0][0] || 'unknown'),
+      id: tracks[0].id,
+      confidencePairs,
+      begin: Math.min(...tracks.map((track) => track.begin)),
+      end: Math.max(...tracks.map((track) => track.end)),
+      getType: (index?: number) => (confidencePairs[index || 0]?.[0] || 'unknown'),
     };
+  }
+
+  /**
+   * Camera names in persisted display order, restricted to cameras actually
+   * present. Falls back to camMap order when no order has been set (single
+   * camera datasets, or before the viewer has loaded one).
+   */
+  orderedCameraNames(): string[] {
+    const present = this.camMap.value;
+    const ordered = this.displayOrder.value.filter((name) => present.has(name));
+    return ordered.length === present.size ? ordered : [...present.keys()];
   }
 
   addCamera(cameraName: string) {
@@ -159,6 +258,23 @@ export default class CameraStore {
       // Bump the shallowRef
       triggerRef(this.camMap);
     }
+  }
+
+  setCameraOrder(cameraNames: readonly string[]) {
+    cameraNames.forEach((cameraName) => this.addCamera(cameraName));
+    const reordered = new Map<string, { trackStore: TrackStore; groupStore: GroupStore }>();
+    cameraNames.forEach((cameraName) => {
+      const camera = this.camMap.value.get(cameraName);
+      if (camera !== undefined) {
+        reordered.set(cameraName, camera);
+      }
+    });
+    this.camMap.value.forEach((camera, cameraName) => {
+      if (!reordered.has(cameraName)) {
+        reordered.set(cameraName, camera);
+      }
+    });
+    this.camMap.value = reordered;
   }
 
   removeCamera(cameraName: string) {
@@ -184,14 +300,59 @@ export default class CameraStore {
 
   remove(trackId: AnnotationId, cameraName = '') {
     this.camMap.value.forEach((camera) => {
-      if (camera.trackStore.getPossible(trackId)) {
-        if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
-          camera.trackStore.remove(trackId);
-        }
-        if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
-          camera.groupStore.trackRemove(trackId);
-        }
+      if (
+        camera.trackStore.getPossible(trackId)
+        && (cameraName === '' || camera.trackStore.cameraName === cameraName)
+      ) {
+        camera.trackStore.remove(trackId);
       }
+      if (cameraName === '' || camera.groupStore.cameraName === cameraName) {
+        camera.groupStore.trackRemove(trackId);
+      }
+    });
+    this.projectionCache.delete(trackId);
+  }
+
+  mergeTracks(targetId: AnnotationId, sourceIds: AnnotationId[]) {
+    const replicas: Array<{
+      trackStore: TrackStore;
+      target?: Track;
+      sources: Track[];
+    }> = [];
+    const vectors: ConfidencePair[][] = [];
+
+    this.camMap.value.forEach(({ trackStore }) => {
+      const target = trackStore.getPossible(targetId);
+      const sources = sourceIds
+        .map((sourceId) => trackStore.getPossible(sourceId))
+        .filter((source): source is Track => source !== undefined);
+      if (target || sources.length) {
+        replicas.push({ trackStore, target, sources });
+        if (target) {
+          vectors.push(target.confidencePairs);
+        }
+        sources.forEach((source) => vectors.push(source.confidencePairs));
+      }
+    });
+
+    const canonicalPairs = mergePairs(vectors);
+    replicas.forEach((replica) => {
+      let { target } = replica;
+      if (!target) {
+        const source = replica.sources[0];
+        target = Track.fromJSON({
+          id: targetId,
+          begin: source.begin,
+          end: source.end,
+          confidencePairs: cloneDeep(source.confidencePairs),
+          attributes: cloneDeep(source.attributes),
+          features: cloneDeep(source.features.filter((feature) => feature !== undefined)),
+          meta: cloneDeep(source.meta),
+        }, source.set);
+        replica.trackStore.insert(target);
+      }
+      target.merge(replica.sources);
+      target.setConfidencePairs(canonicalPairs);
     });
   }
 
@@ -211,16 +372,11 @@ export default class CameraStore {
       camera.trackStore.clearAll();
       camera.groupStore.clearAll();
     });
+    this.projectionCache.clear();
   }
 
   removeTracks(id: AnnotationId, cameraName = '') {
-    this.camMap.value.forEach((camera) => {
-      if (camera.trackStore.getPossible(id)) {
-        if (cameraName === '' || camera.trackStore.cameraName === cameraName) {
-          camera.trackStore.remove(id);
-        }
-      }
-    });
+    this.remove(id, cameraName);
   }
 
   removeGroups(id: AnnotationId, cameraName = '') {
@@ -233,42 +389,201 @@ export default class CameraStore {
     });
   }
 
-  // Update all cameras to have the same track type
-  setTrackType(id: AnnotationId, newType: string, confidenceVal?: number, currentType?: string) {
+  setGroupType(id: AnnotationId, newType: string, confidenceVal?: number, currentType?: string) {
     this.camMap.value.forEach((camera) => {
-      const track = camera.trackStore.getPossible(id);
-      if (track !== undefined) {
-        track.setType(newType, confidenceVal, currentType);
+      const group = camera.groupStore.getPossible(id);
+      if (group !== undefined) {
+        group.setType(newType, confidenceVal, currentType);
       }
     });
   }
 
-  changeTrackTypes({ currentType, newType }: { currentType: string; newType: string }) {
+  private updateTrackConfidencePairs(
+    id: AnnotationId,
+    update: (pairs: readonly ConfidencePair[]) => ConfidencePair[],
+    mergeReplicaPairs = false,
+    deleteWhenEmpty = false,
+  ): ConfidencePair[] {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    // Merging re-sorts equal-confidence pairs into a canonical order, which would move the
+    // displayed type of a single-replica track that never needed reconciling.
+    const canonicalPairs = mergeReplicaPairs && tracks.length > 1
+      ? mergePairs(tracks.map((track) => track.confidencePairs))
+      : tracks[0].confidencePairs
+        .map(([type, confidence]) => [type, confidence] as ConfidencePair);
+    const nextPairs = update(canonicalPairs);
+    if (deleteWhenEmpty && nextPairs.length === 0) {
+      this.remove(id);
+      return [];
+    }
+    tracks.forEach((track) => {
+      if (!confidencePairsEqual(track.confidencePairs, nextPairs)) {
+        track.setConfidencePairs(nextPairs);
+      }
+    });
+    return nextPairs.map(([type, confidence]) => [type, confidence]);
+  }
+
+  assignTrackType(
+    id: AnnotationId,
+    newType: string,
+    {
+      hierarchyIndex = FLAT_HIERARCHY_INDEX,
+      replaceType,
+      confidence = 1,
+    }: TrackAssignmentOptions = {},
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(id, (pairs) => reassignPairs(
+      hierarchyIndex,
+      pairs,
+      replaceType ?? pairs[0]?.[0] ?? newType,
+      newType,
+      confidence,
+    ));
+  }
+
+  acceptTrackType(
+    id: AnnotationId,
+    acceptedType: string,
+    hierarchyIndex: TypeHierarchyIndex = FLAT_HIERARCHY_INDEX,
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(
+      id,
+      (pairs) => acceptPairAsCorrect(hierarchyIndex, pairs, acceptedType),
+    );
+  }
+
+  setTrackPairConfidence(
+    id: AnnotationId,
+    type: string,
+    confidence: number,
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(
+      id,
+      (pairs) => setPairConfidence(pairs, type, confidence),
+    );
+  }
+
+  removeTrackPair(id: AnnotationId, type: string): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(id, (pairs) => removePair(pairs, type), true, true);
+  }
+
+  renameTrackPair(
+    id: AnnotationId,
+    currentType: string,
+    newType: string,
+  ): ConfidencePair[] {
+    return this.updateTrackConfidencePairs(id, (pairs) => {
+      const current = pairs.find(([type]) => type === currentType);
+      if (!current) {
+        return pairs.map(([type, confidence]) => [type, confidence]);
+      }
+      return setPairConfidence(removePair(pairs, currentType), newType, current[1]);
+    });
+  }
+
+  setTrackNotes(id: AnnotationId, notes: string): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setFeatureNotes(track.begin, notes));
+  }
+
+  setTrackAttribute(
+    id: AnnotationId,
+    key: string,
+    value: unknown,
+    user: null | string = null,
+  ): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setAttribute(key, value, user));
+  }
+
+  setTrackFeatureAttribute(
+    id: AnnotationId,
+    frame: number,
+    key: string,
+    value: unknown,
+    user: null | string = null,
+  ): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setFeatureAttribute(frame, key, value, user));
+  }
+
+  setTrackFirstFeatureAttribute(
+    id: AnnotationId,
+    key: string,
+    value: unknown,
+    user: null | string = null,
+  ): void {
+    const tracks = this.getTrackAll(id);
+    if (tracks.length === 0) {
+      throw new Error(`TrackId ${id} not found in any camera`);
+    }
+    tracks.forEach((track) => track.setFeatureAttribute(track.begin, key, value, user));
+  }
+
+  /**
+   * Keyframe and interpolation edits are camera-local geometry, but the row that triggers them
+   * comes from the all-camera projection, so the selected camera need not hold a replica.
+   */
+  private getTrackForCameraEdit(id: AnnotationId, cameraName: string): Track | undefined {
+    return this.getPossibleTrack(id, cameraName) ?? this.getAnyPossibleTrack(id);
+  }
+
+  toggleTrackKeyframe(id: AnnotationId, frame: number, cameraName: string): void {
+    this.getTrackForCameraEdit(id, cameraName)?.toggleKeyframe(frame);
+  }
+
+  toggleTrackInterpolation(id: AnnotationId, frame: number, cameraName: string): void {
+    this.getTrackForCameraEdit(id, cameraName)?.toggleInterpolation(frame);
+  }
+
+  toggleTrackInterpolationForAllGaps(
+    id: AnnotationId,
+    frame: number,
+    cameraName: string,
+  ): void {
+    this.getTrackForCameraEdit(id, cameraName)?.toggleInterpolationForAllGaps(frame);
+  }
+
+  removeTypes(id: AnnotationId, types: string[]): ConfidencePair[] {
+    const removedTypes = new Set(types);
+    return this.updateTrackConfidencePairs(
+      id,
+      (pairs) => pairs
+        .filter(([type]) => !removedTypes.has(type))
+        .map(([type, confidence]) => [type, confidence] as ConfidencePair),
+      true,
+      true,
+    );
+  }
+
+  removeGroupTypes(id: AnnotationId, types: string[]): ConfidencePair[] {
+    let result: ConfidencePair[] | undefined;
     this.camMap.value.forEach((camera) => {
-      camera.trackStore.sorted.value.forEach((annotation) => {
-        for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
-          const [name, confidenceVal] = annotation.confidencePairs[i];
-          if (name === currentType) {
-            const track = camera.trackStore.get(annotation.id);
-            if (track) {
-              track.setType(newType, confidenceVal, currentType);
-            }
-            break;
-          }
+      const group = camera.groupStore.getPossible(id);
+      if (group !== undefined) {
+        const pairs = group.removeTypes(types);
+        if (result === undefined) {
+          result = pairs.map(([type, confidence]) => [type, confidence] as ConfidencePair);
         }
-      });
-    });
-  }
-
-  removeTypes(id: AnnotationId, types: string[]) {
-    let resultingTypes: ConfidencePair[] = [];
-    this.camMap.value.forEach((camera) => {
-      const track = camera.trackStore.getPossible(id);
-      if (track !== undefined) {
-        resultingTypes = track.removeTypes(types);
       }
     });
-    return resultingTypes;
+    if (result === undefined) {
+      throw new Error(`GroupId ${id} not found in any camera`);
+    }
+    return result;
   }
 
   getGroupMemebers(id: AnnotationId) {

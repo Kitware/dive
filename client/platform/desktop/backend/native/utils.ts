@@ -6,7 +6,7 @@ import os from 'os';
 
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
-  DesktopJob, DesktopJobUpdater, JsonMeta, Settings, JobsFolderName,
+  DesktopJob, DesktopJobUpdater, JsonConfig, Settings, JobsFolderName,
 } from 'platform/desktop/constants';
 
 const processChunk = (chunk: Buffer) => chunk
@@ -14,17 +14,24 @@ const processChunk = (chunk: Buffer) => chunk
   .split('\n')
   .filter((a) => a);
 
-function isDev() {
-  return process.env.NODE_ENV !== 'production';
-}
-
 function getBinaryPath(name: string) {
   const platform = process.env.npm_config_platform || os.platform();
   const filename = platform === 'win32' ? `${name}.exe` : name;
-  if (isDev()) {
-    return path.join(__dirname, '..', 'node_modules', filename);
-  }
-  return path.join(process.resourcesPath, filename);
+  const base = path.basename(filename);
+  const { resourcesPath } = process;
+  const candidates = [
+    ...(resourcesPath
+      ? [
+        path.join(resourcesPath, 'ffmpeg-ffprobe-static', base),
+        path.join(resourcesPath, filename),
+      ]
+      : []),
+    path.resolve(process.cwd(), 'node_modules', filename),
+    path.resolve(__dirname, '..', '..', 'node_modules', filename),
+    path.resolve(__dirname, '..', 'node_modules', filename),
+  ];
+  const existing = candidates.find((candidate) => fs.existsSync(candidate));
+  return existing || candidates[0];
 }
 
 /**
@@ -82,17 +89,26 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
 }
 
 /**
+ * Collapse whitespace, dots and separators into underscores so a value is safe
+ * (and pleasant) to embed in a job folder name. Applied to every interpolated
+ * component: pipeline display names carry spaces ("utility align cameras 3
+ * cam"), which made for awkward-to-type, quoting-hostile paths.
+ */
+// eslint won't recognize \. as valid escape
+// eslint-disable-next-line no-useless-escape
+const pathSafeSegment = (segment: string) => segment.replace(/[\.\s/]+/g, '_');
+
+/**
  * Create job run working directory
  */
-async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta[], pipeline: string) {
-  if (jsonMetaList.length === 0) {
-    throw new Error('At least 1 jsonMeta item must be provided');
+async function createWorkingDirectory(settings: Settings, jsonConfigList: JsonConfig[], pipeline: string) {
+  if (jsonConfigList.length === 0) {
+    throw new Error('At least 1 jsonConfig item must be provided');
   }
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
-  // eslint won't recognize \. as valid escape
-  // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = jsonMetaList[0].id.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const safeDatasetName = pathSafeSegment(jsonConfigList[0].id);
+  const safePipeline = pathSafeSegment(pipeline);
+  const runFolderName = moment().format(`[${safeDatasetName}_${safePipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
@@ -104,9 +120,9 @@ async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta
 async function createCustomWorkingDirectory(settings: Settings, prefix: string, pipeline: string) {
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
   // Formating prefix if for any reason the prefix is input by the user in the futur
-  // eslint-disable-next-line no-useless-escape
-  const safePrefix = prefix.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safePrefix}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const safePrefix = pathSafeSegment(prefix);
+  const safePipeline = pathSafeSegment(pipeline);
+  const runFolderName = moment().format(`[${safePrefix}_${safePipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
@@ -121,12 +137,75 @@ function splitExt(input: string): [string, string] {
   return [path.basename(input, ext), ext];
 }
 
+const DiveJobManifestName = 'dive_job_manifest.json';
+
+async function updateJobManifestOnCancel(workingDir: string): Promise<void> {
+  const manifestPath = path.join(workingDir, DiveJobManifestName);
+  if (!fs.existsSync(manifestPath)) {
+    // Manifest doesn't exist, nothing to update
+    return;
+  }
+  try {
+    const manifestContent = await fs.readJson(manifestPath);
+    manifestContent.cancelledJob = true;
+    manifestContent.exitCode = -1;
+    manifestContent.endTime = new Date();
+    await fs.writeJson(manifestPath, manifestContent, { spaces: 2 });
+  } catch (err) {
+    console.error(`Failed to update job manifest at ${manifestPath}:`, err);
+  }
+}
+
+async function appendCancelMessageToLog(workingDir: string): Promise<void> {
+  const logPath = path.join(workingDir, 'runlog.txt');
+  const cancelMessage = `\n[${moment().format('YYYY-MM-DD HH:mm:ss')}] Job cancelled by user\n`;
+  try {
+    await fs.appendFile(logPath, cancelMessage);
+  } catch (err) {
+    console.error(`Failed to append cancellation message to log at ${logPath}:`, err);
+  }
+}
+
+async function updateJobFilesOnCancel(workingDir: string): Promise<void> {
+  await Promise.all([
+    updateJobManifestOnCancel(workingDir),
+    appendCancelMessageToLog(workingDir),
+  ]);
+}
+
+/**
+ * Build the final training job manifest after process exit. Cancel writes
+ * cancelledJob to disk before killing the child; the exit handler must not
+ * overwrite that with the raw process code (signal kills often report null).
+ */
+function buildTrainingExitManifest(
+  jobBase: DesktopJob,
+  processExitCode: number | null,
+  endTime: Date,
+  existing: Partial<DesktopJob> | null | undefined,
+): DesktopJob {
+  if (existing?.cancelledJob) {
+    return {
+      ...jobBase,
+      cancelledJob: true,
+      exitCode: existing.exitCode ?? -1,
+      endTime: existing.endTime ? new Date(existing.endTime) : endTime,
+    };
+  }
+  return {
+    ...jobBase,
+    exitCode: processExitCode,
+    endTime,
+  };
+}
+
 export {
-  isDev,
   getBinaryPath,
   jobFileEchoMiddleware,
   createWorkingDirectory,
   createCustomWorkingDirectory,
   spawnResult,
   splitExt,
+  updateJobFilesOnCancel,
+  buildTrainingExitManifest,
 };

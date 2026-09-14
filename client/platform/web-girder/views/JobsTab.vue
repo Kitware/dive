@@ -1,12 +1,12 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import { useStore } from 'platform/web-girder/store/types';
+import { useJobs } from 'platform/web-girder/store/useJobs';
 
 export default defineComponent({
   name: 'JobsTab',
   setup() {
-    const store = useStore();
-    return { getters: store.getters };
+    const { runningJobIds } = useJobs();
+    return { runningJobIds };
   },
 });
 </script>
@@ -15,7 +15,7 @@ export default defineComponent({
   <v-tab to="/jobs">
     Jobs
     <v-badge
-      :value="getters['Jobs/runningJobIds']"
+      :value="runningJobIds"
       overlap
       bottom
       offset-x="-6"

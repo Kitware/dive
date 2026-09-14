@@ -17,7 +17,7 @@ from girder.utility import setting_utilities
 from girder_jobs.models.job import Job
 import requests
 
-from dive_server import crud, crud_rpc
+from dive_server import crud, crud_rpc, worker_capabilities
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, constants, models, types
 
@@ -48,6 +48,13 @@ def validateInstalledAddons(doc):
         assert isinstance(val['downloaded'], list), 'downloaded key is not a list'
 
 
+@setting_utilities.validator({constants.JOBS_DISABLED_CONFIG})
+def validateJobsDisabledConfig(doc):
+    val = doc['value']
+    if val is not None:
+        crud.get_validated_model(models.JobsDisabledConfig, **val)
+
+
 class ConfigurationResource(Resource):
     """Configuration resource handles get/set of global configuration"""
 
@@ -64,6 +71,7 @@ class ConfigurationResource(Resource):
         self.route("PUT", ("brand_data",), self.update_brand_data)
         self.route("PUT", ("static_pipeline_configs",), self.update_static_pipeline_configs)
         self.route("PUT", ("installed_addons",), self.update_installed_addons)
+        self.route("PUT", ("jobs_disabled",), self.update_jobs_disabled)
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("update_containers",), self.update_containers)
         self.route("GET", ("stats",), self.get_dataset_stats)
@@ -72,9 +80,15 @@ class ConfigurationResource(Resource):
     @autoDescribeRoute(Description("Get Configuration Information"))
     def get_config(self):
         env = os.environ.copy()
-
         distributed_worker = env.get("RABBITMQ_DISTRIBUTED_WORKER")
-        return {'distributedWorker': distributed_worker}
+        capabilities = worker_capabilities.get_worker_capabilities()
+        jobs_disabled = worker_capabilities.get_jobs_disabled_config()
+        return {
+            'distributedWorker': distributed_worker,
+            **capabilities,
+            'jobsDisabled': jobs_disabled['disabled'],
+            'jobsDisabledMessage': jobs_disabled['message'],
+        }
 
     @access.public
     @autoDescribeRoute(Description("Get custom brand data"))
@@ -84,15 +98,25 @@ class ConfigurationResource(Resource):
     @access.user
     @autoDescribeRoute(Description("Get available pipeline configurations"))
     def get_pipelines(self, params):
+        if not worker_capabilities.get_worker_capabilities()['pipelinesEnabled']:
+            return {}
         return crud_rpc.load_pipelines(self.getCurrentUser())
 
     @access.user
     @autoDescribeRoute(Description("Get available training configs"))
     def get_training_configs(self, params):
+        capabilities = worker_capabilities.get_worker_capabilities()
+        if not capabilities['trainingEnabled']:
+            return {"training": {"configs": [], "default": ""}, "models": {}}
         static_job_configs: types.AvailableJobSchema = (
             Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or {}
         )
-        return static_job_configs.get('training', {})
+        model_configs = crud_rpc.load_training_configs(self.getCurrentUser())
+        training_configs = {
+            "training": static_job_configs.get('training', {}),
+            "models": model_configs,
+        }
+        return training_configs
 
     @access.admin
     @autoDescribeRoute(
@@ -129,6 +153,24 @@ class ConfigurationResource(Resource):
     def update_installed_addons(self, addons: Dict):
         Setting().set(constants.INSTALLED_ADDONS_CONFIGS, addons)
 
+    @access.admin
+    @autoDescribeRoute(
+        Description("Enable or disable job launching with an optional message").jsonParam(
+            "data",
+            "Jobs disabled configuration",
+            paramType='body',
+            requireObject=True,
+            required=True,
+        )
+    )
+    def update_jobs_disabled(self, data):
+        validated = crud.get_validated_model(models.JobsDisabledConfig, **data)
+        payload = validated.dict()
+        if not payload.get('message'):
+            payload['message'] = constants.DEFAULT_JOBS_DISABLED_MESSAGE
+        Setting().set(constants.JOBS_DISABLED_CONFIG, payload)
+        return worker_capabilities.get_jobs_disabled_config()
+
     # https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv - CSV URL
     @access.admin
     @autoDescribeRoute(Description("Upgrade addon pipelines"))
@@ -140,8 +182,10 @@ class ConfigurationResource(Resource):
             installed_addons = addons_config['downloaded']
             download = s.get(constants.AddonsListURL)
             decoded_content = download.content.decode('utf-8')
-            cr = csv.reader(decoded_content.splitlines(), delimiter=',')
-            my_list = list(cr)
+            cr = csv.reader(decoded_content.splitlines(), delimiter=',', skipinitialspace=True)
+            my_list = [
+                item for item in cr if len(item) >= 5 and item[4].strip() != 'ALL-EXCEPT-DIVE'
+            ]
             for item in my_list:
                 addon = item[1]
                 download_name = urlparse(addon).path.replace(os.path.sep, '_')
@@ -169,13 +213,17 @@ class ConfigurationResource(Resource):
         )
     )
     def upgrade_pipelines(self, force: bool, urls: List[str]):
+        worker_capabilities.require_pipeline_worker()
         token = Token().createToken(user=self.getCurrentUser(), days=1)
         Setting().set(constants.SETTINGS_CONST_JOBS_CONFIGS, None)
-        tasks.upgrade_pipelines.delay(
-            urls=urls,
-            force=force,
-            girder_job_title="Upgrade Pipelines",
-            girder_client_token=str(token["_id"]),
+        tasks.upgrade_pipelines.apply_async(
+            queue='pipelines',
+            kwargs=dict(
+                urls=urls,
+                force=force,
+                girder_job_title="Upgrade Pipelines",
+                girder_client_token=str(token["_id"]),
+            ),
         )
 
     @access.admin
@@ -255,10 +303,8 @@ class ConfigurationResource(Resource):
                 start_dt = datetime.fromisoformat(start_str.strip())
                 end_dt = datetime.fromisoformat(end_str.strip())
             except ValueError:
-                raise RestException(
-                    "Invalid overrideDateTime format. Use ISO format:\
-                          'YYYY-MM-DDTHH:MM:SS, YYYY-MM-DDTHH:MM:SS'"
-                )
+                raise RestException("Invalid overrideDateTime format. Use ISO format:\
+                          'YYYY-MM-DDTHH:MM:SS, YYYY-MM-DDTHH:MM:SS'")
         elif dateRange and dateRange in date_map:
             start_dt = end_dt - date_map[dateRange]
         else:

@@ -1,0 +1,121 @@
+# Sample Data Generation and MinIO Setup for DIVE
+
+This folder contains scripts to generate sample video and image sequence data, and to host it in a MinIO bucket suitable for importing into DIVE using the AssetStore Importing Tool.
+
+For the product documentation on bucket layout, annotations, and frame-metadata pairing, see [AssetStore Importing and Data Structure](../../../docs/Deployment-AssetStore-Import.md).
+
+Prerequisites
+
+- UV installed for running scripts
+- ffmpeg installed and available in your PATH
+- docker installed and running
+- the DIVE docker compose web application up and running
+
+1. Generate Sample Data
+
+The script generateSampleData.py creates a folder structure containing:
+
+- Videos: MP4 format, H.264 codec, random duration (5–30 seconds), 1280x720 resolution.
+- Image Sequences: Extracted frames from temporary videos, stored as sequential JPGs.
+- Annotations: Each video or image sequence is accompanied by a DIVE JSON (`.json`), VIAME CSV (`.csv`), or COCO JSON file describing moving or scaling geometric shapes (rectangle, star, circle, diamond) per frame. The format is chosen at random per dataset.
+    - Videos: the annotation file has the same basename as the video, with extension `.json` or `.csv`
+    - Image Sequences: any `.json` or `.csv` file in the same folder as the frames is imported as annotations
+    - **VIAME CSV videos**: annotation FPS is a random even subsample of the video FPS (30 → e.g. 1, 5, 10, 15, 30). The CSV `# metadata` `fps` field and frame count match that rate. Filenames include `_annfps{N}` (e.g. `reef_annfps10.mp4` / `reef_annfps10.csv`) so you can verify import respects CSV FPS.
+- Frame metadata:
+    - Videos: a sibling sidecar named `{videoStem}_metadata.{csv|json|txt}` or `{videoStem}-metadata.{csv|json|txt}`. Assetstore import moves it into the video folder as `frame_metadata.{ext}` and postprocess links it as the dataset metadata file.
+    - Image sequences: a reserved `frame_metadata.{csv|json|txt}` or `frame-metadata.{csv|json|txt}` file inside the sequence folder (already in place for postprocess attachment).
+
+Usage
+```bash
+uv run --script generateSampleData.py 
+
+```
+- Most fields are optional and the default values should work well enough
+- --output (-o): Base output directory (default: ./sample)  
+- --folders (-f): Number of top-level folders (default: 3)  
+- --max-depth (-d): Maximum subfolder depth (default: 2)  
+- --videos (-v): Maximum videos per folder (default: 2)  
+- --total (-t): Total number of datasets (videos or image sequences) to create (default: 10)
+- --annotation-formats: Comma-separated formats (`dive-json`, `viame-csv`, `coco-json`). Default mixes `coco-json,viame-csv`. Use `viame-csv` alone to focus on CSV FPS import testing.
+
+Example focused on CSV FPS testing:
+```bash
+uv run --script generateSampleData.py --annotation-formats viame-csv --total 8
+uv run --script minIOConfig.py
+```
+
+The script will randomly generate videos or image sequences with annotations inside the output directory.  The output directory defaults to ./sample
+
+2. Setup MinIO and Upload Sample Data
+
+The script minIOConfig.py launches a MinIO server in Docker, creates a bucket, and uploads the generated sample data. This bucket can then be mounted in DIVE for importing datasets.
+
+Usage
+
+```bash
+uv run --script minIOConfig.py
+```
+
+- --data-dir (-d): Path to the folder containing the generated sample data (default: ./sample)  
+- --api-port: Port for S3 API access (default: 9000)  
+- --console-port: Port for MinIO Console access (default: 9001)  
+
+What it does
+
+1. Starts a MinIO server in Docker (minio_server) with persistent storage.  
+2. Starts a persistent mc client container (minio_client) to configure the bucket.  
+3. Creates a bucket called dive-sample-data.  
+4. Uploads all generated sample data into the bucket.  
+5. Creates an access key and secret key for S3 API access.  
+6. Provides URLs to access the MinIO Console and API endpoints.  
+
+Example Output
+
+✅ MinIO setup complete!
+  Console: http://localhost:9001 (user: rootuser / rootpass123)
+  S3 API:  http://minio_server:9000
+  S3 API:  http://172.19.0.9:9000
+  Bucket: dive-sample-data
+
+3. Mount Bucket in DIVE
+
+1. Open DIVE.
+2. Go the girder interface http:localhost:8010/girder
+3. Create a new Collection or a folder for the destination of importing this S3 data
+4. Go to Add S3 Dataset.
+    - http://localhost:8010/girder#assetstores
+    - click on "Create new Amazon S3 assetStore"
+5. Enter the Credentials for Importing
+    - AssetStore Name: `Test MinIO Importing` Can be a custom name
+    - S3 bucket Name: `dive-sample-data`
+    - Path prefix (optional): leave it blank
+    - Access key ID: `OMKF2I2NOD7JGYZ9XHE3`
+    - Secree access key: `xbze+fJ6Wrfplq17JjSCZZJSz7AxEwRWm1MZXH2O`
+    - Service: `http://{S3 API IP Address}:9000` so it would be `http://172.19.0.9:9000` if that is in the console
+    - Region: leave it blank
+    - Options can be left unchecked
+6. After saving it should go back to the assetstore list
+7. Find the `Test MinIO Importing` assetstore or the custom name used
+8. Click on Import data
+    - Choose either the folder or Collection created in Step 3 and import the data
+    - Importing can take long depending on the number of datasets created
+9. After import is complete it will kick off processing tasks to check any videos and convert if needed
+    - Check the http://localhost:8010/girder#jobs page to see that importing jobs have completed
+10.  Finally you can go to the regular DIVE interface (http://localhost:8010) click on the globe in the breadcrumb bar at the top of your user directory and navigate to your collection
+    - You should be able to open DIVE Datasets and they should have random annotations in them.
+    - Video datasets with VIAME CSV should keep the annotation FPS from the CSV `# metadata` line (see `_annfps{N}` in the filename). Other videos use video FPS. Image sequences should default to 1FPS.
+    - Video and image-sequence datasets should show an attached frame-metadata file (`frame_metadata` / `frame-metadata` with `.csv`/`.json`/`.txt`). Videos get it via the paired `{stem}_metadata` / `{stem}-metadata` sidecar; image sequences already include the reserved name in-folder.
+
+
+Notes
+
+- The sample data is randomized for testing purposes: moving shapes, bouncing objects, and varying sizes.  
+- Image sequences are generated by extracting frames from temporary videos.  
+- MinIO is run in Docker for ease of setup and cleanup.
+- Once you close the minio_server docker container you won't have access to the video files or image-sequences anymore.  They still appear in girder but attempting to load them will provide blank media.
+
+Cleanup
+
+To remove MinIO containers:
+
+docker rm -f minio_server

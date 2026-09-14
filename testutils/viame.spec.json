@@ -367,7 +367,8 @@
                             222,
                             3333,
                             444
-                        ]
+                        ],
+                        "notes": ["note"]
                     },
                     {
                         "frame": 2,
@@ -376,7 +377,8 @@
                             457,
                             1039,
                             633
-                        ]
+                        ],
+                        "notes": ["note", "note2"]
                     }
                 ],
                 "begin": 0,
@@ -673,5 +675,378 @@
             }
         },
         {}
+    ],
+    [
+        [
+            "0,1.png,0,100,100,500,500,1.0,-1,fish,1.0,(poly) 100 100 200 100 200 200 100 200,(poly) 300 300 400 300 400 400 300 400",
+            ""
+        ],
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "fish",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            100,
+                            100,
+                            500,
+                            500
+                        ],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": ""
+                                    },
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [
+                                                [100.0, 100.0],
+                                                [200.0, 100.0],
+                                                [200.0, 200.0],
+                                                [100.0, 200.0]
+                                            ]
+                                        ]
+                                    }
+                                },
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": "1"
+                                    },
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [
+                                                [300.0, 300.0],
+                                                [400.0, 300.0],
+                                                [400.0, 400.0],
+                                                [300.0, 400.0]
+                                            ]
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "begin": 0,
+                "end": 0
+            }
+        },
+        {}
+    ],
+    [
+        [
+            "0,1.png,0,100,100,500,500,1.0,-1,object,1.0,(poly) 100 100 500 100 500 500 100 500,(hole) 200 200 400 200 400 400 200 400",
+            ""
+        ],
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "object",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            100,
+                            100,
+                            500,
+                            500
+                        ],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": ""
+                                    },
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [
+                                                [100.0, 100.0],
+                                                [500.0, 100.0],
+                                                [500.0, 500.0],
+                                                [100.0, 500.0]
+                                            ],
+                                            [
+                                                [200.0, 200.0],
+                                                [400.0, 200.0],
+                                                [400.0, 400.0],
+                                                [200.0, 400.0]
+                                            ]
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "begin": 0,
+                "end": 0
+            }
+        },
+        {}
+    ],
+    [
+        [
+            "0,1.png,0,0,0,1000,1000,1.0,-1,region,1.0,(poly) 0 0 1000 0 1000 1000 0 1000,(hole) 100 100 200 100 200 200 100 200,(hole) 300 300 400 300 400 400 300 400",
+            ""
+        ],
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "region",
+                        1.0
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            0,
+                            0,
+                            1000,
+                            1000
+                        ],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "properties": {
+                                        "key": ""
+                                    },
+                                    "geometry": {
+                                        "type": "Polygon",
+                                        "coordinates": [
+                                            [
+                                                [0.0, 0.0],
+                                                [1000.0, 0.0],
+                                                [1000.0, 1000.0],
+                                                [0.0, 1000.0]
+                                            ],
+                                            [
+                                                [100.0, 100.0],
+                                                [200.0, 100.0],
+                                                [200.0, 200.0],
+                                                [100.0, 200.0]
+                                            ],
+                                            [
+                                                [300.0, 300.0],
+                                                [400.0, 300.0],
+                                                [400.0, 400.0],
+                                                [300.0, 400.0]
+                                            ]
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                ],
+                "begin": 0,
+                "end": 0
+            }
+        },
+        {}
+    ],
+    [
+        [
+            "0,1.png,0,10,10,20,20,0.5,-1,fish,0.9,scallop,0.1",
+            "0,2.png,1,10,10,20,20,0.5,-1",
+            "0,3.png,2,10,10,20,20,0.5,-1",
+            "1,1.png,0,10,10,20,20,0.5,-1",
+            "1,2.png,1,10,10,20,20,0.5,-1",
+            "1,3.png,2,10,10,20,20,0.5,-1,skate,0.7",
+            "2,1.png,0,10,10,20,20,0.5,-1",
+            "2,2.png,1,10,10,20,20,0.25,-1",
+            "3,1.png,0,10,10,20,20,0.5,-1,fish,0.9",
+            "3,2.png,1,10,10,20,20,0.5,-1,(trk-atr) booleanAttr true"
+        ],
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "fish",
+                        0.9
+                    ],
+                    [
+                        "scallop",
+                        0.1
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 2
+            },
+            "1": {
+                "id": 1,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "skate",
+                        0.7
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 2
+            },
+            "2": {
+                "id": 2,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "unknown",
+                        0.25
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 1
+            },
+            "3": {
+                "id": 3,
+                "attributes": {
+                    "booleanAttr": true
+                },
+                "confidencePairs": [
+                    [
+                        "fish",
+                        0.9
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 1
+            }
+        },
+        {
+            "track_booleanAttr": {
+                "belongs": "track",
+                "datatype": "boolean",
+                "key": "track_booleanAttr",
+                "name": "booleanAttr"
+            }
+        }
     ]
 ]

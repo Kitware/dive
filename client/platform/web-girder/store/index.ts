@@ -1,34 +1,26 @@
-import Vue from 'vue';
-import Vuex from 'vuex';
-
 import router from '../router';
-import { RootState } from './types';
-import Location from './Location';
-import Dataset from './Dataset';
-import Brand from './Brand';
-import User from './User';
-import Jobs, { init as JobsInit } from './Jobs';
+import { reportHandledPromiseRejection } from '../reportHandledPromiseRejection';
+import { useLocation } from './useLocation';
+import { initJobs } from './useJobs';
 
-Vue.use(Vuex);
-
-const store = new Vuex.Store<RootState>({
-  modules: {
-    Brand,
-    Location,
-    Dataset,
-    Jobs,
-    User,
-  },
-});
-
-/* Keep location state up to date with current route */
 router.beforeEach((to, from, next) => {
   if (to.name === 'home') {
-    store.dispatch('Location/setLocationFromRoute', to);
+    useLocation().setLocationFromRoute(to).catch((reason) => {
+      reportHandledPromiseRejection('router: setLocationFromRoute (home)', reason);
+    });
   }
   next();
 });
 
-JobsInit(store);
+initJobs().catch((reason) => {
+  reportHandledPromiseRejection('initJobs', reason);
+});
 
-export default store;
+export { useBrand } from './useBrand';
+export { useConfig } from './useConfig';
+export type { ConfigState } from './useConfig';
+export { useDataset } from './useDataset';
+export { useJobs, initJobs } from './useJobs';
+export { useLocation, bindWebGirderRouter } from './useLocation';
+export { useUser } from './useUser';
+export * from './types';

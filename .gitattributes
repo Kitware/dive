@@ -4,3 +4,4 @@
 *.jpg -text
 *.png -text
 *.gif -text
+server/uv.lock linguist-generated=true -diff

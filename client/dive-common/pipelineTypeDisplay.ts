@@ -1,0 +1,18 @@
+/** User-facing label for a pipeline category key from getPipelineList(). */
+export default function pipelineTypeDisplay(pipeType: string): string {
+  switch (pipeType) {
+    case 'trained':
+      return 'trained';
+    case 'utility':
+    case 'generate':
+      return 'utilities';
+    case 'estimates':
+      return 'estimators';
+    case 'transcode':
+      return 'transcoders';
+    case 'stereo':
+      return 'Stereo';
+    default:
+      return `${pipeType}s`;
+  }
+}

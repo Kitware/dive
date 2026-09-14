@@ -1,4 +1,4 @@
-import Vue, { ref, watch, Ref } from 'vue';
+import Vue, { shallowRef, watch, Ref } from 'vue';
 
 import type Group from '../Group';
 import type Track from '../track';
@@ -11,16 +11,16 @@ export default function useVirtualScrollTo({
   filteredListRef,
   selectedIdRef,
   multiSelectList,
-  trackSelect,
+  selectNext,
 }: {
   itemHeight: Readonly<number>;
   getAnnotation: (id: AnnotationId) => Track | Group | undefined;
   filteredListRef: Ref<AnnotationWithContext<Track | Group>[]>;
   selectedIdRef: Ref<Readonly<AnnotationId | null>>;
   multiSelectList: Ref<Readonly<AnnotationId[]>>;
-  trackSelect: (id: AnnotationId | null, edit: boolean) => void;
+  selectNext?: (delta: number) => void;
 }) {
-  const virtualList = ref(null as null | Vue);
+  const virtualList = shallowRef(null as null | Vue);
 
   function scrollTo(id: AnnotationId | null): void {
     if (id !== null && virtualList.value !== null) {
@@ -29,11 +29,17 @@ export default function useVirtualScrollTo({
         const offset = filteredListRef.value.findIndex(
           (filtered) => filtered.annotation.id === id,
         );
+        const scrollEl = virtualList.value.$el;
         if (offset === -1) {
-          virtualList.value.$el.scrollTop = 0;
+          scrollEl.scrollTop = 0;
         } else {
           // try to show the selected track as the third track in the list
-          virtualList.value.$el.scrollTop = (offset * itemHeight) - (2 * itemHeight);
+          scrollEl.scrollTop = Math.max(0, (offset * itemHeight) - (2 * itemHeight));
+        }
+        // Programmatic scrollTop does not always emit a scroll event.
+        const { onScroll } = virtualList.value as Vue & { onScroll?: () => void };
+        if (typeof onScroll === 'function') {
+          onScroll();
         }
       }
     }
@@ -51,41 +57,19 @@ export default function useVirtualScrollTo({
   scrollToSelected();
 
   function scrollPreventDefault(
-    element: HTMLElement,
+    _element: HTMLElement,
     keyEvent: KeyboardEvent,
     direction: 'up' | 'down',
   ): void {
-    if (virtualList.value !== null && element === virtualList.value.$el) {
-      if (filteredListRef.value.length === 0) {
-        return;
-      }
-      const index = filteredListRef.value.findIndex((item) => item.annotation.id === selectedIdRef.value);
-      if (index === -1 && direction === 'up') {
-        const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
-        trackSelect(newId, false);
-      } else if (index === -1 && direction === 'down') {
-        const newId = filteredListRef.value[0].annotation.id;
-        trackSelect(newId, false);
-      } else if (direction === 'up') {
-        if (index > 0) {
-          trackSelect(filteredListRef.value[index - 1].annotation.id, false);
-        } else {
-          const newId = filteredListRef.value[filteredListRef.value.length - 1].annotation.id;
-          trackSelect(newId, false);
-        }
-      } else if (direction === 'down') {
-        if (index === filteredListRef.value.length - 1) {
-          trackSelect(filteredListRef.value[0].annotation.id, false);
-        } else {
-          const newId = filteredListRef.value[index + 1].annotation.id;
-          trackSelect(newId, false);
-        }
-      }
-      keyEvent.preventDefault();
+    if (selectNext && filteredListRef.value.length > 0) {
+      selectNext(direction === 'up' ? -1 : 1);
     }
+    keyEvent.preventDefault();
   }
 
-  watch(selectedIdRef, scrollTo);
+  watch(selectedIdRef, (id) => {
+    Vue.nextTick(() => scrollTo(id));
+  });
   watch(filteredListRef, scrollToSelected);
   watch(multiSelectList, scrollToSelected);
 

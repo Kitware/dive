@@ -1,16 +1,15 @@
 <script lang="ts">
 import {
-  defineComponent, ref, Ref, toRef,
+  defineComponent, ref, Ref,
 } from 'vue';
 import { putBrandData, getBrandData, BrandData } from 'platform/web-girder/api/configuration.service';
-import { useStore } from 'platform/web-girder/store/types';
+import { useBrand } from 'platform/web-girder/store/useBrand';
 
 export default defineComponent({
   name: 'AdminBranding',
   setup() {
     const brandData: Ref<BrandData> = ref({});
-    const store = useStore();
-    const rootBrandData = toRef(store.state.Brand, 'brandData');
+    const { brandData: rootBrandData } = useBrand();
     const getData = async () => {
       const resp = await getBrandData();
       brandData.value = { ...rootBrandData.value, ...resp.data };

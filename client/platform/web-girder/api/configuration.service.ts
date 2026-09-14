@@ -46,12 +46,35 @@ export type GroupBy = 'user' | 'month' | undefined;
 
 export type AddOns = [string, string, string, boolean][];
 
+export interface DiveConfiguration {
+  distributedWorker?: string;
+  pipelinesEnabled?: boolean;
+  trainingEnabled?: boolean;
+  jobsDisabled?: boolean;
+  jobsDisabledMessage?: string;
+}
+
+export interface JobsDisabledConfig {
+  disabled: boolean;
+  message: string;
+}
+
+export const DEFAULT_JOBS_DISABLED_MESSAGE = 'Updates will be happening soon, we are disabling jobs until after the updates';
+
+function getConfig() {
+  return girderRest.get<DiveConfiguration>('dive_configuration');
+}
+
 function getBrandData() {
   return girderRest.get<BrandData>('dive_configuration/brand_data');
 }
 
 function putBrandData(brandData: BrandData) {
   return girderRest.put('dive_configuration/brand_data', brandData);
+}
+
+function putJobsDisabled(config: JobsDisabledConfig) {
+  return girderRest.put<JobsDisabledConfig>('dive_configuration/jobs_disabled', config);
 }
 
 function getPipelineList() {
@@ -87,7 +110,9 @@ function getStats(dateRange?: DateRange, overrideDateTime?: string, groupBy?: Gr
 
 export {
   getBrandData,
+  getConfig,
   putBrandData,
+  putJobsDisabled,
   getPipelineList,
   getTrainingConfigurations,
   getAddons,

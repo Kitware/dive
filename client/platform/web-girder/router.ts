@@ -5,6 +5,8 @@ import girderRest from './plugins/girder';
 import Home from './views/Home.vue';
 import Jobs from './views/Jobs.vue';
 import TrainedModels from './views/TrainedModels.vue';
+import Scoring from './views/Scoring.vue';
+import Review from './views/Review.vue';
 import Login from './views/Login.vue';
 import RouterPage from './views/RouterPage.vue';
 import AdminPage from './views/AdminPage.vue';
@@ -96,6 +98,18 @@ const router = new Router({
           path: 'trained-models',
           name: 'trained-models',
           component: TrainedModels,
+          beforeEnter,
+        },
+        {
+          path: 'scoring',
+          name: 'scoring',
+          component: Scoring,
+          beforeEnter,
+        },
+        {
+          path: 'review',
+          name: 'review',
+          component: Review,
           beforeEnter,
         },
         {

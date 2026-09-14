@@ -1,14 +1,18 @@
+from contextlib import contextmanager, suppress
 from datetime import datetime, timedelta
+from functools import lru_cache
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import signal
 import subprocess
 from subprocess import Popen
 import tempfile
 import threading
-from typing import List, Tuple
+import time
+from typing import Iterator, List, Optional, Sequence, Tuple, Union
 from urllib import request
 from urllib.parse import urlencode, urljoin
 
@@ -16,11 +20,20 @@ from girder_client import GirderClient
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
-from dive_utils import constants, models
+from dive_utils import constants, models, multicam_camera_order
+from dive_utils.type_hierarchy import (
+    TypeHierarchyError,
+    apply_hierarchy_write,
+    resolve_type_hierarchy,
+)
 
 TIMEOUT_COUNT = 'timeout_count'
 TIMEOUT_LAST_CHECKED = 'last_checked'
 TIMEOUT_CHECK_INTERVAL = 30
+# How often the cancel monitor polls task/job status while a subprocess runs.
+CANCEL_MONITOR_INTERVAL = 30
+# Grace period after SIGTERM before escalating to SIGKILL of the process group.
+CANCEL_TERM_GRACE_SECONDS = 5
 
 
 def make_directory(path: Path):
@@ -30,6 +43,292 @@ def make_directory(path: Path):
 
 class CanceledError(RuntimeError):
     pass
+
+
+class MalformedExportedConfigurationError(RuntimeError):
+    pass
+
+
+def choose_annotation_fps(
+    requested_fps,
+    *,
+    native_fps: Optional[float] = None,
+    default_fps: float = 1.0,
+) -> float:
+    """Resolve annotation FPS from folder meta vs media native rate.
+
+    ``requested_fps == -1`` means auto: use ``native_fps`` for video, else
+    ``default_fps`` (image sequences). When a concrete folder fps is set (e.g.
+    CSV import), keep it, capped by ``native_fps`` when provided.
+    """
+    if requested_fps == -1:
+        annotation_fps = native_fps if native_fps is not None else default_fps
+    elif native_fps is not None:
+        annotation_fps = min(requested_fps, native_fps)
+    else:
+        annotation_fps = requested_fps
+    if annotation_fps < 1:
+        raise Exception('FPS lower than 1 is not supported')
+    return annotation_fps
+
+
+def fps_from_ffprobe_stream(video_stream: dict) -> Tuple[str, float]:
+    """
+    Return (fps_string, fps_float) from an ffprobe video stream dict.
+    Prefer avg_frame_rate; fall back to r_frame_rate when avg is missing or 0/0
+    (common for MPEG-TS and similar).
+    """
+
+    def _parse_rational(s: str) -> Optional[Tuple[int, int]]:
+        if not s or s == "0/0":
+            return None
+        parts = s.split("/")
+        if len(parts) != 2:
+            return None
+        try:
+            num, den = int(parts[0]), int(parts[1])
+        except ValueError:
+            return None
+        if den == 0:
+            return None
+        return num, den
+
+    avg = str(video_stream.get("avg_frame_rate") or "")
+    r_rate = str(video_stream.get("r_frame_rate") or "")
+
+    pair = _parse_rational(avg)
+    used = avg
+    if pair is None:
+        pair = _parse_rational(r_rate)
+        used = r_rate
+    if pair is None:
+        raise Exception(
+            "Could not determine frame rate from ffprobe "
+            "(avg_frame_rate and r_frame_rate missing or unusable)"
+        )
+    num, den = pair
+    return used, num / den
+
+
+# ffprobe "format_name" is a comma-separated list of demuxer names. Only these
+# are treated as browser-friendly when skip_transcoding is requested (H.264 in
+# MPEG-TS / MPEG-PS is still h264 but must be remuxed — see convert_video).
+# Matches dive-common websafeVideoTypes (mp4 / webm); other containers transcode.
+_WEBSAFE_SKIP_TRANSCODE_FORMAT_FRAGMENTS = frozenset({'mp4', 'webm'})
+
+
+def container_allows_skip_transcoding(format_name: str) -> bool:
+    """
+    True if ffprobe format_name indicates a container we can skip remuxing for
+    (mp4 or webm demuxer tags, same as websafe video MIME types in the client).
+    """
+    if not format_name or not str(format_name).strip():
+        return False
+    parts = {p.strip() for p in str(format_name).split(',') if p.strip()}
+    return bool(parts & _WEBSAFE_SKIP_TRANSCODE_FORMAT_FRAGMENTS)
+
+
+def format_byte_count(num_bytes: int) -> str:
+    """Human-readable byte count for job logs (binary units)."""
+    units = ('B', 'KiB', 'MiB', 'GiB', 'TiB')
+    value = float(num_bytes)
+    for unit in units:
+        if value < 1024.0 or unit == units[-1]:
+            if unit == 'B':
+                return f'{int(value)} {unit}'
+            return f'{value:.2f} {unit}'
+        value /= 1024.0
+    return f'{num_bytes} B'
+
+
+def parse_ffmpeg_http_bytes_read(stderr: str) -> Optional[int]:
+    """
+    Sum ``Statistics: N bytes read`` lines from ffmpeg/ffprobe HTTP stderr.
+
+    When probing a remote URL, libavformat logs one Statistics line per HTTP
+    context as it closes. Multiple lines are common with Range seeks.
+    """
+    if not stderr:
+        return None
+    total = 0
+    found = False
+    for match in re.finditer(r'Statistics:\s+(\d+)\s+bytes read', stderr):
+        total += int(match.group(1))
+        found = True
+    return total if found else None
+
+
+def girder_auth_headers(token: str) -> str:
+    """
+    Header block for ffprobe/ffmpeg HTTP requests (requires CRLF line endings).
+
+    Prefer passing this through :func:`ffprobe_header_args` so modern ffprobe
+    loads the value from a temp file via ``-/headers`` (token not in process argv).
+    Older ffprobe falls back to inline ``-headers``; job logs still redact that value.
+    """
+    return f'Girder-Token: {token}\r\n'
+
+
+@lru_cache(maxsize=1)
+def ffprobe_supports_option_from_file() -> bool:
+    """
+    True if this ffprobe accepts ``-/option file`` value loading (FFmpeg 5+).
+
+    Worker images ship BtbN FFmpeg 8.1, which supports it. Cached after one probe
+    so local/dev hosts with older distro ffprobe can still fall back to ``-headers``.
+    """
+    fd, path = tempfile.mkstemp(prefix='ffprobe-headers-probe-', suffix='.txt')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as header_file:
+            header_file.write('X-DIVE-Probe: 1\r\n')
+        completed = subprocess.run(
+            ['ffprobe', '-hide_banner', '-/headers', path, '-version'],
+            capture_output=True,
+            text=True,
+            timeout=15,
+            check=False,
+        )
+        combined = f'{completed.stdout or ""}{completed.stderr or ""}'
+        # FFmpeg 4.x reports: Failed to set value '...' for option '/headers': Option not found
+        return 'Option not found' not in combined and 'Unrecognized option' not in combined
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    finally:
+        with suppress(OSError):
+            os.unlink(path)
+
+
+@contextmanager
+def ffprobe_header_args(headers: str) -> Iterator[List[str]]:
+    """
+    Yield ffprobe argv fragments that supply *headers* without leaking the token
+    into process argv when ``-/headers`` is supported.
+
+    Modern ffprobe (worker images): ``['-/headers', temp_path]``.
+    Older ffprobe: ``['-headers', headers]`` (token visible in ``ps``; job logs redact).
+    """
+    if not ffprobe_supports_option_from_file():
+        yield ['-headers', headers]
+        return
+
+    fd, path = tempfile.mkstemp(prefix='ffprobe-headers-', suffix='.txt')
+    try:
+        with os.fdopen(fd, 'w', encoding='utf-8', newline='') as header_file:
+            header_file.write(headers)
+        yield ['-/headers', path]
+    finally:
+        with suppress(OSError):
+            os.unlink(path)
+
+
+def sanitize_subprocess_args_for_log(args: Union[str, Sequence[str]]) -> Union[str, List[str]]:
+    """
+    Copy *args* for job logs, redacting values that may contain secrets.
+
+    Inline ``-headers`` values (Girder tokens) are replaced with ``<redacted>``.
+    ``-/headers`` paths are left as-is (token lives in the file, not argv).
+    Shell command strings are returned unchanged; ``list(str)`` would split
+    them into characters and produce unreadable job logs.
+    """
+    if isinstance(args, str):
+        return args
+    sanitized: List[str] = []
+    skip_next = False
+    arg_list = list(args)
+    for i, arg in enumerate(arg_list):
+        if skip_next:
+            skip_next = False
+            continue
+        if arg == '-headers' and i + 1 < len(arg_list):
+            sanitized.extend(['-headers', '<redacted>'])
+            skip_next = True
+            continue
+        sanitized.append(arg)
+    return sanitized
+
+
+def file_download_url(gc: GirderClient, file_id: str) -> str:
+    """Absolute Girder file download URL (parses HTTP Range; see Girder file API)."""
+    return urljoin(gc.urlBase, f'file/{file_id}/download')
+
+
+def item_primary_file_download_url(gc: GirderClient, item_id: str) -> str:
+    """
+    Download URL for the first file on an item, suitable for remote ffprobe.
+
+    Uses ``/file/:id/download`` rather than ``/item/:id/download``. Girder's item
+    download endpoint only honors an ``offset`` query param and ignores the HTTP
+    ``Range`` header, so ffprobe cannot seek to a trailing MP4 ``moov`` atom and
+    fails with ``moov atom not found``. The file endpoint supports Range (and
+    assetstore adapters pass it through for filesystem/S3).
+    """
+    files = list(gc.listFile(item_id, limit=2))
+    if not files:
+        raise Exception(f'Item {item_id} has no files to probe')
+    return file_download_url(gc, str(files[0]['_id']))
+
+
+def can_skip_video_transcoding(
+    *,
+    skip_transcoding: bool,
+    codec_name: str,
+    sample_aspect_ratio,
+    format_name: str,
+    source_misaligned: bool,
+) -> bool:
+    """True when convert_video may tag the source as playable without remux/encode."""
+    return (
+        skip_transcoding
+        and codec_name == 'h264'
+        and sample_aspect_ratio == '1:1'
+        and container_allows_skip_transcoding(format_name)
+        and not source_misaligned
+    )
+
+
+def ffprobe_format_and_streams(
+    task: Task,
+    context: dict,
+    manager: JobManager,
+    input_source: str,
+    *,
+    headers: Optional[str] = None,
+) -> dict:
+    """
+    Run ffprobe -show_format -show_streams on a local path or HTTP URL.
+
+    When *headers* is set (e.g. Girder-Token), ffprobe can issue authenticated
+    Range requests against Girder/S3 instead of requiring a full local download.
+    Auth headers prefer ``-/headers`` (temp file) so the token is not in process
+    argv on modern ffprobe. HTTP probes use ``-v info`` so libavformat Statistics
+    lines are available and the job log reports how many bytes were read.
+    """
+
+    def _run(command: List[str]):
+        if headers:
+            stdout, stderr = stream_subprocess(
+                task, context, manager, {'args': command}, keep_stdout=True, keep_stderr=True
+            )
+            log_ffprobe_http_bytes(manager, stderr, label='ffprobe format/streams')
+            return stdout
+        return stream_subprocess(task, context, manager, {'args': command}, keep_stdout=True)
+
+    # Quiet for local files; info for HTTP so Statistics: N bytes read is emitted.
+    probe_tail = [
+        '-print_format',
+        'json',
+        '-v',
+        'info' if headers else 'quiet',
+        '-show_format',
+        '-show_streams',
+        input_source,
+    ]
+    if headers:
+        with ffprobe_header_args(headers) as header_args:
+            stdout = _run(['ffprobe', *header_args, *probe_tail])
+    else:
+        stdout = _run(['ffprobe', *probe_tail])
+    return json.loads(stdout)
 
 
 def authenticate_urllib(gc: GirderClient):
@@ -62,13 +361,55 @@ def check_canceled(task: Task, context: dict, force=True):
     return False
 
 
+def describe_exit(code: int) -> str:
+    """Describe a Popen return code, naming the signal for a kill."""
+    if code < 0:
+        try:
+            name = signal.Signals(-code).name
+        except ValueError:
+            name = 'unknown signal'
+        return f'was terminated by {name} ({-code})'
+    return f'exited with nonzero status code {code}'
+
+
+def _kill_process_group(
+    process: Popen, *, grace_seconds: float = CANCEL_TERM_GRACE_SECONDS
+) -> None:
+    """
+    Terminate a subprocess and its descendants.
+
+    Pipelines/training are launched with shell=True, so signaling only the shell
+    PID leaves KWIVER/training children alive and holding stdout open. Starting
+    the process in a new session lets us kill the whole group.
+    """
+    if process.poll() is not None:
+        return
+    try:
+        pgid = os.getpgid(process.pid)
+    except ProcessLookupError:
+        return
+
+    for sig in (signal.SIGTERM, signal.SIGKILL):
+        try:
+            os.killpg(pgid, sig)
+        except ProcessLookupError:
+            return
+        if sig == signal.SIGTERM:
+            deadline = time.monotonic() + grace_seconds
+            while time.monotonic() < deadline:
+                if process.poll() is not None:
+                    return
+                time.sleep(0.1)
+
+
 def stream_subprocess(
     task: Task,
     context: dict,
     manager: JobManager,
     popen_kwargs: dict,
     keep_stdout: bool = False,
-) -> str:
+    keep_stderr: bool = False,
+) -> Union[str, Tuple[str, str]]:
     """
     Stream live results from process to job manager
 
@@ -76,28 +417,44 @@ def stream_subprocess(
     :param manager: job manager
     :param popen_kwargs: a dict to pass as kwargs to popen.  Must include 'args'
     :param keep_stdout: will return stdout as a string if needed
+    :param keep_stderr: when True, return ``(stdout, stderr)`` instead of stdout
     """
     start_time = datetime.now()
     stdout = ""
     assert 'args' in popen_kwargs, "popen_kwargs must contain key 'args'"
 
     stop_event = threading.Event()
+    cancel_requested = threading.Event()
+    # Copy so callers are not mutated; default to a new session so cancel can
+    # kill the full process tree (shell + VIAME children).
+    launch_kwargs = dict(popen_kwargs)
+    launch_kwargs.setdefault('start_new_session', True)
 
     def monitor_cancellation():
         """Thread that periodically checks for cancellation."""
-        while not stop_event.wait(30):  # Check every 30 seconds
+        while True:
+            if stop_event.is_set():
+                return
             manager.refreshStatus()
             if check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING:
-                manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
-                process.send_signal(signal.SIGTERM)
-                process.send_signal(signal.SIGKILL)
-                process.send_signal(signal.SIGINT)
-                return  # Stop the thread
+                cancel_requested.set()
+                _kill_process_group(process)
+                # Unblock the main thread's readline if any child still holds
+                # the write end open after the kill attempt.
+                if process.stdout is not None:
+                    try:
+                        process.stdout.close()
+                    except (ValueError, OSError):
+                        pass
+                return
+            if stop_event.wait(CANCEL_MONITOR_INTERVAL):
+                return
 
     with tempfile.TemporaryFile() as stderr_file:
-        manager.write(f"Running command: {str(popen_kwargs['args'])}\n", forceFlush=True)
+        logged_args = sanitize_subprocess_args_for_log(launch_kwargs['args'])
+        manager.write(f"Running command: {logged_args}\n", forceFlush=True)
         process = Popen(
-            **popen_kwargs,
+            **launch_kwargs,
             stdout=subprocess.PIPE,
             stderr=stderr_file,
         )
@@ -109,42 +466,98 @@ def stream_subprocess(
         cancel_thread = threading.Thread(target=monitor_cancellation, daemon=True)
         cancel_thread.start()
 
-        # call readline until it returns empty bytes
-        for line in iter(process.stdout.readline, b''):
-            line_str = line.decode('utf-8')
-            manager.write(line_str)
-            if keep_stdout:
-                stdout += line_str
+        try:
+            # call readline until it returns empty bytes
+            for line in iter(process.stdout.readline, b''):
+                # Pipeline tools may emit Latin-1 / CP1252 (e.g. 0xa0 NBSP) in log lines.
+                line_str = line.decode('utf-8', errors='replace')
+                manager.write(line_str)
+                if keep_stdout:
+                    stdout += line_str
+        except (ValueError, OSError):
+            # stdout may be closed by the cancel monitor to unblock this loop.
+            pass
 
         stop_event.set()
-        cancel_thread.join()
+        cancel_thread.join(timeout=CANCEL_TERM_GRACE_SECONDS + 5)
+
+        if cancel_requested.is_set():
+            manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
 
         # flush logs
         manager._flush()
-        # Wait for exit up to 30 seconds after kill
-        code = process.wait(30)
 
-        if check_canceled(task, context):
+        try:
+            # Wait for exit up to 30 seconds after kill
+            code = process.wait(30)
+        except subprocess.TimeoutExpired:
+            _kill_process_group(process)
+            try:
+                code = process.wait(5)
+            except subprocess.TimeoutExpired:
+                if cancel_requested.is_set() or check_canceled(task, context):
+                    manager.write('\nCanceled during subprocess run.\n')
+                    manager.updateStatus(JobStatus.CANCELED)
+                    raise CanceledError('Job was canceled')
+                raise RuntimeError('Subprocess did not exit after kill')
+
+        if cancel_requested.is_set() or check_canceled(task, context):
             manager.write('\nCanceled during subprocess run.\n')
             manager.updateStatus(JobStatus.CANCELED)
             raise CanceledError('Job was canceled')
 
-        if code > 0:
-            stderr_file.seek(0)
-            stderr = stderr_file.read().decode()
-            raise RuntimeError(
-                'Pipeline exited with nonzero status code {}: {}'.format(process.returncode, stderr)
-            )
+        stderr_file.seek(0)
+        stderr = stderr_file.read().decode('utf-8', errors='replace')
+
+        # Popen reports death by signal as a negative return code, so anything other
+        # than 0 is a failure.  Treating only code > 0 as failure let a SIGKILLed
+        # pipeline (-9, typically the OOM killer) report success, and callers then
+        # ingested whatever partial or empty output file it left behind.
+        if code != 0:
+            raise RuntimeError(f'Pipeline {describe_exit(code)}: {stderr}')
         else:
             end_time = datetime.now()
             manager.write(f"\nProcess completed in {str((end_time - start_time))}\n")
 
+        if keep_stderr:
+            return stdout, stderr
         return stdout
+
+
+def log_ffprobe_http_bytes(manager: JobManager, stderr: str, *, label: str) -> Optional[int]:
+    """Write HTTP bytes-read stats from ffprobe stderr to the job log."""
+    nbytes = parse_ffmpeg_http_bytes_read(stderr)
+    if nbytes is None:
+        manager.write(f'{label}: HTTP bytes read unknown (no Statistics line in stderr)\n')
+    else:
+        manager.write(f'{label}: HTTP bytes read {nbytes} ({format_byte_count(nbytes)})\n')
+    return nbytes
 
 
 def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path: Path):
     """Download CSV file for dataset @ revision"""
     args = {'folderId': dataset_id, 'revision': revision, 'excludeBelowThreshold': True}
+    url = urljoin(urljoin(gc.urlBase, 'dive_annotation/export'), f'?{urlencode(args)}')
+    request.urlretrieve(url, filename=path)
+
+
+def download_annotation_csv(
+    gc: GirderClient,
+    dataset_id: str,
+    path: Path,
+    revision: Optional[int] = None,
+    set: Optional[str] = None,
+):
+    """Download the VIAME CSV for a dataset at a revision and annotation set.
+
+    Nothing is dropped below the dataset's confidence filters: scoring sweeps the
+    confidence range itself, so every computed detection has to be present.
+    """
+    args: dict = {'folderId': dataset_id, 'excludeBelowThreshold': False}
+    if revision is not None:
+        args['revisionId'] = revision
+    if set:
+        args['set'] = set
     url = urljoin(urljoin(gc.urlBase, 'dive_annotation/export'), f'?{urlencode(args)}')
     request.urlretrieve(url, filename=path)
 
@@ -160,6 +573,19 @@ def download_source_media(
             destination_path = dest / frameImage.filename
             url = urljoin(girder_client.urlBase, frameImage.url)
             request.urlretrieve(url, filename=destination_path)
+        return [str(dest / image.filename) for image in media.imageData], dataset.type
+    elif dataset.type == constants.LargeImageType:
+        # These carry a tile-metadata URL in imageData (the viewer renders them
+        # through girder's tile server), so ask for the item's own file instead
+        # -- same route the image-sequence urls above use. The bytes are the
+        # original image either way: large-image conversion only adds tile views
+        # beside the file, it does not replace it.
+        for image in media.imageData:
+            url = urljoin(
+                girder_client.urlBase,
+                f'dive_dataset/{datasetId}/media/{image.id}/download',
+            )
+            request.urlretrieve(url, filename=dest / image.filename)
         return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
         if media.video and media.sourceVideo and not force_transcoded:
@@ -182,15 +608,22 @@ def upload_zipped_flat_media_files(
     folderId: str,
     working_directory: Path,
     create_subfolder=False,
+    additive: bool = False,
 ):
-    """Takes a flat folder of media files and/or annotation and generates a dataset from it"""
+    """
+    Takes a flat folder of media files and/or annotation and generates a dataset from it.
+
+    validate_files is a gate on the whole zip here, not a per-file filter: the type and the
+    roles it reports are used, then every extracted file is uploaded, including anything the
+    response gives the ``ignored`` role. Only the interactive browser upload drops those.
+    """
     listOfFileNames = os.listdir(working_directory)
     validation = gc.sendRestRequest('POST', '/dive_dataset/validate_files', json=listOfFileNames)
     root_folderId = folderId
     default_fps = gc.getFolder(root_folderId).get(f"meta.{constants.FPSMarker}", -1)
     if validation.get('ok', False):
-        manager.write(f"Annotations: {validation['annotations']}\n")
-        manager.write(f"Media: {validation['media']}\n")
+        manager.write(f"Annotations: {validation['roles']['annotations']}\n")
+        manager.write(f"Media: {validation['roles']['media']}\n")
         dataset_type = validation['type']
         manager.write(f"Type: {dataset_type}\n")
         if create_subfolder != '':
@@ -212,14 +645,236 @@ def upload_zipped_flat_media_files(
             {constants.TypeMarker: dataset_type, constants.FPSMarker: default_fps},
         )
         # After uploading the default files we do a the postprocess for video conversion now
-        gc.sendRestRequest("POST", f"/dive_rpc/postprocess/{str(root_folderId)}")
+        gc.sendRestRequest(
+            "POST",
+            f"/dive_rpc/postprocess/{str(root_folderId)}",
+            parameters={'additive': additive},
+        )
     else:
         manager.write(f"Message: {validation['message']}\n")
-        manager.write(
-            "Please check the documentation for Zip files at:\
-                 https://kitware.github.io/dive/Web-Version/#zip-files\n"
-        )
+        manager.write("Please check the documentation for Zip files at:\
+                 https://kitware.github.io/dive/Web-Version/#zip-files\n")
         raise Exception("Could not Validate media Files")
+
+
+def create_sibling_dataset_from_media(
+    gc: GirderClient,
+    manager: JobManager,
+    input_folder_id: str,
+    media_directory: Path,
+    dataset_name: str,
+    dataset_type: str,
+    fps,
+    parent_folder_id: Optional[str] = None,
+) -> str:
+    """
+    Create a Girder folder and import media from media_directory.
+
+    Used by filter / transcode / disparity pipelines that produce a new dataset.
+    Defaults to a sibling of input_folder; pass parent_folder_id to choose another
+    destination (web destination picker).
+    Returns the new folder id.
+    """
+    media_directory = Path(media_directory)
+    name = dataset_name or media_directory.name
+    # Validate media before createFolder so a failed import never leaves an empty folder.
+    media_files = [
+        path
+        for path in sorted(media_directory.iterdir())
+        if path.is_file()
+        and not path.name.startswith('.')
+        and (constants.imageRegex.search(path.name) or constants.videoRegex.search(path.name))
+    ]
+    if not media_files:
+        raise Exception(f'No media files found in {media_directory} to create dataset "{name}"')
+
+    input_folder = gc.getFolder(input_folder_id)
+    parent_id = str(parent_folder_id) if parent_folder_id else str(input_folder['parentId'])
+    new_folder = gc.createFolder(parent_id, name, reuseExisting=False)
+    new_folder_id = str(new_folder['_id'])
+
+    manager.write(f'Creating dataset "{name}" from {len(media_files)} media file(s)\n')
+    manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+    for media_path in media_files:
+        gc.uploadFileToFolder(new_folder_id, str(media_path))
+
+    folder_fps = fps
+    if dataset_type == constants.ImageSequenceType and (folder_fps is None or folder_fps == -1):
+        folder_fps = 1
+    gc.addMetadataToFolder(
+        new_folder_id,
+        {constants.TypeMarker: dataset_type, constants.FPSMarker: folder_fps},
+    )
+    # Convert media for web playback (not skipJobs).
+    gc.sendRestRequest('POST', f'/dive_rpc/postprocess/{new_folder_id}')
+    return new_folder_id
+
+
+def _exported_dataset_config_path(working_directory: Path) -> Path:
+    list_of_names = os.listdir(working_directory)
+    potential_meta_files = list(filter(constants.metaRegex.match, list_of_names))
+    if len(potential_meta_files) == 0:
+        raise ValueError('Could not find meta.json or config.json in exported dataset folder')
+    # Prefer config.json, then legacy meta.json, then any other *.meta/config.json match.
+    by_lower = {name.lower(): name for name in potential_meta_files}
+    chosen = (
+        by_lower.get(constants.ConfigFileName)
+        or by_lower.get(constants.LegacyConfigFileName)
+        or potential_meta_files[0]
+    )
+    return working_directory / chosen
+
+
+def _load_exported_dataset_meta(working_directory: Path) -> dict:
+    with open(_exported_dataset_config_path(working_directory)) as f:
+        return json.load(f)
+
+
+def _archive_metadata_attachment(scope_directory: Path) -> Optional[Path]:
+    """
+    The metadata attachment an export wrote for one dataset scope.
+
+    Attachments are discovered by directory alone: the single file anywhere under
+    ``<scope>/metadata/`` (a camera scope is the camera's own directory). meta.json
+    carries no locator, so any metadata key an older export left there is ignored.
+    The walk is recursive so an archive rewritten by a tool that nested the file is
+    still imported, matching ``archiveMetadataAttachment`` in
+    client/platform/desktop/backend/native/common.ts -- same directory rule, same two
+    error strings. Only the scoping differs: this function is reached solely through
+    ``_load_exported_dataset_meta`` callers, so an exported scope is already proven,
+    while the desktop twin runs on any picked folder and proves it itself with
+    ``isExportedDatasetDirectory``. Keep both gates when changing either side, or an
+    ordinary media folder that happens to hold a ``metadata/`` subdirectory starts
+    failing import on one platform only.
+    """
+    metadata_dir = scope_directory / 'metadata'
+    if not metadata_dir.is_dir():
+        return None
+    attachments = sorted(path for path in metadata_dir.rglob('*') if path.is_file())
+    if not attachments:
+        return None
+    if len(attachments) > 1:
+        raise ValueError(
+            'More than one metadata file was found in the archive metadata directory. '
+            'Keep one and try again.'
+        )
+    attachment = attachments[0]
+    if not constants.metadataFileRegex.search(attachment.name):
+        raise ValueError('Archive metadata attachment must be a JSON, TXT, or CSV file')
+    return attachment
+
+
+def _upload_archive_metadata_attachment(
+    gc: GirderClient,
+    dest_folder_id: str,
+    attachment: Optional[Path],
+) -> Optional[str]:
+    if attachment is None:
+        return None
+    gc.upload(str(attachment), dest_folder_id)
+    items = list(gc.listItem(dest_folder_id, name=attachment.name))
+    if len(items) != 1:
+        raise ValueError(f'Could not resolve uploaded metadata attachment {attachment.name}')
+    item_id = str(items[0]['_id'])
+    gc.addMetadataToItem(item_id, {constants.FrameMetadataFileMarker: 'true'})
+    return item_id
+
+
+def _import_exported_dataset_directory(
+    gc: GirderClient,
+    manager: JobManager,
+    dest_folder_id: str,
+    working_directory: Path,
+    additive: bool = False,
+    defer_postprocess: bool = False,
+) -> None:
+    """Import one exported single-camera dataset directory into dest_folder_id."""
+    working_directory = Path(working_directory)
+    list_of_names = os.listdir(working_directory)
+    meta = _load_exported_dataset_meta(working_directory)
+    metadata_attachment = _archive_metadata_attachment(working_directory)
+    dataset_type = meta[constants.TypeMarker]
+    if dataset_type == constants.MultiType:
+        raise ValueError(
+            'Folder is a multicamera; use multicam zip import instead of single-dataset import'
+        )
+    if dataset_type == constants.ImageSequenceType:
+        image_data = meta['imageData']
+        for image in image_data:
+            if image['filename'] not in list_of_names:
+                raise ValueError(f'Could not find {image["filename"]} in exported dataset folder')
+    elif dataset_type == constants.VideoType:
+        video = meta['video']
+        if video['filename'] not in list_of_names:
+            raise ValueError(f'Could not find {video["filename"]} in exported dataset folder')
+    else:
+        raise ValueError(f'Unsupported exported dataset type: {dataset_type}')
+
+    aux_path = working_directory / constants.AuxiliaryFolderName
+    if aux_path.is_dir():
+        shutil.rmtree(aux_path)
+
+    manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+    config_path = _exported_dataset_config_path(working_directory)
+    for entry in working_directory.iterdir():
+        if entry.name == 'metadata':
+            continue
+        if defer_postprocess and entry == config_path:
+            continue
+        gc.upload(str(entry), dest_folder_id)
+    metadata_item_id = _upload_archive_metadata_attachment(gc, dest_folder_id, metadata_attachment)
+    all_files = list(gc.listItem(dest_folder_id))
+    root_meta = {
+        'type': dataset_type,
+        'fps': meta['fps'],
+        'version': meta['version'],
+    }
+    if metadata_item_id and metadata_attachment:
+        root_meta[constants.MetadataFileItemIdMarker] = metadata_item_id
+        root_meta[constants.MetadataFileOriginalNameMarker] = metadata_attachment.name
+    if dataset_type == constants.VideoType:
+        video = meta['video']
+        transcoded_video = list(gc.listItem(dest_folder_id, name=video['filename']))
+        if len(transcoded_video) == 1:
+            ffprobe = meta['ffprobe_info']
+            original_fps_string, original_fps = fps_from_ffprobe_stream(ffprobe)
+
+            transcoded_metadata = {
+                'codec': 'h264',
+                'originalFps': original_fps,
+                'originalFpsString': original_fps_string,
+                'source_video': False,
+                'transcoder': 'ffmpeg',
+            }
+            gc.addMetadataToItem(str(transcoded_video[0]['_id']), transcoded_metadata)
+            for item in all_files:
+                if (
+                    item['name'].endswith(tuple(constants.validVideoFormats))
+                    and item['name'] != video['filename']
+                ):
+                    source_metadata = {
+                        'codec': ffprobe['codec_name'],
+                        'originalFps': original_fps,
+                        'originalFpsString': original_fps_string,
+                        'source_video': False,
+                    }
+                    gc.addMetadataToItem(str(item['_id']), source_metadata)
+            root_meta['originalFps'] = original_fps
+            root_meta['originalFpsString'] = original_fps_string
+
+    root_meta[constants.DatasetMarker] = True
+    gc.addMetadataToFolder(dest_folder_id, root_meta)
+    if not defer_postprocess:
+        try:
+            gc.post(
+                f'dive_rpc/postprocess/{dest_folder_id}',
+                data={'skipJobs': True, 'additive': additive},
+            )
+        except Exception as error:
+            retained = list(gc.listItem(dest_folder_id, name=config_path.name))
+            if not retained:
+                raise MalformedExportedConfigurationError(str(error)) from error
+            raise
 
 
 def upload_exported_zipped_dataset(
@@ -228,92 +883,230 @@ def upload_exported_zipped_dataset(
     folderId: str,
     working_directory: Path,
     create_subfolder='',
+    additive: bool = False,
 ):
-    """Uploads a folder that is generated from the export of a zip file and sets metadata"""
-    listOfFileNames = os.listdir(working_directory)
-    potential_meta_files = list(filter(constants.metaRegex.match, listOfFileNames))
-    if len(potential_meta_files) == 0:
-        manager.write("Could not find meta.json or config.json file within the subdirectroy\n")
+    """Uploads a folder that is generated from the export of a zip file and sets metadata."""
+    working_directory = Path(working_directory)
+    if (working_directory / constants.MultiCamJsonFileName).is_file():
+        upload_exported_multicam_zipped_dataset(
+            gc, manager, folderId, working_directory, create_subfolder, additive
+        )
         return
-    print(listOfFileNames)
-    # load meta.json to get datatype and verify list of files
-    meta = {}
-    for meta_name in potential_meta_files:
-        with open(f"{working_directory}/{meta_name}") as f:
-            meta = json.load(f)
-    type = meta[constants.TypeMarker]
-    if type == constants.ImageSequenceType:
-        imageData = meta['imageData']
-        for image in imageData:
-            if image["filename"] not in listOfFileNames:
-                manager.write(f"Could not find {image['filename']} file within the list of files\n")
-                return
-    elif type == constants.VideoType:
-        video = meta["video"]
-        if video["filename"] not in listOfFileNames:
-            manager.write(f"Could not find {video['filename']} file within the list of files\n")
-            return
-    # remove the auxilary directory so we don't have to tag them all
-    if constants.AuxiliaryFolderName in listOfFileNames and os.path.isdir(
-        f'{working_directory}/{constants.AuxiliaryFolderName}'
-    ):
-        shutil.rmtree(f'{working_directory}/{constants.AuxiliaryFolderName}')
-    root_folderId = folderId
+    try:
+        dest_folder_id = folderId
+        if create_subfolder != '':
+            sub_folder = gc.createFolder(
+                folderId,
+                os.path.basename(create_subfolder),
+                reuseExisting=True,
+            )
+            dest_folder_id = str(sub_folder['_id'])
+        _import_exported_dataset_directory(gc, manager, dest_folder_id, working_directory, additive)
+    except ValueError as err:
+        manager.write(f'{err}\n')
+        raise Exception(str(err)) from err
+
+
+def is_path_under_multicam_export(path: str, multicam_export_roots: set) -> bool:
+    """True if path is a multicam export root or a file/folder inside one (e.g. camera subdirs)."""
+    if not path:
+        return False
+    for root in multicam_export_roots:
+        if path == root or path.startswith(f'{root}{os.sep}'):
+            return True
+    return False
+
+
+def _multicam_camera_order(multi_cam: dict) -> List[str]:
+    """Return camera names in display order (shared helper, matches the client)."""
+    return multicam_camera_order(multi_cam)
+
+
+def _upload_stereo_calibration_files(
+    gc: GirderClient,
+    manager: JobManager,
+    folder_id: str,
+    working_directory: Path,
+) -> Optional[str]:
+    calibration_item_id = None
+    for entry in os.listdir(working_directory):
+        entry_path = working_directory / entry
+        if not entry_path.is_file():
+            continue
+        if not constants.stereoCalibrationRegex.search(entry):
+            continue
+        manager.write(f'Uploading calibration file {entry}\n')
+        gc.upload(str(entry_path), folder_id)
+        items = list(gc.listItem(folder_id, name=entry))
+        if items:
+            calibration_item_id = str(items[0]['_id'])
+    return calibration_item_id
+
+
+def _post_exported_configuration(
+    gc: GirderClient,
+    folder_id: str,
+    configuration: dict,
+    additive: bool,
+) -> None:
+    with tempfile.TemporaryDirectory() as temp_dir:
+        configuration_path = Path(temp_dir) / constants.ConfigFileName
+        configuration_path.write_text(json.dumps(configuration))
+        gc.uploadFileToFolder(folder_id, str(configuration_path))
+        gc.post(
+            f'dive_rpc/postprocess/{folder_id}',
+            data={'skipJobs': True, 'additive': additive},
+        )
+
+
+def upload_exported_multicam_zipped_dataset(
+    gc: GirderClient,
+    manager: JobManager,
+    folderId: str,
+    working_directory: Path,
+    create_subfolder='',
+    additive: bool = False,
+):
+    """
+    Import a multicam dataset produced by dive_dataset export (multiCam.json + per-camera folders).
+    """
+    working_directory = Path(working_directory)
+    multi_cam_path = working_directory / constants.MultiCamJsonFileName
+    if not multi_cam_path.is_file():
+        raise Exception(
+            f'Exported multicam zip is missing {constants.MultiCamJsonFileName} at the dataset root'
+        )
+
+    with open(multi_cam_path) as f:
+        multi_cam = json.load(f)
+    parent_meta = _load_exported_dataset_meta(working_directory)
+    # Discovered before anything is created so a bad shared attachment fails the import
+    # without leaving half a dataset behind. Camera attachments live in each camera's own
+    # metadata/ directory and are restored by the per-camera import below.
+    parent_metadata_attachment = _archive_metadata_attachment(working_directory)
+
+    default_display = multi_cam.get('defaultDisplay')
+    cameras_meta = multi_cam.get('cameras') or {}
+    camera_order = _multicam_camera_order(multi_cam)
+    if not camera_order:
+        raise Exception('multiCam.json does not list any cameras')
+    if default_display not in cameras_meta:
+        raise Exception(f'multiCam.json defaultDisplay "{default_display}" is not a camera name')
+
+    sub_type = parent_meta.get(constants.SubTypeMarker)
+    if sub_type not in ('stereo', 'multicam'):
+        raise Exception(
+            'Exported multicam dataset is missing subType "stereo" or "multicam" in config.json'
+        )
+
+    parent_folder_id = folderId
     if create_subfolder != '':
         sub_folder = gc.createFolder(
             folderId,
-            create_subfolder,
+            os.path.basename(create_subfolder),
             reuseExisting=True,
         )
-        root_folderId = str(sub_folder['_id'])
-        manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        # create a source folder to place the zipFile inside of
-    gc.upload(f'{working_directory}/*', root_folderId)
-    # Now we set all the metadata for the folders and items
-    all_files = list(gc.listItem(root_folderId))
-    root_meta = {
-        "type": type,
-        "attributes": meta.get("attributes", None),
-        "customTypeStyling": meta.get("customTypeStyling", None),
-        "customGroupStyling": meta.get("customGroupStyling", None),
-        "confidenceFilters": meta.get("confidenceFilters", None),
-        "fps": meta["fps"],
-        "version": meta["version"],
+        parent_folder_id = str(sub_folder['_id'])
+
+    parent_folder = gc.getFolder(parent_folder_id)
+    dataset_name = parent_folder['name']
+    fps = parent_meta[constants.FPSMarker]
+
+    imported_cameras: dict = {}
+    media_type = None
+    camera_directories = {}
+    for camera_name in camera_order:
+        camera_dir = working_directory / camera_name
+        if not camera_dir.is_dir():
+            raise Exception(f'Exported multicam zip is missing camera folder "{camera_name}"')
+        child_meta = _load_exported_dataset_meta(camera_dir)
+        cam_type = child_meta[constants.TypeMarker]
+        if media_type is None:
+            media_type = cam_type
+        elif cam_type != media_type:
+            raise Exception(f'Camera "{camera_name}" has type {cam_type}, expected {media_type}')
+        camera_directories[camera_name] = camera_dir
+        if 'typeHierarchy' in child_meta:
+            raise MalformedExportedConfigurationError(
+                f'Camera "{camera_name}" config.json contains typeHierarchy; '
+                'multicamera hierarchy must be stored only in the root config.json'
+            )
+
+    existing_hierarchy = (parent_folder.get('meta') or {}).get('typeHierarchy')
+    try:
+        hierarchy_write = resolve_type_hierarchy(
+            existing_hierarchy,
+            'typeHierarchy' in parent_meta,
+            parent_meta.get('typeHierarchy'),
+            'additive' if additive else 'overwrite',
+        )
+    except TypeHierarchyError as error:
+        message = f'Type hierarchy is invalid: {error.reason}. No configuration was changed.'
+        if error.kind == 'malformed':
+            raise MalformedExportedConfigurationError(message) from error
+        raise RuntimeError(message) from error
+
+    for camera_name in camera_order:
+        camera_dir = camera_directories[camera_name]
+        manager.write(f'Importing camera "{camera_name}"…\n')
+        child_folder = gc.createFolder(parent_folder_id, camera_name, reuseExisting=True)
+        child_id = str(child_folder['_id'])
+        _import_exported_dataset_directory(
+            gc,
+            manager,
+            child_id,
+            camera_dir,
+            additive,
+            defer_postprocess=True,
+        )
+        imported_cameras[camera_name] = {'folderId': child_id}
+
+    # Camera configurations post before multicam registration: with no resolvable
+    # multicam parent yet, shared-mutable keys stay camera-local instead of being
+    # mirrored onto the parent. The parent post below is the sole parent-config writer.
+    for camera_name in camera_order:
+        camera_configuration = _load_exported_dataset_meta(camera_directories[camera_name])
+        camera_configuration.pop('typeHierarchy', None)
+        _post_exported_configuration(
+            gc,
+            imported_cameras[camera_name]['folderId'],
+            camera_configuration,
+            additive,
+        )
+
+    calibration_file_id = None
+    if sub_type == 'stereo':
+        calibration_file_id = _upload_stereo_calibration_files(
+            gc, manager, parent_folder_id, working_directory
+        )
+    metadata_file_id = _upload_archive_metadata_attachment(
+        gc, parent_folder_id, parent_metadata_attachment
+    )
+
+    create_body = {
+        'name': dataset_name,
+        'fps': fps,
+        'type': media_type,
+        'subType': sub_type,
+        'defaultDisplay': default_display,
+        'cameras': imported_cameras,
+        'cameraOrder': camera_order,
     }
-    if type == constants.VideoType:
-        # set transcoded and non-transcoded versions
-        transcoded_video = list(gc.listItem(root_folderId, name=video["filename"]))
-        if len(transcoded_video) == 1:
-            ffprobe = meta["ffprobe_info"]
-            avgFpsString = ffprobe["avg_frame_rate"]
-            dividend, divisor = [int(v) for v in avgFpsString.split('/')]
-            originalFps = dividend / divisor
+    if calibration_file_id:
+        create_body['calibrationFileId'] = calibration_file_id
+    if metadata_file_id:
+        create_body['metadataFileId'] = metadata_file_id
 
-            transcoded_metadata = {
-                "codec": "h264",
-                "originalFps": originalFps,
-                "originalFpsString": avgFpsString,
-                "source_video": False,
-                "transcoder": "ffmpeg",
-            }
-            gc.addMetadataToItem(str(transcoded_video[0]['_id']), transcoded_metadata)
-            # other video is tagged as the source video
-            for item in all_files:
-                if (
-                    item["name"].endswith(tuple(constants.validVideoFormats))
-                    and item["name"] != video["filename"]
-                ):
-                    source_metadata = {
-                        "codec": ffprobe["codec_name"],
-                        "originalFps": originalFps,
-                        "originalFpsString": avgFpsString,
-                        "source_video": False,
-                    }
-                    gc.addMetadataToItem(str(item['_id']), source_metadata)
-            root_meta["originalFps"] = originalFps
-            root_meta["originalFpsString"] = avgFpsString
+    manager.write('Finalizing multicamera dataset…\n')
+    gc.sendRestRequest(
+        'POST',
+        '/dive_dataset/multicam',
+        parameters={'parentFolderId': parent_folder_id},
+        json=create_body,
+    )
 
-    # Need to tag folder Level data (annotate, and others)
-    root_meta[constants.DatasetMarker] = True
-    gc.addMetadataToFolder(root_folderId, root_meta)
-    gc.post(f'dive_rpc/postprocess/{root_folderId}', data={"skipJobs": True})
+    parent_configuration = apply_hierarchy_write(
+        {key: value for key, value in parent_meta.items() if key != 'typeHierarchy'},
+        hierarchy_write,
+    )
+    _post_exported_configuration(gc, parent_folder_id, parent_configuration, additive)

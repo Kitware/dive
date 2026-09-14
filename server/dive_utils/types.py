@@ -1,12 +1,23 @@
 from typing import Any, Dict, List, Optional, Tuple
 
-from typing_extensions import TypedDict
+from pydantic import BaseModel
+from typing_extensions import NotRequired, TypedDict
 
 __all__ = [
+    "Attributes",
+    "DatasetInfo",
+    "DiveParam",
     "GirderModel",
     "PipelineDescription",
+    "PipelineParams",
+    "PipelineRuntimeParams",
     "PipelineJob",
     "PipelineCategory",
+    "PipeMetadata",
+    "ScoringJob",
+    "ScoringPairJob",
+    "ScoringSourceJob",
+    "Warnings",
 ]
 
 
@@ -38,29 +49,152 @@ class GirderUserModel(GirderModel):
     login: str
 
 
+class TrainingModelDescription(BaseModel):
+    name: str  # fileanme
+    type: str  # extension for the type
+
+    # might not be in the root so we need a full path
+    path: Optional[str]
+    # If the model is stored in girder, this is
+    # the ID of the folder containing the model
+    folderId: Optional[str]
+
+
+class TrainingModelTuneArgs(TrainingModelDescription):
+    """Update schema for mutable metadata fields"""
+
+    class Config:
+        extra = 'forbid'
+
+
+class DiveParam(TypedDict, total=False):
+    label: str
+    type: str
+    type_props: list[str]
+    key: str
+    default: str
+    # True if the pipeline can't run until the user supplies a value
+    required: bool
+
+
+class PipeMetadata(TypedDict):
+    description: Optional[str]
+    inputType: Optional[str]
+    outputType: Optional[str]
+    diveParams: Optional[list[DiveParam]]
+    requiresCalibration: Optional[bool]
+    # KWIVER config key (e.g. "stabilizer:flight_log") that the dataset's optional
+    # metadata file is bound to at run time, parsed from `# Metadata File: <key>`.
+    metadataFileKey: NotRequired[Optional[str]]
+    # KWIVER config key templates bound to the run's per-camera input image lists
+    # (one single-file list per camera). A `{cam}` placeholder is expanded per
+    # camera (1-based); a key without it gets the first camera's list.
+    imageListKeys: NotRequired[Optional[list[str]]]
+    # KWIVER config keys the dataset's stereo calibration file is bound to, parsed
+    # from `# Calibration Keys: <k> [k...]`. Pipes whose calibration consumer is
+    # not the conventional `measurer`/`calibration_reader` declare their own keys
+    # here; when unset the two conventional keys are used.
+    calibrationKeys: NotRequired[Optional[list[str]]]
+    # Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]),
+    # parsed from `# Camera Order: <cam> [cam...]`. Labels the slots of the client's
+    # pre-run camera-assignment step; pipes without it show bare input1..N slots.
+    cameraOrder: NotRequired[Optional[list[str]]]
+    # Input positions the pipe warps onto camera 1 (`process warpN :: warp_detections |
+    # warp_image`), e.g. [2, 3]; each such camera needs a fitted registration onto
+    # camera 1, checked before the run.
+    registrationWarps: NotRequired[Optional[list[int]]]
+
+
 class PipelineDescription(TypedDict):
     """Describes a pipeline for running on datasets."""
 
     name: str  # friendly name
     type: str  # indicates whether this is a dynamic pipe.
     pipe: str  # unmodified pipe file name
+    metadata: Optional[PipeMetadata]  # some metadata about the pipeline
 
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
     folderId: Optional[str]
 
 
+class PipelineRuntimeParams(TypedDict, total=False):
+    frameRange: Optional[Tuple[int, int]]
+    # Multicam registration subset: camera name -> ordered image names for
+    # exactly the frames the job should process (row i of one camera's list
+    # pairs with row i of every other's).
+    imagePairs: Optional[Dict[str, List[str]]]
+
+
+class PipelineParams(TypedDict, total=False):
+    singleCameraMode: str
+    kwiverParams: Dict[str, str]
+    runtimeParams: PipelineRuntimeParams
+    # 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
+    # confirmed by the user before the run. When omitted (API callers) the
+    # dataset's stored camera order is used.
+    cameraOrder: List[str]
+    # Name for the newly created dataset (filter / transcode / disparity).
+    outputDatasetName: str
+    # Optional Girder folder that should own the new dataset (else sibling of input).
+    outputParentFolderId: str
+
+
+class MulticamCameraJob(TypedDict):
+    """Per-camera folder info for a multicam pipeline job."""
+
+    name: str
+    folder_id: str
+    media_type: str
+    input_revision: NotRequired[Optional[int]]
+
+
 class PipelineJob(TypedDict):
     """Describes the parameters for running a pipeline on a dataset."""
 
     pipeline: PipelineDescription
+    single_camera: NotRequired[dict]
     input_folder: str  # dataset folder id
     input_type: str  # video, image-sequence, etc.
     input_revision: Optional[int]  # A revision ID is included if the pipeline needs input
     output_folder: str  # Where to upload results
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
-    force_transcoded: Optional[bool]  # Force using the transcoded version
+    force_transcoded: Optional[bool]
+    runtime_params: Optional[PipelineRuntimeParams]
+    kwiver_params: Optional[Dict[str, str]]
+    # Optional per-dataset metadata file handed to opt-in pipelines. The item id
+    # points at a Girder item in the dataset folder; the key is the KWIVER config
+    # target declared by the pipe's `# Metadata File:` header.
+    metadata_file_item_id: NotRequired[Optional[str]]
+    metadata_file_key: NotRequired[Optional[str]]
+    # Set when a single-camera pipeline runs on one camera folder of a multicam parent.
+    camera_name: NotRequired[Optional[str]]
+    # Name for a sibling dataset created from filter/transcode/disparity media output.
+    output_dataset_name: NotRequired[Optional[str]]
+    # Optional parent folder for the new dataset (defaults to input folder's parent).
+    output_parent_folder_id: NotRequired[Optional[str]]
+
+
+class MulticamRegistrationJob(TypedDict):
+    """Camera registration handed to a 2-cam/3-cam pipeline's warp processes.
+
+    Pairs use the dive-camera-registration file layout: left/right camera
+    names, correspondence points, and leftToRight/rightToLeft 3x3 matrices.
+    """
+
+    reference: str
+    pairs: List[dict]
+
+
+class MulticamPipelineJob(PipelineJob, total=False):
+    """Pipeline job fields set when running stereo/multicam pipelines on a multi dataset."""
+
+    multicam_cameras: List[MulticamCameraJob]
+    multicam_default_display: str
+    calibration_item_id: Optional[str]
+    multicam_requires_input: bool
+    multicam_registration: Optional[MulticamRegistrationJob]
 
 
 class TrainingJob(TypedDict):
@@ -72,9 +206,38 @@ class TrainingJob(TypedDict):
     config: str  # Name of the training configuration file to use.
     annotated_frames_only: bool  # Train on only the annotated frames
     label_txt: Optional[str]  # Contents of a labels.txt to include in training
+    model: Optional[TrainingModelTuneArgs]  # Model for fine-tune training
     user_id: str  # user id who started the job
     user_login: str  # login of user who started the kjob
     force_transcoded: Optional[bool]  # Force using the transcoded version
+
+
+class ScoringSourceJob(TypedDict):
+    """One side of a scoring comparison (mirrors the client's ScoringSource)."""
+
+    datasetId: str
+    set: NotRequired[Optional[str]]
+    revision: NotRequired[Optional[int]]
+    file: NotRequired[Optional[str]]
+    label: NotRequired[Optional[str]]
+
+
+class ScoringPairJob(TypedDict):
+    """One sequence to score: computed annotations against the truth for the same footage."""
+
+    computed: ScoringSourceJob
+    truth: ScoringSourceJob
+
+
+class ScoringJob(TypedDict):
+    """Describes the parameters for scoring a list of sequence pairs together."""
+
+    pairs: List[ScoringPairJob]
+    params: Dict[str, Any]  # ScoringParams as validated by crud_rpc.ScoringParamsModel
+    title: str
+    results_folder_id: str  # The first pair's computed dataset; receives the result item
+    user_id: str
+    user_login: str
 
 
 class ExportTrainedPipelineJob(TypedDict):
@@ -100,9 +263,60 @@ class PipelineCategory(TypedDict):
 class AvailableJobSchema(TypedDict):
     pipelines: Dict[str, PipelineCategory]
     training: TrainingConfigurationSummary
+    models: Dict[str, TrainingModelDescription]
 
 
 class DIVEAnnotationSchema(TypedDict):
     tracks: Dict[str, dict]
     groups: Dict[str, dict]
     version: int
+    # Annotation frame rate when present; omitted when absent or unusable.
+    fps: NotRequired[float]
+
+
+class CameraCalibration(TypedDict, total=False):
+    cx: float
+    cy: float
+    fx: float
+    fy: float
+    k1: float
+    k2: float
+    k3: float
+    p1: float
+    p2: float
+    rmsError: float
+
+
+class DatasetStereoCalibration(TypedDict):
+    R: List[float]
+    T: List[float]
+    calibrations: Dict[str, CameraCalibration]
+    gridHeight: NotRequired[int]
+    gridWidth: NotRequired[int]
+    imageHeight: NotRequired[int]
+    imageWidth: NotRequired[int]
+    squareSize: NotRequired[float]
+    rmsError: NotRequired[float]
+
+
+class DatasetCalibrationResult(TypedDict):
+    # `calibration` is absent when the stored file isn't a parseable JSON
+    # camera-rig (e.g. an .npz); the file name is still reported via `jsonPath`.
+    calibration: NotRequired[DatasetStereoCalibration]
+    itemId: NotRequired[str]
+    jsonItemId: NotRequired[str]
+    originalName: NotRequired[str]
+    jsonPath: NotRequired[str]
+    path: NotRequired[str]
+    # Set when a background conversion job failed for the linked source file.
+    conversionError: NotRequired[str]
+
+
+# Attribute metadata discovered while deserializing annotations, keyed by attribute name.
+Attributes = Dict[str, Dict[str, Any]]
+
+# Human-readable warnings surfaced during an import.
+Warnings = List[str]
+
+# Per-dataset station metadata (the COCO ``info.dive_dataset_info`` block).
+DatasetInfo = Dict[str, Any]

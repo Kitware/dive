@@ -1,15 +1,23 @@
-<script>
+<script lang="ts">
 import {
   defineComponent,
   ref,
+  computed,
 } from 'vue';
+import { isAxiosError } from 'axios';
 import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
-import { mapGetters, mapState } from 'vuex';
-
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import type { SubType } from 'dive-common/apispec';
+import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
+import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
+import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { isGirderModel } from '../store/types';
+import { useConfig } from '../store/useConfig';
+import { useJobs } from '../store/useJobs';
+import { useLocation } from '../store/useLocation';
 import RunTrainingMenu from './RunTrainingMenu.vue';
 
 import { deleteResources } from '../api';
@@ -18,7 +26,6 @@ import Upload from './Upload.vue';
 import DataDetails from './DataDetails.vue';
 import Clone from './Clone.vue';
 import ShareTab from './ShareTab.vue';
-import { useStore } from '../store/types';
 import eventBus from '../eventBus';
 
 const buttonOptions = {
@@ -26,7 +33,7 @@ const buttonOptions = {
   left: true,
   depressed: true,
   color: 'primary',
-  class: ['my-2', 'd-flex', 'justify-start'],
+  class: ['d-flex', 'justify-start'],
 };
 
 const menuOptions = {
@@ -53,60 +60,129 @@ export default defineComponent({
   setup() {
     const loading = ref(false);
     const { prompt } = usePrompt();
-    const store = useStore();
-    const { getters } = store;
+    const {
+      location, selected, locationIsViameFolder, setSelected,
+    } = useLocation();
+    const {
+      pipelinesEnabled,
+      trainingEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
+    } = useConfig();
+    const jobs = useJobs();
 
     const clearSelected = () => {
-      store.commit('Location/setSelected', []);
+      setSelected([]);
     };
+
+    const runningPipelines = computed(() => {
+      const inputs = locationIsViameFolder.value && location.value
+        ? [(location.value as { _id: string })._id]
+        : selected.value.filter(
+          ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+        ).map(({ _id }) => _id);
+      return inputs.filter((item) => jobs.getDatasetRunningState(item));
+    });
+
+    const selectedViameFolders = computed(() => selected.value.filter(
+      ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+    ));
+
+    const selectedViameFolderIds = computed(() => selectedViameFolders.value.map(({ _id }) => _id));
+
+    const selectedViameFolderNames = computed(() => selectedViameFolders.value.map(({ name }) => name));
+
+    const pipelineTargetFolders = computed(() => (
+      locationIsViameFolder.value && location.value && isGirderModel(location.value)
+        ? [location.value]
+        : selectedViameFolders.value
+    ));
+
+    const subTypeList = computed((): SubType[] => pipelineTargetFolders.value.map(
+      (item) => item.meta?.subType ?? null,
+    ));
+
+    const cameraNumbers = computed(() => pipelineTargetFolders.value.map(
+      (item) => getMultiCamCameraCount(item.meta),
+    ));
+
+    const datasetTypeList = computed(() => pipelineTargetFolders.value.map(
+      (item) => item.meta?.type ?? null,
+    ));
+
+    const selectedFileIds = computed(() => selected.value.filter(
+      (element) => element._modelType === 'item',
+    ).map(({ _id }) => _id));
+
+    const includesLargeImage = computed(() => (selected.value.filter(
+      ({ meta }) => meta && meta.type === 'large-image',
+    )).length > 0);
+
+    const includesMultiCamDataset = computed(() => isMultiCamTrainingTarget(
+      pipelineTargetFolders.value,
+      locationIsViameFolder.value && isGirderModel(location.value)
+        ? location.value
+        : null,
+    ));
+
+    const locationInputs = computed(() => (
+      locationIsViameFolder.value && location.value
+        ? [(location.value as { _id: string })._id]
+        : selectedViameFolderIds.value
+    ));
+
+    const locationInputNames = computed(() => (
+      locationIsViameFolder.value && location.value
+        ? [(location.value as { name: string }).name]
+        : selectedViameFolderNames.value
+    ));
+
+    const selectedDescription = computed(() => (location.value as { description?: string } | null)?.description);
 
     return {
       // data
       buttonOptions,
       menuOptions,
       loading,
+      location,
+      selected,
+      locationIsViameFolder,
+      pipelinesEnabled,
+      trainingEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
+      runningPipelines,
+      selectedViameFolderIds,
+      selectedViameFolderNames,
+      subTypeList,
+      cameraNumbers,
+      datasetTypeList,
+      selectedFileIds,
+      includesLargeImage,
+      includesMultiCamDataset,
+      locationInputs,
+      locationInputNames,
+      selectedDescription,
       // methods
       prompt,
       clearSelected,
       eventBus,
-      getters,
+      webExcludedPipelineTerms,
     };
   },
-  computed: {
-    ...mapState('Location', ['selected', 'location']),
-    ...mapGetters('Location', ['locationIsViameFolder']),
-    selectedViameFolderIds() {
-      return this.selected.filter(
-        ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-      ).map(({ _id }) => _id);
-    },
-    selectedFileIds() {
-      return this.selected.filter(
-        (element) => element._modelType === 'item',
-      ).map(({ _id }) => _id);
-    },
-    includesLargeImage() {
-      return (this.selected.filter(
-        ({ meta }) => meta && meta.type === 'large-image',
-      )).length > 0;
-    },
-    locationInputs() {
-      return this.locationIsViameFolder ? [this.location._id] : this.selectedViameFolderIds;
-    },
-    selectedDescription() {
-      return this.location?.description;
-    },
-    runningPipelines() {
-      const results = [];
-      this.locationInputs.forEach((item) => {
-        if (this.getters['Jobs/datasetRunningState'](item)) {
-          results.push(item);
-        }
-      });
-      return results;
-    },
-  },
   methods: {
+    scoreSelection() {
+      this.$router.push({
+        name: 'scoring',
+        query: { datasetIds: this.selectedViameFolderIds.join(',') },
+      });
+    },
+    reviewSelection() {
+      this.$router.push({
+        name: 'review',
+        query: { datasetIds: this.selectedViameFolderIds.join(',') },
+      });
+    },
     async deleteSelection() {
       const result = await this.prompt({
         title: 'Confirm',
@@ -123,7 +199,7 @@ export default defineComponent({
         this.clearSelected();
       } catch (err) {
         let text = 'Unable to delete resource(s)';
-        if (err.response && err.response.status === 403) {
+        if (isAxiosError(err) && err.response?.status === 403) {
           text = 'You do not have permission to delete selected resource(s).';
         }
         this.prompt({
@@ -137,7 +213,6 @@ export default defineComponent({
     },
   },
 });
-
 </script>
 
 <template>
@@ -159,28 +234,61 @@ export default defineComponent({
             :value="selected.length ? selected : [location]"
           >
             <template #actions>
-              <div class="pa-2">
+              <div class="pa-2 folder-actions">
                 <Clone
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
                 />
-                <run-training-menu
-                  v-bind="{
-                    buttonOptions:
-                      { ...buttonOptions, disabled: includesLargeImage },
-                    menuOptions,
-                  }"
-                  :selected-dataset-ids="locationInputs"
-                />
                 <run-pipeline-menu
+                  v-if="pipelinesEnabled"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
                     menuOptions,
+                    subTypeList,
+                    cameraNumbers,
+                    typeList: datasetTypeList,
                   }"
                   :selected-dataset-ids="locationInputs"
+                  :selected-dataset-name="locationInputNames"
                   :running-pipelines="runningPipelines"
+                  :exclude-pipeline-terms="webExcludedPipelineTerms"
+                  :jobs-disabled="jobsDisabled"
+                  :jobs-disabled-message="jobsDisabledMessage"
                 />
+                <run-training-menu
+                  v-if="trainingEnabled"
+                  v-bind="{
+                    buttonOptions:
+                      { ...buttonOptions, disabled: includesLargeImage || includesMultiCamDataset },
+                    menuOptions,
+                  }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <v-btn
+                  v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="scoreSelection"
+                >
+                  <v-icon>
+                    mdi-chart-box-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Score
+                  </span>
+                </v-btn>
+                <v-btn
+                  v-if="selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="reviewSelection"
+                >
+                  <v-icon>
+                    mdi-view-grid-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Review
+                  </span>
+                </v-btn>
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-ids="locationInputs"
@@ -232,5 +340,11 @@ export default defineComponent({
 <style lang='scss'>
 .nowraptable table thead tr th .row {
   flex-wrap: nowrap;
+}
+
+.folder-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 </style>

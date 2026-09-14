@@ -21,11 +21,16 @@ export default defineComponent({
       type: String,
       default: null,
     },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
   },
   setup(props, { emit }) {
-    function _updateConfidence(event: InputEvent & {target: {value: string}}) {
-      if (event.target) {
-        emit('update:confidence', Number.parseFloat(event.target.value));
+    function _updateConfidence(event: Event) {
+      const target = event.target as HTMLInputElement | null;
+      if (target) {
+        emit('update:confidence', Number.parseFloat(target.value));
       }
     }
     function _emitEnd() {
@@ -61,6 +66,7 @@ export default defineComponent({
     <input
       type="range"
       style="width: 100%"
+      :disabled="disabled"
       :min="min"
       :max="1"
       :step="0.01"

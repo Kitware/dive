@@ -7,7 +7,7 @@ import {
   ConversionArgs,
   DesktopJobUpdater,
   FFProbeFrameResults,
-  JsonMeta,
+  JsonConfig,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
@@ -15,7 +15,6 @@ import {
   jobFileEchoMiddleware, spawnResult, createWorkingDirectory, getBinaryPath,
 } from './utils';
 // TODO:  Check to Refactor this
-// eslint-disable-next-line import/no-cycle
 import {
   getTranscodedMultiCamType,
 } from './multiCamUtils';
@@ -58,8 +57,35 @@ interface CheckMediaResults {
   videoDimensions: { width: number; height: number };
 }
 
+function frameRateStringFromProbeStream(stream: {
+  avg_frame_rate?: string;
+  r_frame_rate?: string;
+}): string {
+  const parseable = (s: string | undefined): s is string => {
+    if (!s || s === '0/0') return false;
+    const parts = s.split('/').map((v) => Number.parseInt(v, 10));
+    return (
+      parts.length === 2
+      && !Number.isNaN(parts[0])
+      && !Number.isNaN(parts[1])
+      && parts[1] !== 0
+    );
+  };
+  if (parseable(stream.avg_frame_rate)) {
+    return stream.avg_frame_rate;
+  }
+  if (parseable(stream.r_frame_rate)) {
+    return stream.r_frame_rate;
+  }
+  throw Error(
+    'FFProbe found no usable frame rate (avg_frame_rate / r_frame_rate)',
+  );
+}
+
 async function checkFrameMisalignment(file: string): Promise<boolean> {
   const args = [
+    '-select_streams',
+    'v:0',
     file,
     '-hide_banner',
     '-read_intervals',
@@ -138,11 +164,11 @@ async function checkMedia(file: string): Promise<CheckMediaResults> {
 
   if (ffprobeJSON && ffprobeJSON.streams?.length) {
     const videoStream = ffprobeJSON.streams.filter((el) => el.codec_type === 'video');
-    if (videoStream.length === 0 || !videoStream[0].avg_frame_rate) {
-      throw Error('FFProbe found that video stream has no avg_frame_rate');
+    if (videoStream.length === 0) {
+      throw Error('FFProbe found no video stream');
     }
 
-    const originalFpsString = videoStream[0].avg_frame_rate;
+    const originalFpsString = frameRateStringFromProbeStream(videoStream[0]);
     const [dividend, divisor] = originalFpsString.split('/').map((v) => Number.parseInt(v, 10));
     const originalFps = dividend / divisor;
     const websafe = videoStream
@@ -168,7 +194,9 @@ async function convertMedia(
   settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
-  onComplete?: (jobKey: string, meta: JsonMeta) => void,
+  onComplete?: (jobKey: string, meta: JsonConfig) => void,
+  onFail?: (jobKey: string, meta: JsonConfig, errorMessage: string) => void,
+  setTranscodingKey = false,
   mediaIndex = 0,
   key = '',
   baseWorkDir = '',
@@ -185,10 +213,19 @@ async function convertMedia(
   ffmpegArgs.push('-i', args.mediaList[mediaIndex][0]);
   if ((args.meta.type === 'video' || multiType === 'video') && mediaIndex < args.mediaList.length) {
     ffmpegArgs.push(...VideoArgs);
+  } else {
+    // Image conversions write exactly one frame to a literal filename. Without
+    // -update the image2 muxer logs "does not contain an image sequence
+    // pattern" for every frame; it still writes the file, so this is noise
+    // rather than a failure, but it buries real errors in the job log.
+    ffmpegArgs.push('-update', '1', '-frames:v', '1');
   }
   ffmpegArgs.push(args.mediaList[mediaIndex][1]);
 
   const job = observeChild(spawn(ffmpegPath, ffmpegArgs, { shell: false }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to start conversion process');
+  }
   let jobKey = `convert_${job.pid}_${jobWorkDir}`;
   if (key.length) {
     jobKey = key;
@@ -205,8 +242,16 @@ async function convertMedia(
     exitCode: job.exitCode,
     startTime: new Date(),
   };
-
+  if (setTranscodingKey) {
+    // eslint-disable-next-line no-param-reassign
+    args.meta.transcodingJobKey = jobBase.key;
+  }
   fs.writeFile(npath.join(jobWorkDir, DiveJobManifestName), JSON.stringify(jobBase, null, 2));
+  // Emit an initial update immediately so UI reflects "converting" before ffmpeg writes logs.
+  updater({
+    ...jobBase,
+    body: ['Conversion job started'],
+  });
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
@@ -220,6 +265,8 @@ async function convertMedia(
         exitCode: code,
         endTime: new Date(),
       });
+      // Update meta to reflect error
+      onFail?.(jobKey, args.meta, `Transcoding job failed with exit code ${code}`);
     } else {
       if (args.meta.type === 'video' || multiType === 'video') {
         const updatedFile = await checkAndFixFrameAlignment(
@@ -247,7 +294,7 @@ async function convertMedia(
           ...jobBase,
           body: [`Conversion ${mediaIndex + 1} of ${args.mediaList.length} Complete`],
         });
-        convertMedia(settings, args, updater, onComplete, mediaIndex + 1, jobKey, jobWorkDir);
+        convertMedia(settings, args, updater, onComplete, onFail, setTranscodingKey, mediaIndex + 1, jobKey, jobWorkDir);
       }
     }
   });

@@ -1,8 +1,6 @@
 import type { GirderModel, GirderModelType } from '@girder/components/src';
-import { inject } from 'vue';
 import type { BrandData } from 'platform/web-girder/api';
-import type { GirderMetadata } from 'platform/web-girder/constants';
-import { Store } from 'vuex';
+import type { GirderConfig } from 'platform/web-girder/constants';
 
 /**
  * Location can be either
@@ -19,7 +17,7 @@ export interface LocationState {
 }
 
 export interface DatasetState {
-  meta: GirderMetadata | null;
+  meta: GirderConfig | null;
 }
 
 export interface BrandState {
@@ -38,23 +36,8 @@ export interface UserState {
 }
 export interface JobState {
   jobIds: Record<string, number>;
-  datasetStatus: Record<string, {status: number; jobId: string}>;
-  completeJobsInfo: Record<string, {type: string; title: string; success: boolean}>;
-}
-
-export interface RootState {
-  Location: LocationState;
-  Dataset: DatasetState;
-  Brand: BrandState;
-  User: UserState;
-}
-
-export function useStore(): Store<RootState> {
-  const store: Store<RootState> | undefined = inject('store');
-  if (store === undefined) {
-    throw new Error('Store was undefined');
-  }
-  return store;
+  datasetStatus: Record<string, { status: number; jobId: string }>;
+  completeJobsInfo: Record<string, { type: string; title: string; success: boolean }>;
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any

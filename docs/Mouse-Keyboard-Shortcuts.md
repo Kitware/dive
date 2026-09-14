@@ -5,10 +5,13 @@
 | control    | description |
 | ---------- | ------------|
 | Left Click | select track/detection |
+| ++ctrl++ + Left Click | add or remove track from multi-selection (bulk edit) |
 | Right Click | toggle edit mode |
 | Middle Click | pan camera |
 | Scroll Wheel | zoom |
 | Mouse Drag | pan |
+| ++alt++ + mouse drag | lasso-select tracks for bulk edit (release mouse to confirm) |
+| ++ctrl++ + ++alt++ + mouse drag | lasso-select and add tracks to the current multi-selection |
 | ++shift++ + mouse drag | select area to zoom |
 | ++arrow-up++ | select previous track in list |
 | ++arrow-down++ | select next track in list     |
@@ -45,6 +48,18 @@ Most editing controls are available when a track or detection is selected.
 | ++shift+m++ | commit (finalize) merge for selected tracks. |
 | ++g++ | create new group including the selected track |
 | ++shift+enter++ | focus class select/text box on selected track in track list.  Press ++arrow-down++ to open all options.  Pres ++enter++ twice to accept an option.  Press ++escape++ to unfocus. |
+
+## Interactive Segmentation (Desktop only)
+
+Available when a track or detection is in edit mode. See [Interactive Annotation](Interactive-Annotation.md).
+
+| control    | description |
+| ---------- | ------------|
+| ++s++ | activate **Segment** (point-click segmentation) mode |
+| Left Click | add foreground (include) point |
+| ++shift++ + Left Click or Middle Click | add background (exclude) point |
+| Right Click or ++enter++ | confirm segmentation and commit polygon |
+| ++escape++ | cancel segmentation; clear points and restore previous polygon when editing |
 
 ## Adding new shortcuts
 

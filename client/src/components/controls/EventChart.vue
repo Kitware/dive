@@ -233,9 +233,10 @@ export default Vue.extend({
       this.tooltip = null;
       this.detectBarHovering(e);
     },
-    mousedown() {
+    mousedown(e) {
       if (this.hoverTrack !== null) {
-        this.$emit('select-track', this.hoverTrack);
+        const modifiers = e.ctrlKey ? { ctrl: true } : undefined;
+        this.$emit('select-track', this.hoverTrack, modifiers);
       }
     },
     mouseout() {

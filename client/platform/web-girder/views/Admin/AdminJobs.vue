@@ -12,7 +12,7 @@ import { all, getByValue, Status } from '@girder/components/src/components/Job/s
 import moment from 'moment';
 import { isObject } from 'lodash';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { useStore } from 'platform/web-girder/store/types';
+import { useJobs } from 'platform/web-girder/store/useJobs';
 
 const JobStatus = all();
 const JobStatusMap = {
@@ -32,10 +32,10 @@ export default defineComponent({
   setup() {
     const limit = ref(50);
     const offset = ref(0);
-    const store = useStore();
+    const jobs = useJobs();
     const { prompt } = usePrompt();
     const table: Ref<(GirderJob & {type: string})[]> = ref([]);
-    const jobTypes: Ref<string[]> = ref(['convert', 'celery', 'large_image_tiff', 'pipelines', 'private', 'training']);
+    const jobTypes: Ref<string[]> = ref(['convert', 'celery', 'large_image_tiff', 'pipelines', 'private', 'training', 'DIVE Batch Postprocess']);
     const jobStatusList: Ref<string[]> = ref(['Cancelled', 'Error', 'Inactive', 'Running', 'Cancelling', 'Success']);
     const filterStatus: Ref<string[]> = ref(['Running', 'Error', 'Inactive']);
     const filterTypes: Ref<string[]> = ref(jobTypes.value);
@@ -76,25 +76,44 @@ export default defineComponent({
       (item) => {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         let params: Record<string, any> = {};
-        if (isObject(item.kwargs)) {
-          params = item.kwargs;
-        } else if (typeof (item.kwargs) === 'string') {
-          const temp = JSON.parse(item.kwargs);
-          if (temp.params !== undefined) {
-            params = temp.params;
-          } else if (isObject(temp)) {
-            params = temp;
+        // Prefer the persisted job.params blob (pipelines/training), then celery kwargs.
+        // Kwargs may arrive as an object or JSON string; nested .params must be unwrapped
+        // in both cases or login/userDir show as Unknown.
+        const jobParams = (item as GirderJob & { params?: Record<string, unknown> }).params;
+        if (isObject(jobParams) && Object.keys(jobParams).length) {
+          params = jobParams;
+        } else {
+          let raw: Record<string, unknown> = {};
+          if (typeof item.kwargs === 'string') {
+            try {
+              raw = JSON.parse(item.kwargs) || {};
+            } catch {
+              raw = {};
+            }
+          } else if (isObject(item.kwargs)) {
+            raw = item.kwargs as Record<string, unknown>;
+          }
+          if (isObject(raw.params)) {
+            params = raw.params as Record<string, unknown>;
+          } else {
+            params = raw;
           }
         }
+        const datasetId = (item as GirderJob & { dataset_id?: string }).dataset_id
+          || params?.input_folder
+          || params?.folderId
+          || params?.source_folder_id
+          || null;
         return {
           title: item?.title || 'Unknown',
           type: item.type,
           login: params?.user_login || 'Unknown',
-          userDir: params?.user_id || 'Unknown',
+          userDir: params?.user_id || params?.userId || 'Unknown',
           created: moment(item.created).format('MM/DD/YY @ h:mm a'),
           modified: moment(item.updated).format('MM/DD/YY @ h:mm a'),
           status: item.status,
           params,
+          datasetId,
           actions: item._id,
         };
       },
@@ -104,7 +123,7 @@ export default defineComponent({
       await getData();
     });
 
-    watch(() => store.getters['Jobs/runningJobIds'], async (prev: boolean, current: boolean) => {
+    watch(() => jobs.runningJobIds.value, async (prev: boolean, current: boolean) => {
       if (prev !== current) {
         await getData();
       }
@@ -279,56 +298,52 @@ export default defineComponent({
             {{ item.type }}
           </template>
           <template #item.status="{ item }">
-            <JobProgress :formatted-job="formatStatus(item.status)" />
+            <JobProgress :formatted-job="formatStatus(item.status, item.updated)" />
           </template>
           <template #item.params="{ item }">
-            <div v-if="item.type === 'pipelines'">
-              <div v-if="item.params.input_folder">
-                <v-tooltip
-                  bottom
-                >
-                  <template #activator="{ on, attrs }">
-                    <v-btn
-                      v-bind="attrs"
-                      x-small
-                      depressed
-                      :to="{ name: 'viewer', params: { id: item.params.input_folder } }"
-                      color="info"
-                      class="ml-0"
-                      v-on="on"
-                    >
-                      <v-icon small>
-                        mdi-eye
-                      </v-icon>
-                    </v-btn>
-                  </template>
-                  <span>Launch dataset viewer</span>
-                </v-tooltip>
-              </div>
+            <div v-if="item.type === 'training' && item.params.dataset_input_list">
+              <v-tooltip
+                bottom
+              >
+                <template #activator="{ on, attrs }">
+                  <v-btn
+                    v-bind="attrs"
+                    x-small
+                    depressed
+                    color="info"
+                    class="ml-0"
+                    v-on="on"
+                    @click="viewTrainingList(item.params.dataset_input_list)"
+                  >
+                    <v-icon small>
+                      mdi-eye
+                    </v-icon>
+                  </v-btn>
+                </template>
+                <span>View Training List</span>
+              </v-tooltip>
             </div>
-            <div v-if="item.type === 'training'">
-              <div v-if="item.params.dataset_input_list">
-                <v-tooltip
-                  bottom
-                >
-                  <template #activator="{ on, attrs }">
-                    <v-btn
-                      v-bind="attrs"
-                      x-small
-                      depressed
-                      color="info"
-                      class="ml-0"
-                      v-on="on"
-                      @click="viewTrainingList(item.params.dataset_input_list)"
-                    >
-                      <v-icon small>
-                        mdi-eye
-                      </v-icon>
-                    </v-btn>
-                  </template>
-                  <span>View Training List</span>
-                </v-tooltip>
-              </div>
+            <div v-else-if="item.datasetId">
+              <v-tooltip
+                bottom
+              >
+                <template #activator="{ on, attrs }">
+                  <v-btn
+                    v-bind="attrs"
+                    x-small
+                    depressed
+                    :to="{ name: 'viewer', params: { id: item.datasetId } }"
+                    color="info"
+                    class="ml-0"
+                    v-on="on"
+                  >
+                    <v-icon small>
+                      mdi-eye
+                    </v-icon>
+                  </v-btn>
+                </template>
+                <span>Launch dataset viewer</span>
+              </v-tooltip>
             </div>
           </template>
           <template #item.actions="{ item }">

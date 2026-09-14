@@ -31,25 +31,25 @@ export default defineComponent({
   },
   setup(props) {
     const argCopy = ref(cloneDeep(props.importData));
-    const duplicates = ref(locateDuplicates(props.importData.jsonMeta));
+    const duplicates = ref(locateDuplicates(props.importData.jsonConfig));
     const showAdvanced = ref(false);
 
     // Set default FPS to stored value or video frame rate if it exceeds current frame rate
     if (clientSettings.annotationFPS === -1
-      || clientSettings.annotationFPS > argCopy.value.jsonMeta.originalFps) {
-      argCopy.value.jsonMeta.fps = argCopy.value.jsonMeta.originalFps;
+      || clientSettings.annotationFPS > argCopy.value.jsonConfig.originalFps) {
+      argCopy.value.jsonConfig.fps = argCopy.value.jsonConfig.originalFps;
     } else {
-      argCopy.value.jsonMeta.fps = clientSettings.annotationFPS;
+      argCopy.value.jsonConfig.fps = clientSettings.annotationFPS;
     }
 
-    // Set default attributes for a stereo calibration configuration
-    if (argCopy.value.jsonMeta.multiCam?.calibration) {
-      argCopy.value.jsonMeta.attributes = {};
+    // ifremer .conf rigs: 3D estimation pipelines fill these per-detection attributes
+    if (argCopy.value.jsonConfig.multiCam?.calibration?.toLowerCase().endsWith('.conf')) {
+      argCopy.value.jsonConfig.attributes = { ...argCopy.value.jsonConfig.attributes };
 
       // Create x, y, z attributes
       ['stereo3d_x', 'stereo3d_y', 'stereo3d_z'].forEach((attributeKey) => {
         // ugly but necessary to avoid typescript error
-        (argCopy.value.jsonMeta.attributes as Record<string, Attribute>)[attributeKey] = {
+        (argCopy.value.jsonConfig.attributes as Record<string, Attribute>)[attributeKey] = {
           belongs: 'detection',
           datatype: 'number',
           key: `detection_${attributeKey}`,
@@ -60,21 +60,21 @@ export default defineComponent({
     }
 
     watch(toRef(props, 'importData'), (val) => {
-      duplicates.value = locateDuplicates(val.jsonMeta);
+      duplicates.value = locateDuplicates(val.jsonConfig);
       argCopy.value = cloneDeep(val);
     });
 
     const filteredImages = computed(() => filterByGlob(
       argCopy.value.globPattern,
-      argCopy.value.jsonMeta.originalImageFiles,
+      argCopy.value.jsonConfig.originalImageFiles,
     ));
 
     const sortedFpsOptions = computed(() => {
       const filteredOptions = FPSOptions
-        .filter((v) => v.value < argCopy.value.jsonMeta.originalFps);
+        .filter((v) => v.value < argCopy.value.jsonConfig.originalFps);
       filteredOptions.splice(-1, 1, {
-        text: `${argCopy.value.jsonMeta.originalFps} (Video FPS)`,
-        value: argCopy.value.jsonMeta.originalFps,
+        text: `${argCopy.value.jsonConfig.originalFps} (Video FPS)`,
+        value: argCopy.value.jsonConfig.originalFps,
       });
       return filteredOptions;
     });
@@ -87,9 +87,16 @@ export default defineComponent({
     });
 
     const { openFromDisk } = useApi();
-    const openUpload = async (type: 'annotation' | 'meta') => {
-      const argMap = { annotation: 'trackFileAbsPath', meta: 'metaFileAbsPath' };
-      const ret = await openFromDisk('annotation');
+    // 'config' is the DIVE JSON configuration file; 'metadata' is the optional
+    // pipeline sidecar — keep these names distinct from each other.
+    const openUpload = async (type: 'annotation' | 'config' | 'species' | 'metadata') => {
+      const argMap = {
+        annotation: 'trackFileAbsPath',
+        config: 'configFileAbsPath',
+        species: 'speciesFileAbsPath',
+        metadata: 'metadataFileAbsPath',
+      } as const;
+      const ret = await openFromDisk(type);
       if (!ret.canceled) {
         if (ret.filePaths?.length) {
           const path = ret.filePaths[0];
@@ -99,7 +106,7 @@ export default defineComponent({
     };
 
     const updateClientSettingFPS = (val: number) => {
-      if (val !== argCopy.value.jsonMeta.originalFps) {
+      if (val !== argCopy.value.jsonConfig.originalFps) {
         clientSettings.annotationFPS = val;
       } else {
         clientSettings.annotationFPS = -1;
@@ -128,7 +135,7 @@ export default defineComponent({
     style="overflow-x: hidden;"
   >
     <v-card-title class="text-h5">
-      Import new {{ MediaTypes[argCopy.jsonMeta.type] }}
+      Import new {{ MediaTypes[argCopy.jsonConfig.type] }}
     </v-card-title>
     <v-card-text>
       <v-alert
@@ -152,6 +159,20 @@ export default defineComponent({
         to ignore the warning and create a new dataset.
       </v-alert>
       <v-alert
+        v-if="importData.importWarnings && importData.importWarnings.length"
+        type="warning"
+        outlined
+        dense
+      >
+        <p
+          v-for="(warning, i) in importData.importWarnings"
+          :key="i"
+          class="my-0"
+        >
+          {{ warning }}
+        </p>
+      </v-alert>
+      <v-alert
         v-if="importData.mediaConvertList.length"
         type="info"
         outlined
@@ -173,7 +194,7 @@ export default defineComponent({
       <v-row class="d-flex my-2 mt-7">
         <v-col cols="9">
           <v-text-field
-            v-model="argCopy.jsonMeta.name"
+            v-model="argCopy.jsonConfig.name"
             label="Name"
             placeholder="Name for this dataset"
             hint="Changing the name does not modify the data source directory."
@@ -184,7 +205,7 @@ export default defineComponent({
         </v-col>
         <v-col cols="3">
           <v-select
-            v-model="argCopy.jsonMeta.fps"
+            v-model="argCopy.jsonConfig.fps"
             :items="sortedFpsOptions"
             type="number"
             required
@@ -199,7 +220,7 @@ export default defineComponent({
         </v-col>
       </v-row>
       <v-row
-        v-if="!argCopy.jsonMeta.multiCam"
+        v-if="!argCopy.jsonConfig.multiCam"
         class="d-flex my-2 mt-2"
       >
         <v-col>
@@ -245,7 +266,7 @@ export default defineComponent({
       </p>
       <div v-if="showAdvanced">
         <v-text-field
-          :value="argCopy.metaFileAbsPath"
+          :value="argCopy.configFileAbsPath"
           outlined
           clearable
           dense
@@ -253,13 +274,44 @@ export default defineComponent({
           label="Configuration File (Optional)"
           hint="Optional. Supports DIVE JSON configuration file."
           persistent-hint
-          @input="argCopy.metaFileAbsPath = $event"
-          @click="openUpload('meta')"
-          @click:prepend-inner="openUpload('meta')"
-          @click:clear="argCopy.metaFileAbsPath = ''"
+          @input="argCopy.configFileAbsPath = $event"
+          @click="openUpload('config')"
+          @click:prepend-inner="openUpload('config')"
+          @click:clear="argCopy.configFileAbsPath = ''"
         />
         <v-text-field
-          v-if="argCopy.jsonMeta.type === 'image-sequence'"
+          :value="argCopy.speciesFileAbsPath"
+          outlined
+          clearable
+          dense
+          class="mt-3"
+          prepend-inner-icon="mdi-format-list-bulleted-type"
+          label="Species List (Optional)"
+          hint="Optional. KWCOCO categories declaring the types you can choose from."
+          persistent-hint
+          @input="argCopy.speciesFileAbsPath = $event"
+          @click="openUpload('species')"
+          @click:prepend-inner="openUpload('species')"
+          @click:clear="argCopy.speciesFileAbsPath = ''"
+        />
+        <v-text-field
+          :value="argCopy.metadataFileAbsPath"
+          outlined
+          clearable
+          dense
+          class="mt-3"
+          prepend-inner-icon="mdi-file-cog"
+          label="Metadata File (Optional)"
+          hint="Passed to pipelines that request it. CSV and TXT frame rows also appear as
+            Frame Metadata (e.g. a sea-lion flight log)."
+          persistent-hint
+          @input="argCopy.metadataFileAbsPath = $event"
+          @click="openUpload('metadata')"
+          @click:prepend-inner="openUpload('metadata')"
+          @click:clear="argCopy.metadataFileAbsPath = ''"
+        />
+        <v-text-field
+          v-if="argCopy.jsonConfig.type === 'image-sequence'"
           v-model="argCopy.globPattern"
           label="Glob Filter Pattern"
           placeholder="Leave blank to use all images. example: *.png"
@@ -278,10 +330,10 @@ export default defineComponent({
           class="ml-3"
         >
           "{{ argCopy.globPattern }}" matches {{ filteredImages.length }}
-          out of {{ argCopy.jsonMeta.originalImageFiles.length }} images
+          out of {{ argCopy.jsonConfig.originalImageFiles.length }} images
         </v-chip>
         <v-switch
-          v-if="argCopy.jsonMeta.type === 'video'"
+          v-if="argCopy.jsonConfig.type === 'video'"
           v-model="argCopy.forceMediaTranscode"
           :disabled="importData.mediaConvertList.length !== 0"
           label="Force Media Transcoding"
@@ -295,37 +347,37 @@ export default defineComponent({
         <table
           class="key-value-table"
         >
-          <tr v-if="argCopy.jsonMeta.type == 'video'">
+          <tr v-if="argCopy.jsonConfig.type == 'video'">
             <td>Video</td>
-            <td>{{ argCopy.jsonMeta.originalVideoFile }}</td>
+            <td>{{ argCopy.jsonConfig.originalVideoFile }}</td>
           </tr>
           <tr>
             <td>Source</td>
             <td>
-              <pre>{{ argCopy.jsonMeta.imageListPath || argCopy.jsonMeta.originalBasePath }}</pre>
+              <pre>{{ argCopy.jsonConfig.imageListPath || argCopy.jsonConfig.originalBasePath }}</pre>
             </td>
           </tr>
           <tr>
             <td>Annotation FPS</td>
             <td>
-              {{ argCopy.jsonMeta.fps }}
+              {{ argCopy.jsonConfig.fps }}
               <span
-                v-if="argCopy.jsonMeta.type === 'video'"
+                v-if="argCopy.jsonConfig.type === 'video'"
                 class="pl-2"
               >
                 <b>Note</b> video downsampled annotation framerate is different than raw video FPS
               </span>
             </td>
           </tr>
-          <tr v-if="argCopy.jsonMeta.type == 'video'">
+          <tr v-if="argCopy.jsonConfig.type == 'video'">
             <td>Raw FPS</td>
             <td>
-              {{ argCopy.jsonMeta.originalFps }}
+              {{ argCopy.jsonConfig.originalFps }}
             </td>
           </tr>
-          <tr v-if="argCopy.jsonMeta.type == 'image-sequence'">
+          <tr v-if="argCopy.jsonConfig.type == 'image-sequence'">
             <td>Image Count</td>
-            <td>{{ argCopy.jsonMeta.originalImageFiles.length }}</td>
+            <td>{{ argCopy.jsonConfig.originalImageFiles.length }}</td>
           </tr>
         </table>
       </div>

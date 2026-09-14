@@ -1,6 +1,6 @@
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
 import { has } from 'lodash';
-import { AnnotationsCurrentVersion, JsonMeta } from 'platform/desktop/constants';
+import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import Track, { TrackData, TrackId } from 'vue-media-annotator/track';
 import fs from 'fs-extra';
 
@@ -10,6 +10,21 @@ function makeEmptyAnnotationFile(): AnnotationSchema {
     tracks: {},
     groups: {},
   };
+}
+
+/**
+ * Annotation FPS recorded on a DIVE JSON document, if usable.
+ * Same rules as the VIAME CSV `fps:` header and COCO `videos[].annotation_fps`.
+ */
+function frameRateFromDocument(data: unknown): number | undefined {
+  if (!data || typeof data !== 'object') {
+    return undefined;
+  }
+  const rate = (data as { fps?: unknown }).fps;
+  if (typeof rate === 'number' && Number.isFinite(rate) && rate > 0) {
+    return rate;
+  }
+  return undefined;
 }
 
 /**
@@ -23,7 +38,16 @@ function migrate(jsonData: any): AnnotationSchema {
   if (has(jsonData, 'version')) {
     const annotations = jsonData as AnnotationSchema;
     if (annotations.version === AnnotationsCurrentVersion) {
-      return annotations;
+      const migrated: AnnotationSchema = {
+        version: AnnotationsCurrentVersion,
+        tracks: annotations.tracks,
+        groups: annotations.groups || {},
+      };
+      const fps = frameRateFromDocument(annotations);
+      if (fps !== undefined) {
+        migrated.fps = fps;
+      }
+      return migrated;
     }
     throw new Error(`Unexpected version number ${jsonData.version}`);
   } else {
@@ -43,39 +67,48 @@ function migrate(jsonData: any): AnnotationSchema {
 
 function filterTracks(
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,
     header: true,
   },
 ): AnnotationSchema {
-  const filteredTracks = Object.values(data.tracks).filter((track) => {
-    const filters = meta.confidenceFilters || {};
-    /* Include only the pairs that exceed the threshold in CSV output */
+  const filters = meta.confidenceFilters || {};
+  const updatedFilteredTracks: Record<number, TrackData> = {};
+  Object.values(data.tracks).forEach((track) => {
+    /* Include only the pairs that exceed the threshold in JSON output */
     const confidencePairs = options.excludeBelowThreshold
       ? Track.exceedsThreshold(track.confidencePairs, filters)
       : track.confidencePairs;
     const filteredPairs = typeFilter.size > 0
       ? confidencePairs.filter((x) => typeFilter.has(x[0]))
       : confidencePairs;
-    return filteredPairs.length > 0;
+    if (!filteredPairs.length) {
+      return;
+    }
+    if (options.excludeBelowThreshold || typeFilter.size > 0) {
+      // Filters select raw stored evidence. Copy before pruning so an export
+      // never mutates the stored track or leaks removed pairs into its output.
+      updatedFilteredTracks[track.id] = {
+        ...track,
+        confidencePairs: filteredPairs.map(([name, score]) => [name, score]),
+      };
+    } else {
+      updatedFilteredTracks[track.id] = track;
+    }
   });
-  // Convert the track list back into an object
-  const updatedFilteredTracks: Record<number, TrackData> = {};
-  filteredTracks.forEach((track) => {
-    updatedFilteredTracks[track.id] = track;
-  });
-  const updatedData = { ...data };
-  updatedData.tracks = updatedFilteredTracks;
-  // Write out the tracks to a file
-  return updatedData;
+  return {
+    version: data.version,
+    tracks: updatedFilteredTracks,
+    groups: data.groups,
+  };
 }
 
 async function serializeFile(
   path: string,
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,
@@ -83,13 +116,22 @@ async function serializeFile(
   },
 ) {
   const updatedData = filterTracks(data, meta, typeFilter, options);
-  // write updatedData JSON to a path
-  const jsonData = JSON.stringify(updatedData, null, 2);
+  // Dataset annotation FPS rides on the document the same way CSV/COCO carry it.
+  const fps = (
+    typeof meta.fps === 'number'
+    && Number.isFinite(meta.fps)
+    && meta.fps > 0
+  ) ? meta.fps : undefined;
+  const output: AnnotationSchema = fps !== undefined
+    ? { ...updatedData, fps }
+    : updatedData;
+  const jsonData = JSON.stringify(output, null, 2);
   await fs.writeFile(path, jsonData, 'utf8');
 }
 
 export {
   makeEmptyAnnotationFile,
+  frameRateFromDocument,
   migrate,
   filterTracks,
   serializeFile,

@@ -32,8 +32,6 @@ export interface FilterControlsParams<T extends Track | Group> {
   sorted: Ref<SortedAnnotation<T>[]>;
   markChangesPending: MarkChangesPendingFilter;
   remove: (id: AnnotationId) => void;
-  setType: (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => void;
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
   getTrack?: (trackId: Readonly<AnnotationId>, cameraName?: string) => T;
 }
@@ -49,14 +47,20 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
   /* The confidence threshold to test confidecePairs against */
   confidenceFilters: Ref<Record<string, number>>;
 
-  /* The types informed by meta configuration */
-  private defaultTypes: Ref<string[]>;
+  /* Time filtering values */
+  timeFilters: Ref<[number, number] | null>;
+
+  /* The types informed by explicit meta configuration */
+  configuredTypes: Ref<string[]>;
 
   /* Collect all known types from confidence pairs */
   allTypes: Ref<string[]>;
 
   /* Types currently assigned to at least one annotation */
   usedTypes: Ref<string[]>;
+
+  /* Types that should be persisted through type/style configuration */
+  usedPlusConfiguredTypes: Ref<string[]>;
 
   /* Categorical types checked "ON" by the user */
   checkedTypes: Ref<string[]>;
@@ -75,40 +79,28 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
   remove: (id: AnnotationId) => void;
 
-  setType: (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => void;
-
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
+
+  disableAnnotationFilters: Ref<boolean>;
 
   constructor(params: FilterControlsParams<T>) {
     this.checkedIDs = ref(params.sorted.value.map((t) => t.id));
 
     this.confidenceFilters = ref({ default: DefaultConfidence } as Record<string, number>);
 
-    this.defaultTypes = ref([]);
+    this.timeFilters = ref(null);
+
+    this.configuredTypes = ref([]);
 
     this.sorted = params.sorted;
 
     this.remove = params.remove;
 
-    this.setType = params.setType;
-
     this.removeTypes = params.removeTypes;
 
     this.markChangesPending = params.markChangesPending;
 
-    this.allTypes = computed(() => {
-      const typeSet = new Set<string>();
-      this.sorted.value.forEach((annotation) => {
-        annotation.confidencePairs.forEach(([name]) => {
-          typeSet.add(name);
-        });
-      });
-      this.defaultTypes.value.forEach((type) => {
-        typeSet.add(type);
-      });
-      return Array.from(typeSet);
-    });
+    this.disableAnnotationFilters = ref(false);
 
     this.usedTypes = computed(() => {
       const typeSet = new Set<string>();
@@ -119,6 +111,16 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
       });
       return Array.from(typeSet);
     });
+
+    this.usedPlusConfiguredTypes = computed(() => {
+      const typeSet = new Set(this.usedTypes.value);
+      this.configuredTypes.value.forEach((type) => {
+        typeSet.add(type);
+      });
+      return Array.from(typeSet);
+    });
+
+    this.allTypes = this.usedPlusConfiguredTypes;
 
     this.checkedTypes = ref(Array.from(this.allTypes.value));
 
@@ -156,8 +158,8 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
   importTypes(types: string[], userInteraction = true) {
     types.forEach((type) => {
-      if (!this.defaultTypes.value.includes(type)) {
-        this.defaultTypes.value.push(type);
+      if (!this.configuredTypes.value.includes(type)) {
+        this.configuredTypes.value.push(type);
       }
     });
     if (userInteraction) {
@@ -165,12 +167,42 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     }
   }
 
-  deleteType(type: string) {
-    if (this.defaultTypes.value.includes(type)) {
-      this.defaultTypes.value.splice(this.defaultTypes.value.indexOf(type), 1);
+  /**
+   * Make `types` the whole declared list, as a freshly loaded dataset states it. importTypes
+   * only ever grows the list, so a reload after an Overwrite import would keep listing the
+   * types the import dropped, and the next save would write them straight back. A choice
+   * for a type that is no longer listed is dropped with it.
+   */
+  setConfiguredTypes(types: string[]) {
+    this.configuredTypes.value = Array.from(new Set(types));
+    const listed = new Set(this.allTypes.value);
+    this.checkedTypes.value = this.checkedTypes.value.filter((name) => listed.has(name));
+  }
+
+  /**
+   * Carry a renamed type's confidence threshold over to its new name, unless
+   * the new name already carries one of its own.
+   */
+  protected carryConfidenceFilter(currentType: string, newType: string) {
+    if (!(newType in this.confidenceFilters.value) && currentType in this.confidenceFilters.value) {
+      this.setConfidenceFilters({
+        ...this.confidenceFilters.value,
+        [newType]: this.confidenceFilters.value[currentType],
+      });
+    }
+  }
+
+  protected deleteTypeConfiguration(type: string) {
+    if (this.configuredTypes.value.includes(type)) {
+      this.configuredTypes.value.splice(this.configuredTypes.value.indexOf(type), 1);
     }
     delete this.confidenceFilters.value[type];
+  }
+
+  deleteType(type: string): boolean {
+    this.deleteTypeConfiguration(type);
     this.markChangesPending({ action: 'meta' });
+    return true;
   }
 
   setConfidenceFilters(val?: Record<string, number>) {
@@ -179,30 +211,21 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     }
   }
 
-  updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
-    //Go through the entire list and replace the oldType with the new Type
-    this.sorted.value.forEach((annotation) => {
-      for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
-        const [name, confidenceVal] = annotation.confidencePairs[i];
-        if (name === currentType) {
-          this.setType(annotation.id, newType, confidenceVal, currentType);
-          break;
-        }
-      }
-    });
-    if (!(newType in this.confidenceFilters.value) && currentType in this.confidenceFilters.value) {
-      this.setConfidenceFilters({
-        ...this.confidenceFilters.value,
-        [newType]: this.confidenceFilters.value[currentType],
-      });
-    }
-    this.deleteType(currentType);
+  setTimeFilters(val: [number, number] | null) {
+    this.timeFilters.value = val;
   }
 
+  abstract updateTypeName(params: { currentType: string; newType: string }): void;
+
   removeTypeAnnotations(types: string[]) {
+    const processedIds = new Set<AnnotationId>();
     this.filteredAnnotations.value.forEach((filtered) => {
+      if (processedIds.has(filtered.annotation.id)) {
+        return;
+      }
+      processedIds.add(filtered.annotation.id);
       const filteredType = filtered.annotation.getType(filtered.context.confidencePairIndex);
-      if (filteredType && types.includes(filteredType[0])) {
+      if (filteredType && types.includes(filteredType)) {
         //Remove the type from the annotation if multiple types exist
         const newConfidencePairs = this.removeTypes(filtered.annotation.id, types);
         if (newConfidencePairs.length === 0) {

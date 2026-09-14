@@ -1,18 +1,37 @@
 import type { GirderModel } from '@girder/components/src';
 
+import CameraRegistrationStore from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import {
-  DatasetMetaMutable, FrameImage, SaveAttributeArgs, SaveAttributeTrackFilterArgs,
+  registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
+} from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
+import {
+  DatasetConfigMutable, DatasetType, FrameImage, GlobalStyleSettings,
+  SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
-import { GirderMetadataStatic } from 'platform/web-girder/constants';
+import {
+  calibrationFileMarker, frameMetadataFileMarker, jsonCalibrationFileMarker, MultiType,
+} from 'dive-common/constants';
+import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
+import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
+import type { GirderConfig, GirderConfigStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
+import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
 
-interface HTMLFile extends File {
-  webkitRelativePath?: string;
-}
-
-function getDataset(folderId: string) {
-  return girderRest.get<GirderMetadataStatic>(`dive_dataset/${folderId}`);
+async function getDataset(datasetId: string) {
+  const { folderId, compositeId } = await resolveDatasetFolderId(datasetId);
+  const response = await girderRest.get<GirderConfigStatic>(`dive_dataset/${folderId}`);
+  if (compositeId) {
+    response.data.id = compositeId;
+  }
+  // Parse per-frame capture timestamps client-side (single shared implementation
+  // with desktop; see dive-common/frameTimestamp.ts). The girder server no longer
+  // does this, so multicam per-camera frames arrive without timestamps.
+  Object.values(response.data.multiCamMedia?.cameras ?? {}).forEach(
+    (camera) => attachFrameTimestamps(camera.imageData),
+  );
+  return response;
 }
 
 async function getDatasetList(
@@ -50,8 +69,49 @@ export interface DatasetSourceMedia {
   sourceVideo?: MediaResource;
 }
 
-function getDatasetMedia(folderId: string) {
-  return girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
+async function getDatasetMedia(datasetId: string) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
+  const response = await girderRest.get<DatasetSourceMedia>(`dive_dataset/${folderId}/media`);
+  // Parse per-frame capture timestamps client-side (see getDataset above).
+  attachFrameTimestamps(response.data.imageData ?? []);
+  return response;
+}
+
+/**
+ * The dataset's static metadata merged with its media, as the viewer
+ * consumes it. A multicamera parent keeps its per-camera media and no
+ * media of its own.
+ */
+function mergeDatasetConfig(
+  metaStatic: GirderConfigStatic,
+  media: DatasetSourceMedia,
+  compositeId: string | null | undefined,
+): GirderConfig {
+  const dsMeta: GirderConfig = {
+    ...metaStatic,
+    ...media,
+    id: compositeId ?? metaStatic.id,
+    videoUrl: media.video?.url,
+  };
+  if (dsMeta.type === MultiType && !compositeId) {
+    dsMeta.multiCamMedia = metaStatic.multiCamMedia;
+    dsMeta.imageData = [];
+    dsMeta.videoUrl = undefined;
+  }
+  return dsMeta;
+}
+
+/**
+ * Load a dataset's config without touching any shared store (see
+ * useDataset.loadDataset for the stateful variant the viewer uses).
+ */
+async function loadDatasetConfig(datasetId: string): Promise<GirderConfig> {
+  const { compositeId } = await resolveDatasetFolderId(datasetId);
+  const [metaStatic, media] = await Promise.all([
+    getDataset(datasetId),
+    getDatasetMedia(datasetId),
+  ]);
+  return mergeDatasetConfig(metaStatic.data, media.data, compositeId);
 }
 
 function clone({
@@ -65,6 +125,28 @@ function clone({
   return girderRest.post<GirderModel>('dive_dataset', null, {
     params: {
       cloneId: folderId, parentFolderId, name, revision,
+    },
+  });
+}
+
+function getDatasetCalibration(datasetId: string) {
+  return girderRest.get('dive_dataset/calibration', {
+    params: { folderId: parentDatasetId(datasetId) },
+  });
+}
+
+function createGirderFolder({
+  folderId, name, description,
+}: {
+  folderId: string;
+  name: string;
+  description?: string;
+}) {
+  return girderRest.post<GirderModel>('/folder', null, {
+    params: {
+      parentId: folderId,
+      name,
+      description,
     },
   });
 }
@@ -89,10 +171,12 @@ function makeViameFolder({
   );
 }
 
-async function importAnnotationFile(parentId: string, path: string, file?: HTMLFile, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
-  if (file === undefined) {
-    return false;
-  }
+/**
+ * Girder's two-request upload to a folder: initialize the file, then push its single chunk.
+ * Resolves with the completed file document (which carries `itemId`, the id of the item
+ * Girder created for it) or null if either request did not succeed.
+ */
+async function uploadFileToFolder(parentId: string, file: File): Promise<{ itemId: string } | null> {
   const resp = await girderRest.post('/file', null, {
     params: {
       parentType: 'folder',
@@ -102,60 +186,367 @@ async function importAnnotationFile(parentId: string, path: string, file?: HTMLF
       mimeType: file.type,
     },
   });
-  if (resp.status === 200) {
-    const uploadResponse = await girderRest.post('file/chunk', file, {
-      params: {
-        uploadId: resp.data._id,
-        offset: 0,
-      },
-      headers: { 'Content-Type': 'application/octet-stream' },
-    });
-    if (uploadResponse.status === 200) {
-      const final = await postProcess(parentId, true, false, additive, additivePrepend, set);
-      if (final.data.length > 1) {
-        const warnings = final.data[1];
-        return warnings;
-      }
-
-      return final.status === 200;
-    }
+  if (resp.status !== 200) {
+    return null;
   }
-  return false;
+  const uploadResponse = await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: resp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  return uploadResponse.status === 200 ? uploadResponse.data : null;
 }
 
-function saveAttributes(folderId: string, args: SaveAttributeArgs) {
+async function importAnnotationFile(datasetId: string, path: string, file?: File, additive = false, additivePrepend = '', set: string | undefined = undefined): Promise<boolean | string[]> {
+  if (file === undefined) {
+    return false;
+  }
+  // Resolve composite multicam ids (parent/camera) to the camera folder so
+  // annotations land on the active camera; mutable config is synced to the
+  // parent by server process_items (same behavior as desktop dataFileImport).
+  const { folderId } = await resolveDatasetFolderId(datasetId);
+  const uploaded = await uploadFileToFolder(folderId, file);
+  if (uploaded === null) {
+    return false;
+  }
+  const final = await postProcess(folderId, true, false, additive, additivePrepend, set);
+  if (final.data.warnings !== undefined) {
+    const { warnings } = final.data;
+    return warnings;
+  }
+  return final.status === 200;
+}
+
+/** Upload a metadata file into the dataset folder and declare it as the attachment. */
+async function uploadAndSetMetadataFile(
+  datasetId: string,
+  file: File,
+): Promise<void> {
+  const folderId = parentDatasetId(datasetId);
+  const itemId = await uploadMetadataFileItem(folderId, file);
+  await girderRest.post(`dive_dataset/${folderId}/metadata_file`, null, {
+    params: { itemId },
+  });
+}
+
+async function saveAttributes(datasetId: string, args: SaveAttributeArgs) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}/attributes`, args);
 }
 
-function saveAttributeTrackFilters(folderId: string, args: SaveAttributeTrackFilterArgs) {
+async function saveAttributeTrackFilters(
+  datasetId: string,
+  args: SaveAttributeTrackFilterArgs,
+) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}/attribute_track_filters`, args);
 }
 
-function saveMetadata(folderId: string, metadata: DatasetMetaMutable) {
-  return girderRest.patch(`/dive_dataset/${folderId}`, metadata);
+async function saveConfig(datasetId: string, config: DatasetConfigMutable) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
+  return girderRest.patch(`/dive_dataset/${folderId}`, config);
 }
 
-interface ValidationResponse {
-  ok: boolean;
-  type: 'video' | 'image-sequence';
-  media: string[];
-  annotations: string[];
-  message: string;
+// Cross-dataset "shared" color/style overrides. Persisted in localStorage,
+// consistent with how the web client already stores user preferences
+// (clientSettings). This scopes shared colors to the current user/browser.
+const GlobalStyleSettingsKey = 'DIVE.globalStyleSettings';
+
+function loadGlobalStyleSettings(): Promise<GlobalStyleSettings> {
+  try {
+    const raw = window.localStorage.getItem(GlobalStyleSettingsKey);
+    const data = raw ? JSON.parse(raw) : {};
+    return Promise.resolve({
+      customTypeStyling: data.customTypeStyling ?? {},
+      customGroupStyling: data.customGroupStyling ?? {},
+    });
+  } catch {
+    return Promise.resolve({});
+  }
 }
+
+function saveGlobalStyleSettings(settings: GlobalStyleSettings): Promise<unknown> {
+  window.localStorage.setItem(GlobalStyleSettingsKey, JSON.stringify({
+    customTypeStyling: settings.customTypeStyling ?? {},
+    customGroupStyling: settings.customGroupStyling ?? {},
+  }));
+  return Promise.resolve();
+}
+
+/**
+ * Merge a DIVE registration .json into an existing multicam dataset's saved
+ * camera registration. Parsing, validation, and
+ * merging all happen client-side; the result persists through the standard
+ * dataset meta PATCH (the calibration fields are allowlisted server-side).
+ * options.camera keeps only the file's pairs naming that camera; each
+ * imported pair replaces that pair wholly and other pairs are kept.
+ */
+async function importCameraRegistration(
+  datasetId: string,
+  path: string,
+  file?: File,
+  options: { camera?: string } = {},
+) {
+  if (!file) {
+    throw new Error('No registration file provided');
+  }
+  // A throwaway store instance provides the shared parser/validator.
+  const store = new CameraRegistrationStore();
+  store.loadRegistrationText(await file.text());
+  let incoming = {
+    homographies: store.homographies.value,
+    observations: store.observations.value,
+    transformTypes: store.transformTypes.value,
+    source: store.source.value,
+  };
+  if (options.camera !== undefined) {
+    incoming = filterRegistrationValues(incoming, options.camera);
+  }
+  const summary = registrationValuesSummary(incoming);
+  if (!summary.pairCount) {
+    throw new Error(options.camera !== undefined
+      ? `File has no pairs for camera "${options.camera}"`
+      : 'File has no pairs');
+  }
+  const parentId = parentDatasetId(datasetId);
+  const { data: current } = await getDataset(parentId);
+  const merged = mergeRegistrationValues(
+    {
+      homographies: current.cameraHomographies ?? {},
+      observations: current.cameraCorrespondences ?? {},
+      transformTypes: current.cameraTransformTypes ?? {},
+      source: current.cameraRegistrationSource ?? null,
+    },
+    incoming,
+    file.name,
+  );
+  await saveConfig(parentId, {
+    cameraHomographies: merged.homographies,
+    cameraCorrespondences: merged.observations,
+    cameraTransformTypes: merged.transformTypes,
+    cameraRegistrationSource: merged.source,
+  });
+  return summary;
+}
+
+export type UploadRole = 'media' | 'annotations' | 'datasetConfig' | 'frameMetadata' | 'ignored';
+
+/** Every validated filename under exactly one role. `ignored` is the files not accepted. */
+export type ValidatedUploadRoleMap = Record<UploadRole, string[]>;
+
+/** A filename with the reason it is not uploaded. Display shape; the wire carries `reasons`. */
+export interface IgnoredUploadFile {
+  name: string;
+  reason: string;
+}
+
+interface ValidationBase {
+  message: string;
+  roles: ValidatedUploadRoleMap;
+  /** Why a file landed in its role, keyed by filename. Populated for the `ignored` role. */
+  reasons: Record<string, string>;
+}
+
+/**
+ * Server classification of one upload selection. `roles` is authoritative for what each file
+ * is for, so the set to upload is the selection minus `roles.ignored`. Only an accepted
+ * selection has a media type, so `ok` narrows `type` to a real DatasetType.
+ */
+export type ValidationResponse =
+  | (ValidationBase & { ok: true; type: DatasetType })
+  | (ValidationBase & { ok: false; type?: undefined });
 
 function validateUploadGroup(names: string[]) {
   return girderRest.post<ValidationResponse>('dive_dataset/validate_files', names);
 }
 
+export interface CreateMulticamDatasetArgs {
+  parentFolderId: string;
+  name: string;
+  fps: number;
+  type: 'video' | 'image-sequence' | 'large-image';
+  subType: 'stereo' | 'multicam';
+  defaultDisplay: string;
+  cameras: Record<string, { folderId: string; type?: 'video' | 'image-sequence' | 'large-image' }>;
+  cameraOrder?: string[];
+  calibrationFileId?: string;
+  metadataFileId?: string;
+}
+
+export interface CreateMulticamDatasetResponse extends GirderModel {
+  importWarnings?: string[];
+}
+
+function createMulticamDataset(args: CreateMulticamDatasetArgs) {
+  const {
+    parentFolderId, name, fps, type, subType, defaultDisplay, cameras, cameraOrder, calibrationFileId,
+    metadataFileId,
+  } = args;
+  return girderRest.post<CreateMulticamDatasetResponse>(
+    'dive_dataset/multicam',
+    {
+      name,
+      fps,
+      type,
+      subType,
+      defaultDisplay,
+      cameras,
+      cameraOrder,
+      calibrationFileId,
+      metadataFileId,
+    },
+    {
+      params: { parentFolderId },
+    },
+  );
+}
+
+async function uploadCalibrationItem(parentFolderId: string, file: File): Promise<string> {
+  const isJson = file.name.toLowerCase().endsWith('.json');
+  const calibrationMeta = isJson
+    ? { [calibrationFileMarker]: 'true', [jsonCalibrationFileMarker]: 'true' }
+    : { [calibrationFileMarker]: 'true' };
+  const itemResp = await girderRest.post<GirderModel>('/item', null, {
+    params: {
+      folderId: parentFolderId,
+      name: file.name,
+      metadata: JSON.stringify(calibrationMeta),
+    },
+  });
+  const itemId = itemResp.data._id;
+  const fileResp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'item',
+      parentId: itemId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type || 'application/octet-stream',
+    },
+  });
+  await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: fileResp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
+  await girderRest.put(`item/${itemId}/metadata`, calibrationMeta);
+  return itemId;
+}
+
+/**
+ * Upload an optional per-dataset metadata file and return its item id.
+ */
+async function uploadMetadataFileItem(parentFolderId: string, file: File): Promise<string> {
+  const frameMetadataMeta = { [frameMetadataFileMarker]: 'true' };
+  const itemResp = await girderRest.post<GirderModel>('/item', null, {
+    params: {
+      folderId: parentFolderId,
+      name: file.name,
+      metadata: JSON.stringify(frameMetadataMeta),
+    },
+  });
+  const itemId = itemResp.data._id;
+  const fileResp = await girderRest.post('/file', null, {
+    params: {
+      parentType: 'item',
+      parentId: itemId,
+      name: file.name,
+      size: file.size,
+      mimeType: file.type || 'application/octet-stream',
+    },
+  });
+  await girderRest.post('file/chunk', file, {
+    params: {
+      uploadId: fileResp.data._id,
+      offset: 0,
+    },
+    headers: { 'Content-Type': 'application/octet-stream' },
+  });
+  // Girder item metadata is set via PUT item/:id/metadata (not PUT item/:id).
+  await girderRest.put(`item/${itemId}/metadata`, frameMetadataMeta);
+  return itemId;
+}
+
+function calibrationMarkerTruthy(meta: Record<string, unknown> | undefined, key: string): boolean {
+  const marker = meta?.[key];
+  return marker === true || marker === 'true' || marker === '1';
+}
+
+async function calibrationItemExists(itemId: string): Promise<boolean> {
+  try {
+    await girderRest.get(`item/${itemId}`);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** Remove calibration item references from the dataset folder metadata. */
+async function clearCalibrationFolderMetadata(datasetId: string): Promise<void> {
+  const parentId = parentDatasetId(datasetId);
+  const { data: folder } = await girderRest.get<{
+    meta?: { multiCam?: Record<string, unknown> };
+  }>(`folder/${parentId}`);
+  const multiCam = { ...(folder.meta?.multiCam ?? {}) };
+  delete multiCam.calibrationItemId;
+  delete multiCam.jsonCalibrationItemId;
+  delete multiCam.calibrationOriginalName;
+  delete multiCam.calibrationConversionError;
+  await girderRest.put(`folder/${parentId}/metadata`, { multiCam });
+}
+
+async function hasCalibrationFile(datasetId: string): Promise<boolean> {
+  const parentId = parentDatasetId(datasetId);
+  const folder = await girderRest.get<{
+    meta?: { multiCam?: { calibrationItemId?: string; jsonCalibrationItemId?: string } };
+  }>(`folder/${parentId}`);
+  const multiCam = folder.data.meta?.multiCam;
+  const cachedIds = [multiCam?.calibrationItemId, multiCam?.jsonCalibrationItemId]
+    .filter((id): id is string => !!id);
+  if (cachedIds.length) {
+    const existing = await Promise.all(cachedIds.map((id) => calibrationItemExists(id)));
+    if (existing.some(Boolean)) {
+      return true;
+    }
+  }
+  const items = await girderRest.get<Array<{ name: string; meta?: Record<string, unknown> }>>(
+    'item',
+    { params: { folderId: parentId, limit: 0 } },
+  );
+  return items.data.some(
+    (item) => (
+      calibrationMarkerTruthy(item.meta, calibrationFileMarker)
+      || calibrationMarkerTruthy(item.meta, jsonCalibrationFileMarker)
+    ) && isStereoCalibrationFileName(item.name),
+  );
+}
+
 export {
   clone,
+  clearCalibrationFolderMetadata,
+  createGirderFolder,
+  createMulticamDataset,
   getDataset,
   getDatasetList,
   getDatasetMedia,
+  loadDatasetConfig,
+  mergeDatasetConfig,
+  hasCalibrationFile,
+  getDatasetCalibration,
   importAnnotationFile,
+  importCameraRegistration,
   makeViameFolder,
   saveAttributes,
   saveAttributeTrackFilters,
-  saveMetadata,
+  saveConfig,
+  loadGlobalStyleSettings,
+  saveGlobalStyleSettings,
+  uploadCalibrationItem,
+  uploadAndSetMetadataFile,
+  uploadMetadataFileItem,
   validateUploadGroup,
 };

@@ -1,5 +1,6 @@
 import type { AddressInfo } from 'net';
 import http from 'http';
+import npath from 'path';
 
 import cors from 'cors';
 import mime from 'mime-types';
@@ -12,6 +13,8 @@ import { SaveAttributeArgs, SaveAttributeTrackFilterArgs, SaveDetectionsArgs } f
 
 import settings from './state/settings';
 import * as common from './native/common';
+import * as geotiffTiles from './tiles/geotiffTiles';
+import * as displayProcessing from './media/displayProcessing';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -35,46 +38,53 @@ const supportedMediaTypes = [
   'image/webp',
 ];
 
+function formatHostForUrl(host: string): string {
+  if (host.includes(':') && !host.startsWith('[')) {
+    return `[${host}]`;
+  }
+  return host;
+}
+
 function makeMediaUrl(filepath: string): string {
   const addr = server.address() as AddressInfo | null;
   if (!addr) {
     throw new Error('server has not initialized yet');
   }
-  return `http://${addr.address}:${addr.port}/api/media?path=${filepath}`;
+  return `http://${formatHostForUrl(addr.address)}:${addr.port}/api/media?path=${encodeURIComponent(filepath)}`;
 }
 
-/* LOAD metadata */
-apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
+/* LOAD dataset config */
+apirouter.get('/dataset/:id{/:camera}/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
       id = `${req.params.id}/${req.params.camera}`;
     }
-    const ds = await common.loadMetadata(settings.get(), id, makeMediaUrl);
+    const ds = await common.loadConfig(settings.get(), id, makeMediaUrl);
     res.json(ds);
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
 });
 
-/* SAVE metadata */
-apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
+/* SAVE dataset config */
+apirouter.post('/dataset/:id{/:camera}/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
       id = `${req.params.id}/${req.params.camera}`;
     }
-    await common.saveMetadata(settings.get(), id, req.body);
+    await common.saveConfig(settings.get(), id, req.body);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
 });
 
 /* SAVE attributes */
-apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/attributes', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -84,13 +94,13 @@ apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
     await common.saveAttributes(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
   return null;
 });
 
-apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/attribute_track_filters', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -100,14 +110,14 @@ apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res,
     await common.saveAttributeTrackFilters(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
   return null;
 });
 
 /* SAVE detections */
-apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/detections', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -117,10 +127,172 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
     await common.saveDetections(settings.get(), id, args);
     res.status(200).send('done');
   } catch (err) {
-    err.status = 500;
+    (err as { status?: number }).status = 500;
     next(err);
   }
   return null;
+});
+
+/* Large image (GeoTIFF) tiles - compatible with LargeImageAnnotator getTiles/getTileURL */
+apirouter.get('/dataset/:id{/:camera}/tiles/:level/:x/:y', async (req, res, next) => {
+  try {
+    const datasetId = req.params.camera
+      ? `${req.params.id}/${req.params.camera}`
+      : req.params.id;
+    const level = parseInt(req.params.level, 10);
+    const x = parseInt(req.params.x, 10);
+    const y = parseInt(req.params.y, 10);
+    if (Number.isNaN(level) || Number.isNaN(x) || Number.isNaN(y)) {
+      return next({ status: 400, statusMessage: 'Invalid level, x, or y' });
+    }
+    const png = await geotiffTiles.getTilePng(settings.get(), datasetId, level, x, y);
+    if (!png) {
+      console.warn(`[tiles] GET tile 404: datasetId=${datasetId} level=${level} x=${x} y=${y} (see tile layer logs for reason)`);
+      return next({ status: 404, statusMessage: 'Tile not found or dataset is not a large image' });
+    }
+    res.setHeader('Content-Type', 'image/png');
+    res.send(png);
+  } catch (err) {
+    console.error('[tiles] GET tile error:', err);
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+apirouter.get('/dataset/:id{/:camera}/tiles', async (req, res, next) => {
+  try {
+    const datasetId = req.params.camera
+      ? `${req.params.id}/${req.params.camera}`
+      : req.params.id;
+    const meta = await geotiffTiles.getTilesMetadata(settings.get(), datasetId);
+    if (!meta) {
+      console.warn(`[tiles] GET tiles metadata 404: datasetId=${datasetId} (see tile layer logs for reason)`);
+      return next({ status: 404, statusMessage: 'Dataset not found or is not a large image' });
+    }
+    if (meta.preconversionRequired && meta.error) {
+      console.warn(`[tiles] GET tiles metadata 422: datasetId=${datasetId} requires pre-conversion`);
+      return next({ status: 422, statusMessage: meta.error });
+    }
+    res.json(meta);
+  } catch (err) {
+    console.error('[tiles] GET tiles metadata error:', err);
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+const tiffExtensions = ['.tif', '.tiff'];
+
+/**
+ * Serve a per-frame percentile stretch of an image, returned as a grayscale PNG.
+ *
+ * The stretch must run against the ORIGINAL source image (e.g. a 16-bit IR TIFF),
+ * not the 8-bit PNG produced by import-time transcoding — that copy has already
+ * lost the dynamic range the stretch recovers. The client therefore identifies the
+ * frame by (dataset id, frame index) and the original is resolved server-side.
+ *
+ * Non-TIFF originals (e.g. 8-bit EO JPEGs) have no extra range to recover, so they
+ * are streamed through as-is rather than failing — toggling stretch is a visual
+ * no-op for them instead of producing a black image.
+ */
+apirouter.get('/media/display', async (req, res, next) => {
+  const {
+    id: reqId, frame: reqFrame, low: reqLow, high: reqHigh,
+  } = req.query;
+  if (!reqId || Array.isArray(reqId) || reqFrame === undefined || Array.isArray(reqFrame)
+      || !reqLow || !reqHigh || Array.isArray(reqLow) || Array.isArray(reqHigh)) {
+    return next({ status: 400, statusMessage: 'id, frame, low, and high query params are required' });
+  }
+  const datasetId = reqId.toString();
+  const frame = parseInt(reqFrame.toString(), 10);
+  const low = parseFloat(reqLow.toString());
+  const high = parseFloat(reqHigh.toString());
+  if (Number.isNaN(frame)) {
+    return next({ status: 400, statusMessage: 'frame must be an integer' });
+  }
+  if (Number.isNaN(low) || Number.isNaN(high)) {
+    return next({ status: 400, statusMessage: 'low and high must be numbers' });
+  }
+  if (low >= high) {
+    return next({ status: 400, statusMessage: 'low must be less than high' });
+  }
+  try {
+    const filePath = await common.getDisplayImagePath(settings.get(), datasetId, frame);
+    if (!filePath) {
+      return next({ status: 404, statusMessage: `No source image for dataset ${datasetId} frame ${frame}` });
+    }
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) {
+      return next({ status: 404, statusMessage: `Not a file: ${filePath}` });
+    }
+    // Only TIFFs carry recoverable dynamic range; pass everything else through unchanged.
+    if (!tiffExtensions.includes(npath.extname(filePath).toLowerCase())) {
+      const mimetype = mime.lookup(filePath);
+      if (mimetype) res.setHeader('Content-Type', mimetype);
+      pump(fs.createReadStream(filePath), res);
+      return null;
+    }
+    const pngBuf = await displayProcessing.getDisplayPng(filePath, low, high, stat.mtimeMs);
+    res.setHeader('Content-Type', 'image/png');
+    res.send(pngBuf);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return next({ status: 404, statusMessage: 'Source image file not found' });
+    }
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+  return null;
+});
+
+/**
+ * Return a compact histogram (256 bins) for the ORIGINAL source image frame.
+ * Bounds are computed with the same percentile parameters as /media/display.
+ */
+apirouter.get('/media/histogram', async (req, res, next) => {
+  const {
+    id: reqId, frame: reqFrame, low: reqLow, high: reqHigh,
+  } = req.query;
+  if (!reqId || Array.isArray(reqId) || reqFrame === undefined || Array.isArray(reqFrame)
+      || !reqLow || !reqHigh || Array.isArray(reqLow) || Array.isArray(reqHigh)) {
+    return next({ status: 400, statusMessage: 'id, frame, low, and high query params are required' });
+  }
+  const datasetId = reqId.toString();
+  const frame = parseInt(reqFrame.toString(), 10);
+  const low = parseFloat(reqLow.toString());
+  const high = parseFloat(reqHigh.toString());
+  if (Number.isNaN(frame)) {
+    return next({ status: 400, statusMessage: 'frame must be an integer' });
+  }
+  if (Number.isNaN(low) || Number.isNaN(high)) {
+    return next({ status: 400, statusMessage: 'low and high must be numbers' });
+  }
+  if (low >= high) {
+    return next({ status: 400, statusMessage: 'low must be less than high' });
+  }
+  try {
+    const filePath = await common.getDisplayImagePath(settings.get(), datasetId, frame);
+    if (!filePath) {
+      return next({ status: 404, statusMessage: `No source image for dataset ${datasetId} frame ${frame}` });
+    }
+    const stat = await fs.stat(filePath);
+    if (!stat.isFile()) {
+      return next({ status: 404, statusMessage: `Not a file: ${filePath}` });
+    }
+    if (!tiffExtensions.includes(npath.extname(filePath).toLowerCase())) {
+      return next({ status: 400, statusMessage: 'Histogram only supported for TIFF source images' });
+    }
+    const histogram = await displayProcessing.getDisplayHistogram(filePath, low, high, stat.mtimeMs);
+    return res.json(histogram);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code === 'ENOENT') {
+      return next({ status: 404, statusMessage: 'Source image file not found' });
+    }
+    (err as { status?: number }).status = 500;
+    return next(err);
+  }
 });
 
 /* STREAM media */
@@ -182,7 +354,6 @@ apirouter.get('/media', (req, res, next) => {
   }
 
   const range = ranges[0];
-  // eslint-disable-next-line no-param-reassign
   res.status(206);
   res.setHeader('Content-Length', range.end - range.start + 1);
   res.setHeader('Content-Range', `bytes ${range.start}-${range.end}/${filestat.size}`);
@@ -193,7 +364,7 @@ apirouter.get('/media', (req, res, next) => {
   return null;
 });
 
-if (process.env.NODE_ENV === 'development') {
+if (process.env.NODE_ENV === 'development' || process.env.VITE_DEV_SERVER_URL) {
   /**
    * CORS * is dangerous and should be disabled in production.
    * In prod, the app is loaded from file:/// which is not limited
@@ -211,6 +382,8 @@ function fail(
   err: { status?: number; statusMessage?: string },
   req: express.Request,
   res: express.Response,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  next: express.NextFunction,
 ) {
   res.status(err.status || 500).json({ message: err.statusMessage || err });
 }

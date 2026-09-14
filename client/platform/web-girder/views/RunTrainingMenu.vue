@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, computed, PropType, ref, onBeforeMount, watch, toRef,
+  defineComponent, computed, PropType, ref, onBeforeMount, watch,
 } from 'vue';
 
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
@@ -8,7 +8,8 @@ import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import { useRequest } from 'dive-common/use';
 import { simplifyTrainingName } from 'dive-common/constants';
-import { useStore } from 'platform/web-girder/store/types';
+import { useBrand } from 'platform/web-girder/store/useBrand';
+import { useConfig } from 'platform/web-girder/store/useConfig';
 
 export default defineComponent({
   name: 'RunTrainingMenu',
@@ -31,13 +32,15 @@ export default defineComponent({
   },
 
   setup(props) {
-    const store = useStore();
-    const brandData = toRef(store.state.Brand, 'brandData');
+    const { brandData } = useBrand();
     const { getTrainingConfigurations, runTraining } = useApi();
+    const { jobsDisabled, jobsDisabledMessage } = useConfig();
 
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
     const annotatedFramesOnly = ref<boolean>(false);
+    const fineTuning = ref<boolean>(false);
+    const selectedFineTune = ref<string>('');
     const {
       request: _runTrainingRequest,
       reset: dismissJobDialog,
@@ -46,13 +49,42 @@ export default defineComponent({
 
     const successMessage = computed(() => `Started training on ${props.selectedDatasetIds.length} dataset(s)`);
 
+    const fineTuneModelList = computed(() => {
+      const modelList: {text: string, type: 'user' | 'system', name: string}[] = [];
+      if (trainingConfigurations.value?.models) {
+        Object.entries(trainingConfigurations.value.models)
+          .forEach(([, value]) => {
+            modelList.push({
+              text: `${value.name} - ${value.folderId ? 'User' : 'System'} Model`,
+              type: value.folderId ? 'user' : 'system',
+              name: value.name,
+            });
+          });
+      }
+      modelList.sort((a, b) => b.type.localeCompare(a.type));
+      return modelList;
+    });
+    const selectedFineTuneObject = computed(() => {
+      if (selectedFineTune.value !== '' && trainingConfigurations.value?.models) {
+        return Object.values(trainingConfigurations.value.models)
+          .find((model) => model.name === selectedFineTune.value);
+      }
+      return undefined;
+    });
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
       trainingConfigurations.value = resp;
-      selectedTrainingConfig.value = resp.default;
+      selectedTrainingConfig.value = resp.training.default;
     });
 
-    const trainingDisabled = computed(() => props.selectedDatasetIds.length === 0);
+    const trainingDisabled = computed(() => (
+      props.selectedDatasetIds.length === 0 || jobsDisabled.value
+    ));
+    const trainingTooltip = computed(() => (
+      jobsDisabled.value
+        ? (jobsDisabledMessage.value || 'Jobs are temporarily disabled')
+        : 'Train a detector model on this data'
+    ));
     const trainingOutputName = ref<string | null>(null);
     const menuOpen = ref(false);
     const labelText = ref<string>('');
@@ -60,7 +92,7 @@ export default defineComponent({
 
     async function runTrainingOnFolder() {
       const outputPipelineName = trainingOutputName.value;
-      if (trainingDisabled.value || !outputPipelineName) {
+      if (trainingDisabled.value || !outputPipelineName || jobsDisabled.value) {
         return;
       }
       await _runTrainingRequest(() => {
@@ -74,6 +106,7 @@ export default defineComponent({
             selectedTrainingConfig.value,
             annotatedFramesOnly.value,
             labelText.value,
+            selectedFineTuneObject.value,
           );
         }
         return runTraining(
@@ -81,6 +114,8 @@ export default defineComponent({
           outputPipelineName,
           selectedTrainingConfig.value,
           annotatedFramesOnly.value,
+          undefined,
+          selectedFineTuneObject.value,
         );
       });
       menuOpen.value = false;
@@ -109,6 +144,8 @@ export default defineComponent({
       trainingOutputName,
       menuOpen,
       trainingDisabled,
+      trainingTooltip,
+      jobsDisabled,
       jobState,
       successMessage,
       dismissJobDialog,
@@ -116,6 +153,10 @@ export default defineComponent({
       labelFile,
       clearLabelText,
       simplifyTrainingName,
+      // Fine-Tuning
+      fineTuning,
+      fineTuneModelList,
+      selectedFineTune,
     };
   },
 });
@@ -128,32 +169,41 @@ export default defineComponent({
       max-width="500"
       v-bind="menuOptions"
       :close-on-content-click="false"
+      :disabled="jobsDisabled"
     >
       <template #activator="{ on: menuOn }">
         <v-tooltip
           bottom
-          :disabled="menuOptions.offsetX"
+          :open-delay="250"
+          :disabled="menuOptions.offsetX && !jobsDisabled"
         >
           <template #activator="{ on: tooltipOn }">
-            <v-btn
-              v-bind="buttonOptions"
-              :disabled="trainingDisabled || buttonOptions.disabled"
-              v-on="{ ...tooltipOn, ...menuOn }"
+            <!-- Wrapper keeps tooltip working when the button is disabled -->
+            <span
+              class="d-inline-block"
+              style="width: 100%"
+              v-on="tooltipOn"
             >
-              <v-icon>
-                mdi-brain
-              </v-icon>
-              <span
-                v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
-                class="pl-1"
+              <v-btn
+                v-bind="buttonOptions"
+                :disabled="trainingDisabled || buttonOptions.disabled"
+                v-on="jobsDisabled ? {} : menuOn"
               >
-                Run Training
-              </span>
-              <v-spacer />
-              <v-icon>mdi-chevron-right</v-icon>
-            </v-btn>
+                <v-icon>
+                  mdi-brain
+                </v-icon>
+                <span
+                  v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"
+                  class="pl-1"
+                >
+                  Run Training
+                </span>
+                <v-spacer />
+                <v-icon>mdi-chevron-right</v-icon>
+              </v-btn>
+            </span>
           </template>
-          <span>Train a detector model on this data</span>
+          <span>{{ trainingTooltip }}</span>
         </v-tooltip>
       </template>
 
@@ -161,6 +211,7 @@ export default defineComponent({
         <v-card
           v-if="trainingConfigurations"
           outlined
+          class="training-menu"
         >
           <v-card-title class="pb-1">
             Run Training
@@ -194,19 +245,40 @@ export default defineComponent({
               persistent-hint
             />
             <v-select
+              v-if="trainingConfigurations.training.configs.length > 0"
               v-model="selectedTrainingConfig"
               outlined
               class="my-4"
               label="Configuration File"
-              :items="trainingConfigurations.configs"
+              :items="trainingConfigurations.training.configs"
+              item-text="name"
+              item-value="name"
               :hint="selectedTrainingConfig"
               persistent-hint
             >
-              <template #item="row">
-                {{ simplifyTrainingName(row.item) }}
+              <template #item="{ item, on, attrs }">
+                <v-tooltip
+                  left
+                  :open-delay="250"
+                  :disabled="!item.description"
+                  max-width="300"
+                  content-class="pipeline-description-tooltip"
+                >
+                  <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+                    <v-list-item
+                      v-bind="{ ...attrs, ...tooltipAttrs }"
+                      v-on="{ ...on, ...tooltipOn }"
+                    >
+                      <v-list-item-content>
+                        <v-list-item-title>{{ simplifyTrainingName(item.name || item) }}</v-list-item-title>
+                      </v-list-item-content>
+                    </v-list-item>
+                  </template>
+                  <span>{{ item.description }}</span>
+                </v-tooltip>
               </template>
               <template #selection="{ item }">
-                {{ simplifyTrainingName(item) }}
+                {{ simplifyTrainingName(item.name || item) }}
               </template>
             </v-select>
             <v-file-input
@@ -225,6 +297,25 @@ export default defineComponent({
               persistent-hint
               class="pt-0"
             />
+            <v-checkbox
+              v-model="fineTuning"
+              label="Fine Tune Model"
+              hint="Fine Tune an existing model"
+              persistent-hint
+              class="pt-0"
+            />
+            <v-select
+              v-if="fineTuning"
+              v-model="selectedFineTune"
+              outlined
+              class="my-4"
+              label="Fine Tune Model"
+              :items="fineTuneModelList"
+              item-value="name"
+              item-text="text"
+              hint="Model to Fine Tune"
+              persistent-hint
+            />
             <v-btn
               depressed
               block
@@ -242,9 +333,16 @@ export default defineComponent({
     <JobLaunchDialog
       :value="jobState.count > 0"
       :loading="jobState.loading"
-      :error="jobState.error"
+      :error="jobState.error ?? undefined"
       :message="successMessage"
       @close="dismissJobDialog"
     />
   </div>
 </template>
+
+<style lang="css" scoped>
+.training-menu {
+  max-height: 90vh;
+  overflow-y: auto;
+}
+</style>

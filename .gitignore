@@ -108,3 +108,6 @@ venv.bak/
 
 # Notebooks
 notebooks
+
+# Synced at runtime in development containers
+server/dive_server/dive_client/

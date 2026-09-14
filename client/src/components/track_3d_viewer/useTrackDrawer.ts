@@ -1,5 +1,5 @@
 /* eslint-disable consistent-return */
-/* eslint-disable @typescript-eslint/no-non-null-assertion */
+
 import { Ref, watch } from 'vue';
 import {
   useTrackFilters,
@@ -247,7 +247,7 @@ export default function useTrackDrawer({
   };
 
   const initializeTrack = function initializeTrack(trackWithContext: TrackWithContext) {
-    const annotation = cameraStore.getTracksMerged(trackWithContext.annotation.id);
+    const annotation = cameraStore.getTrackProjection(trackWithContext.annotation.id);
 
     // pre-process features in order to represent them
     const features: Feature[] = annotation.features

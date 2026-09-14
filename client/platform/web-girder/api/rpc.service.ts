@@ -1,22 +1,28 @@
 import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
-import { Pipe } from 'dive-common/apispec';
+import type { Pipe, PipelineParams } from 'dive-common/apispec';
+import { resolveDatasetFolderId } from './multicamResolve';
 
 function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
-  return girderRest.post<[GirderModel, string[]]>(`dive_rpc/postprocess/${folderId}`, null, {
+  return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
     params: {
       skipJobs, skipTranscoding, additive, additivePrepend, set,
     },
   });
 }
 
-function runPipeline(itemId: string, pipeline: Pipe) {
-  return girderRest.post('dive_rpc/pipeline', null, {
-    params: {
-      folderId: itemId,
-      pipeline,
-    },
-  });
+async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams) {
+  // Composite multicam ids (parent/camera) resolve to the camera folder so
+  // single-camera pipelines can run on the selected camera.
+  const { folderId } = await resolveDatasetFolderId(itemId);
+  const params: Record<string, unknown> = {
+    folderId,
+    pipeline,
+  };
+  if (pipelineParams) {
+    params.pipelineParams = pipelineParams;
+  }
+  return girderRest.post('dive_rpc/pipeline', null, { params });
 }
 
 function runTraining(
@@ -25,8 +31,14 @@ function runTraining(
   config: string,
   annotatedFramesOnly: boolean,
   labelText?: string,
+  fineTuneModel?: {
+    name: string;
+    type: string;
+    path?: string;
+    folderId?: string;
+  },
 ) {
-  return girderRest.post('dive_rpc/train', { folderIds, labelText }, {
+  return girderRest.post('dive_rpc/train', { folderIds, labelText, fineTuneModel }, {
     params: {
       pipelineName, config, annotatedFramesOnly,
     },

@@ -1,0 +1,5 @@
+# Local test videos and script outputs
+test_videos/
+transcoding_requirements.json
+*.transcoded.mp4
+*.aligned.mp4

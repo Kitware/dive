@@ -1,5 +1,5 @@
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { computed, defineComponent } from 'vue';
 import {
   useDatasetId,
   useTrackFilters,
@@ -17,10 +17,10 @@ export default defineComponent({
   setup() {
     const trackFilters = useTrackFilters();
     const datasetIdRef = useDatasetId();
-    const { saveMetadata } = useApi();
+    const { saveConfig } = useApi();
 
     function saveThreshold() {
-      saveMetadata(datasetIdRef.value, {
+      saveConfig(datasetIdRef.value, {
         confidenceFilters: trackFilters.confidenceFilters.value,
       });
     }
@@ -30,10 +30,13 @@ export default defineComponent({
       saveThreshold();
     }
 
+    const disableAnnotationFiltersRef = computed(() => trackFilters.disableAnnotationFilters.value);
+
     return {
       checkedTypesRef: trackFilters.checkedTypes,
       confidenceFiltersRef: trackFilters.confidenceFilters,
       typeStylingRef: useTrackStyleManager().typeStyling,
+      disableAnnotationFiltersRef,
       resetThresholds,
       saveThreshold,
     };
@@ -48,6 +51,7 @@ export default defineComponent({
     </span>
     <v-divider class="my-3" />
     <ConfidenceFilter
+      :disabled="disableAnnotationFiltersRef"
       :confidence.sync="confidenceFiltersRef.default"
       text="Base Confidence Threshold"
       @end="saveThreshold"
@@ -59,6 +63,7 @@ export default defineComponent({
       class="slidercontainer"
     >
       <ConfidenceFilter
+        :disabled="disableAnnotationFiltersRef"
         :confidence.sync="confidenceFiltersRef[type]"
         :text="type"
         :color="typeStylingRef.color(type)"

@@ -3,10 +3,20 @@ import re
 SETTINGS_CONST_JOBS_CONFIGS = 'jobs_configs'
 BRAND_DATA_CONFIG = 'brand_data_config'
 INSTALLED_ADDONS_CONFIGS = 'installed_addons'
+JOBS_DISABLED_CONFIG = 'jobs_disabled_config'
+DEFAULT_JOBS_DISABLED_MESSAGE = (
+    'Updates will be happening soon, we are disabling jobs until after the updates'
+)
 
 ImageSequenceType = "image-sequence"
 VideoType = "video"
 LargeImageType = "large-image"
+MultiType = "multi"
+# Media types a pipeline run feeds to KWIVER as a line-separated image list.
+# Large-image datasets are ordinary image files on disk -- girder's large-image
+# conversion only adds tile views alongside them, so only the viewer needs the
+# tile endpoints; the runner reads the same files an image sequence would.
+ImageListTypes = (ImageSequenceType, LargeImageType)
 DefaultVideoFPS = -1
 JsonMetaCurrentVersion = 1
 SettingsCurrentVersion = 1
@@ -46,6 +56,7 @@ allValidLargeImageFormats = {*validImageFormats, *validLargeImageFormats}
 videoRegex = re.compile(r"(\." + r"|\.".join(validVideoFormats) + ')$', re.IGNORECASE)
 imageRegex = re.compile(r"(\." + r"|\.".join(validImageFormats) + ')$', re.IGNORECASE)
 largeImageRegEx = re.compile(r"(\." + r"|\.".join(validLargeImageFormats) + ')$', re.IGNORECASE)
+tiffSequenceRegex = re.compile(r'\.tiff?$', re.IGNORECASE)
 allLargeImageRegEx = re.compile(
     r"(\." + r"|\.".join(allValidLargeImageFormats) + ')$', re.IGNORECASE
 )
@@ -54,7 +65,18 @@ csvRegex = re.compile(r"\.csv$", re.IGNORECASE)
 jsonRegex = re.compile(r"\.json$", re.IGNORECASE)
 ymlRegex = re.compile(r"\.ya?ml$", re.IGNORECASE)
 zipRegex = re.compile(r"\.zip$", re.IGNORECASE)
+npzRegex = re.compile(r"\.npz$", re.IGNORECASE)
+# Stereo/multicam calibration uploads (aligned with dive-common calibrationFileTypes)
+stereoCalibrationRegex = re.compile(r"\.(?:npz|json|cam|yml|zip)$", re.IGNORECASE)
+# Optional per-dataset metadata file uploads (aligned with dive-common metadataFileTypes)
+metadataFileRegex = re.compile(r"\.(?:json|txt|csv)$", re.IGNORECASE)
 metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
+# A KWCOCO species list travels beside the media as configuration, not as annotations.
+# Kept separate from metaRegex: the zip-import meta discovery and the desktop
+# exported-dataset test both key off that pattern and must not see a species list.
+speciesRegex = re.compile(r"^.*\.?species\.json$", re.IGNORECASE)
+# .json or .csv file
+possibleAnnotationRegex = re.compile(r"\.(json|csv)$", re.IGNORECASE)
 
 ImageMimeTypes = {
     "image/png",
@@ -104,6 +126,22 @@ ProcessedMarker = "processed"
 ForeignMediaIdMarker = "foreign_media_id"
 TrainedPipelineMarker = "trained_pipeline"
 TypeMarker = "type"
+SubTypeMarker = "subType"
+MultiCamMarker = "multiCam"
+CalibrationItemIdMarker = "calibrationItemId"
+JsonCalibrationItemIdMarker = "jsonCalibrationItemId"
+CalibrationOriginalNameMarker = "calibrationOriginalName"
+CalibrationConversionErrorMarker = "calibrationConversionError"
+# Girder item meta: original stereoscopic calibration upload (npz, yml, etc.)
+CalibrationFileMarker = "calibrationFile"
+# Optional per-dataset metadata file (folder marker points at a Girder item id;
+# the owning folder carries the locator). Applies to single and multicam.
+MetadataFileItemIdMarker = "metadataFileItemId"
+MetadataFileOriginalNameMarker = "metadataFileOriginalName"
+# Girder item meta: marks an item as a frame-metadata attachment for Girder UI.
+FrameMetadataFileMarker = "frameMetadata"
+# Girder item meta: JSON camera-rig used for calibration display
+JsonCalibrationFileMarker = "jsonCalibrationFile"
 AssetstoreSourceMarker = "import_source"
 AssetstoreSourcePathMarker = "import_path"
 MarkForPostProcess = "MarkForPostProcess"
@@ -111,9 +149,13 @@ FPSMarker = "fps"
 OriginalFPSMarker = "originalFps"
 OriginalFPSStringMarker = "originalFpsString"
 ConfidenceFiltersMarker = "confidenceFilters"
+ImageEnhancementsMarker = "imageEnhancements"
+AnnotationFileFutureProcessMarker = "importAnnotationFile"
 
 # Other constants
 TrainedPipelineCategory = "trained"
+StereoPipelineMarker = "stereo"
+MultiCamPipelineMarkers = ("2-cam", "3-cam")
 
 # The name of the folder where any user specific data should be stored
 # (created as a folder of that user)
@@ -124,8 +166,11 @@ TrainingOutputFolderName = "VIAME Training Results"
 SourceFolderName = "source"
 # The name of the auxiliary folder
 AuxiliaryFolderName = "auxiliary"
-# the name of the meta file
-MetaFileName = "meta.json"
+# the name of the configuration file (legacy meta.json is still accepted on read)
+ConfigFileName = "config.json"
+LegacyConfigFileName = "meta.json"
+# Exported multicam datasets include this file at the dataset root (see crud_dataset export).
+MultiCamJsonFileName = "multiCam.json"
 
 # job constants
 JOBCONST_DATASET_ID = 'dataset_id'
@@ -139,4 +184,5 @@ UserPrivateQueueEnabledMarker = 'user_private_queue_enabled'
 
 AddonsListURL = 'https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv'
 
+TrainingModelExtensions = (".zip", ".pth", ".pt", ".py", ".weights", ".wt", ".ckpt")
 MISALGINED_MARKER = "VideoMisaligned"

@@ -3,12 +3,9 @@ import {
   defineComponent, onBeforeMount, ref, computed, set, watch,
 } from 'vue';
 
-import { dialog, app } from '@electron/remote';
-
 import { useRequest } from 'dive-common/use';
 import { NvidiaSmiReply } from 'platform/desktop/constants';
 import { cloneDeep, isEqual } from 'lodash';
-
 import { autoDiscover } from '../store/dataset';
 import { settings, updateSettings, validateSettings } from '../store/settings';
 import { nvidiaSmi } from '../api';
@@ -22,9 +19,10 @@ export default defineComponent({
     NavigationBar,
   },
   setup() {
-    const { arch, platform, version } = process;
-    const gitHash = process.env.VUE_APP_GIT_HASH;
-    const appversion = app.getVersion();
+    const { arch, platform } = window.diveDesktop.runtime;
+    const version = window.diveDesktop.runtime.versions.node;
+    const gitHash = window.diveDesktop.runtime.env.VUE_APP_GIT_HASH;
+    const appversion = window.diveDesktop.getAppVersionSync();
 
     // local copy of the global settings
     const localSettings = ref(cloneDeep(settings.value));
@@ -50,7 +48,7 @@ export default defineComponent({
 
     async function openPath(name: 'viamePath' | 'dataPath') {
       const defaultPath = localSettings.value?.[name];
-      const result = await dialog.showOpenDialog({
+      const result = await window.diveDesktop.showOpenDialog({
         properties: ['openDirectory'],
         defaultPath,
       });
@@ -96,7 +94,7 @@ export default defineComponent({
     <navigation-bar />
     <v-container>
       <v-card v-if="localSettings">
-        <v-card-title>Settings</v-card-title>
+        <v-card-title>Folder Settings</v-card-title>
 
         <v-card-text>
           <v-row>
@@ -225,17 +223,17 @@ export default defineComponent({
             === false ? 'info' : settingsAreValid === true ? 'success' : 'warning'"
         >
           <span v-if="settingsAreValid === false">
-            Checking for Kwiver
+            Checking for VIAME
             <v-progress-linear
               indeterminate
               color="yellow darken-2"
             />
           </span>
           <span v-else-if="settingsAreValid === true">
-            Kwiver initialization succeeded
+            VIAME initialization succeeded
           </span>
           <span v-else>
-            Could not initialize kwiver: {{ settingsAreValid }}
+            Could not initialize VIAME: {{ settingsAreValid }}
           </span>
         </v-alert>
 
@@ -252,8 +250,9 @@ export default defineComponent({
         <v-card-title>Synchronize Recents</v-card-title>
         <v-card-subtitle v-if="settings">
           Scan project directory (<b><u>{{ settings.dataPath }}</u></b>) to rediscover
-          datasets and update Recents page.  This is useful if you've manually deleted or moved
-          dataset folders around.  DIVE Desktop stores annotation files, metadata, and possibly
+          datasets and update Recents. Missing or invalid project folders are removed from
+          Recents; existing access times are preserved. Useful if you've manually deleted or
+          moved dataset folders. DIVE Desktop stores annotation files, metadata, and possibly
           trancoded copies of your source media here.
           <browser-link
             display="inline"

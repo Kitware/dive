@@ -1,5 +1,3 @@
-/* eslint-disable import/prefer-default-export */
-
 import { Bounds, RGBColor } from '@kitware/vtk.js/types';
 
 export function float2rgb(color: RGBColor): RGBColor {

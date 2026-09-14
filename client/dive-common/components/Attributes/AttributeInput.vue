@@ -1,5 +1,6 @@
 <script lang="ts">
 import {
+  computed,
   defineComponent,
   ref,
   PropType,
@@ -7,6 +8,8 @@ import {
   watch,
 } from 'vue';
 import { NumericAttributeEditorOptions, StringAttributeEditorOptions } from 'vue-media-annotator/use/AttributeTypes';
+
+let attributeInputUidCounter = 0;
 
 export default defineComponent({
   props: {
@@ -23,7 +26,7 @@ export default defineComponent({
       required: true,
     },
     values: {
-      type: Array,
+      type: Array as PropType<string[]>,
       default: () => [],
     },
     focus: {
@@ -40,8 +43,22 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
+    attributeInputUidCounter += 1;
+    const uid = attributeInputUidCounter;
     const tempVal = ref(props.value as null | boolean | number | string);
     const inputBoxRef = ref(undefined as undefined | HTMLInputElement);
+    const numberValue = computed(() => (
+      typeof props.value === 'number' ? props.value : undefined));
+    const sliderConfig = computed(() => {
+      const { typeSettings } = props;
+      const range = (
+        typeSettings && 'range' in typeSettings && typeSettings.range
+      ) ? typeSettings.range : [0, 1];
+      const steps = (
+        typeSettings && 'steps' in typeSettings && typeSettings.steps
+      ) ? typeSettings.steps : (range[1] - range[0]) / 2.0;
+      return { range, steps };
+    });
     const boolOpts = [
       { text: '', value: undefined },
       { text: 'true', value: true },
@@ -84,8 +101,8 @@ export default defineComponent({
       }
     }
 
-    function change(event: InputEvent): void {
-      const target = event.target as HTMLInputElement;
+    function change(event: Event): void {
+      const target = event.target as HTMLInputElement | HTMLSelectElement;
       const { name } = props;
       const value = target.value.trim();
       if (value) {
@@ -101,8 +118,11 @@ export default defineComponent({
     }
 
     return {
+      uid,
       inputBoxRef,
       tempVal,
+      numberValue,
+      sliderConfig,
       boolOpts,
       blurType,
       onFocus,
@@ -118,7 +138,7 @@ export default defineComponent({
   <div>
     <datalist
       v-if="datatype === 'text' && values && values.length"
-      :id="`optionsList_${_uid}`"
+      :id="`optionsList_${uid}`"
       :disabled="disabled"
     >
       <option
@@ -136,7 +156,7 @@ export default defineComponent({
       v-model="tempVal"
       type="text"
       :disabled="disabled"
-      :list="`optionsList_${_uid}`"
+      :list="`optionsList_${uid}`"
       class="input-box"
       @change="change"
       @focus="onFocus"
@@ -146,9 +166,9 @@ export default defineComponent({
       v-else-if="datatype === 'number' && (!typeSettings || typeSettings.type === 'combo')"
       ref="inputBoxRef"
       :label="datatype"
-      :value="value"
+      :value="numberValue"
       :disabled="disabled"
-      :step="value <= 1 ? .01 : 1"
+      :step="(numberValue ?? 0) <= 1 ? .01 : 1"
       class="input-box"
       type="number"
       @change="change"
@@ -162,10 +182,9 @@ export default defineComponent({
       </div>
       <v-slider
         :value="value"
-        :step="typeSettings.steps ? typeSettings.steps
-          : (typeSettings.range[1] - typeSettings.range[0]) / 2.0"
-        :min="typeSettings.range[0]"
-        :max="typeSettings.range[1]"
+        :step="sliderConfig.steps"
+        :min="sliderConfig.range[0]"
+        :max="sliderConfig.range[1]"
         dense
         class="attribute-slider"
         @input="sliderChange"

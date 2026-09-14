@@ -1,3 +1,4 @@
+import json
 from typing import List, Optional
 
 import cherrypy
@@ -13,7 +14,7 @@ from girder.models.item import Item
 from dive_utils import constants, setContentDisposition
 from dive_utils.models import MetadataMutable
 
-from . import crud, crud_dataset
+from . import crud, crud_dataset, crud_scoring
 
 DatasetModelParam = {
     'description': "dataset id",
@@ -21,6 +22,14 @@ DatasetModelParam = {
     'paramType': 'path',
     'required': True,
 }
+
+
+def _raw_rest_error(resource: Resource, error: RestException) -> str:
+    """Return a streaming/download validation error without Girder rewriting its body."""
+    resource.setRawResponse()
+    cherrypy.response.status = error.code
+    cherrypy.response.headers['Content-Type'] = 'text/plain'
+    return str(error)
 
 
 class DatasetResource(Resource):
@@ -34,9 +43,18 @@ class DatasetResource(Resource):
         Folder().exposeFields(AccessType.READ, constants.ForeignMediaIdMarker)
 
         self.route("POST", (), self.create_dataset)
+        self.route("POST", ("multicam",), self.create_multicam)
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
+        self.route("GET", ("calibration",), self.get_dataset_calibration)
+        self.route("POST", (":id", "calibration"), self.set_dataset_calibration)
+        self.route("POST", (":id", "metadata_file"), self.set_dataset_metadata_file)
         self.route("GET", (":id", "media"), self.get_media)
+        self.route("GET", (":id", "frame_metadata_sources"), self.get_frame_metadata_sources)
+        self.route("GET", (":id", "scoring"), self.list_scoring_results)
+        self.route("GET", (":id", "scoring", ":resultId"), self.get_scoring_result)
+        self.route("DELETE", (":id", "scoring", ":resultId"), self.delete_scoring_result)
+        self.route("GET", (":id", "scoring_sources"), self.get_scoring_sources)
         self.route("GET", ("export",), self.export)
         self.route("GET", (":id", "configuration"), self.get_configuration)
         self.route("GET", (":id", "media", ":mediaId", "download"), self.download_media)
@@ -90,6 +108,33 @@ class DatasetResource(Resource):
         return crud_dataset.createSoftClone(
             self.getCurrentUser(), cloneSource, parentFolder, name, revision
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Finalize a multicamera dataset from uploaded child folders")
+        .modelParam(
+            "parentFolderId",
+            description="Multicam dataset folder containing the per-camera child folders",
+            paramType="query",
+            destName="parentFolder",
+            model=Folder,
+            level=AccessType.WRITE,
+            required=True,
+        )
+        .jsonParam(
+            "data",
+            description="schema: CreateMulticamArgs",
+            requireObject=True,
+            paramType="body",
+        )
+    )
+    def create_multicam(self, parentFolder, data):
+        folder = crud_dataset.create_multicam(
+            self.getCurrentUser(),
+            parentFolder,
+            data,
+        )
+        return folder
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
@@ -173,6 +218,49 @@ class DatasetResource(Resource):
     def get_meta(self, folder):
         return crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(exclude_none=True)
 
+    @access.user
+    @autoDescribeRoute(
+        Description("Get calibration information of dataset").modelParam(
+            "folderId",
+            description="Folder id of a video clip",
+            model=Folder,
+            paramType="query",
+            required=True,
+            level=AccessType.READ,
+        )
+    )
+    def get_dataset_calibration(
+        self,
+        folder,
+    ):
+        return crud_dataset.get_calibration(self.getCurrentUser(), folder)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Set the stereoscopic calibration file for a dataset")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .param(
+            "fileId",
+            "Girder file id of a calibration file already uploaded to the dataset folder",
+            required=True,
+        )
+    )
+    def set_dataset_calibration(self, folder, fileId):
+        return crud_dataset.set_calibration(self.getCurrentUser(), folder, fileId)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Set the optional metadata file for a dataset")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .param(
+            "itemId",
+            "Girder item id of a metadata file already uploaded to the dataset folder",
+            required=True,
+        )
+    )
+    def set_dataset_metadata_file(self, folder, itemId):
+        return crud_dataset.set_metadata_file(self.getCurrentUser(), folder, itemId)
+
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @rawResponse
     @autoDescribeRoute(
@@ -181,14 +269,20 @@ class DatasetResource(Resource):
         )
     )
     def get_configuration(self, folder):
-        setContentDisposition(f'{folder["name"]}.config.json')
         # A dataset configuration consists of MetadataMutable properties.
         expose = MetadataMutable.schema()['properties'].keys()
-        return crud_dataset.get_dataset(folder, self.getCurrentUser()).json(
-            exclude_none=True,
-            include=expose,
-            indent=2,
+        try:
+            hierarchy = crud_dataset.type_hierarchy_for_export(folder, self.getCurrentUser())
+        except RestException as error:
+            return _raw_rest_error(self, error)
+        setContentDisposition(f'{folder["name"]}.config.json')
+        configuration = crud_dataset.get_dataset(folder, self.getCurrentUser()).dict(
+            exclude_none=True, include=expose
         )
+        configuration.pop('typeHierarchy', None)
+        if hierarchy is not None:
+            configuration['typeHierarchy'] = hierarchy
+        return json.dumps(configuration, indent=2)
 
     @access.user
     @autoDescribeRoute(
@@ -198,6 +292,67 @@ class DatasetResource(Resource):
     )
     def get_media(self, folder):
         return crud_dataset.get_media(folder, self.getCurrentUser()).dict(exclude_none=True)
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "Load normalized frame-metadata attachment identities for the panel. "
+            "The server classifies sidecars by name only and never parses them; the client "
+            "downloads and parses the bytes."
+        ).modelParam("id", level=AccessType.READ, **DatasetModelParam)
+    )
+    def get_frame_metadata_sources(self, folder):
+        return crud_dataset.load_frame_metadata_sources(folder, self.getCurrentUser())
+
+    @access.user
+    @autoDescribeRoute(
+        Description("List scoring results stored on a dataset, newest first").modelParam(
+            "id", level=AccessType.READ, **DatasetModelParam
+        )
+    )
+    def list_scoring_results(self, folder):
+        return crud_scoring.list_results(folder)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Load one scoring result")
+        .modelParam("id", level=AccessType.READ, **DatasetModelParam)
+        .modelParam(
+            "resultId",
+            description="scoring result item id",
+            model=Item,
+            paramType='path',
+            level=AccessType.READ,
+            required=True,
+        )
+    )
+    def get_scoring_result(self, folder, item):
+        return crud_scoring.load_result(folder, item)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Delete one scoring result")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .modelParam(
+            "resultId",
+            description="scoring result item id",
+            model=Item,
+            paramType='path',
+            level=AccessType.WRITE,
+            required=True,
+        )
+    )
+    def delete_scoring_result(self, folder, item):
+        crud_scoring.delete_result(folder, item)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Annotation sets and revisions a scoring source can use").modelParam(
+            "id", level=AccessType.READ, **DatasetModelParam
+        )
+    )
+    def get_scoring_sources(self, folder):
+        return crud_scoring.source_options(folder)
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
@@ -253,14 +408,17 @@ class DatasetResource(Resource):
             girder_folders.append(
                 Folder().load(folder, level=AccessType.READ, user=self.getCurrentUser())
             )
-        gen = crud_dataset.export_datasets_zipstream(
-            girder_folders,
-            self.getCurrentUser(),
-            includeMedia=includeMedia,
-            includeDetections=includeDetections,
-            excludeBelowThreshold=excludeBelowThreshold,
-            typeFilter=typeFilter,
-        )
+        try:
+            gen = crud_dataset.export_datasets_zipstream(
+                girder_folders,
+                self.getCurrentUser(),
+                includeMedia=includeMedia,
+                includeDetections=includeDetections,
+                excludeBelowThreshold=excludeBelowThreshold,
+                typeFilter=typeFilter,
+            )
+        except RestException as error:
+            return _raw_rest_error(self, error)
         zip_name = "batch_export.zip"
         if len(girder_folders) == 1:
             zip_name = f"{girder_folders[0]['name']}.zip"
@@ -288,7 +446,28 @@ class DatasetResource(Resource):
         )
     )
     def patch_metadata(self, folder, data):
-        return crud_dataset.update_metadata(folder, data)
+        if 'typeHierarchy' not in data:
+            return crud_dataset.update_metadata(folder, data)
+        parent = crud.get_multicam_parent_folder(folder, self.getCurrentUser())
+        if parent is None:
+            if crud.get_multicam_owner_folder(folder) is not None:
+                raise RestException(
+                    'Write access to the multicamera parent is required '
+                    'to change its type hierarchy.',
+                    code=403,
+                )
+            return crud_dataset.update_metadata(folder, data)
+        camera_data = dict(data)
+        hierarchy = camera_data.pop('typeHierarchy')
+        hierarchy_data = {'typeHierarchy': hierarchy}
+        crud_dataset.validate_type_hierarchy_update(parent, hierarchy_data)
+        if camera_data:
+            crud_dataset.validate_metadata_shape(camera_data)
+        result = crud_dataset.update_metadata(parent, hierarchy_data)
+        if camera_data:
+            crud_dataset.update_metadata(folder, camera_data)
+        crud_dataset.remove_camera_type_hierarchy(folder)
+        return result
 
     @access.user
     @autoDescribeRoute(
