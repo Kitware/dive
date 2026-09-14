@@ -61,27 +61,40 @@ export function searchResultItem(
 }
 
 /**
- * A new annotation track for a result, one keyframe per boxed state, so
- * the result can join its dataset's annotations with the given type. Null
- * when the result carries no box at all.
+ * A new annotation track for a result, one keyframe per state, so the
+ * result can join its dataset's annotations with the given type. Boxed
+ * states keep their bounds; boxless (whole-frame) states become keyframes
+ * without bounds. Null only when the result names no frame at all.
  */
 export function searchResultTrack(result: VideoSearchResult, type: string): Omit<TrackData, 'id'> | null {
   const byFrame = new Map<number, Feature>();
   (result.tracks[0]?.states ?? []).forEach((state) => {
-    if (!state.bbox || byFrame.has(state.frame)) return;
-    const [x1, y1, x2, y2] = state.bbox;
-    byFrame.set(state.frame, {
-      frame: state.frame,
-      keyframe: true,
-      interpolate: false,
-      bounds: [
-        Math.round(Math.min(x1, x2)), Math.round(Math.min(y1, y2)),
-        Math.round(Math.max(x1, x2)), Math.round(Math.max(y1, y2)),
-      ],
-    });
+    if (byFrame.has(state.frame)) return;
+    if (state.bbox) {
+      const [x1, y1, x2, y2] = state.bbox;
+      byFrame.set(state.frame, {
+        frame: state.frame,
+        keyframe: true,
+        interpolate: false,
+        bounds: [
+          Math.round(Math.min(x1, x2)), Math.round(Math.min(y1, y2)),
+          Math.round(Math.max(x1, x2)), Math.round(Math.max(y1, y2)),
+        ],
+      });
+    } else {
+      byFrame.set(state.frame, {
+        frame: state.frame,
+        keyframe: true,
+        interpolate: false,
+      });
+    }
   });
+  if (byFrame.size === 0) {
+    const frame = searchResultFrame(result);
+    if (frame === null) return null;
+    byFrame.set(frame, { frame, keyframe: true, interpolate: false });
+  }
   const features = Array.from(byFrame.values()).sort((a, b) => a.frame - b.frame);
-  if (features.length === 0) return null;
   return {
     begin: features[0].frame,
     end: features[features.length - 1].frame,

@@ -14,8 +14,9 @@ import {
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewCellGeometryEdit } from 'dive-common/components/Review/ReviewCell.vue';
 import { tracksOverlapping } from 'dive-common/review/reviewItems';
-import { searchResultTrack } from 'dive-common/review/searchResultItems';
+import { searchResultItem, searchResultTrack } from 'dive-common/review/searchResultItems';
 import type { ReviewItem } from 'dive-common/review/types';
+import { DEFAULT_REVIEW_GRID } from 'dive-common/review/types';
 import type { ReviewService } from 'dive-common/use/useReview';
 import type { VideoSearchContextType } from 'platform/desktop/frontend/useVideoSearch';
 
@@ -129,11 +130,21 @@ function createScopedSearchReview(
       throw new Error(`Could not load the annotations of ${datasetId}`);
     }
     const data = searchResultTrack(result, type);
-    if (!data) throw new Error('This result has no box to annotate');
+    if (!data) throw new Error('This result has no frame to annotate');
     const track = review.insertTrack(datasetId, data);
     if (!track) throw new Error(`Could not add the annotation to ${datasetId}`);
-    const item = review.itemFor(datasetId, track.id, result.ref);
-    if (!item) throw new Error('This annotation has no box to show');
+    // Whole-frame (boxless) tracks are not review-grid items via itemFor;
+    // fall back to the search result's own whole-frame chip.
+    let item = review.itemFor(datasetId, track.id, result.ref);
+    if (!item) {
+      const fromSearch = searchResultItem(result, datasetId, DEFAULT_REVIEW_GRID.maxSequenceFrames);
+      if (fromSearch) {
+        item = {
+          ...fromSearch, trackId: track.id, key: result.ref, type,
+        };
+      }
+    }
+    if (!item) throw new Error('This annotation has no frame to show');
     adopted.value = { ...adopted.value, [result.ref]: item };
     created.value = { ...created.value, [result.ref]: { datasetId, trackId: track.id } };
     return item;

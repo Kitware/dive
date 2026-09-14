@@ -56,7 +56,7 @@ describe('searchResultTrack', () => {
       { frame: 1, bbox: [1, 1, 2, 2] },
       { frame: 5 },
     ]), 'fish');
-    expect(data).toMatchObject({ begin: 1, end: 3, confidencePairs: [['fish', 1]] });
+    expect(data).toMatchObject({ begin: 1, end: 5, confidencePairs: [['fish', 1]] });
     expect(data?.features).toEqual([
       {
         frame: 1, keyframe: true, interpolate: false, bounds: [1, 1, 2, 2],
@@ -64,10 +64,21 @@ describe('searchResultTrack', () => {
       {
         frame: 3, keyframe: true, interpolate: false, bounds: [5, 21, 10, 30],
       },
+      {
+        frame: 5, keyframe: true, interpolate: false,
+      },
     ]);
   });
 
-  it('is null for a result without boxes', () => {
-    expect(searchResultTrack(result([{ frame: 2 }]), 'fish')).toBeNull();
+  it('builds a boxless keyframe for whole-frame results', () => {
+    expect(searchResultTrack(result([{ frame: 2 }]), 'fish')).toMatchObject({
+      begin: 2,
+      end: 2,
+      confidencePairs: [['fish', 1]],
+      features: [{ frame: 2, keyframe: true, interpolate: false }],
+    });
+    expect(searchResultTrack(result([], { start_frame: 4 }), 'fish')?.features)
+      .toEqual([{ frame: 4, keyframe: true, interpolate: false }]);
+    expect(searchResultTrack(result([], { start_frame: null }), 'fish')).toBeNull();
   });
 });

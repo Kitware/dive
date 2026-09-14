@@ -152,14 +152,29 @@ describe('createSearchReview', () => {
     expect(searchReview.itemOf(second)).toBeUndefined();
   });
 
-  it('reports results that cannot become annotations instead of throwing', async () => {
+  it('adopts a whole-frame result when a box is drawn on it', async () => {
     const { review, searchReview } = setup([]);
     const boxless = { ...result('0:3'), tracks: [{ id: 9, states: [{ frame: 3 }] }] };
     await searchReview.editGeometry(boxless, {
       slot: 0, frame: 3, bounds: [1, 1, 9, 9], polygons: [], head: null, tail: null,
     });
-    expect(review.updateGeometry).not.toHaveBeenCalled();
-    expect(searchReview.error.value).toMatch(/no box/);
+    expect(review.insertTrack).toHaveBeenCalled();
+    expect(review.updateGeometry).toHaveBeenCalled();
+    expect(searchReview.error.value).toBeNull();
+  });
+
+  it('saves accepted whole-frame results that have no box', async () => {
+    const {
+      search, review, tracks, searchReview,
+    } = setup([]);
+    const boxless = { ...result('0:3'), tracks: [{ id: 9, states: [{ frame: 3 }] }] };
+    search.state.results = [boxless];
+    search.state.adjudications = { '0:3': 'positive' };
+    expect(searchReview.changeCount.value).toBe(1);
+    expect(await searchReview.save()).toBe('saved');
+    expect(review.insertTrack).toHaveBeenCalled();
+    expect(tracks.size).toBe(1);
+    expect(searchReview.changeCount.value).toBe(0);
   });
 
   it('re-enables save after a successful save when more results are accepted or typed', async () => {
