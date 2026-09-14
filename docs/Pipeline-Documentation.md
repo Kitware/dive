@@ -111,6 +111,12 @@ By default, all classes from all input datasets are preserved in the output mode
 
 By default, training runs include all frames from the chosen input datasets, and frames without annotations are considered negative examples.  If you choose to use annotated frames only, frames or images with zero annotations will be discarded.  This option is useful for trying to train on datasets that are only partially annotated.
 
+#### Email progress reports to
+
+This **optional** address receives reports from VIAME's training monitor while the run is in progress: a test message when training starts, validation statistics every few epochs, a notice when a possible error or deadlock is detected, and a final message saying whether the run finished normally.  A copy of the training output is kept as `train.log` in the run's output directory alongside the `monitor_status.log` trail.
+
+Mail delivery is configured on the machine that runs training, not in DIVE.  Set `VIAME_SMTP_SERVER` (as `host:port`) and, when the server needs a login, `VIAME_SMTP_USER` and `VIAME_SMTP_PASSWORD` in the environment of DIVE Desktop or of the training worker.  On Linux a local `sendmail` is used when no server is set.  Without either, the reports are still written to the status trail in the output directory.  This option requires a VIAME build that includes the `viame monitor` tool.
+
 ### Configurations
 
 | Configuration | Availability | Use Case |
