@@ -221,17 +221,24 @@ export function createQueryPage() {
     });
   }
 
+  /** Drop the open query session UI after the index membership changes. */
+  function invalidateSearchSession() {
+    search.state.sessionOpen = false;
+    search.state.streams = {};
+    search.state.results = [];
+    search.state.adjudications = {};
+    search.state.iteration = 0;
+    search.state.queryGeneration += 1;
+    search.state.modelAvailable = false;
+  }
+
   async function changeIndex(remove: () => Promise<unknown>) {
     if (indexActionsDisabled.value) return;
     changingIndex.value = true;
     error.value = null;
     try {
       await remove();
-      search.state.sessionOpen = false;
-      search.state.streams = {};
-      search.state.results = [];
-      search.state.adjudications = {};
-      search.state.modelAvailable = false;
+      invalidateSearchSession();
       await refreshIndexMembers();
       await Promise.all(datasets.value.map((dataset) => refreshIndexStatus(dataset.id)));
     } catch (err) {
@@ -248,8 +255,10 @@ export function createQueryPage() {
   }
 
   // Observe terminal state as well as running jobs, so failures remain visible on return.
+  // Index builds close the backend session; clear results so Refine/export cannot
+  // target a stale in-memory cache.
   watch(() => recentHistory.value.map(({ job }) => `${job.key}:${job.endTime}:${job.exitCode}`).join('|'), () => {
-    search.state.sessionOpen = false;
+    invalidateSearchSession();
     datasets.value.forEach((dataset) => { refreshIndexStatus(dataset.id); });
     if (installed.value) refreshIndexMembers().catch((err) => fail(err, 'Could not list indexed sequences'));
   });

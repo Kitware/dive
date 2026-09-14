@@ -30,7 +30,21 @@ vi.mock('./useVideoSearch', () => ({
       results: { ref: string; stream_id: string }[];
       streams: Record<string, { datasetId: string }>;
       busy: boolean;
-    } = { results: [], streams: {}, busy: false };
+      sessionOpen: boolean;
+      adjudications: Record<string, string | undefined>;
+      iteration: number;
+      queryGeneration: number;
+      modelAvailable: boolean;
+    } = {
+      results: [],
+      streams: {},
+      busy: false,
+      sessionOpen: false,
+      adjudications: {},
+      iteration: 0,
+      queryGeneration: 0,
+      modelAvailable: false,
+    };
     return {
       state,
       resultDatasetId: (result: { stream_id: string }) => state.streams[result.stream_id]?.datasetId ?? null,
@@ -180,6 +194,36 @@ it('limits results to the listed datasets when onlySelected is on', async () => 
   expect(page.results.value.map((result) => result.ref)).toEqual(['a']);
   page.onlySelected.value = false;
   expect(page.results.value.map((result) => result.ref)).toEqual(['a', 'b']);
+  scope.stop();
+});
+
+it('clears stale query results when an index job finishes', async () => {
+  recentHistory.value.splice(0);
+  const scope = effectScope();
+  const page = scope.run(() => createQueryPage())!;
+  page.search.state.sessionOpen = true;
+  page.search.state.results = [{ ref: 'stale' }] as never;
+  page.search.state.adjudications = { stale: 'positive' } as never;
+  page.search.state.modelAvailable = true;
+  const generation = page.search.state.queryGeneration;
+  recentHistory.value.push({
+    job: {
+      key: 'index-done',
+      title: 'Add search index (detections)',
+      datasetIds: ['clip'],
+      startTime: new Date(),
+      endTime: new Date(),
+      exitCode: 0,
+    },
+    truncatedLogs: [],
+    totalLogLength: 0,
+  } as never);
+  await Promise.resolve();
+  expect(page.search.state.sessionOpen).toBe(false);
+  expect(page.search.state.results).toEqual([]);
+  expect(page.search.state.adjudications).toEqual({});
+  expect(page.search.state.modelAvailable).toBe(false);
+  expect(page.search.state.queryGeneration).toBe(generation + 1);
   scope.stop();
 });
 

@@ -75,7 +75,10 @@ export default defineComponent({
       overlapDialog.value = null;
       resolve?.(choice);
     }
-    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review, { resolveOverlap });
+    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review, {
+      resolveOverlap,
+      results: page.results,
+    });
     const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : (resumed?.view ?? 'query'));
     const searchChips = resumed?.searchChips ?? createSearchChips(page.search, {
       results: page.results,

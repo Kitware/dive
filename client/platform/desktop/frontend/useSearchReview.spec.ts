@@ -1,4 +1,6 @@
-import { effectScope, reactive } from 'vue';
+import {
+  effectScope, reactive, ref, Ref,
+} from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewItem } from 'dive-common/review/types';
 import type { TrackData } from 'vue-media-annotator/track';
@@ -28,7 +30,11 @@ function track(id: number, frame: number, bounds: [number, number, number, numbe
 }
 
 /** A minimal in-memory stand-in for the review service's track store. */
-function setup(originals: TrackData[], choice: OverlapChoice = 'keep-originals') {
+function setup(
+  originals: TrackData[],
+  choice: OverlapChoice = 'keep-originals',
+  options: { results?: Ref<VideoSearchResult[]> } = {},
+) {
   const tracks = new Map(originals.map((t) => [t.id, t]));
   const pending = new Set<number>();
   const deleted = new Set<number>();
@@ -65,7 +71,12 @@ function setup(originals: TrackData[], choice: OverlapChoice = 'keep-originals')
   } as unknown as ReviewService;
   const resolveOverlap = vi.fn(async () => choice);
   return {
-    search, review, tracks, deleted, resolveOverlap, searchReview: createSearchReview(search, review, { resolveOverlap }),
+    search,
+    review,
+    tracks,
+    deleted,
+    resolveOverlap,
+    searchReview: createSearchReview(search, review, { resolveOverlap, results: options.results }),
   };
 }
 
@@ -211,5 +222,24 @@ describe('createSearchReview', () => {
     pageScope.stop();
     search.state.adjudications = { ...search.state.adjudications, '0:2': 'positive' };
     expect(searchReview.hasChanges.value).toBe(true);
+  });
+
+  it('counts and saves only results in the scoped filter', async () => {
+    const visible = result('0:1', 1, [0, 0, 10, 10]);
+    const hidden = result('0:2', 2, [20, 20, 30, 30]);
+    const scoped = ref([visible]);
+    const {
+      search, review, tracks, searchReview,
+    } = setup([], 'keep-originals', { results: scoped });
+    search.state.results = [visible, hidden];
+    search.state.adjudications = { '0:1': 'positive', '0:2': 'positive' };
+    expect(searchReview.changeCount.value).toBe(1);
+    expect(await searchReview.save()).toBe('saved');
+    expect(review.insertTrack).toHaveBeenCalledTimes(1);
+    expect(tracks.size).toBe(1);
+    expect(searchReview.changeCount.value).toBe(0);
+
+    scoped.value = [visible, hidden];
+    expect(searchReview.changeCount.value).toBe(1);
   });
 });

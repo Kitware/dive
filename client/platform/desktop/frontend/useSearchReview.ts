@@ -9,7 +9,7 @@
  * drop the results altogether.
  */
 import {
-  computed, effectScope, ref, watch,
+  computed, effectScope, ref, Ref, watch,
 } from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewCellGeometryEdit } from 'dive-common/components/Review/ReviewCell.vue';
@@ -40,6 +40,12 @@ export interface OverlapSummary {
 export interface SearchReviewOptions {
   /** How to save results that overlap existing annotations. */
   resolveOverlap: (summary: OverlapSummary) => Promise<OverlapChoice>;
+  /**
+   * Results in scope for change counting and save. Defaults to every hit in
+   * the open session; pass a filtered list when the Query page narrows what
+   * the user is reviewing (e.g. only listed datasets).
+   */
+  results?: Ref<VideoSearchResult[]>;
 }
 
 interface CreatedTrack {
@@ -207,6 +213,11 @@ function createScopedSearchReview(
     return type === UNTYPED_RESULT ? '' : type;
   }
 
+  /** Hits the grid is showing; everything else is out of scope for save. */
+  function scopedResults(): VideoSearchResult[] {
+    return options.results?.value ?? search.state.results;
+  }
+
   /**
    * Whether an adopted result is worth writing: accepted ones always,
    * rejected ones only with a type, the rest when typed or box-edited.
@@ -222,7 +233,7 @@ function createScopedSearchReview(
   /** Results the next save would write or update, for the toolbar. */
   const changeCount = computed(() => {
     review.dataRevision.value; // eslint-disable-line no-unused-expressions
-    return search.state.results.filter((result) => {
+    return scopedResults().filter((result) => {
       if (removed.value[result.ref]) return false;
       const item = adopted.value[result.ref];
       if (!item) return search.state.adjudications[result.ref] === 'positive';
@@ -249,7 +260,13 @@ function createScopedSearchReview(
 
   function save(): Promise<SearchSaveOutcome> {
     return guarded(async (): Promise<SearchSaveOutcome> => {
-      const results = search.state.results.filter((result) => !removed.value[result.ref]);
+      const visible = new Set(scopedResults().map((result) => result.ref));
+      // Unsaved adopts outside the current filter must not ride along on
+      // review.save(), which writes every pending track.
+      Object.keys(created.value).forEach((ref) => {
+        if (!visible.has(ref) && !saved.value[ref]) discardEntry(ref);
+      });
+      const results = scopedResults().filter((result) => !removed.value[result.ref]);
       // Accepted results without a track get one now.
       await Promise.all(results
         .filter((result) => search.state.adjudications[result.ref] === 'positive' && !adopted.value[result.ref])
