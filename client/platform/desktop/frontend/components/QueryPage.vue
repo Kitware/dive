@@ -141,6 +141,7 @@ export default defineComponent({
       [page.video.filePath] = ret.filePaths;
       page.video.kind = 'file';
       page.videoFramePath.value = '';
+      page.videoFrameBox.value = null;
     }
 
     async function pickModel() {
@@ -541,7 +542,7 @@ export default defineComponent({
                   mandatory
                   dense
                   class="mb-2"
-                  @change="page.video.kind = $event; page.videoFramePath.value = ''"
+                  @change="page.video.kind = $event; page.videoFramePath.value = ''; page.videoFrameBox.value = null"
                 >
                   <v-btn
                     small
@@ -565,7 +566,7 @@ export default defineComponent({
                   outlined
                   hide-details
                   class="mb-2"
-                  @change="page.video.datasetId = $event; page.videoFramePath.value = ''"
+                  @change="page.video.datasetId = $event; page.videoFramePath.value = ''; page.videoFrameBox.value = null"
                 />
                 <div
                   v-else
@@ -599,7 +600,7 @@ export default defineComponent({
                     outlined
                     hide-details
                     class="frame-field mr-2"
-                    @change="page.video.frame = Math.max(0, Number($event) || 0); page.videoFramePath.value = ''"
+                    @change="page.video.frame = Math.max(0, Number($event) || 0); page.videoFramePath.value = ''; page.videoFrameBox.value = null"
                   />
                   <v-btn
                     small
