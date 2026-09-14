@@ -904,7 +904,13 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
 /** Frame rate, size and length of a video file on disk, read by the backend. */
 async function videoInfo(videoPath: string) {
   const client = await getClient();
-  const { data } = await client.get<{ fps: number; width: number; height: number; frameCount?: number; duration?: number }>('video-info', { params: { path: videoPath } });
+  const { data } = await client.get<{
+    fps: number;
+    duration: number;
+    width: number;
+    height: number;
+    frameCount: number;
+  }>('video-info', { params: { path: videoPath } });
   return data;
 }
 
