@@ -23,6 +23,7 @@ const csv = [
   'OLD, https://example.test/old.zip, Legacy pack, def, ALL-PLATFORMS, PYTORCH,',
   'LINUX, https://example.test/linux.zip, Linux pack, ghi, LINUX-ONLY, ONNX, models/linux.pt',
   'WINDOWS, https://example.test/win.zip, Windows pack, jkl, WINDOWS-ONLY, ONNX, models/win.pt',
+  'VIAME, https://example.test/viame.zip, VIAME-only pack, mno, ALL-EXCEPT-DIVE, ONNX, models/viame.pt',
 ].join('\n');
 
 beforeEach(async () => {
@@ -98,6 +99,7 @@ it('requires reinstall intent for an existing pack and blocks read-only installs
   await expect(installAddon(settings, { name: 'FISH' })).rejects.toThrow('already installed');
   await expect(installAddon({ ...settings, readonlyMode: true }, { name: 'FISH', force: true })).rejects.toThrow('read-only');
   await expect(installAddon(settings, { name: '--all' })).rejects.toThrow('Unknown add-on');
+  await expect(installAddon(settings, { name: 'VIAME' })).rejects.toThrow('Unknown add-on');
   expect(spawn).not.toHaveBeenCalled();
 });
 

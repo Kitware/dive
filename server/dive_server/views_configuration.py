@@ -182,8 +182,10 @@ class ConfigurationResource(Resource):
             installed_addons = addons_config['downloaded']
             download = s.get(constants.AddonsListURL)
             decoded_content = download.content.decode('utf-8')
-            cr = csv.reader(decoded_content.splitlines(), delimiter=',')
-            my_list = list(cr)
+            cr = csv.reader(decoded_content.splitlines(), delimiter=',', skipinitialspace=True)
+            my_list = [
+                item for item in cr if len(item) >= 5 and item[4].strip() != 'ALL-EXCEPT-DIVE'
+            ]
             for item in my_list:
                 addon = item[1]
                 download_name = urlparse(addon).path.replace(os.path.sep, '_')
