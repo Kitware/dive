@@ -1,6 +1,7 @@
 import type {
   DatasetConfig, DatasetConfigMutable, DatasetType,
   Pipe, SubType, MediaImportResponse, PipelineParams,
+  VideoSearchIndexMeta, VideoSearchIndexMethod,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
@@ -191,6 +192,7 @@ export enum JobType {
   RunPipeline,
   RunTraining,
   RunScoring,
+  BuildSearchIndex,
 }
 
 export interface JobArgs {
@@ -254,7 +256,21 @@ export interface CliTranscodingNotice {
   mediaCount: number;
 }
 
-export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline | RunScoring;
+/** Build a video search / IQR descriptor index over a dataset. */
+export interface BuildSearchIndex extends JobArgs {
+  type: JobType.BuildSearchIndex;
+  datasetId: string;
+  // detections: index around generic object proposals
+  // tracking: index around tracked proposals
+  // existing: index around this dataset's existing annotations
+  method: VideoSearchIndexMethod;
+}
+
+/** Sidecar metadata written alongside a built search index. */
+export type SearchIndexMeta = VideoSearchIndexMeta;
+
+export type Job = ConversionArgs | RunPipeline | RunTraining
+  | ExportTrainedPipeline | RunScoring | BuildSearchIndex;
 
 export interface DesktopJob {
   // key unique identifier for this job
@@ -262,11 +278,12 @@ export interface DesktopJob {
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training' | 'conversion' | 'export' | 'scoring';
+  jobType: 'pipeline' | 'training' | 'conversion' | 'export' | 'scoring' | 'indexing';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs | RunScoring;
+  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs | RunScoring
+    | BuildSearchIndex;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned

@@ -290,3 +290,45 @@ export function createFrameSource(config: DatasetConfig, options: FrameSourceOpt
     return entry.url;
   }, imageData.length, cacheSize, cacheBytes);
 }
+
+/**
+ * Lazily creates one frame source per dataset from its config, for chip
+ * stores whose items can name any dataset (e.g. cross-dataset search
+ * results). A dataset whose config cannot be loaded or whose media cannot
+ * be cropped resolves to null.
+ */
+export function createFrameSourceRegistry(
+  loadConfig: (datasetId: string) => Promise<DatasetConfig>,
+  options: FrameSourceOptions = {},
+) {
+  const sources = new Map<string, Promise<FrameSource | null>>();
+
+  function frameSourceFor(datasetId: string): Promise<FrameSource | null> {
+    if (!datasetId) return Promise.resolve(null);
+    let pending = sources.get(datasetId);
+    if (!pending) {
+      pending = loadConfig(datasetId)
+        .then((config) => {
+          try {
+            return createFrameSource(config, options);
+          } catch {
+            return null;
+          }
+        })
+        .catch(() => null);
+      sources.set(datasetId, pending);
+    }
+    return pending;
+  }
+
+  function dispose() {
+    sources.forEach((pending) => {
+      pending.then((source) => source?.dispose()).catch(() => undefined);
+    });
+    sources.clear();
+  }
+
+  return { frameSourceFor, dispose };
+}
+
+export type FrameSourceRegistry = ReturnType<typeof createFrameSourceRegistry>;

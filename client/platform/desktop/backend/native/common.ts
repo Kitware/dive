@@ -1939,8 +1939,11 @@ function processIsRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // ESRCH: no such process. EPERM/EACCES: process exists but we cannot signal it
+    // (other uid, or a restricted environment). Only absence means not running.
+    const { code } = err as NodeJS.ErrnoException;
+    return code === 'EPERM' || code === 'EACCES';
   }
 }
 

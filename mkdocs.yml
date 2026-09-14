@@ -73,6 +73,7 @@ nav:
       - Image Enhancements: UI-Image-Enhancements.md
       - Annotation Sets: Annotation-Sets.md
       - Scoring: Scoring.md
+      - Query: Query.md
       - Review: Review.md
     - Keyboard Shortcut Reference: Mouse-Keyboard-Shortcuts.md
     - Advanced features:

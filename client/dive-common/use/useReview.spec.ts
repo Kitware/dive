@@ -234,7 +234,7 @@ describe('createReviewService', () => {
     const right = entry.items[1];
     expect(right.frames.map((f) => f.missing ?? false)).toEqual([true, false]);
 
-    service.addKeyframe(right, 0, right.frames[0].bounds);
+    service.addKeyframe(right, 0, right.frames[0].bounds!);
     expect(service.trackOf('m/right', 3)?.features.map((f) => f.frame)).toEqual([0, 4]);
     expect(service.trackOf('m/right', 3)?.begin).toBe(0);
     expect(service.entries.value[0].items[1].frames.every((f) => !f.missing)).toBe(true);
@@ -471,4 +471,72 @@ it('preserves dirty data instead of replacing it on resume', async () => {
   expect(service.pendingCount.value).toBe(1);
   expect(service.trackOf('a', 1)?.confidencePairs).toEqual([['shark', 1]]);
   service.dispose();
+});
+
+describe('adopting outside tracks', () => {
+  it('finds the overlapping track on a frame, inserts new ones under free ids, and builds items for them', async () => {
+    const service = createReviewService({ api: makeApi({ a: [track(4, [['fish', 0.9]], [0, 1])] }) });
+    expect(await service.ensureLoaded('a')).toBe(true);
+    expect(service.findTrackAt('a', 1, [1, 1, 9, 9])?.id).toBe(4);
+    expect(service.findTrackAt('a', 1, [50, 50, 60, 60])).toBeUndefined();
+    expect(service.findTrackAt('a', 2, [0, 0, 10, 10])).toBeUndefined();
+
+    const inserted = service.insertTrack('a', {
+      begin: 7, end: 7, confidencePairs: [['crab', 1]], attributes: {}, features: [{ frame: 7, keyframe: true, bounds: [2, 2, 8, 8] }],
+    });
+    expect(inserted?.id).toBe(5);
+    expect(service.pendingCount.value).toBe(1);
+    expect(service.itemFor('a', 5, 'result:1')).toMatchObject({
+      key: 'result:1', datasetId: 'a', trackId: 5, type: 'crab', primary: { frame: 7, bounds: [2, 2, 8, 8] },
+    });
+    expect(service.itemFor('a', 99)).toBeNull();
+    service.dispose();
+  });
+
+  it('waits for a load already in flight', async () => {
+    const service = createReviewService({ api: makeApi({ a: [track(1, [['fish', 0.9]], [0])] }) });
+    const adding = service.addDataset('a');
+    expect(await service.ensureLoaded('a')).toBe(true);
+    await adding;
+    expect(service.trackOf('a', 1)).toBeDefined();
+    service.dispose();
+  });
+
+  it('retries ensureLoaded after a previous load error', async () => {
+    const api = makeApi({}, {
+      loadDetections: vi.fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({ tracks: [track(1, [['fish', 0.9]], [0])], groups: [] }),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    expect(service.datasets.value[0].status).toBe('error');
+    expect(await service.ensureLoaded('a')).toBe(true);
+    expect(service.datasets.value[0].status).toBe('ready');
+    expect(service.trackOf('a', 1)).toBeDefined();
+    service.dispose();
+  });
+});
+
+describe('discarding and deleting tracks by id', () => {
+  it('forgets an unsaved insert without deleting anything, and deletes by id', async () => {
+    const api = makeApi({ a: [track(1, [['fish', 0.9]], [0])] });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    const inserted = service.insertTrack('a', {
+      begin: 2, end: 2, confidencePairs: [['crab', 1]], attributes: {}, features: [{ frame: 2, keyframe: true, bounds: [0, 0, 5, 5] }],
+    })!;
+    expect(service.tracksOf('a').map((t) => t.id)).toEqual([1, inserted.id]);
+    service.discardTrack('a', inserted.id);
+    expect(service.tracksOf('a').map((t) => t.id)).toEqual([1]);
+    expect(service.pendingCount.value).toBe(0);
+
+    service.deleteTrackById('a', 1);
+    expect(service.tracksOf('a')).toEqual([]);
+    await service.save();
+    expect(api.saveDetections).toHaveBeenCalledWith('a', expect.objectContaining({
+      tracks: { upsert: [], delete: [1] },
+    }));
+    service.dispose();
+  });
 });
