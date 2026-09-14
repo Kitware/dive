@@ -245,11 +245,44 @@ export default defineComponent({
       });
     });
 
-    async function saveModel() {
-      const name = window.prompt('Name for the trained model');
-      if (!name) return;
-      const dir = await page.search.saveModel(name.trim());
-      if (dir) window.alert(`Saved trained model to ${dir}.`);
+    // Electron does not support window.prompt; collect the name in-app.
+    const saveModelDialog = ref(false);
+    const saveModelName = ref('');
+    const saveModelSaving = ref(false);
+
+    function openSaveModel() {
+      saveModelName.value = '';
+      saveModelDialog.value = true;
+    }
+
+    function cancelSaveModel() {
+      if (saveModelSaving.value) return;
+      saveModelDialog.value = false;
+    }
+
+    async function confirmSaveModel() {
+      const name = saveModelName.value.trim();
+      if (!name || saveModelSaving.value) return;
+      saveModelSaving.value = true;
+      try {
+        const dir = await page.search.saveModel(name);
+        if (dir) {
+          saveModelDialog.value = false;
+          await prompt({
+            title: 'Model saved',
+            text: `Saved trained model to ${dir}.`,
+            positiveButton: 'OK',
+          });
+        } else if (page.search.state.error) {
+          await prompt({
+            title: 'Save model failed',
+            text: page.search.state.error,
+            positiveButton: 'OK',
+          });
+        }
+      } finally {
+        saveModelSaving.value = false;
+      }
     }
 
     function searchSimilar(item: ReviewItem) {
@@ -282,7 +315,12 @@ export default defineComponent({
       pickVideoFile,
       pickModel,
       openViewer,
-      saveModel,
+      openSaveModel,
+      saveModelDialog,
+      saveModelName,
+      saveModelSaving,
+      cancelSaveModel,
+      confirmSaveModel,
       searchSimilar,
     };
   },
@@ -724,7 +762,7 @@ export default defineComponent({
                 :search-review="searchReview"
                 :memory="resultsMemory"
                 @open-result="openViewer"
-                @save-model="saveModel"
+                @save-model="openSaveModel"
               />
               <v-card
                 v-else
@@ -872,6 +910,48 @@ export default defineComponent({
             </div>
           </div>
         </div>
+      </v-card>
+    </v-dialog>
+    <v-dialog
+      :value="saveModelDialog"
+      max-width="480"
+      persistent
+      @keydown.esc="cancelSaveModel"
+    >
+      <v-card>
+        <v-card-title style="word-break: normal;">
+          Save trained model
+        </v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="saveModelName"
+            label="Model name"
+            hint="Saved under DIVE_Pipelines as a trained pipeline"
+            persistent-hint
+            autofocus
+            :disabled="saveModelSaving"
+            @keydown.enter.prevent="confirmSaveModel"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            :disabled="saveModelSaving"
+            @click="cancelSaveModel"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            text
+            :disabled="!saveModelName.trim()"
+            :loading="saveModelSaving"
+            @click="confirmSaveModel"
+          >
+            Save
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </v-main>
