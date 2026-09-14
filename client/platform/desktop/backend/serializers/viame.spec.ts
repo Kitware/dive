@@ -3,7 +3,7 @@ import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
 import { parse as parseSync } from 'csv-parse/sync';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
-import { Readable } from 'stream';
+import { Readable, Writable } from 'stream';
 import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
@@ -469,4 +469,48 @@ describe('Test Image Filenames', () => {
 
 afterEach(() => {
   mockfs.restore();
+});
+
+it('imports ordered subpixel centerlines and unrelated keypoints', async () => {
+  const csv = '1,img.png,0,0,0,100,100,1,-1,fish,1,(kp) tail 90 10,(kp) spine_010 60.123456789 40,(kp) head 10 10,(kp) spine_002 40 30,(kp) eye 12 11';
+  const [data] = await parse(Readable.from([csv]));
+  const feature = Object.values(data.tracks)[0].features[0];
+  const line = feature.geometry!.features.find((g) => g.geometry.type === 'LineString');
+  expect(line?.geometry.coordinates).toEqual([[10, 10], [40, 30], [60.123456789, 40], [90, 10]]);
+  expect(feature.geometry!.features.some((g) => g.properties?.key === 'eye')).toBe(true);
+});
+
+it('round-trips line-only JSON through CSV without rounding vertices', async () => {
+  const coordinates = [[10.123456789, 20], [20, 30.987654321], [30, 20]];
+  const annotation = {
+    ...data,
+    tracks: {
+      1: {
+        ...Object.values(data.tracks)[0],
+        id: 1,
+        begin: 0,
+        end: 0,
+        features: [{
+          frame: 0,
+          keyframe: true,
+          bounds: [0, 0, 100, 100],
+          geometry: {
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              properties: { key: 'HeadTails' },
+              geometry: { type: 'LineString', coordinates },
+            }],
+          },
+        }],
+      },
+    },
+  } as AnnotationSchema;
+  let output = '';
+  const stream = new Writable({ write(chunk, encoding, callback) { output += chunk.toString(); callback(); } });
+  await serialize(stream, annotation, meta, new Set(), { excludeBelowThreshold: false, header: false });
+  const [loaded] = await parse(Readable.from([output]));
+  const geometry = Object.values(loaded.tracks)[0].features[0].geometry!;
+  expect(geometry.features.find((f) => f.geometry.type === 'LineString')?.geometry.coordinates).toEqual(coordinates);
+  expect(output).toContain('(kp) spine_001 20 30.987654321');
 });

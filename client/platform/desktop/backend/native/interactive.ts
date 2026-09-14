@@ -631,7 +631,15 @@ export class InteractiveServiceManager extends EventEmitter {
     if (!this.isEnabled()) {
       return { id: '', success: false, error: 'Stereo service is not enabled' };
     }
-    const r = await this.sendRequest({ command: 'transfer_points', points: request.points }, 'transfer_points');
+    const r = await this.sendRequest({
+      command: 'transfer_points',
+      points: request.points,
+      source_camera: request.sourceCamera,
+      strict: request.strict,
+      left_image_path: request.leftImagePath,
+      right_image_path: request.rightImagePath,
+      frame_time: request.frameTime,
+    }, 'transfer_points');
     return {
       id: r.id,
       success: r.success ?? false,
@@ -639,6 +647,7 @@ export class InteractiveServiceManager extends EventEmitter {
       transferredPoints: r.transferred_points,
       originalPoints: r.original_points,
       disparityValues: r.disparity_values,
+      validMatches: r.valid_matches,
     };
   }
 
