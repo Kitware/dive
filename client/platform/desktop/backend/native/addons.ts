@@ -48,7 +48,8 @@ export async function readAddonCatalog(installDir: string, platform = process.pl
   });
   const names = new Set<string>();
   const addons = rows.filter((row) => row.length >= 6)
-    .filter((row) => !(row[4].trim() === 'LINUX-ONLY' && platform !== 'linux')
+    .filter((row) => row[4].trim() !== 'ALL-EXCEPT-DIVE'
+      && !(row[4].trim() === 'LINUX-ONLY' && platform !== 'linux')
       && !(row[4].trim() === 'WINDOWS-ONLY' && platform !== 'win32'))
     .map((row): ViameAddon => {
       const [name, url, description, , , dependencies, marker = ''] = row.map((field) => field.trim());
