@@ -256,6 +256,10 @@ See [Interactive Annotation troubleshooting](Interactive-Annotation.md#troublesh
 ![Debugging Desktop](images/General/desktop-debug.png)
 
 
+When started through the VIAME launch scripts (`DIVE_VIAME_INSTALL_PATH` is set),
+the native window title is **VIAME - DIVE Interface**. Standalone launches use
+**DIVE Desktop**.
+
 ## Desktop navigation
 
 While annotating a sequence, the top menu contains **Library**, **Jobs**,
