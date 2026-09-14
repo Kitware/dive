@@ -1,4 +1,4 @@
-import { reactive } from 'vue';
+import { effectScope, reactive } from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewItem } from 'dive-common/review/types';
 import type { TrackData } from 'vue-media-annotator/track';
@@ -160,5 +160,41 @@ describe('createSearchReview', () => {
     });
     expect(review.updateGeometry).not.toHaveBeenCalled();
     expect(searchReview.error.value).toMatch(/no box/);
+  });
+
+  it('re-enables save after a successful save when more results are accepted or typed', async () => {
+    const { search, searchReview } = setup([]);
+    const first = result('0:1', 1, [0, 0, 10, 10]);
+    const second = result('0:2', 2, [20, 20, 30, 30]);
+    const third = result('0:3', 3, [40, 40, 50, 50]);
+    search.state.results = [first, second, third];
+    search.state.adjudications = { '0:1': 'positive' };
+    expect(await searchReview.save()).toBe('saved');
+    expect(searchReview.hasChanges.value).toBe(false);
+
+    search.state.adjudications = { ...search.state.adjudications, '0:2': 'positive' };
+    expect(searchReview.changeCount.value).toBe(1);
+    expect(searchReview.hasChanges.value).toBe(true);
+
+    await searchReview.assignType(third, 'fish');
+    expect(searchReview.changeCount.value).toBe(2);
+  });
+
+  it('keeps hasChanges live after the creating component scope stops', async () => {
+    // Query parks searchReview across viewer visits; the page unmount stops its
+    // own scope, so createSearchReview must use a detached scope.
+    const pageScope = effectScope();
+    const ctx = pageScope.run(() => setup([]))!;
+    const { search, searchReview } = ctx;
+    const first = result('0:1');
+    const second = result('0:2', 2, [20, 20, 30, 30]);
+    search.state.results = [first, second];
+    search.state.adjudications = { '0:1': 'positive' };
+    expect(await searchReview.save()).toBe('saved');
+    expect(searchReview.hasChanges.value).toBe(false);
+
+    pageScope.stop();
+    search.state.adjudications = { ...search.state.adjudications, '0:2': 'positive' };
+    expect(searchReview.hasChanges.value).toBe(true);
   });
 });

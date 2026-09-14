@@ -8,7 +8,7 @@
  * originals, replace the overlapped ones, replace every original, or
  * drop the results altogether.
  */
-import { computed, ref, watch } from 'vue';
+import { computed, effectScope, ref, watch } from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewCellGeometryEdit } from 'dive-common/components/Review/ReviewCell.vue';
 import { tracksOverlapping } from 'dive-common/review/reviewItems';
@@ -46,7 +46,26 @@ interface CreatedTrack {
 
 export type SearchSaveOutcome = 'saved' | 'nothing' | 'discarded' | 'failed';
 
+/**
+ * Detached like createReviewService: the Query page parks this across viewer
+ * visits, so changeCount/hasChanges must keep updating after that unmount.
+ */
 export function createSearchReview(
+  search: VideoSearchContextType,
+  review: ReviewService,
+  options: SearchReviewOptions,
+) {
+  const scope = effectScope(true);
+  const service = scope.run(() => createScopedSearchReview(search, review, options))!;
+  const { dispose } = service;
+  service.dispose = () => {
+    dispose();
+    scope.stop();
+  };
+  return service;
+}
+
+function createScopedSearchReview(
   search: VideoSearchContextType,
   review: ReviewService,
   options: SearchReviewOptions,
@@ -264,6 +283,10 @@ export function createSearchReview(
       const written: Record<string, true> = { ...saved.value };
       keep.forEach((result) => { if (created.value[result.ref]) written[result.ref] = true; });
       saved.value = written;
+      // Edits covered by this save no longer count as pending changes.
+      edited.value = Object.fromEntries(
+        Object.entries(edited.value).filter(([ref]) => !written[ref]),
+      );
       return 'saved';
     }).then((outcome) => outcome ?? 'failed');
   }
@@ -280,6 +303,10 @@ export function createSearchReview(
     error.value = null;
   }
 
+  function dispose() {
+    adopting.clear();
+  }
+
   return {
     adopted,
     error,
@@ -294,6 +321,7 @@ export function createSearchReview(
     save,
     discardAll,
     clearError,
+    dispose,
   };
 }
 

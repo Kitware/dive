@@ -214,6 +214,11 @@ export default defineComponent({
       props.searchReview?.save();
     }
 
+    // Own computeds so the toolbar tracks nested refs on the plain searchReview
+    // object (Vue 2 does not deeply proxy prop contents).
+    const annotationHasChanges = computed(() => props.searchReview?.hasChanges.value ?? false);
+    const annotationChangeCount = computed(() => props.searchReview?.changeCount.value ?? 0);
+
     return {
       search,
       state,
@@ -227,6 +232,8 @@ export default defineComponent({
       adjudicationCounts,
       hideReviewed,
       reviewedCount,
+      annotationHasChanges,
+      annotationChangeCount,
       close,
       openItem,
       mark,
@@ -295,7 +302,7 @@ export default defineComponent({
             small
             outlined
             class="ml-2"
-            :disabled="!searchReview.hasChanges.value || review.saving.value"
+            :disabled="!annotationHasChanges || review.saving.value"
             title="Throw away the unsaved annotation changes"
             @click="discard"
           >
@@ -321,7 +328,7 @@ export default defineComponent({
             small
             color="primary"
             class="ml-2"
-            :disabled="!searchReview.hasChanges.value"
+            :disabled="!annotationHasChanges"
             :loading="review.saving.value"
             title="Save accepted and typed results as annotations of their datasets"
             @click="save"
@@ -333,9 +340,9 @@ export default defineComponent({
               mdi-content-save
             </v-icon>
             Save Annotations<span
-              v-if="searchReview.changeCount.value"
+              v-if="annotationChangeCount"
               class="ml-1"
-            >({{ searchReview.changeCount.value }})</span>
+            >({{ annotationChangeCount }})</span>
           </v-btn>
         </template>
         <v-btn
