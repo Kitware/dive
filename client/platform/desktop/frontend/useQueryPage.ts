@@ -318,11 +318,26 @@ export function createQueryPage() {
 
   // ---- text queries ---------------------------------------------------------
 
-  /** Frames of a dataset: image count, or null (unknown) for videos. */
+  /** Frames of a dataset: image count, or probed length for videos. */
   async function frameCountOf(id: string): Promise<number | null> {
     const config = await loadConfig(id);
-    if (config.type === 'video') return null;
-    return config.imageData?.length ?? null;
+    if (config.type !== 'video') {
+      return config.imageData?.length ?? null;
+    }
+    const media = await search.getMediaInfoFor(id);
+    const videoPath = media?.getImagePath(0);
+    if (!videoPath) return null;
+    try {
+      const info = await videoInfo(videoPath);
+      // Extraction timestamps use the dataset fps, so plan in that frame space.
+      const fps = media?.fps || info.fps;
+      if (info.duration > 0 && fps > 0) {
+        return Math.floor(info.duration * fps);
+      }
+      return info.frameCount && info.frameCount > 0 ? info.frameCount : null;
+    } catch {
+      return null;
+    }
   }
 
   async function runTextQuery() {

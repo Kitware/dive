@@ -21,8 +21,8 @@ export interface TextQueryHit {
 /**
  * Frames a text query visits in a dataset: every `stride`-th frame from the
  * first, capped at `maxFrames` spread evenly when the dataset is long.
- * `frameCount` null (unknown length, e.g. a video) yields `maxFrames` frames
- * at the stride.
+ * `frameCount` null (length still unknown after probing) yields `maxFrames`
+ * frames at the stride as a last resort.
  */
 export function textQueryFrames(frameCount: number | null, stride: number, maxFrames: number): number[] {
   const step = Math.max(1, Math.round(stride));

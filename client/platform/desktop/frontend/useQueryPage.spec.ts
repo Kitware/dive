@@ -1,14 +1,19 @@
 import { effectScope } from 'vue';
 import {
-  loadConfig, videoSearchIndexStatus, videoSearchListIndexes, videoSearchRemoveIndex, videoSearchDeleteIndex,
+  loadConfig, textQuery, videoInfo, videoSearchIndexStatus, videoSearchListIndexes,
+  videoSearchRemoveIndex, videoSearchDeleteIndex,
 } from './api';
 import { recentHistory, runningJobs } from './store/jobs';
 import { createQueryPage } from './useQueryPage';
+
+const extractedFrames: number[] = [];
 
 vi.mock('./api', () => ({
   videoSearchRemoveIndex: vi.fn(),
   videoSearchDeleteIndex: vi.fn(),
   loadConfig: vi.fn(),
+  videoInfo: vi.fn(),
+  textQuery: vi.fn(async () => ({ success: true, detections: [] })),
   videoSearchIndexStatus: vi.fn(),
   videoSearchListIndexes: vi.fn(async () => []),
   listScoringDatasets: vi.fn(async () => []),
@@ -29,6 +34,15 @@ vi.mock('./useVideoSearch', () => ({
     return {
       state,
       resultDatasetId: (result: { stream_id: string }) => state.streams[result.stream_id]?.datasetId ?? null,
+      getMediaInfoFor: vi.fn(async () => ({
+        type: 'video',
+        fps: 10,
+        getImagePath: () => '/videos/clip.mp4',
+      })),
+      imageForDatasetFrame: vi.fn(async (_id: string, frame: number) => {
+        extractedFrames.push(frame);
+        return `/frames/${frame}.png`;
+      }),
     };
   },
 }));
@@ -166,5 +180,25 @@ it('limits results to the listed datasets when onlySelected is on', async () => 
   expect(page.results.value.map((result) => result.ref)).toEqual(['a']);
   page.onlySelected.value = false;
   expect(page.results.value.map((result) => result.ref)).toEqual(['a', 'b']);
+  scope.stop();
+});
+
+it('plans text-query frames within the probed video length', async () => {
+  extractedFrames.length = 0;
+  vi.mocked(loadConfig).mockResolvedValue({ name: 'Clip', type: 'video', fps: 10 } as never);
+  vi.mocked(videoInfo).mockResolvedValue({
+    fps: 30, duration: 2, width: 640, height: 480, frameCount: 60,
+  });
+  vi.mocked(textQuery).mockResolvedValue({ success: true, detections: [] } as never);
+  const scope = effectScope();
+  const page = scope.run(() => createQueryPage())!;
+  page.datasets.value = [{ id: 'clip', name: 'Clip', index: 'indexed' }];
+  page.text.prompt = 'fish';
+  page.text.stride = 5;
+  page.text.maxFrames = 40;
+  await page.runTextQuery();
+  // duration 2s × dataset fps 10 → 20 frames → [0, 5, 10, 15]
+  expect(extractedFrames).toEqual([0, 5, 10, 15]);
+  expect(page.error.value).toBeNull();
   scope.stop();
 });
