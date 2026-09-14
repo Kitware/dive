@@ -169,28 +169,38 @@ operator, out of GPU memory) is remembered by the matcher and surfaced once,
 rather than retried on every frame change.
 
 Two runtime choices are deliberate, both verified probe-by-probe against CPU
-onnxruntime on the fixture pair (headless Chrome, SwiftShader adapter):
+onnxruntime on the fixture pair, in headless Chrome (SwiftShader) and then on
+an RTX 4090 through windowed Chrome:
 
 - **The native WebGPU provider** (`onnxruntime-web/webgpu`, imported lazily),
   not the default bundle's JSEP kernels: JSEP returns an all-zero cost volume
   for this graph (a Reshape/Cast of the right-camera features reads wrong data)
-  on 1.27, 1.29 and 1.31-dev alike.
+  on 1.27, 1.29 and 1.31-dev alike, on real hardware too.
 - **`graphOptimizationLevel: 'basic'`**: with `'all'`, one of the provider's
   extended-level fusions corrupts the GRU gate convolutions and the disparity
-  drifts by ~2 px; at `'basic'` (and `'disabled'`) the browser output matches
-  CPU to 5e-5 px.
+  drifts by ~2 px (also on real hardware); at `'basic'` the browser output
+  matches CPU to 1e-3 px.
 
 The **export itself must be VIAME's web build** of the model
 (`plugins/onnx/export_fast_foundation_stereo_web.py`, the file the
 `FAST-FDN-STEREO` add-on ships): NVIDIA's stock single-file export materialises
 1.5 GB correlation tensors and uses 3-D `ConvTranspose` and asymmetric 3-D
-`Conv` padding that no onnxruntime-web provider runs. The web build is
-numerically identical (~1e-4 px on CPU) and also cuts CPU peak memory from
-16 GB to 3 GB.
+`Conv` padding that no browser provider runs. The web build is numerically
+identical (~1e-4 px), cuts CPU peak memory from 16 GB to ~3 GB, and expresses
+every 3-D conv as 2-D convs (the providers' 3-D conv kernel is naive and was
+90% of the runtime).
 
-Real-GPU timing has not been measured (this machine's Chrome only exposes the
-SwiftShader software adapter); `Desktop/Active/fast-fdn-stereo-web/webgpu_harness`
-is a self-contained page that reports it.
+Measured on an RTX 4090 Laptop GPU through Chrome, per stereo pair after the
+first (warm-up) run:
+
+| Export | Browser, native WebGPU, `basic` | CPU onnxruntime |
+| --- | --- | --- |
+| 576×960, 8 iterations (the add-on) | 0.69 s | 5–8 s |
+| 320×736, 4 iterations | 0.26 s | ~3 s |
+
+A hardware adapter needs Chrome in a normal window with
+`--enable-features=Vulkan --enable-unsafe-webgpu` (or the matching
+`chrome://flags`); headless Chrome only ever provides SwiftShader.
 
 ### How it works
 
@@ -243,9 +253,9 @@ has already left — unless a warp is waiting on it, which upgrades it.
   Python with this preprocessing puts the fixture's head/tail disparities
   within 1 px of the NCC reference; the padding rewrite leaves the output
   bit-identical.
-- **Verified in a browser (SwiftShader)**: the web export on the native WebGPU
-  provider at `basic` optimisation matches CPU onnxruntime to 5e-5 px on the
-  fixture pair. **Not yet exercised**: a real GPU adapter (timing), and the
-  end-to-end warp, settings dropdown and frame watcher in a running viewer. Set
+- **Verified in a browser on an RTX 4090**: the web export on the native
+  WebGPU provider at `basic` optimisation matches CPU onnxruntime to 1e-3 px on
+  the fixture pair at 0.69 s per pair. **Not yet exercised**: the end-to-end
+  warp, settings dropdown and frame watcher in a running viewer. Set
   `DIVE_STEREO_FOUNDATION_MODEL` to an export to have the Node suite check its
   I/O contract.
