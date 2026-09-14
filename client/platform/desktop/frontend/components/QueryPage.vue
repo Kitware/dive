@@ -78,6 +78,7 @@ export default defineComponent({
     const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review, { resolveOverlap });
     const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : (resumed?.view ?? 'query'));
     const searchChips = resumed?.searchChips ?? createSearchChips(page.search, {
+      results: page.results,
       itemFor: (result) => searchReview.itemOf(result),
       hidden: (result) => searchReview.isRemoved(result),
     });

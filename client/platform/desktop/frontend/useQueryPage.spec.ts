@@ -19,7 +19,19 @@ vi.mock('./store/jobs', async () => {
   const { ref } = await import('vue');
   return { runningJobs: ref([]), recentHistory: ref([]), queuedGpuJobs: ref([]) };
 });
-vi.mock('./useVideoSearch', () => ({ createVideoSearch: () => ({ state: { results: [], streams: {}, busy: false } }) }));
+vi.mock('./useVideoSearch', () => ({
+  createVideoSearch: () => {
+    const state: {
+      results: { ref: string; stream_id: string }[];
+      streams: Record<string, { datasetId: string }>;
+      busy: boolean;
+    } = { results: [], streams: {}, busy: false };
+    return {
+      state,
+      resultDatasetId: (result: { stream_id: string }) => state.streams[result.stream_id]?.datasetId ?? null,
+    };
+  },
+}));
 
 it('selects the first stereo camera and checks the index of that camera', async () => {
   vi.mocked(loadConfig).mockResolvedValue({
@@ -136,5 +148,23 @@ it('reports deletion errors without clearing successful index entries', async ()
   expect(page.error.value).toBe('Permission denied');
   expect(page.indexMembers.value).toHaveLength(1);
   expect(page.changingIndex.value).toBe(false);
+  scope.stop();
+});
+
+it('limits results to the listed datasets when onlySelected is on', async () => {
+  const scope = effectScope();
+  const page = scope.run(() => createQueryPage())!;
+  page.datasets.value = [{ id: 'keep', name: 'Keep', index: 'indexed' }];
+  page.search.state.streams = {
+    keep: { datasetId: 'keep' },
+    other: { datasetId: 'other' },
+  } as never;
+  page.search.state.results = [
+    { ref: 'a', stream_id: 'keep' },
+    { ref: 'b', stream_id: 'other' },
+  ] as never;
+  expect(page.results.value.map((result) => result.ref)).toEqual(['a']);
+  page.onlySelected.value = false;
+  expect(page.results.value.map((result) => result.ref)).toEqual(['a', 'b']);
   scope.stop();
 });

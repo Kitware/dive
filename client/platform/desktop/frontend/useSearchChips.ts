@@ -31,6 +31,12 @@ export interface SearchChipsOptions {
   itemFor?: (result: VideoSearchResult) => ReviewItem | undefined;
   /** Results to leave out of the grid. */
   hidden?: (result: VideoSearchResult) => boolean;
+  /**
+   * Ranked results to show. Defaults to every hit in the open session;
+   * pass a filtered list (e.g. only listed datasets) when the Query page
+   * narrows what should appear in the grid.
+   */
+  results?: Ref<VideoSearchResult[]>;
 }
 
 /**
@@ -55,7 +61,7 @@ function createScopedSearchChips(search: VideoSearchContextType, options: Search
   });
 
   /** Every current result as a grid item, in rank order. */
-  const items = computed<ReviewItem[]>(() => search.state.results
+  const items = computed<ReviewItem[]>(() => (options.results?.value ?? search.state.results)
     .filter((result) => !options.hidden?.(result))
     .map((result) => options.itemFor?.(result) ?? searchResultItem(
       result,
