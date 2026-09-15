@@ -254,10 +254,10 @@ function parseDiveParamLines(lines: string[]) {
  * Collect DIVE_PARAMs from a pipe and, recursively, from its includes.
  *
  * Wrapper pipes inherit the params of the pipes they include; a file's own
- * declarations override inherited ones for the same key, matching kwiver's
- * config override order. Includes that cannot be read next to the including
- * file (e.g. $ENV{...} paths resolved by kwiver's own search path) simply
- * contribute no params.
+ * declarations and bare assignments override inherited defaults for the same
+ * key, matching kwiver's config override order. Includes that cannot be read
+ * next to the including file (e.g. $ENV{...} paths resolved by kwiver's own
+ * search path) simply contribute no params.
  */
 async function collectDiveParams(
   filePath: string,
