@@ -1,7 +1,8 @@
 """
 Serve the Fast-FoundationStereo ONNX export to the web client.
 
-The export ships inside VIAME's ``FAST-FDN-STEREO`` add-on zip. Its download
+The export ships inside VIAME's ``FAST-FDN-STEREO`` add-on zip (as the
+``*_web.onnx`` build when the add-on carries one for each runtime). Its download
 URL and md5 are read from VIAME's ``download_viame_addons.csv`` (the same list
 the add-on installer uses) rather than pinned here, so a re-published model is
 picked up without a DIVE release. The zip is fetched once per md5 into a local
@@ -99,14 +100,27 @@ def _download(url: str, dest: Path) -> str:
     return digest.hexdigest()
 
 
+def select_web_onnx(onnx_names: List[str]) -> str:
+    """
+    The add-on may ship two exports: the browser build (`*_web.onnx`, 3-D
+    convs rewritten for onnxruntime-web) next to the one VIAME's own CUDA /
+    TensorRT path uses. Prefer the web build; fall back to a single export.
+    """
+    web = [n for n in onnx_names if os.path.basename(n).lower().endswith('_web.onnx')]
+    if len(web) == 1:
+        return web[0]
+    if len(onnx_names) == 1:
+        return onnx_names[0]
+    raise ModelUnavailable(
+        f'Expected one *_web.onnx or a single .onnx in the add-on, found {sorted(onnx_names)}'
+    )
+
+
 def extract_model(zip_path: Path, dest_dir: Path) -> FoundationModel:
     """Pull the single ``.onnx`` and its sidecar ``.yaml`` out of an add-on zip."""
     with zipfile.ZipFile(zip_path) as archive:
         names = archive.namelist()
-        onnx_names = [n for n in names if n.lower().endswith('.onnx')]
-        if len(onnx_names) != 1:
-            raise ModelUnavailable(f'Expected one .onnx in the add-on, found {len(onnx_names)}')
-        onnx_name = onnx_names[0]
+        onnx_name = select_web_onnx([n for n in names if n.lower().endswith('.onnx')])
         yaml_name = os.path.splitext(onnx_name)[0] + '.yaml'
         if yaml_name not in names:
             raise ModelUnavailable(f'The add-on has no sidecar {os.path.basename(yaml_name)}')

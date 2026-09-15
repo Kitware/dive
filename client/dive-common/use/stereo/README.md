@@ -149,8 +149,11 @@ in DIVE:
    `cmake/download_viame_addons.csv` (the list the add-on installer already
    uses), downloads the zip once into `DIVE_MODEL_CACHE_DIR`
    (default `/tmp/dive_models`, a named volume in `docker-compose.yml`) and
-   keeps just the model and yaml. A re-published add-on has a new md5, so it is
-   fetched and the old copy dropped.
+   keeps just the model and yaml. The add-on carries two exports of the same
+   weights: `fast_foundation_stereo_l.onnx` for VIAME's own CUDA/TensorRT
+   path and `fast_foundation_stereo_l_web.onnx` with the 3-D convolutions
+   rewritten for browsers; the server takes the `*_web.onnx` one. A
+   re-published add-on has a new md5, so it is fetched and the old copy dropped.
 2. `GET dive_configuration/stereo_foundation_model/spec` reports the export's
    `image_size` and md5; `GET dive_configuration/stereo_foundation_model`
    streams the bytes.

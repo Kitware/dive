@@ -17,7 +17,7 @@ CSV = (
 YAML = 'image_size:\n- 576\n- 960\nvalid_iters: 8\n'
 
 
-def make_addon_zip(yaml_text=YAML, extra_onnx=False) -> bytes:
+def make_addon_zip(yaml_text=YAML, extra_onnx=False, web_onnx=False) -> bytes:
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, 'w') as archive:
         archive.writestr('configs/pipelines/interactive_stereo_default.conf', 'include x.conf\n')
@@ -25,6 +25,9 @@ def make_addon_zip(yaml_text=YAML, extra_onnx=False) -> bytes:
         archive.writestr('configs/pipelines/models/fast_foundation_stereo_l.yaml', yaml_text)
         if extra_onnx:
             archive.writestr('configs/pipelines/models/other.onnx', b'x')
+        if web_onnx:
+            archive.writestr('configs/pipelines/models/fast_foundation_stereo_l_web.onnx', b'web-bytes')
+            archive.writestr('configs/pipelines/models/fast_foundation_stereo_l_web.yaml', yaml_text)
     return buffer.getvalue()
 
 
@@ -96,6 +99,15 @@ def test_ensure_model_replaces_previous_md5(tmp_path):
     model = stereo_models.ensure_model(new, tmp_path, fake_downloader(new_payload))
     assert (model.height, model.width) == (576, 960)
     assert not (tmp_path / old.name / old.md5).exists()
+
+
+def test_extract_model_prefers_the_web_build(tmp_path):
+    zip_path = tmp_path / 'addon.zip'
+    zip_path.write_bytes(make_addon_zip(web_onnx=True))
+    model = stereo_models.extract_model(zip_path, tmp_path / 'out')
+    assert model.onnx_path.name == 'fast_foundation_stereo_l_web.onnx'
+    assert model.onnx_path.read_bytes() == b'web-bytes'
+    assert (model.height, model.width) == (576, 960)
 
 
 def test_extract_model_requires_exactly_one_onnx(tmp_path):
