@@ -16,8 +16,9 @@ export interface StereoFoundationModelSpec {
   name: string;
   url: string;
   md5: string;
-  height: number;
-  width: number;
+  /** Input size from a sidecar yaml; null for a bare .onnx (read from the graph instead). */
+  height: number | null;
+  width: number | null;
   size: number;
 }
 

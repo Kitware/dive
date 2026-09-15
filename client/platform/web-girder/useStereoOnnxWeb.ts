@@ -10,10 +10,10 @@
  *
  * The NCC model is a static asset (`/models/stereo_match.onnx`, produced with
  * `plugins/onnx/export_stereo_mapping.py --model match`). The foundation model
- * is the export VIAME publishes in its FAST-FDN-STEREO add-on: the girder
- * server resolves it from VIAME's add-on list and serves it, and the bytes are
- * kept in the browser's Cache API keyed by the add-on's md5 so a page reload
- * does not re-download ~100 MB. If no calibration or model is available the
+ * is the bare `.onnx` VIAME publishes under the FAST-FDN-STEREO-WEB row of its
+ * add-on list: the girder server resolves and serves it, and the bytes are
+ * kept in the browser's Cache API keyed by the row's md5 so a page reload does
+ * not re-download ~100 MB. If no calibration or model is available the
  * transfer reports the failure and no-ops.
  *
  * Because the foundation method costs one network pass per frame rather than
@@ -28,6 +28,7 @@ import useStereoOnnxTransfer from 'dive-common/use/stereo/useStereoOnnxTransfer'
 import { StereoOnnxMatcher } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import { StereoFoundationMatcher } from 'dive-common/use/stereo/StereoFoundationMatcher';
 import type { FoundationModelSpec } from 'dive-common/use/stereo/StereoFoundationMatcher';
+import type { StereoFoundationModelSpec } from 'platform/web-girder/api/configuration.service';
 import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
 import type { StereoMatcher, StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { SearchRange } from 'dive-common/use/stereo/StereoOnnxMatcher';
@@ -58,8 +59,8 @@ export interface StereoOnnxWebOptions {
   modelUrl?: string;
   /**
    * Serve the foundation model from a fixed URL instead of the girder
-   * endpoint; `foundationModelSpec` (the export's sidecar `image_size`) is then
-   * required.
+   * endpoint. `foundationModelSpec` overrides the input size read from the
+   * graph.
    */
   foundationModelUrl?: string;
   foundationModelSpec?: FoundationModelSpec;
@@ -116,7 +117,7 @@ async function openModelCache(): Promise<Cache | null> {
  * md5 comes from VIAME's add-on list, so a re-published export changes the
  * cache key and the stale copy is dropped.
  */
-async function fetchFoundationModel(): Promise<{ bytes: ArrayBuffer; spec: FoundationModelSpec }> {
+async function fetchFoundationModel(): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {
   // Imported lazily: the girder client touches `window` at load time, which
   // breaks node-environment unit tests that import this file.
   const { getStereoFoundationModelSpec, getStereoFoundationModel } = await import(
@@ -159,17 +160,14 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
 
   async function createFoundationMatcher(): Promise<StereoMatcher> {
     if (opts.foundationModelUrl) {
-      if (!opts.foundationModelSpec) {
-        throw new Error('foundationModelSpec is required with foundationModelUrl');
-      }
       return StereoFoundationMatcher.create(opts.foundationModelUrl, opts.foundationModelSpec);
     }
     opts.onStatus?.('Loading the stereo model (about 100 MB on first use)...');
     try {
       const { bytes, spec } = await fetchFoundationModel();
-      return await StereoFoundationMatcher.create(new Uint8Array(bytes), {
-        height: spec.height, width: spec.width,
-      });
+      // A bare .onnx has no sidecar; the matcher then reads the size from the graph.
+      const size = spec.height && spec.width ? { height: spec.height, width: spec.width } : undefined;
+      return await StereoFoundationMatcher.create(new Uint8Array(bytes), size);
     } finally {
       opts.onStatus?.(null);
     }

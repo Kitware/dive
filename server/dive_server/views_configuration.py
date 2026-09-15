@@ -231,6 +231,9 @@ class ConfigurationResource(Resource):
             decoded_content = download.content.decode('utf-8')
             cr = csv.reader(decoded_content.splitlines(), delimiter=',')
             my_list = list(cr)
+            # WEB-ONLY rows are bare model files the web client fetches itself
+            # (see dive_utils.stereo_models), not pipeline add-ons to install.
+            my_list = [item for item in my_list if len(item) < 5 or item[4].strip() != 'WEB-ONLY']
             for item in my_list:
                 addon = item[1]
                 download_name = urlparse(addon).path.replace(os.path.sep, '_')

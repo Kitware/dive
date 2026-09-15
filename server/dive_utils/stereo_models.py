@@ -1,12 +1,14 @@
 """
 Serve the Fast-FoundationStereo ONNX export to the web client.
 
-The export ships inside VIAME's ``FAST-FDN-STEREO`` add-on zip (as the
-``*_web.onnx`` build when the add-on carries one for each runtime). Its download
-URL and md5 are read from VIAME's ``download_viame_addons.csv`` (the same list
-the add-on installer uses) rather than pinned here, so a re-published model is
-picked up without a DIVE release. The zip is fetched once per md5 into a local
-cache and only the model and its sidecar yaml are kept.
+The browser build of the model is published as a bare ``.onnx`` file under the
+``FAST-FDN-STEREO-WEB`` row (platform ``WEB-ONLY``) of VIAME's
+``download_viame_addons.csv``, separate from the desktop add-on zip. Its URL
+and md5 are read from that list at request time rather than pinned here, so a
+re-published model is picked up without a DIVE release. The file is fetched
+once per md5 into a local cache. A zip is accepted too (the model and sidecar
+yaml are extracted); a bare file needs no sidecar, since onnxruntime-web reads
+the input size from the graph.
 """
 
 import csv
@@ -24,7 +26,7 @@ import requests
 
 from dive_utils import constants
 
-STEREO_FOUNDATION_ADDON = 'FAST-FDN-STEREO'
+STEREO_FOUNDATION_ADDON = 'FAST-FDN-STEREO-WEB'
 MODEL_CACHE_DIR_ENV = 'DIVE_MODEL_CACHE_DIR'
 DEFAULT_MODEL_CACHE_DIR = '/tmp/dive_models'
 DOWNLOAD_CHUNK_BYTES = 1 << 20
@@ -39,11 +41,12 @@ class AddonSource(NamedTuple):
 
 class FoundationModel(NamedTuple):
     onnx_path: Path
-    yaml_path: Path
+    yaml_path: Optional[Path]
     url: str
     md5: str
-    height: int
-    width: int
+    # From the sidecar yaml when there is one; None for a bare .onnx.
+    height: Optional[int]
+    width: Optional[int]
 
 
 class ModelUnavailable(Exception):
@@ -116,29 +119,34 @@ def select_web_onnx(onnx_names: List[str]) -> str:
     )
 
 
+def is_zip(path: Path) -> bool:
+    with open(path, 'rb') as handle:
+        return handle.read(4) == b'PK\x03\x04'
+
+
 def extract_model(zip_path: Path, dest_dir: Path) -> FoundationModel:
     """Pull the single ``.onnx`` and its sidecar ``.yaml`` out of an add-on zip."""
     with zipfile.ZipFile(zip_path) as archive:
         names = archive.namelist()
         onnx_name = select_web_onnx([n for n in names if n.lower().endswith('.onnx')])
         yaml_name = os.path.splitext(onnx_name)[0] + '.yaml'
-        if yaml_name not in names:
-            raise ModelUnavailable(f'The add-on has no sidecar {os.path.basename(yaml_name)}')
         dest_dir.mkdir(parents=True, exist_ok=True)
         targets = {}
         for member in (onnx_name, yaml_name):
+            if member not in names:
+                continue
             target = dest_dir / os.path.basename(member)
             with archive.open(member) as src, open(target, 'wb') as out:
                 shutil.copyfileobj(src, out)
             targets[member] = target
-    return _describe(targets[onnx_name], targets[yaml_name], url='', md5='')
+    return _describe(targets[onnx_name], targets.get(yaml_name), url='', md5='')
 
 
-def _describe(onnx_path: Path, yaml_path: Path, url: str, md5: str) -> FoundationModel:
-    size = parse_image_size(yaml_path.read_text())
-    if size is None:
-        raise ModelUnavailable(f'{yaml_path.name} does not declare image_size')
-    return FoundationModel(onnx_path, yaml_path, url, md5, size[0], size[1])
+def _describe(onnx_path: Path, yaml_path: Optional[Path], url: str, md5: str) -> FoundationModel:
+    size = parse_image_size(yaml_path.read_text()) if yaml_path else None
+    return FoundationModel(
+        onnx_path, yaml_path, url, md5, size[0] if size else None, size[1] if size else None
+    )
 
 
 def _cached(addon: AddonSource, cache_dir: Path) -> Optional[FoundationModel]:
@@ -149,9 +157,7 @@ def _cached(addon: AddonSource, cache_dir: Path) -> Optional[FoundationModel]:
     if len(onnx_files) != 1:
         return None
     yaml_path = onnx_files[0].with_suffix('.yaml')
-    if not yaml_path.is_file():
-        return None
-    return _describe(onnx_files[0], yaml_path, addon.url, addon.md5)
+    return _describe(onnx_files[0], yaml_path if yaml_path.is_file() else None, addon.url, addon.md5)
 
 
 def ensure_model(
@@ -174,9 +180,9 @@ def ensure_model(
             if cached is not None:
                 return cached
             with tempfile.TemporaryDirectory(dir=addon_dir) as tmp:
-                zip_path = Path(tmp) / 'addon.zip'
+                download_path = Path(tmp) / 'download'
                 try:
-                    actual_md5 = download(addon.url, zip_path)
+                    actual_md5 = download(addon.url, download_path)
                 except requests.RequestException as exc:
                     raise ModelUnavailable(f'Could not download {addon.url}: {exc}') from exc
                 if addon.md5 and actual_md5 != addon.md5:
@@ -185,7 +191,11 @@ def ensure_model(
                         f'({actual_md5} != {addon.md5})'
                     )
                 staging = Path(tmp) / 'model'
-                extract_model(zip_path, staging)
+                if is_zip(download_path):
+                    extract_model(download_path, staging)
+                else:
+                    staging.mkdir()
+                    download_path.rename(staging / f'{addon.name.lower()}.onnx')
                 final_dir = addon_dir / addon.md5
                 if final_dir.exists():
                     shutil.rmtree(final_dir)

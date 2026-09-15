@@ -17,7 +17,7 @@ import {
 } from 'vitest';
 
 import {
-  StereoFoundationMatcher, remapToInputTensor, DisparitySession, WEBGPU_REQUIRED_MESSAGE,
+  StereoFoundationMatcher, remapToInputTensor, DisparitySession, WEBGPU_REQUIRED_MESSAGE, inputSizeOf,
 } from '../StereoFoundationMatcher';
 import { rigFromNpz, StereoRig } from '../calibration';
 import { rodrigues, computeRectification, rectifyPoint } from '../rectify';
@@ -88,6 +88,14 @@ describe('remapToInputTensor', () => {
     const d = t.data;
     expect(d[0]).toBeCloseTo((200 / 255 - 0.485) / 0.229, 4);
     expect(d[1]).toBeCloseTo((200 / 255 - 0.456) / 0.224, 4);
+  });
+});
+
+describe('inputSizeOf', () => {
+  it('reads the fixed [1,3,H,W] input from the session metadata', () => {
+    expect(inputSizeOf({ inputMetadata: [{ name: 'right_image', shape: [1, 3, 8, 9] }, { name: 'left_image', shape: [1, 3, 576, 960] }] }))
+      .toEqual({ height: 576, width: 960 });
+    expect(() => inputSizeOf({ inputMetadata: [{ name: 'left_image', shape: [1, 3, 'H', 'W'] }] })).toThrow('fixed input size');
   });
 });
 

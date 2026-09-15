@@ -101,6 +101,18 @@ function defaultExecutionProviders(): string[] {
   return ['webgpu'];
 }
 
+/** The fixed [1,3,H,W] input size of a loaded session, from its input metadata. */
+export function inputSizeOf(session: { inputMetadata?: readonly { name: string; shape?: ReadonlyArray<number | string> }[] }): FoundationModelSpec {
+  const left = session.inputMetadata?.find((m) => m.name === 'left_image') ?? session.inputMetadata?.[0];
+  const shape = left?.shape ?? [];
+  const height = Number(shape[2]);
+  const width = Number(shape[3]);
+  if (!(height > 0 && width > 0)) {
+    throw new Error('The stereo model does not declare a fixed input size; supply foundationModelSpec.');
+  }
+  return { height, width };
+}
+
 function rigKey(rig: StereoRig): string {
   return `${rig.Kl.join(',')}|${rig.Kr.join(',')}|${rig.R.join(',')}|${rig.T.join(',')}`;
 }
@@ -231,12 +243,13 @@ export class StereoFoundationMatcher implements StereoMatcher {
   }
 
   /**
-   * Create a matcher from a model URL or model bytes. `spec` is the export's
-   * input resolution (its sidecar yaml `image_size`), which the graph fixes.
+   * Create a matcher from a model URL or model bytes. The graph fixes its
+   * input resolution; it is read from the session's input metadata unless
+   * `spec` (the sidecar yaml `image_size`) is given.
    */
   static async create(
     model: string | ArrayBuffer | Uint8Array,
-    spec: FoundationModelSpec,
+    spec?: FoundationModelSpec,
     opts: FoundationMatcherOptions = {},
   ): Promise<StereoFoundationMatcher> {
     const executionProviders = opts.executionProviders ?? defaultExecutionProviders();
@@ -249,7 +262,7 @@ export class StereoFoundationMatcher implements StereoMatcher {
       // fusions the WebGPU provider applies corrupts the GRU gates (~2 px).
       graphOptimizationLevel: 'basic',
     });
-    return new StereoFoundationMatcher(session, spec, opts.cacheSize, runtime);
+    return new StereoFoundationMatcher(session, spec ?? inputSizeOf(session), opts.cacheSize, runtime);
   }
 
   get inputSize(): FoundationModelSpec {

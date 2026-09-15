@@ -12,6 +12,8 @@ CSV = (
     '1b71862b7fa39def315c0c08c44048a7, ALL-PLATFORMS, "PYTORCH, ONNX", models/fish.zip\n'
     'FAST-FDN-STEREO, https://example.com/stereo/download, Fast foundation stereo,  '
     '29D4CDE2E33500E74844D07C5AB3DEE0, ALL-PLATFORMS, "PYTORCH", \n'
+    'FAST-FDN-STEREO-WEB, https://example.com/stereo_web/download, Browser build, '
+    'ab' * 16 + ', WEB-ONLY, "", models/fast_foundation_stereo_l_web.onnx\n'
 )
 
 YAML = 'image_size:\n- 576\n- 960\nvalid_iters: 8\n'
@@ -41,6 +43,7 @@ def fake_downloader(payload: bytes):
 
 def test_parse_addon_rows_strips_whitespace_and_lowercases_md5():
     rows = stereo_models.parse_addon_rows(CSV)
+    assert stereo_models.find_addon(rows, 'FAST-FDN-STEREO-WEB').url == 'https://example.com/stereo_web/download'
     stereo = stereo_models.find_addon(rows, 'FAST-FDN-STEREO')
     assert stereo == stereo_models.AddonSource(
         'FAST-FDN-STEREO',
@@ -76,6 +79,19 @@ def test_ensure_model_downloads_once_and_verifies_md5(tmp_path):
     again = stereo_models.ensure_model(addon, tmp_path, download)
     assert again.onnx_path == model.onnx_path
     assert calls == ['https://example.com/stereo']
+
+
+def test_ensure_model_accepts_a_bare_onnx_without_sidecar(tmp_path):
+    payload = b'raw-onnx-bytes'
+    addon = stereo_models.AddonSource(
+        'FAST-FDN-STEREO-WEB', 'https://example.com/web', hashlib.md5(payload).hexdigest()
+    )
+    model = stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload))
+    assert model.onnx_path.name == 'fast-fdn-stereo-web.onnx'
+    assert model.onnx_path.read_bytes() == payload
+    assert model.yaml_path is None
+    assert (model.height, model.width) == (None, None)
+    assert stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload)).onnx_path == model.onnx_path
 
 
 def test_ensure_model_rejects_md5_mismatch(tmp_path):

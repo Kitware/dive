@@ -139,29 +139,28 @@ it needs a GPU.
 
 ### Where the model comes from
 
-The export is the one VIAME publishes in its `FAST-FDN-STEREO` add-on
-(`fast_foundation_stereo_l.onnx` + sidecar `.yaml`), the same file
-`plugins/onnx/fast_foundation_stereo.py` runs server-side (see *Runtime
-requirements* for why it has to be VIAME's web build of it). Nothing is pinned
-in DIVE:
+The browser build is published as a **bare `.onnx`** under the
+`FAST-FDN-STEREO-WEB` row (platform `WEB-ONLY`) of VIAME's
+`cmake/download_viame_addons.csv`, separate from the desktop add-on zip
+(`FAST-FDN-STEREO`), which carries the onnxruntime-CUDA export and a TensorRT
+engine that browsers cannot use. Nothing is pinned in DIVE:
 
-1. The girder server reads the add-on's URL and md5 from VIAME's
-   `cmake/download_viame_addons.csv` (the list the add-on installer already
-   uses), downloads the zip once into `DIVE_MODEL_CACHE_DIR`
-   (default `/tmp/dive_models`, a named volume in `docker-compose.yml`) and
-   keeps just the model and yaml. The add-on carries two exports of the same
-   weights: `fast_foundation_stereo_l.onnx` for VIAME's own CUDA/TensorRT
-   path and `fast_foundation_stereo_l_web.onnx` with the 3-D convolutions
-   rewritten for browsers; the server takes the `*_web.onnx` one. A
-   re-published add-on has a new md5, so it is fetched and the old copy dropped.
-2. `GET dive_configuration/stereo_foundation_model/spec` reports the export's
-   `image_size` and md5; `GET dive_configuration/stereo_foundation_model`
-   streams the bytes.
+1. The girder server reads the row's URL and md5 from the CSV, downloads the
+   file once into `DIVE_MODEL_CACHE_DIR` (default `/tmp/dive_models`, a named
+   volume in `docker-compose.yml`) and verifies the md5. A re-published model
+   has a new md5, so it is fetched and the old copy dropped. A zip is accepted
+   too (its `*_web.onnx`/single `.onnx` and yaml are extracted).
+2. `GET dive_configuration/stereo_foundation_model/spec` reports the md5 and,
+   when a sidecar yaml exists, the input size; `GET
+   dive_configuration/stereo_foundation_model` streams the bytes. With a bare
+   `.onnx` the matcher reads the fixed input size from the graph itself
+   (`inputSizeOf`), so no sidecar is needed.
 3. The client stores the bytes in the browser Cache API keyed by md5, so a page
    reload does not re-download.
 
-For tests or a custom export, `useStereoOnnxWeb({ foundationModelUrl,
-foundationModelSpec })` bypasses the server.
+`WEB-ONLY` rows are skipped by VIAME's desktop add-on installer and hidden from
+DIVE's add-on manager. For tests or a custom export, `useStereoOnnxWeb({
+foundationModelUrl, foundationModelSpec? })` bypasses the server.
 
 ### Runtime requirements
 
@@ -185,8 +184,8 @@ an RTX 4090 through windowed Chrome:
   matches CPU to 1e-3 px.
 
 The **export itself must be VIAME's web build** of the model
-(`plugins/onnx/export_fast_foundation_stereo_web.py`, the file the
-`FAST-FDN-STEREO` add-on ships): NVIDIA's stock single-file export materialises
+(`plugins/onnx/export_fast_foundation_stereo_web.py`, published as the
+`FAST-FDN-STEREO-WEB` file): NVIDIA's stock single-file export materialises
 1.5 GB correlation tensors and uses 3-D `ConvTranspose` and asymmetric 3-D
 `Conv` padding that no browser provider runs. The web build is numerically
 identical (~1e-4 px), cuts CPU peak memory from 16 GB to ~3 GB, and expresses
