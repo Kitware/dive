@@ -169,10 +169,12 @@ type DiveParam = NonNullable<PipeMetadata['diveParams']>[number];
 function parseDiveParamLines(lines: string[]) {
   const params: DiveParam[] = [];
   const includes: string[] = [];
+  const overrides = new Map<string, string>();
   let contextStack: string[] = [];
   lines.forEach((line) => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    if (trimmed.startsWith('::')) return;
 
     const includeMatch = trimmed.match(/^include\s+(\S+)/i);
     if (includeMatch) {
@@ -205,37 +207,35 @@ function parseDiveParamLines(lines: string[]) {
       return;
     }
 
-    const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
-    if (diveMatch) {
-      const [, label, rawArgs] = diveMatch;
-      const args = rawArgs.split(',').map((arg) => arg.trim());
-      const type: PipelineParamType = args[0] as PipelineParamType;
-      const restArgs = args.slice(1);
-      // `required` is a flag keyword — strip it from type_props,
-      // everything else stays positional for the type.
-      const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
-      const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
+    const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
+    const paramLineMatch = !configMatch
+      ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:.-]+)\s*=?\s*([^#]+)/i)
+      : null;
 
-      // `config <key> = <value>` — absolute kwiver key, no process/block prefix
-      // applied. Used for global / cross-referenced settings.
-      const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
-      // Otherwise a regular per-process/block parameter assignment.
-      const paramLineMatch = !configMatch
-        ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i)
-        : null;
+    let fullKey: string | null = null;
+    let defaultValue: string | null = null;
 
-      let fullKey: string | null = null;
-      let defaultValue: string | null = null;
-      if (configMatch) {
-        const [, key, value] = configMatch;
-        fullKey = key;
-        defaultValue = value.trim();
-      } else if (paramLineMatch) {
-        fullKey = [...contextStack, paramLineMatch[1]].join(':');
-        defaultValue = paramLineMatch[2].trim();
-      }
+    if (configMatch) {
+      const [, keyMatch, valueMatch] = configMatch;
+      fullKey = keyMatch;
+      defaultValue = valueMatch.trim();
+    } else if (paramLineMatch) {
+      const [, keyMatch, valueMatch] = paramLineMatch;
+      fullKey = [...contextStack, keyMatch].join(':');
+      defaultValue = valueMatch.trim();
+    }
 
-      if (fullKey !== null && defaultValue !== null) {
+    if (fullKey !== null && defaultValue !== null) {
+      overrides.set(fullKey, defaultValue);
+      const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
+      if (diveMatch) {
+        const [, label, rawArgs] = diveMatch;
+        const args = rawArgs.split(',').map((arg) => arg.trim());
+        const type: PipelineParamType = args[0] as PipelineParamType;
+        const restArgs = args.slice(1);
+        const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
+        const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
+
         params.push({
           label,
           type,
@@ -247,7 +247,7 @@ function parseDiveParamLines(lines: string[]) {
       }
     }
   });
-  return { params, includes };
+  return { params, includes, overrides };
 }
 
 /**
@@ -275,13 +275,19 @@ async function collectDiveParams(
   } catch {
     return;
   }
-  const { params, includes } = parseDiveParamLines(lines);
+  const { params, includes, overrides } = parseDiveParamLines(lines);
   // eslint-disable-next-line no-restricted-syntax
   for (const include of includes.filter((f) => !f.includes('$'))) {
     // eslint-disable-next-line no-await-in-loop
     await collectDiveParams(npath.join(npath.dirname(resolved), include), collected, visited);
   }
   params.forEach((p) => collected.set(p.key, p));
+  overrides.forEach((val, key) => {
+    const existingParam = collected.get(key);
+    if (existingParam) {
+      collected.set(key, { ...existingParam, default: val });
+    }
+  });
 }
 
 /**
