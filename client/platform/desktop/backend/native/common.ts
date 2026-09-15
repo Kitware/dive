@@ -3107,6 +3107,7 @@ export {
   deleteScoringResult,
   finalizeMediaImport,
   getPipelineList,
+  extractPipeMetadata,
   deleteTrainedPipeline,
   getTrainingConfigs,
   getProjectDir,
