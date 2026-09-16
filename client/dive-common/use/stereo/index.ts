@@ -4,7 +4,7 @@ export type {
   FoundationModelSpec, FoundationMatcherOptions, DisparitySession,
 } from './StereoFoundationMatcher';
 export {
-  DEFAULT_STEREO_MATCH_METHOD, STEREO_MATCH_METHODS,
+  DEFAULT_STEREO_MATCH_METHOD, STEREO_MATCH_METHODS, stereoMatchMethodsFor, isStereoMatchMethod,
 } from './stereoMatcher';
 export type { StereoMatcher, StereoMatchMethod } from './stereoMatcher';
 export {

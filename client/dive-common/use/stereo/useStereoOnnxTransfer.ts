@@ -44,7 +44,8 @@ export interface StereoOnnxTransferConfig {
    * unavailable. Either correspondence method satisfies {@link StereoMatcher},
    * so nothing downstream branches on which one is in use.
    */
-  getMatcher: () => Promise<StereoMatcher | null>;
+  /** `imagery` is the frame size, so a size-dependent model can be chosen. */
+  getMatcher: (imagery?: { width: number; height: number }) => Promise<StereoMatcher | null>;
   /** Full-resolution RGBA pixels for a camera at a frame, or null. */
   getFrame: (cameraName: string, frameNum: number) => Promise<RgbaImage | null>;
   /** Disparity- or depth-based search range for the correspondence search. */
@@ -294,15 +295,14 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
 
   /** Run the correspondence search for one set of points, source camera -> other. */
   async function warp(points: Point[], sourceCamera: string, otherCamera: string, frameNum: number) {
-    const [rig0, matcher] = await Promise.all([getRig(), getMatcher()]);
+    const [rig0, srcFrame, tgtFrame] = await Promise.all([
+      getRig(), getFrame(sourceCamera, frameNum), getFrame(otherCamera, frameNum),
+    ]);
     if (!rig0) throw new Error('No stereo calibration is available for this dataset.');
+    if (!srcFrame || !tgtFrame) throw new Error('Could not read the frame pixels for both cameras.');
+    const matcher = await getMatcher({ width: srcFrame.width, height: srcFrame.height });
     if (!matcher) throw new Error('The stereo matching model could not be loaded.');
     const rig = orientRig(rig0, sourceCamera);
-
-    const [srcFrame, tgtFrame] = await Promise.all([
-      getFrame(sourceCamera, frameNum), getFrame(otherCamera, frameNum),
-    ]);
-    if (!srcFrame || !tgtFrame) throw new Error('Could not read the frame pixels for both cameras.');
 
     return matcher.warpPoints(points, srcFrame, tgtFrame, rig, {
       range: getRange(),
@@ -325,12 +325,12 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     const leftCamera = getLeftCameraName();
     const rightCamera = cams.find((c) => c !== leftCamera);
     if (!rightCamera) return;
-    const [rig0, matcher] = await Promise.all([getRig(), getMatcher()]);
-    if (!rig0 || !matcher?.prepare || !stillWanted()) return;
-    const [leftFrame, rightFrame] = await Promise.all([
-      getFrame(leftCamera, frameNum), getFrame(rightCamera, frameNum),
+    const [rig0, leftFrame, rightFrame] = await Promise.all([
+      getRig(), getFrame(leftCamera, frameNum), getFrame(rightCamera, frameNum),
     ]);
-    if (!leftFrame || !rightFrame || !stillWanted()) return;
+    if (!rig0 || !leftFrame || !rightFrame || !stillWanted()) return;
+    const matcher = await getMatcher({ width: leftFrame.width, height: leftFrame.height });
+    if (!matcher?.prepare || !stillWanted()) return;
     await matcher.prepare(frameKey(leftCamera, rightCamera, frameNum), leftFrame, rightFrame, rig0, stillWanted);
     await matcher.prepare(frameKey(rightCamera, leftCamera, frameNum), rightFrame, leftFrame, invertRig(rig0), stillWanted);
   }

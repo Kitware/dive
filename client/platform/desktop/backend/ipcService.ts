@@ -21,6 +21,7 @@ import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { closeChildById } from 'platform/desktop/backend/native/processManager';
 import { updateJobFilesOnCancel } from 'platform/desktop/backend/native/utils';
 
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
@@ -546,7 +547,9 @@ export default function register() {
    * Interactive Stereo Service
    */
 
-  ipcMain.handle('stereo-enable', async (event, args?: { calibration?: StereoCalibration; calibrationFile?: string }) => {
+  ipcMain.handle('stereo-enable', async (event, args?: {
+    calibration?: StereoCalibration; calibrationFile?: string; matchMethod?: StereoMatchMethod;
+  }) => {
     const stereoService = getInteractiveServiceManager();
 
     // Forward async disparity events to the renderer. The manager is a
@@ -565,6 +568,7 @@ export default function register() {
       settings.get(),
       args?.calibration,
       args?.calibrationFile,
+      args?.matchMethod,
     );
     return result;
   });

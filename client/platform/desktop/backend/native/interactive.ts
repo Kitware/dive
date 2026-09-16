@@ -20,7 +20,10 @@ import npath from 'path';
 import readline from 'readline';
 import { EventEmitter } from 'events';
 import { Settings } from 'platform/desktop/constants';
+import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import { observeChild } from './processManager';
+import { resolveStereoConfig } from './stereoConfig';
 import linux from './linux';
 import win32 from './windows';
 import {
@@ -506,7 +509,12 @@ export class InteractiveServiceManager extends EventEmitter {
     settings: Settings,
     calibration?: StereoCalibration,
     calibrationFile?: string,
+    matchMethod: StereoMatchMethod = DEFAULT_STEREO_MATCH_METHOD,
   ): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
+    const resolved = resolveStereoConfig(settings.viamePath, matchMethod);
+    if (resolved.error !== undefined) {
+      return { success: false, error: resolved.error };
+    }
     try {
       await this.ensureStarted(settings);
     } catch (err) {
@@ -523,6 +531,7 @@ export class InteractiveServiceManager extends EventEmitter {
     try {
       const response = await this.sendRequest({
         command: 'enable',
+        config: resolved.config,
         calibration,
         calibration_file: calibrationFile,
       }, 'Stereo enable');

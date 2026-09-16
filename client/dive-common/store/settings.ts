@@ -2,7 +2,7 @@ import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
-import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
+import { DEFAULT_STEREO_MATCH_METHOD, isStereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 
 interface ColumnVisibilitySettings {
@@ -96,9 +96,10 @@ interface AnnotationSettings {
     // Warp an annotation drawn on one camera to the other camera when that
     // camera has no detection for it yet.
     autoComputeOtherCamera: boolean;
-    // Which correspondence method the web client's warp uses: 'ncc' template
-    // matching (faster) or 'foundation' dense disparity (more accurate).
-    // Desktop's method comes from the VIAME interactive stereo config instead.
+    // Which correspondence method warps points between the cameras: 'ncc'
+    // template matching, 'dino' (desktop only) NCC with DINO candidate
+    // selection, or 'foundation' dense disparity. Desktop maps each onto a
+    // VIAME interactive stereo config; web runs the model in the browser.
     matchMethod: StereoMatchMethod;
     loading: boolean;
     loadingMessage: string;
@@ -243,6 +244,9 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
     MIN_AUTO_SAVE_DELAY_SECONDS,
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
   );
+  if (!isStereoMatchMethod(hydrated.stereoSettings.matchMethod, isDesktopRuntime())) {
+    hydrated.stereoSettings.matchMethod = DEFAULT_STEREO_MATCH_METHOD;
+  }
   return hydrated;
 }
 

@@ -1,14 +1,14 @@
 """
 Serve the Fast-FoundationStereo ONNX export to the web client.
 
-The browser build of the model is published as a bare ``.onnx`` file under the
-``FAST-FDN-STEREO-WEB`` row (platform ``WEB-ONLY``) of VIAME's
-``download_viame_addons.csv``, separate from the desktop add-on zip. Its URL
-and md5 are read from that list at request time rather than pinned here, so a
-re-published model is picked up without a DIVE release. The file is fetched
-once per md5 into a local cache. A zip is accepted too (the model and sidecar
-yaml are extracted); a bare file needs no sidecar, since onnxruntime-web reads
-the input size from the graph.
+The browser builds are published as bare ``.onnx`` files listed in VIAME's
+``cmake/download_viame_onnx.csv`` (name, url, description, md5, input height,
+input width), separate from the desktop add-on zip. The list is read at
+request time rather than pinned here, so a re-published model is picked up
+without a DIVE release, and the export whose input best fits the dataset's
+imagery is chosen. Each file is fetched once per md5 into a local cache. A zip
+is accepted too (the model and sidecar yaml are extracted); a bare file needs
+no sidecar, since onnxruntime-web reads the input size from the graph.
 """
 
 import csv
@@ -26,28 +26,52 @@ import requests
 
 from dive_utils import constants
 
-STEREO_FOUNDATION_ADDON = 'FAST-FDN-STEREO-WEB'
+STEREO_FOUNDATION_MODEL = 'FAST-FDN-STEREO'
 
-# Used when the VIAME add-on list has no row for the model yet (or cannot be
-# fetched): the browser builds published on viame.kitware.com. The 448x768
-# export is the default for its 3.4 GB VRAM footprint; the CSV row overrides
-# this, so a re-published model needs no DIVE change.
+
+class OnnxSource(NamedTuple):
+    name: str
+    url: str
+    md5: str
+    height: Optional[int] = None
+    width: Optional[int] = None
+
+    @property
+    def cache_name(self) -> str:
+        if self.height and self.width:
+            return f'{self.name}-{self.height}x{self.width}'
+        return self.name
+
+    @property
+    def area(self) -> int:
+        return (self.height or 0) * (self.width or 0)
+
+
+# Used when the ONNX list has no row for the model (or cannot be fetched): the
+# browser builds published on viame.kitware.com.
 GIRDER_ITEM = 'https://viame.kitware.com/api/v1/item/{}/download'
-DEFAULT_WEB_MODELS = {
-    '448x768': (GIRDER_ITEM.format('6aa9e846a723aa14eb79b1d4'), '0cfea82cc48435a4955a03223e1bbb02'),
-    '576x960': (GIRDER_ITEM.format('6aa9e850e4e84dbe3cb5b403'), 'da20c1e1837eb520d89f12bb337e38ad'),
-}
-DEFAULT_WEB_MODEL_ENV = 'DIVE_STEREO_WEB_MODEL'
+DEFAULT_WEB_MODELS = [
+    OnnxSource(
+        STEREO_FOUNDATION_MODEL,
+        GIRDER_ITEM.format('6aa9e846a723aa14eb79b1d4'),
+        '0cfea82cc48435a4955a03223e1bbb02',
+        448,
+        768,
+    ),
+    OnnxSource(
+        STEREO_FOUNDATION_MODEL,
+        GIRDER_ITEM.format('6aa9e850e4e84dbe3cb5b403'),
+        'da20c1e1837eb520d89f12bb337e38ad',
+        576,
+        960,
+    ),
+]
+# Forces one input size (e.g. ``448x768``) regardless of the imagery.
+FORCED_WEB_MODEL_ENV = 'DIVE_STEREO_WEB_MODEL'
 MODEL_CACHE_DIR_ENV = 'DIVE_MODEL_CACHE_DIR'
 DEFAULT_MODEL_CACHE_DIR = '/tmp/dive_models'
 DOWNLOAD_CHUNK_BYTES = 1 << 20
 DOWNLOAD_TIMEOUT_SECONDS = 60
-
-
-class AddonSource(NamedTuple):
-    name: str
-    url: str
-    md5: str
 
 
 class FoundationModel(NamedTuple):
@@ -55,7 +79,7 @@ class FoundationModel(NamedTuple):
     yaml_path: Optional[Path]
     url: str
     md5: str
-    # From the sidecar yaml when there is one; None for a bare .onnx.
+    # From the list row or the sidecar yaml; None for a bare .onnx with neither.
     height: Optional[int]
     width: Optional[int]
 
@@ -64,43 +88,76 @@ class ModelUnavailableError(Exception):
     """The model could not be resolved, downloaded or verified."""
 
 
-def parse_addon_rows(text: str) -> List[AddonSource]:
+def _int_or_none(value: str) -> Optional[int]:
+    value = value.strip()
+    return int(value) if value.isdigit() else None
+
+
+def parse_onnx_rows(text: str) -> List[OnnxSource]:
     rows = []
     for item in csv.reader(text.splitlines(), delimiter=','):
-        if len(item) < 4:
+        if len(item) < 4 or item[0].strip().startswith('#'):
             continue
-        rows.append(AddonSource(item[0].strip(), item[1].strip(), item[3].strip().lower()))
+        item = item + [''] * (6 - len(item))
+        rows.append(
+            OnnxSource(
+                item[0].strip(),
+                item[1].strip(),
+                item[3].strip().lower(),
+                _int_or_none(item[4]),
+                _int_or_none(item[5]),
+            )
+        )
     return rows
 
 
-def find_addon(rows: Iterable[AddonSource], name: str) -> Optional[AddonSource]:
-    return next((row for row in rows if row.name == name), None)
+def find_models(rows: Iterable[OnnxSource], name: str) -> List[OnnxSource]:
+    return [row for row in rows if row.name == name]
 
 
-def default_web_model(name: str = STEREO_FOUNDATION_ADDON) -> Optional[AddonSource]:
-    variant = os.environ.get(DEFAULT_WEB_MODEL_ENV, '448x768')
-    if name != STEREO_FOUNDATION_ADDON or variant not in DEFAULT_WEB_MODELS:
-        return None
-    url, md5 = DEFAULT_WEB_MODELS[variant]
-    return AddonSource(name, url, md5)
-
-
-def resolve_addon(name: str = STEREO_FOUNDATION_ADDON) -> AddonSource:
-    """The add-on list's row for ``name``, else the built-in default for it."""
-    fallback = default_web_model(name)
+def resolve_models(name: str = STEREO_FOUNDATION_MODEL) -> List[OnnxSource]:
+    """Every list row for ``name``, else the built-in defaults for it."""
+    fallback = find_models(DEFAULT_WEB_MODELS, name)
     try:
-        response = requests.get(constants.AddonsListURL, timeout=DOWNLOAD_TIMEOUT_SECONDS)
+        response = requests.get(constants.OnnxListURL, timeout=DOWNLOAD_TIMEOUT_SECONDS)
         response.raise_for_status()
-        addon = find_addon(parse_addon_rows(response.content.decode('utf-8')), name)
+        models = find_models(parse_onnx_rows(response.content.decode('utf-8')), name)
     except requests.RequestException as exc:
-        if fallback is None:
-            raise ModelUnavailableError(f'Could not read the VIAME add-on list: {exc}') from exc
-        addon = None
-    if addon is not None and addon.url:
-        return addon
-    if fallback is None:
-        raise ModelUnavailableError(f'The VIAME add-on list has no {name} entry')
+        if not fallback:
+            raise ModelUnavailableError(f'Could not read the VIAME ONNX list: {exc}') from exc
+        models = []
+    if models:
+        return models
+    if not fallback:
+        raise ModelUnavailableError(f'The VIAME ONNX list has no {name} entry')
     return fallback
+
+
+def select_model(
+    models: List[OnnxSource],
+    image_height: Optional[int] = None,
+    image_width: Optional[int] = None,
+) -> OnnxSource:
+    """
+    The export whose input fits the imagery: the smallest one at least as
+    large as the frames, else the largest available (frames are downscaled to
+    the input either way, so bigger keeps more detail). Without a frame size,
+    the smallest. ``DIVE_STEREO_WEB_MODEL=HxW`` forces a size when listed.
+    """
+    if not models:
+        raise ModelUnavailableError('No stereo model is available')
+    forced = os.environ.get(FORCED_WEB_MODEL_ENV, '')
+    if forced:
+        for model in models:
+            if f'{model.height}x{model.width}' == forced:
+                return model
+    sized = sorted((m for m in models if m.area), key=lambda m: m.area)
+    if not sized:
+        return models[0]
+    if image_height and image_width:
+        covering = [m for m in sized if m.height >= image_height and m.width >= image_width]
+        return covering[0] if covering else sized[-1]
+    return sized[0]
 
 
 def parse_image_size(yaml_text: str) -> Optional[tuple]:
@@ -167,15 +224,22 @@ def extract_model(zip_path: Path, dest_dir: Path) -> FoundationModel:
     return _describe(targets[onnx_name], targets.get(yaml_name), url='', md5='')
 
 
-def _describe(onnx_path: Path, yaml_path: Optional[Path], url: str, md5: str) -> FoundationModel:
+def _describe(
+    onnx_path: Path,
+    yaml_path: Optional[Path],
+    url: str,
+    md5: str,
+    height: Optional[int] = None,
+    width: Optional[int] = None,
+) -> FoundationModel:
     size = parse_image_size(yaml_path.read_text()) if yaml_path else None
-    return FoundationModel(
-        onnx_path, yaml_path, url, md5, size[0] if size else None, size[1] if size else None
-    )
+    if size:
+        height, width = size
+    return FoundationModel(onnx_path, yaml_path, url, md5, height, width)
 
 
-def _cached(addon: AddonSource, cache_dir: Path) -> Optional[FoundationModel]:
-    model_dir = cache_dir / addon.name / addon.md5
+def _cached(addon: OnnxSource, cache_dir: Path) -> Optional[FoundationModel]:
+    model_dir = cache_dir / addon.cache_name / addon.md5
     if not model_dir.is_dir():
         return None
     onnx_files = list(model_dir.glob('*.onnx'))
@@ -183,12 +247,17 @@ def _cached(addon: AddonSource, cache_dir: Path) -> Optional[FoundationModel]:
         return None
     yaml_path = onnx_files[0].with_suffix('.yaml')
     return _describe(
-        onnx_files[0], yaml_path if yaml_path.is_file() else None, addon.url, addon.md5
+        onnx_files[0],
+        yaml_path if yaml_path.is_file() else None,
+        addon.url,
+        addon.md5,
+        addon.height,
+        addon.width,
     )
 
 
 def ensure_model(
-    addon: AddonSource,
+    addon: OnnxSource,
     cache_dir: Optional[Path] = None,
     download: Callable[[str, Path], str] = _download,
 ) -> FoundationModel:
@@ -198,7 +267,7 @@ def ensure_model(
     newer one is in place. Safe across processes sharing the cache directory.
     """
     cache_dir = cache_dir or model_cache_dir()
-    addon_dir = cache_dir / addon.name
+    addon_dir = cache_dir / addon.cache_name
     addon_dir.mkdir(parents=True, exist_ok=True)
     with open(addon_dir / '.lock', 'w') as lock:
         fcntl.flock(lock, fcntl.LOCK_EX)
@@ -222,7 +291,7 @@ def ensure_model(
                     extract_model(download_path, staging)
                 else:
                     staging.mkdir()
-                    download_path.rename(staging / f'{addon.name.lower()}.onnx')
+                    download_path.rename(staging / f'{addon.cache_name.lower()}.onnx')
                 final_dir = addon_dir / addon.md5
                 if final_dir.exists():
                     shutil.rmtree(final_dir)
@@ -240,5 +309,9 @@ def ensure_model(
             fcntl.flock(lock, fcntl.LOCK_UN)
 
 
-def ensure_stereo_foundation_model() -> FoundationModel:
-    return ensure_model(resolve_addon(STEREO_FOUNDATION_ADDON))
+def ensure_stereo_foundation_model(
+    image_height: Optional[int] = None, image_width: Optional[int] = None
+) -> FoundationModel:
+    return ensure_model(
+        select_model(resolve_models(STEREO_FOUNDATION_MODEL), image_height, image_width)
+    )
