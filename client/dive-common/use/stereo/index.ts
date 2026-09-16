@@ -1,16 +1,4 @@
 export { StereoOnnxMatcher } from './StereoOnnxMatcher';
-export { StereoFoundationMatcher, remapToInputTensor } from './StereoFoundationMatcher';
-export type {
-  FoundationModelSpec, FoundationMatcherOptions, DisparitySession,
-} from './StereoFoundationMatcher';
-export {
-  DEFAULT_STEREO_MATCH_METHOD, STEREO_MATCH_METHODS,
-} from './stereoMatcher';
-export type { StereoMatcher, StereoMatchMethod } from './stereoMatcher';
-export {
-  computeRectification, rectifyPoint, unrectifyPoint, rectifyMapper,
-} from './rectify';
-export type { Rectification } from './rectify';
 export type { WarpOptions, WarpResult, SearchRange } from './StereoOnnxMatcher';
 export {
   rigFromNpz, rigFromNpzArrays, rigFromJson, baseline,
@@ -18,9 +6,7 @@ export {
 export type { StereoRig } from './calibration';
 export { parseNpz, parseNpy } from './npz';
 export type { NpyArray } from './npz';
-export {
-  rgbaToGray, drawableToGray, toGray, isGrayImage,
-} from './image';
+export { rgbaToGray, drawableToGray } from './image';
 export type { GrayImage, RgbaImage } from './image';
 export {
   triangulatePoint, measureLine, aggregateLengths, unmap, mapPoint, project,

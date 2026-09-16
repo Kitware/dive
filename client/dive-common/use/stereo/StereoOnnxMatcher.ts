@@ -11,7 +11,7 @@
 
 import * as ort from 'onnxruntime-web';
 
-import { GrayImage, RgbaImage, toGray } from './image';
+import { GrayImage } from './image';
 import { StereoRig, baseline } from './calibration';
 
 /** Search-range specification (disparity is unit-independent; depth needs calib units). */
@@ -25,11 +25,6 @@ export interface WarpOptions {
   threshold?: number;
   /** Reject if secondScore/score exceeds this (0 disables). Defaults to {@link DEFAULT_UNIQUENESS_RATIO}. */
   uniquenessRatio?: number;
-  /**
-   * Identifies the frame pair the points belong to, so a matcher that computes
-   * per-frame state (a disparity map) can reuse it across calls.
-   */
-  frameKey?: string;
 }
 
 /**
@@ -99,18 +94,16 @@ export class StereoOnnxMatcher {
 
   /**
    * Warp a set of source-image points onto the target image. `source`/`target`
-   * are RGBA or grayscale frames; `rig` is the stereo calibration with `source`
-   * as the left camera. Returns one {@link WarpResult} per input point.
+   * are grayscale frames; `rig` is the stereo calibration with `source` as the
+   * left camera. Returns one {@link WarpResult} per input point.
    */
   async warpPoints(
     points: [number, number][],
-    sourceImage: RgbaImage | GrayImage,
-    targetImage: RgbaImage | GrayImage,
+    source: GrayImage,
+    target: GrayImage,
     rig: StereoRig,
     opts: WarpOptions,
   ): Promise<WarpResult[]> {
-    const source = toGray(sourceImage);
-    const target = toGray(targetImage);
     const [minDepth, maxDepth] = resolveDepthRange(rig, opts.range);
     const threshold = opts.threshold ?? DEFAULT_THRESHOLD;
     const uniqueness = opts.uniquenessRatio ?? DEFAULT_UNIQUENESS_RATIO;
