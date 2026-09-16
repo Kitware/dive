@@ -143,30 +143,31 @@ it needs a GPU.
 
 ### Where the model comes from
 
-The browser build is published as a **bare `.onnx`** under the
-`FAST-FDN-STEREO-WEB` row (platform `WEB-ONLY`) of VIAME's
-`cmake/download_viame_addons.csv`, separate from the desktop add-on zip
-(`FAST-FDN-STEREO`), which carries the onnxruntime-CUDA export and a TensorRT
-engine that browsers cannot use. Nothing is pinned in DIVE:
+The browser builds are published as **bare `.onnx`** files listed in VIAME's
+`cmake/download_viame_onnx.csv` (`name, url, description, md5, input height,
+input width`; two `FAST-FDN-STEREO` rows today, 448×768 and 576×960), separate
+from the desktop add-on list and zip (`FAST-FDN-STEREO` in
+`download_viame_addons.csv`), which carries the onnxruntime-CUDA export and a
+TensorRT engine that browsers cannot use. Nothing is pinned in DIVE:
 
-1. The girder server reads the row's URL and md5 from the CSV (until that row
-   exists, or when the list cannot be fetched, it uses the builds published on
-   viame.kitware.com, the 448×768 one by default; `DIVE_STEREO_WEB_MODEL=576x960`
-   selects the full-size one), downloads the file once into `DIVE_MODEL_CACHE_DIR` (default `/tmp/dive_models`, a named
-   volume in `docker-compose.yml`) and verifies the md5. A re-published model
-   has a new md5, so it is fetched and the old copy dropped. A zip is accepted
-   too (its `*_web.onnx`/single `.onnx` and yaml are extracted).
-2. `GET dive_configuration/stereo_foundation_model/spec` reports the md5 and,
-   when a sidecar yaml exists, the input size; `GET
-   dive_configuration/stereo_foundation_model` streams the bytes. With a bare
-   `.onnx` the matcher reads the fixed input size from the graph itself
-   (`inputSizeOf`), so no sidecar is needed.
-3. The client stores the bytes in the browser Cache API keyed by md5, so a page
-   reload does not re-download.
+1. The client asks for the model with the dataset's frame size. The girder
+   server reads the list (when it cannot be fetched or has no rows, it uses the
+   builds published on viame.kitware.com) and picks the smallest export whose
+   input is at least the frame size, else the largest; `DIVE_STEREO_WEB_MODEL=448x768`
+   forces one size. It downloads the file once per md5 into
+   `DIVE_MODEL_CACHE_DIR` (default `/tmp/dive_models`, a named volume in
+   `docker-compose.yml`) and verifies the md5. A re-published model has a new
+   md5, so it is fetched and the old copy of that size dropped. A zip is
+   accepted too (its `*_web.onnx`/single `.onnx` and yaml are extracted).
+2. `GET dive_configuration/stereo_foundation_model/spec?width=&height=` reports
+   the md5 and input size; `GET dive_configuration/stereo_foundation_model`
+   with the same parameters streams the bytes. The matcher still reads the
+   fixed input size from the graph itself (`inputSizeOf`), so no sidecar is needed.
+3. The client stores the bytes in the browser Cache API keyed by md5 and file
+   name, so a page reload does not re-download, and keeps one copy per size.
 
-`WEB-ONLY` rows are skipped by VIAME's desktop add-on installer and hidden from
-DIVE's add-on manager. For tests or a custom export, `useStereoOnnxWeb({
-foundationModelUrl, foundationModelSpec? })` bypasses the server.
+For tests or a custom export, `useStereoOnnxWeb({ foundationModelUrl,
+foundationModelSpec? })` bypasses the server.
 
 ### Runtime requirements
 

@@ -8,12 +8,12 @@ import pytest
 from dive_utils import stereo_models
 
 CSV = (
-    'DEFAULT-FISH, https://example.com/fish/download, Default fish, '
-    '1b71862b7fa39def315c0c08c44048a7, ALL-PLATFORMS, "PYTORCH, ONNX", models/fish.zip\n'
-    'FAST-FDN-STEREO, https://example.com/stereo/download, Fast foundation stereo,  '
-    '29D4CDE2E33500E74844D07C5AB3DEE0, ALL-PLATFORMS, "PYTORCH", \n'
-    'FAST-FDN-STEREO-WEB, https://example.com/stereo_web/download, Browser build, '
-    'ab' * 16 + ', WEB-ONLY, "", models/fast_foundation_stereo_l_web.onnx\n'
+    '# name, url, description, md5, height, width\n'
+    'FAST-FDN-STEREO, https://example.com/stereo_448/download, Browser build 448x768, '
+    '0CFEA82CC48435A4955A03223E1BBB02, 448, 768\n'
+    'FAST-FDN-STEREO, https://example.com/stereo_576/download, Browser build 576x960,  '
+    'da20c1e1837eb520d89f12bb337e38ad, 576, 960\n'
+    'OTHER-MODEL, https://example.com/other/download, No size, ' + 'ab' * 16 + '\n'
 )
 
 YAML = 'image_size:\n- 576\n- 960\nvalid_iters: 8\n'
@@ -45,22 +45,30 @@ def fake_downloader(payload: bytes):
     return download
 
 
-def test_parse_addon_rows_strips_whitespace_and_lowercases_md5():
-    rows = stereo_models.parse_addon_rows(CSV)
-    assert (
-        stereo_models.find_addon(rows, 'FAST-FDN-STEREO-WEB').url
-        == 'https://example.com/stereo_web/download'
-    )
-    stereo = stereo_models.find_addon(rows, 'FAST-FDN-STEREO')
-    assert stereo == stereo_models.AddonSource(
-        'FAST-FDN-STEREO',
-        'https://example.com/stereo/download',
-        '29d4cde2e33500e74844d07c5ab3dee0',
-    )
-    assert stereo_models.find_addon(rows, 'MISSING') is None
+def test_parse_onnx_rows_reads_sizes_and_normalises():
+    rows = stereo_models.parse_onnx_rows(CSV)
+    assert stereo_models.find_models(rows, 'FAST-FDN-STEREO') == [
+        stereo_models.OnnxSource(
+            'FAST-FDN-STEREO',
+            'https://example.com/stereo_448/download',
+            '0cfea82cc48435a4955a03223e1bbb02',
+            448,
+            768,
+        ),
+        stereo_models.OnnxSource(
+            'FAST-FDN-STEREO',
+            'https://example.com/stereo_576/download',
+            'da20c1e1837eb520d89f12bb337e38ad',
+            576,
+            960,
+        ),
+    ]
+    other = stereo_models.find_models(rows, 'OTHER-MODEL')[0]
+    assert (other.height, other.width, other.cache_name) == (None, None, 'OTHER-MODEL')
+    assert stereo_models.find_models(rows, 'MISSING') == []
 
 
-def test_resolve_addon_prefers_the_csv_row_and_falls_back_to_the_published_item(monkeypatch):
+def test_resolve_models_prefers_the_list_and_falls_back_to_the_published_items(monkeypatch):
     class Response:
         def __init__(self, text):
             self.content = text.encode('utf-8')
@@ -69,27 +77,41 @@ def test_resolve_addon_prefers_the_csv_row_and_falls_back_to_the_published_item(
             pass
 
     monkeypatch.setattr(stereo_models.requests, 'get', lambda *a, **k: Response(CSV))
-    assert stereo_models.resolve_addon().url == 'https://example.com/stereo_web/download'
+    assert [m.url for m in stereo_models.resolve_models()] == [
+        'https://example.com/stereo_448/download',
+        'https://example.com/stereo_576/download',
+    ]
 
     monkeypatch.setattr(
-        stereo_models.requests,
-        'get',
-        lambda *a, **k: Response('A, https://x, d, 1, ALL-PLATFORMS, "", \n'),
+        stereo_models.requests, 'get', lambda *a, **k: Response('A, https://x, d, 1, 1, 1\n')
     )
-    fallback = stereo_models.resolve_addon()
-    assert fallback.url == stereo_models.DEFAULT_WEB_MODELS['448x768'][0]
-    assert fallback.md5 == stereo_models.DEFAULT_WEB_MODELS['448x768'][1]
-
-    monkeypatch.setenv(stereo_models.DEFAULT_WEB_MODEL_ENV, '576x960')
-    assert stereo_models.resolve_addon().url == stereo_models.DEFAULT_WEB_MODELS['576x960'][0]
+    assert stereo_models.resolve_models() == stereo_models.DEFAULT_WEB_MODELS
 
     def offline(*a, **k):
         raise stereo_models.requests.RequestException('offline')
 
     monkeypatch.setattr(stereo_models.requests, 'get', offline)
-    assert stereo_models.resolve_addon().url == stereo_models.DEFAULT_WEB_MODELS['576x960'][0]
+    assert stereo_models.resolve_models() == stereo_models.DEFAULT_WEB_MODELS
     with pytest.raises(stereo_models.ModelUnavailableError):
-        stereo_models.resolve_addon('SOMETHING-ELSE')
+        stereo_models.resolve_models('SOMETHING-ELSE')
+
+
+def test_select_model_fits_the_imagery(monkeypatch):
+    small, large = stereo_models.DEFAULT_WEB_MODELS
+    select = stereo_models.select_model
+    assert select([small, large]) == small
+    assert select([large, small], 400, 700) == small
+    assert select([small, large], 448, 768) == small
+    assert select([small, large], 1080, 1920) == large
+    assert select([small, large], 500, 700) == large
+    monkeypatch.setenv(stereo_models.FORCED_WEB_MODEL_ENV, '448x768')
+    assert select([small, large], 1080, 1920) == small
+    monkeypatch.setenv(stereo_models.FORCED_WEB_MODEL_ENV, '1x1')
+    assert select([small, large], 1080, 1920) == large
+    unsized = stereo_models.OnnxSource('X', 'https://x', 'ab' * 16)
+    assert select([unsized], 1080, 1920) == unsized
+    with pytest.raises(stereo_models.ModelUnavailableError):
+        select([])
 
 
 def test_parse_image_size_block_and_flow():
@@ -100,7 +122,7 @@ def test_parse_image_size_block_and_flow():
 
 def test_ensure_model_downloads_once_and_verifies_md5(tmp_path):
     payload = make_addon_zip()
-    addon = stereo_models.AddonSource(
+    addon = stereo_models.OnnxSource(
         'FAST-FDN-STEREO', 'https://example.com/stereo', hashlib.md5(payload).hexdigest()
     )
     calls = []
@@ -122,7 +144,7 @@ def test_ensure_model_downloads_once_and_verifies_md5(tmp_path):
 
 def test_ensure_model_accepts_a_bare_onnx_without_sidecar(tmp_path):
     payload = b'raw-onnx-bytes'
-    addon = stereo_models.AddonSource(
+    addon = stereo_models.OnnxSource(
         'FAST-FDN-STEREO-WEB', 'https://example.com/web', hashlib.md5(payload).hexdigest()
     )
     model = stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload))
@@ -138,7 +160,7 @@ def test_ensure_model_accepts_a_bare_onnx_without_sidecar(tmp_path):
 
 def test_ensure_model_rejects_md5_mismatch(tmp_path):
     payload = make_addon_zip()
-    addon = stereo_models.AddonSource('FAST-FDN-STEREO', 'https://example.com/stereo', 'f' * 32)
+    addon = stereo_models.OnnxSource('FAST-FDN-STEREO', 'https://example.com/stereo', 'f' * 32)
     with pytest.raises(stereo_models.ModelUnavailableError):
         stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload))
     assert not (tmp_path / addon.name / addon.md5).exists()
@@ -147,10 +169,10 @@ def test_ensure_model_rejects_md5_mismatch(tmp_path):
 def test_ensure_model_replaces_previous_md5(tmp_path):
     old_payload = make_addon_zip(yaml_text='image_size: [320, 736]\n')
     new_payload = make_addon_zip()
-    old = stereo_models.AddonSource(
+    old = stereo_models.OnnxSource(
         'FAST-FDN-STEREO', 'https://example.com/old', hashlib.md5(old_payload).hexdigest()
     )
-    new = stereo_models.AddonSource(
+    new = stereo_models.OnnxSource(
         'FAST-FDN-STEREO', 'https://example.com/new', hashlib.md5(new_payload).hexdigest()
     )
     stereo_models.ensure_model(old, tmp_path, fake_downloader(old_payload))

@@ -28,7 +28,7 @@ import useStereoOnnxTransfer from 'dive-common/use/stereo/useStereoOnnxTransfer'
 import { StereoOnnxMatcher } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import { StereoFoundationMatcher } from 'dive-common/use/stereo/StereoFoundationMatcher';
 import type { FoundationModelSpec } from 'dive-common/use/stereo/StereoFoundationMatcher';
-import type { StereoFoundationModelSpec } from 'platform/web-girder/api/configuration.service';
+import type { ImagerySize, StereoFoundationModelSpec } from 'platform/web-girder/api/configuration.service';
 import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
 import type { StereoMatcher, StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { SearchRange } from 'dive-common/use/stereo/StereoOnnxMatcher';
@@ -113,28 +113,31 @@ async function openModelCache(): Promise<Cache | null> {
 }
 
 /**
- * The foundation model bytes for the export the server currently serves. The
- * md5 comes from VIAME's add-on list, so a re-published export changes the
- * cache key and the stale copy is dropped.
+ * The foundation model bytes for the export the server picks for imagery of
+ * `imagery` size. The md5 comes from VIAME's ONNX list, so a re-published
+ * export changes the cache key and the stale copy of that export is dropped;
+ * exports of other sizes stay cached.
  */
-async function fetchFoundationModel(): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {
+async function fetchFoundationModel(imagery?: ImagerySize): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {
   // Imported lazily: the girder client touches `window` at load time, which
   // breaks node-environment unit tests that import this file.
   const { getStereoFoundationModelSpec, getStereoFoundationModel } = await import(
     'platform/web-girder/api/configuration.service'
   );
-  const { data: spec } = await getStereoFoundationModelSpec();
+  const { data: spec } = await getStereoFoundationModelSpec(imagery);
   const cacheUrl = `${window.location.origin}/dive-stereo-models/${spec.md5}/${spec.name}`;
   const cache = await openModelCache();
   if (cache) {
     const hit = await cache.match(cacheUrl);
     if (hit) return { bytes: await hit.arrayBuffer(), spec };
   }
-  const { data: bytes } = await getStereoFoundationModel();
+  const { data: bytes } = await getStereoFoundationModel(imagery);
   if (cache) {
     try {
       const keys = await cache.keys();
-      await Promise.all(keys.map((request) => cache.delete(request)));
+      await Promise.all(keys
+        .filter((request) => request.url.endsWith(`/${spec.name}`))
+        .map((request) => cache.delete(request)));
       await cache.put(cacheUrl, new Response(bytes, {
         headers: { 'Content-Type': 'application/octet-stream' },
       }));
@@ -147,9 +150,11 @@ async function fetchFoundationModel(): Promise<{ bytes: ArrayBuffer; spec: Stere
 
 export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   const modelUrl = opts.modelUrl ?? DEFAULT_MODEL_URL;
-  // Cached per method: switching the dropdown must not reload the other model,
-  // and a method that failed to load must not be retried on every warp.
-  const matchers: Partial<Record<StereoMatchMethod, Promise<StereoMatcher | null>>> = {};
+  // Cached per method (and, for the foundation model, per imagery size, since
+  // the server picks the export by it): switching the dropdown must not reload
+  // the other model, and a method that failed to load must not be retried on
+  // every warp.
+  const matchers: Record<string, Promise<StereoMatcher | null>> = {};
   let rig: StereoRig | null = null;
   let rigKey: string | null = null;
 
@@ -158,13 +163,13 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return clientSettings.stereoSettings.matchMethod ?? DEFAULT_STEREO_MATCH_METHOD;
   }
 
-  async function createFoundationMatcher(): Promise<StereoMatcher> {
+  async function createFoundationMatcher(imagery?: ImagerySize): Promise<StereoMatcher> {
     if (opts.foundationModelUrl) {
       return StereoFoundationMatcher.create(opts.foundationModelUrl, opts.foundationModelSpec);
     }
     opts.onStatus?.('Loading the stereo model (about 100 MB on first use)...');
     try {
-      const { bytes, spec } = await fetchFoundationModel();
+      const { bytes, spec } = await fetchFoundationModel(imagery);
       // A bare .onnx has no sidecar; the matcher then reads the size from the graph.
       const size = spec.height && spec.width ? { height: spec.height, width: spec.width } : undefined;
       return await StereoFoundationMatcher.create(new Uint8Array(bytes), size);
@@ -173,19 +178,22 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     }
   }
 
-  function getMatcher(): Promise<StereoMatcher | null> {
+  function getMatcher(imagery?: ImagerySize): Promise<StereoMatcher | null> {
     const method = currentMethod();
-    const existing = matchers[method];
+    const key = method === 'foundation' && imagery
+      ? `${method}:${imagery.width}x${imagery.height}`
+      : method;
+    const existing = matchers[key];
     if (existing) return existing;
     const created = (method === 'foundation'
-      ? createFoundationMatcher()
+      ? createFoundationMatcher(imagery)
       : StereoOnnxMatcher.create(modelUrl)
     ).catch((err) => {
       console.warn('[StereoOnnx] failed to load model', method, err);
       opts.onError?.(`The stereo matching model could not be loaded. ${(err as Error).message ?? err}`);
       return null;
     });
-    matchers[method] = created;
+    matchers[key] = created;
     return created;
   }
 
