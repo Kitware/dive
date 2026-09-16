@@ -39,6 +39,6 @@ export interface StereoMatcher {
 
 /** Labels for the method selector. */
 export const STEREO_MATCH_METHODS: { value: StereoMatchMethod; text: string }[] = [
-  { value: 'ncc', text: 'Lower Accuracy, Higher Speed' },
-  { value: 'foundation', text: 'Higher Accuracy, Lower Speed' },
+  { value: 'foundation', text: 'Higher Quality, Slower' },
+  { value: 'ncc', text: 'Lower Quality, Faster' },
 ];

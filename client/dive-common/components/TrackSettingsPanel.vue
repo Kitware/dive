@@ -41,7 +41,7 @@ export default defineComponent({
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
       stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
-      stereoMatchMethod: 'How points are located on the other camera. "Lower Accuracy, Higher Speed" template-matches each point along its epipolar line. "Higher Accuracy, Lower Speed" runs the Fast Foundation Stereo model over the whole image pair (downloaded once, about 100 MB) and reads every point from its disparity map, which is computed ahead of time whenever you change frames.',
+      stereoMatchMethod: 'How points are located on the other camera. "Higher Quality, Slower" runs the Fast Foundation Stereo model over the whole image pair (downloaded once, about 90 MB; needs a WebGPU-capable browser) and reads every point from its disparity map, which is computed ahead of time whenever you change frames. "Lower Quality, Faster" template-matches each point along its epipolar line.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -460,7 +460,7 @@ export default defineComponent({
               class="my-0 ml-1 pt-0"
               dense
               hide-details
-              label="Point matching"
+              label="Stereo point matching"
             />
           </v-col>
           <v-col
