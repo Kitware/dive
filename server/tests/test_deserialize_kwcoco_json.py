@@ -313,6 +313,11 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                                 },
                                 {
                                     "type": "Feature",
+                                    "geometry": {"type": "Point", "coordinates": [58.45, 262.91]},
+                                    "properties": {"key": "eye"},
+                                },
+                                {
+                                    "type": "Feature",
                                     "geometry": {
                                         "type": "LineString",
                                         "coordinates": [
@@ -358,6 +363,19 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [73, 125, 142, 184],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [136.825, 131.145],
+                                    },
+                                    "properties": {"key": "eye"},
+                                }
+                            ],
+                        },
                     }
                 ],
                 "confidencePairs": [["eff", 1.0]],
@@ -1243,3 +1261,185 @@ def test_frame_rate_absent_or_unusable():
         assert (
             kwcoco.frame_rate_from_coco(_fps_document([{'id': 1, 'annotation_fps': fps}])) is None
         )
+
+
+def test_species_list_is_a_category_block_with_no_media_behind_it():
+    """The list declares what a dataset may use; it asserts nothing was observed."""
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1, 'name': 'fish'}]}) is True
+    # A KWCOCO document that spells its empty media out is still only a declaration.
+    assert (
+        kwcoco.is_coco_species_list(
+            {'images': [], 'annotations': [], 'categories': [{'id': 1, 'name': 'fish'}]}
+        )
+        is True
+    )
+
+
+def test_documents_that_are_not_species_lists():
+    document = {'images': [{'id': 1, 'file_name': 'a.png'}], 'categories': [{'id': 1, 'name': 'f'}]}
+    # Media present: an ordinary COCO document, even with nothing annotated on it.
+    assert kwcoco.is_coco_species_list(document) is False
+    assert (
+        kwcoco.is_coco_species_list(
+            {'annotations': [{'id': 1}], 'categories': [{'id': 1, 'name': 'f'}]}
+        )
+        is False
+    )
+    assert kwcoco.is_coco_species_list({'categories': []}) is False
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1}]}) is False
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1, 'name': ''}]}) is False
+    assert kwcoco.is_coco_species_list({'categories': ['fish']}) is False
+    assert kwcoco.is_coco_species_list({'tracks': {}, 'groups': {}}) is False
+    assert kwcoco.is_coco_species_list([{'name': 'fish'}]) is False
+
+
+def test_species_names_keep_file_order_without_repeats():
+    document = {
+        'categories': [
+            {'id': 1, 'name': 'Sebastes'},
+            {'id': 2, 'name': 'Sebastes melanops', 'supercategory': 'Sebastes'},
+            {'id': 3},
+            {'id': 4, 'name': ''},
+            {'id': 5, 'name': 'Sebastes'},
+            {'id': 6, 'name': 'Sebastes flavidus', 'supercategory': 'Sebastes'},
+        ]
+    }
+
+    assert kwcoco.species_list_from_categories(document) == [
+        'Sebastes',
+        'Sebastes melanops',
+        'Sebastes flavidus',
+    ]
+    # The nameless slots are reported once, by the hierarchy reader both callers use.
+    # Repeats also cost the file its hierarchy, which that same reader reports; an import
+    # refuses the file instead, using the repeated names listed below.
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(document)
+    assert hierarchy is None
+    assert warnings == [
+        kwcoco.CATEGORY_MISSING_NAME_WARNING,
+        kwcoco.SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
+    ]
+    assert kwcoco.repeated_category_names(document) == ['Sebastes']
+
+
+def test_repeated_category_names_are_listed_once_in_first_seen_order():
+    document = {
+        'categories': [
+            {'id': 1, 'name': 'b'},
+            {'id': 2, 'name': 'a'},
+            {'id': 3, 'name': 'b'},
+            {'id': 4, 'name': 'a'},
+            {'id': 5, 'name': 'b'},
+            {'id': 6},
+            {'id': 7, 'name': ''},
+            'not a category',
+        ]
+    }
+    assert kwcoco.repeated_category_names(document) == ['b', 'a']
+    # Nameless slots never count as repeats of each other.
+    assert kwcoco.repeated_category_names({'categories': [{'id': 1}, {'id': 2}]}) == []
+    assert kwcoco.repeated_category_names({'categories': [{'id': 1, 'name': 'a'}]}) == []
+
+
+@pytest.mark.parametrize('named', [False, True])
+def test_centerline_keypoints_roundtrip(named):
+    labels = ['tail', 'spine_010', 'head', 'spine_002', 'spine_003', 'eye']
+    triples = [
+        [90.5, 20.25, 2],
+        [60.1, 35.2, 2],
+        [10.25, 20.5, 2],
+        [30.75, 40.125, 1],
+        [0, 0, 0],
+        [12.5, 18.5, 2],
+    ]
+    keypoints = [v for triple in triples for v in triple]
+    if named:
+        keypoints = [
+            {'keypoint_category_id': 10 + i * 3, 'xy': p[:2], 'visible': p[2]}
+            for i, p in enumerate(triples)
+        ]
+    doc = {
+        'images': [{'id': 1, 'file_name': 'fish.png'}],
+        'categories': [{'id': 7, 'name': 'fish', 'keypoints': labels}],
+        'keypoint_categories': [{'id': 10 + i * 3, 'name': k} for i, k in enumerate(labels)],
+        'annotations': [
+            {
+                'id': 1,
+                'image_id': 1,
+                'category_id': 7,
+                'bbox': [0, 0, 100, 50],
+                'keypoints': keypoints,
+            }
+        ],
+    }
+    tracks, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(doc)
+    feature = next(iter(tracks['tracks'].values()))['features'][0]
+    geometry = feature['geometry']['features']
+    expected = [triples[i][:2] for i in [2, 3, 1, 0]]
+    assert (
+        next(g for g in geometry if g['geometry']['type'] == 'LineString')['geometry'][
+            'coordinates'
+        ]
+        == expected
+    )
+    assert not any(g['properties']['key'] == 'spine_003' for g in geometry)
+    # Test line-only geometry and stale point markers: the edited line wins.
+    feature['geometry']['features'] = [g for g in geometry if g['geometry']['type'] == 'LineString']
+    out = kwcoco.export_dive_as_coco(tracks['tracks'].values(), {0: 'fish.png'}, 'fish')
+    assert out['categories'][0]['keypoints'] == ['head', 'spine_001', 'spine_002', 'tail']
+    assert out['categories'][0]['skeleton'] == [[1, 2], [2, 3], [3, 4]]
+    assert out['annotations'][0]['num_keypoints'] == 4
+    again, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    geo = next(iter(again['tracks'].values()))['features'][0]['geometry']['features']
+    assert (
+        next(g for g in geo if g['geometry']['type'] == 'LineString')['geometry']['coordinates']
+        == expected
+    )
+
+
+def test_centerlines_with_different_vertex_counts_share_coco_schema():
+    lines = [[[1.25, 2.5], [4.5, 6.25], [9.5, 3.25]], [[2.5, 3.5], [8.5, 4.5]]]
+    tracks = [
+        dict(
+            id=1,
+            begin=0,
+            end=1,
+            confidencePairs=[['fish', 1]],
+            features=[
+                dict(
+                    frame=i,
+                    bounds=[0, 0, 10, 10],
+                    geometry={
+                        'type': 'FeatureCollection',
+                        'features': [
+                            {
+                                'type': 'Feature',
+                                'properties': {'key': 'HeadTails'},
+                                'geometry': {'type': 'LineString', 'coordinates': line},
+                            }
+                        ],
+                    },
+                )
+                for i, line in enumerate(lines)
+            ],
+        )
+    ]
+    out = kwcoco.export_dive_as_coco(tracks, {0: 'a.png', 1: 'b.png'}, 'fish')
+    assert out['annotations'][1]['keypoints'] == [2.5, 3.5, 2, 0, 0, 0, 8.5, 4.5, 2]
+    assert out['annotations'][1]['num_keypoints'] == 2
+    result, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    for feature, line in zip(result['tracks']['1']['features'], lines):
+        geometry = feature['geometry']['features']
+        assert (
+            next(g for g in geometry if g['geometry']['type'] == 'LineString')['geometry'][
+                'coordinates'
+            ]
+            == line
+        )
+    # No tail means no complete centerline, even with visible interior points.
+    out['annotations'][0]['keypoints'][-1] = 0
+    result, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    assert all(
+        g['geometry']['type'] != 'LineString'
+        for g in result['tracks']['1']['features'][0]['geometry']['features']
+    )

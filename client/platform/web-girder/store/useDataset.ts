@@ -3,7 +3,7 @@ import type { GirderModelType } from '@girder/components/src';
 import type { GirderConfig } from 'platform/web-girder/constants';
 import { ref } from 'vue';
 import {
-  getDataset, getDatasetMedia, getFolder, resolveDatasetFolderId,
+  getDataset, getDatasetMedia, getFolder, mergeDatasetConfig, resolveDatasetFolderId,
 } from 'platform/web-girder/api';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { MultiType } from 'dive-common/constants';
@@ -28,17 +28,7 @@ export function useDataset() {
       getDataset(datasetId),
       getDatasetMedia(datasetId),
     ]);
-    const dsMeta: GirderConfig = {
-      ...metaStatic.data,
-      ...media.data,
-      id: compositeId ?? metaStatic.data.id,
-      videoUrl: media.data.video?.url,
-    };
-    if (dsMeta.type === MultiType && !compositeId) {
-      dsMeta.multiCamMedia = metaStatic.data.multiCamMedia;
-      dsMeta.imageData = [];
-      dsMeta.videoUrl = undefined;
-    }
+    const dsMeta = mergeDatasetConfig(metaStatic.data, media.data, compositeId);
     // Only update the shared store for the parent dataset. Per-camera composite
     // loads (parentId/cameraName) must not overwrite multicam metadata used by
     // ViewerLoader pipeline filters and other chrome.

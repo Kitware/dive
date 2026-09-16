@@ -1,6 +1,7 @@
 import npath from 'path';
 import { spawn } from 'child_process';
 import fs from 'fs-extra';
+import moment from 'moment';
 
 import {
   Settings, DesktopJob, RunPipeline, RunTraining,
@@ -8,6 +9,7 @@ import {
   ExportTrainedPipeline,
   JsonConfig,
   JobsOutputFolderName,
+  RunScoring,
 } from 'platform/desktop/constants';
 import { cleanString } from 'platform/desktop/sharedUtils';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
@@ -21,20 +23,26 @@ import {
   multiCamPipelineMarkers,
 } from 'dive-common/constants';
 import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   isDisparityImagePipeline,
   isFilterPipeline,
   isTranscodePipeline,
   pipelineCreatesNewDataset,
 } from 'dive-common/pipelineCreatesDataset';
+import { describeSource, scoringCliArgs } from 'dive-common/scoring/metrics';
+import { SCORING_RESULT_VERSION } from 'dive-common/scoring/types';
+import type { RawScoringMatches, ScoringResultFile } from 'dive-common/scoring/types';
 import * as common from './common';
+import { prepareSingleCameraRun, finishSingleCameraRun } from './singleCameraPipeline';
 import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
 } from './utils';
+import { buildRegistrationPipelineArgs, ingestPipelineRegistration } from './cameraRegistration';
 import {
   getMultiCamImageFiles, getMultiCamVideoPath,
-  writeMultiCamStereoPipelineArgs,
+  videoSubsetCameras, writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
 
 const PipelineRelativeDir = 'configs/pipelines';
@@ -162,6 +170,22 @@ async function importNewMedia(
 /**
  * a node.js implementation of dive_tasks.tasks.run_pipeline
  */
+/**
+ * The input1..N camera order for a 2-cam/3-cam run: the order the user
+ * confirmed in the camera-assignment step (validated against the dataset's
+ * cameras), else the dataset's camera order as stored.
+ */
+function multiCamOrderFor(meta: JsonConfig, confirmed?: string[]): string[] {
+  const cameras = orderedMultiCamCameraNames(meta.multiCam);
+  if (!confirmed?.length) {
+    return cameras;
+  }
+  if ([...confirmed].sort().join('\n') !== [...cameras].sort().join('\n')) {
+    throw new Error(`Camera assignment [${confirmed.join(', ')}] does not match the dataset cameras [${cameras.join(', ')}]`);
+  }
+  return confirmed;
+}
+
 async function runPipeline(
   settings: Settings,
   runPipelineArgs: RunPipeline,
@@ -170,8 +194,10 @@ async function runPipeline(
   viameConstants: ViameConstants,
   forceTranscodedVideo?: boolean,
 ): Promise<DesktopJob> {
-  const { datasetId, pipeline } = runPipelineArgs;
+  const { pipeline } = runPipelineArgs;
+  let { datasetId } = runPipelineArgs;
   const frameRange = runPipelineArgs.pipelineParams?.runtimeParams?.frameRange ?? undefined;
+  const imagePairs = runPipelineArgs.pipelineParams?.runtimeParams?.imagePairs ?? undefined;
   // Pipes with a camera suffix (e.g. filter_register_frames_2-cam.pipe) are
   // categorized under '2-cam'/'3-cam' rather than by their filename prefix,
   // so output handling is recognized from the pipe filename as well as the type.
@@ -187,6 +213,12 @@ async function runPipeline(
     throw new Error(isValid);
   }
 
+  const singleCamera = !createsNewDataset && pipeline.type !== stereoPipelineMarker
+    && !multiCamPipelineMarkers.includes(pipeline.type)
+    ? await prepareSingleCameraRun(settings, datasetId, runPipelineArgs.pipelineParams?.singleCameraMode)
+    : null;
+  if (singleCamera) datasetId = `${singleCamera.parentId}/${singleCamera.camera}`;
+
   let pipelinePath = npath.join(settings.viamePath, PipelineRelativeDir, pipeline.pipe);
   if (runPipelineArgs.pipeline.type === 'trained') {
     pipelinePath = pipeline.pipe;
@@ -200,6 +232,41 @@ async function runPipeline(
   // directory, which matters because a 'trained' pipeline's .pipe is a full
   // path rather than a bare filename.
   const jobWorkDir = await createWorkingDirectory(settings, [meta], splitExt(pipeline.pipe)[0]);
+
+  // The key must not depend on the pid: the renderer is told this job exists
+  // before any process does, so that preparing the inputs (extracting a
+  // multi-camera frame subset from video takes longer than the pipeline run
+  // itself) shows up in the Jobs tab instead of looking like nothing
+  // happened. Both updates have to land on the same history entry, and
+  // jobWorkDir is already unique per run.
+  const jobKey = `pipeline_${jobWorkDir}`;
+  const preparingJob: DesktopJob = {
+    key: jobKey,
+    command: '',
+    jobType: 'pipeline',
+    // No process yet. The UI reads a negative pid as "still starting" and
+    // leaves it out of the job's detail table.
+    pid: -1,
+    args: runPipelineArgs,
+    title: runPipelineArgs.pipeline.name,
+    workingDir: jobWorkDir,
+    datasetIds: [datasetId],
+    exitCode: null,
+    startTime: new Date(),
+  };
+  const reportPreparing = (message: string) => updater({ ...preparingJob, body: [message] });
+  // Closes out the placeholder entry when the job dies before it ever spawns;
+  // otherwise the Jobs tab keeps a job that can never finish, and its badge
+  // spins forever.
+  const failedToStart = (err: unknown) => {
+    updater({
+      ...preparingJob,
+      body: [`Job failed to start: ${err instanceof Error ? err.message : String(err)}`],
+      exitCode: 1,
+      endTime: new Date(),
+    });
+  };
+  reportPreparing('Preparing job inputs...');
 
   const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
   let cameraLogLine: string | null = null;
@@ -239,11 +306,11 @@ async function runPipeline(
   const joblog = npath.join(jobWorkDir, 'runlog.txt');
 
   //TODO: TEMPORARY FIX FOR DEMO PURPOSES
-  // Disparity image pipe is measurement_* but only needs stereo media + calibration.
+  // Disparity image pipe is stereo_* but only needs stereo media + calibration.
   let requiresInput = false;
   if (
     !isDisparityPipe
-    && (/utility_|filter_|transcode_|measurement_/g).test(pipeline.pipe)
+    && (/utility_|filter_|transcode_|stereo_/g).test(pipeline.pipe)
   ) {
     requiresInput = true;
   }
@@ -273,6 +340,14 @@ async function runPipeline(
   // camera (single-cam: one entry).
   let inputImageLists: string[] = [];
 
+  // A frame-subset run extracts each video camera's chosen frames to stills, so
+  // every input below is an image list and no video reader is left to configure
+  // — binding one would point vidl_ffmpeg at a .txt manifest, and the
+  // downsampler settings describe a video timeline the run no longer reads.
+  // writeMultiCamStereoPipelineArgs does the extracting, but the reader type is
+  // bound here, before it runs, so the set has to be known up front.
+  const feedsVideoReader = !videoSubsetCameras(meta, imagePairs).length;
+
   if (metaType === 'video') {
     let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     if (meta.type === MultiType) {
@@ -282,12 +357,11 @@ async function runPipeline(
     }
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.viameExe}" runner`,
-      '-s "input:video_reader:type=vidl_ffmpeg"',
-      `-p "${pipelinePath}"`,
-      `-s downsampler:target_frame_rate=${meta.fps}`,
+      `"${viameConstants.viameExe}" run "${pipelinePath}"`,
+      ...(feedsVideoReader ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
+      ...(feedsVideoReader ? [`-s downsampler:target_frame_rate=${meta.fps}`] : []),
     ];
-    if (frameRange) {
+    if (frameRange && feedsVideoReader) {
       command.push(`-s downsampler:start_frame=${frameRange[0]}`);
       command.push(`-s downsampler:end_frame=${frameRange[1]}`);
       const isNative = !meta.originalFps || meta.fps >= meta.originalFps;
@@ -322,8 +396,7 @@ async function runPipeline(
     await fs.writeFile(manifestFile, fileData);
     command = [
       `${viameConstants.setupScriptAbs} &&`,
-      `"${viameConstants.viameExe}" runner`,
-      `-p "${pipelinePath}"`,
+      `"${viameConstants.viameExe}" run "${pipelinePath}"`,
     ];
     if (!stereoOrMultiCam) {
       command.push(`-s input:video_filename="${manifestFile}"`);
@@ -366,7 +439,25 @@ async function runPipeline(
 
   let multiOutFiles: Record<string, string>;
   if (meta.multiCam && stereoOrMultiCam) {
-    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(jobWorkDir, meta, settings, requiresInput);
+    const isMultiCamPipeline = multiCamPipelineMarkers.includes(pipeline.type);
+    // 2-cam/3-cam pipes: which camera feeds which inputN is the order the
+    // user confirmed before the run.
+    const multiCamOrder = isMultiCamPipeline
+      ? multiCamOrderFor(meta, runPipelineArgs.pipelineParams?.cameraOrder)
+      : undefined;
+    const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(
+      jobWorkDir,
+      meta,
+      settings,
+      requiresInput,
+      false,
+      multiCamOrder,
+      {
+        imagePairs,
+        frameRange,
+        onProgress: reportPreparing,
+      },
+    );
     Object.entries(argFilePair).forEach(([arg, file]) => {
       command.push(`-s ${arg}="${file}"`);
     });
@@ -392,6 +483,30 @@ async function runPipeline(
         : DEFAULT_CALIBRATION_KEYS;
       calibrationKeys.forEach((key) => {
         command.push(`-s ${key}="${meta.multiCam?.calibration}"`);
+      });
+    }
+
+    if (pipeline.pipe.toLowerCase().includes('align_cameras')) {
+      // Camera names for the output JSON, aligned with the input{i} order
+      // writeMultiCamStereoPipelineArgs uses (multiCamOrder or cameraOrder).
+      const cameraNames = (multiCamOrder ?? orderedMultiCamCameraNames(meta.multiCam)).join(',');
+      command.push(`-s register:camera_names="${cameraNames}"`);
+      command.push(`-s register:output_directory="${jobWorkDir}"`);
+    }
+    if (multiCamOrder) {
+      // Hand the camera registration to the pipeline's warp processes; a
+      // warped camera with no registration onto camera 1 fails here, before
+      // the job exists.
+      const registrationArgs = await buildRegistrationPipelineArgs(
+        settings,
+        meta,
+        jobWorkDir,
+        multiCamOrder,
+        pipeline.metadata?.registrationWarps,
+        pipeline.name,
+      );
+      Object.entries(registrationArgs).forEach(([arg, value]) => {
+        command.push(`-s ${arg}="${value}"`);
       });
     }
   } else if (pipeline.type === stereoPipelineMarker) {
@@ -436,11 +551,13 @@ async function runPipeline(
     cwd: jobWorkDir,
   }));
   if (job.pid === undefined) {
-    throw new Error('Failed to spawn pipeline process');
+    const err = new Error('Failed to spawn pipeline process');
+    failedToStart(err);
+    throw err;
   }
 
   const jobBase: DesktopJob = {
-    key: `pipeline_${job.pid}_${jobWorkDir}`,
+    key: jobKey,
     command: command.join(' '),
     jobType: 'pipeline',
     pid: job.pid,
@@ -466,7 +583,9 @@ async function runPipeline(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
+    let exitCode = code;
+    const bodyText = [''];
     if (code === 0) {
       try {
         if (!createsNewDataset) {
@@ -482,10 +601,58 @@ async function runPipeline(
             }
           }
 
-          const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
-          if (newMeta) {
-            meta.attributes = newMeta.attributes;
-            await common.saveConfig(settings, datasetId, meta);
+          if (singleCamera) {
+            await finishSingleCameraRun(settings, singleCamera, [finalDetectorOutput, finalTrackOutput], jobWorkDir, async (directory) => {
+              updater({ ...jobBase, body: ['Associating stereo detections...'] });
+              const association = observeChild(spawn(`${viameConstants.setupScriptAbs} && "${viameConstants.viameExe}" run associate.pipe`, {
+                shell: viameConstants.shell,
+                cwd: directory,
+              }));
+              // Keep cancellation pointed at the process that is currently running.
+              jobBase.pid = association.pid ?? -1;
+              updater({ ...jobBase, body: ['Associating stereo detections...'] });
+              association.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+              association.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
+              await new Promise<void>((resolve, reject) => {
+                association.on('error', reject);
+                association.on('close', (status) => {
+                  if (status === 0) resolve();
+                  else reject(new Error(`Stereo association failed (exit ${status}).`));
+                });
+              });
+            });
+          } else {
+            const { meta: newMeta } = await common.ingestDataFiles(settings, datasetId, [finalDetectorOutput, finalTrackOutput], multiOutFiles);
+            if (newMeta) {
+              meta.attributes = newMeta.attributes;
+              await common.saveConfig(settings, datasetId, meta);
+            }
+          }
+        }
+
+        // Registration pipeline: merge the output into the dataset's saved
+        // camera registration. Filename sniff is substring-based, like the
+        // calibration hook below; the process writes atomically, so a file
+        // present here is a complete result (a canceled job leaves none).
+        if (pipeline.pipe.toLowerCase().includes('align_cameras')) {
+          const files = await fs.readdir(jobWorkDir);
+          const registrationFile = files.find(
+            (f) => f.toLowerCase().includes('registration') && f.endsWith('.json'),
+          );
+          if (registrationFile && meta.multiCam) {
+            const videoCameras = Object.entries(meta.multiCam.cameras)
+              .filter(([, camera]) => camera.type === 'video')
+              .map(([name]) => name);
+            const summary = await ingestPipelineRegistration(
+              settings,
+              datasetId,
+              npath.join(jobWorkDir, registrationFile),
+              videoCameras,
+            );
+            updater({
+              ...jobBase,
+              body: [`Merged camera registration for ${summary.pairCount} pair(s) into the dataset`],
+            });
           }
         }
 
@@ -566,13 +733,22 @@ async function runPipeline(
           );
         }
       } catch (err) {
+        // Post-run collection (annotation ingest, registration merge, dataset
+        // creation) failing used to be swallowed to the main-process console:
+        // the job still reported success while its results never reached the
+        // dataset, which reads as "the pipeline did nothing". Put it where the
+        // user looks instead.
+        const message = `Post-run processing failed: ${err instanceof Error ? err.message : String(err)}`;
         console.error(err);
+        await fs.appendFile(joblog, `\n${message}\n`).catch(() => undefined);
+        exitCode = 1;
+        bodyText.unshift(message);
       }
     }
     updater({
       ...jobBase,
-      body: [''],
-      exitCode: code,
+      body: bodyText,
+      exitCode,
       endTime: new Date(),
     });
   });
@@ -630,8 +806,7 @@ async function exportTrainedPipeline(
 
   const command = [
     `${viameConstants.setupScriptAbs} &&`,
-    `"${viameConstants.viameExe}" runner`,
-    `-p "${exportPipelinePath}"`,
+    `"${viameConstants.viameExe}" run "${exportPipelinePath}"`,
     `-s "onnx_convert:model_path=${weightsPath}"`,
     `-s "onnx_convert:onnx_model_prefix=${converterOutput}"`,
   ];
@@ -667,7 +842,7 @@ async function exportTrainedPipeline(
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
 
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     if (code === 0) {
       if (fs.existsSync(converterOutput)) {
         if (fs.existsSync(path)) {
@@ -785,7 +960,6 @@ async function train(
     `--config "${configFilePath}"`,
     '--no-query',
     '--no-adv-prints',
-    '--no-embedded-pipe',
   ];
 
   if (resumeDir) {
@@ -844,7 +1018,7 @@ async function train(
 
   job.stdout.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
   job.stderr.on('data', jobFileEchoMiddleware(jobBase, updater, joblog));
-  job.on('exit', async (code) => {
+  job.on('close', async (code) => {
     const manifestPath = npath.join(jobWorkDir, DiveJobManifestName);
     // Cancel updates the manifest before killing the child; read that first so
     // we do not clobber cancelledJob with a null/signal exit code.
@@ -883,9 +1057,168 @@ async function train(
   return jobBase;
 }
 
+/** Quote a `viame score` token for the platform shell; bare flags and numbers stay as-is. */
+function shellToken(token: string) {
+  return /^[\w.-]+$/.test(token) ? token : `"${token}"`;
+}
+
+/** Keep only the last part of the scorer's stdout for the stored summary. */
+const ScoringSummaryTailBytes = 64 * 1024;
+
+/**
+ * Run the `viame score` applet over every pair in one invocation and store
+ * its output as a result file in the first pair's computed dataset.
+ */
+async function runScoring(
+  settings: Settings,
+  args: RunScoring,
+  updater: DesktopJobUpdater,
+  validateViamePath: (settings: Settings) => Promise<true | string>,
+  viameConstants: ViameConstants,
+): Promise<DesktopJob> {
+  const isValid = await validateViamePath(settings);
+  if (isValid !== true) {
+    throw new Error(isValid);
+  }
+  const { pairs, params } = args;
+  if (pairs.length === 0) {
+    throw new Error('Scoring needs at least one computed/truth pair');
+  }
+  const storageDatasetId = pairs[0].computed.datasetId;
+  const projectInfo = await common.getValidatedProjectDir(settings, storageDatasetId);
+  const jobWorkDir = await createCustomWorkingDirectory(settings, 'Scoring', storageDatasetId);
+  const joblog = npath.join(jobWorkDir, 'runlog.txt');
+
+  // Folder mode pairs computed and truth files by basename.
+  const computedDir = npath.join(jobWorkDir, 'computed');
+  const truthDir = npath.join(jobWorkDir, 'truth');
+  await fs.ensureDir(computedDir);
+  await fs.ensureDir(truthDir);
+  await Promise.all(pairs.map(async (pair, i) => {
+    const name = `seq_${String(i).padStart(3, '0')}.csv`;
+    await common.exportScoringSourceCsv(settings, pair.computed, npath.join(computedDir, name));
+    await common.exportScoringSourceCsv(settings, pair.truth, npath.join(truthDir, name));
+  }));
+
+  let labelsFile: string | undefined;
+  if (params.labelSynonyms) {
+    labelsFile = npath.join(jobWorkDir, 'labels.txt');
+    await fs.writeFile(labelsFile, params.labelSynonyms);
+  }
+
+  const metricsOut = npath.join(jobWorkDir, 'metrics.json');
+  const matchesOut = npath.join(jobWorkDir, 'matches.json');
+  const command = [
+    `${viameConstants.setupScriptAbs} &&`,
+    `"${viameConstants.viameExe}" score`,
+    ...scoringCliArgs(params, {
+      computed: computedDir,
+      truth: truthDir,
+      metricsOut,
+      matchesOut,
+      sweepDir: npath.join(jobWorkDir, 'sweep'),
+      labelsFile,
+    }).map(shellToken),
+    '--input-ext', '.csv',
+  ];
+
+  const job = observeChild(spawn(command.join(' '), {
+    shell: viameConstants.shell,
+    cwd: jobWorkDir,
+  }));
+  if (job.pid === undefined) {
+    throw new Error('Failed to spawn scoring process');
+  }
+
+  let { title } = args;
+  if (!title) {
+    title = `${describeSource(pairs[0].computed)} vs ${describeSource(pairs[0].truth)}`;
+    if (pairs.length > 1) {
+      title += ` (+${pairs.length - 1} more)`;
+    }
+  }
+  const datasetIds = [...new Set(pairs.flatMap((pair) => [pair.computed.datasetId, pair.truth.datasetId]))];
+  const jobBase: DesktopJob = {
+    key: `scoring_${job.pid}_${jobWorkDir}`,
+    command: command.join(' '),
+    jobType: 'scoring',
+    pid: job.pid,
+    args,
+    title: `Scoring ${title}`,
+    workingDir: jobWorkDir,
+    datasetIds,
+    exitCode: job.exitCode,
+    startTime: new Date(),
+  };
+  const manifestPath = npath.join(jobWorkDir, DiveJobManifestName);
+  fs.writeFile(manifestPath, JSON.stringify(jobBase, null, 2));
+
+  updater({
+    ...jobBase,
+    body: [''],
+  });
+
+  let stdoutTail = '';
+  const echo = jobFileEchoMiddleware(jobBase, updater, joblog);
+  job.stdout.on('data', (chunk: Buffer) => {
+    stdoutTail = (stdoutTail + chunk.toString('utf-8')).slice(-ScoringSummaryTailBytes);
+    echo(chunk);
+  });
+  job.stderr.on('data', echo);
+
+  job.on('close', async (code) => {
+    let existingManifest: DesktopJob | undefined;
+    try {
+      if (await fs.pathExists(manifestPath)) {
+        existingManifest = await fs.readJson(manifestPath) as DesktopJob;
+      }
+    } catch {
+      // fall through and record process exit status
+    }
+
+    let exitCode = code;
+    const bodyText = [''];
+    if (!existingManifest?.cancelledJob && code === 0) {
+      try {
+        const created = moment();
+        const id = `scoring_${created.format('YYYY-MM-DD_HH-mm-ss.SSS')}.json`;
+        const result: ScoringResultFile = {
+          version: SCORING_RESULT_VERSION,
+          id,
+          datasetId: storageDatasetId,
+          created: created.toISOString(),
+          title,
+          pairs,
+          params,
+          metrics: await fs.readJson(metricsOut),
+          summaryText: stdoutTail.trim() || undefined,
+        };
+        if (await fs.pathExists(matchesOut)) {
+          result.matches = await fs.readJson(matchesOut) as RawScoringMatches;
+        }
+        await fs.writeJson(npath.join(projectInfo.auxDirAbsPath, id), result);
+      } catch (err) {
+        const message = `Failed to record scoring result: ${err instanceof Error ? err.message : String(err)}`;
+        console.error(err);
+        await fs.appendFile(joblog, `\n${message}\n`).catch(() => undefined);
+        exitCode = 1;
+        bodyText.unshift(message);
+      }
+    }
+    const finalJob = buildTrainingExitManifest(jobBase, exitCode, new Date(), existingManifest);
+    fs.writeFile(manifestPath, JSON.stringify(finalJob, null, 2));
+    updater({
+      ...finalJob,
+      body: bodyText,
+    });
+  });
+  return jobBase;
+}
+
 export {
   runPipeline,
   exportTrainedPipeline,
   train,
+  runScoring,
   DEFAULT_CALIBRATION_KEYS,
 };

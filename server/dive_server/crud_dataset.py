@@ -16,6 +16,7 @@ from pydantic.main import BaseModel
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
+from dive_tasks.multicam_pipeline import infer_camera_roles
 from dive_utils import (
     TRUTHY_META_VALUES,
     asbool,
@@ -1279,6 +1280,37 @@ class CreateMulticamArgs(BaseModel):
         extra = 'forbid'
 
 
+def _child_media_names_for_role_inference(
+    child: types.GirderModel,
+    user: types.GirderUserModel,
+    media_type: str,
+) -> List[str]:
+    """Image or video file names used to infer camera roles when the folder name is generic."""
+    if media_type == constants.ImageSequenceType:
+        return [img['name'] for img in crud.valid_images(child, user)[:50]]
+    if media_type == constants.LargeImageType:
+        return [img['name'] for img in crud.valid_large_images(child, user)[:50]]
+    if media_type == constants.VideoType:
+        source_video = Item().findOne(
+            {
+                'folderId': child['_id'],
+                'meta.source_video': {'$in': [True, 'true', 'True']},
+            }
+        )
+        if source_video is not None:
+            return [source_video['name']]
+        video_item = Item().findOne(
+            {
+                'folderId': child['_id'],
+                'meta.codec': 'h264',
+                'meta.source_video': {'$in': [None, False]},
+            }
+        )
+        if video_item is not None:
+            return [video_item['name']]
+    return []
+
+
 def _child_media_frame_count(
     child: types.GirderModel, user: types.GirderUserModel, media_type: str
 ) -> int:
@@ -1713,6 +1745,17 @@ def create_multicam(
             'folderId': str(child['_id']),
             'type': camera_types_by_name[name],
         }
+    # Sensor role per camera from its name and (for image sequences) the image
+    # names; the pipeline camera-assignment step prefills from it and the user
+    # can correct it there.
+    camera_roles = infer_camera_roles(
+        {
+            name: _child_media_names_for_role_inference(
+                loaded_children[name], user, camera_types_by_name[name]
+            )
+            for name in camera_order
+        }
+    )
 
     calibration_source_item_id = None
     json_calibration_item_id = None
@@ -1792,6 +1835,7 @@ def create_multicam(
                 else {}
             ),
         },
+        **({'cameraRoles': camera_roles} if camera_roles else {}),
     }
     parent_folder_doc['meta'].setdefault(
         constants.ConfidenceFiltersMarker,
@@ -1842,6 +1886,17 @@ def validate_files(files: List[str]):
     dataset_config = [
         f for f in files if constants.jsonRegex.search(f) and constants.metaRegex.search(f)
     ]
+    # A KWCOCO species list is configuration too: it declares the classes a dataset may use.
+    # It rides the configuration slot rather than the annotation slot so a dataset can be
+    # uploaded with both its annotations and the list the reader picks from.
+    species_lists = [
+        f
+        for f in files
+        if constants.jsonRegex.search(f)
+        and constants.speciesRegex.search(f)
+        and f not in set(dataset_config)
+    ]
+    dataset_config = dataset_config + species_lists
     dataset_config_set = set(dataset_config)
 
     annotation_csvs = [f for f in files if constants.csvRegex.search(f) and f not in frame_meta_set]
@@ -1876,7 +1931,10 @@ def validate_files(files: List[str]):
     elif len(frame_meta) > 1:
         ok = False
         message = "More than one metadata file was selected. Choose one file and try again."
-    elif len(dataset_config) > 1:
+    elif len(species_lists) > 1:
+        ok = False
+        message = "Can only upload a single species list JSON per import"
+    elif len(dataset_config) - len(species_lists) > 1:
         ok = False
         message = "Can only upload a single configuration JSON per import"
     elif len(annotation_jsons) > 1:
@@ -1989,7 +2047,7 @@ def enqueue_calibration_conversion(
     jsonCalibrationFile JSON camera-rig item for display.
     """
     job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
-    # convert_cam_format.py lives on pipeline workers (VIAME image), not celery workers.
+    # the VIAME convert tool lives on pipeline workers (VIAME image), not celery workers.
     queue = f'{user["login"]}@private' if job_is_private else 'pipelines'
     token = Token().createToken(user=user, days=1)
     tasks.convert_calibration.apply_async(

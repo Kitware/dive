@@ -109,3 +109,40 @@ Stereo settings appear only on stereo datasets (two cameras + calibration) in DI
 > **Stereo warp did not appear on the other camera**
 
 Confirm **Auto-compute location on other camera** is enabled, the track is linked across cameras, and the other camera has no existing detection at that frame. Human-edited lines are not overwritten.
+
+### Curved head/tail lines
+
+Use the existing head/tail line tool: place the two endpoints as usual, then
+right-click the detection to edit its existing line. Click a new location on a
+line segment to insert an interior vertex, or drag its small midpoint handle. Drag vertices to adjust the centerline, or select an interior
+vertex and use the existing Delete point action to remove it. Removing the final
+interior vertex restores a two-point line. Deleting a vertex keeps the remaining
+line in edit mode. An existing detection box stays unchanged while all vertices
+are inside it; moving a vertex outside expands only the necessary box edges.
+No additional annotation mode is needed.
+
+The displayed line is an open polyline, ordered head to tail. Intermediate points
+are saved as `spine_001`, `spine_002`, etc.; insertion and deletion renumber them.
+These names describe order within a detection, not anatomical landmarks or stereo
+correspondences. Other keypoints and segmentation polygons remain separate.
+
+With stereo length updates enabled, edits clear derived measurements and trigger
+fresh correspondence along the curve. Failed matches leave the measurement stale
+instead of keeping an old length. Explicit `user_set` lengths stay locked. Curved
+measurement reports `curved_length`, `straight_length`, and `curvature_ratio` in
+addition to the usual length field; this ratio is a bend indicator, not local
+curvature. Computation follows the editable polyline, retaining its corners.
+
+Desktop dense stereo transfers points and curved lines in either direction.
+Right-camera edits use a separately computed, cached right-reference disparity map.
+The web stereo matcher also supports edits from either camera.
+
+With automatic mapping enabled, placing or moving a named keypoint maps it to
+the other camera, including when that camera already has a detection. Inserting
+an interior line vertex maps that vertex into the nearest segment of the other
+line, preserving its existing vertices. Automatically mapped points can follow
+subsequent edits; manually edited target points are protected. Failed matches
+and results that arrive after either affected annotation changes are discarded.
+These behaviors use the existing automatic mapping option in desktop and web.
+Browser ONNX matching supports transfers in either direction. Both implementations
+rematch image locations rather than pairing equally numbered intermediate points.

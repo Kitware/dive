@@ -214,12 +214,12 @@ export default defineComponent({
       Creating: {
         rectangle: 'Drag to draw rectangle. Press ESC to exit.',
         Polygon: 'Click to place vertices. Right click to close.',
-        LineString: 'Click to place head/tail points.',
+        LineString: 'Place head/tail points, then drag segment midpoints to add vertices.',
       },
       Editing: {
         rectangle: 'Drag vertices to resize the rectangle',
         Polygon: 'Drag midpoints to create new vertices. Click vertices to select for deletion.',
-        LineString: 'Click endpoints to select for deletion.',
+        LineString: 'Click a vertex to select it for deletion.',
       },
     };
 
@@ -449,7 +449,6 @@ export default defineComponent({
       <!-- Collapsed mode for edit buttons -->
       <span
         class="toolbar-group-host"
-        :class="{ 'toolbar-group-host--expanded': isEditButtonsExpanded }"
       >
         <v-menu
           v-if="!isEditButtonsExpanded"
@@ -460,15 +459,18 @@ export default defineComponent({
           <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
-              :disabled="!editingMode || activeEditButton?.loading"
+              :disabled="!!activeEditButton?.loading"
               :loading="!!activeEditButton?.loading"
               :color="activeEditButton?.active ? editingHeader.color : ''"
               class="mx-1 mode-button toolbar-group-activator"
               small
-              v-on="on"
+              v-on="editingMode ? on : {}"
             >
-              <pre v-if="activeEditButton?.mousetrap">{{ activeEditButton.mousetrap[0].bind }}:</pre>
-              <v-icon>
+              <pre
+                v-if="activeEditButton?.mousetrap"
+                :class="{ 'edit-btn-unavailable': !editingMode }"
+              >{{ activeEditButton.mousetrap[0].bind }}:</pre>
+              <v-icon :class="{ 'edit-btn-unavailable': !editingMode }">
                 {{ activeEditButton?.icon }}
               </v-icon>
               <toolbar-expand-toggle

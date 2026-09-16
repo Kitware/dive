@@ -13,6 +13,7 @@ import {
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
+  RunScoring,
 } from 'platform/desktop/constants';
 import * as viame from './viame';
 
@@ -126,6 +127,14 @@ async function train(
   return viame.train(settings, runTrainingArgs, updater, validateFake, getViameConstants(settings));
 }
 
+async function runScoring(
+  settings: Settings,
+  runScoringArgs: RunScoring,
+  updater: DesktopJobUpdater,
+): Promise<DesktopJob> {
+  return viame.runScoring(settings, runScoringArgs, updater, validateFake, getViameConstants(settings));
+}
+
 function checkDefaultNvidiaSmi(resolve: (value: NvidiaSmiReply) => void) {
   const smi = observeChild(spawn(
     `"${programFiles}\\NVIDIA Corporation\\NVSMI\\nvidia-smi.exe"`,
@@ -194,6 +203,7 @@ export default {
   runPipeline,
   exportTrainedPipeline,
   train,
+  runScoring,
   nvidiaSmi,
   initialize,
   getViameConstants,

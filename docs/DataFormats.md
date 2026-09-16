@@ -11,6 +11,7 @@ be uploaded or imported alongside your media and will be automatically parsed.
 
 * DIVE Annotation JSON (default annotation format)
 * DIVE Configuration JSON
+* KWCOCO Species List (configuration: the classes a dataset may use)
 * VIAME CSV
 * KPF (KWIVER Packet Format)
 * COCO and KWCOCO
@@ -284,6 +285,74 @@ interface FrameImage {
   timestamp?: number; // capture time in epoch seconds, when parseable from filename
 }
 ```
+
+## KWCOCO Species List
+
+A species list pre-loads the classes readers pick from, so a dataset opens with the whole list
+already in the [Type List](UI-Type-List.md) instead of being typed in one video at a time.
+
+The format is a KWCOCO `categories` block and nothing else — no `images`, no `annotations`:
+
+```json
+{
+  "categories": [
+    { "id": 1, "name": "Sebastes" },
+    { "id": 2, "name": "Sebastes melanops", "supercategory": "Sebastes" },
+    { "id": 3, "name": "Sebastes flavidus",  "supercategory": "Sebastes" }
+  ]
+}
+```
+
+This is the only species-list format DIVE reads. A file that carries media or annotations is an
+ordinary [COCO / KWCOCO](#coco-and-kwcoco) annotation import, even when its annotation list is
+empty.
+
+* Each `name` becomes a type the dataset declares, listed in the Type List under **Show Empty**
+  and selectable in [locked mode](UI-Type-List.md#locked-mode).
+* `supercategory` — or a one-element `parents` array — becomes a
+  [type hierarchy](UI-Type-List.md#hierarchical-types) edge, read exactly as it is for an
+  annotation import.
+* Nameless category slots are skipped, with the same warning a COCO import reports.
+* A repeated `name` fails the import. Two slots claiming the same class may disagree about its
+  parent, and the category block of an annotation file would only drop its hierarchy; a species
+  list is imported for its classes, so it is refused instead.
+* A species list never creates, changes, or removes annotations.
+
+### Importing a species list
+
+* **In the viewer**, use **Import** and choose the file, on Web and on Desktop.
+* **At upload**, put it in the **Species List** field on the Web upload page or the Desktop
+  import dialog. On Web it may be uploaded together with an annotation file and a DIVE
+  Configuration JSON; one species list per dataset.
+* **Beside the media**, name it to end in `species.json` (for example, `rockfish.species.json`)
+  and it is picked up automatically when the folder is imported. For a Desktop multicamera
+  import it is looked for in the folder the cameras share, then beside each camera; if the
+  cameras carry different lists none is applied and the import dialog warns, so you can pick
+  one in its Species List field.
+
+### Overwrite and additive imports
+
+The import dialog's **Overwrite** checkbox decides how a list meets what the dataset already
+declares:
+
+* **Overwrite** (the default) makes the file the whole declaration. Types it omits stop being
+  declared and the hierarchy is replaced; a list with no `supercategory` clears the stored
+  hierarchy. Styles are kept for the types the file names.
+* **Additive** adds the file's species and hierarchy edges and keeps everything already declared.
+  A list with no `supercategory` leaves the stored hierarchy alone.
+
+Neither mode can orphan annotations: a type a track actually uses is listed from that track's
+confidence pairs whether or not it is declared. Removing it from the declaration only drops its
+saved color, which falls back to the default palette.
+
+A list whose hierarchy cannot be applied — a cycle, a self-edge, or a child given two different
+parents — fails the import with `Type hierarchy is invalid: {reason}. No configuration was
+changed.` rather than importing a flat list, and a list that repeats a name fails with `Species
+list repeats category names: {names}. No configuration was changed.` Unlike the category block
+of an annotation file, which degrades to a warning, a species list is imported for its classes.
+
+For a multicamera dataset the declared types and the hierarchy are stored on the parent, so a
+species list imported against one camera updates the whole dataset.
 
 ## VIAME CSV
 
@@ -666,3 +735,39 @@ both are present.
 ```json
 { "id": 1, "name": "shark", "parents": ["fish"] }
 ```
+
+### Multi-point head/tail centerlines
+
+Centerlines reuse named keypoints and the existing `HeadTails` GeoJSON LineString.
+An example optional section in a VIAME CSV row is:
+
+```text
+(kp) head 100.25 120,(kp) spine_001 140 105.5,(kp) spine_002 180 115,(kp) tail 210 140
+```
+
+Point names are ordered `head`, numerically sorted `spine_N`, then `tail`.
+Writers preserve subpixel coordinates. The editor assigns zero-padded sequential
+names; indices may be renumbered after editing and are not cross-camera IDs.
+
+DIVE JSON stores the ordered coordinates in a feature with
+`properties.key = "HeadTails"` and `geometry.type = "LineString"`, alongside named
+Point features. When a line is present its coordinates are authoritative; its
+point markers are regenerated on import/edit/export to prevent stale vertices.
+Line-only JSON can therefore be exported to CSV without losing interior points.
+Two-point head/tail files remain valid. Older DIVE versions may drop the new
+interior points; use the updated readers and writers for round trips.
+
+COCO import/export supports these centerlines in both desktop and web DIVE.
+Exports use category `keypoints` labels (`head`, `spine_001`, …, `tail`),
+1-based `skeleton` edges, and annotation `[x, y, visibility]` triples plus
+`num_keypoints`. A shared label list covers curves with different numbers of
+vertices; absent slots are `[0, 0, 0]` and do not become vertices on import.
+Coordinates retain subpixel precision. The edited `HeadTails` LineString is
+authoritative on export, including when it has no separate point markers.
+
+DIVE also imports VIAME's KWCOCO named-point lists, resolving either
+`keypoint_category` names or `keypoint_category_id` through `keypoint_categories`.
+Both formats reconstruct the editable line from head, numerically ordered spine
+points, and tail. Without both endpoints, points are retained without creating a
+complete line. Other named keypoints are retained separately. These fields store
+the sampled polyline, not spline coefficients or physical stereo correspondences.

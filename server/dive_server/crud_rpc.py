@@ -12,13 +12,20 @@ from girder.models.token import Token
 from girder.notification import Notification
 from girder_jobs.models.job import Job, JobStatus
 from girder_plugin_worker.status import CustomJobStatus
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 import pymongo
 from typing_extensions import NotRequired
 
 from dive_server import crud, crud_annotation, crud_dataset
 from dive_tasks import tasks
-from dive_tasks.multicam_pipeline import is_stereo_or_multicam_pipeline, pipeline_requires_input
+from dive_tasks.multicam_pipeline import (
+    build_registration_pairs,
+    describe_missing_registration,
+    is_stereo_or_multicam_pipeline,
+    missing_registrations,
+    pipeline_requires_input,
+)
+from dive_tasks.pipeline_creates_dataset import pipeline_creates_new_dataset
 from dive_tasks.utils import choose_annotation_fps
 from dive_utils import (
     TRUTHY_META_VALUES,
@@ -30,6 +37,7 @@ from dive_utils import (
     types,
 )
 from dive_utils.constants import TrainingModelExtensions
+from dive_utils.scoring import DEFAULT_SCORING_PARAMS
 from dive_utils.serializers import dive, kpf, kwcoco, viame
 from dive_utils.type_hierarchy import (
     HierarchyWrite,
@@ -44,6 +52,52 @@ class RunTrainingArgs(BaseModel):
     folderIds: List[str]
     labelText: Optional[str]
     fineTuneModel: Optional[types.TrainingModelTuneArgs]
+
+
+class ScoringSourceModel(BaseModel):
+    datasetId: str
+    set: Optional[str]
+    revision: Optional[int]
+    file: Optional[str]
+    label: Optional[str]
+
+    class Config:
+        extra = 'ignore'
+
+
+class ScoringParamsModel(BaseModel):
+    iouThreshold: float = DEFAULT_SCORING_PARAMS['iouThreshold']
+    confidenceThreshold: float = DEFAULT_SCORING_PARAMS['confidenceThreshold']
+    matchMode: Literal['box', 'polygon'] = DEFAULT_SCORING_PARAMS['matchMode']
+    perClass: bool = DEFAULT_SCORING_PARAMS['perClass']
+    topClass: bool = DEFAULT_SCORING_PARAMS['topClass']
+    auxConfidence: bool = DEFAULT_SCORING_PARAMS['auxConfidence']
+    tracking: bool = DEFAULT_SCORING_PARAMS['tracking']
+    keypointThreshold: float = DEFAULT_SCORING_PARAMS['keypointThreshold']
+    sweep: bool = DEFAULT_SCORING_PARAMS['sweep']
+    sweepInterval: int = DEFAULT_SCORING_PARAMS['sweepInterval']
+    filterEstimator: Literal['none', 'min', 'avg', 'avg_minus_1p', 'idf1', 'mota'] = (
+        DEFAULT_SCORING_PARAMS['filterEstimator']
+    )
+    defaultLabel: Optional[str] = DEFAULT_SCORING_PARAMS['defaultLabel']
+    labelSynonyms: Optional[str] = DEFAULT_SCORING_PARAMS['labelSynonyms']
+
+    class Config:
+        extra = 'ignore'
+
+
+class ScoringPairModel(BaseModel):
+    computed: ScoringSourceModel
+    truth: ScoringSourceModel
+
+    class Config:
+        extra = 'ignore'
+
+
+class RunScoringArgs(BaseModel):
+    pairs: List[ScoringPairModel] = Field(..., min_items=1)
+    params: ScoringParamsModel = Field(default_factory=ScoringParamsModel)
+    title: Optional[str]
 
 
 def _get_queue_name(user: types.GirderUserModel, default="celery") -> str:
@@ -320,12 +374,29 @@ def run_pipeline(
     multicam_default_display = ''
     calibration_item_id: Optional[str] = None
     default_camera_folder: Optional[types.GirderModel] = None
+    is_warp_pipeline = False
+    reference_camera = ''
 
     if dataset_type == constants.MultiType:
         multi_cam = fromMeta(folder, constants.MultiCamMarker, required=True)
         multicam_default_display = multi_cam['defaultDisplay']
         camera_order = crud_dataset._multicam_camera_order(multi_cam)
         cameras_meta = multi_cam.get('cameras') or {}
+        is_warp_pipeline = pipeline['type'] in constants.MultiCamPipelineMarkers
+        if is_warp_pipeline and camera_order:
+            # 2-cam/3-cam pipes warp everything onto camera 1; the order the
+            # user confirmed in the camera-assignment step is which camera
+            # feeds which inputN. Without one, the dataset's stored order.
+            confirmed_order = (pipeline_params or {}).get('cameraOrder')
+            if confirmed_order:
+                if sorted(confirmed_order) != sorted(camera_order):
+                    raise RestException(
+                        f'Camera assignment [{", ".join(confirmed_order)}] does not match '
+                        f'the dataset cameras [{", ".join(camera_order)}]',
+                        code=400,
+                    )
+                camera_order = list(confirmed_order)
+            reference_camera = camera_order[0]
         for name in camera_order:
             cam_info = cameras_meta[name]
             folder_id = cam_info.get('folderId')
@@ -398,6 +469,46 @@ def run_pipeline(
     if camera_name:
         params['camera_name'] = camera_name
         multi_cam_meta = fromMeta(multicam_parent, constants.MultiCamMarker, default={}) or {}
+        if not pipeline_creates_new_dataset(pipeline):
+            mode = (pipeline_params or {}).get('singleCameraMode', 'separate')
+            if mode not in ('associate', 'separate'):
+                raise RestException('Invalid single-camera association mode', code=400)
+            cameras = []
+            for name in crud_dataset._multicam_camera_order(multi_cam_meta):
+                child = Folder().load(
+                    multi_cam_meta['cameras'][name]['folderId'],
+                    level=AccessType.WRITE if mode == 'associate' else AccessType.READ,
+                    user=user,
+                    exc=True,
+                )
+                cameras.append({'name': name, 'folder_id': str(child['_id'])})
+            association_calibration = None
+            if mode == 'associate':
+                if (
+                    fromMeta(multicam_parent, constants.SubTypeMarker, default=None) != 'stereo'
+                    or len(cameras) != 2
+                ):
+                    raise RestException(
+                        'Detection association in multi-camera mode is not implemented yet.',
+                        code=400,
+                    )
+                calibration_pipeline: types.PipelineDescription = {
+                    **pipeline,
+                    'metadata': {'requiresCalibration': True},
+                }
+                association_calibration = crud_dataset.resolve_stereo_calibration_item_id(
+                    multicam_parent, calibration_pipeline
+                )
+                if not association_calibration:
+                    raise RestException(
+                        'Stereo association requires a loaded calibration file.', code=400
+                    )
+            params['single_camera'] = {
+                'mode': mode,
+                'camera': camera_name,
+                'cameras': cameras,
+                'calibration_item_id': association_calibration,
+            }
         default_display = multi_cam_meta.get('defaultDisplay')
         if default_display:
             params['multicam_default_display'] = default_display
@@ -407,6 +518,36 @@ def run_pipeline(
         params['multicam_requires_input'] = multicam_requires_input
         if calibration_item_id:
             params['calibration_item_id'] = calibration_item_id
+        if is_warp_pipeline and reference_camera:
+            # Refuse up front when a warped camera has no registration onto
+            # camera 1, rather than letting the pipe die at configure time.
+            fitted_pairs = [
+                key
+                for key, value in (
+                    (folder.get('meta') or {}).get('cameraHomographies') or {}
+                ).items()
+                if value and (value.get('AtoB') or value.get('BtoA'))
+            ]
+            missing = missing_registrations(
+                camera_order,
+                (pipeline.get('metadata') or {}).get('registrationWarps'),
+                fitted_pairs,
+            )
+            if missing:
+                raise RestException(
+                    ' '.join(
+                        describe_missing_registration(*entry, pipeline['name']) for entry in missing
+                    ),
+                    code=400,
+                )
+            registration_pairs = build_registration_pairs(folder.get('meta') or {})
+            if any(
+                pair.get('leftToRight') or pair.get('rightToLeft') for pair in registration_pairs
+            ):
+                params['multicam_registration'] = {
+                    'reference': reference_camera,
+                    'pairs': registration_pairs,
+                }
     if metadata_file_key and metadata_file_item_id:
         params['metadata_file_key'] = metadata_file_key
         params['metadata_file_item_id'] = metadata_file_item_id
@@ -588,6 +729,126 @@ def run_training(
     )
 
 
+def _scoring_source_dict(source: ScoringSourceModel) -> types.ScoringSourceJob:
+    return cast(
+        types.ScoringSourceJob,
+        {key: value for key, value in source.dict().items() if value is not None},
+    )
+
+
+def _scoring_pair_dict(pair: ScoringPairModel) -> types.ScoringPairJob:
+    return {
+        'computed': _scoring_source_dict(pair.computed),
+        'truth': _scoring_source_dict(pair.truth),
+    }
+
+
+def _load_scoring_dataset(
+    user: types.GirderUserModel, dataset_id: str, level: int
+) -> types.GirderModel:
+    folder = Folder().load(dataset_id, level=level, user=user)
+    if folder is None:
+        raise RestException(f"Cannot access dataset {dataset_id}", code=404)
+    crud.verify_dataset(folder)
+    if fromMeta(folder, constants.TypeMarker) == constants.MultiType:
+        raise RestException(
+            'Scoring runs on one camera at a time; choose a camera of the multicamera dataset',
+            code=400,
+        )
+    return folder
+
+
+def _describe_scoring_source(folder: types.GirderModel, source: types.ScoringSourceJob) -> str:
+    if source.get('label'):
+        return str(source['label'])
+    parts = [str(folder['name'])]
+    if source.get('set'):
+        parts.append(f"set {source['set']}")
+    if source.get('revision') is not None:
+        parts.append(f"rev {source['revision']}")
+    return ' · '.join(parts)
+
+
+def run_scoring(
+    user: types.GirderUserModel,
+    token: types.GirderModel,
+    args: RunScoringArgs,
+) -> types.GirderModel:
+    """Score every pair together; the result is stored on the first pair's computed dataset."""
+    storage_dataset_id = args.pairs[0].computed.datasetId
+    storage_folder = _load_scoring_dataset(user, storage_dataset_id, AccessType.WRITE)
+    storage_id = str(storage_folder['_id'])
+    folders: Dict[str, types.GirderModel] = {storage_dataset_id: storage_folder}
+    for pair in args.pairs:
+        for source in (pair.computed, pair.truth):
+            if source.datasetId not in folders:
+                folders[source.datasetId] = _load_scoring_dataset(
+                    user, source.datasetId, AccessType.READ
+                )
+
+    # Attribute the job the way run_pipeline does so the viewer's running-job
+    # state (keyed by the multicam parent for camera folders) sees it.
+    multicam_parent = crud.get_multicam_parent_folder(storage_folder, user)
+    job_dataset_id = str(multicam_parent['_id']) if multicam_parent is not None else storage_id
+    if _check_running_jobs(job_dataset_id) or (
+        job_dataset_id != storage_id and _check_running_jobs(storage_id)
+    ):
+        raise RestException(
+            (
+                f"A job for {job_dataset_id} is already running. "
+                "Only one outstanding job may be run at a time for "
+                "a dataset."
+            )
+        )
+
+    pairs = [_scoring_pair_dict(pair) for pair in args.pairs]
+    if args.title:
+        title = args.title
+    else:
+        first = pairs[0]
+        computed_name = _describe_scoring_source(
+            folders[first['computed']['datasetId']], first['computed']
+        )
+        truth_name = _describe_scoring_source(folders[first['truth']['datasetId']], first['truth'])
+        title = f"{computed_name} vs {truth_name}"
+        if len(pairs) > 1:
+            title += f" (+{len(pairs) - 1} more)"
+    params: types.ScoringJob = {
+        'pairs': pairs,
+        'params': args.params.dict(),
+        'title': title,
+        'results_folder_id': storage_id,
+        'user_id': str(user['_id']),
+        'user_login': user.get('login', 'unknown'),
+    }
+    job_is_private = user.get(constants.UserPrivateQueueEnabledMarker, False)
+    newjob = tasks.run_scoring.apply_async(
+        queue=_get_queue_name(user, "pipelines"),
+        kwargs=dict(
+            params=params,
+            girder_job_title=f"Scoring {title}",
+            girder_client_token=str(token["_id"]),
+            girder_job_type="private" if job_is_private else "scoring",
+        ),
+    )
+    job = _persist_async_job_metadata(
+        newjob,
+        access_source=storage_folder,
+        **{
+            constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+            constants.JOBCONST_DATASET_ID: job_dataset_id,
+            constants.JOBCONST_PARAMS: params,
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
+    Notification(
+        type='job_status',
+        data=job,
+        user=user,
+    ).flush()
+    return job
+
+
 GetDataReturnType = TypedDict(
     'GetDataReturnType',
     {
@@ -596,6 +857,7 @@ GetDataReturnType = TypedDict(
         'attributes': Optional[dict],
         'type': crud.FileType,
         'hierarchy': NotRequired[Optional[Dict[str, str]]],
+        'species': NotRequired[List[str]],
     },
 )
 
@@ -642,7 +904,11 @@ def _get_data_by_type(
             raise RestException('No array-type json objects are supported')
         if configuration_only and not isinstance(data_dict, dict):
             return None, None
-        if kwcoco.is_coco_json(data_dict):
+        if kwcoco.is_coco_species_list(data_dict):
+            # Checked before is_coco_json: a category-only document declares the classes a
+            # dataset may use and carries no annotations to import.
+            as_type = crud.FileType.COCO_SPECIES_LIST
+        elif kwcoco.is_coco_json(data_dict):
             as_type = crud.FileType.COCO_JSON
         elif models.MetadataMutable.is_dive_configuration(data_dict):
             hierarchy_present = 'typeHierarchy' in data_dict
@@ -662,7 +928,11 @@ def _get_data_by_type(
     else:
         raise RestException('Got file of unknown and unusable type')
 
-    if configuration_only and as_type not in (crud.FileType.DIVE_CONF, crud.FileType.COCO_JSON):
+    if configuration_only and as_type not in (
+        crud.FileType.DIVE_CONF,
+        crud.FileType.COCO_JSON,
+        crud.FileType.COCO_SPECIES_LIST,
+    ):
         return None, None
 
     # Parse the file as the now known type
@@ -696,6 +966,22 @@ def _get_data_by_type(
     # All filetypes below are JSON, so if as_type was specified, it needs to be loaded.
     if data_dict is None:
         data_dict = json.loads(file_string)
+    if as_type == crud.FileType.COCO_SPECIES_LIST:
+        repeated = kwcoco.repeated_category_names(data_dict)
+        if repeated:
+            # A species list is imported for its classes. A repeated name is ambiguous, and
+            # it would also silently cost the file its hierarchy, so the import fails before
+            # anything is written rather than declaring the de-duplicated names.
+            raise RestException(species_list_repeats_message(repeated))
+        species_hierarchy, species_warnings = kwcoco.type_hierarchy_from_categories(data_dict)
+        return {
+            'annotations': None,
+            'meta': None,
+            'attributes': None,
+            'type': as_type,
+            'hierarchy': species_hierarchy,
+            'species': kwcoco.species_list_from_categories(data_dict),
+        }, species_warnings or warnings
     if as_type == crud.FileType.COCO_JSON:
         (
             converted,
@@ -882,6 +1168,32 @@ def _resolve_configuration_hierarchy(
     return final_write, soft_warnings
 
 
+def species_list_repeats_message(repeated: List[str]) -> str:
+    """Mirrors ``speciesListRepeatsMessage`` in the desktop importer."""
+    return (
+        f"Species list repeats category names: {', '.join(repeated)}. "
+        "No configuration was changed."
+    )
+
+
+def _declare_species_types(
+    existing: Dict[str, dict],
+    names: List[str],
+    additive: bool,
+) -> Dict[str, dict]:
+    """Fold one species list into a dataset's declared type styling.
+
+    DIVE stores the declared type list as the keys of ``customTypeStyling``; a name with no
+    style of its own renders in the ordinal palette, so declaring a species costs an empty
+    entry. Overwrite makes the file the whole declaration and drops the types it omits,
+    keeping the styles of the ones it names. Additive adds what is missing and keeps every
+    type already declared. Neither mode can orphan annotations: a type a track uses is
+    listed from its confidence pairs whether or not it is declared here.
+    """
+    declared = {name: existing.get(name, {}) for name in names}
+    return {**existing, **declared} if additive else declared
+
+
 def _prepare_configuration_imports(
     folder: types.GirderModel,
     user: types.GirderUserModel,
@@ -894,6 +1206,7 @@ def _prepare_configuration_imports(
     canonical = fresh_parent if fresh_parent is not None else fresh_folder
     config_results = []
     hierarchy_instructions = []
+    species_declarations: List[List[str]] = []
     parsed_json_items = {}
     item_files = {}
 
@@ -914,6 +1227,19 @@ def _prepare_configuration_imports(
         if results is None:
             continue
         parsed_json_items[str(item['_id'])] = (file, results, warnings)
+        if results['type'] == crud.FileType.COCO_SPECIES_LIST:
+            species = results.get('species') or []
+            if species:
+                species_declarations.append(species)
+            # A species list is imported for its classes, so an unusable hierarchy fails the
+            # import outright rather than degrading to a flat list the way the category block
+            # of an annotation file does. A list that declares no supercategory sends an empty
+            # map: Overwrite clears the stored hierarchy along with the types it replaces,
+            # while an additive import leaves it alone.
+            hierarchy_instructions.append(
+                HierarchyInstruction(True, results.get('hierarchy') or {})
+            )
+            continue
         if results['type'] == crud.FileType.COCO_JSON:
             coco_hierarchy = results.get('hierarchy')
             if coco_hierarchy is not None:
@@ -974,6 +1300,29 @@ def _prepare_configuration_imports(
             if 'datasetInfo' in shared_meta:
                 working_parent_dataset_info = shared_meta['datasetInfo']
             staged_parent_meta.update(shared_meta)
+
+    # Species lists are folded in after the DIVE configuration files so a list always
+    # declares against the styling those files staged, never the other way around.
+    if species_declarations:
+
+        def declare(styles: dict) -> dict:
+            for names in species_declarations:
+                styles = _declare_species_types(styles, names, additive)
+            return styles
+
+        staged_meta['customTypeStyling'] = declare(
+            dict(
+                staged_meta.get('customTypeStyling')
+                or fromMeta(fresh_folder, 'customTypeStyling', {})
+            )
+        )
+        if fresh_parent is not None:
+            staged_parent_meta['customTypeStyling'] = declare(
+                dict(
+                    staged_parent_meta.get('customTypeStyling')
+                    or fromMeta(fresh_parent, 'customTypeStyling', {})
+                )
+            )
 
     preflight_meta = apply_hierarchy_write(staged_meta, hierarchy_write)
     preflight_parent_meta = (

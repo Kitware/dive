@@ -23,7 +23,9 @@ import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
-import { useRouter } from 'vue-router/composables';
+import { useRouter, useRoute } from 'vue-router/composables';
+import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
@@ -112,6 +114,7 @@ export default defineComponent({
   setup(props) {
     const { prompt } = usePrompt();
     const router = useRouter();
+    const route = useRoute();
     const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
@@ -330,6 +333,11 @@ export default defineComponent({
 
     watch(currentJob, async () => {
       if (currentJob.value !== false && currentJob.value !== undefined) {
+        if (currentJob.value.type === 'scoring') {
+          // Scoring never touches the annotations; the scoring page picks up the result
+          jobs.removeCompleteJob({ datasetId: parentDatasetId(props.id) });
+          return;
+        }
         if (currentJob.value.success) {
           const result = await prompt({
             title: 'Pipeline Finished',
@@ -415,6 +423,18 @@ export default defineComponent({
       }
     }
 
+    const annotationSourceLabel = computed(() => {
+      const value = route.query[ANNOTATION_SOURCE_QUERY];
+      return typeof value === 'string' ? value : '';
+    });
+    const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+    /** Frame / track deep link from the review grid. */
+    const viewerFocus = computed(() => parseViewerFocus(route.query));
+
+    function returnToCurrentAnnotations() {
+      router.replace({ name: 'viewer', params: { id: props.id } });
+    }
+
     return {
       buttonOptions,
       brandData,
@@ -451,6 +471,10 @@ export default defineComponent({
       stereoLengthMessage,
       closeStereoError,
       handleStereoWarpImported,
+      annotationSourceLabel,
+      annotationSourceReturnable,
+      viewerFocus,
+      returnToCurrentAnnotations,
     };
   },
 });
@@ -466,6 +490,11 @@ export default defineComponent({
       :current-set="set"
       :read-only-mode="!!jobs.getDatasetRunningState(id)"
       :comparison-sets="comparisonSets"
+      :annotation-source-label="annotationSourceLabel"
+      :annotation-source-returnable="annotationSourceReturnable"
+      :initial-frame="viewerFocus.frame"
+      :initial-track-id="viewerFocus.trackId"
+      @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
       @update:set="routeSet"
       @change-camera="changeCamera"
@@ -486,11 +515,18 @@ export default defineComponent({
             <v-icon>mdi-database</v-icon>
           </v-tab>
           <JobsTab />
+          <v-tab
+            :to="{ name: 'review', query: { fromDataset: id } }"
+          >
+            Review
+            <v-icon>mdi-view-grid-outline</v-icon>
+          </v-tab>
         </v-tabs>
       </template>
       <template #title-right>
         <RunPipelineMenu
           v-if="pipelinesEnabled"
+          :before-run="() => viewerRef.save(set)"
           v-bind="{
             buttonOptions,
             menuOptions,

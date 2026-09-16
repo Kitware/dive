@@ -13,14 +13,30 @@ import {
 } from 'vue-media-annotator/alignedView/transform';
 import { unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
+import { MANUAL_SOURCE } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
+import { injectAggregateController } from 'vue-media-annotator/components/annotators/useMediaController';
 import { useApi } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { AutoRegisterRunOptions, useAutoRegisterJob } from 'dive-common/use/useAutoRegisterJob';
+import { loopClosureResidual, Matrix3 } from 'vue-media-annotator/alignedView/homography';
+
+import RegistrationFrameList, { FrameRow } from './RegistrationFrameList.vue';
+import AutoRegisterDialog from './AutoRegisterDialog.vue';
+/**
+ * A solved triplet is "consistent" when the direct and routed transforms
+ * agree to within this fraction of the last camera's width. 0.001 keeps the
+ * behaviour the old fixed 5px threshold happened to have on a ~5000px-wide
+ * camera, while meaning the same thing on rigs whose cameras are far larger
+ * or smaller. Measured on a KAMERA calibration flight: a converged 10-100
+ * frame fit sits near 0.05%, a single-frame (overfit) rig at 0.15%.
+ */
+const LOOP_CLOSURE_MAX_FRACTION = 0.001;
 
 export default defineComponent({
   name: 'CameraRegistration',
   description: 'Camera Registration',
-  components: { TooltipBtn },
+  components: { AutoRegisterDialog, TooltipBtn, RegistrationFrameList },
   setup() {
     const cameraStore = useCameraStore();
     const registration = useCameraRegistration();
@@ -28,7 +44,17 @@ export default defineComponent({
     const alignedView = useAlignedView();
     const { saveConfig } = useApi();
     const { prompt } = usePrompt();
+    const aggregateController = injectAggregateController();
 
+    /**
+     * The rig in persisted display order. Not camMap's key order: that is
+     * insertion order from an awaited per-camera load loop and can carry
+     * entries across a dataset switch, and both the reference camera below
+     * and the direction of the loop-closure residual depend on which camera
+     * is first and last.
+     */
+    // orderedCameraNames reads camMap and displayOrder, so the computed picks
+    // up both as dependencies without touching them explicitly.
     const cameras = computed(() => cameraStore.orderedCameraNames());
     /**
      * Per-camera alignment status for the whole rig, driving the status block:
@@ -64,7 +90,7 @@ export default defineComponent({
       return {
         icon: complete ? 'mdi-check-circle' : 'mdi-alert',
         color: complete ? 'success' : 'warning',
-        text: `${total - unresolvedCount}/${total} cameras registered`,
+        text: `${total - unresolvedCount}/${total} cameras ready`,
       };
     });
     const camLeft = ref<string | null>(null);
@@ -79,7 +105,7 @@ export default defineComponent({
     /**
      * Author-vs-review posture: picking defaults on for a pair that still
      * needs points, and off for one whose transform came from a registration
-     * file (review it; the "Pick points" toggle opts back in to refine).
+     * file (review it; the "Edit points" toggle opts back in to refine).
      * Re-applied whenever the active pair changes identity, so it overrides a
      * manual toggle on pair switch -- each pair opens in its own posture.
      */
@@ -137,8 +163,238 @@ export default defineComponent({
     const activeKey = computed(() => registration.activePairKey());
     const correspondences = computed(() => {
       const key = activeKey.value;
-      return key ? (registration.correspondences.value[key] || []) : [];
+      // Pooled across every enabled observation -- the fit input.
+      return key ? registration.enabledPoints(key) : [];
     });
+    /** Pooled fit quality: per-frame agreement with the pair's consensus. */
+    const pairStats = computed(() => (
+      activeKey.value ? registration.pairFitStats(activeKey.value) : null));
+    /** The camA-space frame the viewer currently displays for this pair. */
+    const currentPairFrame = computed(() => {
+      // Touch currentFrame so scrubbing recomputes the readouts.
+      // eslint-disable-next-line no-void
+      void registration.currentFrame.value;
+      const key = activeKey.value;
+      return key !== null ? registration.currentFrameForPair(key) : null;
+    });
+    /**
+     * The registration-frames list: the multi-image-pair selector AND the
+     * quality readout, one row per observation with its agreement dot.
+     */
+    const frameRows = computed<FrameRow[]>(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return [];
+      }
+      const stats = registration.pairFitStats(key);
+      const rmsByIdentity = new Map(stats.perObservation.map((obs) => [
+        `${obs.imageA}::${obs.imageB}`, obs.rmsPx,
+      ]));
+      // camA-local drives every action in this panel, but the number shown must
+      // match the frame readout / scrubber, which count global slots.
+      const [camA] = key.split('::');
+      const toSlot = (frame: number | null) => (
+        frame === null ? null : aggregateController.value.cameraFrameToSlot(camA, frame) ?? frame
+      );
+      return registration.framesForPair(key).map((row) => ({
+        frame: row.frame,
+        displayFrame: toSlot(row.frame),
+        imageA: row.imageA,
+        imageB: row.imageB,
+        enabled: row.enabled,
+        source: row.source,
+        count: row.count,
+        rmsPx: rmsByIdentity.get(`${row.imageA}::${row.imageB}`) ?? null,
+        skipped: (row.stats && typeof row.stats.skipped === 'string')
+          ? row.stats.skipped as string : null,
+        current: row.frame !== null && row.frame === currentPairFrame.value,
+      }));
+    });
+    /**
+     * Skipped rows are candidates a producer rejected -- overwhelmingly
+     * "pruned", the oversampling remainder from proposing candidatesPerBin per
+     * bin and keeping the best. They carry no points and support no action, so
+     * they are counted, not listed.
+     */
+    const skippedCount = computed(() => frameRows.value.filter((row) => row.skipped).length);
+    const listedRows = computed(() => frameRows.value.filter((row) => !row.skipped));
+    const autoRows = computed(() => listedRows.value.filter((row) => row.source !== MANUAL_SOURCE));
+    const manualRows = computed(
+      () => listedRows.value.filter((row) => row.source === MANUAL_SOURCE),
+    );
+    /** Enabled count + mean agreement with the pooled fit, for a section header. */
+    function sectionSummary(rows: FrameRow[]) {
+      const enabled = rows.filter((row) => row.enabled);
+      const measured = enabled
+        .map((row) => row.rmsPx)
+        .filter((rms): rms is number => rms !== null);
+      return {
+        total: rows.length,
+        enabled: enabled.length,
+        rmsPx: measured.length
+          ? measured.reduce((sum, rms) => sum + rms, 0) / measured.length
+          : null,
+      };
+    }
+    const autoSummary = computed(() => sectionSummary(autoRows.value));
+    const manualSummary = computed(() => sectionSummary(manualRows.value));
+
+    /**
+     * Captures queued for the next matcher run, as global aligned-timeline
+     * slots (what the frame readout shows). The user picks the captures, so
+     * the run matches exactly these rather than proposing a spread.
+     */
+    const queuedSlots = ref<number[]>([]);
+    const currentSlot = computed(() => {
+      const pair = registration.activePair.value;
+      const frame = currentPairFrame.value;
+      if (!pair || frame === null) {
+        return null;
+      }
+      return aggregateController.value.cameraFrameToSlot(pair.camA, frame) ?? frame;
+    });
+    const currentQueued = computed(() => (
+      currentSlot.value !== null && queuedSlots.value.includes(currentSlot.value)
+    ));
+    function queueCurrentFrame() {
+      const slot = currentSlot.value;
+      if (slot !== null && !queuedSlots.value.includes(slot)) {
+        queuedSlots.value = [...queuedSlots.value, slot].sort((a, b) => a - b);
+      }
+    }
+    function unqueueSlot(slot: number) {
+      queuedSlots.value = queuedSlots.value.filter((queued) => queued !== slot);
+    }
+    /**
+     * Every observation of a section, INCLUDING the skipped ones the list
+     * hides: they are still stored and still travel into the saved
+     * registration file, so a "clear all" that left them behind would leave
+     * invisible cruft the user has no way to see or remove.
+     */
+    const autoAll = computed(
+      () => frameRows.value.filter((row) => row.source !== MANUAL_SOURCE),
+    );
+    const manualAll = computed(
+      () => frameRows.value.filter((row) => row.source === MANUAL_SOURCE),
+    );
+    async function clearRows(rows: FrameRow[], label: string) {
+      const key = activeKey.value;
+      if (!key || !rows.length) {
+        return;
+      }
+      const doomed = [...rows];
+      const points = doomed.reduce((sum, row) => sum + row.count, 0);
+      const hidden = doomed.filter((row) => row.skipped).length;
+      const confirmed = await prompt({
+        title: `Clear ${label} Frames`,
+        text: `Remove all ${doomed.length} ${label.toLowerCase()} frame(s)`
+          + `${hidden ? ` (${hidden} hidden as rejected candidates)` : ''}`
+          + ` and their ${points} point pair(s) from this pair's registration?`,
+        positiveButton: 'Remove all',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+      doomed.forEach(
+        (row) => registration.removeObservation(key, row.imageA, row.imageB, row.source),
+      );
+    }
+    const clearAuto = () => clearRows(autoAll.value, 'Auto');
+    const clearManual = () => clearRows(manualAll.value, 'Manual');
+    function clearQueue() {
+      queuedSlots.value = [];
+    }
+    function runQueuedFrames() {
+      autoRegisterJob?.run({
+        maxFrames: queuedSlots.value.length,
+        candidatesPerBin: 1,
+        slots: [...queuedSlots.value],
+      });
+      queuedSlots.value = [];
+    }
+
+    /** Point pairs picked/matched on the frame currently being viewed. */
+    const frameCorrespondences = computed(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return [];
+      }
+      return registration.correspondencesForFrame(key, currentPairFrame.value);
+    });
+    function toggleFrameRow(row: FrameRow, enabled: boolean) {
+      const key = activeKey.value;
+      if (key) {
+        registration.setObservationEnabled(key, row.imageA, row.imageB, enabled);
+      }
+    }
+    /**
+     * Seek a camA-local frame. markerFrames / currentPairFrame are all in the
+     * active pair's camA space (see CameraRegistrationStore.currentPairFrame),
+     * so every seek out of this panel goes through camA rather than whichever
+     * camera happens to be selected.
+     */
+    function seekPairFrame(frame: number) {
+      const pair = registration.activePair.value;
+      if (!pair) {
+        return;
+      }
+      aggregateController.value.seekCameraFrame(pair.camA, frame);
+    }
+    function jumpToFrame(frame: number) {
+      // Observation frames are camA-local, but handler.seekFrame() interprets
+      // its argument in the SELECTED camera's local space -- wrong whenever
+      // the rig's cameras drop frames independently. Seek camA's own frame
+      // instead; seekCameraFrame translates through the aligned timeline so
+      // every camera lands on the same capture.
+      seekPairFrame(frame);
+    }
+    async function removeFrameRow(row: FrameRow) {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      if (row.count > 0) {
+        const confirmed = await prompt({
+          title: 'Remove Registration Frame',
+          text: `Remove the ${row.count} point pair(s) from `
+            + `${row.displayFrame !== null ? `frame ${row.displayFrame}` : 'this frame'}? `
+            + 'To exclude the frame from the fit without deleting its points, '
+            + 'uncheck it instead.',
+          positiveButton: 'Remove',
+          negativeButton: 'Cancel',
+          confirm: true,
+        });
+        if (!confirmed) {
+          return;
+        }
+      }
+      registration.removeObservation(key, row.imageA, row.imageB, row.source);
+    }
+    /** Frames carrying registration points, for prev/next navigation. */
+    const markerFrames = computed(() => frameRows.value
+      .map((row) => row.frame)
+      .filter((frameNum): frameNum is number => frameNum !== null)
+      .sort((a, b) => a - b));
+    function seekPrevMarker() {
+      const current = currentPairFrame.value ?? 0;
+      const prev = [...markerFrames.value].reverse().find((frameNum) => frameNum < current);
+      if (prev !== undefined) {
+        seekPairFrame(prev);
+      }
+    }
+    function seekNextMarker() {
+      const current = currentPairFrame.value ?? 0;
+      const next = markerFrames.value.find((frameNum) => frameNum > current);
+      if (next !== undefined) {
+        seekPairFrame(next);
+      }
+    }
+    /** One-click way to start contributing the current frame: enable picking. */
+    function addCurrentFrame() {
+      registration.pickingEnabled.value = true;
+    }
     const transformType = computed<TransformType>(
       () => (activeKey.value
         ? registration.transformTypeForPair(activeKey.value)
@@ -202,10 +458,14 @@ export default defineComponent({
         };
       }
       if (canFit.value) {
+        const stats = pairStats.value;
+        const frames = stats ? stats.frameCount : 0;
+        const rms = stats && stats.rmsPx !== null ? ` — rms ${stats.rmsPx.toFixed(1)} px` : '';
         return {
           icon: 'mdi-check-circle',
           color: fitQualityColor.value,
-          text: `Transform fit from ${correspondences.value.length} point pairs`,
+          text: `Transform fit from ${frames} frame${frames === 1 ? '' : 's'} / `
+            + `${correspondences.value.length} point pairs${rms}`,
         };
       }
       return {
@@ -242,10 +502,24 @@ export default defineComponent({
       () => correspondences.value.length > 0 || hasLoadedTransform.value,
     );
 
+    // Short L/R labels keep the toggle from overflowing on long camera
+    // names; the full names stay available as the button tooltip.
     const alignmentModeItems = computed(() => [
-      { text: 'Picking', value: 'original', disabled: false },
-      { text: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`, value: 'AtoB', disabled: !hasTransform.value },
-      { text: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`, value: 'BtoA', disabled: !hasTransform.value },
+      {
+        text: 'Picking', title: undefined, value: 'original', disabled: false,
+      },
+      {
+        text: 'L → R',
+        title: `${camLeft.value ?? 'A'} → ${camRight.value ?? 'B'}`,
+        value: 'AtoB',
+        disabled: !hasTransform.value,
+      },
+      {
+        text: 'R → L',
+        title: `${camRight.value ?? 'B'} → ${camLeft.value ?? 'A'}`,
+        value: 'BtoA',
+        disabled: !hasTransform.value,
+      },
     ]);
 
     function setTransformType(type: TransformType) {
@@ -275,6 +549,18 @@ export default defineComponent({
       return entries.length ? entries.join(' · ') : 'present (no displayable fields)';
     });
 
+    /**
+     * Short L/R label for a camera in the active pair (falls back to the full
+     * name for anything else, though the readout only ever sees pair
+     * cameras) -- keeps the monospace cursor readout from overflowing on
+     * long camera names, matching the Overlay Warp toggle's labels.
+     */
+    function shortCameraLabel(cam: string): string {
+      if (cam === camLeft.value) return 'L';
+      if (cam === camRight.value) return 'R';
+      return cam;
+    }
+
     /** Live cursor readout text: this camera's coord, and its linked point in the other camera. */
     const cursorReadout = computed(() => {
       const cursor = registration.cursorCoord.value;
@@ -283,12 +569,12 @@ export default defineComponent({
       }
       const [x, y] = cursor.coord;
       const other = registration.linkedPoint(cursor.camera, cursor.coord);
-      const here = `${cursor.camera}: (${x.toFixed(1)}, ${y.toFixed(1)})`;
+      const here = `${shortCameraLabel(cursor.camera)}: (${x.toFixed(1)}, ${y.toFixed(1)})`;
       if (!other) {
         return here;
       }
       const [ox, oy] = other.coord;
-      return `${here} -> ${other.camera}: (${ox.toFixed(1)}, ${oy.toFixed(1)})`;
+      return `${here} -> ${shortCameraLabel(other.camera)}: (${ox.toFixed(1)}, ${oy.toFixed(1)})`;
     });
 
     /**
@@ -323,7 +609,7 @@ export default defineComponent({
       const nextFiles = new Map(buildPerCameraRegistrationFiles(
         {
           homographies: registration.homographies.value,
-          correspondences: registration.correspondences.value,
+          observations: registration.observations.value,
           transformTypes: registration.transformTypes.value,
           source: registration.source.value,
         },
@@ -359,7 +645,7 @@ export default defineComponent({
       try {
         await saveConfig(datasetId.value, {
           cameraHomographies: registration.homographies.value,
-          cameraCorrespondences: registration.correspondences.value,
+          cameraCorrespondences: registration.observations.value,
           cameraTransformTypes: registration.transformTypes.value,
           cameraRegistrationSource: registration.source.value,
         });
@@ -368,6 +654,104 @@ export default defineComponent({
         saving.value = false;
       }
     }
+
+    /**
+     * Auto Register Frames: launch the align_cameras pipeline over a
+     * stratified spread of candidate frames (one job registers the whole
+     * rig; a triplet solves up to three pairs at once). The service is
+     * provided by the viewer; availability tracks whether the align pipes
+     * are installed, which hides the button entirely when they aren't.
+     */
+    const autoRegisterJob = useAutoRegisterJob();
+    const autoRegisterAvailable = computed(() => !!autoRegisterJob?.available.value);
+    const autoRegistering = computed(() => !!autoRegisterJob?.running.value);
+    const autoRegisterError = computed(() => autoRegisterJob?.error.value ?? null);
+    const autoRegisterStatus = computed(() => autoRegisterJob?.status.value ?? null);
+    const autoRegisterDialog = ref(false);
+
+    function openAutoRegisterDialog() {
+      autoRegisterDialog.value = true;
+    }
+    function runAutoRegister(options: AutoRegisterRunOptions) {
+      autoRegisterJob?.run(options);
+    }
+
+    /**
+     * Rig-level consistency readout for a solved triplet: with all three
+     * pairs fitted, compare the direct A->C transform against the A->B->C
+     * route. This is the whole reason to solve the redundant third pair --
+     * three individually plausible fits can still disagree as a rig.
+     *
+     * The residual comes out in the LAST camera's native pixels (the grid is
+     * pushed from camera 1 into camera 3), so both halves of this have to
+     * respect real image sizes:
+     *
+     *  - Sample over camera 1's actual frame. The default nominal 1000x1000
+     *    grid only covers a corner of a 12768x9564 EO frame, so it measured
+     *    agreement over a fraction of the field of view and missed exactly
+     *    the divergence at the edges that matters.
+     *  - Judge the result relative to camera 3's width, not against a fixed
+     *    pixel count. The same rig error reads ~7.6x larger against a
+     *    4864-wide UV camera than a 640-wide IR one, so a fixed threshold
+     *    silently means something different per rig -- and flags a rig
+     *    inconsistent for nothing more than having a large last camera.
+     */
+    /**
+     * A camera's native frame size, or null until its annotator has actually
+     * drawn a frame. originalBounds starts life as a 1x1 placeholder
+     * (useMediaController's reactive state), so "not ready" has to be
+     * detected by an implausibly small box rather than a zero -- a 1x1 box
+     * read as a real size collapses the loop-closure sample grid onto a
+     * single corner pixel and yields a meaningless residual.
+     */
+    function nativeSize(camera: string): [number, number] | null {
+      try {
+        const bounds = aggregateController.value.getController(camera).originalBounds.value;
+        const width = bounds.right - bounds.left;
+        const height = bounds.bottom - bounds.top;
+        return (width > 1 && height > 1) ? [width, height] : null;
+      } catch {
+        return null;
+      }
+    }
+    const loopClosure = computed(() => {
+      const list = cameras.value;
+      if (list.length !== 3) {
+        return null;
+      }
+      const directed = (a: string, b: string): Matrix3 | null => {
+        const forward = registration.homographies.value[registration.pairKey(a, b)];
+        if (forward) {
+          return forward.AtoB;
+        }
+        const reverse = registration.homographies.value[registration.pairKey(b, a)];
+        return reverse ? reverse.BtoA : null;
+      };
+      const h01 = directed(list[0], list[1]);
+      const h12 = directed(list[1], list[2]);
+      const h02 = directed(list[0], list[2]);
+      if (!h01 || !h12 || !h02) {
+        return null;
+      }
+      // Both ends must be measurable: the grid is sampled over the source
+      // camera's frame and the residual judged against the target camera's
+      // width, so a placeholder size on either side makes the ratio
+      // meaningless. Report nothing while the panes are still coming up
+      // rather than a confident-looking wrong verdict.
+      const sourceSize = nativeSize(list[0]);
+      const targetSize = nativeSize(list[2]);
+      if (!sourceSize || !targetSize) {
+        return null;
+      }
+      const residual = loopClosureResidual(h01, h12, h02, sourceSize);
+      const fraction = residual.meanPx / targetSize[0];
+      return {
+        ...residual,
+        fraction,
+        consistent: fraction <= LOOP_CLOSURE_MAX_FRACTION,
+        route: `${list[0]}↔${list[2]} vs ${list[0]}↔${list[1]}↔${list[2]}`,
+      };
+    });
 
     return {
       cameras,
@@ -383,6 +767,33 @@ export default defineComponent({
       deleteSelectedCorrespondence,
       cursorReadout,
       correspondences,
+      pairStats,
+      currentPairFrame,
+      frameRows,
+      frameCorrespondences,
+      markerFrames,
+      toggleFrameRow,
+      jumpToFrame,
+      removeFrameRow,
+      seekPrevMarker,
+      seekNextMarker,
+      addCurrentFrame,
+      skippedCount,
+      autoRows,
+      manualRows,
+      autoSummary,
+      manualSummary,
+      queuedSlots,
+      currentSlot,
+      currentQueued,
+      queueCurrentFrame,
+      unqueueSlot,
+      runQueuedFrames,
+      autoAll,
+      manualAll,
+      clearAuto,
+      clearManual,
+      clearQueue,
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
       minPoints,
@@ -404,6 +815,14 @@ export default defineComponent({
       setTransformType,
       setAlignmentMode,
       save,
+      autoRegisterAvailable,
+      autoRegistering,
+      autoRegisterError,
+      autoRegisterStatus,
+      autoRegisterDialog,
+      openAutoRegisterDialog,
+      runAutoRegister,
+      loopClosure,
     };
   },
 });
@@ -429,14 +848,23 @@ export default defineComponent({
     >
       Source: {{ sourceReadout }}
     </span>
+    <!-- Persistent divergence status (survives save by design); only the
+         action hint tracks the save state so it never asks for a save
+         that's already done. -->
     <span
       v-if="refinedFromSource"
       class="text-caption warning--text d-block"
     >
       This pair has been refined in-app since the source registration was
-      produced. Save, then download the camera's registration from the
-      Export menu to hand the refinement (and its points) back to the
-      producer.
+      produced.
+      <template v-if="dirty">
+        Save, then download the camera's registration from the Export menu
+        to hand the refinement (and its points) back to the producer.
+      </template>
+      <template v-else>
+        Download the camera's registration from the Export menu to hand the
+        refinement (and its points) back to the producer.
+      </template>
     </span>
 
     <div
@@ -480,6 +908,28 @@ export default defineComponent({
           {{ cam.name }}{{ cam.status === 'reference' ? ' · reference' : '' }}
         </v-chip>
       </div>
+      <div
+        v-if="loopClosure"
+        class="d-flex align-center text-caption"
+        :class="loopClosure.consistent ? 'success--text' : 'warning--text'"
+      >
+        <v-icon
+          small
+          :color="loopClosure.consistent ? 'success' : 'warning'"
+          class="mr-1"
+        >
+          {{ loopClosure.consistent ? 'mdi-vector-triangle' : 'mdi-alert' }}
+        </v-icon>
+        <template v-if="loopClosure.consistent">
+          triplet consistent — {{ loopClosure.meanPx.toFixed(1) }} px loop closure
+          ({{ (loopClosure.fraction * 100).toFixed(3) }}% of {{ cameras[2] }} width)
+        </template>
+        <template v-else>
+          {{ loopClosure.meanPx.toFixed(1) }} px loop closure
+          ({{ (loopClosure.fraction * 100).toFixed(3) }}% of {{ cameras[2] }} width)
+          — {{ loopClosure.route }} disagree
+        </template>
+      </div>
     </div>
     <v-divider class="my-3" />
 
@@ -522,6 +972,230 @@ export default defineComponent({
       points is optional: fitting {{ minPoints }} or more pairs replaces it.
     </span>
 
+    <template v-if="camLeft && camRight && camLeft !== camRight">
+      <v-divider class="my-3" />
+      <div class="d-flex align-center">
+        <h4>Registration Frames</h4>
+        <v-spacer />
+        <tooltip-btn
+          icon="mdi-chevron-left"
+          :disabled="!markerFrames.length"
+          tooltip-text="Previous registration frame"
+          @click="seekPrevMarker"
+        />
+        <tooltip-btn
+          icon="mdi-chevron-right"
+          :disabled="!markerFrames.length"
+          tooltip-text="Next registration frame"
+          @click="seekNextMarker"
+        />
+      </div>
+      <span class="text-caption grey--text d-block mb-2">
+        The fit pools points from every checked frame, auto and manual alike.
+        Uncheck a frame to exclude it without deleting its points.
+      </span>
+
+      <!-- Auto: matched frames, and the queue for the next run -->
+      <div class="d-flex align-center section-head">
+        <v-icon
+          x-small
+          class="mr-1"
+        >
+          mdi-auto-fix
+        </v-icon>
+        <span class="font-weight-medium">Auto</span>
+        <span class="text-caption grey--text mx-2">
+          {{ autoSummary.enabled }}/{{ autoSummary.total }} frames
+          <template v-if="autoSummary.rmsPx !== null">
+            · rms {{ autoSummary.rmsPx.toFixed(1) }} px
+          </template>
+        </span>
+        <v-spacer />
+        <tooltip-btn
+          icon="mdi-delete-sweep-outline"
+          color="error"
+          :disabled="!autoAll.length"
+          tooltip-text="Clear all auto-registered frames for this pair"
+          @click="clearAuto"
+        />
+        <tooltip-btn
+          v-if="autoRegisterAvailable"
+          icon="mdi-cog-outline"
+          :disabled="cameras.length < 2 || autoRegistering"
+          tooltip-text="Auto Register: match a spread of frames across the sequence"
+          @click="openAutoRegisterDialog"
+        />
+      </div>
+      <!-- Running state for the matcher job. It lives in the section, not on
+           a button: the buttons come and go with the frame list, and a run
+           has to still read as running when the user leaves this tab and
+           comes back (the job service owns `running`, this component does
+           not). A linear bar also cannot overflow the way a circular spinner
+           stuffed into an x-small button does. -->
+      <div
+        v-if="autoRegistering"
+        class="ml-2 mb-2"
+      >
+        <v-progress-linear
+          indeterminate
+          height="3"
+          rounded
+          color="primary"
+        />
+        <span class="text-caption grey--text d-block mt-1">
+          {{ autoRegisterStatus || 'Auto Register running…' }}
+        </span>
+      </div>
+      <registration-frame-list
+        :rows="autoRows"
+        @toggle="toggleFrameRow"
+        @jump="jumpToFrame"
+        @remove="removeFrameRow"
+      />
+      <div
+        v-if="!autoRows.length"
+        class="ml-2 mb-1"
+      >
+        <span class="text-caption grey--text d-block">
+          No auto-registered frames yet.
+        </span>
+        <v-btn
+          v-if="autoRegisterAvailable"
+          outlined
+          x-small
+          color="primary"
+          class="mt-1"
+          :disabled="cameras.length < 2 || autoRegistering"
+          @click="openAutoRegisterDialog"
+        >
+          <v-icon
+            x-small
+            left
+          >
+            mdi-auto-fix
+          </v-icon>
+          Auto Register Frames…
+        </v-btn>
+      </div>
+
+      <!-- Queue: captures the user picked for the next matcher run -->
+      <div class="d-flex align-center flex-wrap ml-2 mt-1">
+        <tooltip-btn
+          icon="mdi-plus"
+          :disabled="currentSlot === null || currentQueued"
+          :tooltip-text="currentQueued
+            ? 'This frame is already queued'
+            : 'Queue the current frame for the next matcher run'"
+          @click="queueCurrentFrame"
+        />
+        <span
+          v-if="!queuedSlots.length"
+          class="text-caption grey--text"
+        >
+          Queue frames to match
+        </span>
+        <v-chip
+          v-for="slot in queuedSlots"
+          :key="`queued-${slot}`"
+          x-small
+          label
+          close
+          class="mr-1 mb-1"
+          @click:close="unqueueSlot(slot)"
+        >
+          {{ slot }}
+        </v-chip>
+      </div>
+      <div
+        v-if="queuedSlots.length"
+        class="d-flex align-center mt-1"
+      >
+        <v-btn
+          outlined
+          x-small
+          color="primary"
+          class="flex-grow-1"
+          :disabled="autoRegistering"
+          @click="runQueuedFrames"
+        >
+          Run matcher on {{ queuedSlots.length }} frame(s)
+        </v-btn>
+        <tooltip-btn
+          icon="mdi-close"
+          tooltip-text="Clear the queue"
+          @click="clearQueue"
+        />
+      </div>
+
+      <!-- Manual: hand-picked points -->
+      <div class="d-flex align-center section-head mt-3">
+        <v-icon
+          x-small
+          class="mr-1"
+        >
+          mdi-cursor-default-click-outline
+        </v-icon>
+        <span class="font-weight-medium">Manual</span>
+        <span class="text-caption grey--text mx-2">
+          {{ manualSummary.enabled }}/{{ manualSummary.total }} frames
+          <template v-if="manualSummary.rmsPx !== null">
+            · rms {{ manualSummary.rmsPx.toFixed(1) }} px
+          </template>
+        </span>
+        <v-spacer />
+        <tooltip-btn
+          icon="mdi-delete-sweep-outline"
+          color="error"
+          :disabled="!manualAll.length"
+          tooltip-text="Clear all hand-picked frames for this pair"
+          @click="clearManual"
+        />
+        <tooltip-btn
+          icon="mdi-plus"
+          tooltip-text="Pick points on the current frame"
+          @click="addCurrentFrame"
+        />
+      </div>
+      <registration-frame-list
+        :rows="manualRows"
+        @toggle="toggleFrameRow"
+        @jump="jumpToFrame"
+        @remove="removeFrameRow"
+      />
+      <span
+        v-if="!manualRows.length"
+        class="text-caption grey--text d-block ml-2 mb-1"
+      >
+        No hand-picked frames.
+      </span>
+
+      <span
+        v-if="skippedCount"
+        class="text-caption grey--text d-block mt-1"
+      >
+        {{ skippedCount }} candidate(s) the matcher rejected are not listed.
+      </span>
+    </template>
+
+    <auto-register-dialog
+      v-model="autoRegisterDialog"
+      :camera-count="cameras.length"
+      :running="autoRegistering"
+      @run="runAutoRegister"
+    />
+    <span
+      v-if="autoRegisterError"
+      class="text-caption error--text d-block mt-1"
+    >
+      {{ autoRegisterError }}
+    </span>
+    <span
+      v-else-if="autoRegisterStatus && !autoRegistering"
+      class="text-caption success--text d-block mt-1"
+    >
+      {{ autoRegisterStatus }}
+    </span>
+
     <v-checkbox
       :input-value="linkedNav"
       :disabled="!hasTransform"
@@ -537,7 +1211,7 @@ export default defineComponent({
 
     <v-switch
       v-model="pickingEnabled"
-      label="Pick points"
+      label="Edit points"
       dense
       hide-details
       class="mt-0"
@@ -560,7 +1234,9 @@ export default defineComponent({
       >
         <v-expansion-panel>
           <v-expansion-panel-header class="px-1">
-            Correspondences ({{ correspondences.length }})
+            Correspondences on frame
+            {{ currentPairFrame !== null ? currentPairFrame : '—' }}
+            ({{ frameCorrespondences.length }})
           </v-expansion-panel-header>
           <v-expansion-panel-content class="px-0">
             <div class="d-flex justify-end mb-1">
@@ -579,7 +1255,7 @@ export default defineComponent({
               />
             </div>
             <v-simple-table
-              v-if="correspondences.length"
+              v-if="frameCorrespondences.length"
               dense
               class="mb-2"
             >
@@ -594,7 +1270,7 @@ export default defineComponent({
                 </thead>
                 <tbody>
                   <tr
-                    v-for="(c, i) in correspondences"
+                    v-for="(c, i) in frameCorrespondences"
                     :key="c.id"
                     :style="c.id === selectedCorrespondenceId
                       ? { backgroundColor: 'rgba(255, 152, 0, 0.25)' }
@@ -627,7 +1303,9 @@ export default defineComponent({
               v-else
               class="text-caption grey--text"
             >
-              No correspondences yet. At least {{ minPoints }} required for the selected transform.
+              No correspondences on this frame yet
+              ({{ correspondences.length }} total across all frames; at least
+              {{ minPoints }} required for the selected transform).
             </span>
           </v-expansion-panel-content>
         </v-expansion-panel>
@@ -691,6 +1369,7 @@ export default defineComponent({
         :key="item.value"
         :value="item.value"
         :disabled="item.disabled"
+        :title="item.title"
         small
         class="flex-grow-1"
         style="text-transform: none;"

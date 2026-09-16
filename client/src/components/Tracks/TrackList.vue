@@ -20,7 +20,6 @@ import {
   useTrackStyleManager,
   useMultiSelectList,
   useCameraStore,
-  useSelectedCamera,
   usePendingSaveCount,
 } from '../../provides';
 import useVirtualScrollTo from '../../use/useVirtualScrollTo';
@@ -86,7 +85,6 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
-    const selectedCamera = useSelectedCamera();
     const pendingSaveCount = usePendingSaveCount();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
@@ -133,29 +131,45 @@ export default defineComponent({
         // Depend on the edit counter so moving a suppression region re-runs the
         // filter (geometry mutations are not reactive track-set changes).
         const editRevision = pendingSaveCount.value;
-        const suppressCamStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
         const suppType = clientSettings.typeSettings.suppressionType;
-        const suppressedIds = (suppressCamStore && editRevision >= 0)
-          ? getSuppressedTrackIds(
-            suppressCamStore,
-            frameRef.value,
-            suppType,
-            clientSettings.typeSettings.suppressionThreshold,
-            { revision: editRevision, resolver: suppressionResolutionRef.value },
-          )
-          : new Set<number>();
+        const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
+        const suppressionResolver = suppressionResolutionRef.value;
+        // Per-camera region suppression at this frame; a track stays visible if
+        // any camera has an unsuppressed keyframe (same union as type frame filter).
+        const suppressedByCamera = new Map<string, Set<number>>();
+        cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+          suppressedByCamera.set(
+            cameraName,
+            (editRevision >= 0)
+              ? getSuppressedTrackIds(
+                trackStore,
+                frameRef.value,
+                suppType,
+                suppThreshold,
+                { revision: editRevision, resolver: suppressionResolver },
+              )
+              : new Set<number>(),
+          );
+        });
         tracks = tracks.filter((track) => {
-          if (suppressedIds.has(track.annotation.id)) {
-            return false;
-          }
-          const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
-          if (possibleTrack) {
+          let visible = false;
+          cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+            if (visible) {
+              return;
+            }
+            if (suppressedByCamera.get(cameraName)?.has(track.annotation.id)) {
+              return;
+            }
+            const possibleTrack = trackStore.getPossible(track.annotation.id);
+            if (!possibleTrack) {
+              return;
+            }
             const [feature] = possibleTrack.getFeature(frameRef.value);
             if (feature && feature.keyframe) {
-              return true;
+              visible = true;
             }
-          }
-          return false;
+          });
+          return visible;
         });
       }
 

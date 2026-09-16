@@ -84,3 +84,17 @@ describe('TrackStore', () => {
     called = false;
   });
 });
+
+describe('TrackStore pipeline reload', () => {
+  it('clears every indexed detection before loading replacement results', () => {
+    const store = new TrackStore({ markChangesPending: () => null, cameraName: 'left' });
+    store.add(4, 'fish', undefined, 7);
+    store.add(4, 'fish', undefined, 8);
+    store.add(9, 'fish', undefined, 9);
+    store.clearAll();
+    expect(store.intervalTree.search([0, 20])).toEqual([]);
+    store.add(4, 'fish', undefined, 7);
+    expect(store.intervalTree.search([4, 4])).toEqual(['7']);
+    expect(store.intervalTree.search([9, 9])).toEqual([]);
+  });
+});

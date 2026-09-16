@@ -253,11 +253,11 @@ describe('native.multiCollectImport', () => {
 
   it('attaches per-collect registration files that seed the import', async () => {
     const registrationJson = JSON.stringify({
-      version: 1,
+      version: 2,
       pairs: [{
         left: 'EO',
         right: 'IR',
-        points: [],
+        observations: [],
         leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
         rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
         transformType: 'translation',

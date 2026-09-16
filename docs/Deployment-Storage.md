@@ -81,7 +81,7 @@ For the full bucket layout — videos, image sequences, annotation pairing, and 
 
 During import, annotations associated with image sequences or videos are discovered automatically. Summary:
 
-* **Video** — annotation file (CSV or JSON) must share the video basename: `video.mp4` → `video.csv` or `video.json`.
+* **Video** — annotation file (CSV or JSON) must share the video basename: `video.mp4` → `video.csv` or `video.json`. Optional suffixes `_tracks` or `_detections` are also accepted (e.g. `video_tracks.csv`, `video_detections.json`).
 * **Image sequence** — any CSV or JSON in the same folder as the frames is imported as annotations.
 
 Optional **frame metadata** attachments (flight logs and similar) can also be discovered by reserved or video-paired filenames. Details, examples, and post-import behavior are in [AssetStore Importing and Data Structure](Deployment-AssetStore-Import.md).

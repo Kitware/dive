@@ -84,6 +84,8 @@ function frameRateStringFromProbeStream(stream: {
 
 async function checkFrameMisalignment(file: string): Promise<boolean> {
   const args = [
+    '-select_streams',
+    'v:0',
     file,
     '-hide_banner',
     '-read_intervals',

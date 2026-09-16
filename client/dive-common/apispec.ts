@@ -9,9 +9,18 @@ import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 import type {
-  CameraHomographies, CameraCorrespondences, CameraTransformTypes, RegistrationSource,
+  CameraHomographies, CameraObservations, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
+import type { CameraRole } from 'dive-common/pipelineCameraOrder';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
+import type {
+  ScoringDatasetSummary,
+  ScoringJobArgs,
+  ScoringPair,
+  ScoringResult,
+  ScoringResultSummary,
+  ScoringSourceOptions,
+} from 'dive-common/scoring/types';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -80,15 +89,48 @@ interface PipeMetadata {
    * the two conventional keys are used.
    */
   calibrationKeys?: string[];
+  /**
+   * Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]:
+   * input1 is optical, input2 ultraviolet, input3 thermal), parsed from a
+   * `# Camera Order: <cam> [cam...]` header. Labels the slots of the pre-run
+   * camera-assignment step (dive-common/pipelineCameraOrder.ts); pipes without
+   * it show bare input1..N slots.
+   */
+  cameraOrder?: string[];
+  /**
+   * Input positions whose detections/images the pipe warps onto camera 1
+   * (`process warpN :: warp_detections | warp_image` in the pipe body), e.g.
+   * [2, 3]. Each such camera needs a fitted registration (Camera Registration tab) onto
+   * camera 1; DIVE checks that before the run instead of letting the pipe
+   * fail at configure time on a missing file.
+   */
+  registrationWarps?: number[];
 }
 
 interface PipelineRuntimeParams {
   frameRange?: [number, number] | null;
+  /**
+   * Multicam registration subset: camera name -> ordered image identifiers
+   * for exactly the frames the job should process. Row i of one camera's
+   * list pairs with row i of every other's. Identifiers are the camera's
+   * own image names (the platform backend resolves them to real paths) or
+   * `frame://N` pseudo-names for video cameras (the backend extracts those
+   * frames to temp images before the job).
+   */
+  imagePairs?: Record<string, string[]>;
 }
 
 interface PipelineParams {
+  /** Postprocess a single-camera run against the rig's existing annotations. */
+  singleCameraMode?: 'associate' | 'separate';
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
+  /**
+   * 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
+   * confirmed by the user before the run. When omitted (API callers) the
+   * dataset's stored camera order is used.
+   */
+  cameraOrder?: string[];
   /** Filter / transcode / disparity pipelines: name for the newly created dataset. */
   outputDatasetName?: string;
   /**
@@ -268,13 +310,25 @@ interface DatasetConfigMutable {
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
   datasetInfo?: DatasetInfoFields;
   cameraHomographies?: CameraHomographies;
-  cameraCorrespondences?: CameraCorrespondences;
+  /**
+   * Per-image-pair correspondence observations, keyed by directional
+   * "left::right". Each entry lists the observations (image-pair identity,
+   * enabled flag, producer source, stats, and points) behind that pair's fit.
+   */
+  cameraCorrespondences?: CameraObservations;
   cameraTransformTypes?: CameraTransformTypes;
   /** Producer provenance of the camera registration (see RegistrationSource). */
   cameraRegistrationSource?: RegistrationSource | null;
+  /**
+   * Sensor role per multicam camera name (eo / ir / uv), inferred at import
+   * from the camera and image names and editable afterwards; used to place
+   * cameras onto a pipeline's declared camera slots. Cameras with no known
+   * role are absent.
+   */
+  cameraRoles?: Record<string, CameraRole>;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
@@ -366,9 +420,25 @@ interface DatasetCalibrationResult {
   conversionError?: string;
 }
 
+/** Terminal state of a pipeline job, as reported by {@link Api.watchPipelineJob}. */
+export interface PipelineJobResult {
+  /** True when the job exited successfully. */
+  ok: boolean;
+  /** Human-readable reason when `ok` is false. */
+  message?: string;
+}
+
 interface Api {
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
+  /**
+   * Resolve once the pipeline job this dataset just launched reaches a terminal
+   * state, so a caller can key completion off the job instead of off whatever
+   * the job was expected to write. Optional: a platform without a job feed
+   * leaves it undefined and callers fall back to watching for the artifact,
+   * which cannot tell "finished, output identical" from "still running".
+   */
+  watchPipelineJob?(datasetId: string, pipeline: Pipe): Promise<PipelineJobResult>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
   getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null>;
@@ -388,8 +458,50 @@ interface Api {
     },
   ): Promise<unknown>;
 
+  /**
+   * Scoring mode. Every member is optional so a platform that cannot run the
+   * `viame score` applet simply leaves the mode unavailable.
+   */
+  runScoring?(args: ScoringJobArgs): Promise<unknown>;
+  /** Resolve once the scoring job stored on this dataset, launched after this call, ends. */
+  watchScoringJob?(datasetId: string): Promise<PipelineJobResult>;
+  /** Runs stored on one dataset, or every run the user can read when omitted. */
+  listScoringResults?(datasetId?: string): Promise<ScoringResultSummary[]>;
+  loadScoringResult?(datasetId: string, resultId: string): Promise<ScoringResult>;
+  deleteScoringResult?(datasetId: string, resultId: string): Promise<void>;
+  /** Annotation sets, revisions or on-disk files a source on this dataset can point at. */
+  listScoringSources?(datasetId: string): Promise<ScoringSourceOptions>;
+  /**
+   * Datasets that may be named as the other side of a comparison; also the
+   * dataset list the review page offers.
+   */
+  listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
+  /**
+   * Open a platform dataset picker; returns null when the user cancels.
+   * Shared by the scoring and review pages.
+   */
+  pickScoringDataset?(excludeIds: string[]): Promise<ScoringDatasetSummary | null>;
+  /** Save a text export where the user chooses; resolves false when they cancel. */
+  saveScoringExport?(args: { filename: string; mime: string; content: string }): Promise<boolean>;
+  /** Print the page as it stands (the scoring report view) to a PDF; false when cancelled. */
+  exportScoringPdf?(
+    filename: string,
+    hooks?: {
+      onBeforePrint?: () => void | Promise<void>;
+      onAfterPrint?: () => void | Promise<void>;
+    },
+  ): Promise<boolean>;
+
   loadConfig(datasetId: string): Promise<DatasetConfig>;
+  /**
+   * loadConfig without the platform's viewer bookkeeping (desktop recents,
+   * web browse location), for pages that read many datasets at once such as
+   * Review. Callers fall back to loadConfig when absent.
+   */
+  peekConfig?(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  /** Tracks only, for bulk review; avoids fetching unused groups and annotation sets. */
+  loadReviewTracks?(datasetId: string): Promise<TrackData[]>;
   loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
@@ -398,7 +510,7 @@ interface Api {
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'species' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
     Promise<{
       canceled?: boolean;
       filePaths: string[];
@@ -656,6 +768,96 @@ export interface RefineDetectionsResponse {
   detections?: TextQueryDetection[];
 }
 
+/**
+ * Video Search / IQR (rapid model generation) Types
+ */
+
+export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing' | 'frames';
+
+/**
+ * One indexed media stream (video/sequence identifier) in the shared search
+ * database. All database rows key on this identifier, so a dataset can be
+ * added, updated, or removed from the index independently.
+ */
+export interface VideoSearchStreamEntry {
+  datasetId: string;
+  method: VideoSearchIndexMethod;
+  // frame rate the media was indexed at (video only; must match dataset fps)
+  fps?: number;
+  createdAt: string;
+}
+
+/** How a search index stores descriptors: per-stream files or an embedded PostgreSQL database. */
+export type SearchIndexBackend = 'files' | 'postgres';
+
+/** Sidecar metadata describing the shared search index. */
+export interface VideoSearchIndexMeta {
+  version: number;
+  /** Storage backend the index was built with; absent on indexes from before it was recorded (postgres). */
+  backend?: SearchIndexBackend;
+  // stream identifier (as reported in query results) -> source dataset
+  streams: Record<string, VideoSearchStreamEntry>;
+}
+
+export interface VideoSearchIndexStatus {
+  /** The shared index exists and is queryable (ITQ files present). */
+  built: boolean;
+  /** This dataset has been ingested into the index. */
+  indexed: boolean;
+  /** The stream entry for this dataset, when indexed. */
+  stream?: VideoSearchStreamEntry & { streamName: string };
+  /** Total datasets in the shared index. */
+  datasetCount: number;
+  meta?: VideoSearchIndexMeta;
+}
+
+export interface VideoSearchTrackState {
+  frame: number;
+  bbox?: [number, number, number, number];
+}
+
+export interface VideoSearchResultTrack {
+  id: number;
+  states: VideoSearchTrackState[];
+}
+
+/** One ranked similarity result returned by the query service. */
+export interface VideoSearchResult {
+  /** Unique reference for adjudication: "<session>:<instance_id>" */
+  ref: string;
+  /** Federated session index this result came from */
+  session: number;
+  /** Index directory this result came from */
+  index_dir: string;
+  instance_id: number;
+  query_id: string;
+  stream_id: string;
+  relevancy_score: number;
+  start_frame: number | null;
+  end_frame: number | null;
+  tracks: VideoSearchResultTrack[];
+}
+
+/** One dataset present in the shared search index. */
+export interface VideoSearchIndexInfo {
+  /** Stream identifier query results report for this dataset */
+  streamName: string;
+  datasetId: string;
+  /** Dataset display name */
+  name: string;
+  /** How the entry was built. */
+  method: VideoSearchIndexMethod;
+}
+
+export interface VideoSearchQueryResponse {
+  success: boolean;
+  error?: string;
+  descriptor_count?: number;
+  model_available?: boolean;
+  results?: VideoSearchResult[];
+  feedback_requests?: VideoSearchResult[];
+}
+
 export {
   provideApi,
   useApi,
@@ -698,6 +900,12 @@ export type {
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,
+  ScoringDatasetSummary,
+  ScoringJobArgs,
+  ScoringPair,
+  ScoringResult,
+  ScoringResultSummary,
+  ScoringSourceOptions,
 };
 
-export type { PercentileStretch, CameraCorrespondences };
+export type { PercentileStretch, CameraObservations };

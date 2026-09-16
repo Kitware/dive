@@ -7,10 +7,10 @@ from dive_tasks.pipeline_discovery import (
 )
 
 
-def test_parse_pipe_type_and_name_measurement():
-    assert parse_pipe_type_and_name('measurement_fully_auto_gmm_motion') == (
-        'measurement',
-        'fully auto gmm motion',
+def test_parse_pipe_type_and_name_stereo():
+    assert parse_pipe_type_and_name('stereo_detect_and_measure_gmm_motion') == (
+        'stereo',
+        'detect and measure gmm motion',
     )
 
 
@@ -42,15 +42,15 @@ def test_parse_pipe_type_and_name_one_cam_stays_detector():
     )
 
 
-def test_load_static_pipelines_includes_measurement_and_multicam(tmp_path: Path):
-    (tmp_path / 'measurement_fully_auto_gmm_motion.pipe').write_text('# Description: test\n')
+def test_load_static_pipelines_includes_stereo_and_multicam(tmp_path: Path):
+    (tmp_path / 'stereo_detect_and_measure_gmm_motion.pipe').write_text('# Description: test\n')
     (tmp_path / 'utility_register_frames_2-cam.pipe').write_text('')
     (tmp_path / 'utility_register_frames_3-cam.pipe').write_text('')
     (tmp_path / 'detector_gmm_motion.pipe').write_text('')
 
     pipedict = load_static_pipelines(tmp_path)
-    assert 'measurement' in pipedict
-    assert pipedict['measurement']['pipes'][0]['type'] == 'measurement'
+    assert 'stereo' in pipedict
+    assert pipedict['stereo']['pipes'][0]['type'] == 'stereo'
     assert '2-cam' in pipedict
     assert '3-cam' in pipedict
     assert 'detector' in pipedict
@@ -76,7 +76,7 @@ def test_load_static_pipelines_excludes_common_stereo(tmp_path: Path):
 
 
 def test_extract_pipe_metadata_requires_calibration(tmp_path: Path):
-    pipe = tmp_path / 'measurement_foo.pipe'
+    pipe = tmp_path / 'stereo_foo.pipe'
     pipe.write_text(
         '\n'.join(
             [
@@ -98,7 +98,7 @@ def test_extract_pipe_metadata_requires_calibration(tmp_path: Path):
 
 
 def test_extract_pipe_metadata_calibration_keys(tmp_path: Path):
-    pipe = tmp_path / 'measurement_disparity.pipe'
+    pipe = tmp_path / 'stereo_disparity.pipe'
     pipe.write_text(
         '\n'.join(
             [
@@ -118,6 +118,56 @@ def test_extract_pipe_metadata_calibration_keys(tmp_path: Path):
     ]
     # The header must not bleed into the multi-line description.
     assert metadata['description'] == 'rectified disparity'
+
+
+def test_extract_pipe_metadata_camera_order(tmp_path: Path):
+    pipe = tmp_path / 'detector_seal_3-cam.pipe'
+    pipe.write_text(
+        '\n'.join(
+            [
+                '# Description: three camera detector',
+                '# Camera Order: EO, UV, IR',
+                '# Input: IMAGE (per camera)',
+            ]
+        )
+    )
+
+    metadata = extract_pipe_metadata(pipe)
+
+    assert metadata['cameraOrder'] == ['EO', 'UV', 'IR']
+    assert 'registrationWarps' not in metadata
+    # The header must not bleed into the multi-line description.
+    assert metadata['description'] == 'three camera detector'
+    assert 'cameraOrder' not in extract_pipe_metadata(
+        _write(tmp_path, 'detector_plain.pipe', ['# Description: none'])
+    )
+
+
+def test_extract_pipe_metadata_registration_warps(tmp_path: Path):
+    pipe = _write(
+        tmp_path,
+        'detector_seal_3-cam.pipe',
+        [
+            '# Description: three camera detector',
+            'process input1',
+            '  :: video_input',
+            'process warp3',
+            '  :: warp_detections',
+            '  :transformation_file  registration_camera3_to_camera1.json',
+            'process warp2',
+            '  :: warp_detections',
+            '  :inverse true',
+            'process not_a_warp',
+            '  :: warp_image',
+        ],
+    )
+    assert extract_pipe_metadata(pipe)['registrationWarps'] == [2, 3]
+
+
+def _write(tmp_path: Path, name: str, lines: list) -> Path:
+    pipe = tmp_path / name
+    pipe.write_text('\n'.join(lines))
+    return pipe
 
 
 def test_extract_pipe_metadata_parses_metadata_file_key(tmp_path: Path):
@@ -146,3 +196,62 @@ def test_extract_pipe_metadata_absent_metadata_file_key(tmp_path: Path):
 
     # A pipe that does not opt in leaves the key unset, so no file is injected.
     assert 'metadataFileKey' not in extract_pipe_metadata(pipe)
+
+
+def test_extract_pipe_metadata_include_override_default(tmp_path: Path):
+    """Wrapper assignment without DIVE_PARAM updates an included param default."""
+    _write(
+        tmp_path,
+        'base.pipe',
+        [
+            'process foo',
+            '  :: some_filter',
+            '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        ],
+    )
+    wrapper = _write(
+        tmp_path,
+        'wrapper.pipe',
+        [
+            'include base.pipe',
+            'process foo',
+            '  :threshold = 0.9',
+        ],
+    )
+
+    params = {p['key']: p for p in extract_pipe_metadata(wrapper)['diveParams']}
+
+    assert params['foo:threshold']['default'] == '0.9'
+    assert params['foo:threshold']['label'] == 'Threshold'
+    assert params['foo:threshold']['type'] == 'float'
+
+
+def test_extract_pipe_metadata_bare_override_does_not_create_param(tmp_path: Path):
+    """A bare assignment alone is not enough to expose a DIVE_PARAM in the UI."""
+    pipe = _write(
+        tmp_path,
+        'detector_plain.pipe',
+        [
+            'process foo',
+            '  :threshold = 0.9',
+        ],
+    )
+
+    assert extract_pipe_metadata(pipe)['diveParams'] == []
+
+
+def test_extract_pipe_metadata_same_file_override_default(tmp_path: Path):
+    """Later bare assignment in the same file updates the declared default."""
+    pipe = _write(
+        tmp_path,
+        'detector_thresh.pipe',
+        [
+            'process foo',
+            '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+            '  :threshold = 0.2',
+        ],
+    )
+
+    params = extract_pipe_metadata(pipe)['diveParams']
+    assert len(params) == 1
+    assert params[0]['default'] == '0.2'

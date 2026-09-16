@@ -12,11 +12,11 @@ from dive_utils.types import PipelineDescription
 PIPELINE_CREATES_DATASET_MARKERS = ('transcode', 'filter')
 
 # Stereo pipe that writes disparity/depth images as a new image-sequence dataset.
-DISPARITY_IMAGE_PIPELINE = 'measurement_compute_rectified_disparity.pipe'
+DISPARITY_IMAGE_PIPELINE = 'stereo_compute_rectified_disparity.pipe'
 
 
 def is_disparity_image_pipeline(pipeline: PipelineDescription) -> bool:
-    """True for measurement_compute_rectified_disparity.pipe."""
+    """True for stereo_compute_rectified_disparity.pipe."""
     return pipeline.get('pipe') == DISPARITY_IMAGE_PIPELINE
 
 

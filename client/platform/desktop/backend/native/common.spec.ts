@@ -9,7 +9,7 @@ import {
 } from 'platform/desktop/constants';
 import { makeEmptyAnnotationFile } from 'platform/desktop/backend/serializers/dive';
 
-import { CameraCorrespondences, MultiTrackRecord } from 'dive-common/apispec';
+import { CameraObservations, MultiTrackRecord } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { getResponseError } from 'vue-media-annotator/utils';
 import * as common from './common';
@@ -134,6 +134,61 @@ const console = new Console(process.stdout, process.stderr);
 
 const emptyCsvString = '# comment line\n# metadata,fps: 32,"whatever"\n#comment line';
 
+const scoringTrackFixture = {
+  version: AnnotationsCurrentVersion,
+  groups: {},
+  tracks: {
+    1: {
+      id: 1,
+      begin: 0,
+      end: 0,
+      attributes: {},
+      confidencePairs: [['shark', 0.9]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1] }],
+    },
+  },
+};
+
+const scoringResultFixture = {
+  version: 1,
+  id: 'ignored-on-load',
+  datasetId: 'projectidScoring',
+  created: '2026-01-02T03:04:05.000Z',
+  title: 'current vs old',
+  pairs: [{
+    computed: { datasetId: 'projectidScoring' },
+    truth: { datasetId: 'projectidScoring', file: '/home/user/viamedata/DIVE_Projects/projectidScoring/auxiliary/result_old.json' },
+  }],
+  params: {
+    iouThreshold: 0.5,
+    confidenceThreshold: 0,
+    matchMode: 'box',
+    perClass: true,
+    topClass: false,
+    auxConfidence: false,
+    tracking: true,
+    keypointThreshold: 0.1,
+    sweep: false,
+    sweepInterval: 50,
+    filterEstimator: 'min',
+  },
+  metrics: { precision: 0.5, recall: 1, per_class: { shark: { precision: 0.5 } } },
+};
+
+/** Written before results recorded their storage dataset, and scoring two sequences. */
+const legacyScoringResultFixture = {
+  version: 1,
+  id: 'ignored-on-load',
+  created: '2025-12-31T00:00:00.000Z',
+  title: 'two sequences',
+  pairs: [
+    { computed: { datasetId: 'projectidScoring2' }, truth: { datasetId: 'projectidScoring' } },
+    { computed: { datasetId: 'projectidScoring' }, truth: { datasetId: 'projectidScoring2' } },
+  ],
+  params: scoringResultFixture.params,
+  metrics: { precision: 0.25 },
+};
+
 function cocoWithRle(trackId: number, categoryName = 'fish') {
   return JSON.stringify({
     images: [{ id: 1, file_name: 'frame_000001.jpg', frame_index: 0 }],
@@ -210,23 +265,23 @@ beforeEach(() => {
     '/home/user/output': {},
     '/home/user/transformDiscovery': {
       exactName: {
-        'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
-        'calibration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'aaa-stamped.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
+        'calibration.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
       },
       otherName: {
         'a-rig-calibration.json': JSON.stringify({ calibrations: {} }),
         'broken.json': '{not json',
-        'z-transforms.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'z-transforms.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
       },
       perCamera: {
-        'uv_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
-        'ir_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 1, pairs: [] }),
+        'uv_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
+        'ir_to_eo_registration.json': JSON.stringify({ type: 'dive-camera-registration', version: 2, pairs: [] }),
         'stray.json': JSON.stringify({ some: 'thing' }),
       },
       untypedPerCamera: {
-        'uv_to_eo_registration.json': JSON.stringify({ version: 1, pairs: [] }),
-        'no_pairs_registration.json': JSON.stringify({ version: 1 }),
-        'untyped-other-name.json': JSON.stringify({ version: 1, pairs: [] }),
+        'uv_to_eo_registration.json': JSON.stringify({ version: 2, pairs: [] }),
+        'no_pairs_registration.json': JSON.stringify({ version: 2 }),
+        'untyped-other-name.json': JSON.stringify({ version: 2, pairs: [] }),
       },
       none: {
         'rig.json': JSON.stringify({ some: 'thing' }),
@@ -494,6 +549,13 @@ beforeEach(() => {
         },
         missingPipeTrainingJob: {
           category_models: {
+            'trained_detector.zip': '',
+          },
+        },
+        detectorAndTrackerTrainingJob: {
+          category_models: {
+            'detector.pipe': '',
+            'tracker.pipe': '',
             'trained_detector.zip': '',
           },
         },
@@ -863,6 +925,46 @@ beforeEach(() => {
           'result_whatever.json': JSON.stringify({}),
           auxiliary: {},
         },
+        projectidScoring: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'projectidScoring',
+            name: 'Scoring Project',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/scoring',
+            originalImageFiles: ['a.png'],
+          } as JsonConfig),
+          'result_current.json': JSON.stringify(scoringTrackFixture),
+          auxiliary: {
+            'scoring_2026-01-02_03-04-05.000.json': JSON.stringify(scoringResultFixture),
+            'scoring_broken.json': '{not json',
+            'result_old.json': mockfs.file({
+              content: JSON.stringify(scoringTrackFixture),
+              mtime: new Date('2026-01-01T00:00:00Z'),
+            }),
+            'imported_annotations.csv': mockfs.file({
+              content: emptyCsvString,
+              mtime: new Date('2026-01-03T00:00:00Z'),
+            }),
+            'flight_log.csv': '',
+          },
+        },
+        projectidScoring2: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'projectidScoring2',
+            name: 'Second Scoring Project',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/scoring2',
+            originalImageFiles: ['a.png'],
+          } as JsonConfig),
+          'result_current.json': JSON.stringify(scoringTrackFixture),
+          auxiliary: {
+            'scoring_2025-12-31_00-00-00.000.json': JSON.stringify(legacyScoringResultFixture),
+          },
+        },
         projectid5missingMultiCam: {
           'meta.json': JSON.stringify({
             version: 1,
@@ -894,6 +996,128 @@ describe('native.common', () => {
       .toEqual({ shark: 'fish' });
     expect((await common.loadDetections(settings, 'projectid1')).tracks[41].confidencePairs)
       .toEqual([['shark', 1]]);
+  });
+
+  it('imports a KWCOCO species list as a declaration, not as annotations', async () => {
+    const imported = '/home/user/output/rockfish.species.json';
+    await fs.writeJSON(imported, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    });
+    const before = Object.keys((await common.loadDetections(settings, 'projectid1')).tracks);
+
+    const result = await common.dataFileImport(settings, 'projectid1', imported);
+
+    expect(result.warnings).toEqual([]);
+    const meta = await common.loadConfig(settings, 'projectid1', urlMapper);
+    // A species with no style of its own costs an empty entry and renders in the
+    // ordinal palette; the keys are the declared type list.
+    expect(meta.customTypeStyling).toEqual({
+      Sebastes: {},
+      'Sebastes melanops': {},
+      'Sebastes flavidus': {},
+    });
+    expect(meta.typeHierarchy).toEqual({
+      'Sebastes melanops': 'Sebastes',
+      'Sebastes flavidus': 'Sebastes',
+    });
+    // A declaration is not an observation.
+    expect(Object.keys((await common.loadDetections(settings, 'projectid1')).tracks))
+      .toEqual(before);
+  });
+
+  it('overwrites the declared species list and adds to it on an additive import', async () => {
+    const imported = '/home/user/output/overwrite.species.json';
+    await common.saveConfig(settings, 'projectid1', {
+      customTypeStyling: {
+        Sebastes: { color: '#ff0000' },
+        'retired species': { color: '#00ff00' },
+      },
+    });
+    await fs.writeJSON(imported, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    });
+
+    await common.dataFileImport(settings, 'projectid1', imported);
+
+    // Overwrite is the whole declaration: the type it omits is gone, the style of the
+    // type it names is kept.
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).customTypeStyling)
+      .toEqual({ Sebastes: { color: '#ff0000' }, 'Sebastes flavidus': {} });
+
+    const added = '/home/user/output/additive.species.json';
+    await fs.writeJSON(added, { categories: [{ id: 1, name: 'Anoplopoma fimbria' }] });
+    await common.dataFileImport(settings, 'projectid1', added, true);
+
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).customTypeStyling)
+      .toEqual({
+        Sebastes: { color: '#ff0000' },
+        'Sebastes flavidus': {},
+        'Anoplopoma fimbria': {},
+      });
+  });
+
+  it('clears the hierarchy for a flat Overwrite list and leaves it for an additive one', async () => {
+    const flat = '/home/user/output/flat.species.json';
+    await fs.writeJSON(flat, { categories: [{ id: 1, name: 'Sebastes' }] });
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: { shark: 'fish' } });
+
+    await common.dataFileImport(settings, 'projectid1', flat, true);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toEqual({ shark: 'fish' });
+
+    await common.dataFileImport(settings, 'projectid1', flat);
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).typeHierarchy)
+      .toBeUndefined();
+  });
+
+  it('rejects a species list whose hierarchy is unusable without changing anything', async () => {
+    // A species list is imported for its classes, so a cycle is an error rather than a
+    // warning that silently degrades the list to a flat one.
+    const cyclic = '/home/user/output/cyclic.species.json';
+    await fs.writeJSON(cyclic, {
+      categories: [
+        { id: 1, name: 'a', supercategory: 'b' },
+        { id: 2, name: 'b', supercategory: 'a' },
+      ],
+    });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+
+    await expect(common.dataFileImport(settings, 'projectid1', cyclic))
+      .rejects.toThrow('Type hierarchy is invalid: cycle a -> b -> a. No configuration was changed.');
+
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
+  });
+
+  it('rejects a species list that repeats a name without changing anything', async () => {
+    // A repeated name is ambiguous and would silently cost the file its hierarchy, so the
+    // list is refused outright rather than declared with the repeats folded together.
+    const repeated = '/home/user/output/repeated.species.json';
+    await fs.writeJSON(repeated, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes' },
+        { id: 4, name: 'Sebastes melanops', supercategory: 'Sebastodes' },
+      ],
+    });
+    await common.saveConfig(settings, 'projectid1', { typeHierarchy: { salmon: 'fish' } });
+    const project = await common.getValidatedProjectDir(settings, 'projectid1');
+    const before = await fs.readFile(project.datasetFileAbsPath, 'utf8');
+
+    await expect(common.dataFileImport(settings, 'projectid1', repeated)).rejects.toThrow(
+      'Species list repeats category names: Sebastes, Sebastes melanops. '
+      + 'No configuration was changed.',
+    );
+
+    expect(await fs.readFile(project.datasetFileAbsPath, 'utf8')).toBe(before);
   });
 
   it('warns and skips a conflicting COCO hierarchy without dropping annotations', async () => {
@@ -1777,6 +2001,44 @@ describe('native.common', () => {
     )).rejects.toThrowError('Found non-image type data in image list file');
   });
 
+  it('imports media with a species list as the annotation file and still has a track file', async () => {
+    const list = '/home/user/data/rockfish.species.json';
+    await fs.writeJSON(list, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+      ],
+    });
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    payload.trackFileAbsPath = list;
+
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+
+    // The list declares types but writes no annotations, so the dataset gets the empty
+    // track file every later step expects, the same as an import with no annotation file.
+    const annotations = await common.loadDetections(settings, meta.id);
+    expect(Object.keys(annotations.tracks)).toEqual([]);
+    const config = await common.loadConfig(settings, meta.id, urlMapper);
+    expect(config.customTypeStyling).toEqual({ Sebastes: {}, 'Sebastes melanops': {} });
+    expect(config.typeHierarchy).toEqual({ 'Sebastes melanops': 'Sebastes' });
+  });
+
+  it('imports media with a configuration file as the annotation file and still has a track file', async () => {
+    const payload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    payload.trackFileAbsPath = '/home/user/data/annotationImport/foreign.meta.json';
+
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+
+    const annotations = await common.loadDetections(settings, meta.id);
+    expect(Object.keys(annotations.tracks)).toEqual([]);
+    const config = await common.loadConfig(settings, meta.id, urlMapper);
+    expect(config.confidenceFilters).toStrictEqual({ default: 0.8 });
+  });
+
   it('dataFileImport', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
@@ -1863,7 +2125,14 @@ describe('native.common', () => {
       },
     };
     seededBase.cameraCorrespondences = {
-      'left::right': [{ id: 1, a: [0, 0], b: [1, 1] }],
+      'left::right': [{
+        imageA: 'left_0001.png',
+        imageB: 'right_0001.png',
+        frame: 1,
+        enabled: true,
+        source: 'manual',
+        points: [{ id: 1, a: [0, 0], b: [1, 1] }],
+      }],
     };
     seededBase.cameraTransformTypes = { 'left::right': 'similarity' };
     seededBase.cameraRegistrationSource = { model: 'seeded' };
@@ -1919,6 +2188,105 @@ describe('native.common', () => {
       .toEqual(resolvedHierarchy);
   });
 
+  it('adds a species list to a multicam parent on an additive camera-scoped import', async () => {
+    const basePayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const baseRes = await common.finalizeMediaImport(settings, basePayload);
+    const baseId = baseRes.meta.id;
+    const cameraPayload = await common.beginMediaImport(
+      '/home/user/data/imageLists/success/image_list.txt',
+    );
+    const cameraRes = await common.finalizeMediaImport(settings, cameraPayload);
+    const projects = npath.join(settings.dataPath, ProjectsFolderName);
+    await fs.move(
+      npath.join(projects, cameraRes.meta.id),
+      npath.join(projects, baseId, 'EO'),
+    );
+    const rockfish = '/home/user/output/rockfish.species.json';
+    await fs.writeJSON(rockfish, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+        { id: 4, name: 'Anoplopoma fimbria' },
+      ],
+    });
+    await common.dataFileImport(settings, baseId, rockfish);
+    const rockfishHierarchy = {
+      'Sebastes flavidus': 'Sebastes',
+      'Sebastes melanops': 'Sebastes',
+    };
+    expect((await common.loadConfig(settings, baseId, urlMapper)).typeHierarchy)
+      .toEqual(rockfishHierarchy);
+
+    const extra = '/home/user/output/extra.species.json';
+    await fs.writeJSON(extra, {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 5, name: 'Sebastes caurinus', supercategory: 'Sebastes' },
+      ],
+    });
+    await common.dataFileImport(settings, `${baseId}/EO`, extra, true);
+
+    const merged = { ...rockfishHierarchy, 'Sebastes caurinus': 'Sebastes' };
+    const declared = {
+      Sebastes: {},
+      'Sebastes melanops': {},
+      'Sebastes flavidus': {},
+      'Anoplopoma fimbria': {},
+      'Sebastes caurinus': {},
+    };
+    const parent = await common.loadConfig(settings, baseId, urlMapper);
+    expect(parent.typeHierarchy).toEqual(merged);
+    expect(parent.customTypeStyling).toEqual(declared);
+    const camera = await common.loadConfig(settings, `${baseId}/EO`, urlMapper);
+    expect(camera.typeHierarchy).toEqual(merged);
+    expect(camera.customTypeStyling).toEqual(declared);
+  });
+
+  it('saveConfig persists cameraRoles on the parent dataset and reloads them', async () => {
+    const payload = await beginMultiCamImport({
+      datasetName: 'camera_roles_multicam',
+      defaultDisplay: 'left',
+      sourceList: {
+        left: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: '',
+        },
+        right: {
+          sourcePath: '/home/user/data/imageSuccess',
+          trackFile: '',
+        },
+      },
+      type: 'image-sequence',
+    });
+    const { meta } = await common.finalizeMediaImport(settings, payload);
+    const cameraRoles = { left: 'eo' as const, right: 'ir' as const };
+
+    await common.saveConfig(settings, meta.id, { cameraRoles });
+
+    const projectDir = common.getProjectDir(settings, meta.id);
+    const onDisk = await fs.readJSON(projectDir.datasetFileAbsPath);
+    expect(onDisk.cameraRoles).toEqual(cameraRoles);
+    expect((await common.loadConfig(settings, meta.id, urlMapper)).cameraRoles)
+      .toEqual(cameraRoles);
+
+    await common.saveConfig(settings, `${meta.id}/left`, {
+      cameraRoles: { left: 'uv', right: 'ir' },
+    });
+    const updatedRoles = { left: 'uv' as const, right: 'ir' as const };
+    expect(await fs.readJSON(projectDir.datasetFileAbsPath)).toMatchObject({
+      cameraRoles: updatedRoles,
+    });
+    const leftMeta = await fs.readJSON(
+      common.getProjectDir(settings, `${meta.id}/left`).datasetFileAbsPath,
+    );
+    expect(leftMeta.cameraRoles).toBeUndefined();
+    expect((await common.loadConfig(settings, meta.id, urlMapper)).cameraRoles)
+      .toEqual(updatedRoles);
+  });
+
   it('saveConfig writes per-camera registration files (pairs + points) and reloads them', async () => {
     const payload = await common.beginMediaImport(
       '/home/user/data/imageLists/success/image_list.txt',
@@ -1932,29 +2300,45 @@ describe('native.common', () => {
         BtoA: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
       },
     };
-    const cameraCorrespondences: CameraCorrespondences = {
-      'rgb::ir': [
-        { id: 1, a: [10, 20], b: [12, 22] },
-        { id: 2, a: [30, 40], b: [33, 44] },
-      ],
+    const cameraCorrespondences: CameraObservations = {
+      'rgb::ir': [{
+        imageA: 'rgb_0001.png',
+        imageB: 'ir_0001.png',
+        frame: 1,
+        enabled: true,
+        source: 'manual',
+        points: [
+          { id: 1, a: [10, 20], b: [12, 22] },
+          { id: 2, a: [30, 40], b: [33, 44] },
+        ],
+      }],
     };
 
     await common.saveConfig(settings, final.id, { cameraHomographies, cameraCorrespondences });
 
     // Persisted as a standalone per-camera file, named for the mapping it
-    // carries (ir warps onto rgb): pairs labeled left/right, with points
-    // laid out as leftX leftY rightX rightY. Never a single all-pairs file.
+    // carries (ir warps onto rgb): pairs labeled left/right, with each
+    // observation's points laid out as leftX leftY rightX rightY. Never a
+    // single all-pairs file.
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
     const registrationPath = npath.join(projectDir, 'ir_to_rgb_registration.json');
     expect(await fs.pathExists(registrationPath)).toBe(true);
     const registration = await fs.readJSON(registrationPath);
     // Self-identifies so parent-folder discovery recognizes it.
     expect(registration.type).toBe('dive-camera-registration');
+    expect(registration.version).toBe(2);
     expect(registration.pairs).toStrictEqual([
       {
         left: 'rgb',
         right: 'ir',
-        points: [[10, 20, 12, 22], [30, 40, 33, 44]],
+        observations: [{
+          frame: 1,
+          imageLeft: 'rgb_0001.png',
+          imageRight: 'ir_0001.png',
+          enabled: true,
+          source: 'manual',
+          points: [[10, 20, 12, 22], [30, 40, 33, 44]],
+        }],
         leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
         rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
         // No explicit choice was saved, so persistence fills the default model.
@@ -2046,7 +2430,7 @@ describe('native.common', () => {
     const { homographies } = common.fromRegistrationPairs([{
       left: 'eo',
       right: 'ir',
-      points: [],
+      observations: [],
       leftToRight: null,
       rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
     }]);
@@ -2056,15 +2440,24 @@ describe('native.common', () => {
   });
 
   it('fromRegistrationPairs keeps points but skips the matrix for singular input', () => {
-    const { homographies, correspondences } = common.fromRegistrationPairs([{
+    const { homographies, observations } = common.fromRegistrationPairs([{
       left: 'eo',
       right: 'ir',
-      points: [[1, 2, 3, 4]],
+      observations: [{
+        imageLeft: 'eo_0001.jpg',
+        imageRight: 'ir_0001.tif',
+        source: 'kamera-solver',
+        points: [[1, 2, 3, 4]],
+      }],
       leftToRight: [[0, 0, 0], [0, 0, 0], [0, 0, 0]],
       rightToLeft: null,
     }]);
     expect(homographies['eo::ir']).toBeUndefined();
-    expect(correspondences['eo::ir']).toHaveLength(1);
+    expect(observations['eo::ir']).toHaveLength(1);
+    expect(observations['eo::ir'][0]).toMatchObject({
+      imageA: 'eo_0001.jpg', imageB: 'ir_0001.tif', enabled: true, source: 'kamera-solver',
+    });
+    expect(observations['eo::ir'][0].points).toHaveLength(1);
   });
 
   it('saveConfig persists the registration source stamp and reloads it', async () => {
@@ -2115,16 +2508,16 @@ describe('native.common', () => {
     const projectDir = npath.join(settings.dataPath, 'DIVE_Projects', final.id);
 
     const irPair = {
-      left: 'rgb', right: 'ir', points: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
+      left: 'rgb', right: 'ir', observations: [], leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]], rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
     };
     const uvPair = {
-      left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+      left: 'rgb', right: 'uv', observations: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
     };
     await fs.writeJSON(npath.join(projectDir, 'ir_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [irPair],
+      version: 2, source: { producer: 'kamera', run: 'fl07' }, pairs: [irPair],
     });
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+      version: 2, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
     });
 
     // Both pairs merge; the disagreeing stamps become a mixed composite so
@@ -2141,7 +2534,7 @@ describe('native.common', () => {
 
     // Agreeing stamps stay a single plain stamp.
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl07' }, pairs: [uvPair],
+      version: 2, source: { producer: 'kamera', run: 'fl07' }, pairs: [uvPair],
     });
     const agreeing = await common.loadConfig(settings, final.id, urlMapper);
     expect(agreeing.cameraRegistrationSource).toStrictEqual({ producer: 'kamera', run: 'fl07' });
@@ -2149,7 +2542,7 @@ describe('native.common', () => {
     // A save of the mixed set never stamps the per-camera files with the
     // composite (that would read as a unanimous rig on the next load).
     await fs.writeJSON(npath.join(projectDir, 'uv_registration.json'), {
-      version: 1, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
+      version: 2, source: { producer: 'kamera', run: 'fl09' }, pairs: [uvPair],
     });
     const beforeSave = await common.loadConfig(settings, final.id, urlMapper);
     await common.saveConfig(settings, final.id, {
@@ -2216,10 +2609,10 @@ describe('native.common', () => {
     // A per-camera file for a second camera merges in alongside the first.
     await fs.writeJSON('/home/user/output/uv_to_rgb_registration.json', {
       type: 'dive-camera-registration',
-      version: 1,
+      version: 2,
       source: { producer: 'kamera', run: 'fl07' },
       pairs: [{
-        left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+        left: 'rgb', right: 'uv', observations: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
       }],
     });
     const result = await common.importCameraRegistration(settings, final.id, '/home/user/output/uv_to_rgb_registration.json');
@@ -2257,13 +2650,13 @@ describe('native.common', () => {
     // A file holding two pairs, imported scoped to uv: only the uv pair lands.
     await fs.writeJSON('/home/user/output/allpairs.json', {
       type: 'dive-camera-registration',
-      version: 1,
+      version: 2,
       pairs: [
         {
-          left: 'rgb', right: 'ir', points: [], leftToRight: [[2, 0, 0], [0, 2, 0], [0, 0, 1]], rightToLeft: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 1]],
+          left: 'rgb', right: 'ir', observations: [], leftToRight: [[2, 0, 0], [0, 2, 0], [0, 0, 1]], rightToLeft: [[0.5, 0, 0], [0, 0.5, 0], [0, 0, 1]],
         },
         {
-          left: 'rgb', right: 'uv', points: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
+          left: 'rgb', right: 'uv', observations: [], leftToRight: [[1, 0, 8], [0, 1, 2], [0, 0, 1]], rightToLeft: [[1, 0, -8], [0, 1, -2], [0, 0, 1]],
         },
       ],
     });
@@ -2528,6 +2921,28 @@ describe('native.common', () => {
     expect(pipes.tracker.pipes).toHaveLength(5);
     expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
+    expect(pipes.trained.pipes[0].name).toBe('trainedPipelineName detector');
+  });
+
+  it('getPipelineList lists both detector and tracker from one trained model', async () => {
+    const trainingArgs: RunTraining = {
+      type: JobType.RunTraining,
+      datasetIds: ['randomID'],
+      pipelineName: 'trainedPipelineName',
+      trainingConfig: 'trainingConfig',
+      annotatedFramesOnly: false,
+    };
+    await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/detectorAndTrackerTrainingJob/');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes).toHaveLength(2);
+    expect(pipes.trained.pipes.map((p) => p.name)).toEqual([
+      'trainedPipelineName detector',
+      'trainedPipelineName tracker',
+    ]);
+    expect(pipes.trained.pipes.map((p) => npath.basename(p.pipe))).toEqual([
+      'detector.pipe',
+      'tracker.pipe',
+    ]);
   });
 
   it('Full Annotation Loading and Attributes Testing', async () => {
@@ -2560,6 +2975,70 @@ describe('native.common', () => {
       };
       expect(tracks).toEqual(modifiedSource);
     }
+  });
+});
+
+describe('extractPipeMetadata diveParams', () => {
+  const pipesDir = '/opt/viame/configs/pipelines';
+
+  function mockPipes(files: Record<string, string>) {
+    mockfs({
+      [pipesDir]: files,
+    });
+  }
+
+  it('updates an included DIVE_PARAM default from a bare wrapper assignment', async () => {
+    mockPipes({
+      'base.pipe': [
+        'process foo',
+        '  :: some_filter',
+        '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        '',
+      ].join('\n'),
+      'wrapper.pipe': [
+        'include base.pipe',
+        'process foo',
+        '  :threshold = 0.9',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'wrapper.pipe'));
+    const byKey = Object.fromEntries((metadata.diveParams ?? []).map((p) => [p.key, p]));
+
+    expect(byKey['foo:threshold'].default).toBe('0.9');
+    expect(byKey['foo:threshold'].label).toBe('Threshold');
+    expect(byKey['foo:threshold'].type).toBe('float');
+  });
+
+  it('does not create a UI param from a bare assignment alone', async () => {
+    mockPipes({
+      'detector_plain.pipe': [
+        'process foo',
+        '  :threshold = 0.9',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'detector_plain.pipe'));
+    expect(metadata.diveParams).toEqual([]);
+  });
+
+  it('updates a same-file DIVE_PARAM default from a later bare assignment', async () => {
+    mockPipes({
+      'detector_thresh.pipe': [
+        'process foo',
+        '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        '  :threshold = 0.2',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(
+      npath.join(pipesDir, 'detector_thresh.pipe'),
+    );
+    expect(metadata.diveParams).toHaveLength(1);
+    expect(metadata.diveParams?.[0].default).toBe('0.2');
   });
 });
 
@@ -2874,6 +3353,105 @@ describe('frame metadata import gates', () => {
       'projectid1',
       ['/home/user/data/fmGateViameFail/nav.csv'],
     )).rejects.toThrow(/rename it to frame-metadata\.csv/);
+  });
+});
+
+describe('scoring results and sources', () => {
+  const projectDir = '/home/user/viamedata/DIVE_Projects/projectidScoring';
+
+  it('listScoringResults summarizes readable result files and skips broken ones', async () => {
+    const warn = vi.spyOn(globalThis.console, 'warn').mockImplementation(() => undefined);
+    const results = await common.listScoringResults(settings, 'projectidScoring');
+    expect(results).toHaveLength(1);
+    expect(results[0].id).toBe('scoring_2026-01-02_03-04-05.000.json');
+    expect(results[0].datasetId).toBe('projectidScoring');
+    expect(results[0].title).toBe('current vs old');
+    expect(results[0].pairs).toEqual(scoringResultFixture.pairs);
+    expect(results[0].headline.precision).toBe(0.5);
+    expect(results[0]).not.toHaveProperty('metrics');
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('listScoringResults without a dataset gathers every project newest first', async () => {
+    const warn = vi.spyOn(globalThis.console, 'warn').mockImplementation(() => undefined);
+    const results = await common.listScoringResults(settings);
+    expect(results.map((r) => [r.id, r.datasetId])).toEqual([
+      ['scoring_2026-01-02_03-04-05.000.json', 'projectidScoring'],
+      ['scoring_2025-12-31_00-00-00.000.json', 'projectidScoring2'],
+    ]);
+    expect(results[1].pairs).toHaveLength(2);
+    expect(results[1].headline.precision).toBe(0.25);
+    expect(warn).toHaveBeenCalledTimes(1);
+    warn.mockRestore();
+  });
+
+  it('loadScoringResult returns the file with its basename as id', async () => {
+    const result = await common.loadScoringResult(
+      settings,
+      'projectidScoring',
+      'scoring_2026-01-02_03-04-05.000.json',
+    );
+    expect(result.id).toBe('scoring_2026-01-02_03-04-05.000.json');
+    expect(result.metrics.per_class).toEqual({ shark: { precision: 0.5 } });
+    expect(result.pairs[0].truth.file).toBe(`${projectDir}/auxiliary/result_old.json`);
+  });
+
+  it('deleteScoringResult rejects ids that are not result files inside auxiliary', async () => {
+    await expect(common.deleteScoringResult(settings, 'projectidScoring', '../result_current.json'))
+      .rejects.toThrow('not a scoring result id');
+    await expect(common.deleteScoringResult(settings, 'projectidScoring', 'scoring_../dataset.json'))
+      .rejects.toThrow('not a scoring result id');
+    await expect(common.deleteScoringResult(settings, 'projectidScoring', 'result_old.json'))
+      .rejects.toThrow('not a scoring result id');
+    expect(fs.existsSync(`${projectDir}/result_current.json`)).toBe(true);
+    expect(fs.existsSync(`${projectDir}/auxiliary/result_old.json`)).toBe(true);
+
+    await common.deleteScoringResult(settings, 'projectidScoring', 'scoring_2026-01-02_03-04-05.000.json');
+    expect(fs.existsSync(`${projectDir}/auxiliary/scoring_2026-01-02_03-04-05.000.json`)).toBe(false);
+  });
+
+  it('listScoringSources lists rotated and imported annotation files newest first', async () => {
+    const options = await common.listScoringSources(settings, 'projectidScoring');
+    expect(options.sets).toEqual([]);
+    expect(options.revisions).toEqual([]);
+    expect(options.files.map((f) => f.name)).toEqual(['imported_annotations.csv', 'result_old.json']);
+    expect(options.files[1]).toEqual({
+      path: `${projectDir}/auxiliary/result_old.json`,
+      name: 'result_old.json',
+      modified: '2026-01-01T00:00:00.000Z',
+    });
+  });
+
+  it('listScoringDatasets reports every loadable project', async () => {
+    const datasets = await common.listScoringDatasets(settings);
+    expect(datasets).toContainEqual({ id: 'projectidScoring', name: 'Scoring Project', type: 'image-sequence' });
+    expect(datasets.find((d) => d.id === 'projectid2Bad')).toBeUndefined();
+  });
+
+  it('exportScoringSourceCsv writes current annotations, a rotated json, or copies a csv', async () => {
+    const current = '/home/user/output/current.csv';
+    await common.exportScoringSourceCsv(settings, { datasetId: 'projectidScoring' }, current);
+    expect(await fs.readFile(current, 'utf-8')).toContain('shark');
+
+    const rotated = '/home/user/output/rotated.csv';
+    await common.exportScoringSourceCsv(settings, {
+      datasetId: 'projectidScoring',
+      file: `${projectDir}/auxiliary/result_old.json`,
+    }, rotated);
+    expect(await fs.readFile(rotated, 'utf-8')).toContain('shark');
+
+    const copied = '/home/user/output/copied.csv';
+    await common.exportScoringSourceCsv(settings, {
+      datasetId: 'projectidScoring',
+      file: `${projectDir}/auxiliary/imported_annotations.csv`,
+    }, copied);
+    expect(await fs.readFile(copied, 'utf-8')).toBe(emptyCsvString);
+
+    await expect(common.exportScoringSourceCsv(settings, {
+      datasetId: 'projectidScoring',
+      file: `${projectDir}/auxiliary/flight_log.txt`,
+    }, '/home/user/output/bad.csv')).rejects.toThrow('not a CSV or JSON');
   });
 });
 

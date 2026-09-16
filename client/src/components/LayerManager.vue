@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  defineComponent, watch, PropType, Ref, ref, computed, toRef,
+  defineComponent, watch, PropType, Ref, ref, computed, toRef, onMounted,
 } from 'vue';
 
 import { clientSettings } from 'dive-common/store/settings';
@@ -285,7 +285,7 @@ export default defineComponent({
         [
           cameraRegistration.activePair,
           cameraRegistration.pickingEnabled,
-          cameraRegistration.correspondences,
+          cameraRegistration.observations,
           cameraRegistration.pendingPoint,
           cameraRegistration.selectedCorrespondenceId,
           cameraRegistration.homographies,
@@ -319,7 +319,12 @@ export default defineComponent({
       selected: selectedTrackIdRef,
       stateStyling: trackStyleManager.stateStyles,
     };
-    uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
+    // Mounting the tooltip's separate Vue root during setup clears Vue's
+    // current component scope. Later watches then survive a dataset reload
+    // and redraw the old, destroyed map. Finish setup before mounting it.
+    onMounted(() => {
+      uiLayer.addDOMWidget('customToolTip', ToolTipWidget, toolTipWidgetProps, { x: 10, y: 10 });
+    });
 
     useSegmentationPointsLayer({
       camera: props.camera,

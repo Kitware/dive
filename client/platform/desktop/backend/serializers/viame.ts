@@ -3,7 +3,7 @@
  * dive_utils.serializers.viame python module
  */
 
-import csvparser from 'csv-parse';
+import { parse as csvparser } from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
@@ -20,11 +20,10 @@ import { splitExt } from 'platform/desktop/backend/native/utils';
 import Track, {
   TrackData, Feature, TrackSupportedFeature,
 } from 'vue-media-annotator/track';
+import { orderedHeadTail, syncHeadTail } from 'vue-media-annotator/headTail';
 import { ConfidencePair, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
 const CommentRegex = /^\s*#/g;
-const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
-const TailRegex = /^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
 // Polygon format: (poly) coordinates
@@ -283,21 +282,12 @@ function _parseRow(row: string[]) {
     })
     .filter((val) => val[0] !== '')
     .sort((a, b) => b[1] - a[1]);
-  const headTail: [number, number][] = [];
+
   const start = 9 + (confidencePairs.length * 2);
   row.slice(start).forEach((value) => {
-    /* Head */
-    const head = getCaptureGroups(HeadRegex, value);
-    if (head !== null) {
-      headTail[0] = [parseFloat(head[1]), parseFloat(head[2])];
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[0]], 'head'));
-    }
-
-    /* Tail */
-    const tail = getCaptureGroups(TailRegex, value);
-    if (tail !== null) {
-      headTail[1] = [parseFloat(tail[1]), parseFloat(tail[2])];
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[1]], 'tail'));
+    const kp = /^\(kp\)\s+(\S+)\s+(\S+)\s+(\S+)\s*$/.exec(value);
+    if (kp && Number.isFinite(Number(kp[2])) && Number.isFinite(Number(kp[3]))) {
+      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [[Number(kp[2]), Number(kp[3])]], kp[1]));
     }
 
     /* Detection Attribute */
@@ -363,16 +353,9 @@ function _parseRow(row: string[]) {
     }
   });
 
-  if (headTail[0] !== undefined && headTail[1] !== undefined) {
+  const headTail = orderedHeadTail(geoFeatureCollection.features);
+  if (headTail) {
     geoFeatureCollection.features.push(_createGeoJsonFeature('LineString', headTail, 'HeadTails'));
-  }
-
-  // ensure confidence pairs list is not empty
-  if (confidencePairs.length === 0) {
-    // extract Detection or Length Confidence field
-    const confidence = parseFloat(row[7]) || 1.0;
-    // add a dummy pair with a default type
-    confidencePairs.push(['unknown', confidence] as ConfidencePair);
   }
 
   return {
@@ -387,11 +370,14 @@ function _parseFeature(row: string[]) {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
   };
-  if (rowInfo.fishLength !== -1 && Number.isFinite(rowInfo.fishLength)) {
+  if (rowInfo.fishLength > 0 && Number.isFinite(rowInfo.fishLength)) {
     feature.fishLength = rowInfo.fishLength;
   }
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
+  }
+  if (feature.attributes?.length !== undefined && Number(feature.attributes.length) <= 0) {
+    delete feature.attributes.length;
   }
   const syncedFeature = syncDetectionLengthFields(feature);
   if (rowData.geoFeatureCollection.features.length > 0) {
@@ -420,6 +406,7 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
+  const fallbackConfidence: Record<TrackData['id'], number> = {};
   let error: Error | undefined;
   let multiFrameTracks = false;
   const warnings: string[] = [];
@@ -526,6 +513,12 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           }
         }
       }
+      dataMap.forEach((track) => {
+        if (track.confidencePairs.length === 0) {
+          // eslint-disable-next-line no-param-reassign
+          track.confidencePairs = [['unknown', fallbackConfidence[track.id] ?? 1.0]];
+        }
+      });
       const tracks = Object.fromEntries(dataMap);
 
       if (error !== undefined) {
@@ -602,7 +595,13 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           track.begin = Math.min(rowInfo.frame, track.begin);
           track.end = Math.max(rowInfo.frame, track.end);
           track.features.push(feature);
-          track.confidencePairs = confidencePairs;
+          // Pairs may be written on only one row of a track; rows without
+          // pairs must not clobber those already seen.
+          if (confidencePairs.length) {
+            track.confidencePairs = confidencePairs;
+          } else {
+            fallbackConfidence[track.id] = parseFloat(record[7]) || 1.0;
+          }
           Object.entries(trackAttributes).forEach(([key, val]) => {
             // "track is possibly undefined" seems like a bug
             if (track && track.attributes) {
@@ -765,7 +764,7 @@ async function serialize(
 
             /* Geometry */
             if (feature.geometry && feature.geometry.type === 'FeatureCollection') {
-              feature.geometry.features.forEach((geoJSONFeature) => {
+              syncHeadTail(feature.geometry.features).forEach((geoJSONFeature) => {
                 if (geoJSONFeature.geometry.type === 'Polygon') {
                   const allRings = geoJSONFeature.geometry.coordinates as number[][][];
 
@@ -785,7 +784,7 @@ async function serialize(
                     const kpname = geoJSONFeature.properties.key;
                     const { coordinates } = geoJSONFeature.geometry;
                     row.push(
-                      `${KeypointToken} ${kpname} ${coordinates.map(Math.round).join(' ')}`,
+                      `${KeypointToken} ${kpname} ${coordinates.join(' ')}`,
                     );
                   }
                 }

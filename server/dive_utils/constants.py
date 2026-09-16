@@ -12,6 +12,11 @@ ImageSequenceType = "image-sequence"
 VideoType = "video"
 LargeImageType = "large-image"
 MultiType = "multi"
+# Media types a pipeline run feeds to KWIVER as a line-separated image list.
+# Large-image datasets are ordinary image files on disk -- girder's large-image
+# conversion only adds tile views alongside them, so only the viewer needs the
+# tile endpoints; the runner reads the same files an image sequence would.
+ImageListTypes = (ImageSequenceType, LargeImageType)
 DefaultVideoFPS = -1
 JsonMetaCurrentVersion = 1
 SettingsCurrentVersion = 1
@@ -66,6 +71,10 @@ stereoCalibrationRegex = re.compile(r"\.(?:npz|json|cam|yml|zip)$", re.IGNORECAS
 # Optional per-dataset metadata file uploads (aligned with dive-common metadataFileTypes)
 metadataFileRegex = re.compile(r"\.(?:json|txt|csv)$", re.IGNORECASE)
 metaRegex = re.compile(r"^.*\.?(meta|config)\.json$", re.IGNORECASE)
+# A KWCOCO species list travels beside the media as configuration, not as annotations.
+# Kept separate from metaRegex: the zip-import meta discovery and the desktop
+# exported-dataset test both key off that pattern and must not see a species list.
+speciesRegex = re.compile(r"^.*\.?species\.json$", re.IGNORECASE)
 # .json or .csv file
 possibleAnnotationRegex = re.compile(r"\.(json|csv)$", re.IGNORECASE)
 
@@ -145,7 +154,7 @@ AnnotationFileFutureProcessMarker = "importAnnotationFile"
 
 # Other constants
 TrainedPipelineCategory = "trained"
-StereoPipelineMarker = "measurement"
+StereoPipelineMarker = "stereo"
 MultiCamPipelineMarkers = ("2-cam", "3-cam")
 
 # The name of the folder where any user specific data should be stored

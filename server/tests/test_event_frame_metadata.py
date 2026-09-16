@@ -2,6 +2,7 @@ import types as pytypes
 from unittest.mock import patch
 
 from dive_server import event
+from dive_utils.assetstore_import import annotation_media_stem
 from dive_utils.constants import (
     AnnotationFileFutureProcessMarker,
     FrameMetadataFileMarker,
@@ -85,6 +86,44 @@ def test_parse_video_paired_metadata_name():
     assert parse_video_paired_metadata_name('reef.csv') is None
     assert parse_video_paired_metadata_name('reef_annotations.csv') is None
     assert canonical_frame_metadata_name('CSV') == 'frame_metadata.csv'
+
+
+def test_annotation_media_stem():
+    assert annotation_media_stem('reef.csv') == 'reef'
+    assert annotation_media_stem('reef_tracks.json') == 'reef'
+    assert annotation_media_stem('reef_detections.CSV') == 'reef'
+    assert annotation_media_stem('path/to/clip_tracks.json') == 'clip'
+    assert annotation_media_stem('clip_metadata.csv') == 'clip_metadata'
+
+
+@patch('dive_server.event.User')
+@patch('dive_server.event.Folder')
+@patch('dive_server.event.Item')
+def test_assetstore_import_moves_tracks_annotation_to_video_folder(item_cls, folder_cls, user_cls):
+    item = {'_id': 'i1', 'name': 'reef_tracks.csv', 'meta': {}, 'folderId': 'parent'}
+    item_model = item_cls.return_value
+    item_model.findOne.return_value = item
+    parent_folder = {'_id': 'parent', 'creatorId': _OWNER_ID, 'baseParentId': None, 'meta': {}}
+    video_folder = {'_id': 'video', 'name': 'reef', 'meta': {TypeMarker: VideoType}}
+    folder_model = folder_cls.return_value
+
+    def find_one(query):
+        if query == {'_id': 'parent'}:
+            return parent_folder
+        if query == {'parentId': 'parent', 'name': 'reef'}:
+            return video_folder
+        return None
+
+    folder_model.findOne.side_effect = find_one
+    user_cls.return_value.findOne.return_value = {'_id': _OWNER_ID}
+
+    event.process_assetstore_import(
+        _event({'type': 'item', 'importPath': '/data/reef_tracks.csv', 'id': 'i1'}),
+        {},
+    )
+
+    item_model.move.assert_called_once_with(item, video_folder)
+    assert AnnotationFileFutureProcessMarker not in item['meta']
 
 
 @patch('dive_server.event.File')
@@ -397,3 +436,39 @@ def test_dangling_unpaired_metadata_name_takes_the_annotation_path(item_cls, fol
     assert item['meta'][AnnotationFileFutureProcessMarker] is False
     item_model.move.assert_called_once_with(item, video_folder)
     assert MetadataFileItemIdMarker not in video_folder['meta']
+
+
+@patch('dive_server.event.Folder')
+@patch('dive_server.event.Item')
+def test_dangling_moves_detections_annotation_to_video_folder(item_cls, folder_cls):
+    item = {
+        '_id': 'i1',
+        'name': 'reef_detections.json',
+        'meta': {AnnotationFileFutureProcessMarker: True},
+        'folderId': 'parent',
+    }
+    item_model = item_cls.return_value
+    item_model.find.return_value = [item]
+    item_model.save.side_effect = lambda doc: doc
+    parent_folder = {'_id': 'parent', 'meta': {}}
+    video_folder = {'_id': 'video', 'name': 'reef', 'meta': {TypeMarker: VideoType}}
+    folder_model = folder_cls.return_value
+
+    def find_one(query):
+        if query == {'_id': 'parent'}:
+            return parent_folder
+        if query == {
+            'parentId': 'parent',
+            'name': 'reef',
+            f'meta.{TypeMarker}': VideoType,
+        }:
+            return video_folder
+        return None
+
+    folder_model.findOne.side_effect = find_one
+    folder_model.childFolders.return_value = []
+
+    event.process_dangling_annotation_files({'_id': 'parent'}, {'_id': _OWNER_ID})
+
+    assert item['meta'][AnnotationFileFutureProcessMarker] is False
+    item_model.move.assert_called_once_with(item, video_folder)

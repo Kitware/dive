@@ -14,6 +14,7 @@ import {
   RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
+  RunScoring,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
@@ -133,6 +134,14 @@ async function train(
   return viame.train(settings, runTrainingArgs, updater, validateViamePath, getViameConstants(settings));
 }
 
+async function runScoring(
+  settings: Settings,
+  runScoringArgs: RunScoring,
+  updater: DesktopJobUpdater,
+): Promise<DesktopJob> {
+  return viame.runScoring(settings, runScoringArgs, updater, validateViamePath, getViameConstants(settings));
+}
+
 // Based on https://github.com/chrisallenlane/node-nvidia-smi
 async function nvidiaSmi(): Promise<NvidiaSmiReply> {
   return new Promise((resolve) => {
@@ -168,6 +177,7 @@ export default {
   runPipeline,
   exportTrainedPipeline,
   train,
+  runScoring,
   validateViamePath,
   getViameConstants,
   getViamePythonExe,

@@ -84,6 +84,32 @@ export interface AggregateMediaController {
    * identical under today's positional broadcast.
    */
   seekCameraFrame: (camera: string, localFrame: number) => void;
+  /**
+   * Translate one camera's own local frame into another camera's local frame
+   * for the same capture. Cameras drop frames independently, so their local
+   * index spaces diverge -- anything that reads a frame number produced
+   * against one camera (e.g. a registration observation, which is resolved in
+   * its pair's camA space) and then renders or seeks it in a different
+   * camera's space must translate first.
+   *
+   * Returns undefined when `to` has no frame at that capture (an aligned
+   * timeline gap), so callers can omit rather than draw somewhere wrong. A
+   * passthrough when alignment isn't active, where the two spaces coincide.
+   */
+  translateCameraFrame: (
+    from: string, localFrame: number, to: string,
+  ) => number | undefined;
+  /**
+   * The global aligned-timeline slot a camera's own local frame belongs to --
+   * the rig-wide capture number the frame readout and scrubber show. Anything
+   * that displays a frame number derived from one camera should publish it in
+   * this space, or it will disagree with the readout by however many frames
+   * that camera has dropped so far.
+   *
+   * Undefined if the local frame is in no slot; a passthrough when alignment
+   * isn't active, where local and global numbering coincide.
+   */
+  cameraFrameToSlot: (camera: string, localFrame: number) => number | undefined;
 }
 
 /**

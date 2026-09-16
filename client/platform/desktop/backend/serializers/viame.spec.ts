@@ -1,8 +1,9 @@
 import { AnnotationSchema, MultiTrackRecord } from 'dive-common/apispec';
-import parseSync from 'csv-parse/lib/sync';
+// eslint-disable-next-line import/no-unresolved -- csv-parse/sync is a valid package export
+import { parse as parseSync } from 'csv-parse/sync';
 import fs from 'fs-extra';
 import mockfs from 'mock-fs';
-import { Readable } from 'stream';
+import { Readable, Writable } from 'stream';
 import { AnnotationsCurrentVersion, JsonConfig } from 'platform/desktop/constants';
 import { serialize, parse, parseFile } from 'platform/desktop/backend/serializers/viame';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
@@ -245,6 +246,35 @@ describe('VIAME Python Compatibility Check', () => {
   });
 });
 
+describe('Detection length import', () => {
+  [0, -1, -2.5, 12.5].forEach((columnLength) => {
+    [undefined, 0, -1, -2.5, 7.5].forEach((attributeLength) => {
+      it(`imports positive lengths from column ${columnLength} and attribute ${attributeLength}`, async () => {
+        let csv = `0,1.png,0,10,10,20,20,1,${columnLength},fish,0.9,(atr) other 3`;
+        if (attributeLength !== undefined) {
+          csv += `,(atr) length ${attributeLength}`;
+        }
+        const [data] = await parse(Readable.from([csv]));
+        const track = Object.values(data.tracks)[0];
+        const feature = track.features[0];
+        const expected = attributeLength !== undefined && attributeLength > 0
+          ? attributeLength : columnLength;
+        expect(feature.attributes?.other).toBe(3);
+        const { attributes } = processTrackAttributes([track]);
+        if (expected > 0) {
+          expect(feature.attributes?.length).toBe(expected);
+          expect(feature.fishLength).toBe(expected);
+          expect(attributes).toHaveProperty('detection_length');
+        } else {
+          expect(feature.attributes).not.toHaveProperty('length');
+          expect(feature).not.toHaveProperty('fishLength');
+          expect(attributes).not.toHaveProperty('detection_length');
+        }
+      });
+    });
+  });
+});
+
 describe('Attribute value parsing', () => {
   it('keeps filename-like attribute values as full strings', async () => {
     const csv = [
@@ -439,4 +469,48 @@ describe('Test Image Filenames', () => {
 
 afterEach(() => {
   mockfs.restore();
+});
+
+it('imports ordered subpixel centerlines and unrelated keypoints', async () => {
+  const csv = '1,img.png,0,0,0,100,100,1,-1,fish,1,(kp) tail 90 10,(kp) spine_010 60.123456789 40,(kp) head 10 10,(kp) spine_002 40 30,(kp) eye 12 11';
+  const [data] = await parse(Readable.from([csv]));
+  const feature = Object.values(data.tracks)[0].features[0];
+  const line = feature.geometry!.features.find((g) => g.geometry.type === 'LineString');
+  expect(line?.geometry.coordinates).toEqual([[10, 10], [40, 30], [60.123456789, 40], [90, 10]]);
+  expect(feature.geometry!.features.some((g) => g.properties?.key === 'eye')).toBe(true);
+});
+
+it('round-trips line-only JSON through CSV without rounding vertices', async () => {
+  const coordinates = [[10.123456789, 20], [20, 30.987654321], [30, 20]];
+  const annotation = {
+    ...data,
+    tracks: {
+      1: {
+        ...Object.values(data.tracks)[0],
+        id: 1,
+        begin: 0,
+        end: 0,
+        features: [{
+          frame: 0,
+          keyframe: true,
+          bounds: [0, 0, 100, 100],
+          geometry: {
+            type: 'FeatureCollection',
+            features: [{
+              type: 'Feature',
+              properties: { key: 'HeadTails' },
+              geometry: { type: 'LineString', coordinates },
+            }],
+          },
+        }],
+      },
+    },
+  } as AnnotationSchema;
+  let output = '';
+  const stream = new Writable({ write(chunk, encoding, callback) { output += chunk.toString(); callback(); } });
+  await serialize(stream, annotation, meta, new Set(), { excludeBelowThreshold: false, header: false });
+  const [loaded] = await parse(Readable.from([output]));
+  const geometry = Object.values(loaded.tracks)[0].features[0].geometry!;
+  expect(geometry.features.find((f) => f.geometry.type === 'LineString')?.geometry.coordinates).toEqual(coordinates);
+  expect(output).toContain('(kp) spine_001 20 30.987654321');
 });

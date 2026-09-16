@@ -24,6 +24,7 @@ import {
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
+import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
 
@@ -62,6 +63,7 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
+import { createAutoRegisterJobService, provideAutoRegisterJob } from 'dive-common/use/useAutoRegisterJob';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
@@ -155,6 +157,16 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    /** Label for annotations loaded from a scoring result or other preview. */
+    annotationSourceLabel: {
+      type: String,
+      default: '',
+    },
+    /** Offer a control to return to the dataset's current annotations. */
+    annotationSourceReturnable: {
+      type: Boolean,
+      default: false,
+    },
     textQueryEnabled: {
       type: Boolean,
       default: false,
@@ -162,6 +174,16 @@ export default defineComponent({
     textQueryAvailable: {
       type: Boolean,
       default: false,
+    },
+    /** Deep link: frame to seek to once the media is ready (e.g. from the review grid). */
+    initialFrame: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+    /** Deep link: track to select once annotations are loaded. */
+    initialTrackId: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
     },
   },
   setup(props, { emit }) {
@@ -197,6 +219,7 @@ export default defineComponent({
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
+      getPipelineList, runPipeline, watchPipelineJob,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -330,25 +353,23 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
-    // When the Camera Registration panel opens, minimize the workspace chrome to
-    // give the picking view more room: collapse the left type-filter sidebar and
-    // the bottom detections graph. This is a soft default -- the normal sidebar
-    // and timeline toggles still work while registering, so the user can bring
-    // either back -- and whatever layout they had before is restored on close.
+    // When the Camera Registration panel opens, minimize the workspace chrome
+    // to give the picking view more room: hide the type-filter sidebar,
+    // whichever side it is on. Bottom especially -- it competes for the same
+    // vertical room the two picking panes want. The bottom controls
+    // deliberately stay as they are -- the timeline hosts the
+    // registration-frame marker row, which is most useful exactly while this
+    // panel is open. This is a soft default -- the normal sidebar toggle
+    // still works while registering -- and whatever layout the user had
+    // before is restored on close.
     const registrationActive = computed(() => context.state.active === RegistrationToolsVue.name);
     let preRegistrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
-    let preRegistrationControlsCollapsed = false;
     watch(registrationActive, (active) => {
       if (active) {
         preRegistrationSidebarMode = sidebarMode.value;
-        preRegistrationControlsCollapsed = controlsCollapsed.value;
-        if (sidebarMode.value === 'left') {
-          sidebarMode.value = 'collapsed';
-        }
-        controlsCollapsed.value = true;
+        sidebarMode.value = 'collapsed';
       } else if (preRegistrationSidebarMode !== null) {
         sidebarMode.value = preRegistrationSidebarMode;
-        controlsCollapsed.value = preRegistrationControlsCollapsed;
         preRegistrationSidebarMode = null;
       }
     });
@@ -564,6 +585,44 @@ export default defineComponent({
       alignedView.setRegistrationProgress(null);
       cameraRegistration.hydrate();
     }
+    // Keep the registration store's current frame in sync so newly picked
+    // points are stamped with the image pair they were picked on.
+    watch(() => aggregateController.value.frame.value, (frameNum) => {
+      cameraRegistration.currentFrame.value = frameNum;
+    }, { immediate: true });
+    /**
+     * Publish the frame/image bridge the registration store resolves
+     * observation identities with: image-sequence cameras resolve to real
+     * file names; video cameras resolve to stable frame://N pseudo-names so
+     * the persisted schema stays uniform across media types. Frames resolve
+     * in each camera's own local frame space.
+     */
+    function publishRegistrationFrameResolver() {
+      cameraRegistration.setFrameResolver({
+        currentImageName: (camera: string) => {
+          let cameraFrame: number;
+          try {
+            cameraFrame = aggregateController.value.getController(camera).frame.value;
+          } catch {
+            cameraFrame = aggregateController.value.frame.value;
+          }
+          return imageData.value[camera]?.[cameraFrame]?.filename
+            ?? `frame://${cameraFrame}`;
+        },
+        frameForImage: (camera: string, imageName: string) => {
+          const pseudo = /^frame:\/\/(\d+)$/.exec(imageName);
+          if (pseudo) {
+            return Number(pseudo[1]);
+          }
+          const images = imageData.value[camera];
+          if (!images || !images.length) {
+            return null;
+          }
+          const index = images.findIndex((image) => image.filename === imageName);
+          return index >= 0 ? index : null;
+        },
+      });
+    }
 
     const alignedResolution = computed(() => {
       if (!isMultiCameraDataset.value) {
@@ -582,7 +641,7 @@ export default defineComponent({
     });
     // Publish how much of the rig resolves so UI outside the viewer core
     // (e.g. the import menu's "Import to all cameras" checkbox) shows the
-    // same "N/M cameras registered" status as the Align View toggle.
+    // same "N/M cameras ready" status as the Align View toggle.
     const registrationProgress = computed(() => {
       if (!isMultiCameraDataset.value) {
         return null;
@@ -614,7 +673,7 @@ export default defineComponent({
      * Camera panes currently displayed. While the Camera Registration panel is
      * open with an active pair on a 3+ camera dataset, only the pair's two
      * panes show, so the left/right alignment flow reads without unrelated
-     * panes in between (regardless of whether Pick points is toggled on).
+     * panes in between (regardless of whether Edit points is toggled on).
      * Panes are hidden (v-show), not unmounted, so their viewers keep state.
      */
     const displayedCameras = computed(() => {
@@ -681,6 +740,66 @@ export default defineComponent({
 
     const lassoMode = useLassoMode();
     provide(LassoModeSymbol, lassoMode);
+
+    // Auto-register job bridge for the Camera Registration panel: proposes a
+    // stratified candidate spread, launches the utility_align_cameras pipe
+    // over exactly those frames, and refreshes the registration store when
+    // the merged result lands in the dataset meta. Availability is "is the
+    // align pipe in the pipeline list" -- truthful on both platforms because
+    // the add-on pack installs the pipes together with the matcher weights.
+    const autoRegisterJob = createAutoRegisterJobService({
+      datasetId,
+      cameras: multiCamList,
+      frameCount: (camera: string) => {
+        const images = imageData.value[camera];
+        if (images && images.length) {
+          return images.length;
+        }
+        try {
+          return aggregateController.value.getController(camera).maxFrame.value + 1;
+        } catch {
+          return 0;
+        }
+      },
+      timestampsFor: (camera: string) => {
+        const images = imageData.value[camera];
+        if (!images || !images.length
+          || !images.some((image) => image.timestamp !== undefined)) {
+          return null;
+        }
+        return images.map((image) => image.timestamp);
+      },
+      // Register through the same timeline playback uses, so a candidate
+      // "frame" is one capture across the rig rather than one index reused on
+      // cameras that may have dropped different frames.
+      alignedSlots: () => {
+        const result = alignedTimeline.value;
+        return result.aligned ? result.slots : null;
+      },
+      resolveImagePaths: async (camera: string, frames: number[]) => {
+        const images = imageData.value[camera];
+        return frames.map((frameNum) => images?.[frameNum]?.filename ?? `frame://${frameNum}`);
+      },
+      getPipelineList,
+      runPipeline,
+      // Only platforms that can report job state supply this; without it the
+      // service falls back to watching the dataset for the job's output.
+      watchJob: watchPipelineJob,
+      loadMetadata: loadConfig,
+      registration: cameraRegistration,
+      saveRegistration,
+      confirmReload: () => prompt({
+        title: 'Auto Register Finished',
+        text: 'The auto-register job finished, but this registration has '
+          + 'unsaved edits. Load the job results (replacing the unsaved '
+          + 'edits)?',
+        positiveButton: 'Load results',
+        negativeButton: 'Keep my edits',
+        confirm: true,
+      }),
+    });
+    provideAutoRegisterJob(autoRegisterJob);
+    onBeforeUnmount(() => autoRegisterJob.dispose());
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -1284,7 +1403,7 @@ export default defineComponent({
       cameraRegistration.maybeFitActivePair();
       await saveConfig(datasetId.value, {
         cameraHomographies: cameraRegistration.homographies.value,
-        cameraCorrespondences: cameraRegistration.correspondences.value,
+        cameraCorrespondences: cameraRegistration.observations.value,
         cameraTransformTypes: cameraRegistration.transformTypes.value,
         cameraRegistrationSource: cameraRegistration.source.value,
       });
@@ -1574,12 +1693,10 @@ export default defineComponent({
             ? { ...(meta.customGroupStyling ?? {}), ...globalGroupStyles.value }
             : meta.customGroupStyling,
         );
-        if (meta.customTypeStyling) {
-          trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
-        }
-        if (meta.customGroupStyling) {
-          groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
-        }
+        // The declared lists are replaced, not grown: an Overwrite species-list import
+        // drops types, and a reload must stop listing them or the next save puts them back.
+        trackFilters.setConfiguredTypes(Object.keys(meta.customTypeStyling ?? {}));
+        groupFilters.setConfiguredTypes(Object.keys(meta.customGroupStyling ?? {}));
         if (loadedGlobalStyles) {
           // Do not importTypes() for shared keys: that would list every
           // historically colored type as an empty type in this dataset.
@@ -1595,6 +1712,9 @@ export default defineComponent({
           let seeded = false;
           const nextTypes = { ...globalTypeStyles.value };
           Object.entries(meta.customTypeStyling ?? {}).forEach(([name, style]) => {
+            // A type declared by a species list has no style of its own, and a curated list
+            // runs to hundreds of entries. There is nothing to share, so it is not seeded.
+            if (!Object.keys(style).length) return;
             if (!(name in nextTypes)) {
               nextTypes[name] = {
                 ...style,
@@ -1819,6 +1939,11 @@ export default defineComponent({
             meta.cameraTransformTypes,
             meta.cameraRegistrationSource,
           );
+          // Media is loaded at this point: resolve observation frames from
+          // their image names against this dataset's own frame ordering.
+          publishRegistrationFrameResolver();
+          // Probe for the align_cameras pipes (fire and forget).
+          autoRegisterJob.refreshAvailability();
           // Reset the aligned-view toggle for the newly loaded dataset (no
           // persistence this phase).
           alignedView.setEnabled(false);
@@ -1834,33 +1959,19 @@ export default defineComponent({
          * Existing shared overrides win; new keys are tagged with this dataset.
          */
         if (loadedGlobalStyles) {
-          const sourceId = datasetId.value;
-          const sourceName = datasetName.value || meta.name;
-          const seedMissing = (
-            into: Record<string, CustomStyle>,
-            from: Record<string, CustomStyle>,
-          ) => {
-            let changed = false;
-            const next = { ...into };
-            Object.entries(from).forEach(([name, style]) => {
-              if (!(name in next)) {
-                next[name] = {
-                  ...style,
-                  sourceDatasetId: sourceId,
-                  sourceDatasetName: sourceName,
-                };
-                changed = true;
-              }
-            });
-            return { next, changed };
+          const source = {
+            sourceDatasetId: datasetId.value,
+            sourceDatasetName: datasetName.value || meta.name,
           };
-          const typeSeed = seedMissing(
+          const typeSeed = seedSharedStyles(
             globalTypeStyles.value,
             trackStyleManager.getTypeStyles(trackFilters.allTypes),
+            source,
           );
-          const groupSeed = seedMissing(
+          const groupSeed = seedSharedStyles(
             globalGroupStyles.value,
             groupStyleManager.getTypeStyles(groupFilters.allTypes),
+            source,
           );
           if (typeSeed.changed || groupSeed.changed) {
             globalTypeStyles.value = typeSeed.next;
@@ -1931,6 +2042,32 @@ export default defineComponent({
       }
     };
     loadData();
+
+    /**
+     * Apply a deep link (initialFrame / initialTrackId) once: after the
+     * annotations are loaded and the media controller reports its frame
+     * range, so the seek is not swallowed by the annotator's own init seek.
+     */
+    let initialFocusApplied = false;
+    watch(
+      () => [progress.loaded, aggregateController.value.maxFrame.value] as const,
+      ([loaded, maxFrame]) => {
+        if (initialFocusApplied || !loaded) return;
+        if (props.initialFrame === undefined && props.initialTrackId === undefined) return;
+        if (props.initialFrame !== undefined && maxFrame <= 0) return;
+        initialFocusApplied = true;
+        nextTick(() => {
+          if (props.initialFrame !== undefined) {
+            handler.seekFrame(Math.min(props.initialFrame, maxFrame));
+          }
+          if (props.initialTrackId !== undefined
+            && cameraStore.getAnyPossibleTrack(props.initialTrackId)) {
+            handler.trackSelect(props.initialTrackId, false);
+          }
+        });
+      },
+      { immediate: true },
+    );
 
     const reloadAnnotations = async () => {
       progress.loaded = false;
@@ -2264,6 +2401,7 @@ export default defineComponent({
       cycleSidebarMode,
       sidebarModeIcon,
       sidebarModeTooltip,
+      registrationActive,
       bottomRightPanelView,
       toggleBottomRightPanel,
       colorBy,
@@ -2362,7 +2500,10 @@ export default defineComponent({
 
 <template>
   <v-main class="viewer">
-    <v-app-bar app>
+    <v-app-bar
+      app
+      extension-height="56"
+    >
       <slot name="title" />
       <span
         class="title pl-3 flex-row"
@@ -2407,6 +2548,43 @@ export default defineComponent({
           </template>
           Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
         </v-tooltip>
+        <v-tooltip
+          v-if="annotationSourceLabel"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-chip
+              class="ml-2 annotation-source-chip"
+              small
+              outlined
+              color="info"
+              v-on="on"
+            >
+              <v-icon
+                small
+                left
+              >
+                mdi-chart-box-outline
+              </v-icon>
+              {{ annotationSourceLabel }}
+              <v-icon
+                v-if="annotationSourceReturnable"
+                small
+                right
+                class="ml-1"
+                @click.stop="$emit('return-to-current-annotations')"
+              >
+                mdi-close
+              </v-icon>
+            </v-chip>
+          </template>
+          <span>
+            Annotations from a scoring result.
+            <template v-if="annotationSourceReturnable">
+              Click the close icon to return to the dataset's current annotations.
+            </template>
+          </span>
+        </v-tooltip>
         <div
           v-if="readonlyState"
           class="mx-auto my-0 pa-0"
@@ -2435,7 +2613,14 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <!--
+          No sidebar while registering: the picking panes want the room, and
+          the bottom layout in particular doesn't lay them out usably. The
+          panel collapses the sidebar on open and restores it on close, so
+          the toggle is simply not offered in between.
+        -->
         <v-tooltip
+          v-if="!registrationActive"
           bottom
         >
           <template #activator="{ on }">
@@ -2958,5 +3143,15 @@ html {
 .camera-select fieldset {
   height: 33px;
   margin-top: 4px;
+}
+
+.annotation-source-chip {
+  max-width: min(280px, 40vw);
+
+  .v-chip__content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 </style>

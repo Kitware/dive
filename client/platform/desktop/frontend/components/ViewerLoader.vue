@@ -1,7 +1,14 @@
 <script lang="ts">
 import {
+  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState,
+} from 'dive-common/use/stereo/keypointTransfer';
+import { headTailFeatures, isHeadTailPoint } from 'vue-media-annotator/headTail';
+import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
+import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
+import { useRoute, useRouter } from 'vue-router/composables';
 import Viewer from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
@@ -34,11 +41,17 @@ import {
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
   openLink,
+  setScoringAnnotationPreviewFile,
 } from 'platform/desktop/frontend/api';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
+import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
-import { datasets } from '../store/dataset';
+import VideoSearchContext from './VideoSearchContext.vue';
+import {
+  createVideoSearch, provideVideoSearch, VideoSearchMediaInfo,
+} from '../useVideoSearch';
+import { datasets, rememberAnnotation } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
 import { setCloseGuard } from '../store/closeGuard';
@@ -54,6 +67,13 @@ function joinPath(base: string, file: string): string {
   return `${base.replace(/[\\/]+$/, '')}${sep}${file}`;
 }
 
+// Desktop-only context panel: registered here (not in the shared context
+// store) so the web build does not pick it up.
+context.register({
+  description: 'Video Search',
+  component: VideoSearchContext,
+});
+
 const buttonOptions = {
   outlined: true,
   color: 'grey lighten-1',
@@ -68,6 +88,7 @@ export default defineComponent({
   components: {
     Export,
     JobTab,
+    AnnotationOtherMenu,
     DatasetSourceInfo,
     RunPipelineMenu,
     SidebarContext,
@@ -106,11 +127,35 @@ export default defineComponent({
   },
   setup(props) {
     const { prompt } = usePrompt();
+    const route = useRoute();
+    const router = useRouter();
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const isStereoscopicDataset = computed(() => subTypeList.value[0] === 'stereo');
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const scoringPreviewFile = computed(() => {
+      const file = route.query.scoringFile;
+      return typeof file === 'string' && file ? file : '';
+    });
+    watch(scoringPreviewFile, (file) => {
+      setScoringAnnotationPreviewFile(file || null);
+      if (viewerRef.value) {
+        viewerRef.value.reloadAnnotations();
+      }
+    }, { immediate: true });
+    const annotationSourceLabel = computed(() => {
+      const value = route.query[ANNOTATION_SOURCE_QUERY];
+      return typeof value === 'string' ? value : '';
+    });
+    const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+    /** Frame / track deep link from the review grid. */
+    const viewerFocus = computed(() => parseViewerFocus(route.query));
+
+    function returnToCurrentAnnotations() {
+      router.replace({ name: 'viewer', params: { id: props.id } });
+    }
+
     const selectedCamera = ref('');
     watch(runningJobs, async (_previous, current) => {
       // Check the current props.id so multicam files also trigger a reload
@@ -149,7 +194,7 @@ export default defineComponent({
       }
       return props.id;
     });
-    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
 
@@ -178,8 +223,10 @@ export default defineComponent({
       const results: string[] = [];
       // Check if any running job contains the root props.id
       // for multicam this is why we use the reduce to check each id
+      // Scoring only reads annotations, so it never locks the viewer.
       if (runningJobs.value.find(
-        (item) => item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
+        (item) => item.job.jobType !== 'scoring'
+          && item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
       )) {
         results.push(props.id);
       }
@@ -546,10 +593,31 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Video Search / IQR session (index-backed similarity queries).
+     * Media info resolves lazily once metadata loads; multicam datasets are
+     * not yet supported (media stays null and the panel reports unavailable).
+     */
+    const videoSearchMedia = ref<VideoSearchMediaInfo | null>(null);
+    const videoSearch = createVideoSearch(props.id, () => videoSearchMedia.value);
+    provideVideoSearch(videoSearch);
+
     // Initialize segmentation when component is mounted
-    onMounted(() => {
+    onMounted(async () => {
       initializeSegmentation();
       refreshTextQueryAvailability();
+      try {
+        const meta = await loadConfig(props.id);
+        if (!meta.multiCamMedia) {
+          videoSearchMedia.value = {
+            type: meta.type,
+            fps: meta.fps,
+            getImagePath: buildImagePathGetter(meta),
+          };
+        }
+      } catch {
+        // Video search stays unavailable if metadata cannot load
+      }
     });
 
     /**
@@ -642,8 +710,54 @@ export default defineComponent({
     let stereoDatasetFps: number | undefined;
 
     /**
-     * Load multicam metadata for both cameras to build image path getters
+     * Populate stereoImagePathGetters (per-camera frame -> image path) from a
+     * dataset's already-loaded multicam metadata. This part is not stereo
+     * specific: both the stereo features and Auto Register resolve per-camera
+     * image paths the same way. Callers gate on the dataset kind they support
+     * (stereo requires a stereoscopic dataset; auto-register accepts any multicam)
+     * before calling this. `meta.multiCamMedia` must already be truthy.
      */
+    async function populateMultiCamImagePathGetters(
+      meta: Awaited<ReturnType<typeof loadConfig>>,
+    ): Promise<boolean> {
+      // Extract calibration file path from multiCam metadata
+      stereoCalibrationFile = meta.multiCam?.calibration || undefined;
+      // Capture the dataset-level fps as a fallback for per-camera frame times.
+      stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
+
+      // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
+      if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
+
+      if (!meta.multiCamMedia) return false;
+      const { cameras } = meta.multiCamMedia;
+      const cameraNames = Object.keys(cameras);
+
+      for (let i = 0; i < cameraNames.length; i += 1) {
+        const cam = cameraNames[i];
+        const cameraId = `${props.id}/${cam}`;
+        // eslint-disable-next-line no-await-in-loop
+        const camMeta = await loadConfig(cameraId);
+        const {
+          originalBasePath, originalImageFiles, type, originalVideoFile,
+        } = camMeta;
+
+        stereoImagePathGetters.value[cam] = (frameNum: number): string => {
+          if (type === 'video') {
+            return joinPath(originalBasePath, originalVideoFile || '');
+          }
+          if (originalImageFiles && originalImageFiles[frameNum]) {
+            const imagePath = originalImageFiles[frameNum];
+            if (isAbsolutePath(imagePath)) {
+              return imagePath;
+            }
+            return joinPath(originalBasePath, imagePath);
+          }
+          return '';
+        };
+      }
+      return true;
+    }
+
     async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadConfig(props.id);
@@ -651,42 +765,7 @@ export default defineComponent({
         // no stereo so the caller does not load the stereo service.
         if (!meta.multiCamMedia
           || !isStereoscopicDatasetConfig({ type: meta.type, subType: meta.subType ?? undefined })) return false;
-
-        // Extract calibration file path from multiCam metadata
-        stereoCalibrationFile = meta.multiCam?.calibration || undefined;
-        // Capture the dataset-level fps as a fallback for per-camera frame times.
-        stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
-
-        // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
-        if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
-
-        const { cameras } = meta.multiCamMedia;
-        const cameraNames = Object.keys(cameras);
-
-        for (let i = 0; i < cameraNames.length; i += 1) {
-          const cam = cameraNames[i];
-          const cameraId = `${props.id}/${cam}`;
-          // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadConfig(cameraId);
-          const {
-            originalBasePath, originalImageFiles, type, originalVideoFile,
-          } = camMeta;
-
-          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-            if (type === 'video') {
-              return joinPath(originalBasePath, originalVideoFile || '');
-            }
-            if (originalImageFiles && originalImageFiles[frameNum]) {
-              const imagePath = originalImageFiles[frameNum];
-              if (isAbsolutePath(imagePath)) {
-                return imagePath;
-              }
-              return joinPath(originalBasePath, imagePath);
-            }
-            return '';
-          };
-        }
-        return true;
+        return await populateMultiCamImagePathGetters(meta);
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
         return false;
@@ -897,6 +976,17 @@ export default defineComponent({
     // is deferred to the viewer-ready watcher below instead.
     watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true));
 
+    watch(
+      () => viewerRef.value?.progress?.loaded === true,
+      (loaded) => {
+        // Read-only scoring previews should not replace the last editing sequence.
+        if (loaded && !scoringPreviewFile.value) {
+          rememberAnnotation(props.id);
+        }
+      },
+      { immediate: true },
+    );
+
     // Load-time auto-enable of a remembered setting: run once the viewer has
     // actually finished loading the dataset (progress.loaded), so the metadata
     // and calibration the enable needs are available. One-shot -- stop after the
@@ -963,17 +1053,17 @@ export default defineComponent({
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function getStereoLineEndpoints(track: any, frameNum: number)
-      : [[number, number], [number, number]] | null {
+      : [number, number][] | null {
       if (!track) return null;
       const [feature] = track.getFeature(frameNum);
       if (!feature || !feature.geometry) return null;
       const lineFeat = feature.geometry.features.find(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (f: any) => f.geometry.type === 'LineString' && f.geometry.coordinates.length === 2,
+        (f: any) => f.geometry.type === 'LineString' && f.geometry.coordinates.length >= 2,
       );
       if (!lineFeat) return null;
       const c = lineFeat.geometry.coordinates as [number, number][];
-      return [c[0], c[1]];
+      return c;
     }
 
     /**
@@ -1018,7 +1108,7 @@ export default defineComponent({
     }
 
     const STEREO_MEASUREMENT_ATTRS = [
-      'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+      'length', 'curved_length', 'straight_length', 'curvature_ratio', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
     ];
 
     // Per-feature marker: a human (not the stereo warp) authored this camera's
@@ -1243,6 +1333,7 @@ export default defineComponent({
       // A length the user locked (length_method === 'user_set') is never
       // overwritten; the other measurements still track the shifting geometry.
       const lengthLocked = feature?.attributes?.[STEREO_LENGTH_METHOD_ATTR] === 'user_set';
+      track.setFeatureAttribute(frameNum, 'measurement_stale', false);
       const { length } = measurement;
       if (!lengthLocked && length !== undefined && Number.isFinite(length)) {
         if (feature && feature.keyframe) {
@@ -1288,7 +1379,10 @@ export default defineComponent({
       const rightLine = getStereoLineEndpoints(rightTrack, frameNum);
       if (!leftLine || !rightLine) return null;
 
+      if (leftLine.length > 2 || rightLine.length > 2) await ensureStereoFrame(frameNum);
       const response = await stereoMeasureLine({ leftLine, rightLine });
+      if (JSON.stringify(getStereoLineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
+          || JSON.stringify(getStereoLineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
       if (response.success && response.measurement) {
         ensureMeasurementAttributes();
         applyStereoMeasurement(leftTrack, frameNum, response.measurement);
@@ -1370,6 +1464,10 @@ export default defineComponent({
       forceAutoCompute = false,
       quiet = false,
     ): Promise<'transferred' | 'skipped' | 'failed'> {
+      if (params.type === 'point' && isHeadTailPoint(params.key)) {
+        viewerRef.value?.multiCamList.forEach((camera: string) => viewerRef.value?.cameraStore
+          ?.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
+      }
       // This handler only fires on human edits — the stereo warp writes
       // geometry directly, bypassing the annotation-complete event — so the
       // camera the user just drew/edited is now human-authored. Mark it
@@ -1377,7 +1475,9 @@ export default defineComponent({
       // can be long on a fresh launch, and a line drawn on the other camera
       // in the meantime must see this one as human-authored, not
       // machine-generated, so the warp can never overwrite it.
-      if (params.type === 'line') {
+      if (params.type === 'line' || (params.type === 'point' && isHeadTailPoint(params.key))) {
+        viewerRef.value?.multiCamList.forEach((camera: string) => viewerRef.value?.cameraStore
+          ?.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
         const sourceTrack = viewerRef.value?.cameraStore
           ?.getPossibleTrack(params.trackId, params.camera);
         sourceTrack?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
@@ -1436,6 +1536,13 @@ export default defineComponent({
         // Otherwise (auto-compute on, other side absent or still machine-generated)
         // fall through and (re)warp source -> other so the auto-generated line
         // keeps tracking edits.
+      } else if (params.type === 'point') {
+        if (!autoCompute || (!params.insert && !canMapPoint(otherTrack, params.frameNum, params.key, params.camera))) {
+          if (isHeadTailPoint(params.key) && updateLengths && otherHasFeature) {
+            await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+          }
+          return 'skipped';
+        }
       } else if (otherHasFeature) {
         // Box / polygon / segmentation: warp only once; leave existing untouched.
         return 'skipped';
@@ -1452,6 +1559,8 @@ export default defineComponent({
         stereoLoadingDialog.value = true;
       }
 
+      const pointTargetBefore = params.type === 'point'
+        ? pointTargetState(otherTrack, params.frameNum, params.key, params.insert, params.camera) : undefined;
       try {
         // Guarantee the backend has this frame's images before transferring. The
         // proactive watcher only fires on frame-number changes, so a draw on the
@@ -1459,42 +1568,69 @@ export default defineComponent({
         // deferred disparity wait.
         await ensureStereoFrame(params.frameNum);
 
-        if (params.type === 'line') {
-          const response = await stereoTransferLine({ line: params.line });
+        if (params.type === 'point') {
+          const cameras = Object.keys(stereoImagePathGetters.value);
+          if (cameras.length !== 2 || !cameras.includes(params.camera)) throw new Error('Stereo camera mapping is unavailable');
+          const source = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+          const response = await stereoTransferPoints({
+            points: [params.point],
+            strict: true,
+            sourceCamera: params.camera === cameras[0] ? 'left' : 'right',
+            leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+            rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+            frameTime: fps ? params.frameNum / fps : undefined,
+          });
+          const point = response.transferredPoints?.[0];
+          if (!response.success || response.validMatches?.[0] !== true || !point?.every(Number.isFinite)) {
+            throw new Error(response.error || 'No valid stereo match for this keypoint');
+          }
+          const currentTarget = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          if (!pointUnchanged(source, params.frameNum, params.key, params.point)
+              || pointTargetState(currentTarget, params.frameNum, params.key, params.insert, params.camera) !== pointTargetBefore) return 'skipped';
+          const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
+          if (track) {
+            applyMappedPoint(track, params.frameNum, params.key, point, params.camera, params.insert);
+            if (isHeadTailPoint(params.key) && updateLengths) await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+          }
+        } else if (params.type === 'line') {
+          const cameras = Object.keys(stereoImagePathGetters.value);
+          const fromRight = params.camera === cameras[1];
+          const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+          const response = params.line.length === 2 && !fromRight
+            ? await stereoTransferLine({ line: [params.line[0], params.line[1]] })
+            : await stereoTransferPoints({
+              points: params.line,
+              strict: true,
+              sourceCamera: fromRight ? 'right' : 'left',
+              leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+              rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+              frameTime: fps ? params.frameNum / fps : undefined,
+            }).then((r) => ({
+              ...r,
+              transferredLine: r.transferredPoints,
+              measurement: undefined,
+              success: r.success && r.validMatches?.length === params.line.length && r.validMatches.every(Boolean),
+            }));
           if (!response.success || !response.transferredLine) {
             throw new Error(response.error || 'Line transfer returned no result');
           }
 
+          const currentSource = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          if (JSON.stringify(getStereoLineEndpoints(currentSource, params.frameNum)) !== JSON.stringify(params.line)) return 'skipped';
           // Get or create the track on the other camera and set the warped line
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
-            const [p1, p2] = response.transferredLine;
-            // Preserve the source line's key and include head/tail Point markers
-            // so the warped line is a standard, line-mode-editable annotation.
-            const lineGeometry: GeoJSON.Feature[] = [
-              {
-                type: 'Feature',
-                geometry: { type: 'LineString', coordinates: response.transferredLine },
-                properties: { key: params.key },
-              },
-              {
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [p1[0], p1[1]] },
-                properties: { key: HeadPointKey },
-              },
-              {
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [p2[0], p2[1]] },
-                properties: { key: TailPointKey },
-              },
-            ];
-
-            // Compute bounds from the transferred line with 10% expansion to
-            // match the expansion applied on the source camera side (headtail.ts).
-            const minX = Math.min(p1[0], p2[0]);
-            const minY = Math.min(p1[1], p2[1]);
-            const maxX = Math.max(p1[0], p2[0]);
-            const maxY = Math.max(p1[1], p2[1]);
+            const points = response.transferredLine;
+            const lineGeometry = headTailFeatures(points).map((g) => ({
+              ...g,
+              properties: g.geometry.type === 'Point'
+                ? { ...g.properties, stereoSource: params.camera, stereoKey: g.properties?.key } : g.properties,
+            }));
+            const minX = Math.min(...points.map((p) => p[0]));
+            const minY = Math.min(...points.map((p) => p[1]));
+            const maxX = Math.max(...points.map((p) => p[0]));
+            const maxY = Math.max(...points.map((p) => p[1]));
             const width = maxX - minX;
             const height = maxY - minY;
             const padX = width * 0.10 || height * 0.10;
@@ -1529,6 +1665,9 @@ export default defineComponent({
               interpolate: false,
             }, lineGeometry);
 
+            if ((params.line.length > 2 || fromRight) && updateLengths) {
+              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            }
             // Report and store the full stereo measurement on both cameras
             // (length attributes are gated by the length-update feature).
             if (response.measurement && updateLengths) {
@@ -1766,7 +1905,7 @@ export default defineComponent({
             const geoFeatures = feature.geometry?.features || [];
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const line = geoFeatures.find((g: any) => g.geometry?.type === 'LineString'
-              && g.geometry.coordinates?.length === 2);
+              && g.geometry.coordinates?.length >= 2);
             // eslint-disable-next-line @typescript-eslint/no-explicit-any
             const poly = geoFeatures.find((g: any) => g.geometry?.type === 'Polygon');
             const base = { camera: sourceCamera, trackId: track.id, frameNum };
@@ -1992,6 +2131,10 @@ export default defineComponent({
       handleStereoTrackLinked,
       onCalibrationImported,
       onCalibrationDeleted,
+      annotationSourceLabel,
+      annotationSourceReturnable,
+      viewerFocus,
+      returnToCurrentAnnotations,
     };
   },
 });
@@ -2003,8 +2146,13 @@ export default defineComponent({
       :id.sync="id"
       ref="viewerRef"
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :annotation-source-label="annotationSourceLabel"
+      :annotation-source-returnable="annotationSourceReturnable"
+      :initial-frame="viewerFocus.frame"
+      :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
+      @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
       @text-query-submit="handleTextQuerySubmit"
@@ -2023,23 +2171,24 @@ export default defineComponent({
         <v-tabs
           icons-and-text
           hide-slider
+          class="desktop-nav-tabs"
           style="flex-basis:0; flex-grow:0;"
         >
           <v-tab :to="{ name: 'recent' }">
-            Library
-            <v-icon>mdi-folder-open</v-icon>
+            Library<v-icon>mdi-folder-open</v-icon>
           </v-tab>
           <job-tab />
-          <v-tab :to="{ name: 'training' }">
-            Training<v-icon>mdi-brain</v-icon>
+          <v-tab
+            :to="{ name: 'review', query: { fromDataset: id } }"
+          >
+            Review<v-icon>mdi-view-grid-outline</v-icon>
           </v-tab>
-          <v-tab :to="{ name: 'settings' }">
-            Settings<v-icon>mdi-cog</v-icon>
-          </v-tab>
+          <annotation-other-menu />
         </v-tabs>
       </template>
       <template #title-right>
         <RunPipelineMenu
+          :before-run="() => viewerRef.save()"
           :selected-dataset-ids="[modifiedId]"
           :sub-type-list="subTypeList"
           :camera-numbers="camNumbers"
@@ -2151,6 +2300,10 @@ export default defineComponent({
     </v-snackbar>
   </div>
 </template>
+
+<style lang="scss">
+@import './navTabs.scss';
+</style>
 
 <style scoped>
 .viewer-loader-wrapper {

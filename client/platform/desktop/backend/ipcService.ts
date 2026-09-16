@@ -14,6 +14,8 @@ import {
   ExportTrainedPipeline,
   ConversionArgs,
   DesktopJob,
+  RunScoring,
+  BuildSearchIndex,
 } from 'platform/desktop/constants';
 import { convertMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { closeChildById } from 'platform/desktop/backend/native/processManager';
@@ -26,10 +28,13 @@ import beginMultiCamImport from './native/multiCamImport';
 import scanMultiCamBatch from './native/multiCollectImport';
 import scanStereoBatch from './native/stereoCollectImport';
 import settings from './state/settings';
+import { cancelAddon, getAddons, installAddon } from './native/addons';
+import type { AddonInstallRequest } from '../addons';
 import { listen } from './server';
 import {
   getInteractiveServiceManager,
 } from './native/interactive';
+import * as videoSearch from './native/videoSearch';
 import {
   SegmentationPredictRequest,
   SegmentationStereoSegmentRequest,
@@ -58,6 +63,7 @@ function isSam3Installed(viamePath: string): boolean {
     path.join(pipelinesDir, configName),
   ));
 }
+
 if (OS.platform() === 'win32') {
   win32.initialize();
 }
@@ -86,6 +92,9 @@ function getDiveVersion() {
 }
 
 export default function register() {
+  ipcMain.handle('desktop:addons-list', () => getAddons(settings.get()));
+  ipcMain.handle('desktop:addons-install', (_, request: AddonInstallRequest) => installAddon(settings.get(), request));
+  ipcMain.handle('desktop:addons-cancel', () => cancelAddon());
   /**
    * Platform-agnostic methods
    */
@@ -130,6 +139,15 @@ export default function register() {
   ));
   ipcMain.on('update-settings', async (_, s: Settings) => {
     settings.set(s);
+  });
+  ipcMain.handle('write-text-file', async (_, args: { path: string; content: string }) => {
+    await fs.promises.writeFile(args.path, args.content, 'utf-8');
+    return args.path;
+  });
+  ipcMain.handle('print-to-pdf', async (event, args: { path: string }) => {
+    const data = await event.sender.printToPDF({ printBackground: true, pageSize: 'Letter' });
+    await fs.promises.writeFile(args.path, data);
+    return args.path;
   });
   ipcMain.handle('export-dataset', async (_, args: ExportDatasetArgs) => {
     const ret = await common.exportDataset(settings.get(), args);
@@ -216,6 +234,11 @@ export default function register() {
 
   ipcMain.handle('delete-dataset', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.deleteDataset(settings.get(), datasetId);
+    // Also drop the dataset's rows from the shared search index (best
+    // effort; the index tolerates stale entries if this fails).
+    videoSearch.removeFromIndex(settings.get(), datasetId).catch((err) => {
+      console.error(`Failed to remove ${datasetId} from the search index:`, err);
+    });
     return ret;
   });
 
@@ -226,6 +249,11 @@ export default function register() {
 
   ipcMain.handle('load-detections', async (event, { datasetId }: { datasetId: string }) => {
     const ret = await common.loadDetections(settings.get(), datasetId);
+    return ret;
+  });
+
+  ipcMain.handle('load-detections-from-file', async (event, { file }: { file: string }) => {
+    const ret = await common.loadAnnotationFile(file);
     return ret;
   });
 
@@ -349,6 +377,29 @@ export default function register() {
       event.sender.send('job-update', update);
     };
     return currentPlatform.train(settings.get(), args, updater);
+  });
+  ipcMain.handle('run-scoring', async (event, args: RunScoring) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    return currentPlatform.runScoring(settings.get(), args, updater);
+  });
+  ipcMain.handle('list-scoring-sources', async (_, { datasetId }: { datasetId: string }) => (
+    common.listScoringSources(settings.get(), datasetId)
+  ));
+  ipcMain.handle('list-scoring-datasets', async () => common.listScoringDatasets(settings.get()));
+  ipcMain.handle('list-scoring-results', async (_, { datasetId }: { datasetId?: string } = {}) => (
+    common.listScoringResults(settings.get(), datasetId)
+  ));
+  ipcMain.handle('load-scoring-result', async (
+    _,
+    { datasetId, resultId }: { datasetId: string; resultId: string },
+  ) => common.loadScoringResult(settings.get(), datasetId, resultId));
+  ipcMain.handle('delete-scoring-result', async (
+    _,
+    { datasetId, resultId }: { datasetId: string; resultId: string },
+  ) => {
+    await common.deleteScoringResult(settings.get(), datasetId, resultId);
   });
   ipcMain.handle('list-resumable-training', async () => common.findResumableTrainingJobs(settings.get()));
   ipcMain.handle('discard-resumable-training', async (_event, workingDir: string) => {
@@ -575,4 +626,95 @@ export default function register() {
     const stereoService = getInteractiveServiceManager();
     return { enabled: stereoService.isEnabled() };
   });
+
+  /**
+   * Video Search / IQR Service
+   */
+
+  ipcMain.handle('video-search-installed', async () => (
+    videoSearch.isVideoSearchInstalled(settings.get())
+  ));
+
+  ipcMain.handle('video-search-index-status', async (_, datasetId: string) => (
+    videoSearch.getIndexStatus(settings.get(), datasetId)
+  ));
+
+  ipcMain.handle('video-search-build-index', async (event, args: BuildSearchIndex) => {
+    const updater = (update: DesktopJobUpdate) => {
+      event.sender.send('job-update', update);
+    };
+    // The build job needs the shared database to itself (and re-ingesting
+    // invalidates whatever the open session has cached in memory).
+    const manager = videoSearch.getQueryServiceManager();
+    return videoSearch.buildIndex(settings.get(), args, updater, () => manager.closeIndex());
+  });
+
+  ipcMain.handle('video-search-remove-index', async (_, datasetId: string) => {
+    await videoSearch.removeFromIndex(settings.get(), datasetId);
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-delete-index', async () => {
+    await videoSearch.deleteEntireIndex(settings.get());
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-list-indexes', async () => (
+    videoSearch.listIndexedDatasets(settings.get())
+  ));
+
+  ipcMain.handle('video-search-open-index', async () => {
+    const currentSettings = settings.get();
+    const streams = await videoSearch.listIndexedDatasets(currentSettings);
+    if (!streams.length) {
+      throw new Error('The search index is empty; add a dataset to it first');
+    }
+    const manager = videoSearch.getQueryServiceManager();
+    const indexMeta = await videoSearch.readIndexMeta(currentSettings);
+    await manager.openIndexes(
+      currentSettings,
+      [videoSearch.getIndexDir(currentSettings)],
+      indexMeta.backend ?? 'postgres',
+    );
+    return { success: true, streams };
+  });
+
+  ipcMain.handle('video-search-formulate', async (_, args: { imagePath: string; boxes?: number[][] }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.formulateQuery(args.imagePath, args.boxes);
+  });
+
+  ipcMain.handle('video-search-query', async (
+    _,
+    args: { threshold?: number; iqrModelB64?: string; iqrModelPath?: string },
+  ) => {
+    const manager = videoSearch.getQueryServiceManager();
+    let modelB64 = args.iqrModelB64;
+    if (!modelB64 && args.iqrModelPath) {
+      // Warm-start from a saved .svm file on disk
+      modelB64 = (await fs.promises.readFile(args.iqrModelPath)).toString('base64');
+    }
+    return manager.processQuery(args.threshold, modelB64);
+  });
+
+  ipcMain.handle('video-search-refine', async (_, args: { positiveIds: string[]; negativeIds: string[] }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.refine(args.positiveIds, args.negativeIds);
+  });
+
+  ipcMain.handle('video-search-export-model', async (_, args: { name: string }) => {
+    const outputDir = await videoSearch.exportSearchModel(settings.get(), args.name);
+    return { success: true, outputDir };
+  });
+
+  ipcMain.handle('video-search-close', async () => {
+    const manager = videoSearch.getQueryServiceManager();
+    await manager.closeIndex();
+    return { success: true };
+  });
+
+  ipcMain.handle('video-search-extract-frame', async (
+    _,
+    args: { videoPath: string; frameNum: number; fps: number },
+  ) => videoSearch.extractVideoFrame(args.videoPath, args.frameNum, args.fps));
 }

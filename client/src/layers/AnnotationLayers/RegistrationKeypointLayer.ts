@@ -302,7 +302,10 @@ export default class RegistrationKeypointLayer extends BaseLayer<RegistrationPoi
       return result;
     }
     const key = this.registration.pairKey(pair.camA, pair.camB);
-    const list = this.registration.correspondences.value[key] || [];
+    // Only the observations belonging to the image pair THIS pane currently
+    // shows: a point picked on frame 100 must not float over frame 3000's
+    // features. Each side resolves against its own camera's frame space.
+    const list = this.registration.correspondencesForCameraFrame(key, cam, this.annotator.frame.value);
     const selectedId = this.registration.selectedCorrespondenceId.value;
     list.forEach((c, i) => {
       const coord = cam === pair.camA ? c.a : c.b;

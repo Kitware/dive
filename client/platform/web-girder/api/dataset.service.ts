@@ -9,12 +9,12 @@ import {
   SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import {
-  calibrationFileMarker, frameMetadataFileMarker, jsonCalibrationFileMarker,
+  calibrationFileMarker, frameMetadataFileMarker, jsonCalibrationFileMarker, MultiType,
 } from 'dive-common/constants';
 import { attachFrameTimestamps } from 'dive-common/frameTimestamp';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { isStereoCalibrationFileName } from 'dive-common/stereoParentFolder';
-import { GirderConfigStatic } from 'platform/web-girder/constants';
+import type { GirderConfig, GirderConfigStatic } from 'platform/web-girder/constants';
 import girderRest from 'platform/web-girder/plugins/girder';
 import { resolveDatasetFolderId } from './multicamResolve';
 import { postProcess } from './rpc.service';
@@ -75,6 +75,43 @@ async function getDatasetMedia(datasetId: string) {
   // Parse per-frame capture timestamps client-side (see getDataset above).
   attachFrameTimestamps(response.data.imageData ?? []);
   return response;
+}
+
+/**
+ * The dataset's static metadata merged with its media, as the viewer
+ * consumes it. A multicamera parent keeps its per-camera media and no
+ * media of its own.
+ */
+function mergeDatasetConfig(
+  metaStatic: GirderConfigStatic,
+  media: DatasetSourceMedia,
+  compositeId: string | null | undefined,
+): GirderConfig {
+  const dsMeta: GirderConfig = {
+    ...metaStatic,
+    ...media,
+    id: compositeId ?? metaStatic.id,
+    videoUrl: media.video?.url,
+  };
+  if (dsMeta.type === MultiType && !compositeId) {
+    dsMeta.multiCamMedia = metaStatic.multiCamMedia;
+    dsMeta.imageData = [];
+    dsMeta.videoUrl = undefined;
+  }
+  return dsMeta;
+}
+
+/**
+ * Load a dataset's config without touching any shared store (see
+ * useDataset.loadDataset for the stateful variant the viewer uses).
+ */
+async function loadDatasetConfig(datasetId: string): Promise<GirderConfig> {
+  const { compositeId } = await resolveDatasetFolderId(datasetId);
+  const [metaStatic, media] = await Promise.all([
+    getDataset(datasetId),
+    getDatasetMedia(datasetId),
+  ]);
+  return mergeDatasetConfig(metaStatic.data, media.data, compositeId);
 }
 
 function clone({
@@ -260,7 +297,7 @@ async function importCameraRegistration(
   store.loadRegistrationText(await file.text());
   let incoming = {
     homographies: store.homographies.value,
-    correspondences: store.correspondences.value,
+    observations: store.observations.value,
     transformTypes: store.transformTypes.value,
     source: store.source.value,
   };
@@ -278,7 +315,7 @@ async function importCameraRegistration(
   const merged = mergeRegistrationValues(
     {
       homographies: current.cameraHomographies ?? {},
-      correspondences: current.cameraCorrespondences ?? {},
+      observations: current.cameraCorrespondences ?? {},
       transformTypes: current.cameraTransformTypes ?? {},
       source: current.cameraRegistrationSource ?? null,
     },
@@ -287,7 +324,7 @@ async function importCameraRegistration(
   );
   await saveConfig(parentId, {
     cameraHomographies: merged.homographies,
-    cameraCorrespondences: merged.correspondences,
+    cameraCorrespondences: merged.observations,
     cameraTransformTypes: merged.transformTypes,
     cameraRegistrationSource: merged.source,
   });
@@ -496,6 +533,8 @@ export {
   getDataset,
   getDatasetList,
   getDatasetMedia,
+  loadDatasetConfig,
+  mergeDatasetConfig,
   hasCalibrationFile,
   getDatasetCalibration,
   importAnnotationFile,

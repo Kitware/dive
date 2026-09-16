@@ -1,4 +1,5 @@
 import axios, { AxiosInstance } from 'axios';
+import { watch } from 'vue';
 
 import type {
   AnnotationSchema,
@@ -9,6 +10,9 @@ import type {
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
+  PipelineJobResult,
+  ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
+  VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
 } from 'dive-common/apispec';
 
 import {
@@ -24,9 +28,11 @@ import {
   DesktopMediaImportResponse, ConversionArgs, JobType,
   DesktopJob,
   MultiCamBatchScanResult,
+  RunScoring,
+  BuildSearchIndex,
 } from 'platform/desktop/constants';
 
-import { gpuJobQueue, cpuJobQueue } from './store/jobs';
+import { gpuJobQueue, cpuJobQueue, jobHistory } from './store/jobs';
 
 interface FileFilter {
   name: string;
@@ -63,7 +69,7 @@ interface ServerInfo {
  * Native functions that run entirely in the renderer
  */
 
-async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'text' | 'transform' | 'metadata', directory = false) {
+async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'species' | 'text' | 'transform' | 'metadata', directory = false) {
   let filters: FileFilter[] = [];
   const allFiles = { name: 'All Files', extensions: ['*'] };
   if (datasetType === 'video') {
@@ -92,6 +98,12 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'config') {
     filters = [
       { name: 'configuration', extensions: ['json'] },
+      allFiles,
+    ];
+  }
+  if (datasetType === 'species') {
+    filters = [
+      { name: 'species list', extensions: ['json'] },
       allFiles,
     ];
   }
@@ -129,6 +141,11 @@ async function openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 
   if (datasetType === 'config') {
     if (!results.filePaths.every((item) => getExtension(item) === 'json')) {
       throw Error('Configuration File must be JSON');
+    }
+  }
+  if (datasetType === 'species') {
+    if (!results.filePaths.every((item) => getExtension(item) === 'json')) {
+      throw Error('Species List must be KWCOCO JSON');
     }
   }
   if (datasetType === 'large-image') {
@@ -173,6 +190,78 @@ async function runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: Pipe
   gpuJobQueue.enqueue(args);
 }
 
+/**
+ * Resolve when the first job matching `matches` that started at or after this
+ * call finishes.
+ *
+ * The job store is the only place that knows a job ended: a job's own
+ * artifacts cannot say it, because a deterministic re-run writes byte-identical
+ * output and a job that fails writes none at all. Both look exactly like "still
+ * running" to anything watching the output.
+ *
+ * Only jobs starting at or after this call are considered, so an earlier run of
+ * the same job (still in the history) is never mistaken for this one.
+ * Resolution waits out the queue: the run functions enqueue, so the job may not
+ * exist for as long as the jobs ahead of it take.
+ */
+function watchJob(matches: (job: DesktopJob) => boolean): Promise<PipelineJobResult> {
+  const startedAt = Date.now();
+  return new Promise<PipelineJobResult>((resolve) => {
+    let key: string | null = null;
+    let stop: (() => void) | undefined;
+    let settled = false;
+    const settle = (result: PipelineJobResult) => {
+      if (settled) {
+        return;
+      }
+      settled = true;
+      // Undefined while the immediate run is still inside watch() -- a job that
+      // had already finished by then settles on that first pass, before the
+      // handle exists. The caller below stops the watcher in that case.
+      stop?.();
+      resolve(result);
+    };
+    stop = watch(jobHistory, () => {
+      const entries = Object.values(jobHistory.value);
+      if (key === null) {
+        const match = entries.find((entry) => matches(entry.job)
+          // A job update carries the start time as an ISO string once it has
+          // crossed the IPC boundary, so normalize before comparing.
+          && new Date(entry.job.startTime).getTime() >= startedAt);
+        if (!match) {
+          return;
+        }
+        key = match.job.key;
+      }
+      const job = jobHistory.value[key]?.job;
+      if (!job || job.endTime === undefined) {
+        return;
+      }
+      if (job.cancelledJob) {
+        settle({ ok: false, message: 'The job was cancelled.' });
+      } else if (job.exitCode === 0) {
+        settle({ ok: true });
+      } else {
+        settle({
+          ok: false,
+          message: `The job exited with code ${job.exitCode}; see its log in the Jobs tab.`,
+        });
+      }
+    }, { deep: true, immediate: true });
+    if (settled) {
+      stop();
+    }
+  });
+}
+
+/** Resolve when the pipeline job for this dataset finishes. */
+function watchPipelineJob(datasetId: string, pipeline: Pipe): Promise<PipelineJobResult> {
+  return watchJob((job) => job.jobType === 'pipeline'
+    && 'pipeline' in job.args
+    && job.args.pipeline.pipe === pipeline.pipe
+    && job.datasetIds.includes(datasetId));
+}
+
 async function exportTrainedPipeline(path: string, pipeline: Pipe): Promise<void> {
   const args: ExportTrainedPipeline = {
     type: JobType.ExportTrainedPipeline,
@@ -205,6 +294,41 @@ async function runTraining(
     fineTuneModel,
   };
   gpuJobQueue.enqueue(args);
+}
+
+/**
+ * Scoring API
+ */
+
+async function runScoring(args: ScoringJobArgs): Promise<void> {
+  const spec: RunScoring = { type: JobType.RunScoring, ...args };
+  cpuJobQueue.enqueue(spec);
+}
+
+/** Resolve when the scoring job involving this dataset, launched after this call, finishes. */
+function watchScoringJob(datasetId: string): Promise<PipelineJobResult> {
+  return watchJob((job) => job.jobType === 'scoring' && job.datasetIds.includes(datasetId));
+}
+
+function listScoringSources(datasetId: string): Promise<ScoringSourceOptions> {
+  return invoke<ScoringSourceOptions>('list-scoring-sources', { datasetId });
+}
+
+function listScoringDatasets(): Promise<ScoringDatasetSummary[]> {
+  return invoke<ScoringDatasetSummary[]>('list-scoring-datasets');
+}
+
+/** Runs stored on one dataset, or every run across all projects when omitted. */
+function listScoringResults(datasetId?: string): Promise<ScoringResultSummary[]> {
+  return invoke<ScoringResultSummary[]>('list-scoring-results', { datasetId });
+}
+
+function loadScoringResult(datasetId: string, resultId: string): Promise<ScoringResult> {
+  return invoke<ScoringResult>('load-scoring-result', { datasetId, resultId });
+}
+
+function deleteScoringResult(datasetId: string, resultId: string): Promise<void> {
+  return invoke<void>('delete-scoring-result', { datasetId, resultId });
 }
 
 async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
@@ -326,6 +450,40 @@ async function exportDataset(id: string, exclude: boolean, typeFilter: readonly 
     return invoke<string>('export-dataset', args);
   }
   return '';
+}
+
+async function saveScoringExport(
+  { filename, content }: { filename: string; mime: string; content: string },
+): Promise<boolean> {
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Export Scoring Run',
+    defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), filename),
+  });
+  if (location.canceled || !location.filePath) return false;
+  await invoke<string>('write-text-file', { path: location.filePath, content });
+  return true;
+}
+
+async function exportScoringPdf(
+  filename: string,
+  hooks?: {
+    onBeforePrint?: () => void | Promise<void>;
+    onAfterPrint?: () => void | Promise<void>;
+  },
+): Promise<boolean> {
+  const location = await window.diveDesktop.showSaveDialog({
+    title: 'Save Scoring Report',
+    defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), filename),
+    filters: [{ name: 'PDF', extensions: ['pdf'] }],
+  });
+  if (location.canceled || !location.filePath) return false;
+  try {
+    if (hooks?.onBeforePrint) await hooks.onBeforePrint();
+    await invoke<string>('print-to-pdf', { path: location.filePath });
+    return true;
+  } finally {
+    if (hooks?.onAfterPrint) await hooks.onAfterPrint();
+  }
 }
 
 async function exportConfiguration(id: string): Promise<string> {
@@ -465,6 +623,76 @@ async function runTextQueryPipeline(
 }
 
 /**
+ * Video Search / IQR API
+ */
+
+async function videoSearchInstalled(): Promise<boolean> {
+  return window.diveDesktop.invoke('video-search-installed');
+}
+
+async function videoSearchIndexStatus(datasetId: string): Promise<VideoSearchIndexStatus> {
+  return window.diveDesktop.invoke('video-search-index-status', datasetId);
+}
+
+/** Queue a search index build; progress arrives via job-update events. */
+function videoSearchBuildIndex(datasetId: string, method: VideoSearchIndexMethod): void {
+  const args: BuildSearchIndex = { type: JobType.BuildSearchIndex, datasetId, method };
+  gpuJobQueue.enqueue(args);
+}
+
+/** Delete the entire shared search index from disk. */
+async function videoSearchDeleteIndex(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-delete-index');
+}
+
+async function videoSearchListIndexes(): Promise<VideoSearchIndexInfo[]> {
+  return window.diveDesktop.invoke('video-search-list-indexes');
+}
+
+async function videoSearchOpenIndex(): Promise<{
+  success: boolean; streams: VideoSearchIndexInfo[];
+}> {
+  return window.diveDesktop.invoke('video-search-open-index');
+}
+
+/** Remove one dataset's rows from the shared search index. */
+async function videoSearchRemoveIndex(datasetId: string): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-remove-index', datasetId);
+}
+
+async function videoSearchFormulate(imagePath: string, boxes?: number[][]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-formulate', { imagePath, boxes });
+}
+
+async function videoSearchQuery(
+  options: { threshold?: number; iqrModelB64?: string; iqrModelPath?: string } = {},
+): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-query', options);
+}
+
+/** Build a local media-server URL for an arbitrary file (e.g. thumbnails). */
+async function getMediaUrl(filePath: string): Promise<string> {
+  await getClient();
+  return `${_baseURL}/media?path=${encodeURIComponent(filePath)}`;
+}
+
+async function videoSearchRefine(positiveIds: string[], negativeIds: string[]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-refine', { positiveIds, negativeIds });
+}
+
+async function videoSearchExportModel(name: string): Promise<{ success: boolean; outputDir: string }> {
+  return window.diveDesktop.invoke('video-search-export-model', { name });
+}
+
+async function videoSearchClose(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-close');
+}
+
+async function videoSearchExtractFrame(videoPath: string, frameNum: number, fps: number): Promise<string> {
+  return window.diveDesktop.invoke('video-search-extract-frame', { videoPath, frameNum, fps });
+}
+
+/**
  * Interactive Stereo API
  */
 
@@ -507,6 +735,9 @@ interface StereoTransferLineRequest {
 }
 
 interface StereoMeasurement {
+  curved_length?: number;
+  straight_length?: number;
+  curvature_ratio?: number;
   length: number;
   midpoint_x: number;
   midpoint_y: number;
@@ -532,8 +763,8 @@ interface StereoTransferLineResponse {
 }
 
 interface StereoMeasureLineRequest {
-  leftLine: [[number, number], [number, number]];
-  rightLine: [[number, number], [number, number]];
+  leftLine: [number, number][];
+  rightLine: [number, number][];
 }
 
 interface StereoMeasureLineResponse {
@@ -557,6 +788,11 @@ interface StereoAggregateLengthsResponse {
 }
 
 interface StereoTransferPointsRequest {
+  sourceCamera?: 'left' | 'right';
+  strict?: boolean;
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   points: [number, number][];
 }
 
@@ -567,6 +803,7 @@ interface StereoTransferPointsResponse {
   transferredPoints?: [number, number][];
   originalPoints?: [number, number][];
   disparityValues?: number[];
+  validMatches?: boolean[];
 }
 
 async function stereoEnable(
@@ -664,14 +901,43 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
   return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
 }
 
+/** Frame rate, size and length of a video file on disk, read by the backend. */
+async function videoInfo(videoPath: string) {
+  const client = await getClient();
+  const { data } = await client.get<{
+    fps: number;
+    duration: number;
+    width: number;
+    height: number;
+    frameCount: number;
+  }>('video-info', { params: { path: videoPath } });
+  return data;
+}
+
 async function loadConfig(id: string) {
   const client = await getClient();
   const { data } = await client.get<DesktopConfig>(`dataset/${id}/meta`);
   return { ...data, calibration: data.multiCam?.calibration ?? null };
 }
 
+/** loadConfig without the recents bookkeeping the stateful wrapper adds. */
+function peekConfig(id: string) {
+  return loadConfig(id);
+}
+
+let scoringAnnotationPreviewFile: string | null = null;
+
+/** One-shot annotation file to load in the viewer (from scoring result links). */
+export function setScoringAnnotationPreviewFile(path: string | null) {
+  scoringAnnotationPreviewFile = path;
+}
+
 async function loadDetections(datasetId: string) {
-  const annotations = await invoke<AnnotationSchema>('load-detections', { datasetId });
+  const previewFile = scoringAnnotationPreviewFile;
+  scoringAnnotationPreviewFile = null;
+  const annotations = previewFile
+    ? await invoke<AnnotationSchema>('load-detections-from-file', { file: previewFile })
+    : await invoke<AnnotationSchema>('load-detections', { datasetId });
   return {
     version: annotations.version,
     tracks: Object.values(annotations.tracks),
@@ -768,19 +1034,31 @@ function deleteCalibration(datasetId: string): Promise<void> {
 }
 
 export {
+  saveScoringExport,
+  exportScoringPdf,
   /* Standard Specification APIs */
   loadConfig,
+  peekConfig,
+  videoInfo,
   loadDetections,
   loadFrameMetadata,
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,
+  watchPipelineJob,
   exportTrainedPipeline,
   getTrainingConfigurations,
   runTraining,
   listResumableTrainingJobs,
   resumeTraining,
   discardResumableTraining,
+  runScoring,
+  watchScoringJob,
+  listScoringSources,
+  listScoringDatasets,
+  listScoringResults,
+  loadScoringResult,
+  deleteScoringResult,
   saveConfig,
   saveDetections,
   saveAttributes,
@@ -836,6 +1114,22 @@ export {
   textQuery,
   refineDetections,
   runTextQueryPipeline,
+  /* Auto Register APIs */
+  /* Video Search / IQR */
+  videoSearchInstalled,
+  videoSearchIndexStatus,
+  videoSearchBuildIndex,
+  videoSearchRemoveIndex,
+  videoSearchDeleteIndex,
+  videoSearchListIndexes,
+  videoSearchOpenIndex,
+  videoSearchFormulate,
+  videoSearchQuery,
+  videoSearchRefine,
+  videoSearchExportModel,
+  videoSearchClose,
+  videoSearchExtractFrame,
+  getMediaUrl,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,

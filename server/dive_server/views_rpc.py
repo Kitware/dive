@@ -25,6 +25,7 @@ class RpcResource(Resource):
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("POST", ("export",), self.export_pipeline_onnx)
         self.route("POST", ("train",), self.run_training)
+        self.route("POST", ("score",), self.run_scoring)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("convert_dive", ":id"), self.convert_dive)
         self.route("POST", ("convert_large_image", ":id"), self.convert_large_image)
@@ -157,6 +158,26 @@ class RpcResource(Resource):
             annotatedFramesOnly,
             forceTranscoded,
         )
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Score a list of sequence pairs together with viame score").jsonParam(
+            "body",
+            description=(
+                "schema: RunScoringArgs. Each pair's computed and truth name a dataset plus an "
+                "optional annotation set and revision; the result is stored on the first "
+                "pair's computed dataset."
+            ),
+            paramType="body",
+            requireObject=True,
+        )
+    )
+    def run_scoring(self, body):
+        worker_capabilities.require_pipeline_worker()
+        user = self.getCurrentUser()
+        token = Token().createToken(user=user, days=14)
+        run_scoring_args = crud.get_validated_model(crud_rpc.RunScoringArgs, **body)
+        return crud_rpc.run_scoring(user, token, run_scoring_args)
 
     @access.user
     @autoDescribeRoute(

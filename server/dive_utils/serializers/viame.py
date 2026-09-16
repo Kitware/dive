@@ -6,12 +6,13 @@ import csv
 import datetime
 import io
 import json
+import math
 import os
 import re
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 from dive_utils import constants, types
-from dive_utils.models import Feature, Track, interpolate
+from dive_utils.models import Feature, GeoJSONFeature, Track, interpolate
 
 
 def format_timestamp(fps: int, frame: int) -> str:
@@ -68,12 +69,15 @@ def _resolve_detection_length(
     fish_length_from_column: float,
 ) -> Tuple[Dict[str, Any], Optional[float]]:
     """Resolve length from attributes.length or the VIAME length column."""
+    attributes = dict(attributes or {})
     attr_length: Optional[float] = None
     if attributes and 'length' in attributes:
         try:
             candidate = float(attributes['length'])
-            if candidate == candidate:  # not NaN
+            if candidate > 0:
                 attr_length = candidate
+            elif candidate <= 0:
+                attributes.pop('length')
         except (TypeError, ValueError):
             attr_length = None
 
@@ -170,6 +174,47 @@ def add_hole_to_polygon(features: Dict[str, Any], coords: List[Any], key=''):
             break
 
 
+def _coordinate_text(value):
+    value = float(value)
+    return str(int(value)) if value.is_integer() else repr(value)
+
+
+def _centerline_features(features):
+    """Serialize edited LineString vertices even when a JSON file has no markers."""
+    line = next(
+        (
+            f
+            for f in features
+            if f.geometry.type == 'LineString' and f.properties.get('key') == 'HeadTails'
+        ),
+        None,
+    )
+    if line is None or len(line.geometry.coordinates) < 2:
+        return features
+    points = line.geometry.coordinates
+    retained = [
+        f
+        for f in features
+        if not (
+            f.geometry.type == 'Point'
+            and (
+                f.properties.get('key') in ('head', 'tail')
+                or re.fullmatch(r'spine_0*[1-9][0-9]*', str(f.properties.get('key', '')))
+            )
+        )
+    ]
+    for i, point in enumerate(points):
+        key = 'head' if i == 0 else 'tail' if i == len(points) - 1 else f'spine_{i:03d}'
+        retained.append(
+            GeoJSONFeature(
+                type='Feature',
+                properties={'key': key},
+                geometry={'type': 'Point', 'coordinates': point},
+            )
+        )
+    return retained
+
+
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
     """
     Parse a single CSV line into its composite track and detection parts
@@ -188,19 +233,15 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
     start = 9 + len(sorted_confidence_pairs) * 2
 
     for j in range(start, len(row)):
-        # (kp) head x y
-        head_regex = re.match(r"^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)", row[j])
-        if head_regex:
-            point = [float(head_regex[1]), float(head_regex[2])]
-            head_tail.append(point)
-            create_geoJSONFeature(features, 'Point', point, 'head')
-
-        # (kp) tail x y
-        tail_regex = re.match(r"^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)", row[j])
-        if tail_regex:
-            point = [float(tail_regex[1]), float(tail_regex[2])]
-            head_tail.append(point)
-            create_geoJSONFeature(features, 'Point', point, 'tail')
+        # Preserve every named keypoint, including ordered centerline vertices.
+        kp = re.fullmatch(r"\(kp\)\s+(\S+)\s+(\S+)\s+(\S+)\s*", row[j])
+        if kp:
+            try:
+                point = [float(kp[2]), float(kp[3])]
+                if all(math.isfinite(v) for v in point):
+                    create_geoJSONFeature(features, 'Point', point, kp[1])
+            except ValueError:
+                pass
 
         # (atr) text
         atr_regex = re.match(r"^\(atr\) (.*?)\s(.+)", row[j])
@@ -242,21 +283,26 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
         if note_regex:
             notes.append(note_regex[1])
 
-    if len(head_tail) == 2:
+    points = {
+        f['properties']['key']: f['geometry']['coordinates']
+        for f in features.get('geometry', {}).get('features', [])
+        if f['geometry']['type'] == 'Point'
+    }
+    if 'head' in points and 'tail' in points:
+        spine = sorted(
+            (k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)), key=lambda k: int(k[6:])
+        )
+        head_tail = [points['head']] + [points[k] for k in spine] + [points['tail']]
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
 
-    # ensure confidence pairs list is not empty
-    if len(sorted_confidence_pairs) == 0:
-        # extract Detection or Length Confidence field
-        try:
-            confidence = float(row[7])
-        except ValueError:  # in case field is empty
-            confidence = 1.0
-
-        # add a dummy pair with a default type
-        sorted_confidence_pairs.append(('unknown', confidence))
-
     return features, attributes, track_attributes, sorted_confidence_pairs, notes
+
+
+def _fallback_confidence(row: List[str]) -> float:
+    try:
+        return float(row[7])
+    except (ValueError, IndexError):
+        return 1.0
 
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
@@ -344,7 +390,7 @@ def load_json_as_track_and_attributes(
     for key, track in tracks.items():
         track_attributes = {}
         detection_attributes = {}
-        for attrkey, attribute in track['attributes'].items():
+        for attrkey, attribute in track.get('attributes', {}).items():
             track_attributes[attrkey] = _deduceType(attribute)
         for feature in track['features']:
             if 'attributes' in feature.keys():
@@ -404,6 +450,7 @@ def load_csv_as_tracks_and_attributes(
     multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
+    fallbackConfidence: Dict[int, float] = {}
     sortedlist = sorted(reader, key=custom_sort)
     warnings: types.Warnings = []
     fps = None
@@ -465,13 +512,22 @@ def load_csv_as_tracks_and_attributes(
         track.begin = min(feature.frame, track.begin)
         track.end = max(track.end, feature.frame)
         track.features.append(feature)
-        track.confidencePairs = confidence_pairs
+        # Pairs may be written on only one row of a track; rows without
+        # pairs must not clobber those already seen.
+        if confidence_pairs:
+            track.confidencePairs = confidence_pairs
+        else:
+            fallbackConfidence[trackId] = _fallback_confidence(row)
 
         for key, val in track_attributes.items():
             track.attributes[key] = val
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
         for key, val in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
+
+    for track in tracks.values():
+        if not track.confidencePairs:
+            track.confidencePairs = [('unknown', fallbackConfidence.get(track.id, 1.0))]
 
     if imageMap and len(missingImages) and len(foundImages):
         minFrame = float('inf')
@@ -695,7 +751,7 @@ def export_tracks_as_csv(
                         columns.append(f"(trk-atr) {key} {valueToString(val)}")
 
                 if feature.geometry and "FeatureCollection" == feature.geometry.type:
-                    for geoJSONFeature in feature.geometry.features:
+                    for geoJSONFeature in _centerline_features(feature.geometry.features):
                         if 'Polygon' == geoJSONFeature.geometry.type:
                             all_rings = geoJSONFeature.geometry.coordinates  # type: ignore
 
@@ -725,7 +781,8 @@ def export_tracks_as_csv(
                             coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
                             columns.append(
                                 f"(kp) {geoJSONFeature.properties['key']} "
-                                f"{round(coordinates[0])} {round(coordinates[1])}"
+                                f"{_coordinate_text(coordinates[0])} "
+                                f"{_coordinate_text(coordinates[1])}"
                             )
 
                 # Emitted last, matching the desktop TypeScript serializer's

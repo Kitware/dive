@@ -8,8 +8,8 @@ import type { Pipe } from './apispec';
 describe('pipelineCalibration', () => {
   const measurementPipe: Pipe = {
     name: 'gmm',
-    type: 'measurement',
-    pipe: 'measurement_gmm.pipe',
+    type: 'stereo',
+    pipe: 'stereo_gmm.pipe',
   };
 
   it('requires calibration when metadata flag is true', () => {

@@ -412,3 +412,41 @@ export function solveHomography(src: Point[], dst: Point[]): Matrix3 {
   const scale = Math.abs(denorm[2][2]) > 1e-12 ? 1 / denorm[2][2] : 1;
   return denorm.map((row) => row.map((value) => value * scale));
 }
+
+/**
+ * Mutual-consistency check for a solved camera triplet: push a grid of
+ * points from camera 1 into camera 3 via the direct homography (`h13`) and
+ * via the composed route (`h23 . h12`), and report the mean/max disagreement
+ * in camera-3 pixels. Near-zero means the three independently fitted pairs
+ * describe one consistent rig; a large value means at least one pair
+ * disagrees with the route through the third camera. `size1` is camera 1's
+ * native (width, height); without it a nominal 1000x1000 grid is used.
+ */
+export function loopClosureResidual(
+  h12: Matrix3,
+  h23: Matrix3,
+  h13: Matrix3,
+  size1: [number, number] = [1000, 1000],
+  grid = 10,
+): { meanPx: number; maxPx: number } {
+  const [width, height] = size1;
+  const composed = matMul3(h23, h12);
+  let sum = 0;
+  let max = 0;
+  let count = 0;
+  for (let i = 0; i < grid; i += 1) {
+    for (let j = 0; j < grid; j += 1) {
+      const p: Point = [
+        (width * i) / (grid - 1),
+        (height * j) / (grid - 1),
+      ];
+      const direct = applyHomography(h13, p);
+      const routed = applyHomography(composed, p);
+      const dist = Math.hypot(direct[0] - routed[0], direct[1] - routed[1]);
+      sum += dist;
+      max = Math.max(max, dist);
+      count += 1;
+    }
+  }
+  return { meanPx: sum / count, maxPx: max };
+}

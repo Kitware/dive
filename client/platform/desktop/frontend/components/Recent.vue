@@ -236,17 +236,21 @@ export default defineComponent({
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
-    const allSelected = computed(() => filteredRecents.value.length > 0
-      && filteredRecents.value.every((item) => selectedIds.value.has(item.id)));
-    const someSelected = computed(() => filteredRecents.value.some(
+    const visibleRecents = ref([] as JsonConfigCache[]);
+    const allSelected = computed(() => visibleRecents.value.length > 0
+      && visibleRecents.value.every((item) => selectedIds.value.has(item.id)));
+    const someSelected = computed(() => visibleRecents.value.some(
       (item) => selectedIds.value.has(item.id),
     ));
 
     function toggleSelectAll() {
       if (allSelected.value) {
-        selectedRecents.value = [];
+        const visibleIds = new Set(visibleRecents.value.map((item) => item.id));
+        selectedRecents.value = selectedRecents.value.filter((item) => !visibleIds.has(item.id));
       } else {
-        selectedRecents.value = filteredRecents.value.slice();
+        selectedRecents.value = selectedRecents.value.concat(
+          visibleRecents.value.filter((item) => !selectedIds.value.has(item.id)),
+        );
       }
     }
 
@@ -260,6 +264,18 @@ export default defineComponent({
 
     function runTrainingOnSelected() {
       router.push({ name: 'training', query: selectedIdsQuery() });
+    }
+
+    function scoreSelected() {
+      router.push({ name: 'scoring', query: selectedIdsQuery() });
+    }
+
+    function reviewSelected() {
+      router.push({ name: 'review', query: selectedIdsQuery() });
+    }
+
+    function indexSelected() {
+      router.push({ name: 'query', query: { ...selectedIdsQuery(), view: 'datasets' } });
     }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
@@ -355,6 +371,9 @@ export default defineComponent({
       confirmDeleteSelected,
       runPipelineOnSelected,
       runTrainingOnSelected,
+      scoreSelected,
+      reviewSelected,
+      indexSelected,
       isSelected,
       toggleSelected,
       toggleSelectAll,
@@ -365,6 +384,7 @@ export default defineComponent({
       multiCamOpenType,
       stereo,
       filteredRecents,
+      visibleRecents,
       selectedRecents,
       allSelected,
       someSelected,
@@ -382,7 +402,7 @@ export default defineComponent({
       knownVersion,
       checkingMedia,
       clientSettings,
-      itemsPerPageOptions,
+      itemsPerPageOptions: [...itemsPerPageOptions, 1000, -1],
       queuedConversionDatasetIds,
     };
   },
@@ -618,10 +638,73 @@ export default defineComponent({
                       >
                         mdi-brain
                       </v-icon>
-                      Run Training
+                      Training
                     </v-btn>
                   </template>
                   <span>Train a model on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="indexSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-database-plus
+                      </v-icon>
+                      Index
+                    </v-btn>
+                  </template>
+                  <span>Build search indexes for the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="reviewSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-view-grid-outline
+                      </v-icon>
+                      Review
+                    </v-btn>
+                  </template>
+                  <span>Review the selected datasets' annotations as a grid</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="scoreSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-chart-box-outline
+                      </v-icon>
+                      Score
+                    </v-btn>
+                  </template>
+                  <span>Score the selected datasets against ground truth</span>
                 </v-tooltip>
                 <v-tooltip bottom>
                   <template #activator="{ on }">
@@ -678,6 +761,7 @@ export default defineComponent({
               :footer-props="{ itemsPerPageOptions }"
               :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
+              @current-items="visibleRecents = $event"
             >
               <template #[`header.select`]>
                 <v-simple-checkbox

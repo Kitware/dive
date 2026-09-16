@@ -1,20 +1,25 @@
 <template>
   <v-app>
-    <router-view />
+    <router-view :key="accountId" />
+    <ScoringDatasetPickerDialog />
   </v-app>
 </template>
 
 <script lang="ts">
-import { defineComponent } from 'vue';
+import { computed, defineComponent, watch } from 'vue';
+import { clearReviewSession } from 'dive-common/review/reviewSession';
 import { provideApi } from 'dive-common/apispec';
 import { useRoute } from 'vue-router/composables';
 import { useDataset } from 'platform/web-girder/store/useDataset';
 import { useLocation } from 'platform/web-girder/store/useLocation';
+import { clearMultiCamMetaCache } from './api/multicamResolve';
+import { useGirderRest } from './plugins/girder';
 import type { GirderConfig } from './constants';
 import {
   getPipelineList,
   deleteTrainedPipeline,
   runPipeline,
+  watchPipelineJob,
   exportTrainedPipeline,
   getDatasetCalibration,
   loadFrameMetadata,
@@ -28,6 +33,8 @@ import {
   importAnnotationFile,
   importCameraRegistration,
   loadDetections,
+  loadReviewTracks,
+  loadDatasetConfig,
   saveDetections,
   unwrap,
   getTiles,
@@ -36,7 +43,18 @@ import {
   hasCalibrationFile,
   downloadCalibration,
   deleteCalibration,
+  runScoring,
+  watchScoringJob,
+  listScoringResults,
+  loadScoringResult,
+  deleteScoringResult,
+  listScoringSources,
+  listScoringDatasets,
+  saveScoringExport,
+  exportScoringPdf,
+  pickScoringDataset,
 } from './api';
+import ScoringDatasetPickerDialog from './components/ScoringDatasetPickerDialog.vue';
 import {
   getLastCalibration,
   openFromDiskWithRegistry,
@@ -49,8 +67,14 @@ import { reportHandledPromiseRejection } from './reportHandledPromiseRejection';
 
 export default defineComponent({
   name: 'App',
-  components: {},
+  components: { ScoringDatasetPickerDialog },
   setup() {
+    const girderRest = useGirderRest();
+    const accountId = computed(() => girderRest.user?._id || '');
+    watch(accountId, () => {
+      clearReviewSession();
+      clearMultiCamMetaCache();
+    });
     const route = useRoute();
     const { loadDataset } = useDataset();
     const { setLocationFromRoute } = useLocation();
@@ -66,6 +90,7 @@ export default defineComponent({
       getPipelineList: unwrap(getPipelineList),
       deleteTrainedPipeline: unwrap(deleteTrainedPipeline),
       runPipeline: unwrap(runPipeline),
+      watchPipelineJob,
       exportTrainedPipeline: unwrap(exportTrainedPipeline),
       getDatasetCalibration: unwrap(getDatasetCalibration),
       downloadCalibration,
@@ -73,6 +98,7 @@ export default defineComponent({
       getTrainingConfigurations: unwrap(getTrainingConfigurations),
       runTraining: unwrap(runTraining),
       loadDetections,
+      loadReviewTracks,
       loadFrameMetadata,
       saveDetections: unwrap(saveDetections),
       saveConfig: unwrap(saveConfig),
@@ -81,6 +107,7 @@ export default defineComponent({
       saveAttributes: unwrap(saveAttributes),
       saveAttributeTrackFilters: unwrap(saveAttributeTrackFilters),
       loadConfig,
+      peekConfig: loadDatasetConfig,
       hasCalibrationFile,
       openFromDisk: openFromDiskWithRegistry,
       getLastCalibration,
@@ -93,7 +120,18 @@ export default defineComponent({
       getTiles,
       getTileURL,
       getTileHistogram,
+      runScoring: unwrap(runScoring),
+      watchScoringJob,
+      listScoringResults: unwrap(listScoringResults),
+      loadScoringResult: unwrap(loadScoringResult),
+      deleteScoringResult,
+      listScoringSources: unwrap(listScoringSources),
+      listScoringDatasets,
+      pickScoringDataset,
+      saveScoringExport,
+      exportScoringPdf,
     });
+    return { accountId };
   },
 });
 </script>

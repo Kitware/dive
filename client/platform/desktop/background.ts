@@ -6,6 +6,7 @@ import os from 'os';
 import path from 'path';
 
 import { closeAll as closeChildren } from './backend/native/processManager';
+import { shutdownQueryService } from './backend/native/videoSearch';
 import { listen, close as closeServer } from './backend/server';
 import ipcListen from './backend/ipcService';
 import {
@@ -189,6 +190,9 @@ protocol.registerSchemesAsPrivileged([
 
 async function cleanup() {
   closeServer();
+  // Graceful first: lets the query service stop its embedded postgres
+  // before closeChildren() kills whatever is left.
+  await shutdownQueryService().catch(() => undefined);
   await closeChildren();
   app.quit();
 }
@@ -221,12 +225,13 @@ async function createWindow() {
   try {
     const size = screen.getPrimaryDisplay().workAreaSize;
     const partitionSession = session.fromPartition('persist:dive');
+    const launchedFromViame = Boolean(process.env.DIVE_VIAME_INSTALL_PATH);
     // Create the browser window.
     win = new BrowserWindow({
       width: Math.min(size.width, 1420),
       height: Math.min(size.height - 200, 960),
       autoHideMenuBar: true,
-      title: 'VIAME DIVE Desktop',
+      title: launchedFromViame ? 'VIAME - DIVE Interface' : 'DIVE Desktop',
       webPreferences: {
         nodeIntegration: false,
         contextIsolation: true,
@@ -237,6 +242,11 @@ async function createWindow() {
         session: partitionSession,
       },
     });
+
+    // desktop.html otherwise replaces the native title after every page load.
+    if (launchedFromViame) {
+      win.on('page-title-updated', (event) => event.preventDefault());
+    }
 
     listen((server) => {
       let address = server.address();

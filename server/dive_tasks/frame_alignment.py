@@ -37,7 +37,10 @@ def is_frame_misaligned(
     headers: Optional[str] = None,
 ) -> bool:
     """
-    Return True if the first ~5s of frames contain duplicate timestamps.
+    Return True if the first ~5s of video frames contain duplicate timestamps.
+
+    Only the primary video stream is checked so audio/timecode packets at the
+    same wall time (e.g. both at 0.0s) are not mistaken for duplicate frames.
 
     *input_source* may be a local Path or an HTTP(S) URL. Pass *headers* (e.g.
     ``girder_auth_headers(token)``) when probing a Girder download URL so ffprobe
@@ -45,6 +48,8 @@ def is_frame_misaligned(
     so the token is not in process argv on modern ffprobe.
     """
     probe_tail = [
+        '-select_streams',
+        'v:0',
         str(input_source),
         '-hide_banner',
         '-read_intervals',

@@ -16,6 +16,7 @@ import {
 import { DefaultConfidence } from 'vue-media-annotator/BaseFilterControls';
 import { TrackData } from 'vue-media-annotator/track';
 import { GroupData } from 'vue-media-annotator/Group';
+import type { CustomStyle } from 'vue-media-annotator/StyleManager';
 import {
   DatasetType, Pipelines, SaveDetectionsArgs,
   FrameImage, DatasetConfigMutable, TrainingConfig, TrainingConfigs, SaveAttributeArgs,
@@ -31,11 +32,18 @@ import {
   FrameMetadataSourcesResponse,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { parseCameraOrderHeader } from 'dive-common/pipelineCameraOrder';
 import isFrameMetadataSourceName from 'dive-common/frameMetadata/naming';
 import {
   METADATA_ATTACHMENT_UNAVAILABLE, isFrameMetadataReadableName,
 } from 'dive-common/frameMetadata/readability';
 import { parentDatasetId, parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import declareSpeciesTypes from 'dive-common/speciesList';
+import type {
+  ScoringDatasetSummary, ScoringResultFile, ScoringResultSummary,
+  ScoringSource, ScoringSourceOptions,
+} from 'dive-common/scoring/types';
+import { summarizeResult } from 'dive-common/scoring/metrics';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
@@ -45,7 +53,7 @@ import kpf from 'platform/desktop/backend/serializers/kpf';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import {
   websafeImageTypes, websafeVideoTypes, otherImageTypes, otherVideoTypes, fileVideoTypes,
-  MultiType, JsonConfigRegEx, largeImageDesktopTypes, metadataFileTypes,
+  MultiType, JsonConfigRegEx, JsonSpeciesRegEx, largeImageDesktopTypes, metadataFileTypes,
 } from 'dive-common/constants';
 import {
   JsonConfig, Settings, JsonConfigCurrentVersion, DesktopConfig,
@@ -95,8 +103,14 @@ const PortableConfigFileName = 'config.json';
 const DiveJobManifestName = 'dive_job_manifest.json';
 const PortableConfigFileNameLegacy = 'meta.json';
 const CsvFileName = /^.*\.csv$/i;
+const ImportedAnnotationFileName = /^imported_.+/i;
+const ScoringResultFileName = /^scoring_[\w.-]+\.json$/;
 const YAMLFileName = /^.*\.ya?ml$/i;
 
+/** Mirrors `species_list_repeats_message` in server/dive_server/crud_rpc.py. */
+const speciesListRepeatsMessage = (repeated: string[]) => (
+  `Species list repeats category names: ${repeated.join(', ')}. No configuration was changed.`
+);
 const invalidHierarchyMessage = (reason: string) => (
   `Type hierarchy is invalid: ${reason}. No configuration was changed.`
 );
@@ -155,10 +169,12 @@ type DiveParam = NonNullable<PipeMetadata['diveParams']>[number];
 function parseDiveParamLines(lines: string[]) {
   const params: DiveParam[] = [];
   const includes: string[] = [];
+  const overrides = new Map<string, string>();
   let contextStack: string[] = [];
   lines.forEach((line) => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    if (trimmed.startsWith('::')) return;
 
     const includeMatch = trimmed.match(/^include\s+(\S+)/i);
     if (includeMatch) {
@@ -191,37 +207,35 @@ function parseDiveParamLines(lines: string[]) {
       return;
     }
 
-    const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
-    if (diveMatch) {
-      const [, label, rawArgs] = diveMatch;
-      const args = rawArgs.split(',').map((arg) => arg.trim());
-      const type: PipelineParamType = args[0] as PipelineParamType;
-      const restArgs = args.slice(1);
-      // `required` is a flag keyword — strip it from type_props,
-      // everything else stays positional for the type.
-      const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
-      const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
+    const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
+    const paramLineMatch = !configMatch
+      ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:.-]+)\s*=?\s*([^#]+)/i)
+      : null;
 
-      // `config <key> = <value>` — absolute kwiver key, no process/block prefix
-      // applied. Used for global / cross-referenced settings.
-      const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
-      // Otherwise a regular per-process/block parameter assignment.
-      const paramLineMatch = !configMatch
-        ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i)
-        : null;
+    let fullKey: string | null = null;
+    let defaultValue: string | null = null;
 
-      let fullKey: string | null = null;
-      let defaultValue: string | null = null;
-      if (configMatch) {
-        const [, key, value] = configMatch;
-        fullKey = key;
-        defaultValue = value.trim();
-      } else if (paramLineMatch) {
-        fullKey = [...contextStack, paramLineMatch[1]].join(':');
-        defaultValue = paramLineMatch[2].trim();
-      }
+    if (configMatch) {
+      const [, keyMatch, valueMatch] = configMatch;
+      fullKey = keyMatch;
+      defaultValue = valueMatch.trim();
+    } else if (paramLineMatch) {
+      const [, keyMatch, valueMatch] = paramLineMatch;
+      fullKey = [...contextStack, keyMatch].join(':');
+      defaultValue = valueMatch.trim();
+    }
 
-      if (fullKey !== null && defaultValue !== null) {
+    if (fullKey !== null && defaultValue !== null) {
+      overrides.set(fullKey, defaultValue);
+      const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
+      if (diveMatch) {
+        const [, label, rawArgs] = diveMatch;
+        const args = rawArgs.split(',').map((arg) => arg.trim());
+        const type: PipelineParamType = args[0] as PipelineParamType;
+        const restArgs = args.slice(1);
+        const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
+        const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
+
         params.push({
           label,
           type,
@@ -233,17 +247,17 @@ function parseDiveParamLines(lines: string[]) {
       }
     }
   });
-  return { params, includes };
+  return { params, includes, overrides };
 }
 
 /**
  * Collect DIVE_PARAMs from a pipe and, recursively, from its includes.
  *
  * Wrapper pipes inherit the params of the pipes they include; a file's own
- * declarations override inherited ones for the same key, matching kwiver's
- * config override order. Includes that cannot be read next to the including
- * file (e.g. $ENV{...} paths resolved by kwiver's own search path) simply
- * contribute no params.
+ * declarations and bare assignments override inherited defaults for the same
+ * key, matching kwiver's config override order. Includes that cannot be read
+ * next to the including file (e.g. $ENV{...} paths resolved by kwiver's own
+ * search path) simply contribute no params.
  */
 async function collectDiveParams(
   filePath: string,
@@ -261,13 +275,19 @@ async function collectDiveParams(
   } catch {
     return;
   }
-  const { params, includes } = parseDiveParamLines(lines);
+  const { params, includes, overrides } = parseDiveParamLines(lines);
   // eslint-disable-next-line no-restricted-syntax
   for (const include of includes.filter((f) => !f.includes('$'))) {
     // eslint-disable-next-line no-await-in-loop
     await collectDiveParams(npath.join(npath.dirname(resolved), include), collected, visited);
   }
   params.forEach((p) => collected.set(p.key, p));
+  overrides.forEach((val, key) => {
+    const existingParam = collected.get(key);
+    if (existingParam) {
+      collected.set(key, { ...existingParam, default: val });
+    }
+  });
 }
 
 /**
@@ -284,10 +304,24 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
     const lines = await readLines(filePath);
     let inDescription = false;
     let fullDescription = '';
+    // `process warpN` followed by `:: warp_detections|warp_image` marks an
+    // input whose camera must be registered onto camera 1.
+    let lastProcessName: string | null = null;
+    const registrationWarps: number[] = [];
 
     lines.forEach((line) => {
       const trimmed = line.trim();
       if (!trimmed) return;
+
+      const processMatch = trimmed.match(/^process\s+(\S+)/);
+      if (processMatch) {
+        [, lastProcessName] = processMatch;
+      } else if (/^::\s*(warp_detections|warp_image)\b/.test(trimmed) && lastProcessName) {
+        const warpMatch = lastProcessName.match(/^warp(\d+)$/);
+        if (warpMatch) {
+          registrationWarps.push(Number.parseInt(warpMatch[1], 10));
+        }
+      }
 
       // --- Description extraction (Multiline) ---
       if (/^#\s*Description:\s*/i.test(line)) {
@@ -297,7 +331,7 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
       }
 
       if (inDescription) {
-        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?):/i.test(line) || !line.startsWith('#')) {
+        if (/^#\s*$/.test(line) || /^#\s*=/.test(line) || /^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):/i.test(line) || !line.startsWith('#')) {
           inDescription = false;
         } else {
           fullDescription += ` ${line.replace(/^#\s*/, '').trim()}`;
@@ -353,7 +387,20 @@ async function extractPipeMetadata(filePath: string): Promise<PipeMetadata> {
           metadata.calibrationKeys = keys;
         }
       }
+
+      // `# Camera Order: EO, UV, IR` names the camera role fed to each inputN of
+      // a 2-cam/3-cam pipe; DIVE matches dataset cameras onto it by name.
+      const cameraOrderMatch = line.match(/^#\s*Camera\s+Order:\s*(.+)/i);
+      if (cameraOrderMatch) {
+        const slots = parseCameraOrderHeader(cameraOrderMatch[1]);
+        if (slots.length) {
+          metadata.cameraOrder = slots;
+        }
+      }
     });
+    if (registrationWarps.length) {
+      metadata.registrationWarps = [...new Set(registrationWarps)].sort((a, b) => a - b);
+    }
     metadata.description = fullDescription.trim() || undefined;
   } catch (error) {
     console.error(`Error while reading ${filePath} metadata`, error);
@@ -470,10 +517,11 @@ async function _findCSVTrackFiles(searchPath: string) {
  * @returns object containing trackAbsPath and metaPath if it exists
  */
 async function _findJsonAndMetaTrackFile(basePath: string): Promise<
-  {trackFileAbsPath: string; configFileAbsPath?: string}> {
+  {trackFileAbsPath: string; configFileAbsPath?: string; speciesFileAbsPath?: string}> {
   const contents = await fs.readdir(basePath);
   const jsonFileCandidates: string[] = [];
   let configFileAbsPath: undefined | string;
+  let speciesFileAbsPath: undefined | string;
   await Promise.all(contents.map(async (name) => {
     const fullPath = npath.join(basePath, name);
     if (JsonTrackFileName.test(name)) {
@@ -496,12 +544,16 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
       } else if (!configFileAbsPath) {
         configFileAbsPath = fullPath;
       }
+    } else if (JsonSpeciesRegEx.test(name) && !speciesFileAbsPath) {
+      // A species list beside the media is applied after the dataset is created, the same
+      // way a discovered config.json is.
+      speciesFileAbsPath = fullPath;
     }
   }));
   if (jsonFileCandidates.length > 0) {
-    return { trackFileAbsPath: jsonFileCandidates[0], configFileAbsPath };
+    return { trackFileAbsPath: jsonFileCandidates[0], configFileAbsPath, speciesFileAbsPath };
   }
-  return { trackFileAbsPath: '', configFileAbsPath };
+  return { trackFileAbsPath: '', configFileAbsPath, speciesFileAbsPath };
 }
 
 /**
@@ -587,7 +639,7 @@ async function loadConfig(
   if (loadedCalibration.found) {
     ({
       homographies: cameraHomographies,
-      correspondences: cameraCorrespondences,
+      observations: cameraCorrespondences,
       transformTypes: cameraTransformTypes,
       source: cameraRegistrationSource,
     } = loadedCalibration);
@@ -816,6 +868,21 @@ async function discoverMetadataAttachment(directory: string): Promise<string | u
 }
 
 /**
+ * The KWCOCO species list beside a dataset's media, if any: the first file in `directory`
+ * whose name ends in `species.json`, in name order so the pick is stable. The single-dataset
+ * import finds its list while it scans for a track file; the multicam import has no such
+ * scan, so it asks here for the directory its cameras share.
+ */
+async function discoverSpeciesList(directory: string): Promise<string | undefined> {
+  const names = (await fs.readdir(directory)).filter((name) => JsonSpeciesRegEx.test(name)).sort();
+  const files = await Promise.all(names.map(async (name) => {
+    const fullPath = npath.join(directory, name);
+    return (await fs.stat(fullPath)).isFile() ? fullPath : undefined;
+  }));
+  return files.find((path) => path !== undefined);
+}
+
+/**
  * Discovery for the single-dataset import, where the answer is only the value the import
  * dialog's "Metadata File (Optional)" field opens with. That field is the one place the user
  * can resolve an ambiguous or unreadable directory, and it appears only after this returns, so
@@ -1026,7 +1093,7 @@ async function autodiscoverData(settings: Settings): Promise<JsonConfig[]> {
  */
 async function getPipelineList(settings: Settings): Promise<Pipelines> {
   const pipelinePath = npath.join(settings.viamePath, 'configs/pipelines');
-  const allowedPatterns = /^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_|^measurement_.+|.*[2,3]-cam.+/;
+  const allowedPatterns = /^filter_.+|^transcode_.+|^detector_.+|^tracker_.+|^generate_.+|^utility_|^stereo_.+|.*[2,3]-cam.+/;
   const disallowedPatterns = /.*local.*|common_stereo_.*|detector_svm_models.pipe|tracker_svm_models.pipe/;
   const exists = await fs.pathExists(pipelinePath);
   if (!exists) return {};
@@ -1090,10 +1157,18 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
       (p: string) => p.match(allowedTrainedPatterns) && !p.match(disallowedPatterns),
     );
     if (pipesInFolder.length >= 2) {
-      const pipeName = pipesInFolder.find((pipe) => pipe && pipe.indexOf('.pipe') !== -1);
-      if (pipeName) {
+      // A training run can emit both a detector and a tracker; list each one
+      // separately and disambiguate them the way web does.
+      const pipeNames = pipesInFolder.filter((p) => p.endsWith('.pipe')).sort();
+      pipeNames.forEach((pipeName) => {
+        let suffix = '';
+        if (pipeName.endsWith('tracker.pipe')) {
+          suffix = ' tracker';
+        } else if (pipeName.endsWith('detector.pipe')) {
+          suffix = ' detector';
+        }
         const pipeInfo = {
-          name: item,
+          name: `${item}${suffix}`,
           type: 'trained',
           pipe: npath.join(pipeFolder, pipeName),
         };
@@ -1105,7 +1180,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
             description: 'trained pipes',
           };
         }
-      }
+      });
     }
     return true;
   }));
@@ -1274,11 +1349,16 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     );
     const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
     const hierarchyPresent = Object.prototype.hasOwnProperty.call(args, 'typeHierarchy');
+    const cameraRolesPresent = Object.prototype.hasOwnProperty.call(args, 'cameraRoles');
     if (cameraName) {
       if (hierarchyPresent) {
         await saveConfig(settings, parentId, { typeHierarchy: args.typeHierarchy });
       }
+      if (cameraRolesPresent) {
+        await saveConfig(settings, parentId, { cameraRoles: args.cameraRoles });
+      }
       delete existing.typeHierarchy;
+      delete existing.cameraRoles;
     }
     let hierarchyWrite: HierarchyWrite;
     try {
@@ -1322,6 +1402,9 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     }
     if (args.datasetInfo) {
       existing.datasetInfo = args.datasetInfo;
+    }
+    if (cameraRolesPresent && !cameraName) {
+      existing.cameraRoles = args.cameraRoles;
     }
 
     // Registration files remain separate so each camera pair has one persisted owner.
@@ -1505,6 +1588,13 @@ interface IngestFilePlan {
   additivePrepend: string;
   configMeta?: StagedConfigImport;
   cocoHierarchy?: Record<string, string>;
+  /**
+   * The dataset's complete declared type styling after this species list is applied.
+   * Resolved during preflight against the canonical dataset so execution neither re-reads
+   * the file nor repeats the Overwrite/additive policy, and assigned rather than merged so
+   * Overwrite can drop the types the list omits.
+   */
+  speciesStyling?: Record<string, CustomStyle>;
   configWarnings?: string[];
 }
 
@@ -1519,6 +1609,20 @@ async function loadCanonicalHierarchy(settings: Settings, datasetId: string): Pr
   return Object.prototype.hasOwnProperty.call(config, 'typeHierarchy')
     ? config.typeHierarchy
     : null;
+}
+
+async function loadCanonicalTypeStyling(
+  settings: Settings,
+  datasetId: string,
+): Promise<Record<string, CustomStyle>> {
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  const canonicalId = cameraName ? parentId : datasetId;
+  const projectDir = getProjectDir(settings, canonicalId);
+  if (!await fs.pathExists(projectDir.datasetFileAbsPath)) {
+    return {};
+  }
+  const config = await loadJsonConfig(projectDir.datasetFileAbsPath);
+  return config.customTypeStyling ?? {};
 }
 
 function mergeImportedConfig(
@@ -1574,6 +1678,9 @@ async function preflightIngestFiles(
   additivePrepend: string,
 ): Promise<IngestFilePlan[]> {
   let hierarchyCandidate = await loadCanonicalHierarchy(settings, datasetId);
+  // Read lazily: only a species list needs the dataset's declared styling, and most
+  // ingests never see one.
+  let stylingCandidate: Record<string, CustomStyle> | undefined;
   const plan: IngestFilePlan[] = [
     ...absPaths.map((path) => ({
       datasetId,
@@ -1606,7 +1713,53 @@ async function preflightIngestFiles(
           throw error;
         }
       }
-      if (jsonObject !== undefined
+      if (jsonObject !== undefined && coco.isCocoSpeciesList(jsonObject)) {
+        // Checked before the DIVE configuration branch, mirroring the server: a category-only
+        // document declares the classes a dataset may use and carries no annotations.
+        const repeated = coco.repeatedCategoryNames(jsonObject);
+        if (repeated.length) {
+          // A species list is imported for its classes. A repeated name is ambiguous, and it
+          // would also silently cost the file its hierarchy, so the import fails before
+          // anything is written rather than declaring the de-duplicated names.
+          throw new Error(speciesListRepeatsMessage(repeated));
+        }
+        const { hierarchy, warnings } = coco.typeHierarchyFromCategories(jsonObject);
+        entry.configWarnings = warnings;
+        const names = coco.speciesListFromCategories(jsonObject);
+        if (stylingCandidate === undefined) {
+          // eslint-disable-next-line no-await-in-loop
+          stylingCandidate = await loadCanonicalTypeStyling(settings, datasetId);
+        }
+        try {
+          const write = resolveTypeHierarchy(
+            hierarchyCandidate,
+            true,
+            // A list that declares no supercategory sends an empty map: Overwrite clears the
+            // stored hierarchy along with the types it replaces, while an additive import
+            // leaves it alone. A species list is imported for its classes, so an unusable
+            // hierarchy fails the import rather than degrading to a flat list the way the
+            // category block of an annotation file does.
+            hierarchy ?? {},
+            additive ? 'additive' : 'overwrite',
+          );
+          const configMeta: StagedConfigImport = {};
+          if (write.action === 'set') {
+            hierarchyCandidate = write.hierarchy;
+            configMeta.typeHierarchy = { ...write.hierarchy };
+          } else if (write.action === 'delete') {
+            hierarchyCandidate = null;
+            configMeta.typeHierarchy = null;
+          }
+          stylingCandidate = declareSpeciesTypes(stylingCandidate, names, additive);
+          entry.speciesStyling = { ...stylingCandidate };
+          entry.configMeta = configMeta;
+        } catch (error) {
+          if (error instanceof TypeHierarchyError) {
+            throw new Error(invalidHierarchyMessage(error.reason));
+          }
+          throw error;
+        }
+      } else if (jsonObject !== undefined
         && jsonObject !== null
         && typeof jsonObject === 'object'
         && !Array.isArray(jsonObject)
@@ -1691,11 +1844,25 @@ async function ingestDataFiles(
   additivePrepend = '',
 ): Promise<{
   processedFiles: string[];
+  /**
+   * Whether any processed file wrote an annotation file. A configuration file or a species
+   * list counts as processed but saves none, so a caller that needs the dataset to have a
+   * track file cannot infer that from `processedFiles` alone.
+   */
+  annotationsSaved: boolean;
   meta: DatasetConfigMutable & { fps?: number };
   warnings: string[];
+  /**
+   * The dataset's complete declared type styling when a species list was among the files.
+   * Kept out of `meta` because callers assign it rather than deep-merging it: Overwrite
+   * drops the types the list omits, which a merge would put back.
+   */
+  speciesStyling?: Record<string, CustomStyle>;
 }> {
   const processedFiles = []; // which files were processed to generate the detections
+  let annotationsSaved = false;
   const meta: DatasetConfigMutable & { fps?: number } = {};
+  let speciesStyling: Record<string, CustomStyle> | undefined;
   let outwarnings: string[] = [];
   const plan = await preflightIngestFiles(
     settings,
@@ -1719,8 +1886,13 @@ async function ingestDataFiles(
         const [newMeta, warnings, metadataConfig, auxiliaryPath] = results;
         outwarnings = outwarnings.concat(warnings, entry.configWarnings || []);
         mergeStagedImportedConfig(meta, newMeta, additive);
+        if (entry.speciesStyling) {
+          speciesStyling = entry.speciesStyling;
+        }
         if (metadataConfig) {
           importedConfigCopies.push(auxiliaryPath);
+        } else {
+          annotationsSaved = true;
         }
         processedFiles.push(entry.path);
       }
@@ -1730,7 +1902,9 @@ async function ingestDataFiles(
     throw error;
   }
 
-  return { processedFiles, meta, warnings: outwarnings };
+  return {
+    processedFiles, annotationsSaved, meta, warnings: outwarnings, speciesStyling,
+  };
 }
 /**
  * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder
@@ -1771,8 +1945,11 @@ function processIsRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // ESRCH: no such process. EPERM/EACCES: process exists but we cannot signal it
+    // (other uid, or a restricted environment). Only absence means not running.
+    const { code } = err as NodeJS.ErrnoException;
+    return code === 'EPERM' || code === 'EACCES';
   }
 }
 
@@ -1901,7 +2078,7 @@ async function checkDataset(
 async function findTrackandMetaFileinFolder(path: string) {
   const results = await _findJsonAndMetaTrackFile(path);
   let { trackFileAbsPath } = results;
-  const { configFileAbsPath } = results;
+  const { configFileAbsPath, speciesFileAbsPath } = results;
   if (!trackFileAbsPath) {
     // Declared frame metadata sidecars stay in place for read-time discovery; the first
     // remaining CSV is unconditionally the annotation track file.
@@ -1911,7 +2088,7 @@ async function findTrackandMetaFileinFolder(path: string) {
       [trackFileAbsPath] = csvFileCandidates;
     }
   }
-  return { trackFileAbsPath, configFileAbsPath };
+  return { trackFileAbsPath, configFileAbsPath, speciesFileAbsPath };
 }
 
 /**
@@ -2221,7 +2398,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     throw new Error('only video, image-sequence, and large-image types are supported');
   }
 
-  const { trackFileAbsPath, configFileAbsPath } = await
+  const { trackFileAbsPath, configFileAbsPath, speciesFileAbsPath } = await
   findTrackandMetaFileinFolder(relatedDataSearchPath);
   // The discovered attachment is a suggestion the import dialog shows and the user can clear or
   // replace, so it travels on the response rather than on jsonConfig.
@@ -2234,6 +2411,7 @@ async function beginMediaImport(path: string): Promise<DesktopMediaImportRespons
     forceMediaTranscode: false,
     multiCamTrackFiles: null,
     configFileAbsPath,
+    speciesFileAbsPath,
     ...(metadata.path ? { metadataFileAbsPath: metadata.path } : {}),
     ...(metadata.warning ? { importWarnings: [metadata.warning] } : {}),
   };
@@ -2286,6 +2464,11 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
       ? { ...(existingDatasetInfo ?? {}), ...result.meta.datasetInfo }
       : result.meta.datasetInfo;
   }
+  // A species list declares the whole type list. Assign it for the same reason datasetInfo is
+  // assigned: the deep merge above would keep the types an Overwrite import meant to drop.
+  if (result.speciesStyling) {
+    jsonConfig.customTypeStyling = result.speciesStyling;
+  }
   await saveProjectConfig(projectDirData.basePath, jsonConfig);
   // Shared mutable config (styling, thresholds, attributes, datasetInfo, ...) is
   // loaded by the viewer from the base dataset's metadata, so an import
@@ -2293,7 +2476,9 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
   // Do not sync per-camera imageEnhancements or camera-registration fields.
   const hierarchyPresent = Object.prototype.hasOwnProperty.call(result.meta, 'typeHierarchy');
   if (cameraName && (
-    hierarchyPresent || MulticamSharedMutableKeys.some((key) => key in result.meta)
+    hierarchyPresent
+    || result.speciesStyling !== undefined
+    || MulticamSharedMutableKeys.some((key) => key in result.meta)
   )) {
     const baseProjectDir = getProjectDir(settings, parentId);
     if (await fs.pathExists(baseProjectDir.datasetFileAbsPath)) {
@@ -2308,6 +2493,9 @@ async function dataFileImport(settings: Settings, id: string, path: string, addi
         baseMeta.datasetInfo = additive
           ? { ...(existingBaseDatasetInfo ?? {}), ...result.meta.datasetInfo }
           : result.meta.datasetInfo;
+      }
+      if (result.speciesStyling) {
+        baseMeta.customTypeStyling = result.speciesStyling;
       }
       await saveProjectConfig(baseProjectDir.basePath, baseMeta);
     }
@@ -2361,8 +2549,15 @@ async function _importTrackFile(
       delete importedMeta.typeHierarchy;
     }
     merge(jsonConfig, importedMeta);
+    if (processed.speciesStyling) {
+      // Assigned, not merged: an Overwrite species list drops the types it omits.
+      // eslint-disable-next-line no-param-reassign
+      jsonConfig.customTypeStyling = processed.speciesStyling;
+    }
     warnings = processed.warnings;
-    if (processed.processedFiles.length === 0) {
+    // A DIVE configuration file or a species list chosen as the annotation file is processed
+    // but writes no annotations, and every later step expects a track file to exist.
+    if (!processed.annotationsSaved) {
       await _saveSerialized(settings, dsId, dive.makeEmptyAnnotationFile(), true);
     }
   } else {
@@ -2596,6 +2791,11 @@ async function finalizeMediaImport(
   if (args.configFileAbsPath) {
     await dataFileImport(settings, jsonConfig.id, args.configFileAbsPath);
   }
+  // After the configuration file, so a species list always declares against the styling that
+  // file brought rather than the other way around.
+  if (args.speciesFileAbsPath) {
+    await dataFileImport(settings, jsonConfig.id, args.speciesFileAbsPath);
+  }
   const conversionJobArgs: ConversionArgs = {
     type: JobType.Conversion,
     meta: finalJsonConfig,
@@ -2741,6 +2941,125 @@ async function exportDataset(settings: Settings, args: ExportDatasetArgs) {
   });
 }
 
+/**
+ * Annotation files a desktop scoring source can point at: track files rotated
+ * into auxiliary by earlier saves, and copies of imported annotation files.
+ */
+async function listScoringSources(
+  settings: Settings,
+  datasetId: string,
+): Promise<ScoringSourceOptions> {
+  const projectInfo = await getValidatedProjectDir(settings, datasetId);
+  const names = await fs.readdir(projectInfo.auxDirAbsPath);
+  const files = await Promise.all(names
+    .filter((name) => JsonTrackFileName.test(name) || ImportedAnnotationFileName.test(name))
+    .map(async (name) => {
+      const path = npath.join(projectInfo.auxDirAbsPath, name);
+      const stat = await fs.stat(path);
+      return stat.isFile() ? { path, name, modified: stat.mtime.toISOString() } : null;
+    }));
+  return {
+    sets: [],
+    revisions: [],
+    files: files
+      .filter((file): file is NonNullable<typeof file> => file !== null)
+      .sort((a, b) => b.modified.localeCompare(a.modified)),
+    allowFilePaths: true,
+  };
+}
+
+async function listScoringDatasets(settings: Settings): Promise<ScoringDatasetSummary[]> {
+  const metas = await autodiscoverData(settings);
+  return metas.map(({ id, name, type }) => ({ id, name, type }));
+}
+
+async function summarizeScoringResultsIn(
+  auxDirAbsPath: string,
+  datasetId: string,
+): Promise<ScoringResultSummary[]> {
+  const names = await listNames(auxDirAbsPath);
+  const summaries: ScoringResultSummary[] = [];
+  await Promise.all(names.filter((name) => ScoringResultFileName.test(name)).map(async (name) => {
+    try {
+      const file = await fs.readJson(npath.join(auxDirAbsPath, name)) as ScoringResultFile;
+      // Files written before datasetId existed live in the dataset they belong to.
+      summaries.push(summarizeResult({ ...file, id: name, datasetId: file.datasetId || datasetId }));
+    } catch (err) {
+      console.warn(`Skipping unreadable scoring result ${name}:`, err);
+    }
+  }));
+  return summaries;
+}
+
+/** Runs stored on one dataset, or on every project when no dataset is given. */
+async function listScoringResults(
+  settings: Settings,
+  datasetId?: string,
+): Promise<ScoringResultSummary[]> {
+  let summaries: ScoringResultSummary[];
+  if (datasetId) {
+    const projectInfo = await getValidatedProjectDir(settings, datasetId);
+    summaries = await summarizeScoringResultsIn(projectInfo.auxDirAbsPath, datasetId);
+  } else {
+    const projectIds = await listNames(npath.join(settings.dataPath, ProjectsFolderName));
+    summaries = (await Promise.all(projectIds.map((id) => (
+      summarizeScoringResultsIn(getProjectDir(settings, id).auxDirAbsPath, id)
+    )))).flat();
+  }
+  return summaries.sort((a, b) => b.created.localeCompare(a.created));
+}
+
+async function scoringResultPath(settings: Settings, datasetId: string, resultId: string) {
+  if (!ScoringResultFileName.test(resultId)) {
+    throw new Error(`${resultId} is not a scoring result id`);
+  }
+  const projectInfo = await getValidatedProjectDir(settings, datasetId);
+  const path = npath.resolve(projectInfo.auxDirAbsPath, resultId);
+  if (npath.dirname(path) !== npath.resolve(projectInfo.auxDirAbsPath)) {
+    throw new Error(`${resultId} is not a scoring result id`);
+  }
+  return path;
+}
+
+async function loadScoringResult(
+  settings: Settings,
+  datasetId: string,
+  resultId: string,
+): Promise<ScoringResultFile> {
+  const path = await scoringResultPath(settings, datasetId, resultId);
+  const file = await fs.readJson(path) as ScoringResultFile;
+  return { ...file, id: npath.basename(path), datasetId: file.datasetId || datasetId };
+}
+
+async function deleteScoringResult(settings: Settings, datasetId: string, resultId: string) {
+  await fs.unlink(await scoringResultPath(settings, datasetId, resultId));
+}
+
+/**
+ * Write one side of a scoring comparison as VIAME CSV. Every detection is
+ * kept so the scorer, not the dataset's display filter, applies thresholds.
+ */
+async function exportScoringSourceCsv(settings: Settings, source: ScoringSource, outPath: string) {
+  if (source.file && CsvFileName.test(source.file)) {
+    await fs.copy(source.file, outPath);
+    return;
+  }
+  const projectInfo = await getValidatedProjectDir(settings, source.datasetId);
+  let trackFile = projectInfo.trackFileAbsPath;
+  if (source.file) {
+    if (!JsonFileName.test(source.file)) {
+      throw new Error(`${source.file} is not a CSV or JSON annotation file`);
+    }
+    trackFile = source.file;
+  }
+  const meta = await loadJsonConfig(projectInfo.datasetFileAbsPath);
+  const data = await loadAnnotationFile(trackFile);
+  await viameSerializers.serializeFile(outPath, data, meta, new Set(), {
+    excludeBelowThreshold: false,
+    header: true,
+  });
+}
+
 async function exportConfiguration(settings: Settings, args: ExportConfigurationArgs) {
   const projectDirInfo = await getValidatedProjectDir(settings, args.id);
   const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
@@ -2780,8 +3099,15 @@ export {
   checkDataset,
   exportConfiguration,
   exportDataset,
+  exportScoringSourceCsv,
+  listScoringSources,
+  listScoringDatasets,
+  listScoringResults,
+  loadScoringResult,
+  deleteScoringResult,
   finalizeMediaImport,
   getPipelineList,
+  extractPipeMetadata,
   deleteTrainedPipeline,
   getTrainingConfigs,
   getProjectDir,
@@ -2795,6 +3121,7 @@ export {
   loadFrameMetadata,
   frameMetadataSourceDirectories,
   discoverMetadataAttachment,
+  discoverSpeciesList,
   openLink,
   openPathInFileManager,
   ingestDataFiles,

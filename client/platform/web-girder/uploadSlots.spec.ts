@@ -11,6 +11,7 @@ function accountedNames(slots: ReturnType<typeof suggestUploadSlots>): string[] 
     ...slots.mediaList.map((f) => f.name),
     ...(slots.annotationFile ? [slots.annotationFile.name] : []),
     ...(slots.configFile ? [slots.configFile.name] : []),
+    ...(slots.speciesFile ? [slots.speciesFile.name] : []),
     ...(slots.metadataFile ? [slots.metadataFile.name] : []),
     ...slots.unslotted.map((entry) => entry.name),
   ].sort();
@@ -80,11 +81,39 @@ describe('suggestUploadSlots', () => {
     expect(slots.annotationFile?.name).toBe('tracks.yml');
   });
 
+  it('gives a species list its own slot beside the annotations and the config', () => {
+    const slots = suggestUploadSlots([
+      file('img001.png'),
+      file('tracks.json'),
+      file('dataset.config.json'),
+      file('rockfish.species.json'),
+    ]);
+    expect(slots.speciesFile?.name).toBe('rockfish.species.json');
+    expect(slots.configFile?.name).toBe('dataset.config.json');
+    expect(slots.annotationFile?.name).toBe('tracks.json');
+    expect(slots.mediaList.map((f) => f.name)).toEqual(['img001.png']);
+    expect(slots.unslotted).toEqual([]);
+  });
+
+  it('reports a second species list rather than sending both to validation', () => {
+    const slots = suggestUploadSlots([
+      file('img001.png'),
+      file('a.species.json'),
+      file('b.species.json'),
+    ]);
+    expect(slots.speciesFile?.name).toBe('a.species.json');
+    expect(slots.annotationFile).toBeNull();
+    expect(slots.unslotted).toEqual([
+      { name: 'b.species.json', reason: 'Only one species list can be uploaded per dataset' },
+    ]);
+  });
+
   it('never silently drops any picked file (every input is slotted or reported)', () => {
     const picked = [
       file('img001.png'), file('img002.png'),
       file('tracks.csv'), file('extra.csv'),
       file('dataset.meta.json'), file('other.json'),
+      file('reef.species.json'),
       file('frame-metadata.txt'), file('nav.unknown'),
     ];
     const slots = suggestUploadSlots(picked);
