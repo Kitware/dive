@@ -9,11 +9,12 @@ import type { WarpOptions, WarpResult } from './StereoOnnxMatcher';
 
 /**
  * `ncc` — epipolar candidates + NCC template matching (VIAME method 1).
+ * `dino` — the same, with DINO features pre-selecting the candidates (desktop only).
  * `foundation` — dense Fast-FoundationStereo disparity, read per point.
  */
-export type StereoMatchMethod = 'ncc' | 'foundation';
+export type StereoMatchMethod = 'ncc' | 'dino' | 'foundation';
 
-export const DEFAULT_STEREO_MATCH_METHOD: StereoMatchMethod = 'ncc';
+export const DEFAULT_STEREO_MATCH_METHOD: StereoMatchMethod = 'foundation';
 
 export interface StereoMatcher {
   warpPoints(
@@ -38,7 +39,16 @@ export interface StereoMatcher {
 }
 
 /** Labels for the method selector. */
-export const STEREO_MATCH_METHODS: { value: StereoMatchMethod; text: string }[] = [
+export const STEREO_MATCH_METHODS: { value: StereoMatchMethod; text: string; desktopOnly?: boolean }[] = [
   { value: 'foundation', text: 'Higher Quality, Slower' },
+  { value: 'dino', text: 'Medium Quality, Medium Speed', desktopOnly: true },
   { value: 'ncc', text: 'Lower Quality, Faster' },
 ];
+
+export function stereoMatchMethodsFor(desktop: boolean) {
+  return STEREO_MATCH_METHODS.filter((m) => desktop || !m.desktopOnly);
+}
+
+export function isStereoMatchMethod(value: unknown, desktop: boolean): value is StereoMatchMethod {
+  return stereoMatchMethodsFor(desktop).some((m) => m.value === value);
+}

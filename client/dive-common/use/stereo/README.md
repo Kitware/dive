@@ -5,13 +5,17 @@ length, entirely in the browser / Electron renderer — no backend — running t
 correspondence model with `onnxruntime-web`.
 
 Two correspondence methods are available, chosen from **Track Settings → Stereo
-Settings → Stereo point matching** (web only; desktop's method is set by the VIAME
-interactive stereo config instead):
+Settings → Stereo point matching**:
 
 | Method | Model | How it matches |
 | --- | --- | --- |
-| **Lower Quality, Faster** — default | VIAME's epipolar template-matching model (stereo measurement "method 1"), bundled | Per point: generate epipolar candidates, NCC the source patch along that curve |
-| **Higher Quality, Slower** | The Fast-FoundationStereo export from VIAME's `FAST-FDN-STEREO` add-on, served by the girder server | Once per frame: rectify the pair, run a dense disparity network, read each point's shift out of the map |
+| **Higher Quality, Slower** — default | The Fast-FoundationStereo export from VIAME's `FAST-FDN-STEREO` add-on, served by the girder server | Once per frame: rectify the pair, run a dense disparity network, read each point's shift out of the map |
+| **Lower Quality, Faster** | VIAME's epipolar template-matching model (stereo measurement "method 1"), bundled | Per point: generate epipolar candidates, NCC the source patch along that curve |
+
+Desktop offers the same setting (plus **Medium Quality, Medium Speed**, NCC with
+DINO candidate selection) but maps each choice onto a VIAME interactive stereo
+config run by the backend service (`platform/desktop/backend/native/stereoConfig.ts`);
+the Higher and Medium options need the `FAST-FDN-STEREO` and `DINO` add-ons installed.
 
 They are interchangeable behind the `StereoMatcher` interface, so everything
 downstream — box/line/polygon warping, measurement, bulk transfer — is identical

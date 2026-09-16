@@ -32,6 +32,7 @@ import {
   BuildSearchIndex,
 } from 'platform/desktop/constants';
 
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import { gpuJobQueue, cpuJobQueue, jobHistory } from './store/jobs';
 
 interface FileFilter {
@@ -809,8 +810,9 @@ interface StereoTransferPointsResponse {
 async function stereoEnable(
   calibration?: StereoCalibration,
   calibrationFile?: string,
+  matchMethod?: StereoMatchMethod,
 ): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
-  return invoke<{ success: boolean; error?: string; launchFailed?: boolean }>('stereo-enable', { calibration, calibrationFile });
+  return invoke<{ success: boolean; error?: string; launchFailed?: boolean }>('stereo-enable', { calibration, calibrationFile, matchMethod });
 }
 
 async function stereoDisable(): Promise<{ success: boolean }> {

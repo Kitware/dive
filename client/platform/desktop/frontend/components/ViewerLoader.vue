@@ -855,7 +855,11 @@ export default defineComponent({
           // annotation until measurements will actually work.
           stereoLoadingMessage.value = 'Loading stereo model...';
           stereoLoadingDialog.value = true;
-          const result = await stereoEnable(undefined, stereoCalibrationFile);
+          const result = await stereoEnable(
+            undefined,
+            stereoCalibrationFile,
+            clientSettings.stereoSettings.matchMethod,
+          );
           if (!result.success) {
             // launchFailed means the backend service couldn't even start (e.g.
             // missing python interpreter or a broken import). That is a real
@@ -975,6 +979,16 @@ export default defineComponent({
     // until the toggle was flipped off and on again. The load-time auto-enable
     // is deferred to the viewer-ready watcher below instead.
     watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true));
+
+    // The method selects the backend's stereo config, so switching it reloads
+    // the service. A failure (e.g. the add-on for the new method is not
+    // installed) shows the persistent error dialog and leaves the setting as
+    // chosen, so the message explains what to install or change.
+    watch(() => clientSettings.stereoSettings.matchMethod, async () => {
+      if (stereoDatasetUnavailable || !stereoServiceWanted()) return;
+      await requestStereoServiceState(false, false);
+      await requestStereoServiceState(true, false);
+    });
 
     watch(
       () => viewerRef.value?.progress?.loaded === true,

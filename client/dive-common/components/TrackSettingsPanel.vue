@@ -7,7 +7,7 @@ import {
   computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
-import { STEREO_MATCH_METHODS } from 'dive-common/use/stereo/stereoMatcher';
+import { stereoMatchMethodsFor } from 'dive-common/use/stereo/stereoMatcher';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export default defineComponent({
@@ -41,7 +41,9 @@ export default defineComponent({
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
       stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
-      stereoMatchMethod: 'How points are located on the other camera. "Higher Quality, Slower" runs the Fast Foundation Stereo model over the whole image pair (downloaded once, about 90 MB; needs a WebGPU-capable browser) and reads every point from its disparity map, which is computed ahead of time whenever you change frames. "Lower Quality, Faster" template-matches each point along its epipolar line.',
+      stereoMatchMethod: isDesktopRuntime()
+        ? 'How points are located on the other camera. "Higher Quality, Slower" runs the Fast Foundation Stereo model over the whole image pair and reads every point from its disparity map, which is computed ahead of time whenever you change frames (requires the Fast Foundation Stereo add-on). "Medium Quality, Medium Speed" template-matches each point along its epipolar line after DINO features pick the candidates (requires the DINO add-on). "Lower Quality, Faster" template-matches each point along its epipolar line.'
+        : 'How points are located on the other camera. "Higher Quality, Slower" runs the Fast Foundation Stereo model over the whole image pair (downloaded once, about 90 MB; needs a WebGPU-capable browser) and reads every point from its disparity map, which is computed ahead of time whenever you change frames. "Lower Quality, Faster" template-matches each point along its epipolar line.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -54,7 +56,7 @@ export default defineComponent({
       help,
       modes,
       typeList,
-      stereoMatchMethods: STEREO_MATCH_METHODS,
+      stereoMatchMethods: stereoMatchMethodsFor(isDesktopRuntime()),
     };
   },
 });
@@ -449,7 +451,6 @@ export default defineComponent({
           </v-col>
         </v-row>
         <v-row
-          v-if="!isDesktopRuntime"
           align="end"
           dense
         >
