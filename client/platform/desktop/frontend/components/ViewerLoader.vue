@@ -194,6 +194,10 @@ export default defineComponent({
       }
       return props.id;
     });
+    // Held as a computed rather than an inline `[modifiedId]` in the template:
+    // an inline array is a new value on every re-render, which makes the
+    // pipeline menu re-look-up the dataset's calibration on every click.
+    const pipelineDatasetIds = computed(() => [modifiedId.value]);
     const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
@@ -2118,6 +2122,7 @@ export default defineComponent({
       camNumbers,
       readonlyMode,
       modifiedId,
+      pipelineDatasetIds,
       changeCamera,
       readOnlyMode,
       runningPipelines,
@@ -2203,7 +2208,7 @@ export default defineComponent({
       <template #title-right>
         <RunPipelineMenu
           :before-run="() => viewerRef.save()"
-          :selected-dataset-ids="[modifiedId]"
+          :selected-dataset-ids="pipelineDatasetIds"
           :sub-type-list="subTypeList"
           :camera-numbers="camNumbers"
           :running-pipelines="runningPipelines"

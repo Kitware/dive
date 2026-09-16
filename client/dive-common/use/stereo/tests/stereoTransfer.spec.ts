@@ -4,6 +4,7 @@ import { ref } from 'vue';
 import {
   describe, it, expect, vi,
 } from 'vitest';
+import { clientSettings } from 'dive-common/store/settings';
 import { rigFromNpz, StereoRig } from '../calibration';
 import { project } from '../triangulate';
 import useStereoOnnxTransfer, { STEREO_USER_LINE_ATTR } from '../useStereoOnnxTransfer';
@@ -11,6 +12,18 @@ import useStereoOnnxWeb, { fromViewer } from '../../../../platform/web-girder/us
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const loadRig = () => rigFromNpz(readFileSync(fixture('calibration.npz')));
+
+const girderMocks = vi.hoisted(() => ({
+  getDatasetCalibration: vi.fn(),
+  girderGet: vi.fn(),
+}));
+
+vi.mock('platform/web-girder/api/dataset.service', () => ({
+  getDatasetCalibration: girderMocks.getDatasetCalibration,
+}));
+vi.mock('platform/web-girder/plugins/girder', () => ({
+  default: { get: girderMocks.girderGet },
+}));
 
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
 const ZERO = [0, 0, 0];
@@ -67,6 +80,76 @@ describe('useStereoOnnxWeb viewer rebinding', () => {
     viewer = { cameraStore: storeB, multiCamList: ['left', 'right'] };
     await stereo.warpAllFromCamera('left');
     expect(forEachB).toHaveBeenCalled();
+  });
+});
+
+/**
+ * Every warp and every measurement calls getRig, and `dive_dataset/calibration`
+ * resolves the item and can read the stored file server-side, so resolving it
+ * once per dataset rather than once per annotation matters.
+ */
+describe('useStereoOnnxWeb calibration caching', () => {
+  function makeStereo() {
+    const viewer = {
+      cameraStore: { getPossibleTrack: () => undefined, camMap: ref(new Map()) },
+      multiCamList: ['left', 'right'],
+    };
+    return useStereoOnnxWeb({
+      getViewer: () => viewer,
+      getDatasetId: () => 'dataset-a',
+    });
+  }
+
+  /** A box completion is the shortest path that reaches getRig. */
+  const boxDrawn = {
+    type: 'box' as const,
+    camera: 'left',
+    trackId: 1,
+    frameNum: 0,
+    bounds: [0, 0, 10, 10] as [number, number, number, number],
+  };
+
+  it('resolves the calibration item once per dataset, and again after invalidation', async () => {
+    girderMocks.getDatasetCalibration.mockReset();
+    girderMocks.girderGet.mockReset();
+    girderMocks.getDatasetCalibration.mockResolvedValue({
+      data: { itemId: 'item-1', originalName: 'calibration.npz' },
+    });
+    girderMocks.girderGet.mockResolvedValue({ data: readFileSync(fixture('calibration.npz')) });
+    const autoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+    clientSettings.stereoSettings.autoComputeOtherCamera = true;
+    try {
+      const stereo = makeStereo();
+      // The matcher cannot load in Node, so each warp fails after the rig is
+      // read — which is exactly the part under test.
+      await stereo.handleStereoAnnotationComplete(boxDrawn);
+      await stereo.handleStereoAnnotationComplete(boxDrawn);
+      expect(girderMocks.getDatasetCalibration).toHaveBeenCalledTimes(1);
+      expect(girderMocks.girderGet).toHaveBeenCalledTimes(1);
+
+      stereo.invalidateCalibration();
+      await stereo.handleStereoAnnotationComplete(boxDrawn);
+      expect(girderMocks.getDatasetCalibration).toHaveBeenCalledTimes(2);
+      expect(girderMocks.girderGet).toHaveBeenCalledTimes(2);
+    } finally {
+      clientSettings.stereoSettings.autoComputeOtherCamera = autoCompute;
+    }
+  });
+
+  it('keeps looking for a calibration the dataset does not have yet', async () => {
+    girderMocks.getDatasetCalibration.mockReset();
+    girderMocks.girderGet.mockReset();
+    girderMocks.getDatasetCalibration.mockResolvedValue({ data: null });
+    const autoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+    clientSettings.stereoSettings.autoComputeOtherCamera = true;
+    try {
+      const stereo = makeStereo();
+      await stereo.handleStereoAnnotationComplete(boxDrawn);
+      await stereo.handleStereoAnnotationComplete(boxDrawn);
+      expect(girderMocks.getDatasetCalibration).toHaveBeenCalledTimes(2);
+    } finally {
+      clientSettings.stereoSettings.autoComputeOtherCamera = autoCompute;
+    }
   });
 });
 

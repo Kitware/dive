@@ -157,6 +157,14 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   const matchers: Record<string, Promise<StereoMatcher | null>> = {};
   let rig: StereoRig | null = null;
   let rigKey: string | null = null;
+  /**
+   * Which item holds the dataset's calibration. Cached because every warp and
+   * every measurement calls {@link getRig}, while `dive_dataset/calibration`
+   * resolves the item and may read and parse the stored file server-side.
+   * Only a resolved item is remembered, so a dataset that has no calibration
+   * yet is still picked up once the user attaches one.
+   */
+  let calibrationLookup: { datasetId: string; itemId: string; name: string } | null = null;
 
   function currentMethod(): StereoMatchMethod {
     if (opts.getMatchMethod) return opts.getMatchMethod();
@@ -216,6 +224,21 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return rig;
   }
 
+  /** The item holding the dataset's calibration, from the cache when known. */
+  async function calibrationItem(datasetId: string) {
+    if (calibrationLookup?.datasetId === datasetId) return calibrationLookup;
+    // Imported lazily: this module touches `window` at load time, which breaks
+    // node-environment unit tests that import this file.
+    const { getDatasetCalibration } = await import('platform/web-girder/api/dataset.service');
+    const { data } = await getDatasetCalibration(datasetId);
+    const itemId = data?.itemId ?? data?.jsonItemId;
+    if (!itemId) return null;
+    const name = (data.itemId ? data.originalName : data.jsonPath)
+      ?? data.originalName ?? data.jsonPath ?? '';
+    calibrationLookup = { datasetId, itemId, name };
+    return calibrationLookup;
+  }
+
   /**
    * The calibration stored on the dataset. Downloading the source item keeps the
    * client on exactly the file the pipelines use, so a page reload no longer
@@ -224,22 +247,25 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   async function rigFromDataset(): Promise<StereoRig | null> {
     const datasetId = opts.getDatasetId();
     if (!datasetId) return null;
-    // Imported lazily: these modules touch `window` at load time, which breaks
-    // node-environment unit tests that import this file.
-    const [{ getDatasetCalibration }, { default: girderRest }] = await Promise.all([
-      import('platform/web-girder/api/dataset.service'),
-      import('platform/web-girder/plugins/girder'),
-    ]);
-    const { data } = await getDatasetCalibration(datasetId);
-    const itemId = data?.itemId ?? data?.jsonItemId;
-    if (!itemId) return null;
-    if (rig && rigKey === `item:${itemId}`) return rig;
-    const name = (data.itemId ? data.originalName : data.jsonPath)
-      ?? data.originalName ?? data.jsonPath ?? '';
-    const response = await girderRest.get(`item/${itemId}/download`, { responseType: 'arraybuffer' });
-    rig = await parseRig(name, response.data as ArrayBuffer);
-    rigKey = `item:${itemId}`;
+    const item = await calibrationItem(datasetId);
+    if (!item) return null;
+    if (rig && rigKey === `item:${item.itemId}`) return rig;
+    const { default: girderRest } = await import('platform/web-girder/plugins/girder');
+    const response = await girderRest.get(`item/${item.itemId}/download`, { responseType: 'arraybuffer' });
+    rig = await parseRig(item.name, response.data as ArrayBuffer);
+    rigKey = `item:${item.itemId}`;
     return rig;
+  }
+
+  /**
+   * Forget the cached calibration, so the next warp resolves and downloads it
+   * again. The host calls this when the dataset's calibration file is replaced
+   * or removed.
+   */
+  function invalidateCalibration() {
+    calibrationLookup = null;
+    rig = null;
+    rigKey = null;
   }
 
   async function getRig(): Promise<StereoRig | null> {
@@ -378,5 +404,6 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     handleStereoTrackLinked,
     warpAllFromCamera,
     precomputeCurrentFrame,
+    invalidateCalibration,
   };
 }

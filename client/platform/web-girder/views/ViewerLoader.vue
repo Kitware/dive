@@ -172,6 +172,7 @@ export default defineComponent({
 
     const {
       handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
+      invalidateCalibration,
     } = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
@@ -260,6 +261,12 @@ export default defineComponent({
       return props.id;
     });
 
+    // Held as computeds rather than inline `[modifiedId]` / `[id]` in the
+    // template: an inline array is a new value on every re-render, which makes
+    // the menus re-look-up the dataset's calibration on every click.
+    const pipelineDatasetIds = computed(() => [modifiedId.value]);
+    const exportDatasetIds = computed(() => [props.id]);
+
     watch(() => props.id, (datasetId) => {
       selectedCamera.value = '';
       loadDataset(datasetId).catch((reason) => {
@@ -303,10 +310,12 @@ export default defineComponent({
 
     function onCalibrationImported(name: string) {
       calibrationFile.value = name;
+      invalidateCalibration();
     }
 
     function onCalibrationDeleted() {
       calibrationFile.value = null;
+      invalidateCalibration();
     }
 
     watch(
@@ -463,6 +472,8 @@ export default defineComponent({
       onCalibrationDeleted,
       changeCamera,
       modifiedId,
+      pipelineDatasetIds,
+      exportDatasetIds,
       handleStereoAnnotationComplete,
       handleStereoTrackLinked,
       stereoBusyMessage,
@@ -534,7 +545,7 @@ export default defineComponent({
             subTypeList,
             cameraNumbers,
           }"
-          :selected-dataset-ids="[modifiedId]"
+          :selected-dataset-ids="pipelineDatasetIds"
           :running-pipelines="runningPipelines"
           :read-only-mode="revisionNum !== undefined"
           :time-filter="timeFilter"
@@ -555,7 +566,7 @@ export default defineComponent({
         />
         <Export
           v-bind="{ buttonOptions, menuOptions }"
-          :dataset-ids="[id]"
+          :dataset-ids="exportDatasetIds"
           block-on-unsaved
         />
         <Clone
