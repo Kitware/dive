@@ -128,7 +128,7 @@ async function openModelCache(): Promise<Cache | null> {
  * export changes the cache key and the stale copy of that export is dropped;
  * exports of other sizes stay cached.
  */
-async function fetchFoundationModel(
+export async function fetchFoundationModel(
   imagery?: ImagerySize,
   onProgress?: (progress: StereoModelProgress) => void,
 ): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {

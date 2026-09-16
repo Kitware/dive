@@ -2,13 +2,13 @@ import { readFileSync } from 'fs';
 import { fileURLToPath } from 'url';
 import { ref } from 'vue';
 import {
-  describe, it, expect, vi,
+  afterEach, beforeEach, describe, it, expect, vi,
 } from 'vitest';
 import { clientSettings } from 'dive-common/store/settings';
 import { rigFromNpz, StereoRig } from '../calibration';
 import { project } from '../triangulate';
 import useStereoOnnxTransfer, { STEREO_USER_LINE_ATTR } from '../useStereoOnnxTransfer';
-import useStereoOnnxWeb, { fromViewer } from '../../../../platform/web-girder/useStereoOnnxWeb';
+import useStereoOnnxWeb, { fetchFoundationModel, fromViewer } from '../../../../platform/web-girder/useStereoOnnxWeb';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
 const loadRig = () => rigFromNpz(readFileSync(fixture('calibration.npz')));
@@ -16,6 +16,8 @@ const loadRig = () => rigFromNpz(readFileSync(fixture('calibration.npz')));
 const girderMocks = vi.hoisted(() => ({
   getDatasetCalibration: vi.fn(),
   girderGet: vi.fn(),
+  getStereoFoundationModelSpec: vi.fn(),
+  getStereoFoundationModel: vi.fn(),
 }));
 
 vi.mock('platform/web-girder/api/dataset.service', () => ({
@@ -23,6 +25,10 @@ vi.mock('platform/web-girder/api/dataset.service', () => ({
 }));
 vi.mock('platform/web-girder/plugins/girder', () => ({
   default: { get: girderMocks.girderGet },
+}));
+vi.mock('platform/web-girder/api/configuration.service', () => ({
+  getStereoFoundationModelSpec: girderMocks.getStereoFoundationModelSpec,
+  getStereoFoundationModel: girderMocks.getStereoFoundationModel,
 }));
 
 const IDENTITY = [1, 0, 0, 0, 1, 0, 0, 0, 1];
@@ -149,6 +155,127 @@ describe('useStereoOnnxWeb calibration caching', () => {
       expect(girderMocks.getDatasetCalibration).toHaveBeenCalledTimes(2);
     } finally {
       clientSettings.stereoSettings.autoComputeOtherCamera = autoCompute;
+    }
+  });
+});
+
+/**
+ * The foundation export is around 100 MB, so it is kept in the browser's Cache
+ * API across page loads and its download drives a determinate bar rather than a
+ * spinner that reads as a hang.
+ */
+describe('fetchFoundationModel', () => {
+  const SPEC = {
+    name: 'fast-fdn-stereo.onnx',
+    url: 'https://viame.example/onnx/fast-fdn-stereo.onnx',
+    md5: 'd41d8cd98f00b204e9800998ecf8427e',
+    height: 480,
+    width: 640,
+    size: 100 * 1024 * 1024,
+  };
+  const ORIGIN = 'https://dive.example';
+  const cacheUrl = (md5: string, name = SPEC.name) => `${ORIGIN}/dive-stereo-models/${md5}/${name}`;
+
+  /** Stands in for the Cache API, which Node does not provide. */
+  function stubCaches() {
+    const store = new Map<string, Response>();
+    const cache = {
+      match: async (url: string) => store.get(url),
+      keys: async () => [...store.keys()].map((url) => ({ url })),
+      delete: async (request: { url: string }) => store.delete(request.url),
+      put: async (url: string, response: Response) => { store.set(url, response); },
+    };
+    vi.stubGlobal('caches', { open: async () => cache });
+    return store;
+  }
+
+  beforeEach(() => {
+    // The cache key is built from the page origin.
+    vi.stubGlobal('window', { location: { origin: ORIGIN } });
+    girderMocks.getStereoFoundationModelSpec.mockReset();
+    girderMocks.getStereoFoundationModelSpec.mockResolvedValue({ data: SPEC });
+    girderMocks.getStereoFoundationModel.mockReset();
+    girderMocks.getStereoFoundationModel.mockResolvedValue({ data: new ArrayBuffer(8) });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('reports transferred bytes against the response length', async () => {
+    girderMocks.getStereoFoundationModel.mockImplementation(async (_imagery, onProgress) => {
+      onProgress(2_000_000, 8_000_000);
+      onProgress(8_000_000, 8_000_000);
+      return { data: new ArrayBuffer(8) };
+    });
+    const onProgress = vi.fn();
+
+    await fetchFoundationModel(undefined, onProgress);
+
+    expect(onProgress.mock.calls.map(([progress]) => progress)).toEqual([
+      { loaded: 2_000_000, total: 8_000_000 },
+      { loaded: 8_000_000, total: 8_000_000 },
+    ]);
+  });
+
+  it('falls back to the spec size when the response length is not computable', async () => {
+    // A proxy that re-encodes the stream drops Content-Length, so axios reports
+    // no total and the percentage would otherwise be uncomputable.
+    girderMocks.getStereoFoundationModel.mockImplementation(async (_imagery, onProgress) => {
+      onProgress(2_000_000, undefined);
+      return { data: new ArrayBuffer(8) };
+    });
+    const onProgress = vi.fn();
+
+    await fetchFoundationModel(undefined, onProgress);
+
+    expect(onProgress).toHaveBeenCalledWith({ loaded: 2_000_000, total: SPEC.size });
+  });
+
+  it('serves a cached export without downloading it again', async () => {
+    const store = stubCaches();
+    store.set(cacheUrl(SPEC.md5), new Response(new Uint8Array([1, 2, 3, 4])));
+    const onProgress = vi.fn();
+
+    const { bytes, spec } = await fetchFoundationModel(undefined, onProgress);
+
+    expect(new Uint8Array(bytes)).toEqual(new Uint8Array([1, 2, 3, 4]));
+    expect(spec).toEqual(SPEC);
+    expect(girderMocks.getStereoFoundationModel).not.toHaveBeenCalled();
+    // Nothing was transferred, so the host keeps showing the spinner.
+    expect(onProgress).not.toHaveBeenCalled();
+  });
+
+  it('drops the stale copy of a re-published export but keeps other sizes', async () => {
+    const store = stubCaches();
+    store.set(cacheUrl('0000000000000000000000000000dead'), new Response(new ArrayBuffer(2)));
+    const otherSize = cacheUrl('1111111111111111111111111111beef', 'fast-fdn-stereo-1280.onnx');
+    store.set(otherSize, new Response(new ArrayBuffer(2)));
+
+    await fetchFoundationModel();
+
+    expect([...store.keys()].sort()).toEqual([otherSize, cacheUrl(SPEC.md5)].sort());
+  });
+
+  it('still returns the bytes when the export cannot be cached', async () => {
+    const store = stubCaches();
+    // Quota is the realistic failure for a 100 MB entry, and it must not cost
+    // the user the download they already paid for.
+    vi.stubGlobal('caches', {
+      open: async () => ({
+        match: async () => undefined,
+        keys: async () => [...store.keys()].map((url) => ({ url })),
+        delete: async () => true,
+        put: async () => { throw new Error('QuotaExceededError'); },
+      }),
+    });
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    try {
+      const { bytes } = await fetchFoundationModel();
+      expect(bytes.byteLength).toBe(8);
+    } finally {
+      warn.mockRestore();
     }
   });
 });
