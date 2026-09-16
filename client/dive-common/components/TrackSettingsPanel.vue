@@ -450,8 +450,11 @@ export default defineComponent({
             </v-tooltip>
           </v-col>
         </v-row>
+        <!-- Unlike the switches above, this control always has a value, so its
+        label sits floated at its top edge and needs room above the row. -->
         <v-row
           align="end"
+          class="mt-3"
           dense
         >
           <v-col class="py-1">
