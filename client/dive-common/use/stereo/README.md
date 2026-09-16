@@ -145,8 +145,10 @@ The browser build is published as a **bare `.onnx`** under the
 (`FAST-FDN-STEREO`), which carries the onnxruntime-CUDA export and a TensorRT
 engine that browsers cannot use. Nothing is pinned in DIVE:
 
-1. The girder server reads the row's URL and md5 from the CSV, downloads the
-   file once into `DIVE_MODEL_CACHE_DIR` (default `/tmp/dive_models`, a named
+1. The girder server reads the row's URL and md5 from the CSV (until that row
+   exists, or when the list cannot be fetched, it uses the builds published on
+   viame.kitware.com, the 448×768 one by default; `DIVE_STEREO_WEB_MODEL=576x960`
+   selects the full-size one), downloads the file once into `DIVE_MODEL_CACHE_DIR` (default `/tmp/dive_models`, a named
    volume in `docker-compose.yml`) and verifies the md5. A re-published model
    has a new md5, so it is fetched and the old copy dropped. A zip is accepted
    too (its `*_web.onnx`/single `.onnx` and yaml are extracted).

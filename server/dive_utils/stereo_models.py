@@ -27,6 +27,17 @@ import requests
 from dive_utils import constants
 
 STEREO_FOUNDATION_ADDON = 'FAST-FDN-STEREO-WEB'
+
+# Used when the VIAME add-on list has no row for the model yet (or cannot be
+# fetched): the browser builds published on viame.kitware.com. The 448x768
+# export is the default for its 3.4 GB VRAM footprint; the CSV row overrides
+# this, so a re-published model needs no DIVE change.
+GIRDER_ITEM = 'https://viame.kitware.com/api/v1/item/{}/download'
+DEFAULT_WEB_MODELS = {
+    '448x768': (GIRDER_ITEM.format('6aa9e846a723aa14eb79b1d4'), '0cfea82cc48435a4955a03223e1bbb02'),
+    '576x960': (GIRDER_ITEM.format('6aa9e850e4e84dbe3cb5b403'), 'da20c1e1837eb520d89f12bb337e38ad'),
+}
+DEFAULT_WEB_MODEL_ENV = 'DIVE_STEREO_WEB_MODEL'
 MODEL_CACHE_DIR_ENV = 'DIVE_MODEL_CACHE_DIR'
 DEFAULT_MODEL_CACHE_DIR = '/tmp/dive_models'
 DOWNLOAD_CHUNK_BYTES = 1 << 20
@@ -66,16 +77,30 @@ def find_addon(rows: Iterable[AddonSource], name: str) -> Optional[AddonSource]:
     return next((row for row in rows if row.name == name), None)
 
 
+def default_web_model(name: str = STEREO_FOUNDATION_ADDON) -> Optional[AddonSource]:
+    variant = os.environ.get(DEFAULT_WEB_MODEL_ENV, '448x768')
+    if name != STEREO_FOUNDATION_ADDON or variant not in DEFAULT_WEB_MODELS:
+        return None
+    url, md5 = DEFAULT_WEB_MODELS[variant]
+    return AddonSource(name, url, md5)
+
+
 def resolve_addon(name: str = STEREO_FOUNDATION_ADDON) -> AddonSource:
+    """The add-on list's row for ``name``, else the built-in default for it."""
+    fallback = default_web_model(name)
     try:
         response = requests.get(constants.AddonsListURL, timeout=DOWNLOAD_TIMEOUT_SECONDS)
         response.raise_for_status()
+        addon = find_addon(parse_addon_rows(response.content.decode('utf-8')), name)
     except requests.RequestException as exc:
-        raise ModelUnavailable(f'Could not read the VIAME add-on list: {exc}') from exc
-    addon = find_addon(parse_addon_rows(response.content.decode('utf-8')), name)
-    if addon is None or not addon.url:
+        if fallback is None:
+            raise ModelUnavailable(f'Could not read the VIAME add-on list: {exc}') from exc
+        addon = None
+    if addon is not None and addon.url:
+        return addon
+    if fallback is None:
         raise ModelUnavailable(f'The VIAME add-on list has no {name} entry')
-    return addon
+    return fallback
 
 
 def parse_image_size(yaml_text: str) -> Optional[tuple]:

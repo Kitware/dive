@@ -53,6 +53,34 @@ def test_parse_addon_rows_strips_whitespace_and_lowercases_md5():
     assert stereo_models.find_addon(rows, 'MISSING') is None
 
 
+def test_resolve_addon_prefers_the_csv_row_and_falls_back_to_the_published_item(monkeypatch):
+    class Response:
+        def __init__(self, text):
+            self.content = text.encode('utf-8')
+
+        def raise_for_status(self):
+            pass
+
+    monkeypatch.setattr(stereo_models.requests, 'get', lambda *a, **k: Response(CSV))
+    assert stereo_models.resolve_addon().url == 'https://example.com/stereo_web/download'
+
+    monkeypatch.setattr(stereo_models.requests, 'get', lambda *a, **k: Response('A, https://x, d, 1, ALL-PLATFORMS, "", \n'))
+    fallback = stereo_models.resolve_addon()
+    assert fallback.url == stereo_models.DEFAULT_WEB_MODELS['448x768'][0]
+    assert fallback.md5 == stereo_models.DEFAULT_WEB_MODELS['448x768'][1]
+
+    monkeypatch.setenv(stereo_models.DEFAULT_WEB_MODEL_ENV, '576x960')
+    assert stereo_models.resolve_addon().url == stereo_models.DEFAULT_WEB_MODELS['576x960'][0]
+
+    def offline(*a, **k):
+        raise stereo_models.requests.RequestException('offline')
+
+    monkeypatch.setattr(stereo_models.requests, 'get', offline)
+    assert stereo_models.resolve_addon().url == stereo_models.DEFAULT_WEB_MODELS['576x960'][0]
+    with pytest.raises(stereo_models.ModelUnavailable):
+        stereo_models.resolve_addon('SOMETHING-ELSE')
+
+
 def test_parse_image_size_block_and_flow():
     assert stereo_models.parse_image_size(YAML) == (576, 960)
     assert stereo_models.parse_image_size('image_size: [320, 736]\n') == (320, 736)
