@@ -88,7 +88,7 @@ def test_resolve_addon_prefers_the_csv_row_and_falls_back_to_the_published_item(
 
     monkeypatch.setattr(stereo_models.requests, 'get', offline)
     assert stereo_models.resolve_addon().url == stereo_models.DEFAULT_WEB_MODELS['576x960'][0]
-    with pytest.raises(stereo_models.ModelUnavailable):
+    with pytest.raises(stereo_models.ModelUnavailableError):
         stereo_models.resolve_addon('SOMETHING-ELSE')
 
 
@@ -139,7 +139,7 @@ def test_ensure_model_accepts_a_bare_onnx_without_sidecar(tmp_path):
 def test_ensure_model_rejects_md5_mismatch(tmp_path):
     payload = make_addon_zip()
     addon = stereo_models.AddonSource('FAST-FDN-STEREO', 'https://example.com/stereo', 'f' * 32)
-    with pytest.raises(stereo_models.ModelUnavailable):
+    with pytest.raises(stereo_models.ModelUnavailableError):
         stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload))
     assert not (tmp_path / addon.name / addon.md5).exists()
 
@@ -171,5 +171,5 @@ def test_extract_model_prefers_the_web_build(tmp_path):
 def test_extract_model_requires_exactly_one_onnx(tmp_path):
     zip_path = tmp_path / 'addon.zip'
     zip_path.write_bytes(make_addon_zip(extra_onnx=True))
-    with pytest.raises(stereo_models.ModelUnavailable):
+    with pytest.raises(stereo_models.ModelUnavailableError):
         stereo_models.extract_model(zip_path, tmp_path / 'out')

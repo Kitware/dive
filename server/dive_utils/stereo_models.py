@@ -60,7 +60,7 @@ class FoundationModel(NamedTuple):
     width: Optional[int]
 
 
-class ModelUnavailable(Exception):
+class ModelUnavailableError(Exception):
     """The model could not be resolved, downloaded or verified."""
 
 
@@ -94,12 +94,12 @@ def resolve_addon(name: str = STEREO_FOUNDATION_ADDON) -> AddonSource:
         addon = find_addon(parse_addon_rows(response.content.decode('utf-8')), name)
     except requests.RequestException as exc:
         if fallback is None:
-            raise ModelUnavailable(f'Could not read the VIAME add-on list: {exc}') from exc
+            raise ModelUnavailableError(f'Could not read the VIAME add-on list: {exc}') from exc
         addon = None
     if addon is not None and addon.url:
         return addon
     if fallback is None:
-        raise ModelUnavailable(f'The VIAME add-on list has no {name} entry')
+        raise ModelUnavailableError(f'The VIAME add-on list has no {name} entry')
     return fallback
 
 
@@ -139,7 +139,7 @@ def select_web_onnx(onnx_names: List[str]) -> str:
         return web[0]
     if len(onnx_names) == 1:
         return onnx_names[0]
-    raise ModelUnavailable(
+    raise ModelUnavailableError(
         f'Expected one *_web.onnx or a single .onnx in the add-on, found {sorted(onnx_names)}'
     )
 
@@ -211,9 +211,9 @@ def ensure_model(
                 try:
                     actual_md5 = download(addon.url, download_path)
                 except requests.RequestException as exc:
-                    raise ModelUnavailable(f'Could not download {addon.url}: {exc}') from exc
+                    raise ModelUnavailableError(f'Could not download {addon.url}: {exc}') from exc
                 if addon.md5 and actual_md5 != addon.md5:
-                    raise ModelUnavailable(
+                    raise ModelUnavailableError(
                         f'{addon.name} download did not match the add-on list md5 '
                         f'({actual_md5} != {addon.md5})'
                     )
@@ -232,7 +232,9 @@ def ensure_model(
                     shutil.rmtree(stale, ignore_errors=True)
             cached = _cached(addon, cache_dir)
             if cached is None:
-                raise ModelUnavailable(f'{addon.name} was downloaded but could not be read back')
+                raise ModelUnavailableError(
+                    f'{addon.name} was downloaded but could not be read back'
+                )
             return cached
         finally:
             fcntl.flock(lock, fcntl.LOCK_UN)

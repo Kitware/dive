@@ -126,7 +126,7 @@ class ConfigurationResource(Resource):
     def _stereo_foundation_model() -> stereo_models.FoundationModel:
         try:
             return stereo_models.ensure_stereo_foundation_model()
-        except stereo_models.ModelUnavailable as exc:
+        except stereo_models.ModelUnavailableError as exc:
             raise RestException(str(exc), code=502)
 
     @access.user
