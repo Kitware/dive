@@ -1,3 +1,5 @@
+import type { AxiosProgressEvent } from 'axios';
+
 import { Pipelines, TrainingConfigs } from 'dive-common/apispec';
 import girderRest from 'platform/web-girder/plugins/girder';
 
@@ -112,10 +114,21 @@ function getStereoFoundationModelSpec(imagery?: ImagerySize) {
   });
 }
 
-function getStereoFoundationModel(imagery?: ImagerySize) {
+/**
+ * `onProgress` reports downloaded bytes so the caller can show a determinate
+ * bar for the ~100 MB export. `total` is absent when the length is not
+ * computable, e.g. a proxy re-encoded the stream.
+ */
+function getStereoFoundationModel(
+  imagery?: ImagerySize,
+  onProgress?: (loaded: number, total?: number) => void,
+) {
   return girderRest.get<ArrayBuffer>('dive_configuration/stereo_foundation_model', {
     responseType: 'arraybuffer',
     params: imagery,
+    onDownloadProgress: onProgress
+      ? (event: AxiosProgressEvent) => onProgress(event.loaded, event.total)
+      : undefined,
   });
 }
 

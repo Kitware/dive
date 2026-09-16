@@ -49,6 +49,12 @@ const MODEL_CACHE_NAME = 'dive-stereo-models';
 // too; override per rig via the `range` option.
 const DEFAULT_RANGE: SearchRange = { minDisparity: 2, maxDisparity: 300 };
 
+/** Bytes transferred of the model download, for a determinate progress bar. */
+export interface StereoModelProgress {
+  loaded: number;
+  total: number;
+}
+
 export interface StereoOnnxWebOptions {
   /** Returns the mounted Viewer instance (exposes cameraStore, multiCamList,
    * aggregateController, imageData). */
@@ -67,7 +73,11 @@ export interface StereoOnnxWebOptions {
   /** Overrides the user's dropdown choice; mainly for tests. */
   getMatchMethod?: () => StereoMatchMethod;
   range?: SearchRange;
-  onStatus?: (message: string | null) => void;
+  /**
+   * Progress message; null clears it. `progress` accompanies the messages whose
+   * work has a known size, and the host shows a bar for those.
+   */
+  onStatus?: (message: string | null, progress?: StereoModelProgress) => void;
   onError?: (message: string) => void;
   onMeasurement?: (measurement: StereoMeasurement) => void;
   ensureMeasurementAttributes?: () => void;
@@ -118,7 +128,10 @@ async function openModelCache(): Promise<Cache | null> {
  * export changes the cache key and the stale copy of that export is dropped;
  * exports of other sizes stay cached.
  */
-async function fetchFoundationModel(imagery?: ImagerySize): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {
+async function fetchFoundationModel(
+  imagery?: ImagerySize,
+  onProgress?: (progress: StereoModelProgress) => void,
+): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {
   // Imported lazily: the girder client touches `window` at load time, which
   // breaks node-environment unit tests that import this file.
   const { getStereoFoundationModelSpec, getStereoFoundationModel } = await import(
@@ -131,7 +144,11 @@ async function fetchFoundationModel(imagery?: ImagerySize): Promise<{ bytes: Arr
     const hit = await cache.match(cacheUrl);
     if (hit) return { bytes: await hit.arrayBuffer(), spec };
   }
-  const { data: bytes } = await getStereoFoundationModel(imagery);
+  const { data: bytes } = await getStereoFoundationModel(imagery, (loaded, total) => {
+    // The spec carries the export's byte size, so progress stays determinate
+    // even when the response length is not.
+    onProgress?.({ loaded, total: total || spec.size });
+  });
   if (cache) {
     try {
       const keys = await cache.keys();
@@ -175,9 +192,17 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     if (opts.foundationModelUrl) {
       return StereoFoundationMatcher.create(opts.foundationModelUrl, opts.foundationModelSpec);
     }
+    // No download at all when the bytes are already in the browser's cache, so
+    // the message only promises one until the first progress event arrives.
     opts.onStatus?.('Loading the stereo model (about 100 MB on first use)...');
     try {
-      const { bytes, spec } = await fetchFoundationModel(imagery);
+      const { bytes, spec } = await fetchFoundationModel(
+        imagery,
+        (progress) => opts.onStatus?.('Downloading the stereo model...', progress),
+      );
+      // Building the session compiles the graph for the GPU, which takes
+      // seconds and reports no progress of its own.
+      opts.onStatus?.('Preparing the stereo model...');
       // A bare .onnx has no sidecar; the matcher then reads the size from the graph.
       const size = spec.height && spec.width ? { height: spec.height, width: spec.width } : undefined;
       return await StereoFoundationMatcher.create(new Uint8Array(bytes), size);
