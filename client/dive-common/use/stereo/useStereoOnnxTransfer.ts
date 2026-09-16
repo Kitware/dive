@@ -1,8 +1,8 @@
 /**
  * Client-side stereo transfer: when a detection is annotated on one camera,
- * warp it onto the other camera using the VIAME "match" ONNX model
- * ({@link StereoOnnxMatcher}) — no backend, so it works in both the web and
- * desktop DIVE builds.
+ * warp it onto the other camera using the selected {@link StereoMatcher} — the
+ * VIAME "match" ONNX model or the Fast-FoundationStereo export — with no
+ * backend, so it works in both the web and desktop DIVE builds.
  *
  * This mirrors the desktop backend stereo handler (ViewerLoader's
  * `handleStereoAnnotationComplete`) but runs the correspondence search and the
@@ -25,9 +25,10 @@ import type { StereoAnnotationCompleteParams } from '../useModeManager';
 import {
   canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState,
 } from './keypointTransfer';
-import { StereoOnnxMatcher, SearchRange } from './StereoOnnxMatcher';
+import type { SearchRange } from './StereoOnnxMatcher';
+import type { StereoMatcher } from './stereoMatcher';
 import { StereoRig, invertRig } from './calibration';
-import { rgbaToGray, RgbaImage } from './image';
+import { RgbaImage } from './image';
 import { measureLine, aggregateLengths, StereoMeasurement } from './triangulate';
 
 export interface StereoOnnxTransferConfig {
@@ -38,8 +39,12 @@ export interface StereoOnnxTransferConfig {
   getLeftCameraName: () => string;
   /** Stereo calibration, or null if unavailable (transfer is then skipped). */
   getRig: () => Promise<StereoRig | null>;
-  /** The (lazily created / cached) ONNX matcher, or null if unavailable. */
-  getMatcher: () => Promise<StereoOnnxMatcher | null>;
+  /**
+   * The (lazily created / cached) matcher for the selected method, or null if
+   * unavailable. Either correspondence method satisfies {@link StereoMatcher},
+   * so nothing downstream branches on which one is in use.
+   */
+  getMatcher: () => Promise<StereoMatcher | null>;
   /** Full-resolution RGBA pixels for a camera at a frame, or null. */
   getFrame: (cameraName: string, frameNum: number) => Promise<RgbaImage | null>;
   /** Disparity- or depth-based search range for the correspondence search. */
@@ -277,24 +282,57 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     return measurement;
   }
 
+  /** Identifies a (source camera -> other camera, frame) pair for matcher caches. */
+  function frameKey(sourceCamera: string, otherCamera: string, frameNum: number) {
+    return `${sourceCamera}>${otherCamera}@${frameNum}`;
+  }
+
+  /** Orient the rig so `sourceCamera` is the source ("left"). */
+  function orientRig(rig0: StereoRig, sourceCamera: string) {
+    return sourceCamera === getLeftCameraName() ? rig0 : invertRig(rig0);
+  }
+
   /** Run the correspondence search for one set of points, source camera -> other. */
   async function warp(points: Point[], sourceCamera: string, otherCamera: string, frameNum: number) {
     const [rig0, matcher] = await Promise.all([getRig(), getMatcher()]);
     if (!rig0) throw new Error('No stereo calibration is available for this dataset.');
     if (!matcher) throw new Error('The stereo matching model could not be loaded.');
-    // Orient the rig so the annotated camera is the source ("left").
-    const rig = sourceCamera === getLeftCameraName() ? rig0 : invertRig(rig0);
+    const rig = orientRig(rig0, sourceCamera);
 
     const [srcFrame, tgtFrame] = await Promise.all([
       getFrame(sourceCamera, frameNum), getFrame(otherCamera, frameNum),
     ]);
     if (!srcFrame || !tgtFrame) throw new Error('Could not read the frame pixels for both cameras.');
 
-    return matcher.warpPoints(points, rgbaToGray(srcFrame), rgbaToGray(tgtFrame), rig, {
+    return matcher.warpPoints(points, srcFrame, tgtFrame, rig, {
       range: getRange(),
       threshold: config.threshold,
       uniquenessRatio: config.uniquenessRatio,
+      frameKey: frameKey(sourceCamera, otherCamera, frameNum),
     });
+  }
+
+  /**
+   * Let a matcher that works per frame (the foundation method's dense
+   * disparity) compute its map for `frameNum` before the user draws anything
+   * there. Both warp directions are prepared, the calibration's left camera
+   * first. A no-op for matchers without per-frame state. `stillWanted` lets the
+   * host drop the work once the viewer has moved on to another frame.
+   */
+  async function precomputeFrame(frameNum: number, stillWanted: () => boolean = () => true): Promise<void> {
+    const cams = getMultiCamList();
+    if (cams.length < 2) return;
+    const leftCamera = getLeftCameraName();
+    const rightCamera = cams.find((c) => c !== leftCamera);
+    if (!rightCamera) return;
+    const [rig0, matcher] = await Promise.all([getRig(), getMatcher()]);
+    if (!rig0 || !matcher?.prepare || !stillWanted()) return;
+    const [leftFrame, rightFrame] = await Promise.all([
+      getFrame(leftCamera, frameNum), getFrame(rightCamera, frameNum),
+    ]);
+    if (!leftFrame || !rightFrame || !stillWanted()) return;
+    await matcher.prepare(frameKey(leftCamera, rightCamera, frameNum), leftFrame, rightFrame, rig0, stillWanted);
+    await matcher.prepare(frameKey(rightCamera, leftCamera, frameNum), rightFrame, leftFrame, invertRig(rig0), stillWanted);
   }
 
   /**
@@ -535,5 +573,6 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     handleStereoTrackLinked,
     warpAllFromCamera,
     measureAtFrame,
+    precomputeFrame,
   };
 }
