@@ -234,7 +234,8 @@ class ConfigurationResource(Resource):
             # files the web client fetches itself (see dive_utils.stereo_models),
             # not pipeline add-ons to install.
             my_list = [
-                item for item in cr
+                item
+                for item in cr
                 if len(item) >= 5 and item[4].strip() not in ('ALL-EXCEPT-DIVE', 'WEB-ONLY')
             ]
             for item in my_list:

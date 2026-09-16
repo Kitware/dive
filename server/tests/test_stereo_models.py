@@ -28,8 +28,12 @@ def make_addon_zip(yaml_text=YAML, extra_onnx=False, web_onnx=False) -> bytes:
         if extra_onnx:
             archive.writestr('configs/pipelines/models/other.onnx', b'x')
         if web_onnx:
-            archive.writestr('configs/pipelines/models/fast_foundation_stereo_l_web.onnx', b'web-bytes')
-            archive.writestr('configs/pipelines/models/fast_foundation_stereo_l_web.yaml', yaml_text)
+            archive.writestr(
+                'configs/pipelines/models/fast_foundation_stereo_l_web.onnx', b'web-bytes'
+            )
+            archive.writestr(
+                'configs/pipelines/models/fast_foundation_stereo_l_web.yaml', yaml_text
+            )
     return buffer.getvalue()
 
 
@@ -43,7 +47,10 @@ def fake_downloader(payload: bytes):
 
 def test_parse_addon_rows_strips_whitespace_and_lowercases_md5():
     rows = stereo_models.parse_addon_rows(CSV)
-    assert stereo_models.find_addon(rows, 'FAST-FDN-STEREO-WEB').url == 'https://example.com/stereo_web/download'
+    assert (
+        stereo_models.find_addon(rows, 'FAST-FDN-STEREO-WEB').url
+        == 'https://example.com/stereo_web/download'
+    )
     stereo = stereo_models.find_addon(rows, 'FAST-FDN-STEREO')
     assert stereo == stereo_models.AddonSource(
         'FAST-FDN-STEREO',
@@ -64,7 +71,11 @@ def test_resolve_addon_prefers_the_csv_row_and_falls_back_to_the_published_item(
     monkeypatch.setattr(stereo_models.requests, 'get', lambda *a, **k: Response(CSV))
     assert stereo_models.resolve_addon().url == 'https://example.com/stereo_web/download'
 
-    monkeypatch.setattr(stereo_models.requests, 'get', lambda *a, **k: Response('A, https://x, d, 1, ALL-PLATFORMS, "", \n'))
+    monkeypatch.setattr(
+        stereo_models.requests,
+        'get',
+        lambda *a, **k: Response('A, https://x, d, 1, ALL-PLATFORMS, "", \n'),
+    )
     fallback = stereo_models.resolve_addon()
     assert fallback.url == stereo_models.DEFAULT_WEB_MODELS['448x768'][0]
     assert fallback.md5 == stereo_models.DEFAULT_WEB_MODELS['448x768'][1]
@@ -119,7 +130,10 @@ def test_ensure_model_accepts_a_bare_onnx_without_sidecar(tmp_path):
     assert model.onnx_path.read_bytes() == payload
     assert model.yaml_path is None
     assert (model.height, model.width) == (None, None)
-    assert stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload)).onnx_path == model.onnx_path
+    assert (
+        stereo_models.ensure_model(addon, tmp_path, fake_downloader(payload)).onnx_path
+        == model.onnx_path
+    )
 
 
 def test_ensure_model_rejects_md5_mismatch(tmp_path):

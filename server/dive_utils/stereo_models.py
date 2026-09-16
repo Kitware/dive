@@ -182,7 +182,9 @@ def _cached(addon: AddonSource, cache_dir: Path) -> Optional[FoundationModel]:
     if len(onnx_files) != 1:
         return None
     yaml_path = onnx_files[0].with_suffix('.yaml')
-    return _describe(onnx_files[0], yaml_path if yaml_path.is_file() else None, addon.url, addon.md5)
+    return _describe(
+        onnx_files[0], yaml_path if yaml_path.is_file() else None, addon.url, addon.md5
+    )
 
 
 def ensure_model(
