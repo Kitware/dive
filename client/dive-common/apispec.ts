@@ -184,6 +184,19 @@ interface SaveDetectionsArgs {
   set?: string;
 }
 
+/** Outcome of shifting one camera's stored annotations onto its time offset. */
+interface CameraFrameOffsetResult {
+  camera: string;
+  /** The camera's start offset in its own frames, now both stored and applied. */
+  offset: number;
+  /** Frames the annotations actually moved: the offset minus what was already applied. */
+  delta: number;
+  tracks: number;
+  groups: number;
+  /** Annotations that had nothing left before frame 0 and were deleted. */
+  dropped: number;
+}
+
 interface SaveAttributeArgs {
   delete: string[];
   upsert: Attribute[];
@@ -458,6 +471,13 @@ interface Api {
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
+  /**
+   * Shift one camera's stored annotations onto its time offset, in persistence.
+   * Only the part not yet applied moves; the caller reloads the camera afterwards.
+   */
+  applyCameraFrameOffset(
+    datasetId: string, camera: string, offset: number,
+  ): Promise<CameraFrameOffsetResult>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
@@ -756,6 +776,7 @@ export type {
   PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,
+  CameraFrameOffsetResult,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,
   TrainingConfig,

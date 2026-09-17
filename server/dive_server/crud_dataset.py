@@ -2149,3 +2149,41 @@ def set_metadata_file(
         'metadataFileItemId': str(md_item['_id']),
         'metadataFileOriginalName': md_item['name'],
     }
+
+
+def apply_camera_frame_offset(
+    parent: types.GirderModel,
+    user: types.GirderUserModel,
+    camera: str,
+    offset: int,
+) -> dict:
+    """Bring one camera's stored annotations onto its time offset.
+
+    The offset is the camera's start offset in its own frames (see the
+    client's alignedTimeline.buildOffsetTimeline). Only the part not yet
+    applied to the annotations is shifted, and the offset plus its applied
+    record are written together afterwards, so a failed shift never leaves
+    the record ahead of the data.
+    """
+    crud.verify_dataset(parent)
+    if fromMeta(parent, constants.TypeMarker) != constants.MultiType:
+        raise RestException('Time offsets apply to multicamera datasets only', code=400)
+    multi_cam = fromMeta(parent, constants.MultiCamMarker) or {}
+    cam_info = (multi_cam.get('cameras') or {}).get(camera)
+    if not cam_info:
+        raise RestException(f'Unknown camera "{camera}"', code=400)
+    child = Folder().load(cam_info['folderId'], level=AccessType.WRITE, user=user)
+    if child is None:
+        raise RestException(f'Camera folder for "{camera}" was not found', code=404)
+    offsets = dict(fromMeta(parent, 'cameraFrameOffsets', {}) or {})
+    applied = dict(fromMeta(parent, 'cameraFrameOffsetsApplied', {}) or {})
+    delta = offset - applied.get(camera, 0)
+    counts = crud_annotation.shift_annotation_frames(child, user, delta)
+    offsets[camera] = offset
+    applied[camera] = offset
+    update_metadata(
+        parent,
+        {'cameraFrameOffsets': offsets, 'cameraFrameOffsetsApplied': applied},
+        verify=False,
+    )
+    return {'camera': camera, 'offset': offset, 'delta': delta, **counts}

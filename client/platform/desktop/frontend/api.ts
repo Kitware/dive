@@ -10,7 +10,7 @@ import type {
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
-  PipelineJobResult,
+  PipelineJobResult, CameraFrameOffsetResult,
 } from 'dive-common/apispec';
 
 import {
@@ -757,6 +757,15 @@ async function saveConfig(id: string, args: DatasetConfigMutable) {
   return client.post(`dataset/${id}/meta`, args);
 }
 
+async function applyCameraFrameOffset(id: string, camera: string, offset: number) {
+  const client = await getClient();
+  const { data } = await client.post<CameraFrameOffsetResult>(
+    `dataset/${id}/camera_frame_offset`,
+    { camera, offset },
+  );
+  return data;
+}
+
 async function saveDetections(id: string, args: SaveDetectionsArgs) {
   const client = await getClient();
   return client.post(`dataset/${id}/detections`, args);
@@ -851,6 +860,7 @@ export {
   resumeTraining,
   discardResumableTraining,
   saveConfig,
+  applyCameraFrameOffset,
   saveDetections,
   saveAttributes,
   saveAttributeTrackFilters,

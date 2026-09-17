@@ -116,6 +116,18 @@ apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res,
   return null;
 });
 
+/* Shift one camera's annotations onto its time offset */
+apirouter.post('/dataset/:id/camera_frame_offset', async (req, res, next) => {
+  try {
+    const { camera, offset } = req.body as { camera: string; offset: number };
+    const result = await common.applyCameraFrameOffset(settings.get(), req.params.id, camera, offset);
+    res.json(result);
+  } catch (err) {
+    (err as { status?: number }).status = 500;
+    next(err);
+  }
+});
+
 /* SAVE detections */
 apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
   try {

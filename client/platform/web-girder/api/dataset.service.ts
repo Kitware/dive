@@ -5,7 +5,7 @@ import {
   registrationValuesSummary, filterRegistrationValues, mergeRegistrationValues,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
 import {
-  DatasetConfigMutable, DatasetType, FrameImage, GlobalStyleSettings,
+  CameraFrameOffsetResult, DatasetConfigMutable, DatasetType, FrameImage, GlobalStyleSettings,
   SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
 import {
@@ -210,6 +210,15 @@ async function saveAttributeTrackFilters(
 async function saveConfig(datasetId: string, config: DatasetConfigMutable) {
   const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch(`/dive_dataset/${folderId}`, config);
+}
+
+/** Shift one camera's stored annotations onto its time offset; the server does the work. */
+async function applyCameraFrameOffset(datasetId: string, camera: string, offset: number) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
+  return girderRest.patch<CameraFrameOffsetResult>(
+    `/dive_dataset/${folderId}/camera_frame_offset`,
+    { camera, offset },
+  );
 }
 
 // Cross-dataset "shared" color/style overrides. Persisted in localStorage,
@@ -504,6 +513,7 @@ export {
   saveAttributes,
   saveAttributeTrackFilters,
   saveConfig,
+  applyCameraFrameOffset,
   loadGlobalStyleSettings,
   saveGlobalStyleSettings,
   uploadCalibrationItem,

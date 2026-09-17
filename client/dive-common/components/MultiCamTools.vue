@@ -6,6 +6,8 @@ import {
   useDatasetId,
   useEditingMode,
   useHandler,
+  usePendingSaveCount,
+  useReadOnlyMode,
   useSelectedCamera,
   useSelectedTrackId,
   useTime,
@@ -13,9 +15,8 @@ import {
 } from 'vue-media-annotator/provides';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import Track from 'vue-media-annotator/track';
 import { useApi } from 'dive-common/apispec';
-import { pendingFrameShifts, shiftTrackData } from 'dive-common/frameOffsetAnnotations';
+import { pendingFrameShifts } from 'dive-common/frameOffsetAnnotations';
 
 interface CameraTrackData {
   trackExists: boolean;
@@ -36,7 +37,9 @@ export default defineComponent({
     const cameras = computed(() => cameraStore.orderedCameraNames());
     const registration = useCameraRegistration();
     const datasetId = useDatasetId();
-    const { saveConfig } = useApi();
+    const pendingSaveCount = usePendingSaveCount();
+    const readOnlyMode = useReadOnlyMode();
+    const { applyCameraFrameOffset } = useApi();
 
     // Time offset: the first camera is the reference; every other camera is shifted onto it.
     const OFFSET_LIMIT_SECONDS = 10;
@@ -71,31 +74,32 @@ export default defineComponent({
       offsetCameras.value,
     ));
     const savingOffsets = ref(false);
-    /** Move each shifted camera's annotations by its unapplied offset, then save everything. */
+    /**
+     * Shift each pending camera's stored annotations on the server, then
+     * reload that camera. Persistence does the rewrite so the page never
+     * walks or uploads the whole dataset.
+     */
     async function saveAnnotationOffsets() {
       savingOffsets.value = true;
       try {
-        Object.entries(pendingShifts.value).forEach(([camera, delta]) => {
-          const store = cameraStore.camMap.value.get(camera)?.trackStore;
-          if (!store) {
-            return;
-          }
-          const tracks = Array.from(store.annotationMap.values()) as Track[];
-          tracks.forEach((track) => {
-            const shifted = shiftTrackData(track.serialize(), delta);
-            store.remove(track.id, shifted !== null);
-            if (shifted !== null) {
-              store.insert(Track.fromJSON(shifted, track.set));
-            }
-          });
-        });
-        registration.appliedFrameOffsets.value = { ...registration.frameOffsets.value };
-        await saveConfig(datasetId.value, {
-          cameraFrameOffsets: registration.frameOffsets.value,
-          cameraFrameOffsetsApplied: registration.appliedFrameOffsets.value,
-        });
-        registration.markSaved();
-        await handler.save();
+        // The shift applies to what is stored, so unsaved edits go first.
+        if (pendingSaveCount.value > 0) {
+          await handler.save();
+        }
+        const pending = Object.keys(pendingShifts.value);
+        for (let i = 0; i < pending.length; i += 1) {
+          const camera = pending[i];
+          const offset = cameraOffset(camera);
+          // eslint-disable-next-line no-await-in-loop
+          await applyCameraFrameOffset(datasetId.value, camera, offset);
+          registration.appliedFrameOffsets.value = {
+            ...registration.appliedFrameOffsets.value,
+            [camera]: offset,
+          };
+          registration.markFrameOffsetSaved(camera, offset);
+          // eslint-disable-next-line no-await-in-loop
+          await handler.reloadCameraAnnotations(camera);
+        }
       } finally {
         savingOffsets.value = false;
       }
@@ -200,6 +204,7 @@ export default defineComponent({
       pendingShifts,
       savingOffsets,
       saveAnnotationOffsets,
+      readOnlyMode,
     };
   },
 });
@@ -248,14 +253,14 @@ export default defineComponent({
         block
         small
         color="primary"
-        :disabled="!Object.keys(pendingShifts).length"
+        :disabled="readOnlyMode || !Object.keys(pendingShifts).length"
         :loading="savingOffsets"
         @click="saveAnnotationOffsets"
       >
-        Save annotations
+        Apply to annotations
       </v-btn>
       <span class="text-caption grey--text d-block mt-1">
-        Moves every annotation on a shifted camera by its offset, then saves.
+        Moves every stored annotation on a shifted camera by its offset.
       </span>
     </div>
     <v-divider class="my-3" />

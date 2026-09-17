@@ -2095,6 +2095,37 @@ export default defineComponent({
         ? props.comparisonSets.slice(0, 1) : props.comparisonSets;
     };
 
+    /**
+     * Replace one camera's in-memory annotations with what persistence now
+     * holds, e.g. after the server shifted them onto a time offset. Same
+     * bulk-insert path as loadData, so a large camera reloads without
+     * blocking the page; a comparison view falls back to a full reload
+     * because its extra sets are only rebuilt there.
+     */
+    const reloadCameraAnnotations = async (camera: string) => {
+      const stores = cameraStore.camMap.value.get(camera);
+      if (!stores || props.comparisonSets.length) {
+        await reloadAnnotations();
+        return;
+      }
+      handler.trackSelect(null, false);
+      const parentId = baseMulticamDatasetId.value ?? datasetId.value;
+      const cameraId = multiCamList.value.length > 1 ? `${parentId}/${camera}` : parentId;
+      const { tracks, groups } = await loadDetections(cameraId, props.revision, props.currentSet);
+      stores.trackStore.clearAll();
+      stores.groupStore.clearAll();
+      for (let j = 0; j < tracks.length; j += 1) {
+        if (j % 4000 === 0 && j > 0) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((resolve) => window.setTimeout(resolve, 0));
+        }
+        stores.trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
+      }
+      groups.forEach((group) => {
+        stores.groupStore.insert(Group.fromJSON(group), { imported: true });
+      });
+    };
+
     watch(datasetId, reloadAnnotations);
     watch(readonlyState, () => handler.trackSelect(null, false));
     // Update segmentation recipe when frame changes to show only current frame's points
@@ -2142,6 +2173,7 @@ export default defineComponent({
       setAttribute,
       deleteAttribute,
       reloadAnnotations,
+      reloadCameraAnnotations,
       setSVGFilters,
       selectCamera,
       linkCameraTrack,

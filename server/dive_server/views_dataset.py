@@ -57,6 +57,7 @@ class DatasetResource(Resource):
         self.route("POST", ("validate_files",), self.validate_files)
 
         self.route("PATCH", (":id",), self.patch_metadata)
+        self.route("PATCH", (":id", "camera_frame_offset"), self.apply_camera_frame_offset)
 
         # do we make this another resource in girder?
         self.route("PATCH", (":id", "attributes"), self.patch_attributes)
@@ -414,6 +415,26 @@ class DatasetResource(Resource):
             crud_dataset.update_metadata(folder, camera_data)
         crud_dataset.remove_camera_type_hierarchy(folder)
         return result
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Shift one camera's annotations onto its time offset")
+        .modelParam("id", level=AccessType.WRITE, **DatasetModelParam)
+        .jsonParam(
+            "data",
+            description="{camera: string, offset: integer frames}",
+            requireObject=True,
+            paramType="body",
+        )
+    )
+    def apply_camera_frame_offset(self, folder, data):
+        camera = data.get('camera')
+        offset = data.get('offset')
+        if not isinstance(camera, str) or not camera:
+            raise RestException('"camera" must be a camera name', code=400)
+        if isinstance(offset, bool) or not isinstance(offset, int):
+            raise RestException('"offset" must be a whole number of frames', code=400)
+        return crud_dataset.apply_camera_frame_offset(folder, self.getCurrentUser(), camera, offset)
 
     @access.user
     @autoDescribeRoute(

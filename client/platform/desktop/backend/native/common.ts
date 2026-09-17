@@ -29,6 +29,7 @@ import {
   PipelineParamType,
   FrameMetadataAttachmentText,
   FrameMetadataSourcesResponse,
+  CameraFrameOffsetResult,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { parseCameraOrderHeader } from 'dive-common/pipelineCameraOrder';
@@ -37,6 +38,7 @@ import {
   METADATA_ATTACHMENT_UNAVAILABLE, isFrameMetadataReadableName,
 } from 'dive-common/frameMetadata/readability';
 import { parentDatasetId, parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import { shiftAnnotationRecords } from 'dive-common/frameOffsetAnnotations';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as nistSerializers from 'platform/desktop/backend/serializers/nist';
 import * as dive from 'platform/desktop/backend/serializers/dive';
@@ -1367,6 +1369,13 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     if (cameraRolesPresent && !cameraName) {
       existing.cameraRoles = args.cameraRoles;
     }
+    // Time offsets describe the rig, so they live on the multicamera parent only.
+    if (args.cameraFrameOffsets && !cameraName) {
+      existing.cameraFrameOffsets = args.cameraFrameOffsets;
+    }
+    if (args.cameraFrameOffsetsApplied && !cameraName) {
+      existing.cameraFrameOffsetsApplied = args.cameraFrameOffsetsApplied;
+    }
 
     // Registration files remain separate so each camera pair has one persisted owner.
     if (args.cameraHomographies || args.cameraCorrespondences || args.cameraTransformTypes
@@ -1382,6 +1391,48 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
   } finally {
     await release();
   }
+}
+
+/**
+ * Bring one camera's stored annotations onto its time offset (the desktop
+ * twin of the server's apply_camera_frame_offset). Only the part not yet
+ * applied moves, and the offset plus its applied record are written together
+ * afterwards, so a failed shift never leaves the record ahead of the data.
+ */
+async function applyCameraFrameOffset(
+  settings: Settings,
+  datasetId: string,
+  camera: string,
+  offset: number,
+): Promise<CameraFrameOffsetResult> {
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  if (cameraName) {
+    throw new Error('Time offsets are applied through the multicamera dataset, not a camera');
+  }
+  const projectDirInfo = await getValidatedProjectDir(settings, parentId);
+  const config = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
+  if (!config.multiCam?.cameras[camera]) {
+    throw new Error(`Unknown camera "${camera}"`);
+  }
+  const delta = offset - (config.cameraFrameOffsetsApplied?.[camera] ?? 0);
+  const counts = { tracks: 0, groups: 0, dropped: 0 };
+  if (delta !== 0) {
+    const cameraId = `${parentId}/${camera}`;
+    const cameraDir = await getValidatedProjectDir(settings, cameraId);
+    const existing = await loadAnnotationFile(cameraDir.trackFileAbsPath);
+    const { tracks, groups, dropped } = shiftAnnotationRecords(existing.tracks, existing.groups, delta);
+    await _saveSerialized(settings, cameraId, { ...existing, tracks, groups });
+    counts.tracks = Object.keys(tracks).length;
+    counts.groups = Object.keys(groups).length;
+    counts.dropped = dropped;
+  }
+  await saveConfig(settings, parentId, {
+    cameraFrameOffsets: { ...config.cameraFrameOffsets, [camera]: offset },
+    cameraFrameOffsetsApplied: { ...config.cameraFrameOffsetsApplied, [camera]: offset },
+  });
+  return {
+    camera, offset, delta, ...counts,
+  };
 }
 
 async function saveAttributes(settings: Settings, datasetId: string, args: SaveAttributeArgs) {
@@ -2844,6 +2895,7 @@ export {
   ingestDataFiles,
   saveDetections,
   saveConfig,
+  applyCameraFrameOffset,
   saveProjectConfig,
   processTrainedPipeline,
   findResumableTrainingJobs,
