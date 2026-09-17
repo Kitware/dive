@@ -33,6 +33,8 @@ const VideoArgs = [
    * https://video.stackexchange.com/questions/20871/how-do-i-convert-anamorphic-hdv-video-to-normal-h-264-video-with-ffmpeg-how-to
    */
   '-vf', 'scale=round(iw*sar/2)*2:round(ih/2)*2,setsar=1',
+  // Put the index up front so a browser can start playing before the file is down.
+  '-movflags', '+faststart',
 ];
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
