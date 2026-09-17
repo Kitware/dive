@@ -255,20 +255,22 @@ export default defineComponent({
       multiCamList.value.forEach((camera) => {
         camerasFrames[camera] = imageData.value[camera] ?? [];
       });
-      const byTimestamp = buildAlignedTimeline(camerasFrames);
-      if (byTimestamp.aligned) {
-        return byTimestamp;
-      }
-      // No usable timestamps (always the case for video panes). Fall back to
-      // the reviewer's fixed per-camera start offsets, which is the only way
-      // a video rig can express that one camera started late. Returns
-      // { aligned: false } when every offset is zero, so an uncorrected
-      // dataset stays on the cheaper positional path exactly as before.
+      // A reviewer's time offset wins over filename timestamps. Pipelines pair
+      // cameras by index, not by capture time, so annotations warped across a
+      // rig are index-aligned; the offset is the correction for that, and a
+      // timestamp timeline would show the images lined up while the slider
+      // moved only the boxes. Returns { aligned: false } when every offset is
+      // zero, so an uncorrected dataset keeps the timestamp path and its gap
+      // handling, or the cheaper positional path when there are none.
       const frameCounts: Record<string, number> = {};
       multiCamList.value.forEach((camera) => {
         frameCounts[camera] = cameraFrameCount(camera);
       });
-      return buildOffsetTimeline(frameCounts, cameraRegistration.frameOffsets.value);
+      const byOffset = buildOffsetTimeline(frameCounts, cameraRegistration.frameOffsets.value);
+      if (byOffset.aligned) {
+        return byOffset;
+      }
+      return buildAlignedTimeline(camerasFrames);
     });
     // Until an offset is applied to a camera's annotations, they stay put while its video shifts.
     watch(
