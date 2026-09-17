@@ -2084,8 +2084,21 @@ export default defineComponent({
       try {
         const hasStereo = await loadStereoMetadata();
         if (!hasStereo) return;
-        const result = await stereoEnable(undefined, stereoCalibrationFile);
+        // Same args as load-time auto-enable: honor the chosen method, but soft-
+        // fall back when its add-on is missing so import does not leave stereo
+        // offline on a stock VIAME.
+        const result = await stereoEnable(
+          undefined,
+          stereoCalibrationFile,
+          clientSettings.stereoSettings.matchMethod,
+          true,
+        );
         if (!result.success) return;
+        if (result.fellBack && result.matchMethod
+          && result.matchMethod !== clientSettings.stereoSettings.matchMethod) {
+          skipNextMatchMethodReload = true;
+          clientSettings.stereoSettings.matchMethod = result.matchMethod;
+        }
         stereoEnabled.value = true;
         await ensureStereoFrame(getViewerFrame());
       } catch (err) {
