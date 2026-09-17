@@ -17,7 +17,7 @@ import { reportHandledPromiseRejection } from 'platform/web-girder/reportHandled
 import { useLocation } from 'platform/web-girder/store/useLocation';
 import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import type { DatasetType, SubType } from 'dive-common/apispec';
+import type { DatasetCalibrationResult, DatasetType, SubType } from 'dive-common/apispec';
 import { useApi } from 'dive-common/apispec';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
@@ -119,6 +119,8 @@ export default defineComponent({
     const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
+    /** Girder item id for the cached stereo rig; used to detect in-place replacements. */
+    const calibrationItemId = ref<string | null>(null);
     // Client-side stereo: warp a detection to the other camera via the VIAME
     // "match" ONNX model and triangulate its length, with no backend. No-ops
     // without a 2-camera dataset, a calibration file, and a served model asset.
@@ -305,16 +307,32 @@ export default defineComponent({
       }
     });
 
+    /**
+     * Keep the stereo ONNX cache in sync with whatever calibration the menus
+     * are showing. A same-name replacement still changes itemId, so both are
+     * compared; invalidate when either differs so the next warp re-downloads.
+     */
+    function applyCalibrationResult(result: DatasetCalibrationResult | null | undefined) {
+      const nextName = result?.originalName ?? result?.jsonPath ?? result?.path ?? null;
+      const nextItemId = result?.itemId ?? result?.jsonItemId ?? null;
+      if (nextName === calibrationFile.value && nextItemId === calibrationItemId.value) {
+        return;
+      }
+      invalidateCalibration();
+      calibrationFile.value = nextName;
+      calibrationItemId.value = nextItemId;
+    }
+
     async function refreshCalibrationFile() {
       if (!getDatasetCalibration || subTypeList.value[0] !== 'stereo') {
-        calibrationFile.value = null;
+        applyCalibrationResult(null);
         return;
       }
       try {
         const result = await getDatasetCalibration(parentDatasetId(props.id));
-        calibrationFile.value = result?.originalName ?? result?.jsonPath ?? result?.path ?? null;
+        applyCalibrationResult(result);
       } catch {
-        calibrationFile.value = null;
+        applyCalibrationResult(null);
       }
     }
 
@@ -329,12 +347,15 @@ export default defineComponent({
     );
 
     function onCalibrationImported(name: string) {
+      // Item id is unknown until the next server refresh / conversion poll.
       calibrationFile.value = name;
+      calibrationItemId.value = null;
       invalidateCalibration();
     }
 
     function onCalibrationDeleted() {
       calibrationFile.value = null;
+      calibrationItemId.value = null;
       invalidateCalibration();
     }
 
@@ -488,6 +509,7 @@ export default defineComponent({
       jobsDisabledMessage,
       webExcludedPipelineTerms,
       calibrationFile,
+      applyCalibrationResult,
       onCalibrationImported,
       onCalibrationDeleted,
       changeCamera,
@@ -604,6 +626,7 @@ export default defineComponent({
           v-if="subTypeList[0] === 'stereo'"
           :dataset-id="id"
           :calibration-file="calibrationFile"
+          @calibration-updated="applyCalibrationResult"
           @calibration-deleted="onCalibrationDeleted"
         />
       </template>
