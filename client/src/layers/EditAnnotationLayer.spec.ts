@@ -20,6 +20,7 @@ function harness() {
   const handlers = new Map<string, Set<(event: any) => void>>();
   let mode: string | null = null;
   let annotation: any;
+  const handles = { _clearSelectedFeatures: vi.fn() };
   const featureLayer: any = {
     annotations: () => (annotation ? [annotation] : []),
     mode: (value?: string | null, edited?: any) => {
@@ -36,6 +37,7 @@ function harness() {
     geoOff: (name: string, fn: (e: any) => void) => handlers.get(name)?.delete(fn),
     removeAllAnnotations: () => { annotation = undefined; },
     draw: vi.fn(),
+    features: () => [handles],
     geojson: (feature: GeoJSON.Feature<GeoJSON.LineString>) => {
       let vertices = feature.geometry.coordinates.map(([x, y]) => ({ x, y }));
       annotation = {
@@ -53,7 +55,7 @@ function harness() {
   };
   featureLayer.geoOn('mouseclick', featureLayer._handleMouseClick);
   const arrow: any = { style: vi.fn(), draw: vi.fn(), data: () => arrow };
-  const interactor = { mouse: () => ({ buttons: { left: false } }) };
+  const interactor = { mouse: () => ({ buttons: { left: false } }), retriggerMouseMove: vi.fn() };
   const project = (p: { x: number; y: number }) => ({ x: p.x * 10, y: p.y * 10 });
   const map = {
     createLayer: (type: string) => (type === 'annotation' ? featureLayer : { createFeature: () => arrow }),
@@ -83,7 +85,7 @@ function harness() {
     handlers.get('mouseclick')!.forEach((fn) => fn(event));
   };
   return {
-    layer, track, reopen, update, click, featureLayer,
+    layer, track, reopen, update, click, featureLayer, handles, interactor,
   };
 }
 
@@ -129,4 +131,16 @@ it('synchronizes right-click exits and reopens the saved line repeatedly', async
     h.layer.disable();
   }
   expect(h.track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toHaveLength(5);
+});
+
+it('re-hovers the handle under a stationary cursor after the edit annotation is rebuilt', async () => {
+  vi.useFakeTimers();
+  const h = harness(); await h.reopen();
+  vi.runAllTimers();
+  expect(h.handles._clearSelectedFeatures).toHaveBeenCalledTimes(1);
+  expect(h.interactor.retriggerMouseMove).toHaveBeenCalledTimes(1);
+  h.layer.disable(); await h.layer.changeData([]);
+  vi.runAllTimers();
+  expect(h.interactor.retriggerMouseMove).toHaveBeenCalledTimes(1);
+  vi.useRealTimers();
 });
