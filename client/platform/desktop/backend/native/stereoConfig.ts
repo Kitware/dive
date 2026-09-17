@@ -66,3 +66,30 @@ export function resolveStereoConfig(
       + 'Install the add-on, or choose a different "Stereo point matching" setting.',
   };
 }
+
+/** Preferred → available order when auto-enable may soft-fall back. */
+export const STEREO_MATCH_FALLBACK_ORDER: StereoMatchMethod[] = ['foundation', 'dino', 'ncc'];
+
+/**
+ * Resolve `preferred`, or the next installed method in quality order.
+ * Used for load-time auto-enable so a missing Fast Foundation add-on does not
+ * leave interactive stereo dead while the default is still "Higher Quality".
+ */
+export function resolveStereoConfigWithFallback(
+  viamePath: string,
+  preferred: StereoMatchMethod,
+): { config: string; method: StereoMatchMethod; fellBack: boolean } | { error: string } {
+  const preferredResult = resolveStereoConfig(viamePath, preferred);
+  if (preferredResult.config) {
+    return { config: preferredResult.config, method: preferred, fellBack: false };
+  }
+  for (let i = 0; i < STEREO_MATCH_FALLBACK_ORDER.length; i += 1) {
+    const method = STEREO_MATCH_FALLBACK_ORDER[i];
+    if (method === preferred) continue;
+    const result = resolveStereoConfig(viamePath, method);
+    if (result.config) {
+      return { config: result.config, method, fellBack: true };
+    }
+  }
+  return { error: preferredResult.error ?? 'No stereo point matching method is available.' };
+}

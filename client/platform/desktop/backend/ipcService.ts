@@ -548,7 +548,10 @@ export default function register() {
    */
 
   ipcMain.handle('stereo-enable', async (event, args?: {
-    calibration?: StereoCalibration; calibrationFile?: string; matchMethod?: StereoMatchMethod;
+    calibration?: StereoCalibration;
+    calibrationFile?: string;
+    matchMethod?: StereoMatchMethod;
+    allowFallback?: boolean;
   }) => {
     const stereoService = getInteractiveServiceManager();
 
@@ -569,6 +572,7 @@ export default function register() {
       args?.calibration,
       args?.calibrationFile,
       args?.matchMethod,
+      args?.allowFallback,
     );
     return result;
   });

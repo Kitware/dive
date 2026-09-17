@@ -811,8 +811,17 @@ async function stereoEnable(
   calibration?: StereoCalibration,
   calibrationFile?: string,
   matchMethod?: StereoMatchMethod,
-): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
-  return invoke<{ success: boolean; error?: string; launchFailed?: boolean }>('stereo-enable', { calibration, calibrationFile, matchMethod });
+  allowFallback = false,
+): Promise<{
+  success: boolean;
+  error?: string;
+  launchFailed?: boolean;
+  matchMethod?: StereoMatchMethod;
+  fellBack?: boolean;
+}> {
+  return invoke('stereo-enable', {
+    calibration, calibrationFile, matchMethod, allowFallback,
+  });
 }
 
 async function stereoDisable(): Promise<{ success: boolean }> {

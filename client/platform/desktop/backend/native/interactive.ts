@@ -23,7 +23,7 @@ import { Settings } from 'platform/desktop/constants';
 import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
 import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import { observeChild } from './processManager';
-import { resolveStereoConfig } from './stereoConfig';
+import { resolveStereoConfig, resolveStereoConfigWithFallback } from './stereoConfig';
 import linux from './linux';
 import win32 from './windows';
 import {
@@ -510,9 +510,23 @@ export class InteractiveServiceManager extends EventEmitter {
     calibration?: StereoCalibration,
     calibrationFile?: string,
     matchMethod: StereoMatchMethod = DEFAULT_STEREO_MATCH_METHOD,
-  ): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
-    const resolved = resolveStereoConfig(settings.viamePath, matchMethod);
-    if (resolved.error !== undefined) {
+    allowFallback = false,
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    launchFailed?: boolean;
+    matchMethod?: StereoMatchMethod;
+    fellBack?: boolean;
+  }> {
+    const resolved = allowFallback
+      ? resolveStereoConfigWithFallback(settings.viamePath, matchMethod)
+      : (() => {
+        const strict = resolveStereoConfig(settings.viamePath, matchMethod);
+        return strict.error !== undefined
+          ? { error: strict.error }
+          : { config: strict.config, method: matchMethod, fellBack: false as const };
+      })();
+    if ('error' in resolved) {
       return { success: false, error: resolved.error };
     }
     try {
@@ -537,7 +551,11 @@ export class InteractiveServiceManager extends EventEmitter {
       }, 'Stereo enable');
       if (response.success) {
         this.stereoEnabled = true;
-        return { success: true };
+        return {
+          success: true,
+          matchMethod: resolved.method,
+          fellBack: resolved.fellBack,
+        };
       }
       return {
         success: false,
