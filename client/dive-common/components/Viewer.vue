@@ -1563,6 +1563,10 @@ export default defineComponent({
       }
       return false;
     };
+    let editingOnRightMouseDown = false;
+    const noteRightMouseDown = () => {
+      editingOnRightMouseDown = editingTrack.value;
+    };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
     const changeCamera = (camera: string, event?: MouseEvent) => {
@@ -1586,15 +1590,21 @@ export default defineComponent({
       if (event && isExtendingDetectionToCamera(camera)) {
         return;
       }
-      // A right-click while editing must finalize and deselect the detection
-      // in a single press -- matching single-camera behavior -- not merely
-      // switch cameras (which used to leave the detection selected until a
-      // second right-click on the new camera). Right-clicks ON an annotation
-      // never reach here: the annotation layers' right-click handoff switches
-      // the selected camera synchronously first, so this handler returns at
-      // the top (same camera).
-      if (event?.button === 2 && editingTrack.value) {
-        handler.trackSelect(null, false);
+      // A right-click off the detection while editing must finalize it AND
+      // select the clicked camera in a single press. When the track also has
+      // geometry on the clicked camera, that camera's edit layer has already
+      // ended editing by the time this mouseup arrives, so editingTrack alone
+      // cannot tell; selectCamera(camera, true) would then put the detection
+      // straight back into edit mode. Right-clicks ON an annotation never
+      // reach here: the annotation layers' right-click handoff switches the
+      // selected camera synchronously first, so this handler returns at the
+      // top (same camera).
+      if (event?.button === 2 && (editingTrack.value || editingOnRightMouseDown)) {
+        editingOnRightMouseDown = false;
+        if (editingTrack.value) {
+          handler.trackSelect(null, false);
+        }
+        selectCamera(camera, false);
         return;
       }
       // While editing a track that exists on the target camera, its edit
@@ -2482,6 +2492,7 @@ export default defineComponent({
       defaultCamera,
       selectedCamera,
       changeCamera,
+      noteRightMouseDown,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -2843,6 +2854,7 @@ export default defineComponent({
               :class="displayedCameras.includes(camera) ? 'd-flex flex-column grow' : 'd-none'"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
+              @mousedown.right="noteRightMouseDown"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
@@ -2940,6 +2952,7 @@ export default defineComponent({
               :key="camera"
               class="d-flex flex-column grow"
               @mousedown.left="changeCamera(camera, $event)"
+              @mousedown.right="noteRightMouseDown"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
