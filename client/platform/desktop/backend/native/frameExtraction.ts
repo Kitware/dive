@@ -24,7 +24,7 @@ const frameCaches: Map<string, FrameCache> = new Map();
 const MAX_CACHE_SIZE = 100; // Max frames per video
 const CACHE_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
-export interface VideoInfo {
+interface VideoInfo {
   fps: number;
   duration: number;
   width: number;
@@ -35,7 +35,7 @@ export interface VideoInfo {
 /**
  * Get video information using ffprobe
  */
-export async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
+async function getVideoInfo(videoPath: string): Promise<VideoInfo> {
   const args = [
     '-v', 'quiet',
     '-print_format', 'json',

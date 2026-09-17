@@ -7,6 +7,7 @@ import {
   computed,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
+import { stereoMatchMethodsFor } from 'dive-common/use/stereo/stereoMatcher';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export default defineComponent({
@@ -40,6 +41,9 @@ export default defineComponent({
       showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
       stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
       stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
+      stereoMatchMethod: isDesktopRuntime()
+        ? 'How points are located on the other camera. "Higher Quality, Slower" runs the Fast Foundation Stereo model over the whole image pair and reads every point from its disparity map, which is computed ahead of time whenever you change frames (requires the Fast Foundation Stereo add-on). "Medium Quality, Medium Speed" template-matches each point along its epipolar line after DINO features pick the candidates (requires the DINO add-on). "Lower Quality, Faster" template-matches each point along its epipolar line.'
+        : 'How points are located on the other camera. "Higher Quality, Slower" runs the Fast Foundation Stereo model over the whole image pair (downloaded once, about 90 MB; needs a WebGPU-capable browser) and reads every point from its disparity map, which is computed ahead of time whenever you change frames. "Lower Quality, Faster" template-matches each point along its epipolar line.',
     });
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
@@ -52,6 +56,7 @@ export default defineComponent({
       help,
       modes,
       typeList,
+      stereoMatchMethods: stereoMatchMethodsFor(isDesktopRuntime()),
     };
   },
 });
@@ -442,6 +447,45 @@ export default defineComponent({
                 </v-icon>
               </template>
               <span>{{ help.stereoAutoCompute }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <!-- Unlike the switches above, this control always has a value, so its
+        label sits floated at its top edge and needs room above the row. -->
+        <v-row
+          align="end"
+          class="mt-3"
+          dense
+        >
+          <v-col class="py-1">
+            <v-select
+              v-model="clientSettings.stereoSettings.matchMethod"
+              :items="stereoMatchMethods"
+              class="my-0 ml-1 pt-0"
+              dense
+              hide-details
+              label="Stereo point matching"
+            />
+          </v-col>
+          <v-col
+            cols="2"
+            class="py-1"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.stereoMatchMethod }}</span>
             </v-tooltip>
           </v-col>
         </v-row>

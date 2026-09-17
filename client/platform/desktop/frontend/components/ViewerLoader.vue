@@ -194,6 +194,10 @@ export default defineComponent({
       }
       return props.id;
     });
+    // Held as a computed rather than an inline `[modifiedId]` in the template:
+    // an inline array is a new value on every re-render, which makes the
+    // pipeline menu re-look-up the dataset's calibration on every click.
+    const pipelineDatasetIds = computed(() => [modifiedId.value]);
     const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
@@ -824,13 +828,34 @@ export default defineComponent({
       clientSettings.stereoSettings.autoComputeOtherCamera = false;
     }
 
+    // In-flight enable/disable promise. Stereo work requested while the
+    // service is still starting (spawning the backend service on a fresh
+    // launch can take a while) waits for it via stereoServiceReady instead of
+    // being dropped -- e.g. a line drawn on both cameras right after launch
+    // must still get its length computed once the service comes up.
+    let stereoStatePromise: Promise<void> | null = null;
+    // True once this dataset was determined to have no stereo pair, so the
+    // per-annotation self-heal below doesn't re-load metadata on every draw
+    // in single-camera datasets.
+    let stereoDatasetUnavailable = false;
+    // Set when auto-enable soft-falls back and writes matchMethod to match the
+    // config that actually started, so the method watcher does not bounce it.
+    let skipNextMatchMethodReload = false;
+
     // Enable or disable the backend stereo service to match the desired state.
     // Failures are always surfaced in the (persistent) dialog; userInitiated
     // additionally reverts the feature toggles, since the user just asked for
     // something that cannot work, whereas a load-time auto-enable failure
     // (e.g. an uncalibrated dataset) keeps the remembered toggles so a later
     // calibrated dataset still works.
-    async function applyStereoServiceState(enabled: boolean, userInitiated: boolean) {
+    // allowFallback: when the preferred match method's add-on is missing,
+    // soft-fall back to the next installed method (and update the setting) so
+    // the default "Higher Quality" does not brick stereo on a stock VIAME.
+    async function applyStereoServiceState(
+      enabled: boolean,
+      userInitiated: boolean,
+      allowFallback = false,
+    ) {
       if (enabled) {
         // Already running (e.g. a user toggle raced the load-time auto-enable):
         // nothing to do.
@@ -855,7 +880,12 @@ export default defineComponent({
           // annotation until measurements will actually work.
           stereoLoadingMessage.value = 'Loading stereo model...';
           stereoLoadingDialog.value = true;
-          const result = await stereoEnable(undefined, stereoCalibrationFile);
+          const result = await stereoEnable(
+            undefined,
+            stereoCalibrationFile,
+            clientSettings.stereoSettings.matchMethod,
+            allowFallback,
+          );
           if (!result.success) {
             // launchFailed means the backend service couldn't even start (e.g.
             // missing python interpreter or a broken import). That is a real
@@ -865,6 +895,13 @@ export default defineComponent({
             const err = new Error(result.error || 'Failed to enable stereo service');
             (err as Error & { launchFailed?: boolean }).launchFailed = result.launchFailed;
             throw err;
+          }
+          if (result.fellBack && result.matchMethod
+            && result.matchMethod !== clientSettings.stereoSettings.matchMethod) {
+            // Updating the setting must not re-enter the method watcher and
+            // bounce the service we just started.
+            skipNextMatchMethodReload = true;
+            clientSettings.stereoSettings.matchMethod = result.matchMethod;
           }
           stereoEnabled.value = true;
           stereoLoadingDialog.value = false;
@@ -902,17 +939,6 @@ export default defineComponent({
       }
     }
 
-    // In-flight enable/disable promise. Stereo work requested while the
-    // service is still starting (spawning the backend service on a fresh
-    // launch can take a while) waits for it via stereoServiceReady instead of
-    // being dropped -- e.g. a line drawn on both cameras right after launch
-    // must still get its length computed once the service comes up.
-    let stereoStatePromise: Promise<void> | null = null;
-    // True once this dataset was determined to have no stereo pair, so the
-    // per-annotation self-heal below doesn't re-load metadata on every draw
-    // in single-camera datasets.
-    let stereoDatasetUnavailable = false;
-
     function resetStereoStateForDatasetChange() {
       stereoDatasetUnavailable = false;
       stereoImagePathGetters.value = {};
@@ -923,8 +949,12 @@ export default defineComponent({
       closeStereoLoadingDialog();
     }
 
-    function requestStereoServiceState(enabled: boolean, userInitiated: boolean): Promise<void> {
-      const p = applyStereoServiceState(enabled, userInitiated).finally(() => {
+    function requestStereoServiceState(
+      enabled: boolean,
+      userInitiated: boolean,
+      allowFallback = false,
+    ): Promise<void> {
+      const p = applyStereoServiceState(enabled, userInitiated, allowFallback).finally(() => {
         if (stereoStatePromise === p) stereoStatePromise = null;
       });
       stereoStatePromise = p;
@@ -958,7 +988,9 @@ export default defineComponent({
       // up rather than silently producing no measurement.
       if (!stereoEnabled.value && !stereoStatePromise
         && !stereoDatasetUnavailable && stereoServiceWanted()) {
-        requestStereoServiceState(true, false);
+        // Allow falling back off an unavailable default method so drawing a
+        // line still measures when the Fast Foundation add-on is missing.
+        requestStereoServiceState(true, false, true);
       }
       while (stereoStatePromise) {
         // eslint-disable-next-line no-await-in-loop
@@ -967,14 +999,31 @@ export default defineComponent({
       return stereoEnabled.value;
     }
 
-    // Runtime toggle changes are always user-initiated. This watcher is NOT
-    // immediate: a remembered setting must NOT auto-enable here, because this
-    // runs during setup() -- before the dataset/viewer has loaded. Enabling then
-    // races the not-yet-ready multicam metadata; on failure the load-time path
-    // degrades silently with nothing to retry, so the service would stay off
-    // until the toggle was flipped off and on again. The load-time auto-enable
-    // is deferred to the viewer-ready watcher below instead.
-    watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true));
+    // Runtime toggle changes are always user-initiated. Soft-fall back when the
+    // preferred method's add-on is missing: the user asked for lengths/transfer,
+    // not specifically for Higher Quality. This watcher is NOT immediate: a
+    // remembered setting must NOT auto-enable here, because this runs during
+    // setup() -- before the dataset/viewer has loaded. Enabling then races the
+    // not-yet-ready multicam metadata; on failure the load-time path degrades
+    // silently with nothing to retry, so the service would stay off until the
+    // toggle was flipped off and on again. The load-time auto-enable is
+    // deferred to the viewer-ready watcher below instead.
+    watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true, true));
+
+    // The method selects the backend's stereo config, so switching it reloads
+    // the service. A failure (e.g. the add-on for the new method is not
+    // installed) shows the persistent error dialog and leaves the setting as
+    // chosen, so the message explains what to install or change.
+    watch(() => clientSettings.stereoSettings.matchMethod, async () => {
+      if (skipNextMatchMethodReload) {
+        skipNextMatchMethodReload = false;
+        return;
+      }
+      if (stereoDatasetUnavailable || !stereoServiceWanted()) return;
+      await requestStereoServiceState(false, false);
+      // Strict: the user picked this method; do not soft-fall back.
+      await requestStereoServiceState(true, false, false);
+    });
 
     watch(
       () => viewerRef.value?.progress?.loaded === true,
@@ -998,7 +1047,7 @@ export default defineComponent({
         if (!loaded) return;
         stopStereoAutoEnable();
         if (stereoServiceWanted() && !stereoEnabled.value) {
-          requestStereoServiceState(true, false);
+          requestStereoServiceState(true, false, true);
         }
       },
       { immediate: true },
@@ -2035,8 +2084,21 @@ export default defineComponent({
       try {
         const hasStereo = await loadStereoMetadata();
         if (!hasStereo) return;
-        const result = await stereoEnable(undefined, stereoCalibrationFile);
+        // Same args as load-time auto-enable: honor the chosen method, but soft-
+        // fall back when its add-on is missing so import does not leave stereo
+        // offline on a stock VIAME.
+        const result = await stereoEnable(
+          undefined,
+          stereoCalibrationFile,
+          clientSettings.stereoSettings.matchMethod,
+          true,
+        );
         if (!result.success) return;
+        if (result.fellBack && result.matchMethod
+          && result.matchMethod !== clientSettings.stereoSettings.matchMethod) {
+          skipNextMatchMethodReload = true;
+          clientSettings.stereoSettings.matchMethod = result.matchMethod;
+        }
         stereoEnabled.value = true;
         await ensureStereoFrame(getViewerFrame());
       } catch (err) {
@@ -2104,6 +2166,7 @@ export default defineComponent({
       camNumbers,
       readonlyMode,
       modifiedId,
+      pipelineDatasetIds,
       changeCamera,
       readOnlyMode,
       runningPipelines,
@@ -2187,7 +2250,7 @@ export default defineComponent({
       <template #title-right>
         <RunPipelineMenu
           :before-run="() => viewerRef.save()"
-          :selected-dataset-ids="[modifiedId]"
+          :selected-dataset-ids="pipelineDatasetIds"
           :sub-type-list="subTypeList"
           :camera-numbers="camNumbers"
           :running-pipelines="runningPipelines"

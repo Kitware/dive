@@ -2978,6 +2978,70 @@ describe('native.common', () => {
   });
 });
 
+describe('extractPipeMetadata diveParams', () => {
+  const pipesDir = '/opt/viame/configs/pipelines';
+
+  function mockPipes(files: Record<string, string>) {
+    mockfs({
+      [pipesDir]: files,
+    });
+  }
+
+  it('updates an included DIVE_PARAM default from a bare wrapper assignment', async () => {
+    mockPipes({
+      'base.pipe': [
+        'process foo',
+        '  :: some_filter',
+        '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        '',
+      ].join('\n'),
+      'wrapper.pipe': [
+        'include base.pipe',
+        'process foo',
+        '  :threshold = 0.9',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'wrapper.pipe'));
+    const byKey = Object.fromEntries((metadata.diveParams ?? []).map((p) => [p.key, p]));
+
+    expect(byKey['foo:threshold'].default).toBe('0.9');
+    expect(byKey['foo:threshold'].label).toBe('Threshold');
+    expect(byKey['foo:threshold'].type).toBe('float');
+  });
+
+  it('does not create a UI param from a bare assignment alone', async () => {
+    mockPipes({
+      'detector_plain.pipe': [
+        'process foo',
+        '  :threshold = 0.9',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'detector_plain.pipe'));
+    expect(metadata.diveParams).toEqual([]);
+  });
+
+  it('updates a same-file DIVE_PARAM default from a later bare assignment', async () => {
+    mockPipes({
+      'detector_thresh.pipe': [
+        'process foo',
+        '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        '  :threshold = 0.2',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(
+      npath.join(pipesDir, 'detector_thresh.pipe'),
+    );
+    expect(metadata.diveParams).toHaveLength(1);
+    expect(metadata.diveParams?.[0].default).toBe('0.2');
+  });
+});
+
 describe('resumable training jobs', () => {
   const jobsDir = '/home/user/viamedata/DIVE_Jobs';
   const baseManifest = {

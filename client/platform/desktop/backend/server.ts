@@ -376,26 +376,6 @@ apirouter.get('/media/histogram', async (req, res, next) => {
   }
 });
 
-/* Probe a video file for fps / size (Query page frame extraction). */
-apirouter.get('/video-info', async (req, res, next) => {
-  const { path } = req.query;
-  if (!path || Array.isArray(path)) {
-    return next({
-      status: 400,
-      statusMessage: `Invalid path: ${path}`,
-    });
-  }
-  try {
-    const info = await frameExtraction.getVideoInfo(path.toString());
-    return res.json(info);
-  } catch (err) {
-    return next({
-      status: 500,
-      statusMessage: `Failed to get video info: ${err}`,
-    });
-  }
-});
-
 /* STREAM media */
 apirouter.get('/media', (req, res, next) => {
   let { path } = req.query;

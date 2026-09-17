@@ -204,15 +204,18 @@ export default defineComponent({
     });
 
     const calibrationAvailableByDatasetId = ref<Record<string, boolean>>({});
+    /** The datasets whose calibration status is looked up: one entry per parent. */
+    const calibrationParentIds = computed(
+      () => [...new Set(props.selectedDatasetIds.map((id) => parentDatasetId(id)))],
+    );
 
     async function refreshCalibrationStatus() {
-      if (!hasCalibrationFile || props.selectedDatasetIds.length === 0) {
+      if (!hasCalibrationFile || calibrationParentIds.value.length === 0) {
         calibrationAvailableByDatasetId.value = {};
         return;
       }
-      const parentIds = [...new Set(props.selectedDatasetIds.map((id) => parentDatasetId(id)))];
       const entries = await Promise.all(
-        parentIds.map(async (datasetId) => {
+        calibrationParentIds.value.map(async (datasetId) => {
           const available = await hasCalibrationFile(datasetId);
           return [datasetId, available] as const;
         }),
@@ -220,7 +223,10 @@ export default defineComponent({
       calibrationAvailableByDatasetId.value = Object.fromEntries(entries);
     }
 
-    watch(() => props.selectedDatasetIds, () => {
+    // Watch the ids themselves, not the array: a parent that binds an inline
+    // `[datasetId]` hands over a new array on every re-render, and each lookup
+    // costs a folder read plus a per-item existence check.
+    watch(() => calibrationParentIds.value.join(','), () => {
       refreshCalibrationStatus();
     }, { immediate: true });
 

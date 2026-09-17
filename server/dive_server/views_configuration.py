@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource
+from girder.api.rest import Resource, setRawResponse, setResponseHeader
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
@@ -19,7 +19,7 @@ import requests
 
 from dive_server import crud, crud_rpc, worker_capabilities
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, constants, models, types
+from dive_utils import TRUTHY_META_VALUES, constants, models, stereo_models, types
 
 
 @setting_utilities.validator({constants.SETTINGS_CONST_JOBS_CONFIGS})
@@ -67,6 +67,10 @@ class ConfigurationResource(Resource):
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("GET", ("training_configs",), self.get_training_configs)
+        self.route("GET", ("stereo_foundation_model",), self.get_stereo_foundation_model)
+        self.route(
+            "GET", ("stereo_foundation_model", "spec"), self.get_stereo_foundation_model_spec
+        )
 
         self.route("PUT", ("brand_data",), self.update_brand_data)
         self.route("PUT", ("static_pipeline_configs",), self.update_static_pipeline_configs)
@@ -117,6 +121,58 @@ class ConfigurationResource(Resource):
             "models": model_configs,
         }
         return training_configs
+
+    @staticmethod
+    def _stereo_foundation_model(params) -> stereo_models.FoundationModel:
+        try:
+            return stereo_models.ensure_stereo_foundation_model(
+                params.get('height'), params.get('width')
+            )
+        except stereo_models.ModelUnavailableError as exc:
+            raise RestException(str(exc), code=502)
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "Describe the Fast-FoundationStereo ONNX export served by "
+            "stereo_foundation_model for imagery of the given size, fetching it from "
+            "the VIAME ONNX list on first use"
+        )
+        .param('height', 'Frame height in pixels', required=False, dataType='integer')
+        .param('width', 'Frame width in pixels', required=False, dataType='integer')
+    )
+    def get_stereo_foundation_model_spec(self, params):
+        model = self._stereo_foundation_model(params)
+        return {
+            'name': model.onnx_path.name,
+            'url': model.url,
+            'md5': model.md5,
+            'height': model.height,
+            'width': model.width,
+            'size': model.onnx_path.stat().st_size,
+        }
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Download the Fast-FoundationStereo ONNX export for imagery of the given size")
+        .param('height', 'Frame height in pixels', required=False, dataType='integer')
+        .param('width', 'Frame width in pixels', required=False, dataType='integer')
+    )
+    def get_stereo_foundation_model(self, params):
+        model = self._stereo_foundation_model(params)
+        setResponseHeader('Content-Type', 'application/octet-stream')
+        setResponseHeader('Content-Length', str(model.onnx_path.stat().st_size))
+        setResponseHeader('Content-Disposition', f'attachment; filename="{model.onnx_path.name}"')
+        setRawResponse()
+
+        def stream():
+            with open(model.onnx_path, 'rb') as handle:
+                chunk = handle.read(stereo_models.DOWNLOAD_CHUNK_BYTES)
+                while chunk:
+                    yield chunk
+                    chunk = handle.read(stereo_models.DOWNLOAD_CHUNK_BYTES)
+
+        return stream()
 
     @access.admin
     @autoDescribeRoute(
