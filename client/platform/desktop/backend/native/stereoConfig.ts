@@ -85,10 +85,11 @@ export function resolveStereoConfigWithFallback(
   }
   for (let i = 0; i < STEREO_MATCH_FALLBACK_ORDER.length; i += 1) {
     const method = STEREO_MATCH_FALLBACK_ORDER[i];
-    if (method === preferred) continue;
-    const result = resolveStereoConfig(viamePath, method);
-    if (result.config) {
-      return { config: result.config, method, fellBack: true };
+    if (method !== preferred) {
+      const result = resolveStereoConfig(viamePath, method);
+      if (result.config) {
+        return { config: result.config, method, fellBack: true };
+      }
     }
   }
   return { error: preferredResult.error ?? 'No stereo point matching method is available.' };
