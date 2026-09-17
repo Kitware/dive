@@ -84,6 +84,9 @@ function apiWithMetadata({
     loadFrameMetadata: vi.fn(async () => frameMetadata),
     saveDetections: async () => undefined,
     saveConfig: async () => undefined,
+    applyCameraFrameOffset: async () => ({
+      camera: '', offset: 0, delta: 0, tracks: 0, groups: 0, dropped: 0,
+    }),
     saveAttributes: async () => undefined,
     saveAttributeTrackFilters: async () => undefined,
     openFromDisk: async () => ({ canceled: true, filePaths: [] }),

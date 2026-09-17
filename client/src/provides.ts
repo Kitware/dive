@@ -217,6 +217,8 @@ export interface Handler {
   unstageFromMerge(ids: AnnotationId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
+  /* Replace one camera's in-memory annotations with what persistence now holds */
+  reloadCameraAnnotations(camera: string): Promise<void>;
   setSVGFilters({
     brightness, contrast, saturation, sharpen, percentileStretch,
   }: {
@@ -281,6 +283,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     groupEdit(...args) { handle('groupEdit', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
+    reloadCameraAnnotations(...args) { handle('reloadCameraAnnotations', args); return Promise.resolve(); },
     setSVGFilters(...args) { handle('setSVGFilter', args); },
     unlinkCameraTrack(...args) { handle('unlinkCameraTrack', args); },
     linkCameraTrack(...args) { handle('linkCameraTrack', args); },

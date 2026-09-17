@@ -391,6 +391,17 @@ export default class CameraRegistrationStore {
   }
 
   /**
+   * Record that `camera`'s time offset was persisted and applied, leaving
+   * the rest of the baseline untouched so other unsaved edits stay dirty.
+   */
+  markFrameOffsetSaved(camera: string, offset: number) {
+    const saved = JSON.parse(this.savedSnapshot.value);
+    saved.frameOffsets = { ...saved.frameOffsets, [camera]: offset };
+    saved.appliedFrameOffsets = { ...saved.appliedFrameOffsets, [camera]: offset };
+    this.savedSnapshot.value = JSON.stringify(saved);
+  }
+
+  /**
    * The saved-baseline calibration (what the persisted registration -- the
    * per-camera registration files on desktop, the dataset meta on web --
    * currently holds). Parsed fresh from the snapshot on each call. Matches

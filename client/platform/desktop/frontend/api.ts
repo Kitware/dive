@@ -12,6 +12,7 @@ import type {
   PipelineJobResult,
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
   VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
+  CameraFrameOffsetResult,
 } from 'dive-common/apispec';
 import axios, { AxiosInstance } from 'axios';
 import { watch } from 'vue';
@@ -976,6 +977,15 @@ async function saveConfig(id: string, args: DatasetConfigMutable) {
   return client.post(`dataset/${id}/meta`, args);
 }
 
+async function applyCameraFrameOffset(id: string, camera: string, offset: number) {
+  const client = await getClient();
+  const { data } = await client.post<CameraFrameOffsetResult>(
+    `dataset/${id}/camera_frame_offset`,
+    { camera, offset },
+  );
+  return data;
+}
+
 async function saveDetections(id: string, args: SaveDetectionsArgs) {
   const client = await getClient();
   return client.post(`dataset/${id}/detections`, args);
@@ -1081,6 +1091,7 @@ export {
   loadScoringResult,
   deleteScoringResult,
   saveConfig,
+  applyCameraFrameOffset,
   saveDetections,
   saveAttributes,
   saveAttributeTrackFilters,
