@@ -764,6 +764,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // disable resets things before we load a new/different shape or mode
           this.disable();
           this.formattedData = this.formatData(frameData);
+          this.rehoverEditHandles();
         }
       }
     } else {
@@ -776,6 +777,22 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
     this.calculateCursorImage();
     this.redraw();
+  }
+
+  /**
+   * GeoJS only fires mouseon when the handle under the cursor changes, so
+   * handles rebuilt beneath a stationary cursor stay inert until the mouse
+   * leaves and returns. Forget the stale hover and replay the mouse position.
+   */
+  rehoverEditHandles() {
+    if (this.getMode() !== 'editing') return;
+    window.setTimeout(() => {
+      if (this.getMode() !== 'editing') return;
+      this.featureLayer.features().forEach(
+        (feature: { _clearSelectedFeatures?: () => void }) => feature._clearSelectedFeatures?.(),
+      );
+      this.annotator.geoViewerRef.value.interactor().retriggerMouseMove();
+    }, 0);
   }
 
   /**
