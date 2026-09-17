@@ -7,6 +7,7 @@ import JobTab from './JobTab.vue';
 import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
 import { desktopDestinations, navigationOverflow, DesktopDestination } from './desktopNavigation';
 import { lastAnnotation } from '../store/dataset';
+import { viamePathValid } from '../store/settings';
 
 export default defineComponent({
   components: { JobTab, AnnotationOtherMenu },
@@ -16,7 +17,10 @@ export default defineComponent({
     const container = ref<{ $el: HTMLElement }>();
     const width = ref(Infinity);
     const destinations = computed(() => {
-      const items: DesktopDestination[] = desktopDestinations.filter((item) => router.getRoutes().some((route) => route.name === item.name));
+      const items: DesktopDestination[] = desktopDestinations.filter((item) => {
+        if (item.name === 'addons' && !viamePathValid.value) return false;
+        return router.getRoutes().some((route) => route.name === item.name);
+      });
       if (lastAnnotation.value) {
         items.unshift({
           name: 'viewer',

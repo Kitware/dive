@@ -8,12 +8,15 @@
  * originals, replace the overlapped ones, replace every original, or
  * drop the results altogether.
  */
-import { computed, ref, watch } from 'vue';
+import {
+  computed, effectScope, ref, Ref, watch,
+} from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewCellGeometryEdit } from 'dive-common/components/Review/ReviewCell.vue';
 import { tracksOverlapping } from 'dive-common/review/reviewItems';
-import { searchResultTrack } from 'dive-common/review/searchResultItems';
+import { searchResultItem, searchResultTrack } from 'dive-common/review/searchResultItems';
 import type { ReviewItem } from 'dive-common/review/types';
+import { DEFAULT_REVIEW_GRID } from 'dive-common/review/types';
 import type { ReviewService } from 'dive-common/use/useReview';
 import type { VideoSearchContextType } from 'platform/desktop/frontend/useVideoSearch';
 
@@ -37,6 +40,12 @@ export interface OverlapSummary {
 export interface SearchReviewOptions {
   /** How to save results that overlap existing annotations. */
   resolveOverlap: (summary: OverlapSummary) => Promise<OverlapChoice>;
+  /**
+   * Results in scope for change counting and save. Defaults to every hit in
+   * the open session; pass a filtered list when the Query page narrows what
+   * the user is reviewing (e.g. only listed datasets).
+   */
+  results?: Ref<VideoSearchResult[]>;
 }
 
 interface CreatedTrack {
@@ -46,7 +55,26 @@ interface CreatedTrack {
 
 export type SearchSaveOutcome = 'saved' | 'nothing' | 'discarded' | 'failed';
 
+/**
+ * Detached like createReviewService: the Query page parks this across viewer
+ * visits, so changeCount/hasChanges must keep updating after that unmount.
+ */
 export function createSearchReview(
+  search: VideoSearchContextType,
+  review: ReviewService,
+  options: SearchReviewOptions,
+) {
+  const scope = effectScope(true);
+  const service = scope.run(() => createScopedSearchReview(search, review, options))!;
+  const { dispose } = service;
+  service.dispose = () => {
+    dispose();
+    scope.stop();
+  };
+  return service;
+}
+
+function createScopedSearchReview(
   search: VideoSearchContextType,
   review: ReviewService,
   options: SearchReviewOptions,
@@ -108,11 +136,21 @@ export function createSearchReview(
       throw new Error(`Could not load the annotations of ${datasetId}`);
     }
     const data = searchResultTrack(result, type);
-    if (!data) throw new Error('This result has no box to annotate');
+    if (!data) throw new Error('This result has no frame to annotate');
     const track = review.insertTrack(datasetId, data);
     if (!track) throw new Error(`Could not add the annotation to ${datasetId}`);
-    const item = review.itemFor(datasetId, track.id, result.ref);
-    if (!item) throw new Error('This annotation has no box to show');
+    // Whole-frame (boxless) tracks are not review-grid items via itemFor;
+    // fall back to the search result's own whole-frame chip.
+    let item = review.itemFor(datasetId, track.id, result.ref);
+    if (!item) {
+      const fromSearch = searchResultItem(result, datasetId, DEFAULT_REVIEW_GRID.maxSequenceFrames);
+      if (fromSearch) {
+        item = {
+          ...fromSearch, trackId: track.id, key: result.ref, type,
+        };
+      }
+    }
+    if (!item) throw new Error('This annotation has no frame to show');
     adopted.value = { ...adopted.value, [result.ref]: item };
     created.value = { ...created.value, [result.ref]: { datasetId, trackId: track.id } };
     return item;
@@ -175,6 +213,11 @@ export function createSearchReview(
     return type === UNTYPED_RESULT ? '' : type;
   }
 
+  /** Hits the grid is showing; everything else is out of scope for save. */
+  function scopedResults(): VideoSearchResult[] {
+    return options.results?.value ?? search.state.results;
+  }
+
   /**
    * Whether an adopted result is worth writing: accepted ones always,
    * rejected ones only with a type, the rest when typed or box-edited.
@@ -190,7 +233,7 @@ export function createSearchReview(
   /** Results the next save would write or update, for the toolbar. */
   const changeCount = computed(() => {
     review.dataRevision.value; // eslint-disable-line no-unused-expressions
-    return search.state.results.filter((result) => {
+    return scopedResults().filter((result) => {
       if (removed.value[result.ref]) return false;
       const item = adopted.value[result.ref];
       if (!item) return search.state.adjudications[result.ref] === 'positive';
@@ -217,7 +260,13 @@ export function createSearchReview(
 
   function save(): Promise<SearchSaveOutcome> {
     return guarded(async (): Promise<SearchSaveOutcome> => {
-      const results = search.state.results.filter((result) => !removed.value[result.ref]);
+      const visible = new Set(scopedResults().map((result) => result.ref));
+      // Unsaved adopts outside the current filter must not ride along on
+      // review.save(), which writes every pending track.
+      Object.keys(created.value).forEach((ref) => {
+        if (!visible.has(ref) && !saved.value[ref]) discardEntry(ref);
+      });
+      const results = scopedResults().filter((result) => !removed.value[result.ref]);
       // Accepted results without a track get one now.
       await Promise.all(results
         .filter((result) => search.state.adjudications[result.ref] === 'positive' && !adopted.value[result.ref])
@@ -264,6 +313,10 @@ export function createSearchReview(
       const written: Record<string, true> = { ...saved.value };
       keep.forEach((result) => { if (created.value[result.ref]) written[result.ref] = true; });
       saved.value = written;
+      // Edits covered by this save no longer count as pending changes.
+      edited.value = Object.fromEntries(
+        Object.entries(edited.value).filter(([ref]) => !written[ref]),
+      );
       return 'saved';
     }).then((outcome) => outcome ?? 'failed');
   }
@@ -280,6 +333,10 @@ export function createSearchReview(
     error.value = null;
   }
 
+  function dispose() {
+    adopting.clear();
+  }
+
   return {
     adopted,
     error,
@@ -294,6 +351,7 @@ export function createSearchReview(
     save,
     discardAll,
     clearError,
+    dispose,
   };
 }
 

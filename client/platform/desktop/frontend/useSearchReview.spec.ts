@@ -1,4 +1,6 @@
-import { reactive } from 'vue';
+import {
+  effectScope, reactive, ref, Ref,
+} from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import type { ReviewItem } from 'dive-common/review/types';
 import type { TrackData } from 'vue-media-annotator/track';
@@ -28,7 +30,11 @@ function track(id: number, frame: number, bounds: [number, number, number, numbe
 }
 
 /** A minimal in-memory stand-in for the review service's track store. */
-function setup(originals: TrackData[], choice: OverlapChoice = 'keep-originals') {
+function setup(
+  originals: TrackData[],
+  choice: OverlapChoice = 'keep-originals',
+  options: { results?: Ref<VideoSearchResult[]> } = {},
+) {
   const tracks = new Map(originals.map((t) => [t.id, t]));
   const pending = new Set<number>();
   const deleted = new Set<number>();
@@ -65,7 +71,12 @@ function setup(originals: TrackData[], choice: OverlapChoice = 'keep-originals')
   } as unknown as ReviewService;
   const resolveOverlap = vi.fn(async () => choice);
   return {
-    search, review, tracks, deleted, resolveOverlap, searchReview: createSearchReview(search, review, { resolveOverlap }),
+    search,
+    review,
+    tracks,
+    deleted,
+    resolveOverlap,
+    searchReview: createSearchReview(search, review, { resolveOverlap, results: options.results }),
   };
 }
 
@@ -152,13 +163,83 @@ describe('createSearchReview', () => {
     expect(searchReview.itemOf(second)).toBeUndefined();
   });
 
-  it('reports results that cannot become annotations instead of throwing', async () => {
+  it('adopts a whole-frame result when a box is drawn on it', async () => {
     const { review, searchReview } = setup([]);
     const boxless = { ...result('0:3'), tracks: [{ id: 9, states: [{ frame: 3 }] }] };
     await searchReview.editGeometry(boxless, {
       slot: 0, frame: 3, bounds: [1, 1, 9, 9], polygons: [], head: null, tail: null,
     });
-    expect(review.updateGeometry).not.toHaveBeenCalled();
-    expect(searchReview.error.value).toMatch(/no box/);
+    expect(review.insertTrack).toHaveBeenCalled();
+    expect(review.updateGeometry).toHaveBeenCalled();
+    expect(searchReview.error.value).toBeNull();
+  });
+
+  it('saves accepted whole-frame results that have no box', async () => {
+    const {
+      search, review, tracks, searchReview,
+    } = setup([]);
+    const boxless = { ...result('0:3'), tracks: [{ id: 9, states: [{ frame: 3 }] }] };
+    search.state.results = [boxless];
+    search.state.adjudications = { '0:3': 'positive' };
+    expect(searchReview.changeCount.value).toBe(1);
+    expect(await searchReview.save()).toBe('saved');
+    expect(review.insertTrack).toHaveBeenCalled();
+    expect(tracks.size).toBe(1);
+    expect(searchReview.changeCount.value).toBe(0);
+  });
+
+  it('re-enables save after a successful save when more results are accepted or typed', async () => {
+    const { search, searchReview } = setup([]);
+    const first = result('0:1', 1, [0, 0, 10, 10]);
+    const second = result('0:2', 2, [20, 20, 30, 30]);
+    const third = result('0:3', 3, [40, 40, 50, 50]);
+    search.state.results = [first, second, third];
+    search.state.adjudications = { '0:1': 'positive' };
+    expect(await searchReview.save()).toBe('saved');
+    expect(searchReview.hasChanges.value).toBe(false);
+
+    search.state.adjudications = { ...search.state.adjudications, '0:2': 'positive' };
+    expect(searchReview.changeCount.value).toBe(1);
+    expect(searchReview.hasChanges.value).toBe(true);
+
+    await searchReview.assignType(third, 'fish');
+    expect(searchReview.changeCount.value).toBe(2);
+  });
+
+  it('keeps hasChanges live after the creating component scope stops', async () => {
+    // Query parks searchReview across viewer visits; the page unmount stops its
+    // own scope, so createSearchReview must use a detached scope.
+    const pageScope = effectScope();
+    const ctx = pageScope.run(() => setup([]))!;
+    const { search, searchReview } = ctx;
+    const first = result('0:1');
+    const second = result('0:2', 2, [20, 20, 30, 30]);
+    search.state.results = [first, second];
+    search.state.adjudications = { '0:1': 'positive' };
+    expect(await searchReview.save()).toBe('saved');
+    expect(searchReview.hasChanges.value).toBe(false);
+
+    pageScope.stop();
+    search.state.adjudications = { ...search.state.adjudications, '0:2': 'positive' };
+    expect(searchReview.hasChanges.value).toBe(true);
+  });
+
+  it('counts and saves only results in the scoped filter', async () => {
+    const visible = result('0:1', 1, [0, 0, 10, 10]);
+    const hidden = result('0:2', 2, [20, 20, 30, 30]);
+    const scoped = ref([visible]);
+    const {
+      search, review, tracks, searchReview,
+    } = setup([], 'keep-originals', { results: scoped });
+    search.state.results = [visible, hidden];
+    search.state.adjudications = { '0:1': 'positive', '0:2': 'positive' };
+    expect(searchReview.changeCount.value).toBe(1);
+    expect(await searchReview.save()).toBe('saved');
+    expect(review.insertTrack).toHaveBeenCalledTimes(1);
+    expect(tracks.size).toBe(1);
+    expect(searchReview.changeCount.value).toBe(0);
+
+    scoped.value = [visible, hidden];
+    expect(searchReview.changeCount.value).toBe(1);
   });
 });

@@ -9,7 +9,9 @@
  * generation (state.queryGeneration): the service can reuse refs across
  * queries, so the store is reset whenever a new query starts.
  */
-import { computed, Ref, watch } from 'vue';
+import {
+  computed, effectScope, Ref, watch,
+} from 'vue';
 import type { VideoSearchResult } from 'dive-common/apispec';
 import { loadConfig } from 'platform/desktop/frontend/api';
 import type { VideoSearchContextType } from 'platform/desktop/frontend/useVideoSearch';
@@ -29,16 +31,37 @@ export interface SearchChipsOptions {
   itemFor?: (result: VideoSearchResult) => ReviewItem | undefined;
   /** Results to leave out of the grid. */
   hidden?: (result: VideoSearchResult) => boolean;
+  /**
+   * Ranked results to show. Defaults to every hit in the open session;
+   * pass a filtered list (e.g. only listed datasets) when the Query page
+   * narrows what should appear in the grid.
+   */
+  results?: Ref<VideoSearchResult[]>;
 }
 
+/**
+ * Detached so the chip list keeps updating after the Query page unmounts and
+ * parks this store for a later visit (same pattern as createSearchReview).
+ */
 export function createSearchChips(search: VideoSearchContextType, options: SearchChipsOptions = {}) {
+  const scope = effectScope(true);
+  const service = scope.run(() => createScopedSearchChips(search, options))!;
+  const { dispose } = service;
+  service.dispose = () => {
+    dispose();
+    scope.stop();
+  };
+  return service;
+}
+
+function createScopedSearchChips(search: VideoSearchContextType, options: SearchChipsOptions = {}) {
   const registry = createFrameSourceRegistry(loadConfig);
   const store = createChipStore({ frameSourceFor: registry.frameSourceFor }, {
     padding: DEFAULT_REVIEW_GRID.padding, size: PanelChipSize, aspect: 1, outline: '#00e5ff',
   });
 
   /** Every current result as a grid item, in rank order. */
-  const items = computed<ReviewItem[]>(() => search.state.results
+  const items = computed<ReviewItem[]>(() => (options.results?.value ?? search.state.results)
     .filter((result) => !options.hidden?.(result))
     .map((result) => options.itemFor?.(result) ?? searchResultItem(
       result,
@@ -87,6 +110,17 @@ export type SearchChips = ReturnType<typeof createSearchChips>;
  * (e.g. text query hits), with the same cross-dataset cropping.
  */
 export function createItemChips(items: Ref<ReviewItem[]>) {
+  const scope = effectScope(true);
+  const service = scope.run(() => createScopedItemChips(items))!;
+  const { dispose } = service;
+  service.dispose = () => {
+    dispose();
+    scope.stop();
+  };
+  return service;
+}
+
+function createScopedItemChips(items: Ref<ReviewItem[]>) {
   const registry = createFrameSourceRegistry(loadConfig);
   const store = createChipStore({ frameSourceFor: registry.frameSourceFor }, {
     padding: DEFAULT_REVIEW_GRID.padding, size: PanelChipSize, aspect: 1, outline: '',

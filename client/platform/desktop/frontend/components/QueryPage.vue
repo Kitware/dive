@@ -75,9 +75,13 @@ export default defineComponent({
       overlapDialog.value = null;
       resolve?.(choice);
     }
-    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review, { resolveOverlap });
+    const searchReview = resumed?.searchReview ?? createSearchReview(page.search, review, {
+      resolveOverlap,
+      results: page.results,
+    });
     const view = ref<QueryView>(route.query.view === 'datasets' ? 'datasets' : (resumed?.view ?? 'query'));
     const searchChips = resumed?.searchChips ?? createSearchChips(page.search, {
+      results: page.results,
       itemFor: (result) => searchReview.itemOf(result),
       hidden: (result) => searchReview.isRemoved(result),
     });
@@ -140,6 +144,7 @@ export default defineComponent({
       [page.video.filePath] = ret.filePaths;
       page.video.kind = 'file';
       page.videoFramePath.value = '';
+      page.videoFrameBox.value = null;
     }
 
     async function pickModel() {
@@ -245,11 +250,44 @@ export default defineComponent({
       });
     });
 
-    async function saveModel() {
-      const name = window.prompt('Name for the trained model');
-      if (!name) return;
-      const dir = await page.search.saveModel(name.trim());
-      if (dir) window.alert(`Saved trained model to ${dir}.`);
+    // Electron does not support window.prompt; collect the name in-app.
+    const saveModelDialog = ref(false);
+    const saveModelName = ref('');
+    const saveModelSaving = ref(false);
+
+    function openSaveModel() {
+      saveModelName.value = '';
+      saveModelDialog.value = true;
+    }
+
+    function cancelSaveModel() {
+      if (saveModelSaving.value) return;
+      saveModelDialog.value = false;
+    }
+
+    async function confirmSaveModel() {
+      const name = saveModelName.value.trim();
+      if (!name || saveModelSaving.value) return;
+      saveModelSaving.value = true;
+      try {
+        const dir = await page.search.saveModel(name);
+        if (dir) {
+          saveModelDialog.value = false;
+          await prompt({
+            title: 'Model saved',
+            text: `Saved trained model to ${dir}.`,
+            positiveButton: 'OK',
+          });
+        } else if (page.search.state.error) {
+          await prompt({
+            title: 'Save model failed',
+            text: page.search.state.error,
+            positiveButton: 'OK',
+          });
+        }
+      } finally {
+        saveModelSaving.value = false;
+      }
     }
 
     function searchSimilar(item: ReviewItem) {
@@ -282,7 +320,12 @@ export default defineComponent({
       pickVideoFile,
       pickModel,
       openViewer,
-      saveModel,
+      openSaveModel,
+      saveModelDialog,
+      saveModelName,
+      saveModelSaving,
+      cancelSaveModel,
+      confirmSaveModel,
       searchSimilar,
     };
   },
@@ -502,7 +545,7 @@ export default defineComponent({
                   mandatory
                   dense
                   class="mb-2"
-                  @change="page.video.kind = $event; page.videoFramePath.value = ''"
+                  @change="page.video.kind = $event; page.videoFramePath.value = ''; page.videoFrameBox.value = null"
                 >
                   <v-btn
                     small
@@ -526,7 +569,7 @@ export default defineComponent({
                   outlined
                   hide-details
                   class="mb-2"
-                  @change="page.video.datasetId = $event; page.videoFramePath.value = ''"
+                  @change="page.video.datasetId = $event; page.videoFramePath.value = ''; page.videoFrameBox.value = null"
                 />
                 <div
                   v-else
@@ -560,7 +603,7 @@ export default defineComponent({
                     outlined
                     hide-details
                     class="frame-field mr-2"
-                    @change="page.video.frame = Math.max(0, Number($event) || 0); page.videoFramePath.value = ''"
+                    @change="page.video.frame = Math.max(0, Number($event) || 0); page.videoFramePath.value = ''; page.videoFrameBox.value = null"
                   />
                   <v-btn
                     small
@@ -724,7 +767,7 @@ export default defineComponent({
                 :search-review="searchReview"
                 :memory="resultsMemory"
                 @open-result="openViewer"
-                @save-model="saveModel"
+                @save-model="openSaveModel"
               />
               <v-card
                 v-else
@@ -872,6 +915,48 @@ export default defineComponent({
             </div>
           </div>
         </div>
+      </v-card>
+    </v-dialog>
+    <v-dialog
+      :value="saveModelDialog"
+      max-width="480"
+      persistent
+      @keydown.esc="cancelSaveModel"
+    >
+      <v-card>
+        <v-card-title style="word-break: normal;">
+          Save trained model
+        </v-card-title>
+        <v-card-text>
+          <v-text-field
+            v-model="saveModelName"
+            label="Model name"
+            hint="Saved under DIVE_Pipelines as a trained pipeline"
+            persistent-hint
+            autofocus
+            :disabled="saveModelSaving"
+            @keydown.enter.prevent="confirmSaveModel"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            :disabled="saveModelSaving"
+            @click="cancelSaveModel"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="primary"
+            text
+            :disabled="!saveModelName.trim()"
+            :loading="saveModelSaving"
+            @click="confirmSaveModel"
+          >
+            Save
+          </v-btn>
+        </v-card-actions>
       </v-card>
     </v-dialog>
   </v-main>

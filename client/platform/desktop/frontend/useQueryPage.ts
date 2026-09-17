@@ -221,17 +221,24 @@ export function createQueryPage() {
     });
   }
 
+  /** Drop the open query session UI after the index membership changes. */
+  function invalidateSearchSession() {
+    search.state.sessionOpen = false;
+    search.state.streams = {};
+    search.state.results = [];
+    search.state.adjudications = {};
+    search.state.iteration = 0;
+    search.state.queryGeneration += 1;
+    search.state.modelAvailable = false;
+  }
+
   async function changeIndex(remove: () => Promise<unknown>) {
     if (indexActionsDisabled.value) return;
     changingIndex.value = true;
     error.value = null;
     try {
       await remove();
-      search.state.sessionOpen = false;
-      search.state.streams = {};
-      search.state.results = [];
-      search.state.adjudications = {};
-      search.state.modelAvailable = false;
+      invalidateSearchSession();
       await refreshIndexMembers();
       await Promise.all(datasets.value.map((dataset) => refreshIndexStatus(dataset.id)));
     } catch (err) {
@@ -248,8 +255,10 @@ export function createQueryPage() {
   }
 
   // Observe terminal state as well as running jobs, so failures remain visible on return.
+  // Index builds close the backend session; clear results so Refine/export cannot
+  // target a stale in-memory cache.
   watch(() => recentHistory.value.map(({ job }) => `${job.key}:${job.endTime}:${job.exitCode}`).join('|'), () => {
-    search.state.sessionOpen = false;
+    invalidateSearchSession();
     datasets.value.forEach((dataset) => { refreshIndexStatus(dataset.id); });
     if (installed.value) refreshIndexMembers().catch((err) => fail(err, 'Could not list indexed sequences'));
   });
@@ -318,11 +327,26 @@ export function createQueryPage() {
 
   // ---- text queries ---------------------------------------------------------
 
-  /** Frames of a dataset: image count, or null (unknown) for videos. */
+  /** Frames of a dataset: image count, or probed length for videos. */
   async function frameCountOf(id: string): Promise<number | null> {
     const config = await loadConfig(id);
-    if (config.type === 'video') return null;
-    return config.imageData?.length ?? null;
+    if (config.type !== 'video') {
+      return config.imageData?.length ?? null;
+    }
+    const media = await search.getMediaInfoFor(id);
+    const videoPath = media?.getImagePath(0);
+    if (!videoPath) return null;
+    try {
+      const info = await videoInfo(videoPath);
+      // Extraction timestamps use the dataset fps, so plan in that frame space.
+      const fps = media?.fps || info.fps;
+      if (info.duration > 0 && fps > 0) {
+        return Math.floor(info.duration * fps);
+      }
+      return info.frameCount && info.frameCount > 0 ? info.frameCount : null;
+    } catch {
+      return null;
+    }
   }
 
   async function runTextQuery() {

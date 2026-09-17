@@ -44,6 +44,13 @@ it('still selects a mask key when selecting another detection in polygon mode', 
   expect(h.selectFeatureHandle).toHaveBeenCalledWith(-1, 'segmentation');
 });
 
+it('defers polygon key selection to the edit layer while polygon editing', () => {
+  const h = harness('Polygon');
+  h.polygon.bus.$emit('polygon-right-clicked', 1, 'segmentation');
+  expect(h.selectedKey.value).toBe('');
+  expect(h.selectFeatureHandle).not.toHaveBeenCalled();
+});
+
 it('does not cancel in-progress line creation when a mask is right-clicked', () => {
   const h = harness(); h.edit.getMode = () => 'creation';
   h.polygon.bus.$emit('polygon-right-clicked', 1, 'segmentation');
