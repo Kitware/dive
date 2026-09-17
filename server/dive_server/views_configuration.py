@@ -123,9 +123,11 @@ class ConfigurationResource(Resource):
         return training_configs
 
     @staticmethod
-    def _stereo_foundation_model() -> stereo_models.FoundationModel:
+    def _stereo_foundation_model(params) -> stereo_models.FoundationModel:
         try:
-            return stereo_models.ensure_stereo_foundation_model()
+            return stereo_models.ensure_stereo_foundation_model(
+                params.get('height'), params.get('width')
+            )
         except stereo_models.ModelUnavailableError as exc:
             raise RestException(str(exc), code=502)
 
@@ -133,11 +135,14 @@ class ConfigurationResource(Resource):
     @autoDescribeRoute(
         Description(
             "Describe the Fast-FoundationStereo ONNX export served by "
-            "stereo_foundation_model, fetching it from the VIAME add-on list on first use"
+            "stereo_foundation_model for imagery of the given size, fetching it from "
+            "the VIAME ONNX list on first use"
         )
+        .param('height', 'Frame height in pixels', required=False, dataType='integer')
+        .param('width', 'Frame width in pixels', required=False, dataType='integer')
     )
     def get_stereo_foundation_model_spec(self, params):
-        model = self._stereo_foundation_model()
+        model = self._stereo_foundation_model(params)
         return {
             'name': model.onnx_path.name,
             'url': model.url,
@@ -148,9 +153,13 @@ class ConfigurationResource(Resource):
         }
 
     @access.user
-    @autoDescribeRoute(Description("Download the Fast-FoundationStereo ONNX export"))
+    @autoDescribeRoute(
+        Description("Download the Fast-FoundationStereo ONNX export for imagery of the given size")
+        .param('height', 'Frame height in pixels', required=False, dataType='integer')
+        .param('width', 'Frame width in pixels', required=False, dataType='integer')
+    )
     def get_stereo_foundation_model(self, params):
-        model = self._stereo_foundation_model()
+        model = self._stereo_foundation_model(params)
         setResponseHeader('Content-Type', 'application/octet-stream')
         setResponseHeader('Content-Length', str(model.onnx_path.stat().st_size))
         setResponseHeader('Content-Disposition', f'attachment; filename="{model.onnx_path.name}"')
@@ -230,13 +239,8 @@ class ConfigurationResource(Resource):
             download = s.get(constants.AddonsListURL)
             decoded_content = download.content.decode('utf-8')
             cr = csv.reader(decoded_content.splitlines(), delimiter=',', skipinitialspace=True)
-            # ALL-EXCEPT-DIVE rows are not for DIVE; WEB-ONLY rows are bare model
-            # files the web client fetches itself (see dive_utils.stereo_models),
-            # not pipeline add-ons to install.
             my_list = [
-                item
-                for item in cr
-                if len(item) >= 5 and item[4].strip() not in ('ALL-EXCEPT-DIVE', 'WEB-ONLY')
+                item for item in cr if len(item) >= 5 and item[4].strip() != 'ALL-EXCEPT-DIVE'
             ]
             for item in my_list:
                 addon = item[1]

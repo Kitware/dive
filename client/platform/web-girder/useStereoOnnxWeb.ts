@@ -28,7 +28,7 @@ import useStereoOnnxTransfer from 'dive-common/use/stereo/useStereoOnnxTransfer'
 import { StereoOnnxMatcher } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import { StereoFoundationMatcher } from 'dive-common/use/stereo/StereoFoundationMatcher';
 import type { FoundationModelSpec } from 'dive-common/use/stereo/StereoFoundationMatcher';
-import type { StereoFoundationModelSpec } from 'platform/web-girder/api/configuration.service';
+import type { ImagerySize, StereoFoundationModelSpec } from 'platform/web-girder/api/configuration.service';
 import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
 import type { StereoMatcher, StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { SearchRange } from 'dive-common/use/stereo/StereoOnnxMatcher';
@@ -49,6 +49,12 @@ const MODEL_CACHE_NAME = 'dive-stereo-models';
 // too; override per rig via the `range` option.
 const DEFAULT_RANGE: SearchRange = { minDisparity: 2, maxDisparity: 300 };
 
+/** Bytes transferred of the model download, for a determinate progress bar. */
+export interface StereoModelProgress {
+  loaded: number;
+  total: number;
+}
+
 export interface StereoOnnxWebOptions {
   /** Returns the mounted Viewer instance (exposes cameraStore, multiCamList,
    * aggregateController, imageData). */
@@ -67,7 +73,11 @@ export interface StereoOnnxWebOptions {
   /** Overrides the user's dropdown choice; mainly for tests. */
   getMatchMethod?: () => StereoMatchMethod;
   range?: SearchRange;
-  onStatus?: (message: string | null) => void;
+  /**
+   * Progress message; null clears it. `progress` accompanies the messages whose
+   * work has a known size, and the host shows a bar for those.
+   */
+  onStatus?: (message: string | null, progress?: StereoModelProgress) => void;
   onError?: (message: string) => void;
   onMeasurement?: (measurement: StereoMeasurement) => void;
   ensureMeasurementAttributes?: () => void;
@@ -113,28 +123,38 @@ async function openModelCache(): Promise<Cache | null> {
 }
 
 /**
- * The foundation model bytes for the export the server currently serves. The
- * md5 comes from VIAME's add-on list, so a re-published export changes the
- * cache key and the stale copy is dropped.
+ * The foundation model bytes for the export the server picks for imagery of
+ * `imagery` size. The md5 comes from VIAME's ONNX list, so a re-published
+ * export changes the cache key and the stale copy of that export is dropped;
+ * exports of other sizes stay cached.
  */
-async function fetchFoundationModel(): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {
+export async function fetchFoundationModel(
+  imagery?: ImagerySize,
+  onProgress?: (progress: StereoModelProgress) => void,
+): Promise<{ bytes: ArrayBuffer; spec: StereoFoundationModelSpec }> {
   // Imported lazily: the girder client touches `window` at load time, which
   // breaks node-environment unit tests that import this file.
   const { getStereoFoundationModelSpec, getStereoFoundationModel } = await import(
     'platform/web-girder/api/configuration.service'
   );
-  const { data: spec } = await getStereoFoundationModelSpec();
+  const { data: spec } = await getStereoFoundationModelSpec(imagery);
   const cacheUrl = `${window.location.origin}/dive-stereo-models/${spec.md5}/${spec.name}`;
   const cache = await openModelCache();
   if (cache) {
     const hit = await cache.match(cacheUrl);
     if (hit) return { bytes: await hit.arrayBuffer(), spec };
   }
-  const { data: bytes } = await getStereoFoundationModel();
+  const { data: bytes } = await getStereoFoundationModel(imagery, (loaded, total) => {
+    // The spec carries the export's byte size, so progress stays determinate
+    // even when the response length is not.
+    onProgress?.({ loaded, total: total || spec.size });
+  });
   if (cache) {
     try {
       const keys = await cache.keys();
-      await Promise.all(keys.map((request) => cache.delete(request)));
+      await Promise.all(keys
+        .filter((request) => request.url.endsWith(`/${spec.name}`))
+        .map((request) => cache.delete(request)));
       await cache.put(cacheUrl, new Response(bytes, {
         headers: { 'Content-Type': 'application/octet-stream' },
       }));
@@ -147,24 +167,42 @@ async function fetchFoundationModel(): Promise<{ bytes: ArrayBuffer; spec: Stere
 
 export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   const modelUrl = opts.modelUrl ?? DEFAULT_MODEL_URL;
-  // Cached per method: switching the dropdown must not reload the other model,
-  // and a method that failed to load must not be retried on every warp.
-  const matchers: Partial<Record<StereoMatchMethod, Promise<StereoMatcher | null>>> = {};
+  // Cached per method (and, for the foundation model, per imagery size, since
+  // the server picks the export by it): switching the dropdown must not reload
+  // the other model, and a method that failed to load must not be retried on
+  // every warp.
+  const matchers: Record<string, Promise<StereoMatcher | null>> = {};
   let rig: StereoRig | null = null;
   let rigKey: string | null = null;
+  /**
+   * Which item holds the dataset's calibration. Cached because every warp and
+   * every measurement calls {@link getRig}, while `dive_dataset/calibration`
+   * resolves the item and may read and parse the stored file server-side.
+   * Only a resolved item is remembered, so a dataset that has no calibration
+   * yet is still picked up once the user attaches one.
+   */
+  let calibrationLookup: { datasetId: string; itemId: string; name: string } | null = null;
 
   function currentMethod(): StereoMatchMethod {
     if (opts.getMatchMethod) return opts.getMatchMethod();
     return clientSettings.stereoSettings.matchMethod ?? DEFAULT_STEREO_MATCH_METHOD;
   }
 
-  async function createFoundationMatcher(): Promise<StereoMatcher> {
+  async function createFoundationMatcher(imagery?: ImagerySize): Promise<StereoMatcher> {
     if (opts.foundationModelUrl) {
       return StereoFoundationMatcher.create(opts.foundationModelUrl, opts.foundationModelSpec);
     }
+    // No download at all when the bytes are already in the browser's cache, so
+    // the message only promises one until the first progress event arrives.
     opts.onStatus?.('Loading the stereo model (about 100 MB on first use)...');
     try {
-      const { bytes, spec } = await fetchFoundationModel();
+      const { bytes, spec } = await fetchFoundationModel(
+        imagery,
+        (progress) => opts.onStatus?.('Downloading the stereo model...', progress),
+      );
+      // Building the session compiles the graph for the GPU, which takes
+      // seconds and reports no progress of its own.
+      opts.onStatus?.('Preparing the stereo model...');
       // A bare .onnx has no sidecar; the matcher then reads the size from the graph.
       const size = spec.height && spec.width ? { height: spec.height, width: spec.width } : undefined;
       return await StereoFoundationMatcher.create(new Uint8Array(bytes), size);
@@ -173,19 +211,22 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     }
   }
 
-  function getMatcher(): Promise<StereoMatcher | null> {
+  function getMatcher(imagery?: ImagerySize): Promise<StereoMatcher | null> {
     const method = currentMethod();
-    const existing = matchers[method];
+    const key = method === 'foundation' && imagery
+      ? `${method}:${imagery.width}x${imagery.height}`
+      : method;
+    const existing = matchers[key];
     if (existing) return existing;
     const created = (method === 'foundation'
-      ? createFoundationMatcher()
+      ? createFoundationMatcher(imagery)
       : StereoOnnxMatcher.create(modelUrl)
     ).catch((err) => {
       console.warn('[StereoOnnx] failed to load model', method, err);
       opts.onError?.(`The stereo matching model could not be loaded. ${(err as Error).message ?? err}`);
       return null;
     });
-    matchers[method] = created;
+    matchers[key] = created;
     return created;
   }
 
@@ -208,6 +249,21 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return rig;
   }
 
+  /** The item holding the dataset's calibration, from the cache when known. */
+  async function calibrationItem(datasetId: string) {
+    if (calibrationLookup?.datasetId === datasetId) return calibrationLookup;
+    // Imported lazily: this module touches `window` at load time, which breaks
+    // node-environment unit tests that import this file.
+    const { getDatasetCalibration } = await import('platform/web-girder/api/dataset.service');
+    const { data } = await getDatasetCalibration(datasetId);
+    const itemId = data?.itemId ?? data?.jsonItemId;
+    if (!itemId) return null;
+    const name = (data.itemId ? data.originalName : data.jsonPath)
+      ?? data.originalName ?? data.jsonPath ?? '';
+    calibrationLookup = { datasetId, itemId, name };
+    return calibrationLookup;
+  }
+
   /**
    * The calibration stored on the dataset. Downloading the source item keeps the
    * client on exactly the file the pipelines use, so a page reload no longer
@@ -216,22 +272,25 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   async function rigFromDataset(): Promise<StereoRig | null> {
     const datasetId = opts.getDatasetId();
     if (!datasetId) return null;
-    // Imported lazily: these modules touch `window` at load time, which breaks
-    // node-environment unit tests that import this file.
-    const [{ getDatasetCalibration }, { default: girderRest }] = await Promise.all([
-      import('platform/web-girder/api/dataset.service'),
-      import('platform/web-girder/plugins/girder'),
-    ]);
-    const { data } = await getDatasetCalibration(datasetId);
-    const itemId = data?.itemId ?? data?.jsonItemId;
-    if (!itemId) return null;
-    if (rig && rigKey === `item:${itemId}`) return rig;
-    const name = (data.itemId ? data.originalName : data.jsonPath)
-      ?? data.originalName ?? data.jsonPath ?? '';
-    const response = await girderRest.get(`item/${itemId}/download`, { responseType: 'arraybuffer' });
-    rig = await parseRig(name, response.data as ArrayBuffer);
-    rigKey = `item:${itemId}`;
+    const item = await calibrationItem(datasetId);
+    if (!item) return null;
+    if (rig && rigKey === `item:${item.itemId}`) return rig;
+    const { default: girderRest } = await import('platform/web-girder/plugins/girder');
+    const response = await girderRest.get(`item/${item.itemId}/download`, { responseType: 'arraybuffer' });
+    rig = await parseRig(item.name, response.data as ArrayBuffer);
+    rigKey = `item:${item.itemId}`;
     return rig;
+  }
+
+  /**
+   * Forget the cached calibration, so the next warp resolves and downloads it
+   * again. The host calls this when the dataset's calibration file is replaced
+   * or removed.
+   */
+  function invalidateCalibration() {
+    calibrationLookup = null;
+    rig = null;
+    rigKey = null;
   }
 
   async function getRig(): Promise<StereoRig | null> {
@@ -370,5 +429,6 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     handleStereoTrackLinked,
     warpAllFromCamera,
     precomputeCurrentFrame,
+    invalidateCalibration,
   };
 }

@@ -30,7 +30,7 @@ export default defineComponent({
       default: null,
     },
   },
-  emits: ['calibration-deleted'],
+  emits: ['calibration-deleted', 'calibration-updated'],
   setup(props, { emit }) {
     const showCalibrationDialog = ref(false);
     const calibrationResult = ref<DatasetCalibrationResult>();
@@ -44,6 +44,9 @@ export default defineComponent({
       try {
         const res = await getDatasetCalibration(props.datasetId);
         calibrationResult.value = res ?? undefined;
+        // Let the viewer drop its stereo-rig cache when conversion finishes or
+        // another session replaces the calibration item.
+        emit('calibration-updated', res ?? null);
       } catch (err) {
         console.error('Failed to load calibration:', err);
         await prompt({

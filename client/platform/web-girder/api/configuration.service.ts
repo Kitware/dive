@@ -1,3 +1,5 @@
+import type { AxiosProgressEvent } from 'axios';
+
 import { Pipelines, TrainingConfigs } from 'dive-common/apispec';
 import girderRest from 'platform/web-girder/plugins/girder';
 
@@ -16,7 +18,7 @@ export interface StereoFoundationModelSpec {
   name: string;
   url: string;
   md5: string;
-  /** Input size from a sidecar yaml; null for a bare .onnx (read from the graph instead). */
+  /** Input size from the ONNX list or a sidecar yaml; null when unknown (read from the graph instead). */
   height: number | null;
   width: number | null;
   size: number;
@@ -100,13 +102,33 @@ function getAddons() {
   return girderRest.get<AddOns>('dive_configuration/addons');
 }
 
-function getStereoFoundationModelSpec() {
-  return girderRest.get<StereoFoundationModelSpec>('dive_configuration/stereo_foundation_model/spec');
+export interface ImagerySize {
+  width: number;
+  height: number;
 }
 
-function getStereoFoundationModel() {
+/** `imagery` lets the server pick the export whose input fits the frames. */
+function getStereoFoundationModelSpec(imagery?: ImagerySize) {
+  return girderRest.get<StereoFoundationModelSpec>('dive_configuration/stereo_foundation_model/spec', {
+    params: imagery,
+  });
+}
+
+/**
+ * `onProgress` reports downloaded bytes so the caller can show a determinate
+ * bar for the ~100 MB export. `total` is absent when the length is not
+ * computable, e.g. a proxy re-encoded the stream.
+ */
+function getStereoFoundationModel(
+  imagery?: ImagerySize,
+  onProgress?: (loaded: number, total?: number) => void,
+) {
   return girderRest.get<ArrayBuffer>('dive_configuration/stereo_foundation_model', {
     responseType: 'arraybuffer',
+    params: imagery,
+    onDownloadProgress: onProgress
+      ? (event: AxiosProgressEvent) => onProgress(event.loaded, event.total)
+      : undefined,
   });
 }
 

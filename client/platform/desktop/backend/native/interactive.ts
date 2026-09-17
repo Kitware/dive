@@ -20,7 +20,10 @@ import npath from 'path';
 import readline from 'readline';
 import { EventEmitter } from 'events';
 import { Settings } from 'platform/desktop/constants';
+import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import { observeChild } from './processManager';
+import { resolveStereoConfig, resolveStereoConfigWithFallback } from './stereoConfig';
 import linux from './linux';
 import win32 from './windows';
 import {
@@ -506,7 +509,26 @@ export class InteractiveServiceManager extends EventEmitter {
     settings: Settings,
     calibration?: StereoCalibration,
     calibrationFile?: string,
-  ): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
+    matchMethod: StereoMatchMethod = DEFAULT_STEREO_MATCH_METHOD,
+    allowFallback = false,
+  ): Promise<{
+    success: boolean;
+    error?: string;
+    launchFailed?: boolean;
+    matchMethod?: StereoMatchMethod;
+    fellBack?: boolean;
+  }> {
+    const resolved = allowFallback
+      ? resolveStereoConfigWithFallback(settings.viamePath, matchMethod)
+      : (() => {
+        const strict = resolveStereoConfig(settings.viamePath, matchMethod);
+        return strict.error !== undefined
+          ? { error: strict.error }
+          : { config: strict.config, method: matchMethod, fellBack: false as const };
+      })();
+    if ('error' in resolved) {
+      return { success: false, error: resolved.error };
+    }
     try {
       await this.ensureStarted(settings);
     } catch (err) {
@@ -523,12 +545,17 @@ export class InteractiveServiceManager extends EventEmitter {
     try {
       const response = await this.sendRequest({
         command: 'enable',
+        config: resolved.config,
         calibration,
         calibration_file: calibrationFile,
       }, 'Stereo enable');
       if (response.success) {
         this.stereoEnabled = true;
-        return { success: true };
+        return {
+          success: true,
+          matchMethod: resolved.method,
+          fellBack: resolved.fellBack,
+        };
       }
       return {
         success: false,

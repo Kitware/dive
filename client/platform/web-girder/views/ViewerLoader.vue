@@ -17,7 +17,7 @@ import { reportHandledPromiseRejection } from 'platform/web-girder/reportHandled
 import { useLocation } from 'platform/web-girder/store/useLocation';
 import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import type { DatasetType, SubType } from 'dive-common/apispec';
+import type { DatasetCalibrationResult, DatasetType, SubType } from 'dive-common/apispec';
 import { useApi } from 'dive-common/apispec';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
@@ -27,6 +27,7 @@ import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
+import type { StereoModelProgress } from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
 } from 'dive-common/use/stereo/useStereoOnnxTransfer';
@@ -118,10 +119,14 @@ export default defineComponent({
     const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
+    /** Girder item id for the cached stereo rig; used to detect in-place replacements. */
+    const calibrationItemId = ref<string | null>(null);
     // Client-side stereo: warp a detection to the other camera via the VIAME
     // "match" ONNX model and triangulate its length, with no backend. No-ops
     // without a 2-camera dataset, a calibration file, and a served model asset.
     const stereoBusyMessage = ref<string | null>(null);
+    /** Set only while the ~100 MB model downloads, where the size is known. */
+    const stereoDownloadProgress = ref<StereoModelProgress | null>(null);
     const stereoError = ref('');
     const stereoLengthSnackbar = ref(false);
     const stereoLengthMessage = ref('');
@@ -172,13 +177,18 @@ export default defineComponent({
 
     const {
       handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
+      invalidateCalibration,
     } = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
       ensureMeasurementAttributes,
-      onStatus: (message) => { stereoBusyMessage.value = message; },
+      onStatus: (message, progress) => {
+        stereoBusyMessage.value = message;
+        stereoDownloadProgress.value = progress?.total ? progress : null;
+      },
       onError: (message) => {
         stereoBusyMessage.value = null;
+        stereoDownloadProgress.value = null;
         stereoError.value = message;
       },
       onMeasurement: (m: StereoMeasurement) => {
@@ -194,6 +204,19 @@ export default defineComponent({
     function closeStereoError() {
       stereoError.value = '';
     }
+
+    const stereoDownloadPercent = computed(() => {
+      const progress = stereoDownloadProgress.value;
+      if (!progress) return 0;
+      return Math.min(100, (progress.loaded / progress.total) * 100);
+    });
+
+    const stereoDownloadLabel = computed(() => {
+      const progress = stereoDownloadProgress.value;
+      if (!progress) return '';
+      const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
+      return `${mb(progress.loaded)} of ${mb(progress.total)} MB`;
+    });
 
     /**
      * Import menu "Warp to All": push every detection the imported camera holds
@@ -260,6 +283,12 @@ export default defineComponent({
       return props.id;
     });
 
+    // Held as computeds rather than inline `[modifiedId]` / `[id]` in the
+    // template: an inline array is a new value on every re-render, which makes
+    // the menus re-look-up the dataset's calibration on every click.
+    const pipelineDatasetIds = computed(() => [modifiedId.value]);
+    const exportDatasetIds = computed(() => [props.id]);
+
     watch(() => props.id, (datasetId) => {
       selectedCamera.value = '';
       loadDataset(datasetId).catch((reason) => {
@@ -278,16 +307,32 @@ export default defineComponent({
       }
     });
 
+    /**
+     * Keep the stereo ONNX cache in sync with whatever calibration the menus
+     * are showing. A same-name replacement still changes itemId, so both are
+     * compared; invalidate when either differs so the next warp re-downloads.
+     */
+    function applyCalibrationResult(result: DatasetCalibrationResult | null | undefined) {
+      const nextName = result?.originalName ?? result?.jsonPath ?? result?.path ?? null;
+      const nextItemId = result?.itemId ?? result?.jsonItemId ?? null;
+      if (nextName === calibrationFile.value && nextItemId === calibrationItemId.value) {
+        return;
+      }
+      invalidateCalibration();
+      calibrationFile.value = nextName;
+      calibrationItemId.value = nextItemId;
+    }
+
     async function refreshCalibrationFile() {
       if (!getDatasetCalibration || subTypeList.value[0] !== 'stereo') {
-        calibrationFile.value = null;
+        applyCalibrationResult(null);
         return;
       }
       try {
         const result = await getDatasetCalibration(parentDatasetId(props.id));
-        calibrationFile.value = result?.originalName ?? result?.jsonPath ?? result?.path ?? null;
+        applyCalibrationResult(result);
       } catch {
-        calibrationFile.value = null;
+        applyCalibrationResult(null);
       }
     }
 
@@ -302,11 +347,16 @@ export default defineComponent({
     );
 
     function onCalibrationImported(name: string) {
+      // Item id is unknown until the next server refresh / conversion poll.
       calibrationFile.value = name;
+      calibrationItemId.value = null;
+      invalidateCalibration();
     }
 
     function onCalibrationDeleted() {
       calibrationFile.value = null;
+      calibrationItemId.value = null;
+      invalidateCalibration();
     }
 
     watch(
@@ -459,13 +509,19 @@ export default defineComponent({
       jobsDisabledMessage,
       webExcludedPipelineTerms,
       calibrationFile,
+      applyCalibrationResult,
       onCalibrationImported,
       onCalibrationDeleted,
       changeCamera,
       modifiedId,
+      pipelineDatasetIds,
+      exportDatasetIds,
       handleStereoAnnotationComplete,
       handleStereoTrackLinked,
       stereoBusyMessage,
+      stereoDownloadProgress,
+      stereoDownloadPercent,
+      stereoDownloadLabel,
       stereoError,
       stereoLengthSnackbar,
       stereoLengthMessage,
@@ -534,7 +590,7 @@ export default defineComponent({
             subTypeList,
             cameraNumbers,
           }"
-          :selected-dataset-ids="[modifiedId]"
+          :selected-dataset-ids="pipelineDatasetIds"
           :running-pipelines="runningPipelines"
           :read-only-mode="revisionNum !== undefined"
           :time-filter="timeFilter"
@@ -555,7 +611,7 @@ export default defineComponent({
         />
         <Export
           v-bind="{ buttonOptions, menuOptions }"
-          :dataset-ids="[id]"
+          :dataset-ids="exportDatasetIds"
           block-on-unsaved
         />
         <Clone
@@ -570,6 +626,7 @@ export default defineComponent({
           v-if="subTypeList[0] === 'stereo'"
           :dataset-id="id"
           :calibration-file="calibrationFile"
+          @calibration-updated="applyCalibrationResult"
           @calibration-deleted="onCalibrationDeleted"
         />
       </template>
@@ -593,16 +650,28 @@ export default defineComponent({
       <v-card>
         <v-card-title>{{ stereoError ? 'Stereo Transfer Error' : 'Interactive Stereo' }}</v-card-title>
         <v-card-text>
-          <div
-            v-if="!stereoError"
-            class="d-flex align-center"
-          >
-            <v-progress-circular
-              indeterminate
-              color="primary"
-              class="mr-3"
-            />
-            {{ stereoBusyMessage }}
+          <div v-if="!stereoError">
+            <div class="d-flex align-center">
+              <v-progress-circular
+                v-if="!stereoDownloadProgress"
+                indeterminate
+                color="primary"
+                class="mr-3"
+              />
+              {{ stereoBusyMessage }}
+            </div>
+            <template v-if="stereoDownloadProgress">
+              <v-progress-linear
+                :value="stereoDownloadPercent"
+                color="primary"
+                height="8"
+                rounded
+                class="mt-3"
+              />
+              <div class="text-caption mt-1">
+                {{ stereoDownloadLabel }}
+              </div>
+            </template>
           </div>
           <v-alert
             v-else
