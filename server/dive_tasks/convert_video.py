@@ -231,6 +231,9 @@ def convert_video(
             # see native/<platform> code for a discussion of this option
             "-vf",
             "scale=ceil(iw*sar/2)*2:ceil(ih/2)*2,setsar=1",
+            # Put the index up front so a browser can start playing before the file is down.
+            "-movflags",
+            "+faststart",
             str(output_file_path),
         ]
         utils.stream_subprocess(self, context, manager, {'args': command})

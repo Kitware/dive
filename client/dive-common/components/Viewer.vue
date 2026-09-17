@@ -208,6 +208,9 @@ export default defineComponent({
       // with stale data from props, for example if a persistent store
       // like vuex is used to drive them.
       loaded: false,
+      // Every camera's media is known, so the panes can mount and start fetching
+      // video while the annotations are still being inserted.
+      mediaLoaded: false,
       // Tracks loaded
       progress: 0,
       // Total tracks
@@ -1639,6 +1642,8 @@ export default defineComponent({
       emit('change-camera', camera);
     };
     /** Trigger data load */
+    /** Let the browser paint and run other tasks between batches of track inserts. */
+    const yieldToBrowser = () => new Promise((resolve) => { window.setTimeout(resolve, 0); });
     const loadData = async () => {
       try {
         // Flush any pending shared-style write before this load replaces the
@@ -1798,14 +1803,22 @@ export default defineComponent({
         imageData.value = Object.fromEntries(
           multiCamList.value.map((camera) => [camera, [] as FrameImage[]]),
         );
-        for (let i = 0; i < multiCamList.value.length; i += 1) {
-          const camera = multiCamList.value[i];
-          let cameraId = baseMulticamDatasetId.value;
-          if (multiCamList.value.length > 1) {
-            cameraId = `${baseMulticamDatasetId.value}/${camera}`;
-          }
-          // eslint-disable-next-line no-await-in-loop
-          const subCameraMeta = await loadConfig(cameraId);
+        // Fetch every camera's config and annotations at once instead of one
+        // camera after another; the per-camera work below only applies them.
+        const cameraLoads = await Promise.all(multiCamList.value.map(async (camera) => {
+          const cameraId = multiCamList.value.length > 1
+            ? `${datasetId.value}/${camera}`
+            : datasetId.value;
+          const [subCameraMeta, detections] = await Promise.all([
+            loadConfig(cameraId),
+            loadDetections(cameraId, props.revision, props.currentSet),
+          ]);
+          return {
+            camera, cameraId, subCameraMeta, detections,
+          };
+        }));
+        for (let i = 0; i < cameraLoads.length; i += 1) {
+          const { camera, subCameraMeta } = cameraLoads[i];
           VueSet(cameraTypesByCamera.value, camera, subCameraMeta.type as DatasetType);
           if (multiCamList.value.length <= 1) {
             datasetType.value = subCameraMeta.type as DatasetType;
@@ -1830,12 +1843,13 @@ export default defineComponent({
           }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
-          const {
-            tracks,
-            groups,
-            sets: foundSets,
-            // eslint-disable-next-line no-await-in-loop
-          } = await loadDetections(cameraId, props.revision, props.currentSet);
+        }
+        // Media is known for every camera: mount the panes now so the videos
+        // fetch their metadata while the annotations are still being inserted.
+        progress.mediaLoaded = true;
+        for (let i = 0; i < cameraLoads.length; i += 1) {
+          const { camera, cameraId, detections } = cameraLoads[i];
+          const { tracks, groups, sets: foundSets } = detections;
           sets.value = foundSets.filter((item) => item);
           if (props.currentSet !== '' || sets.value.length > 0) {
             sets.value.push('default');
@@ -1860,7 +1874,7 @@ export default defineComponent({
               /* Every N tracks, yeild some cycles for other scheduled tasks */
                 progress.progress = j;
                 // eslint-disable-next-line no-await-in-loop
-                await new Promise((resolve) => window.setTimeout(resolve, 500));
+                await yieldToBrowser();
               }
               trackStore.insert(Track.fromJSON(tracks[j], baseSet), { imported: true });
             }
@@ -1869,7 +1883,7 @@ export default defineComponent({
               /* Every N tracks, yeild some cycles for other scheduled tasks */
                 progress.progress = tracks.length + j;
                 // eslint-disable-next-line no-await-in-loop
-                await new Promise((resolve) => window.setTimeout(resolve, 500));
+                await yieldToBrowser();
               }
               groupStore.insert(Group.fromJSON(groups[j]), { imported: true });
             }
@@ -1897,7 +1911,7 @@ export default defineComponent({
                     /* Every N tracks, yeild some cycles for other scheduled tasks */
                     progress.progress = j;
                     // eslint-disable-next-line no-await-in-loop
-                    await new Promise((resolve) => window.setTimeout(resolve, 500));
+                    await yieldToBrowser();
                   }
                   // We need to increment the trackIds for the new comparison sets
                   setTracks[j].id = trackStore.getNewId();
@@ -2064,6 +2078,7 @@ export default defineComponent({
         }
       } catch (err) {
         progress.loaded = false;
+        progress.mediaLoaded = false;
         console.error(err);
         const errorEl = document.createElement('div');
         errorEl.innerHTML = getResponseError(err);
@@ -2076,6 +2091,7 @@ export default defineComponent({
 
     const reloadAnnotations = async () => {
       progress.loaded = false;
+      progress.mediaLoaded = false;
       discardChanges();
       Object.values(debouncedSaves).forEach((fn) => fn.cancel());
       Object.keys(debouncedSaves).forEach((k) => delete debouncedSaves[k]);
@@ -2117,7 +2133,7 @@ export default defineComponent({
       for (let j = 0; j < tracks.length; j += 1) {
         if (j % 4000 === 0 && j > 0) {
           // eslint-disable-next-line no-await-in-loop
-          await new Promise((resolve) => window.setTimeout(resolve, 0));
+          await yieldToBrowser();
         }
         stores.trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
       }
@@ -2818,13 +2834,13 @@ export default defineComponent({
         dense
       >
         <div
-          v-if="progress.loaded"
-          v-mousetrap="[
+          v-if="progress.mediaLoaded"
+          v-mousetrap="progress.loaded ? [
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
-          ]"
+          ] : []"
           class="d-flex flex-column grow"
         >
           <div class="d-flex grow">
@@ -2844,7 +2860,7 @@ export default defineComponent({
             >
               <component
                 :is="cameraAnnotatorComponent(camera)"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.mediaLoaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
@@ -2876,8 +2892,21 @@ export default defineComponent({
             }"
           />
         </div>
+        <v-progress-circular
+          v-if="progress.mediaLoaded && !progress.loaded"
+          :indeterminate="progressValue === 0"
+          :value="progressValue"
+          size="100"
+          width="15"
+          color="light-blue"
+          class="load-progress-overlay"
+          rotate="-90"
+        >
+          <span v-if="progressValue === 0">Loading</span>
+          <span v-else>{{ progressValue }}%</span>
+        </v-progress-circular>
         <div
-          v-else
+          v-if="!progress.mediaLoaded"
           class="d-flex justify-center align-center fill-height"
         >
           <v-alert
@@ -2919,14 +2948,14 @@ export default defineComponent({
     >
       <div class="d-flex grow" style="min-height: 0;">
         <div
-          v-if="progress.loaded"
-          v-mousetrap="[
+          v-if="progress.mediaLoaded"
+          v-mousetrap="progress.loaded ? [
             { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
             { bind: 'a', handler: () => sidebarMode === 'bottom' && toggleBottomRightPanel() },
-          ]"
+          ] : []"
           class="d-flex flex-column grow"
           style="min-height: 0; min-width: 0;"
         >
@@ -2941,7 +2970,7 @@ export default defineComponent({
             >
               <component
                 :is="cameraAnnotatorComponent(camera)"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.mediaLoaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
@@ -2998,8 +3027,21 @@ export default defineComponent({
             :save-threshold="saveThreshold"
           />
         </div>
+        <v-progress-circular
+          v-if="progress.mediaLoaded && !progress.loaded"
+          :indeterminate="progressValue === 0"
+          :value="progressValue"
+          size="100"
+          width="15"
+          color="light-blue"
+          class="load-progress-overlay"
+          rotate="-90"
+        >
+          <span v-if="progressValue === 0">Loading</span>
+          <span v-else>{{ progressValue }}%</span>
+        </v-progress-circular>
         <div
-          v-else
+          v-if="!progress.mediaLoaded"
           class="d-flex justify-center align-center fill-height grow"
           style="min-width: 0;"
         >
@@ -3053,6 +3095,14 @@ export default defineComponent({
 </template>
 
 <style lang="scss">
+.load-progress-overlay {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 5;
+  pointer-events: none;
+}
 html {
   overflow-y: auto;
  scrollbar-face-color: #646464;
