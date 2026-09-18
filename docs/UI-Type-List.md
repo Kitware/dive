@@ -15,7 +15,7 @@ The Type List is used to control visual styles of the different types as well as
 * The checkbox in the list heading toggles only the types the list is currently showing. A checked type that a filter has hidden keeps its checked state.
 * ==:material-sort-alphabetical-ascending:== toggles the sort order between alphabetical and by number of annotations of each type.
 * ==:material-cog:== opens the type settings menu.
-* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type. Like the heading checkbox, it acts only on the types the list is showing.
+* ==:material-delete:=={ .error } will remove the type from any visible track or delete the track if it is the only type. Like the heading checkbox, it acts only on the types the list is showing. When every listed type is selected, DIVE asks whether to delete the tracks above the current confidence threshold (what the list shows), the ones below it (hidden from the list), or all of them regardless of threshold.
 * ==:material-swap-horizontal:== will switch the left sidebar panel to show the track attribute editor (and group editor) view.
 
 <div style="clear: both;"/>

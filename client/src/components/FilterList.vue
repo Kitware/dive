@@ -17,7 +17,7 @@ import {
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
-import BaseFilterControls, { AnnotationWithContext } from '../BaseFilterControls';
+import BaseFilterControls, { AnnotationWithContext, ThresholdScope } from '../BaseFilterControls';
 import TrackFilterControls from '../TrackFilterControls';
 import Track from '../track';
 import Group from '../Group';
@@ -122,6 +122,8 @@ export default defineComponent({
 
     const data = reactive({
       showPicker: false,
+      showDeleteAll: false,
+      deleteAllScope: 'above' as ThresholdScope,
       selectedColor: '',
       selectedType: '',
       editingType: '',
@@ -368,7 +370,16 @@ export default defineComponent({
     /* The delete button carries out what the header selected, so it reads the
        same displayed rows rather than every type that happens to be checked. */
     const deletableTypes = computed(() => typeListModel.value.actionableCheckedTypes);
+    /* Deleting every listed type is a different question from trimming a
+       few: the list only shows what passes the confidence thresholds, so
+       ask which side of them the delete should reach. */
     async function clickDelete() {
+      if (!props.group && deletableTypes.value.length > 0
+        && deletableTypes.value.length === visibleTypes.value.length) {
+        data.deleteAllScope = 'above';
+        data.showDeleteAll = true;
+        return;
+      }
       const preamble = props.group
         ? 'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:'
         : 'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:';
@@ -381,6 +392,11 @@ export default defineComponent({
       if (result) {
         trackFilters.removeTypeAnnotations([...deletableTypes.value]);
       }
+    }
+
+    function confirmDeleteAll() {
+      data.showDeleteAll = false;
+      trackFilters.removeTypeAnnotationsByThreshold([...deletableTypes.value], data.deleteAllScope);
     }
 
     const virtualTypes: Ref<readonly VirtualTypeItem[]> = computed(() => {
@@ -583,6 +599,7 @@ export default defineComponent({
       disableAnnotationFilters,
       /* methods */
       clickDelete,
+      confirmDeleteAll,
       clickEdit,
       clickSortToggle,
       headCheckClicked,
@@ -754,6 +771,53 @@ export default defineComponent({
         </template>
       </v-virtual-scroll>
     </div>
+    <v-dialog
+      v-model="data.showDeleteAll"
+      width="420"
+    >
+      <v-card>
+        <v-card-title>Delete all tracks?</v-card-title>
+        <v-card-text>
+          <p class="mb-2">
+            Every listed type is selected. Delete tracks of these types that are:
+          </p>
+          <v-radio-group
+            v-model="data.deleteAllScope"
+            class="mt-0"
+            hide-details
+          >
+            <v-radio
+              label="Above the current threshold (what the list shows)"
+              value="above"
+            />
+            <v-radio
+              label="Below the current threshold (hidden from the list)"
+              value="below"
+            />
+            <v-radio
+              label="All tracks, regardless of threshold"
+              value="all"
+            />
+          </v-radio-group>
+        </v-card-text>
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            text
+            @click="data.showDeleteAll = false"
+          >
+            Cancel
+          </v-btn>
+          <v-btn
+            color="error"
+            text
+            @click="confirmDeleteAll"
+          >
+            Delete
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
     <v-dialog
       v-model="data.showPicker"
       width="350"
