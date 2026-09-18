@@ -100,6 +100,13 @@ import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
 
+export interface StereoViewLinkParams {
+  camera: string;
+  frameNum: number;
+  point: [number, number];
+}
+export type StereoViewLinkFunc = (params: StereoViewLinkParams) => Promise<[number, number] | null>;
+
 export interface ImageDataItem {
   url: string;
   filename: string;
@@ -183,6 +190,15 @@ export default defineComponent({
     /** Deep link: track to select once annotations are loaded. */
     initialTrackId: {
       type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+    /**
+     * Where a point on one stereo camera lands on the other, using the loaded
+     * stereo matcher; null when it cannot be found. Lets synchronised panning
+     * follow the same object on both cameras.
+     */
+    stereoViewLink: {
+      type: Function as PropType<StereoViewLinkFunc | undefined>,
       default: undefined,
     },
   },
@@ -800,6 +816,32 @@ export default defineComponent({
     });
     provideAutoRegisterJob(autoRegisterJob);
     onBeforeUnmount(() => autoRegisterJob.dispose());
+
+    // Linked panning: with camera controls synchronised and auto-compute on,
+    // the other pane recentres on where this pane's centre is on its camera.
+    const stereoViewLinkResolver = async (camera: string, point: [number, number]) => {
+      if (!props.stereoViewLink) return null;
+      let frameNum: number;
+      try {
+        frameNum = aggregateController.value.getController(camera).frame.value;
+      } catch {
+        return null;
+      }
+      return props.stereoViewLink({ camera, frameNum, point });
+    };
+    watch(
+      [
+        () => clientSettings.stereoSettings.autoComputeOtherCamera,
+        () => props.stereoViewLink,
+        () => multiCamList.value.length,
+      ],
+      ([autoCompute, link, cameras]) => {
+        aggregateController.value.setViewLinkResolver(
+          autoCompute && link && cameras === 2 ? stereoViewLinkResolver : null,
+        );
+      },
+      { immediate: true },
+    );
 
     // Provides wrappers for actions to integrate with settings
     const {
