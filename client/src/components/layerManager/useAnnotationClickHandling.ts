@@ -143,7 +143,11 @@ export default function useAnnotationClickHandling(options: {
     });
     editAnnotationLayer.bus.$on('polygon-edit-right-click', (geo: { x: number; y: number }) => {
       const trackId = selectedTrackIdRef.value;
-      if (selectedCamera.value !== camera || trackId === null || editingModeRef.value !== 'Polygon') return;
+      if (trackId === null || editingModeRef.value !== 'Polygon') return;
+      // The editor that took the click is live on every camera holding the
+      // detection, so navigate its polygons here after selecting this camera.
+      if (selectedCamera.value !== camera) handler.selectCamera(camera, false);
+      if (selectedCamera.value !== camera) return;
       const point = alignedView.mapNativePoint(geo.x, geo.y);
       const hit = pickPolygon(polyAnnotationLayer.formattedData, trackId as number, point);
       finishPolygonClick(trackId, hit?.polygonKey);
@@ -170,10 +174,11 @@ export default function useAnnotationClickHandling(options: {
       if (editingModeRef.value === 'LineString'
           || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
       if (polygonNavigationPending) return;
-      if (selectedCamera.value === camera && trackId === selectedTrackIdRef.value
+      if (trackId === selectedTrackIdRef.value
           && editingModeRef.value === 'Polygon' && editAnnotationLayer.getMode() !== 'creation') {
         // The edit-layer click resolves the actual polygon hit (including
-        // holes) and applies the switch after GeoJS finishes this mouse event.
+        // holes) and applies the switch after GeoJS finishes this mouse event,
+        // on whichever camera's editor holds the detection.
         return;
       }
       if (editAnnotationLayer.getMode() === 'creation') {
@@ -196,7 +201,7 @@ export default function useAnnotationClickHandling(options: {
     polyAnnotationLayer.bus.$on('polygon-right-clicked-outside', () => {
       if (editingModeRef.value === 'LineString'
           || (editAnnotationLayer.type === 'LineString' && editAnnotationLayer.getMode() !== 'disabled')) return;
-      if (selectedCamera.value === camera && selectedTrackIdRef.value !== null
+      if (selectedTrackIdRef.value !== null
           && editingModeRef.value === 'Polygon' && editAnnotationLayer.getMode() !== 'creation') {
         // The edit layer also receives clicks in gaps between polygons.
         return;
