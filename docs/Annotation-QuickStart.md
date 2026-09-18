@@ -85,6 +85,7 @@ The demo below shows how to use AdvanceFrame mode to travel through the video wh
     1. Or press ++t++ to create a tail point.
 1. The mouse cursor will become a crosshair.  Click in the annotator to place each point.
 1. Once the first marker is placed it automatically transitions to the second marker. If you start with head, the second one will be the tail and vice versa.
+1. A detection that has only one of the two points (for example a computed head with no tail) shows that point as a draggable handle in this mode, so it can be moved without redrawing; clicking elsewhere still places the missing point.
 
 ### Creating new annotations using Head/Tail points
 
