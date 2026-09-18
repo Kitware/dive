@@ -1773,7 +1773,7 @@ export default defineComponent({
               reportStereoMeasurement(response.measurement);
               await updateStereoTrackAverages(cameraStore, params.trackId);
             }
-            if (sourceAutoPopulate && !otherHasFeature) {
+            if (sourceAutoPopulate) {
               await autoPopulateOtherCamera(sourceAutoPopulate, params.camera, {
                 camera: otherCamera,
                 trackId: params.trackId,
