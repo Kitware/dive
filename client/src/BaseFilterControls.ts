@@ -1,7 +1,6 @@
 import {
   ref, computed, Ref, watch,
 } from 'vue';
-import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 import type { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { SortedAnnotation } from './BaseAnnotationStore';
 import type Group from './Group';
@@ -16,9 +15,6 @@ interface MarkChangesPendingData {
 export type MarkChangesPendingFilter = (data?: MarkChangesPendingData) => void;
 
 export const DefaultConfidence = 0.1;
-
-/** Which annotations a delete-all reaches, relative to each type's threshold. */
-export type ThresholdScope = 'above' | 'below' | 'all';
 /**
  * AnnotationWithContext wraps an annotation with additional information
  * such as why the annotation was included or returned by a system
@@ -235,30 +231,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
         if (newConfidencePairs.length === 0) {
           this.remove(filtered.annotation.id);
         }
-      }
-    });
-  }
-
-  /**
-   * Like removeTypeAnnotations, but reaching past the visible list: 'below'
-   * removes `types` only where the annotation's confidence for the type is
-   * under that type's threshold (the annotations the list hides), 'all'
-   * removes them everywhere. 'above' is the visible list itself.
-   */
-  removeTypeAnnotationsByThreshold(types: string[], scope: ThresholdScope) {
-    if (scope === 'above') {
-      this.removeTypeAnnotations(types);
-      return;
-    }
-    const wanted = new Set(types);
-    const filters = this.confidenceFilters.value;
-    [...this.sorted.value].forEach((annotation) => {
-      const matching = annotation.confidencePairs.filter(([type, confidence]) => wanted.has(type)
-        && (scope === 'all' || confidence < resolveConfidenceThreshold(filters, type)));
-      if (matching.length === 0) return;
-      const remaining = this.removeTypes(annotation.id, matching.map(([type]) => type));
-      if (remaining.length === 0) {
-        this.remove(annotation.id);
       }
     });
   }
