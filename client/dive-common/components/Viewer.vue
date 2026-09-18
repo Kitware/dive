@@ -68,6 +68,7 @@ import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
+  NewAnnotationGeometryParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
@@ -833,6 +834,9 @@ export default defineComponent({
       },
       onStereoAnnotationReset: (params: StereoAnnotationResetParams) => {
         emit('stereo-annotation-reset', params);
+      },
+      onNewAnnotationGeometry: (params: NewAnnotationGeometryParams) => {
+        emit('new-annotation-geometry', params);
       },
       onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
         emit('stereo-segmentation-finalize', params);

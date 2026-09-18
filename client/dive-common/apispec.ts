@@ -684,6 +684,13 @@ export interface SegmentationStereoSegmentResponse {
   };
 }
 
+export interface SegmentationPolygonKeypointsResponse {
+  success: boolean;
+  error?: string;
+  head?: [number, number];
+  tail?: [number, number];
+}
+
 export interface SegmentationStatusResponse {
   /** Whether segmentation is available */
   available: boolean;

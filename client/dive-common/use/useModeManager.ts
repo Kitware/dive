@@ -76,6 +76,15 @@ interface SetAnnotationStateArgs {
   recipeName?: string;
 }
 
+export type NewAnnotationGeometryParams = {
+  camera: string;
+  trackId: number;
+  frameNum: number;
+} & (
+  | { source: 'box'; bounds: [number, number, number, number] }
+  | { source: 'line'; line: [number, number][] }
+);
+
 export type StereoAnnotationCompleteParams =
   | { type: 'point'; camera: string; trackId: number; frameNum: number; point: [number, number]; key: string; insert?: boolean; }
   | { type: 'line'; camera: string; trackId: number; frameNum: number;
@@ -116,6 +125,7 @@ export default function useModeManager({
   isStereoscopicDataset,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
+  onNewAnnotationGeometry,
   onStereoSegmentationFinalize,
 }: {
     cameraStore: CameraStore;
@@ -134,6 +144,8 @@ export default function useModeManager({
     isStereoscopicDataset?: Ref<boolean>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
+    /** A brand-new detection just got its first shape (a box or a line). */
+    onNewAnnotationGeometry?: (params: NewAnnotationGeometryParams) => void;
     onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
   let creating = false;
@@ -798,8 +810,19 @@ export default function useModeManager({
         // create a new track in continuous detection mode and change
         // selectedTrackId
         const completedTrackId = selectedTrackId.value as number;
+        const wasCreating = creating;
 
         newTrackSettingsAfterLogic(track);
+
+        if (onNewAnnotationGeometry && wasCreating && !isEditingExisting) {
+          onNewAnnotationGeometry({
+            camera: selectedCamera.value,
+            trackId: completedTrackId,
+            frameNum,
+            source: 'box',
+            bounds: bounds as [number, number, number, number],
+          });
+        }
 
         // Stereo: emit box annotation complete
         if (onStereoAnnotationComplete && stereoInteractiveActive()) {
@@ -999,8 +1022,20 @@ export default function useModeManager({
             // Capture track ID before newTrackSettingsAfterLogic which may
             // change selectedTrackId in continuous detection mode
             const completedTrackId = selectedTrackId.value;
+            const wasCreating = creating;
 
             newTrackSettingsAfterLogic(track);
+
+            if (onNewAnnotationGeometry && wasCreating && completedTrackId !== null
+                && data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2) {
+              onNewAnnotationGeometry({
+                camera: selectedCamera.value,
+                trackId: completedTrackId as number,
+                frameNum,
+                source: 'line',
+                line: data.geometry.coordinates as [number, number][],
+              });
+            }
 
             // Stereo: emit line or polygon annotation complete
             if (onStereoAnnotationComplete && stereoInteractiveActive()
