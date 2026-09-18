@@ -1590,20 +1590,19 @@ export default defineComponent({
       if (event && isExtendingDetectionToCamera(camera)) {
         return;
       }
-      // A right-click off the detection while editing must finalize it AND
-      // select the clicked camera in a single press. When the track also has
-      // geometry on the clicked camera, that camera's edit layer has already
-      // ended editing by the time this mouseup arrives, so editingTrack alone
-      // cannot tell; selectCamera(camera, true) would then put the detection
+      // A right-click off the detection while editing must finalize it,
+      // deselect it AND select the clicked camera in a single press, whatever
+      // the edit mode. When the track also has geometry on the clicked camera,
+      // that camera's edit layer has already ended editing by the time this
+      // mouseup arrives -- leaving the detection selected -- so editingTrack
+      // alone cannot tell; selectCamera(camera, true) would then put it
       // straight back into edit mode. Right-clicks ON an annotation never
       // reach here: the annotation layers' right-click handoff switches the
       // selected camera synchronously first, so this handler returns at the
       // top (same camera).
       if (event?.button === 2 && (editingTrack.value || editingOnRightMouseDown)) {
         editingOnRightMouseDown = false;
-        if (editingTrack.value) {
-          handler.trackSelect(null, false);
-        }
+        handler.trackSelect(null, false);
         selectCamera(camera, false);
         return;
       }
