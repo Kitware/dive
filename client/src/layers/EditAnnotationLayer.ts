@@ -482,6 +482,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   hoverEditHandle(e: GeoEvent) {
+    // The map rebroadcasts this to every layer; only our own handles count.
+    if (e.annotation && e.annotation.layer() !== this.featureLayer) return;
     const divisor = 2; // Vertex/edge handles alternate for polygons and open lines.
     if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected

@@ -15,8 +15,9 @@ async function harness() {
   const map = geo.map({
     node, width: 800, height: 600, ...geo.util.pixelCoordinateParams(node, 800, 600, 800, 600).map,
   });
+  const cursors: string[] = [];
   const params = {
-    annotator: { geoViewerRef: ref(map), setCursor: vi.fn(), setImageCursor: vi.fn() },
+    annotator: { geoViewerRef: ref(map), setCursor: (c: string) => cursors.push(c), setImageCursor: vi.fn() },
     stateStyling: { standard: { color: '#f00' }, selected: { color: '#f00' } },
     typeStyling: ref({ color: () => '#f00', strokeWidth: () => 1, opacity: () => 1 }),
   } as any;
@@ -39,7 +40,7 @@ async function harness() {
   const lineCoords = () => round(line.featureLayer.annotations()[0].geojson().geometry.coordinates);
   const boxCoords = () => round(box.featureLayer.annotations()[0].geojson().geometry.coordinates[0]);
   return {
-    mouse, drag, lineUpdate, boxUpdate, lineCoords, boxCoords, line, box, frameData,
+    mouse, drag, lineUpdate, boxUpdate, lineCoords, boxCoords, line, box, frameData, cursors,
   };
 }
 
@@ -76,4 +77,15 @@ it('keeps a hovered box corner draggable after the line layer leaves and re-ente
   h.mouse('mousedown', 50, 50); h.mouse('mousemove', 30, 30); h.mouse('mouseup', 30, 30);
   expect(h.boxUpdate).toHaveBeenCalledTimes(1);
   expect(h.boxCoords()).toContainEqual([30, 30]);
+});
+
+it('shows the hand over a line vertex and a resize cursor only over a box corner', async () => {
+  const h = await harness();
+  h.cursors.length = 0;
+  h.mouse('mousemove', 100, 100);
+  expect(h.cursors).toEqual(['grab']);
+  h.cursors.length = 0;
+  h.mouse('mousemove', 200, 30); h.mouse('mousemove', 50, 50);
+  expect(h.cursors.at(-1)).toBe('nw-resize');
+  expect(h.cursors).not.toContain('grab');
 });
