@@ -617,6 +617,8 @@ export interface SegmentationPredictRequest {
   multimaskOutput?: boolean;
   /** Time in seconds when imagePath is a video file */
   frameTime?: number;
+  /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
+  line?: [number, number][];
 }
 
 export interface SegmentationPredictResponse {
@@ -682,6 +684,13 @@ export interface SegmentationStereoSegmentResponse {
     midpoint_range: number;
     stereo_rms: number;
   };
+}
+
+export interface SegmentationPolygonKeypointsResponse {
+  success: boolean;
+  error?: string;
+  head?: [number, number];
+  tail?: [number, number];
 }
 
 export interface SegmentationStatusResponse {

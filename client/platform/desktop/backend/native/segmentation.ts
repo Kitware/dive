@@ -27,6 +27,8 @@ export interface SegmentationInternalPredictRequest {
   multimaskOutput?: boolean;
   /** Time in seconds when imagePath is a video file */
   frameTime?: number;
+  /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
+  line?: [number, number][];
 }
 
 /** Response from the segmentation service */
@@ -93,3 +95,10 @@ export interface SegmentationStereoSegmentResponse {
 
 export type SegmentationPredictRequest = Omit<SegmentationInternalPredictRequest, 'id'>;
 export type SegmentationPredictResponse = SegmentationInternalPredictResponse;
+
+export interface SegmentationPolygonKeypointsResponse {
+  success: boolean;
+  error?: string;
+  head?: [number, number];
+  tail?: [number, number];
+}

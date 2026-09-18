@@ -440,6 +440,10 @@ export default function register() {
     return { success: true };
   });
 
+  ipcMain.handle('segmentation-polygon-keypoints', async (_, args: { polygon: [number, number][] }) => (
+    getInteractiveServiceManager().polygonKeypoints(args.polygon)
+  ));
+
   ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
     const segService = getInteractiveServiceManager();
 
