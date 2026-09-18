@@ -1164,7 +1164,7 @@ export default defineComponent({
     // line at this frame. Once set, interactive stereo never overwrites that
     // side's geometry again — only the user can. Kept off the Attributes panel.
     const STEREO_USER_LINE_ATTR = 'stereo_user_line';
-    const STEREO_LOADING_DIALOG_DELAY_MS = 400;
+    const STEREO_LOADING_DIALOG_DELAY_MS = 300;
     // How the length was set: 'stereo' = auto-computed from the warped lines,
     // 'user_set' = locked by the user (auto-update leaves the length alone).
     const STEREO_LENGTH_METHOD_ATTR = 'length_method';
