@@ -309,7 +309,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       });
       this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => {
         this.ownsDrag = !!this.featureLayer.currentAnnotation?._editHandle?.handle?.selected;
-        if (!this.companion) this.setShapeInProgress(e);
+        if (!this.companion && !this.peer?.handleSelected()) this.setShapeInProgress(e);
       });
 
       const arrowLayer = this.annotator.geoViewerRef.value.createLayer('feature', { features: ['line'] });
@@ -484,6 +484,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   hoverEditHandle(e: GeoEvent) {
     // The map rebroadcasts this to every layer; only our own handles count.
     if (e.annotation && e.annotation.layer() !== this.featureLayer) return;
+    // GeoJS strips the annotation actions right after this event fires.
+    if (this.companion && !e.enable) window.setTimeout(() => this.peer?.restoreCreationActions(), 0);
     const divisor = 2; // Vertex/edge handles alternate for polygons and open lines.
     if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
@@ -543,6 +545,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     this.type = type;
 
     // Add or remove Point mode listeners based on type change
+    if (this.companion) return;
     if (!wasPoint && isPoint) {
       this.addPointModeListeners();
     } else if (wasPoint && !isPoint) {
@@ -704,6 +707,27 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * A mode change on the peer layer strips every annotation action from the
    * interactor, including the one for a handle still hovered on this layer.
    */
+  handleSelected(): boolean {
+    return !!this.featureLayer.currentAnnotation?._editHandle?.handle?.selected;
+  }
+
+  /**
+   * Hovering a peer's handle strips this layer's creation actions along with
+   * every other annotation action; put them back so drawing can continue.
+   */
+  restoreCreationActions() {
+    if (this.getMode() !== 'creation') return;
+    const annotation = this.featureLayer.currentAnnotation;
+    if (!annotation) return;
+    const interactor = this.annotator.geoViewerRef.value.interactor();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    annotation.actions('create').forEach((action: any) => {
+      if (!interactor.hasAction(action.action, action.name, action.owner)) {
+        interactor.addAction(action);
+      }
+    });
+  }
+
   restoreHandleActions() {
     if (this.getMode() !== 'editing') return;
     const handle = this.featureLayer.currentAnnotation?._editHandle?.handle;
@@ -855,7 +879,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // TODO: this assumes only one polygon
           geoJSONData = this.getGeoJSONData(track);
         }
-        if (!geoJSONData || this.type === 'Point') {
+        if (!geoJSONData || (this.type === 'Point' && !this.companion)) {
           this.setMode(this.type);
         } else {
           const geojsonFeature: GeoJSON.Feature = {
@@ -983,7 +1007,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           );
           const newCoords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
           let rotationBetween: number;
-          if (this.formattedData.length > 0 && this.type === 'rectangle') {
+          if (this.type === 'Point') {
+            rotationBetween = 0;
+          } else if (this.formattedData.length > 0 && this.type === 'rectangle') {
             const existingRotation = getRotationFromAttributes(this.formattedData[0].properties as Record<string, unknown>) ?? 0;
             const oldCoords = rotateGeoJSONCoordinates(
               this.unrotatedGeoJSONCoords || [],

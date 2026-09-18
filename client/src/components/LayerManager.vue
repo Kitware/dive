@@ -56,7 +56,7 @@ import useLayerRefresh from './layerManager/useLayerRefresh';
 import useSegmentationPointsLayer from './layerManager/useSegmentationPointsLayer';
 import useAnnotationClickHandling from './layerManager/useAnnotationClickHandling';
 import { cameraAwaitingGeometry, isCreatingNewDetection } from './layerManager/multicamCreation';
-import lineBoxCompanionTracks from './layerManager/lineBoxCompanion';
+import lineCompanion from './layerManager/lineCompanion';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -625,14 +625,16 @@ export default defineComponent({
         editAnnotationLayer.disable();
       }
 
-      const boxTracks = selectedTrackId === null ? [] : lineBoxCompanionTracks(
+      const companion = selectedTrackId === null ? null : lineCompanion(
         editingTrack,
         visibleModes.includes('rectangle'),
         selectedKey,
         editingTracks,
       );
-      if (boxTracks.length) {
-        boxEditLayer.changeData(boxTracks.map((trackFrame) => ({
+      if (companion) {
+        boxEditLayer.setType(companion.type);
+        boxEditLayer.setKey(companion.key);
+        boxEditLayer.changeData(companion.tracks.map((trackFrame) => ({
           ...trackFrame,
           features: featureToDisplay(trackFrame.features),
         })));
