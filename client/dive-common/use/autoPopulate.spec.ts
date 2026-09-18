@@ -1,5 +1,5 @@
 import {
-  autoPopulatePrompt, closedRing, polygonBounds, LINE_PROMPT_FRACTIONS,
+  autoPopulatePrompt, closedRing, polygonBounds, orientLineLike, LINE_PROMPT_FRACTIONS,
 } from './autoPopulate';
 
 it('prompts a box with its centre', () => {
@@ -20,4 +20,9 @@ it('closes rings and measures polygon bounds', () => {
   expect(closedRing([[0, 0], [4, 0], [4, 3]])).toEqual([[0, 0], [4, 0], [4, 3], [0, 0]]);
   expect(closedRing([[0, 0], [4, 0], [0, 0]])).toHaveLength(3);
   expect(polygonBounds([[1, 5], [4, 2], [3, 9]])).toEqual([1, 2, 4, 9]);
+});
+
+it('flips a head/tail pair that runs against the other camera\'s line', () => {
+  expect(orientLineLike([[90, 10], [10, 12]], [[0, 0], [100, 0]])).toEqual([[10, 12], [90, 10]]);
+  expect(orientLineLike([[10, 12], [90, 10]], [[0, 0], [100, 0]])).toEqual([[10, 12], [90, 10]]);
 });

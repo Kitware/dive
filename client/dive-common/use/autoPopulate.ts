@@ -51,3 +51,16 @@ export function polygonBounds(polygon: Point[]): RectBounds {
   const ys = polygon.map((p) => p[1]);
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
+
+/**
+ * Head/tail derived independently on each stereo camera can come out flipped;
+ * order this pair to run the same way as the other camera's line.
+ */
+export function orientLineLike(line: [Point, Point], reference: Point[]): [Point, Point] {
+  if (reference.length < 2) return line;
+  const [head, tail] = line;
+  const refHead = reference[0];
+  const refTail = reference[reference.length - 1];
+  const dot = (tail[0] - head[0]) * (refTail[0] - refHead[0]) + (tail[1] - head[1]) * (refTail[1] - refHead[1]);
+  return dot < 0 ? [tail, head] : line;
+}
