@@ -19,11 +19,14 @@ interface MockTrackFilters {
     context: { confidencePairIndex: number };
   }[]>;
   hierarchyActive: Ref<boolean>;
+  checkedTypes: Ref<string[]>;
+  removeTypeAnnotationsByThreshold: ReturnType<typeof vi.fn>;
 }
 
 const state = vi.hoisted(() => ({
   cameraStore: null as unknown as MockCameraStore,
   trackFilters: null as unknown as MockTrackFilters,
+  removeTrack: vi.fn(),
 }));
 
 vi.mock('dive-common/vue-utilities/prompt-service', () => ({
@@ -38,7 +41,7 @@ vi.mock('../../provides', () => ({
   useEditingMode: () => ref(false),
   useHandler: () => ({
     trackSplit: vi.fn(),
-    removeTrack: vi.fn(),
+    removeTrack: state.removeTrack,
     trackAdd: vi.fn(),
     trackSelect: vi.fn(),
     trackSelectNext: vi.fn(),
@@ -80,6 +83,8 @@ function mountList(
     checkedIDs: ref(tracks.map(({ id }) => id)),
     filteredAnnotations: ref(filtered),
     hierarchyActive: ref(hierarchyActive),
+    checkedTypes: ref(['root', 'child']),
+    removeTypeAnnotationsByThreshold: vi.fn(),
   };
   state.cameraStore = {
     camMap: ref(new Map([['singleCam', { trackStore: undefined }]])),
@@ -173,5 +178,46 @@ describe('TrackList hierarchy display', () => {
     const listView = wrapper.findComponent({ name: 'BottomBarTrackListView' });
     expect(listView.props('virtualListItems')).toEqual([]);
     expect(getType).not.toHaveBeenCalled();
+  });
+});
+
+describe('TrackList delete of every listed track', () => {
+  function mountTwo() {
+    const tracks = [1, 2].map((id) => new Track(id, {
+      confidencePairs: [['root', 0.9]],
+      features: [{ frame: 0, bounds: [0, 0, 1, 1], keyframe: true }],
+    }));
+    state.removeTrack.mockClear();
+    return mountList(tracks, [0, 0], false);
+  }
+  type ListVm = {
+    data: { showDeleteAll: boolean; deleteAllScope: string };
+    multiDelete: () => Promise<void>;
+    confirmDeleteAll: () => void;
+  };
+
+  it.each([
+    ['above', [[1, 2]], 0],
+    ['below', [], 1],
+    ['all', [[1, 2]], 1],
+  ] as [string, number[][], number][])('asks for the threshold scope and applies %s', async (scope, removed, belowCalls) => {
+    const vm = mountTwo().vm as unknown as ListVm;
+    await vm.multiDelete();
+    expect(vm.data.showDeleteAll).toBe(true);
+    expect(vm.data.deleteAllScope).toBe('above');
+    vm.data.deleteAllScope = scope;
+    vm.confirmDeleteAll();
+    expect(vm.data.showDeleteAll).toBe(false);
+    expect(state.removeTrack.mock.calls.map(([ids]) => ids)).toEqual(removed);
+    const below = state.trackFilters.removeTypeAnnotationsByThreshold;
+    expect(below).toHaveBeenCalledTimes(belowCalls);
+    if (belowCalls) expect(below).toHaveBeenCalledWith(['root', 'child'], 'below');
+  });
+
+  it('keeps the plain confirmation for a partial selection', async () => {
+    const vm = mountTwo().vm as unknown as ListVm;
+    state.trackFilters.checkedIDs.value = [1];
+    await vm.multiDelete();
+    expect(vm.data.showDeleteAll).toBe(false);
   });
 });

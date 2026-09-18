@@ -17,6 +17,7 @@ import {
 import TooltipBtn from './TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
+import DeleteAllScopeDialog from './DeleteAllScopeDialog.vue';
 import BaseFilterControls, { AnnotationWithContext, ThresholdScope } from '../BaseFilterControls';
 import TrackFilterControls from '../TrackFilterControls';
 import Track from '../track';
@@ -71,7 +72,9 @@ function typeRowLabels(
 export default defineComponent({
   name: 'FilterList',
 
-  components: { TypeEditor, TooltipBtn, TypeItem },
+  components: {
+    TypeEditor, TooltipBtn, TypeItem, DeleteAllScopeDialog,
+  },
 
   props: {
     showEmptyTypes: {
@@ -771,53 +774,12 @@ export default defineComponent({
         </template>
       </v-virtual-scroll>
     </div>
-    <v-dialog
+    <DeleteAllScopeDialog
       v-model="data.showDeleteAll"
-      width="420"
-    >
-      <v-card>
-        <v-card-title>Delete all tracks?</v-card-title>
-        <v-card-text>
-          <p class="mb-2">
-            Every listed type is selected. Delete tracks of these types that are:
-          </p>
-          <v-radio-group
-            v-model="data.deleteAllScope"
-            class="mt-0"
-            hide-details
-          >
-            <v-radio
-              label="Above the current threshold (what the list shows)"
-              value="above"
-            />
-            <v-radio
-              label="Below the current threshold (hidden from the list)"
-              value="below"
-            />
-            <v-radio
-              label="All tracks, regardless of threshold"
-              value="all"
-            />
-          </v-radio-group>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            text
-            @click="data.showDeleteAll = false"
-          >
-            Cancel
-          </v-btn>
-          <v-btn
-            color="error"
-            text
-            @click="confirmDeleteAll"
-          >
-            Delete
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
+      :scope.sync="data.deleteAllScope"
+      lead="Every listed type is selected. Delete tracks of these types that are:"
+      @confirm="confirmDeleteAll"
+    />
     <v-dialog
       v-model="data.showPicker"
       width="350"
