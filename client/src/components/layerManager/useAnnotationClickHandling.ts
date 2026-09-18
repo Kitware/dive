@@ -270,7 +270,6 @@ export default function useAnnotationClickHandling(options: {
       cb: () => void = () => (undefined),
     ) => updateGeoJSON(mode, geometryCompleteEvent, data, type, key, () => {
       cb();
-      // eslint-disable-next-line no-param-reassign
       editAnnotationLayer.skipNextExternalUpdate = true;
     }));
 
