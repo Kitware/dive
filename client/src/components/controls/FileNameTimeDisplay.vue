@@ -28,13 +28,10 @@ export default defineComponent({
     });
     const filename = computed(() => (selectedCameraController.value?.filename.value));
     const duration = computed(() => (selectedCameraController.value?.duration.value));
-    // Cameras of a rig often share file names, so name the camera as well.
-    const multiCamera = computed(() => mediaController.value.cameras.value.length > 1);
     const display = computed(() => {
       let value = 'unsupported display';
       if (props.displayType === 'filename') {
         value = filename.value || 'uninitialized';
-        if (multiCamera.value) value = `${selectedCamera.value}: ${value}`;
       } if (props.displayType === 'time') {
         value = `${new Date(currentTime.value * 1000).toISOString().substr(11, 8)} / ${new Date((duration.value || 0) * 1000).toISOString().substr(11, 8)}`;
       }
