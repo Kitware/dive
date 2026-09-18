@@ -27,6 +27,8 @@ export interface SegmentationInternalPredictRequest {
   multimaskOutput?: boolean;
   /** Time in seconds when imagePath is a video file */
   frameTime?: number;
+  /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
+  line?: [number, number][];
 }
 
 /** Response from the segmentation service */
