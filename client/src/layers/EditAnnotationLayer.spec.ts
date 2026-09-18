@@ -130,3 +130,34 @@ it('synchronizes right-click exits and reopens the saved line repeatedly', async
   }
   expect(h.track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toHaveLength(5);
 });
+
+it('moves and commits only the annotation whose handle was grabbed when a peer layer is live', async () => {
+  const h = harness(); await h.reopen();
+  const annotation = h.featureLayer.annotations()[0];
+  const process = vi.fn(() => true);
+  annotation.diveDragGuard = false; annotation.processEditAction = process;
+  h.layer.guardPeerDrags(annotation);
+  const drag = { annotation: { ...annotation, layer: () => h.featureLayer }, action: 'actionup' };
+
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(1);
+  expect(h.update).toHaveBeenCalledTimes(1);
+
+  h.layer.peer = h.layer; h.layer.ownsDrag = false;
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(1);
+  expect(h.update).toHaveBeenCalledTimes(1);
+
+  h.layer.ownsDrag = true;
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(2);
+  expect(h.update).toHaveBeenCalledTimes(2);
+});
+
+it('limits a companion box editor to its corner handles', () => {
+  const { layer } = harness();
+  layer.companion = true;
+  expect(layer.editHandleStyle().handles).toEqual({
+    vertex: true, edge: false, center: false, rotate: false, resize: false,
+  });
+});
