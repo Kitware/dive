@@ -424,10 +424,16 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return getTransfer()?.warpAllFromCamera(cameraName);
   }
 
+  async function stereoViewLink(params: { camera: string; frameNum: number; point: [number, number] }) {
+    if (!clientSettings.stereoSettings.autoComputeOtherCamera) return null;
+    return (await getTransfer()?.warpPoint(params.point, params.camera, params.frameNum)) ?? null;
+  }
+
   return {
     handleStereoAnnotationComplete,
     handleStereoTrackLinked,
     warpAllFromCamera,
+    stereoViewLink,
     precomputeCurrentFrame,
     invalidateCalibration,
   };
