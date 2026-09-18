@@ -39,7 +39,7 @@ const componentMapEntries: ComponentMapItem[] = [
     component: TypeThreshold,
   },
   {
-    description: 'Image Enhancements',
+    description: 'Image Adjustments',
     component: ImageEnhancements,
   },
   {
