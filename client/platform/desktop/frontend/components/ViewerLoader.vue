@@ -33,7 +33,9 @@ import {
 import type { RectBounds } from 'vue-media-annotator/utils';
 import type { TrackSupportedFeature } from 'vue-media-annotator/track';
 import { SegmentationPolygonKey } from 'dive-common/recipes/segmentationpointclick';
-import { autoPopulatePrompt, closedRing, polygonBounds } from 'dive-common/use/autoPopulate';
+import {
+  autoPopulatePrompt, closedRing, orientLineLike, polygonBounds,
+} from 'dive-common/use/autoPopulate';
 import type Track from 'vue-media-annotator/track';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
@@ -1185,6 +1187,11 @@ export default defineComponent({
 
     const preStereoSegmentationState = new Map<string, Record<string, SavedStereoCameraState>>();
 
+    // In-flight auto-populate passes for freshly drawn shapes, so the stereo
+    // transfer of the same shape can populate its mapped copy afterwards.
+    const pendingAutoPopulate = new Map<string, Promise<void>>();
+    const autoPopulateKey = (camera: string, trackId: number, frameNum: number) => `${camera}:${trackId}:${frameNum}`;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function captureStereoCameraState(track: any, frameNum: number): SavedStereoCameraState {
       if (!track) {
@@ -1518,6 +1525,10 @@ export default defineComponent({
       forceAutoCompute = false,
       quiet = false,
     ): Promise<'transferred' | 'skipped' | 'failed'> {
+      // Read before the first await: the entry is dropped once the pass settles.
+      const sourceAutoPopulate = pendingAutoPopulate.get(
+        autoPopulateKey(params.camera, params.trackId, params.frameNum),
+      );
       if (params.type === 'point' && isHeadTailPoint(params.key)) {
         viewerRef.value?.multiCamList.forEach((camera: string) => viewerRef.value?.cameraStore
           ?.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
@@ -1732,6 +1743,15 @@ export default defineComponent({
               reportStereoMeasurement(response.measurement);
               await updateStereoTrackAverages(cameraStore, params.trackId);
             }
+            if (sourceAutoPopulate && !otherHasFeature) {
+              await autoPopulateOtherCamera(sourceAutoPopulate, params.camera, {
+                camera: otherCamera,
+                trackId: params.trackId,
+                frameNum: params.frameNum,
+                source: 'line',
+                line: points,
+              });
+            }
           }
         } else if (params.type === 'box') {
           // Convert box bounds to 4 corner points
@@ -1762,6 +1782,15 @@ export default defineComponent({
               keyframe: true,
               interpolate: false,
             });
+            if (sourceAutoPopulate) {
+              await autoPopulateOtherCamera(sourceAutoPopulate, params.camera, {
+                camera: otherCamera,
+                trackId: params.trackId,
+                frameNum: params.frameNum,
+                source: 'box',
+                bounds: newBounds,
+              });
+            }
           }
         } else if (params.type === 'polygon') {
           const response = await stereoTransferPoints({ points: params.polygon });
@@ -2039,21 +2068,21 @@ export default defineComponent({
     }
 
     /**
-     * Undo stereo side effects from interactive segmentation on reset.
-     * Restores the other camera and clears saved undo state for the frame.
+     * Auto-populate: segment a box or line with whatever interactive model is
+     * loaded and, per the settings, store the polygon, derive head/tail from
+     * it (box) or tighten the box to it (line). orientLike is the other stereo
+     * camera's line, which a derived head/tail is ordered to match.
      */
-    /**
-     * Auto-populate: a brand-new box or line just got drawn. Segment it with
-     * whatever interactive model is loaded and, per the settings, store the
-     * polygon, derive head/tail from it (box) or tighten the box to it (line).
-     */
-    async function handleNewAnnotationGeometry(params: NewAnnotationGeometryParams) {
+    async function autoPopulateGeometry(
+      params: NewAnnotationGeometryParams,
+      orientLike?: [number, number][] | null,
+    ) {
       const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
       if (!autoPopulateMask && !autoPopulatePoints) return;
       const cameraStore = viewerRef.value?.cameraStore;
-      const getImagePath = segmentationGetImagePath;
-      if (!cameraStore || !getImagePath) return;
-      const imagePath = getImagePath(params.frameNum);
+      if (!cameraStore) return;
+      const imagePath = stereoImagePathGetters.value[params.camera]?.(params.frameNum)
+        ?? segmentationGetImagePath?.(params.frameNum);
       if (!imagePath) return;
       try {
         const status = await segmentationIsReady();
@@ -2090,7 +2119,8 @@ export default defineComponent({
         if (autoPopulatePoints && params.source === 'box' && !hasLine) {
           const keypoints = await segmentationPolygonKeypoints(response.polygon);
           if (keypoints.success && keypoints.head && keypoints.tail) {
-            geometry.push(...headTailFeatures([keypoints.head, keypoints.tail]) as GeoJSON.Feature<TrackSupportedFeature>[]);
+            const line = orientLineLike([keypoints.head, keypoints.tail], orientLike ?? []);
+            geometry.push(...headTailFeatures(line) as GeoJSON.Feature<TrackSupportedFeature>[]);
           }
         }
         if (autoPopulatePoints && params.source === 'line') {
@@ -2108,6 +2138,46 @@ export default defineComponent({
         console.warn('[AutoPopulate] Could not populate the new annotation:', err);
       }
     }
+
+    /**
+     * Stereo: a freshly drawn box or line was just mapped to the other camera.
+     * Populate the mapped copy too, once the source camera's own pass settles
+     * so a derived head/tail can follow the source's direction.
+     */
+    async function autoPopulateOtherCamera(
+      sourceJob: Promise<void>,
+      sourceCamera: string,
+      mapped: NewAnnotationGeometryParams,
+    ) {
+      await sourceJob;
+      const cameraStore = viewerRef.value?.cameraStore;
+      if (!cameraStore) return;
+      const sourceTrack = cameraStore.getPossibleTrack(mapped.trackId, sourceCamera);
+      await autoPopulateGeometry(mapped, getStereoLineEndpoints(sourceTrack, mapped.frameNum));
+      if (mapped.source === 'box' && clientSettings.stereoSettings.updateLengthsOnModify) {
+        try {
+          await autoUpdateStereoLength(cameraStore, mapped.trackId, mapped.frameNum);
+        } catch (err) {
+          console.warn('[Stereo] Measurement update failed:', err);
+        }
+      }
+    }
+
+    /** A brand-new box or line just got drawn. */
+    function handleNewAnnotationGeometry(params: NewAnnotationGeometryParams) {
+      const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
+      if (!autoPopulateMask && !autoPopulatePoints) return;
+      const key = autoPopulateKey(params.camera, params.trackId, params.frameNum);
+      const job: Promise<void> = autoPopulateGeometry(params).finally(() => {
+        if (pendingAutoPopulate.get(key) === job) pendingAutoPopulate.delete(key);
+      });
+      pendingAutoPopulate.set(key, job);
+    }
+
+    /**
+     * Undo stereo side effects from interactive segmentation on reset.
+     * Restores the other camera and clears saved undo state for the frame.
+     */
 
     async function handleStereoAnnotationReset(params: StereoAnnotationResetParams) {
       const key = `${params.trackId}:${params.frameNum}`;
