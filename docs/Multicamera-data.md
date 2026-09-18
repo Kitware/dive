@@ -252,7 +252,7 @@ Open the ==:material-cog:== creation settings menu in the [Track List](UI-Track-
 | Setting | What it does |
 |---------|--------------|
 | **Update lengths when modified** | Recomputes stereo length measurements when you edit a head/tail line on a detection linked across both cameras. |
-| **Auto-compute location on other camera** | Warps a new annotation drawn on one camera to the other camera when no detection exists there yet. |
+| **Auto-compute location on other camera** | Warps a new annotation drawn on one camera to the other camera when no detection exists there yet. With **Synchronize camera controls** also on, panning or zooming one camera recentres the other on the same object: the point at the centre of the moved view is matched on the other camera with the loaded stereo method, and the other view is recentred there once the motion settles. Where no match is found the views keep moving together as before. |
 
 Enabling either option loads the interactive stereo service (shared with [interactive segmentation](Interactive-Annotation.md)). Warped head/tail lines become normal editable line annotations; manual edits are preserved and not overwritten by later auto-warping.
 

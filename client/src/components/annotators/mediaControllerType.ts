@@ -76,6 +76,15 @@ export interface AggregateMediaController {
   getController: (cameraName: string) => MediaController;
   toggleSynchronizeCameras: (sync: boolean) => void;
   /**
+   * While cameras are synchronised, recentre the other panes on where the
+   * source pane's centre lands on their camera (null to disable). The
+   * resolver returns null when the point cannot be found there.
+   */
+  setViewLinkResolver: (
+    resolver: ((sourceCamera: string, point: [number, number]) =>
+      Promise<[number, number] | null>) | null,
+  ) => void;
+  /**
    * Seeks so that `camera` lands on its own local frame `localFrame` (e.g.
    * jumping to a track's stored begin/end, which is in local-frame units).
    * Under an aligned timeline (see AlignedFrameResolver) this translates
