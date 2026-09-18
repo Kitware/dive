@@ -45,6 +45,10 @@ interface AnnotationSettings {
     newTrackSettings: {
       mode: 'Track' | 'Detection';
       type: string;
+      /** Segment a freshly drawn box or line and store the polygon. */
+      autoPopulateMask: boolean;
+      /** Derive head/tail from that polygon for a box; a tighter box from it for a line. */
+      autoPopulatePoints: boolean;
       modeSettings: {
         Track: {
           autoAdvanceFrame: boolean;
@@ -111,6 +115,8 @@ const defaultSettings: AnnotationSettings = {
     newTrackSettings: {
       mode: 'Track' as 'Track' | 'Detection',
       type: 'unknown',
+      autoPopulateMask: false,
+      autoPopulatePoints: false,
       modeSettings: {
         Track: {
           autoAdvanceFrame: false,

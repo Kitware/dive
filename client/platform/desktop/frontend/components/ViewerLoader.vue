@@ -23,6 +23,7 @@ import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
+  NewAnnotationGeometryParams,
 } from 'dive-common/use/useModeManager';
 import { HeadPointKey, TailPointKey, HeadTailLineKey } from 'dive-common/recipes/headtail';
 import {
@@ -30,9 +31,13 @@ import {
   STEREO_LENGTH_ATTRIBUTE_NAME,
 } from 'dive-common/utils/stereoLengthRendering';
 import type { RectBounds } from 'vue-media-annotator/utils';
+import type { TrackSupportedFeature } from 'vue-media-annotator/track';
+import { SegmentationPolygonKey } from 'dive-common/recipes/segmentationpointclick';
+import { autoPopulatePrompt, closedRing, polygonBounds } from 'dive-common/use/autoPopulate';
 import type Track from 'vue-media-annotator/track';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
+  segmentationPolygonKeypoints,
   segmentationEnsureStarted,
   segmentationSam3Installed,
   loadConfig, textQuery,
@@ -2067,6 +2072,73 @@ export default defineComponent({
      * Undo stereo side effects from interactive segmentation on reset.
      * Restores the other camera and clears saved undo state for the frame.
      */
+    /**
+     * Auto-populate: a brand-new box or line just got drawn. Segment it with
+     * whatever interactive model is loaded and, per the settings, store the
+     * polygon, derive head/tail from it (box) or tighten the box to it (line).
+     */
+    async function handleNewAnnotationGeometry(params: NewAnnotationGeometryParams) {
+      const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
+      if (!autoPopulateMask && !autoPopulatePoints) return;
+      const cameraStore = viewerRef.value?.cameraStore;
+      const getImagePath = segmentationGetImagePath;
+      if (!cameraStore || !getImagePath) return;
+      const imagePath = getImagePath(params.frameNum);
+      if (!imagePath) return;
+      try {
+        const status = await segmentationIsReady();
+        if (!status.ready) await segmentationInitialize();
+        const prompt_ = autoPopulatePrompt(params.source === 'box'
+          ? { source: 'box', bounds: params.bounds }
+          : { source: 'line', line: params.line });
+        const response = await segmentationPredict({
+          imagePath,
+          points: prompt_.points,
+          pointLabels: prompt_.labels,
+          multimaskOutput: params.source === 'box',
+          frameTime: segmentationGetFrameTime?.(params.frameNum),
+        });
+        if (!response.success || !response.polygon || response.polygon.length < 3) return;
+
+        // The user may have moved on; only fill in what is still missing.
+        const track = cameraStore.getPossibleTrack(params.trackId, params.camera);
+        const [feature] = track?.getFeature(params.frameNum) ?? [null];
+        if (!track || !feature) return;
+        const features: GeoJSON.Feature<TrackSupportedFeature>[] = feature.geometry?.features ?? [];
+        const hasPolygon = features.some((f) => f.geometry.type === 'Polygon');
+        const hasLine = features.some((f) => f.geometry.type === 'LineString');
+
+        const geometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
+        let bounds = feature.bounds ? [...feature.bounds] as RectBounds : polygonBounds(response.polygon);
+        if (autoPopulateMask && !hasPolygon) {
+          geometry.push({
+            type: 'Feature',
+            geometry: { type: 'Polygon', coordinates: [closedRing(response.polygon)] },
+            properties: { key: SegmentationPolygonKey },
+          });
+        }
+        if (autoPopulatePoints && params.source === 'box' && !hasLine) {
+          const keypoints = await segmentationPolygonKeypoints(response.polygon);
+          if (keypoints.success && keypoints.head && keypoints.tail) {
+            geometry.push(...headTailFeatures([keypoints.head, keypoints.tail]) as GeoJSON.Feature<TrackSupportedFeature>[]);
+          }
+        }
+        if (autoPopulatePoints && params.source === 'line') {
+          bounds = response.bounds ?? polygonBounds(response.polygon);
+        }
+        if (!geometry.length && params.source !== 'line') return;
+        track.setFeature({
+          frame: params.frameNum,
+          flick: feature.flick,
+          bounds,
+          keyframe: true,
+          interpolate: feature.interpolate,
+        }, geometry);
+      } catch (err) {
+        console.warn('[AutoPopulate] Could not populate the new annotation:', err);
+      }
+    }
+
     async function handleStereoAnnotationReset(params: StereoAnnotationResetParams) {
       const key = `${params.trackId}:${params.frameNum}`;
       const saved = preStereoSegmentationState.get(key);
@@ -2221,6 +2293,7 @@ export default defineComponent({
       stereoViewLink,
       handleStereoWarpImported,
       handleStereoAnnotationReset,
+      handleNewAnnotationGeometry,
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
       onCalibrationImported,
@@ -2256,6 +2329,7 @@ export default defineComponent({
       @open-external-link="openLink"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
       @stereo-annotation-reset="handleStereoAnnotationReset"
+      @new-annotation-geometry="handleNewAnnotationGeometry"
       @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
     >

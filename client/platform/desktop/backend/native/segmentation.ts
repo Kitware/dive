@@ -93,3 +93,10 @@ export interface SegmentationStereoSegmentResponse {
 
 export type SegmentationPredictRequest = Omit<SegmentationInternalPredictRequest, 'id'>;
 export type SegmentationPredictResponse = SegmentationInternalPredictResponse;
+
+export interface SegmentationPolygonKeypointsResponse {
+  success: boolean;
+  error?: string;
+  head?: [number, number];
+  tail?: [number, number];
+}

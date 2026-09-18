@@ -31,6 +31,7 @@ import {
   SegmentationStereoSegmentResponse,
   SegmentationPredictRequest,
   SegmentationPredictResponse,
+  SegmentationPolygonKeypointsResponse,
 } from './segmentation';
 import {
   StereoCalibration,
@@ -380,6 +381,12 @@ export class InteractiveServiceManager extends EventEmitter {
       }
       this.segInitialized = true;
     }
+  }
+
+  /** Head/tail of a polygon, derived as VIAME's keypoint pipelines derive them. */
+  async polygonKeypoints(polygon: [number, number][]): Promise<SegmentationPolygonKeypointsResponse> {
+    const response = await this.sendRequest({ command: 'polygon_keypoints', polygon }, 'Polygon keypoints');
+    return response as unknown as SegmentationPolygonKeypointsResponse;
   }
 
   async predict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
