@@ -6,7 +6,7 @@ import Vue, {
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
+import { TrackWithContext, ThresholdScope } from 'vue-media-annotator/BaseFilterControls';
 import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 
 import { clientSettings } from 'dive-common/store/settings';
@@ -98,6 +98,8 @@ export default defineComponent({
       itemHeight: props.compact ? 50 : 70, // in pixels
       settingsActive: false,
       columnSettingsActive: false,
+      showDeleteAll: false,
+      deleteAllScope: 'above' as ThresholdScope,
     });
 
     const sortKey = ref<SortKey>('id');
@@ -363,7 +365,29 @@ export default defineComponent({
       };
     }
 
+    function checkedDisplayedTracks() {
+      return virtualListItems.value
+        .map((item) => item.filteredTrack.annotation.id)
+        .filter((id) => checkedTrackIdsRef.value.includes(id));
+    }
+
+    /* 'above' is the listed tracks themselves; 'below' reaches the tracks of
+       the enabled types that the confidence thresholds hide from the list. */
+    function confirmDeleteAll() {
+      data.showDeleteAll = false;
+      const scope = data.deleteAllScope;
+      const types = [...trackFilters.checkedTypes.value];
+      if (scope !== 'below') removeTrack(checkedDisplayedTracks(), true);
+      if (scope !== 'above') trackFilters.removeTypeAnnotationsByThreshold(types, 'below');
+    }
+
     async function multiDelete() {
+      if (virtualListItems.value.length > 0
+        && checkedDisplayedTracks().length === virtualListItems.value.length) {
+        data.deleteAllScope = 'above';
+        data.showDeleteAll = true;
+        return;
+      }
       const tracksDisplayed: number[] = [];
       const text = ['Do you want to delete the following tracks:'];
       let count = 0;
@@ -455,6 +479,7 @@ export default defineComponent({
       virtualListItems,
       setVirtualListRef,
       multiDelete,
+      confirmDeleteAll,
       sortKey,
       sortDirection,
       handleSort,
@@ -473,6 +498,7 @@ export default defineComponent({
     :new-track-type="newTrackType"
     :track-add="trackAdd"
     :multi-delete="multiDelete"
+    :confirm-delete-all="confirmDeleteAll"
     :virtual-list-items="virtualListItems"
     :get-item-props="getItemProps"
     :lock-types="lockTypes"
@@ -504,6 +530,7 @@ export default defineComponent({
     :new-track-type="newTrackType"
     :track-add="trackAdd"
     :multi-delete="multiDelete"
+    :confirm-delete-all="confirmDeleteAll"
     :virtual-list-items="virtualListItems"
     :get-item-props="getItemProps"
     :lock-types="lockTypes"
