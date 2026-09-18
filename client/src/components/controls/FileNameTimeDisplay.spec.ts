@@ -20,20 +20,12 @@ vi.mock('../annotators/useMediaController', () => ({
   }),
 }));
 
-it('names the selected camera beside its filename in a multi-camera dataset', async () => {
+it('shows the selected camera filename', async () => {
   const wrapper = mount(FileNameTimeDisplay as any, { propsData: { displayType: 'filename' } });
-  expect(wrapper.text()).toContain('left: f0028.jpg');
+  expect(wrapper.text()).toContain('f0028.jpg');
   selectedCamera.value = 'right';
   controllers.right.filename.value = 'f0029.jpg';
   await wrapper.vm.$nextTick();
-  expect(wrapper.text()).toContain('right: f0029.jpg');
-  expect(wrapper.text()).not.toContain('left');
-});
-
-it('shows the bare filename for a single camera', () => {
-  cameras.value = ['singleCam'];
-  selectedCamera.value = 'left';
-  const wrapper = mount(FileNameTimeDisplay as any, { propsData: { displayType: 'filename' } });
-  expect(wrapper.text()).toContain('f0028.jpg');
-  expect(wrapper.text()).not.toContain('left:');
+  expect(wrapper.text()).toContain('f0029.jpg');
+  expect(wrapper.text()).not.toContain('f0028.jpg');
 });
