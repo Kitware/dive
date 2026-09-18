@@ -577,6 +577,50 @@ describe('FilterList hierarchy members', () => {
     expect(vm.deletableTypes).toEqual(['leaf']);
   });
 
+  it('asks which side of the threshold a delete of every listed type reaches', async () => {
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    clientSettings.typeSettings.suppressionType = '';
+    const checkedTypes = ref(['fish', 'shark']);
+    const removeTypeAnnotationsByThreshold = vi.fn();
+    const removeTypeAnnotations = vi.fn();
+    const filterControls = Object.freeze({
+      allTypes: ref(['fish', 'shark']),
+      usedTypes: ref(['fish', 'shark']),
+      configuredTypes: ref([]),
+      checkedTypes,
+      filteredAnnotations: ref([]),
+      confidenceFilters: ref({ default: 0.1 }),
+      disableAnnotationFilters: ref(false),
+      updateCheckedTypes: (types: string[]) => { checkedTypes.value = types; },
+      removeTypeAnnotations,
+      removeTypeAnnotationsByThreshold,
+    });
+    const styleManager = Object.freeze({
+      typeStyling: ref({
+        color: () => '#fff', strokeWidth: () => 1, fill: () => false, opacity: () => 1,
+      }),
+    });
+    const { vm } = mountFilterList({
+      filterControls, styleManager, showEmptyTypes: false, height: 240, headerHeight: 80, group: false,
+    });
+    await vm.clickDelete();
+    expect(vm.data.showDeleteAll).toBe(true);
+    expect(vm.data.deleteAllScope).toBe('above');
+    vm.data.deleteAllScope = 'below';
+    vm.confirmDeleteAll();
+    expect(vm.data.showDeleteAll).toBe(false);
+    expect(removeTypeAnnotationsByThreshold).toHaveBeenCalledWith(['fish', 'shark'], 'below');
+    expect(removeTypeAnnotations).not.toHaveBeenCalled();
+
+    // A partial selection keeps the plain confirmation.
+    checkedTypes.value = ['fish'];
+    await nextTick();
+    await vm.clickDelete();
+    expect(vm.data.showDeleteAll).toBe(false);
+    expect(removeTypeAnnotationsByThreshold).toHaveBeenCalledTimes(1);
+  });
+
   it('reaches the whole branch through a collapsed row', async () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = false;
