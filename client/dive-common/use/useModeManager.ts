@@ -1270,6 +1270,19 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Entering polygon editing without naming a polygon: land on one the
+   * detection already has (masks are often keyed, e.g. SegmentationPolygon)
+   * so its vertices are editable at once rather than starting a new polygon.
+   */
+  function existingPolygonKey(): string {
+    if (selectedTrackId.value === null) return '';
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    const keys = track?.getPolygonFeatures(selectedCameraFrame()).map((p) => p.key) ?? [];
+    if (!keys.length || keys.includes('')) return '';
+    return keys.includes(selectedKey.value) ? selectedKey.value : keys[0];
+  }
+
   function handleSetAnnotationState({
     visible, editing, key, recipeName,
   }: SetAnnotationStateArgs) {
@@ -1278,7 +1291,7 @@ export default function useModeManager({
     }
     if (editing) {
       annotationModes.editing = editing;
-      _selectKey(key);
+      _selectKey(editing === 'Polygon' && !key ? existingPolygonKey() : key);
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
         if (recipeName !== r.name) {

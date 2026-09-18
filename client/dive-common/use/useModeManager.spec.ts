@@ -456,3 +456,30 @@ describe('centerline editing continuity', () => {
     expect(track.features[0].bounds).toEqual([0, 0, 100, 100]);
   });
 });
+
+describe('entering polygon editing', () => {
+  const polygon = (key: string): GeoJSON.Feature<GeoJSON.Polygon> => ({
+    type: 'Feature',
+    properties: { key },
+    geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 0]]] },
+  });
+
+  it('lands on the keyed mask a detection already has', () => {
+    const { cameraStore, modeManager: manager } = makeHarness();
+    const id = manager.handler.trackAdd();
+    cameraStore.getTrack(id, 'left').setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 10, 10] }, [polygon('SegmentationPolygon')]);
+    manager.handler.setAnnotationState({ editing: 'LineString', key: 'HeadTails' });
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '' });
+    expect(manager.selectedKey.value).toBe('SegmentationPolygon');
+  });
+
+  it('keeps the default polygon and an explicitly requested new key', () => {
+    const { cameraStore, modeManager: manager } = makeHarness();
+    const id = manager.handler.trackAdd();
+    cameraStore.getTrack(id, 'left').setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 10, 10] }, [polygon(''), polygon('1')]);
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '' });
+    expect(manager.selectedKey.value).toBe('');
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '2' });
+    expect(manager.selectedKey.value).toBe('2');
+  });
+});
