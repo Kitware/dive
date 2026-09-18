@@ -1164,6 +1164,7 @@ export default defineComponent({
     // line at this frame. Once set, interactive stereo never overwrites that
     // side's geometry again — only the user can. Kept off the Attributes panel.
     const STEREO_USER_LINE_ATTR = 'stereo_user_line';
+    const STEREO_LOADING_DIALOG_DELAY_MS = 400;
     // How the length was set: 'stereo' = auto-computed from the warped lines,
     // 'user_set' = locked by the user (auto-update leaves the length alone).
     const STEREO_LENGTH_METHOD_ATTR = 'length_method';
@@ -1602,10 +1603,15 @@ export default defineComponent({
 
       // Show loading indicator while waiting for stereo transfer (interactive
       // single-transfer path only; bulk import owns the dialog itself).
-      if (!quiet) {
-        stereoLoadingMessage.value = 'Computing stereo correspondence...';
-        stereoLoadingError.value = '';
-        stereoLoadingDialog.value = true;
+      // Only once the wait is noticeable, so a fast transfer doesn't flash it,
+      // and never for a single point.
+      let loadingTimer: number | undefined;
+      if (!quiet && params.type !== 'point') {
+        loadingTimer = window.setTimeout(() => {
+          stereoLoadingMessage.value = 'Computing stereo correspondence...';
+          stereoLoadingError.value = '';
+          stereoLoadingDialog.value = true;
+        }, STEREO_LOADING_DIALOG_DELAY_MS);
       }
 
       const pointTargetBefore = params.type === 'point'
@@ -1882,10 +1888,6 @@ export default defineComponent({
             }
           }
         }
-        // Success — hide loading dialog (interactive path only)
-        if (!quiet) {
-          stereoLoadingDialog.value = false;
-        }
         return 'transferred';
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
@@ -1902,6 +1904,9 @@ export default defineComponent({
         stereoLoadingError.value = `Failed to transfer annotation to the other camera. ${message}`;
         stereoLoadingDialog.value = true;
         return 'failed';
+      } finally {
+        window.clearTimeout(loadingTimer);
+        if (!quiet && !stereoLoadingError.value) stereoLoadingDialog.value = false;
       }
     }
 
