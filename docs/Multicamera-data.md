@@ -228,7 +228,7 @@ Single camera pipelines can be used by selecting the camera and then running the
 When other cameras already have detections, DIVE prompts before launch:
 
 - **No** / **Continue** (separate) — remaps new TrackIds above every ID on the other cameras so IDs do not collide.
-- **Yes** (associate) — only offered for calibrated stereo with interactive stereo features enabled. Runs VIAME association and **replaces annotations on both cameras** with the paired result.
+- **Yes** (associate) — only offered for calibrated stereo with interactive stereo features enabled. Runs VIAME association and **replaces annotations on both cameras** with the paired result. Pairing works the way VIAME's stereo track-and-measure pipelines pair cameras: by head/tail keypoints where both cameras have them, and by box position against the stereo geometry otherwise; a track's classes are kept as its own camera's pipeline produced them.
 
 When association is unavailable (plain multicam, missing calibration, or stereo features off), the dialog explains why and only offers separate-ID remapping.
 
