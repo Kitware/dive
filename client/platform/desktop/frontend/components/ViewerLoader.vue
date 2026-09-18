@@ -2096,6 +2096,7 @@ export default defineComponent({
           pointLabels: prompt_.labels,
           multimaskOutput: params.source === 'box',
           frameTime: segmentationGetFrameTime?.(params.frameNum),
+          line: params.source === 'line' ? params.line : undefined,
         });
         if (!response.success || !response.polygon || response.polygon.length < 3) return;
 
