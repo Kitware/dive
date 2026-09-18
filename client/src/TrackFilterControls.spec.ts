@@ -449,6 +449,35 @@ describe('useAnnotationFilters', () => {
     expect(cameraStore.getTrack(1).confidencePairs).toEqual([['baz', 0.7]]);
   });
 
+  it('deletes all of a type above, below or regardless of its threshold', () => {
+    const scoped = () => makePairFixture([
+      [['bar', 0.9]],
+      [['bar', 0.05]],
+      [['bar', 0.05], ['baz', 0.7]],
+      [['baz', 0.7]],
+    ]);
+    let { cameraStore, filters } = scoped();
+    filters.setConfidenceFilters({ default: 0.1, bar: 0.5 });
+    filters.removeTypeAnnotationsByThreshold(['bar'], 'below');
+    expect(cameraStore.getPossibleTrack(0)?.confidencePairs).toEqual([['bar', 0.9]]);
+    expect(cameraStore.getPossibleTrack(1)).toBeUndefined();
+    expect(cameraStore.getTrack(2).confidencePairs).toEqual([['baz', 0.7]]);
+    expect(cameraStore.getTrack(3).confidencePairs).toEqual([['baz', 0.7]]);
+
+    ({ cameraStore, filters } = scoped());
+    filters.setConfidenceFilters({ default: 0.1, bar: 0.5 });
+    filters.removeTypeAnnotationsByThreshold(['bar'], 'all');
+    expect(cameraStore.getPossibleTrack(0)).toBeUndefined();
+    expect(cameraStore.getPossibleTrack(1)).toBeUndefined();
+    expect(cameraStore.getTrack(2).confidencePairs).toEqual([['baz', 0.7]]);
+
+    ({ cameraStore, filters } = scoped());
+    filters.setConfidenceFilters({ default: 0.1, bar: 0.5 });
+    filters.removeTypeAnnotationsByThreshold(['bar'], 'above');
+    expect(cameraStore.getPossibleTrack(0)).toBeUndefined();
+    expect(cameraStore.getPossibleTrack(1)?.confidencePairs).toEqual([['bar', 0.05]]);
+  });
+
   it('returns the caller fallback without recomputing flat pair selection', () => {
     const { cameraStore, filters } = makePairFixture([
       [['root', 0.1], ['leaf', 0.9]],

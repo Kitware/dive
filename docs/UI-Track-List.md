@@ -9,7 +9,7 @@
 The track list allows for selecting and editing tracks.  A selected track will look different depending on whether it's a single detection or a multi-frame track.
 
 * ==:material-cog:== opens track creation settings
-* ==:material-delete:=={ .error } deletes all tracks in the track list
+* ==:material-delete:=={ .error } deletes the checked tracks in the track list. When every listed track is checked, DIVE asks whether to delete the tracks above the current confidence threshold (what the list shows), the ones below it (hidden from the list), or all of them.
 * ==:material-plus: Track/Detection== begins creation of a new annotation.
 
 When [suppression](UI-Suppression.md) is enabled, detections covered by a suppression region on the current frame are omitted from this list (attribute-flagged detections remain listed).
