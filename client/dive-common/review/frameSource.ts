@@ -1,3 +1,4 @@
+import { nativeVideoSourceFrame } from 'vue-media-annotator/components/annotators/nativeVideoFrames';
 /**
  * Per-dataset access to decoded frames for chip cropping. Image sequences
  * load their frame images directly; videos are decoded by a hidden
@@ -288,11 +289,10 @@ export function createFrameSource(config: DatasetConfig, options: FrameSourceOpt
     }
     const nativePath = (config as { nativeVideoPath?: string }).nativeVideoPath;
     if (nativePath && options.nativeFrameUrl) {
-      // Frames are numbered at the rate the video plays natively, as the
-      // annotator requests them.
+      // Review items use annotation frame numbers, just like the viewer.
       const fps = config.originalFps || config.fps;
       const { nativeFrameUrl } = options;
-      return imageFrameSource((frame) => nativeFrameUrl(nativePath, frame, fps), null, cacheSize, cacheBytes);
+      return imageFrameSource((frame) => nativeFrameUrl(nativePath, nativeVideoSourceFrame(frame, config.fps, fps), fps), null, cacheSize, cacheBytes);
     }
     if (nativePath) {
       throw new Error('This platform cannot extract frames from an untranscoded video');

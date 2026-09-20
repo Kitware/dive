@@ -103,9 +103,9 @@ describe('createFrameSource', () => {
     };
     const source = createFrameSource(video({ nativeVideoPath: '/clips/a.mp4' }), { nativeFrameUrl });
     expect(source.frameCount).toBeNull();
-    // Requesting a frame resolves the URL at the video's native rate before loading it.
+    // Annotation frame 4 at 10 FPS maps to source frame 12 at 30 FPS.
     await source.getFrame(4).catch(() => undefined);
-    expect(urls).toEqual(['/clips/a.mp4#4@30']);
+    expect(urls).toEqual(['/clips/a.mp4#12@30']);
   });
 
   it('explains why a video cannot be cropped', () => {
