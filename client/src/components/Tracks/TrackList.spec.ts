@@ -20,7 +20,7 @@ interface MockTrackFilters {
   }[]>;
   hierarchyActive: Ref<boolean>;
   checkedTypes: Ref<string[]>;
-  removeTypeAnnotationsByThreshold: ReturnType<typeof vi.fn>;
+  annotationIdsBelowThreshold: ReturnType<typeof vi.fn>;
 }
 
 const state = vi.hoisted(() => ({
@@ -84,7 +84,7 @@ function mountList(
     filteredAnnotations: ref(filtered),
     hierarchyActive: ref(hierarchyActive),
     checkedTypes: ref(['root', 'child']),
-    removeTypeAnnotationsByThreshold: vi.fn(),
+    annotationIdsBelowThreshold: vi.fn(() => [3]),
   };
   state.cameraStore = {
     camMap: ref(new Map([['singleCam', { trackStore: undefined }]])),
@@ -198,8 +198,8 @@ describe('TrackList delete of every listed track', () => {
 
   it.each([
     ['above', [[1, 2]], 0],
-    ['below', [], 1],
-    ['all', [[1, 2]], 1],
+    ['below', [[3]], 1],
+    ['all', [[1, 2, 3]], 1],
   ] as [string, number[][], number][])('asks for the threshold scope and applies %s', async (scope, removed, belowCalls) => {
     const vm = mountTwo().vm as unknown as ListVm;
     await vm.multiDelete();
@@ -209,9 +209,9 @@ describe('TrackList delete of every listed track', () => {
     vm.confirmDeleteAll();
     expect(vm.data.showDeleteAll).toBe(false);
     expect(state.removeTrack.mock.calls.map(([ids]) => ids)).toEqual(removed);
-    const below = state.trackFilters.removeTypeAnnotationsByThreshold;
+    const below = state.trackFilters.annotationIdsBelowThreshold;
     expect(below).toHaveBeenCalledTimes(belowCalls);
-    if (belowCalls) expect(below).toHaveBeenCalledWith(['root', 'child'], 'below');
+    if (belowCalls) expect(below).toHaveBeenCalledWith(['root', 'child']);
   });
 
   it('keeps the plain confirmation for a partial selection', async () => {

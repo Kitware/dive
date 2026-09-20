@@ -239,28 +239,16 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     });
   }
 
-  /**
-   * Like removeTypeAnnotations, but reaching past the visible list: 'below'
-   * removes `types` only where the annotation's confidence for the type is
-   * under that type's threshold (the annotations the list hides), 'all'
-   * removes them everywhere. 'above' is the visible list itself.
-   */
-  removeTypeAnnotationsByThreshold(types: string[], scope: ThresholdScope) {
-    if (scope === 'above') {
-      this.removeTypeAnnotations(types);
-      return;
-    }
+  /** Tracks with enabled classes, none of which reach their confidence threshold. */
+  annotationIdsBelowThreshold(types: string[]): AnnotationId[] {
     const wanted = new Set(types);
     const filters = this.confidenceFilters.value;
-    [...this.sorted.value].forEach((annotation) => {
-      const matching = annotation.confidencePairs.filter(([type, confidence]) => wanted.has(type)
-        && (scope === 'all' || confidence < resolveConfidenceThreshold(filters, type)));
-      if (matching.length === 0) return;
-      const remaining = this.removeTypes(annotation.id, matching.map(([type]) => type));
-      if (remaining.length === 0) {
-        this.remove(annotation.id);
-      }
-    });
+    return this.sorted.value.filter((annotation) => {
+      const matching = annotation.confidencePairs.filter(([type]) => wanted.has(type));
+      return matching.length > 0 && matching.every(([type, confidence]) => (
+        confidence < resolveConfidenceThreshold(filters, type)
+      ));
+    }).map(({ id }) => id);
   }
 
   updateCheckedTypes(types: string[]) {

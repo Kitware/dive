@@ -377,8 +377,12 @@ export default defineComponent({
       data.showDeleteAll = false;
       const scope = data.deleteAllScope;
       const types = [...trackFilters.checkedTypes.value];
-      if (scope !== 'below') removeTrack(checkedDisplayedTracks(), true);
-      if (scope !== 'above') trackFilters.removeTypeAnnotationsByThreshold(types, 'below');
+      const ids = new Set(scope === 'below' ? [] : checkedDisplayedTracks());
+      if (scope !== 'above') {
+        trackFilters.annotationIdsBelowThreshold(types).forEach((id) => ids.add(id));
+      }
+      // Use the same track deletion path for every scope (including group and selection cleanup).
+      removeTrack([...ids], true);
     }
 
     async function multiDelete() {
