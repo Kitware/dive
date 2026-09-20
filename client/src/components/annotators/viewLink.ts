@@ -25,6 +25,7 @@ export default function createViewLink(deps: ViewLinkDeps) {
   let request = 0;
 
   function setResolver(next: ViewLinkResolver | null) {
+    request += 1;
     resolver = next;
     clearTimeout(timer);
   }
@@ -47,6 +48,7 @@ export default function createViewLink(deps: ViewLinkDeps) {
   }
 
   function schedule(sourceKey: string) {
+    request += 1;
     if (!resolver) return;
     clearTimeout(timer);
     timer = setTimeout(() => { link(sourceKey); }, delay);
