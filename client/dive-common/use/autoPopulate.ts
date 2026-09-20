@@ -1,3 +1,4 @@
+import type Track from 'vue-media-annotator/track';
 import type { RectBounds } from 'vue-media-annotator/utils';
 
 export type Point = [number, number];
@@ -63,4 +64,19 @@ export function orientLineLike(line: [Point, Point], reference: Point[]): [Point
   const refTail = reference[reference.length - 1];
   const dot = (tail[0] - head[0]) * (refTail[0] - refHead[0]) + (tail[1] - head[1]) * (refTail[1] - refHead[1]);
   return dot < 0 ? [tail, head] : line;
+}
+
+/** Capture the geometry we prompted; never write results over a later edit. */
+export function autoPopulateTarget(getTrack: () => Track | undefined, frame: number) {
+  const track = getTrack();
+  const snapshot = () => {
+    const feature = track?.getFeature(frame)[0];
+    return feature ? JSON.stringify([feature.bounds, feature.geometry, feature.head, feature.tail]) : null;
+  };
+  const initial = snapshot();
+  return () => {
+    if (!track || initial === null || getTrack() !== track || snapshot() !== initial) return null;
+    const feature = track.getFeature(frame)[0];
+    return feature ? { track, feature } : null;
+  };
 }
