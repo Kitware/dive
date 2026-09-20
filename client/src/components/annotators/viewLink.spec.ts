@@ -71,3 +71,17 @@ it('does nothing without a resolver or for a pane without a map', async () => {
   h.link.schedule('A'); await settle();
   expect(h.resolver).not.toHaveBeenCalled();
 });
+
+it.each(['disable', 'replace', 'pan'] as const)('drops an active lookup immediately on %s', async (action) => {
+  let release!: (point: [number, number]) => void;
+  const h = harness(() => new Promise((resolve) => { release = resolve; }));
+  h.link.schedule('A');
+  vi.advanceTimersByTime(100);
+  if (action === 'disable') h.link.setResolver(null);
+  if (action === 'replace') h.link.setResolver(async () => [50, 60]);
+  if (action === 'pan') h.link.schedule('A');
+  // The old result must be discarded even before the next debounce expires.
+  release([1, 2]);
+  await Promise.resolve();
+  expect(h.recenter).not.toHaveBeenCalled();
+});
