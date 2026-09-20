@@ -7,7 +7,7 @@ function harness() {
   const services = {
     getTrack: () => track,
     getMedia: vi.fn(async () => ({ imagePath: 'image.png', frameTime: 2 })),
-    ensureReady: vi.fn(async () => undefined),
+    ensureReady: vi.fn(async (): Promise<void> => undefined),
     predict: vi.fn(async () => ({
       id: 'request', success: true, polygon: [[0, 0], [10, 0], [10, 10]] as [number, number][],
     })),
