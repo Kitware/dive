@@ -125,14 +125,13 @@ async function extractFrame(
   const cache = getFrameCache(videoPath);
 
   // Check cache first
-  const cached = cache.frames.get(frameNumber);
+  // A file can be opened in datasets with different annotation rates.
+  const timestamp = frameNumber / fps;
+  const cached = cache.frames.get(timestamp);
   if (cached) {
     cached.timestamp = Date.now(); // Update access time
     return cached.data;
   }
-
-  // Calculate timestamp from frame number
-  const timestamp = frameNumber / fps;
 
   // Use -ss AFTER -i for frame-accurate seeking.
   // This is slower (decodes from start) but guarantees correct frames.
@@ -164,7 +163,7 @@ async function extractFrame(
         const frameData = Buffer.concat(chunks);
 
         // Cache the frame
-        cache.frames.set(frameNumber, {
+        cache.frames.set(timestamp, {
           data: frameData,
           timestamp: Date.now(),
         });
@@ -211,7 +210,7 @@ async function prefetchFrames(
   // Determine which frames to prefetch (not already cached)
   for (let i = -range; i <= range; i += 1) {
     const frame = centerFrame + i;
-    if (frame >= 0 && !cache.frames.has(frame)) {
+    if (frame >= 0 && !cache.frames.has(frame / fps)) {
       framesToFetch.push(frame);
     }
   }

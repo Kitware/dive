@@ -7,6 +7,7 @@ import { ipcRenderer } from 'electron';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
+import { createNativeFrameRenderer, nativeVideoSourceFrame, nativeVideoMaxFrame } from './nativeVideoFrames';
 
 /**
  * NativeVideoAnnotator renders video frames extracted on-demand via FFmpeg.
@@ -87,6 +88,7 @@ export default defineComponent({
     // Playback state
     const isPlaying = ref(false);
     let playbackInterval: number | null = null;
+    let playbackPending = false;
 
     // Frame loading
     const frameCache = new Map<number, HTMLImageElement>();
@@ -129,7 +131,8 @@ export default defineComponent({
      */
     function getFrameUrl(frameNumber: number): string {
       const fps = videoInfo.value?.fps || props.originalFps || props.frameRate;
-      return `${baseApiUrl}/frame?path=${encodeURIComponent(props.nativeVideoPath)}&frame=${frameNumber}&fps=${fps}`;
+      const sourceFrame = nativeVideoSourceFrame(frameNumber, props.frameRate, fps);
+      return `${baseApiUrl}/frame?path=${encodeURIComponent(props.nativeVideoPath)}&frame=${sourceFrame}&fps=${fps}`;
     }
 
     /**
@@ -167,30 +170,26 @@ export default defineComponent({
     /**
      * Render a frame to the quad feature
      */
-    async function renderFrame(frameNumber: number) {
+    const frameRenderer = createNativeFrameRenderer(loadFrame, (img) => {
+      if (frameCanvas.width !== img.width || frameCanvas.height !== img.height) {
+        frameCanvas.width = img.width;
+        frameCanvas.height = img.height;
+      }
+      if (quadFeature) {
+        quadFeature.data([{
+          ul: { x: 0, y: 0 },
+          lr: { x: img.width, y: img.height },
+          image: img,
+        }]).draw();
+      }
+    });
+
+    async function renderFrame(frameNumber: number): Promise<boolean> {
       try {
-        const img = await loadFrame(frameNumber);
-
-        // Update canvas dimensions if needed
-        if (frameCanvas.width !== img.width || frameCanvas.height !== img.height) {
-          frameCanvas.width = img.width;
-          frameCanvas.height = img.height;
-        }
-
-        // Update the geojs quad feature with the new image
-        if (quadFeature) {
-          quadFeature
-            .data([
-              {
-                ul: { x: 0, y: 0 },
-                lr: { x: img.width, y: img.height },
-                image: img,
-              },
-            ])
-            .draw();
-        }
+        return await frameRenderer.render(frameNumber);
       } catch (err) {
         console.error(`Failed to render frame ${frameNumber}:`, err);
+        return false;
       }
     }
 
@@ -216,12 +215,13 @@ export default defineComponent({
         return;
       }
 
+      // Keep the annotations and displayed image on the same frame while loading.
+      if (!await renderFrame(requestedFrame)) return;
       data.frame = requestedFrame;
       data.currentTime = requestedFrame / props.frameRate;
       data.flick = Math.round(data.currentTime * Flick);
       data.syncedFrame = requestedFrame;
 
-      await renderFrame(requestedFrame);
       prefetchFrames(requestedFrame);
 
       props.updateTime(data);
@@ -231,6 +231,7 @@ export default defineComponent({
      * Pause playback
      */
     function pause() {
+      frameRenderer.invalidate();
       isPlaying.value = false;
       if (playbackInterval !== null) {
         clearInterval(playbackInterval);
@@ -257,7 +258,7 @@ export default defineComponent({
       const targetInterval = Math.max(100, 1000 / props.frameRate);
 
       playbackInterval = window.setInterval(async () => {
-        if (!isPlaying.value) return;
+        if (!isPlaying.value || playbackPending) return;
 
         const nextFrame = data.frame + 1;
         if (nextFrame > data.maxFrame) {
@@ -265,15 +266,12 @@ export default defineComponent({
           return;
         }
 
-        data.frame = nextFrame;
-        data.currentTime = nextFrame / props.frameRate;
-        data.flick = Math.round(data.currentTime * Flick);
-        data.syncedFrame = nextFrame;
-
-        await renderFrame(nextFrame);
-        prefetchFrames(nextFrame, 5);
-
-        props.updateTime(data);
+        playbackPending = true;
+        try {
+          await seek(nextFrame);
+        } finally {
+          playbackPending = false;
+        }
       }, targetInterval);
     }
 
@@ -325,7 +323,7 @@ export default defineComponent({
 
       // Calculate max frame
       const fps = videoInfo.value.fps || props.originalFps || props.frameRate;
-      data.maxFrame = Math.max(0, frameCount - 1);
+      data.maxFrame = nativeVideoMaxFrame(frameCount, props.frameRate, fps);
       data.duration = frameCount / fps;
 
       // Initialize geojs viewer
@@ -368,6 +366,7 @@ export default defineComponent({
 
     onBeforeUnmount(() => {
       pause();
+      frameRenderer.dispose();
       frameCache.clear();
     });
 
