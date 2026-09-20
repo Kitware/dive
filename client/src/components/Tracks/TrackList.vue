@@ -99,7 +99,7 @@ export default defineComponent({
       settingsActive: false,
       columnSettingsActive: false,
       showDeleteAll: false,
-      deleteAllScope: 'above' as ThresholdScope,
+      deleteAllScope: 'all' as ThresholdScope,
     });
 
     const sortKey = ref<SortKey>('id');
@@ -388,7 +388,7 @@ export default defineComponent({
     async function multiDelete() {
       if (virtualListItems.value.length > 0
         && checkedDisplayedTracks().length === virtualListItems.value.length) {
-        data.deleteAllScope = 'above';
+        data.deleteAllScope = 'all';
         data.showDeleteAll = true;
         return;
       }
