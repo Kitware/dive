@@ -31,11 +31,6 @@ import {
   STEREO_LENGTH_ATTRIBUTE_NAME,
 } from 'dive-common/utils/stereoLengthRendering';
 import type { RectBounds } from 'vue-media-annotator/utils';
-import type { TrackSupportedFeature } from 'vue-media-annotator/track';
-import { SegmentationPolygonKey } from 'dive-common/recipes/segmentationpointclick';
-import {
-  autoPopulatePrompt, autoPopulateTarget, closedRing, orientLineLike, polygonBounds,
-} from 'dive-common/use/autoPopulate';
 import type Track from 'vue-media-annotator/track';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
@@ -50,6 +45,7 @@ import {
   openLink,
   setScoringAnnotationPreviewFile,
 } from 'platform/desktop/frontend/api';
+import populateAnnotation from '../autoPopulate';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
@@ -2112,6 +2108,24 @@ export default defineComponent({
      * it (box) or tighten the box to it (line). orientLike is the other stereo
      * camera's line, which a derived head/tail is ordered to match.
      */
+    const autoPopulateActive = ref(0);
+    const autoPopulateMessage = ref('');
+    const autoPopulateMedia = new Map<string, Promise<Awaited<ReturnType<typeof loadConfig>>>>();
+    let autoPopulateInitialization: Promise<void> | null = null;
+
+    async function ensureAutoPopulateReady() {
+      if (!autoPopulateInitialization) {
+        autoPopulateInitialization = (async () => {
+          const status = await segmentationIsReady();
+          if (!status.ready) {
+            const result = await segmentationInitialize();
+            if (!result.success) throw new Error('Could not initialize segmentation.');
+          }
+        })().finally(() => { autoPopulateInitialization = null; });
+      }
+      await autoPopulateInitialization;
+    }
+
     async function autoPopulateGeometry(
       params: NewAnnotationGeometryParams,
       orientLike?: [number, number][] | null,
@@ -2120,66 +2134,43 @@ export default defineComponent({
       if (!autoPopulateMask && !autoPopulatePoints) return;
       const cameraStore = viewerRef.value?.cameraStore;
       if (!cameraStore) return;
-      const imagePath = stereoImagePathGetters.value[params.camera]?.(params.frameNum)
-        ?? segmentationGetImagePath?.(params.frameNum);
-      if (!imagePath) return;
-      const currentTarget = autoPopulateTarget(() => cameraStore.getPossibleTrack(params.trackId, params.camera), params.frameNum);
-      if (!currentTarget()) return;
+      // Resolve the requested camera independently of recipe initialization and
+      // whichever camera is selected when asynchronous work finishes.
+      const datasetId = params.camera === 'singleCam' ? props.id : `${props.id}/${params.camera}`;
+      autoPopulateActive.value += 1;
       try {
-        const status = await segmentationIsReady();
-        if (!status.ready) await segmentationInitialize();
-        const prompt_ = autoPopulatePrompt(params.source === 'box'
-          ? { source: 'box', bounds: params.bounds }
-          : { source: 'line', line: params.line });
-        const response = await segmentationPredict({
-          imagePath,
-          points: prompt_.points,
-          pointLabels: prompt_.labels,
-          multimaskOutput: params.source === 'box',
-          frameTime: segmentationGetFrameTime?.(params.frameNum),
-          line: params.source === 'line' ? params.line : undefined,
+        const result = await populateAnnotation(params, {
+          mask: autoPopulateMask, points: autoPopulatePoints, orientLike,
+        }, {
+          getTrack: () => cameraStore.getPossibleTrack(params.trackId, params.camera),
+          getMedia: async () => {
+            let loading = autoPopulateMedia.get(datasetId);
+            if (!loading) {
+              loading = loadConfig(datasetId).catch((err) => {
+                autoPopulateMedia.delete(datasetId);
+                throw err;
+              });
+              autoPopulateMedia.set(datasetId, loading);
+            }
+            const meta = await loading;
+            return {
+              imagePath: buildImagePathGetter(meta)(params.frameNum),
+              frameTime: meta.type === 'video' ? params.frameNum / meta.fps : undefined,
+            };
+          },
+          ensureReady: ensureAutoPopulateReady,
+          predict: segmentationPredict,
+          keypoints: segmentationPolygonKeypoints,
         });
-        if (!response.success || !response.polygon || response.polygon.length < 3) return;
-
-        // The user may have moved on; only fill in what is still missing.
-        const target = currentTarget();
-        if (!target) return;
-        const { track, feature } = target;
-        const features: GeoJSON.Feature<TrackSupportedFeature>[] = feature.geometry?.features ?? [];
-        const hasPolygon = features.some((f) => f.geometry.type === 'Polygon');
-        const hasLine = features.some((f) => f.geometry.type === 'LineString');
-
-        const geometry: GeoJSON.Feature<TrackSupportedFeature>[] = [];
-        let bounds = feature.bounds ? [...feature.bounds] as RectBounds : polygonBounds(response.polygon);
-        if (autoPopulateMask && !hasPolygon) {
-          geometry.push({
-            type: 'Feature',
-            geometry: { type: 'Polygon', coordinates: [closedRing(response.polygon)] },
-            properties: { key: SegmentationPolygonKey },
-          });
+        if (result === 'changed' && cameraStore.getPossibleTrack(params.trackId, params.camera)) {
+          autoPopulateMessage.value = `Auto-populate skipped for track ${params.trackId}: the annotation changed while the request was running.`;
         }
-        if (autoPopulatePoints && params.source === 'box' && !hasLine) {
-          const keypoints = await segmentationPolygonKeypoints(response.polygon);
-          if (keypoints.success && keypoints.head && keypoints.tail) {
-            const line = orientLineLike([keypoints.head, keypoints.tail], orientLike ?? []);
-            geometry.push(...headTailFeatures(line) as GeoJSON.Feature<TrackSupportedFeature>[]);
-          }
-        }
-        if (autoPopulatePoints && params.source === 'line') {
-          bounds = response.bounds ?? polygonBounds(response.polygon);
-        }
-        if (!geometry.length && params.source !== 'line') return;
-        // Keypoint extraction above is asynchronous too. Recheck after its await.
-        if (!currentTarget()) return;
-        track.setFeature({
-          frame: params.frameNum,
-          flick: feature.flick,
-          bounds,
-          keyframe: true,
-          interpolate: feature.interpolate,
-        }, geometry);
       } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        autoPopulateMessage.value = `Auto-populate — track ${params.trackId}, ${params.camera}, frame ${params.frameNum}: ${message}`;
         console.warn('[AutoPopulate] Could not populate the new annotation:', err);
+      } finally {
+        autoPopulateActive.value -= 1;
       }
     }
 
@@ -2378,6 +2369,8 @@ export default defineComponent({
       handleStereoWarpImported,
       handleStereoAnnotationReset,
       handleNewAnnotationGeometry,
+      autoPopulateActive,
+      autoPopulateMessage,
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
       onCalibrationImported,
@@ -2541,6 +2534,29 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-snackbar
+      :value="autoPopulateActive > 0"
+      :timeout="-1"
+      bottom
+      left
+    >
+      <v-progress-circular indeterminate size="18" width="2" class="mr-2" />
+      Auto-populating {{ autoPopulateActive }} annotation(s)…
+    </v-snackbar>
+    <v-snackbar
+      :value="!!autoPopulateMessage"
+      :timeout="-1"
+      top
+      right
+      @input="!$event && (autoPopulateMessage = '')"
+    >
+      {{ autoPopulateMessage }}
+      <template #action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="autoPopulateMessage = ''">
+          Close
+        </v-btn>
+      </template>
+    </v-snackbar>
     <v-snackbar
       v-model="stereoLengthSnackbar"
       :timeout="4000"

@@ -16,7 +16,7 @@ import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore
 import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import { clientSettings } from 'dive-common/store/settings';
-import useModeManager, { type StereoAnnotationCompleteParams } from './useModeManager';
+import useModeManager, { type StereoAnnotationCompleteParams, type NewAnnotationGeometryParams } from './useModeManager';
 import HeadTail from '../recipes/headtail';
 import { headTailFeatures } from '../../src/headTail';
 import type Recipe from '../../src/recipe';
@@ -74,19 +74,21 @@ function makeHarness(
     removeTypes: () => [],
   });
 
+  const newGeometryEvents: NewAnnotationGeometryParams[] = [];
   const modeManager = useModeManager({
     cameraStore,
     trackFilterControls,
     groupFilterControls,
     aggregateController,
     readonlyState: ref(false),
+    onNewAnnotationGeometry: (params) => newGeometryEvents.push(params),
     recipes,
     alignedView,
     onStereoAnnotationComplete,
   });
   modeManager.selectedCamera.value = 'left';
   return {
-    cameraStore, alignedView, modeManager, perCamera,
+    cameraStore, alignedView, modeManager, perCamera, newGeometryEvents,
   };
 }
 
@@ -212,12 +214,14 @@ function makeSingleCamHarness() {
     groupFilterControls,
     removeTypes: () => [],
   });
+  const newGeometryEvents: NewAnnotationGeometryParams[] = [];
   const modeManager = useModeManager({
     cameraStore,
     trackFilterControls,
     groupFilterControls,
     aggregateController,
     readonlyState: ref(false),
+    onNewAnnotationGeometry: (params) => newGeometryEvents.push(params),
     recipes: [],
   });
   return { cameraStore, modeManager, trackFilterControls };
@@ -510,5 +514,38 @@ describe('entering polygon editing', () => {
     expect(manager.selectedKey.value).toBe('');
     manager.handler.setAnnotationState({ editing: 'Polygon', key: '2' });
     expect(manager.selectedKey.value).toBe('2');
+  });
+});
+
+describe('successive auto-populate triggers', () => {
+  it('emits a new box for each track, but not again when that box is edited', () => {
+    const { modeManager: manager, newGeometryEvents } = makeHarness();
+    const first = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    manager.handler.updateRectBounds(0, 0, [1, 1, 11, 11]);
+    const second = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [20, 20, 30, 30]);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.source])).toEqual([
+      [first, 'box'], [second, 'box'],
+    ]);
+  });
+
+  it('emits both completed lines when annotations are drawn one after another', () => {
+    const recipe = new HeadTail();
+    const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
+    const draw = (coordinates: number[][]) => manager.handler.updateGeoJSON('in-progress', 0, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+    }, 'HeadTails');
+    const first = manager.handler.trackAdd();
+    recipe.activate();
+    draw([[0, 0]]);
+    draw([[0, 0], [10, 10]]);
+    const second = manager.handler.trackAdd();
+    recipe.activate();
+    draw([[20, 20]]);
+    draw([[20, 20], [30, 30]]);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.source])).toEqual([
+      [first, 'line'], [second, 'line'],
+    ]);
   });
 });
