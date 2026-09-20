@@ -204,7 +204,7 @@ describe('TrackList delete of every listed track', () => {
     const vm = mountTwo().vm as unknown as ListVm;
     await vm.multiDelete();
     expect(vm.data.showDeleteAll).toBe(true);
-    expect(vm.data.deleteAllScope).toBe('above');
+    expect(vm.data.deleteAllScope).toBe('all');
     vm.data.deleteAllScope = scope;
     vm.confirmDeleteAll();
     expect(vm.data.showDeleteAll).toBe(false);

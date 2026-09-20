@@ -17,7 +17,7 @@ export default defineComponent({
 <template>
   <v-dialog
     :value="value"
-    width="600"
+    width="480"
     @input="$emit('input', $event)"
   >
     <v-card>
@@ -33,16 +33,16 @@ export default defineComponent({
           @change="$emit('update:scope', $event)"
         >
           <v-radio
+            label="All tracks, regardless of threshold"
+            value="all"
+          />
+          <v-radio
             label="Above the current threshold (what the list shows)"
             value="above"
           />
           <v-radio
             label="Below the current threshold (hidden from the list)"
             value="below"
-          />
-          <v-radio
-            label="All tracks, regardless of threshold"
-            value="all"
           />
         </v-radio-group>
       </v-card-text>
