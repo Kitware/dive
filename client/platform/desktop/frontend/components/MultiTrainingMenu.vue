@@ -144,7 +144,7 @@ export default defineComponent({
         models: {},
       } as TrainingConfigs,
       annotatedFramesOnly: false,
-      monitorEmail: '',
+      monitorEmail: '' as string | null,
     });
 
     const headersTmpl: DataTableHeader[] = [
@@ -290,7 +290,7 @@ export default defineComponent({
           data.annotatedFramesOnly,
           labelText.value || undefined,
           foundTrainingModel,
-          data.monitorEmail.trim() || undefined,
+          (data.monitorEmail || '').trim() || undefined,
         );
         router.push({ name: 'jobs' });
       } catch (err) {

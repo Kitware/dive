@@ -39,7 +39,7 @@ export default defineComponent({
     const trainingConfigurations = ref<TrainingConfigs | null>(null);
     const selectedTrainingConfig = ref<string | null>(null);
     const annotatedFramesOnly = ref<boolean>(false);
-    const monitorEmail = ref<string>('');
+    const monitorEmail = ref<string | null>('');
     const emailRules = [
       (val: string | null) => (!val || isValidEmail(val) || 'Enter a valid email address'),
     ];
@@ -114,7 +114,7 @@ export default defineComponent({
           annotatedFramesOnly.value,
           labelText.value || undefined,
           selectedFineTuneObject.value,
-          monitorEmail.value.trim() || undefined,
+          (monitorEmail.value || '').trim() || undefined,
         );
       });
       menuOpen.value = false;
