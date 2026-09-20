@@ -34,7 +34,7 @@ import type { RectBounds } from 'vue-media-annotator/utils';
 import type { TrackSupportedFeature } from 'vue-media-annotator/track';
 import { SegmentationPolygonKey } from 'dive-common/recipes/segmentationpointclick';
 import {
-  autoPopulatePrompt, closedRing, orientLineLike, polygonBounds,
+  autoPopulatePrompt, autoPopulateTarget, closedRing, orientLineLike, polygonBounds,
 } from 'dive-common/use/autoPopulate';
 import type Track from 'vue-media-annotator/track';
 import {
@@ -2084,6 +2084,8 @@ export default defineComponent({
       const imagePath = stereoImagePathGetters.value[params.camera]?.(params.frameNum)
         ?? segmentationGetImagePath?.(params.frameNum);
       if (!imagePath) return;
+      const currentTarget = autoPopulateTarget(() => cameraStore.getPossibleTrack(params.trackId, params.camera), params.frameNum);
+      if (!currentTarget()) return;
       try {
         const status = await segmentationIsReady();
         if (!status.ready) await segmentationInitialize();
@@ -2101,9 +2103,9 @@ export default defineComponent({
         if (!response.success || !response.polygon || response.polygon.length < 3) return;
 
         // The user may have moved on; only fill in what is still missing.
-        const track = cameraStore.getPossibleTrack(params.trackId, params.camera);
-        const [feature] = track?.getFeature(params.frameNum) ?? [null];
-        if (!track || !feature) return;
+        const target = currentTarget();
+        if (!target) return;
+        const { track, feature } = target;
         const features: GeoJSON.Feature<TrackSupportedFeature>[] = feature.geometry?.features ?? [];
         const hasPolygon = features.some((f) => f.geometry.type === 'Polygon');
         const hasLine = features.some((f) => f.geometry.type === 'LineString');
@@ -2128,6 +2130,8 @@ export default defineComponent({
           bounds = response.bounds ?? polygonBounds(response.polygon);
         }
         if (!geometry.length && params.source !== 'line') return;
+        // Keypoint extraction above is asynchronous too. Recheck after its await.
+        if (!currentTarget()) return;
         track.setFeature({
           frame: params.frameNum,
           flick: feature.flick,
