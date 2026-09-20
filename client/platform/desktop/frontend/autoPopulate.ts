@@ -5,9 +5,8 @@ import type { NewAnnotationGeometryParams } from 'dive-common/use/useModeManager
 import {
   autoPopulatePrompt, autoPopulateTarget, closedRing, orientLineLike, polygonBounds,
 } from 'dive-common/use/autoPopulate';
-import type {
-  SegmentationPredictRequest, SegmentationPredictResponse, SegmentationPolygonKeypointsResponse,
-} from '../backend/native/segmentation';
+import type { SegmentationPredictRequest, SegmentationPredictResponse } from 'dive-common/apispec';
+import type { SegmentationPolygonKeypointsResponse } from '../backend/native/segmentation';
 
 interface AutoPopulateServices {
   getTrack(): Track | undefined;
