@@ -17,7 +17,7 @@ export default defineComponent({
 <template>
   <v-dialog
     :value="value"
-    width="420"
+    width="600"
     @input="$emit('input', $event)"
   >
     <v-card>
