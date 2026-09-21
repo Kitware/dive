@@ -130,3 +130,38 @@ it('synchronizes right-click exits and reopens the saved line repeatedly', async
   }
   expect(h.track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toHaveLength(5);
 });
+
+it('does not carry a middle click on another Point layer into the next left click', () => {
+  const consumed = harness();
+  const idle = harness();
+  [consumed, idle].forEach((h) => { h.layer.setType('Point'); h.layer.setMode('Point'); });
+  const emitted = vi.fn();
+  idle.layer.bus.$on('update:geojson', emitted);
+  const finish = (h: ReturnType<typeof harness>, x: number) => h.layer.handleEditStateChange({
+    annotation: {
+      layer: () => h.featureLayer,
+      state: () => 'done',
+      geojson: () => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [x, 5] } }),
+      style: vi.fn(),
+      editHandleStyle: vi.fn(),
+      highlightStyle: vi.fn(),
+    },
+  } as any);
+
+  document.dispatchEvent(new MouseEvent('mousedown', { button: 1 }));
+  consumed.layer.setShapeInProgress({ mouse: { buttons: { middle: true }, modifiers: {}, geo: { x: 1, y: 5 } } } as any);
+  expect(consumed.layer.lastClickWasBackground).toBe(false);
+  expect(idle.layer.lastClickWasBackground).toBe(true);
+
+  document.dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
+  idle.layer.setShapeInProgress({ mouse: { buttons: {}, modifiers: {}, geo: { x: 2, y: 5 } } } as any);
+  finish(idle, 2);
+  expect(emitted).toHaveBeenCalledTimes(1);
+  expect(emitted.mock.calls[0][2].properties.background).toBeUndefined();
+
+  document.dispatchEvent(new MouseEvent('mousedown', { button: 0, shiftKey: true }));
+  idle.layer.setShapeInProgress({ mouse: { buttons: {}, modifiers: { shift: true }, geo: { x: 3, y: 5 } } } as any);
+  finish(idle, 3);
+  expect(emitted.mock.calls[1][2].properties.background).toBe(true);
+  [consumed, idle].forEach((h) => h.layer.destroy());
+});
