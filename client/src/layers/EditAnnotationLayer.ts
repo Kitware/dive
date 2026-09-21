@@ -579,6 +579,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         `mdi-vector-${typeMapper.get(this.type)}`,
         mode === 'editing',
       );
+    } else {
+      // Mode is disabled: drop any leftover creation/editing icon. Without
+      // this, a cross-camera blank click can clear selection while a deferred
+      // changeData still thinks the layer is editing and leaves the icon up.
+      this.annotator.setImageCursor('');
     }
   }
 
@@ -669,6 +674,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
+      // Cancel any changeData deferred while the left button was held (cross-
+      // camera mousedown). LayerManager often calls disable() directly on
+      // deselect; without this the timeout reloads the old edit geometry and
+      // restores the editing cursor after the track is already cleared.
+      clearTimeout(this.leftButtonCheckTimeout);
+      this.leftButtonCheckTimeout = -1;
       this.skipNextExternalUpdate = false;
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);

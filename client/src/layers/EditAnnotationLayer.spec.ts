@@ -53,7 +53,8 @@ function harness() {
   };
   featureLayer.geoOn('mouseclick', featureLayer._handleMouseClick);
   const arrow: any = { style: vi.fn(), draw: vi.fn(), data: () => arrow };
-  const interactor = { mouse: () => ({ buttons: { left: false } }) };
+  const mouseButtons = { left: false };
+  const interactor = { mouse: () => ({ buttons: mouseButtons }) };
   const project = (p: { x: number; y: number }) => ({ x: p.x * 10, y: p.y * 10 });
   const map = {
     createLayer: (type: string) => (type === 'annotation' ? featureLayer : { createFeature: () => arrow }),
@@ -61,9 +62,10 @@ function harness() {
     displayToGcs: (p: any) => ({ x: p.x / 10, y: p.y / 10 }),
     interactor: () => interactor,
   };
+  const annotator = { geoViewerRef: ref(map), setCursor: vi.fn(), setImageCursor: vi.fn() };
   const layer = new EditAnnotationLayer({
     type: 'LineString',
-    annotator: { geoViewerRef: ref(map), setCursor: vi.fn(), setImageCursor: vi.fn() },
+    annotator,
     stateStyling: { standard: { color: '#f00' }, selected: { color: '#f00' } },
     typeStyling: ref({ color: () => '#f00' }),
   } as any);
@@ -83,7 +85,7 @@ function harness() {
     handlers.get('mouseclick')!.forEach((fn) => fn(event));
   };
   return {
-    layer, track, reopen, update, click, featureLayer,
+    layer, track, reopen, update, click, featureLayer, annotator, mouseButtons,
   };
 }
 
@@ -129,4 +131,29 @@ it('synchronizes right-click exits and reopens the saved line repeatedly', async
     h.layer.disable();
   }
   expect(h.track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toHaveLength(5);
+});
+
+it('does not restore the editing cursor after disable cancels a deferred changeData', async () => {
+  vi.useFakeTimers();
+  const h = harness();
+  await h.reopen();
+  expect(h.layer.getMode()).toBe('editing');
+  expect(h.annotator.setImageCursor).toHaveBeenCalledWith('mdi-vector-line', true);
+
+  // Cross-camera blank click: mousedown keeps the left button down so
+  // changeData defers its reset, then LayerManager disable()s on deselect.
+  h.mouseButtons.left = true;
+  const editFrame = [{ features: h.track.features[0], track: h.track }] as any;
+  await h.layer.changeData(editFrame);
+  h.annotator.setImageCursor.mockClear();
+  h.layer.disable();
+  expect(h.layer.getMode()).toBe('disabled');
+  expect(h.annotator.setImageCursor).toHaveBeenCalledWith('');
+
+  h.mouseButtons.left = false;
+  h.annotator.setImageCursor.mockClear();
+  await vi.advanceTimersByTimeAsync(50);
+  expect(h.layer.getMode()).toBe('disabled');
+  expect(h.annotator.setImageCursor).not.toHaveBeenCalledWith('mdi-vector-line', true);
+  vi.useRealTimers();
 });
