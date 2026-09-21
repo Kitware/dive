@@ -1190,6 +1190,8 @@ export default defineComponent({
     /** Outcome of one auto-populate pass; the mask is reported even when only points were asked for. */
     type AutoPopulateOutcome = { status: 'applied' | 'changed' | 'failed' | 'skipped'; polygons: SegmentationPolygon[] };
     const pendingAutoPopulate = new Map<string, Promise<AutoPopulateOutcome>>();
+    /** Head/tail lines auto-populate derived, so a later pass knows which ones are still its own. */
+    const derivedLines = new Map<string, [number, number][]>();
     const autoPopulateKey = (camera: string, trackId: number, frameNum: number) => `${camera}:${trackId}:${frameNum}`;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1957,6 +1959,7 @@ export default defineComponent({
               await updateStereoTrackAverages(cameraStore, params.trackId);
             }
           }
+          autoPopulateStereoMask(params.camera, otherCamera, params.trackId, params.frameNum);
         }
         return 'transferred';
       } catch (err) {
@@ -2144,12 +2147,15 @@ export default defineComponent({
       // Resolve the requested camera independently of recipe initialization and
       // whichever camera is selected when asynchronous work finishes.
       const datasetId = params.camera === 'singleCam' ? props.id : `${props.id}/${params.camera}`;
+      const key = autoPopulateKey(params.camera, params.trackId, params.frameNum);
       autoPopulateActive.value += 1;
       try {
         const result = await populateAnnotation(params, {
           mask: autoPopulateMask,
           points: autoPopulatePoints,
           onMask: (mask) => { polygons = mask; },
+          ownLine: derivedLines.get(key) ?? null,
+          onLine: (line) => derivedLines.set(key, line),
           ...stereo,
         }, {
           getTrack: () => cameraStore.getPossibleTrack(params.trackId, params.camera),
@@ -2172,7 +2178,9 @@ export default defineComponent({
           predict: segmentationPredict,
           keypoints: segmentationPolygonKeypoints,
         });
-        if (result === 'changed' && cameraStore.getPossibleTrack(params.trackId, params.camera)) {
+        // A mask reshaped by the next click is expected; its own pass follows.
+        if (result === 'changed' && params.source !== 'mask'
+          && cameraStore.getPossibleTrack(params.trackId, params.camera)) {
           autoPopulateMessage.value = `Auto-populate skipped for track ${params.trackId}: the annotation changed while the request was running.`;
         }
         return { status: result, polygons };
@@ -2310,35 +2318,28 @@ export default defineComponent({
       params.frameNums.forEach((frameNum) => {
         preStereoSegmentationState.delete(`${params.trackId}:${frameNum}`);
       });
-      autoPopulateStereoMasks(params.trackId, params.frameNums);
     }
 
     /**
      * The other camera's point-segmented mask gets the same head/tail pass as
      * the source camera's, once that one settles so the line runs the same way.
+     * Runs after each click's stereo segmentation, like the source camera's.
      */
-    function autoPopulateStereoMasks(trackId: number, frameNums: number[]) {
+    function autoPopulateStereoMask(sourceCamera: string, otherCamera: string, trackId: number, frameNum: number) {
       if (!clientSettings.trackSettings.newTrackSettings.autoPopulatePoints) return;
-      const viewer = viewerRef.value;
-      const sourceCamera: string | undefined = viewer?.selectedCamera;
-      const multiCamList: string[] = viewer?.multiCamList ?? [];
-      const otherCamera = multiCamList.find((c) => c !== sourceCamera);
-      if (!sourceCamera || !otherCamera || multiCamList.length !== 2) return;
-      frameNums.forEach((frameNum) => {
-        const track = viewer?.cameraStore?.getPossibleTrack(trackId, otherCamera);
-        const [feature] = track?.getFeature(frameNum) ?? [null];
-        const polygons = (feature?.geometry?.features ?? [])
-          .filter((f: GeoJSON.Feature) => f.geometry.type === 'Polygon')
-          .map((f: GeoJSON.Feature<GeoJSON.Polygon>) => ({
-            exterior: f.geometry.coordinates[0] as [number, number][],
-            holes: f.geometry.coordinates.slice(1) as [number, number][][],
-          }));
-        if (!polygons.length) return;
-        const sourceJob = pendingAutoPopulate.get(autoPopulateKey(sourceCamera, trackId, frameNum))
-          ?? Promise.resolve();
-        autoPopulateOtherCamera(sourceJob, sourceCamera, {
-          camera: otherCamera, trackId, frameNum, source: 'mask', polygons,
-        });
+      const track = viewerRef.value?.cameraStore?.getPossibleTrack(trackId, otherCamera);
+      const [feature] = track?.getFeature(frameNum) ?? [null];
+      const polygons = (feature?.geometry?.features ?? [])
+        .filter((f: GeoJSON.Feature) => f.geometry.type === 'Polygon')
+        .map((f: GeoJSON.Feature<GeoJSON.Polygon>) => ({
+          exterior: f.geometry.coordinates[0] as [number, number][],
+          holes: f.geometry.coordinates.slice(1) as [number, number][][],
+        }));
+      if (!polygons.length) return;
+      const sourceJob = pendingAutoPopulate.get(autoPopulateKey(sourceCamera, trackId, frameNum))
+        ?? Promise.resolve();
+      autoPopulateOtherCamera(sourceJob, sourceCamera, {
+        camera: otherCamera, trackId, frameNum, source: 'mask', polygons,
       });
     }
 

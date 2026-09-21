@@ -188,6 +188,26 @@ it('derives head/tail for a point-segmented mask without predicting again', asyn
   expect(lined.track.getFeature(0)[0]?.head).toEqual([2, 2]);
 });
 
+it('replaces the head/tail it derived itself after another click, but never one the user moved', async () => {
+  const h = harness();
+  const onLine = vi.fn();
+  const populate = (ownLine: [number, number][] | null) => populateAnnotation({
+    camera: 'singleCam', trackId: 1, frameNum: 0, source: 'mask', polygons: components,
+  }, {
+    mask: false, points: true, ownLine, onLine,
+  }, h.services);
+  await populate(null);
+  expect(onLine).toHaveBeenCalledWith([[1, 1], [9, 9]]);
+  h.services.keypoints.mockResolvedValue({ success: true, head: [2, 2], tail: [8, 8] });
+  await populate([[1, 1], [9, 9]]);
+  expect(h.track.getFeature(0)[0]?.head).toEqual([2, 2]);
+  h.track.setFeature({ frame: 0, keyframe: true }, headTailFeatures([[3, 3], [7, 7]]));
+  h.services.keypoints.mockClear();
+  await populate([[2, 2], [8, 8]]);
+  expect(h.services.keypoints).not.toHaveBeenCalled();
+  expect(h.track.getFeature(0)[0]?.head).toEqual([3, 3]);
+});
+
 it('segments from given prompt points, boxes the mask, and reports it even when nothing is stored', async () => {
   const h = harness();
   const onMask = vi.fn();
