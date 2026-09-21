@@ -1,7 +1,7 @@
 import Track from 'vue-media-annotator/track';
 import { headTailFeatures } from 'vue-media-annotator/headTail';
 import {
-  autoPopulatePrompt, autoPopulateTarget, closedRing, polygonBounds, orientLineLike, LINE_PROMPT_FRACTIONS,
+  autoPopulatePrompt, autoPopulateTarget, boundsIoU, closedRing, polygonBounds, orientLineLike, LINE_PROMPT_FRACTIONS,
 } from './autoPopulate';
 
 it('prompts a box with its centre', () => {
@@ -22,6 +22,13 @@ it('closes rings and measures polygon bounds', () => {
   expect(closedRing([[0, 0], [4, 0], [4, 3]])).toEqual([[0, 0], [4, 0], [4, 3], [0, 0]]);
   expect(closedRing([[0, 0], [4, 0], [0, 0]])).toHaveLength(3);
   expect(polygonBounds([[1, 5], [4, 2], [3, 9]])).toEqual([1, 2, 4, 9]);
+});
+
+it('measures the overlap of two boxes', () => {
+  expect(boundsIoU([0, 0, 10, 10], [0, 0, 10, 10])).toBe(1);
+  expect(boundsIoU([0, 0, 10, 10], [5, 0, 15, 10])).toBeCloseTo(1 / 3);
+  expect(boundsIoU([0, 0, 10, 10], [20, 20, 30, 30])).toBe(0);
+  expect(boundsIoU([0, 0, 0, 0], [0, 0, 0, 0])).toBe(0);
 });
 
 it('flips a head/tail pair that runs against the other camera\'s line', () => {

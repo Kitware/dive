@@ -3,7 +3,8 @@ import { headTailFeatures } from 'vue-media-annotator/headTail';
 import { SegmentationPolygonKey } from 'dive-common/recipes/segmentationpointclick';
 import type { NewAnnotationGeometryParams } from 'dive-common/use/useModeManager';
 import {
-  autoPopulatePrompt, autoPopulateTarget, closedRing, orientLineLike, polygonBounds,
+  autoPopulatePrompt, autoPopulateTarget, boundsIoU, closedRing, orientLineLike, polygonBounds,
+  MAPPED_BOX_MIN_IOU,
 } from 'dive-common/use/autoPopulate';
 import type { SegmentationPolygon, SegmentationPredictRequest, SegmentationPredictResponse } from 'dive-common/apispec';
 import type { SegmentationPolygonKeypointsResponse } from '../backend/native/segmentation';
@@ -16,10 +17,18 @@ interface AutoPopulateServices {
   keypoints(polygon: [number, number][], polygons?: SegmentationPolygon[]): Promise<SegmentationPolygonKeypointsResponse>;
 }
 
+export interface AutoPopulateOptions {
+  mask: boolean;
+  points: boolean;
+  orientLike?: [number, number][] | null;
+  /** The box was mapped from the other stereo camera: refit it when the mask disagrees with it. */
+  fitBoxToMask?: boolean;
+}
+
 /** Apply independent mask/point results without losing a valid mask if points fail. */
 export default async function populateAnnotation(
   params: NewAnnotationGeometryParams,
-  options: { mask: boolean; points: boolean; orientLike?: [number, number][] | null },
+  options: AutoPopulateOptions,
   services: AutoPopulateServices,
 ): Promise<'applied' | 'changed'> {
   const currentTarget = autoPopulateTarget(services.getTrack, params.frameNum);
@@ -61,12 +70,12 @@ export default async function populateAnnotation(
       properties: { key: index === 0 ? SegmentationPolygonKey : `${SegmentationPolygonKey}-${index}` },
     })));
   }
+  const maskBounds = polygonBounds(polygons.flatMap((polygon) => polygon.exterior));
   if (options.points && params.source === 'line') {
-    track.setFeature({
-      frame: params.frameNum,
-      keyframe: true,
-      bounds: polygonBounds(polygons.flatMap((polygon) => polygon.exterior)),
-    });
+    track.setFeature({ frame: params.frameNum, keyframe: true, bounds: maskBounds });
+  } else if (options.fitBoxToMask && params.source === 'box'
+    && boundsIoU(params.bounds, maskBounds) < MAPPED_BOX_MIN_IOU) {
+    track.setFeature({ frame: params.frameNum, keyframe: true, bounds: maskBounds });
   }
   if (options.points && params.source === 'box' && !hasLine) {
     // Snapshot again after our own mask write, before awaiting the next service call.

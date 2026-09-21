@@ -54,6 +54,21 @@ export function polygonBounds(polygon: Point[]): RectBounds {
 }
 
 /**
+ * Below this overlap a stereo-mapped box is taken to have landed badly and is
+ * refit to the mask segmented on its own camera.
+ */
+export const MAPPED_BOX_MIN_IOU = 0.5;
+
+export function boundsIoU(a: RectBounds, b: RectBounds): number {
+  const area = ([x0, y0, x1, y1]: RectBounds) => Math.max(0, x1 - x0) * Math.max(0, y1 - y0);
+  const intersection = area([
+    Math.max(a[0], b[0]), Math.max(a[1], b[1]), Math.min(a[2], b[2]), Math.min(a[3], b[3]),
+  ]);
+  const union = area(a) + area(b) - intersection;
+  return union > 0 ? intersection / union : 0;
+}
+
+/**
  * Head/tail derived independently on each stereo camera can come out flipped;
  * order this pair to run the same way as the other camera's line.
  */

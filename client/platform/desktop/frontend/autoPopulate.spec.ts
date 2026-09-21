@@ -142,6 +142,29 @@ it('uses every component for line-derived bounds even if legacy bounds cover onl
   expect(h.services.keypoints).not.toHaveBeenCalled();
 });
 
+it('refits a stereo-mapped box to a mask that landed elsewhere, but keeps one the mask agrees with', async () => {
+  const far = harness();
+  far.services.predict.mockResolvedValue({ success: true, polygon: [[30, 30], [50, 30], [50, 50], [30, 50]] });
+  expect(await populateAnnotation({
+    camera: 'right', trackId: 1, frameNum: 0, source: 'box', bounds: [0, 0, 10, 10],
+  }, { mask: true, points: false, fitBoxToMask: true }, far.services)).toBe('applied');
+  expect(far.track.getFeature(0)[0]?.bounds).toEqual([30, 30, 50, 50]);
+
+  const near = harness();
+  near.services.predict.mockResolvedValue({ success: true, polygon: [[1, 1], [9, 1], [9, 9], [1, 9]] });
+  await populateAnnotation({
+    camera: 'right', trackId: 1, frameNum: 0, source: 'box', bounds: [0, 0, 10, 10],
+  }, { mask: true, points: false, fitBoxToMask: true }, near.services);
+  expect(near.track.getFeature(0)[0]?.bounds).toEqual([0, 0, 10, 10]);
+
+  const drawn = harness();
+  drawn.services.predict.mockResolvedValue({ success: true, polygon: [[30, 30], [50, 30], [50, 50], [30, 50]] });
+  await populateAnnotation({
+    camera: 'left', trackId: 1, frameNum: 0, source: 'box', bounds: [0, 0, 10, 10],
+  }, { mask: true, points: false }, drawn.services);
+  expect(drawn.track.getFeature(0)[0]?.bounds).toEqual([0, 0, 10, 10]);
+});
+
 it('extracts points from all components when storing the mask is disabled', async () => {
   const h = harness();
   h.services.predict.mockResolvedValue({ success: true, polygons: components });
