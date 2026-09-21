@@ -1535,8 +1535,9 @@ export default function useModeManager({
 
   /**
    * A point-segmented mask is the first shape of a brand-new detection, so it
-   * gets the same auto-populate pass (head/tail from the mask) as a drawn box.
-   * Refining an existing detection's mask does not.
+   * gets the same auto-populate pass (head/tail from the mask) as a drawn box,
+   * again after every click that reshapes it. Refining an existing detection's
+   * mask does not.
    */
   function emitMaskGeometry(trackId: number, frameNum: number, polygon: [number, number][]) {
     if (!onNewAnnotationGeometry || polygon.length < 3
@@ -1641,6 +1642,8 @@ export default function useModeManager({
 
       _nudgeEditingCanary();
 
+      if (result.controlPoints) emitMaskGeometry(track.id, targetFrame, result.polygon);
+
       // Interactive stereo: as soon as the left polygon is predicted, generate
       // the other-camera polygon + head/tail lines + measurement automatically,
       // without waiting for the user to finalize the detection. Only fired for
@@ -1670,7 +1673,6 @@ export default function useModeManager({
         && trackSettings.value.newTrackSettings?.mode === 'Detection'
         && trackSettings.value.newTrackSettings.modeSettings.Detection.continuous
         && recipes.some((r) => r instanceof SegmentationPointClick && r.active.value)) {
-        emitMaskGeometry(selectedTrackId.value as number, targetFrame, result.polygon);
         preSegmentationFeatures.clear();
         handleAddTrackOrDetection();
       }
@@ -1742,8 +1744,6 @@ export default function useModeManager({
         }, polygonGeometry);
 
         mirrorFeatureToAlignedCameras(track.id, frameNum);
-
-        emitMaskGeometry(track.id, frameNum, frameResult.polygon);
 
         // Note: the other-camera (stereo) annotation is generated earlier, on
         // each fresh prediction (handleSegmentationPredictionReady), so there is

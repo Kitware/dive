@@ -25,6 +25,15 @@ export interface AutoPopulateOptions {
   fitBoxToMask?: boolean;
   /** Receives the mask the annotation was segmented to, whether or not it is stored. */
   onMask?: (polygons: SegmentationPolygon[]) => void;
+  /** A head/tail this routine derived earlier; still ours to replace unless the user moved it. */
+  ownLine?: [number, number][] | null;
+  /** Receives the head/tail this routine derived. */
+  onLine?: (line: [number, number][]) => void;
+}
+
+function sameLine(a: [number, number][] | null | undefined, b: [number, number][] | null | undefined): boolean {
+  return !!a && !!b && a.length === b.length
+    && a.every((p, i) => p[0] === b[i][0] && p[1] === b[i][1]);
 }
 
 async function predictMask(
@@ -68,7 +77,9 @@ export default async function populateAnnotation(
   const { track, feature } = target;
   const features = feature.geometry?.features ?? [];
   const hasPolygon = features.some((f) => f.geometry.type === 'Polygon');
-  const hasLine = features.some((f) => f.geometry.type === 'LineString');
+  const currentLine = feature.head && feature.tail ? [feature.head, feature.tail] : null;
+  const hasLine = features.some((f) => f.geometry.type === 'LineString')
+    && !sameLine(currentLine, options.ownLine);
   const addedMask = options.mask && !hasPolygon;
   if (addedMask) {
     track.setFeature({ frame: params.frameNum, keyframe: true }, polygons.map((polygon, index) => ({
@@ -98,6 +109,7 @@ export default async function populateAnnotation(
       if (!pointsTarget()) return 'changed';
       const line = orientLineLike([keypoints.head, keypoints.tail], options.orientLike ?? []);
       track.setFeature({ frame: params.frameNum, keyframe: true }, headTailFeatures(line));
+      options.onLine?.(line);
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       throw new Error(`${addedMask ? 'Mask added, but head/tail extraction failed' : 'Head/tail extraction failed'}: ${message}`);

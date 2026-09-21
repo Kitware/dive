@@ -501,24 +501,26 @@ describe('auto-populate of point-segmented masks', () => {
     frames: new Map([[0, { polygon, bounds: null, frameNum: 0 }]]),
   });
 
-  it('emits the confirmed mask of a brand-new detection, but not a refinement of an existing one', () => {
+  it('emits the mask of a brand-new detection on every click, but not on restore, confirm or a refinement of an existing one', () => {
     const recipe = new SegmentationPointClick();
     const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
     const fresh = manager.handler.trackAdd();
-    recipe.bus.$emit('prediction-ready', {
+    const click = () => recipe.bus.$emit('prediction-ready', {
       polygon, bounds: null, frameNum: 0, controlPoints: { points: [[5, 5]], labels: [1] },
     });
+    click();
+    click();
+    recipe.bus.$emit('prediction-ready', { polygon, bounds: null, frameNum: 0 });
     confirm(recipe);
-    expect(newGeometryEvents).toEqual([{
+    const event = {
       camera: 'left', trackId: fresh, frameNum: 0, source: 'mask', polygons: [{ exterior: polygon, holes: [] }],
-    }]);
+    };
+    expect(newGeometryEvents).toEqual([event, event]);
 
     manager.handler.trackAdd();
     manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
     newGeometryEvents.length = 0;
-    recipe.bus.$emit('prediction-ready', {
-      polygon, bounds: null, frameNum: 0, controlPoints: { points: [[5, 5]], labels: [1] },
-    });
+    click();
     confirm(recipe);
     expect(newGeometryEvents).toEqual([]);
   });
