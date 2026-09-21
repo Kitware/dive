@@ -310,7 +310,7 @@ export default defineComponent({
     <DeleteAllScopeDialog
       v-model="data.showDeleteAll"
       :scope.sync="data.deleteAllScope"
-      lead="Every listed track is selected. Delete tracks of the listed types that are:"
+      lead="Every listed track is selected. Delete tracks that are:"
       @confirm="confirmDeleteAll()"
     />
   </div>
