@@ -1134,29 +1134,18 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   }));
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
-  const allowedTrainedPatterns = new RegExp([
-    '^detector.+',
-    '^tracker.+',
-    '^generate.+',
-    '^.*\\.zip',
-    '^.*\\.svm',
-    '^.*\\.lbl',
-    '^.*\\.cfg',
-    '^.*\\.yaml',
-  ].join('|'));
   const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
   const trainedExists = await fs.pathExists(trainedPipelinePath);
   if (!trainedExists) return ret;
   const trainedPipeFolders = await fs.readdir(trainedPipelinePath);
   await Promise.all(trainedPipeFolders.map(async (item) => {
     const pipeFolder = npath.join(trainedPipelinePath, item);
-    const pipeFolderExists = await fs.pathExists(pipeFolder);
-    if (!pipeFolderExists) return false;
-    let pipesInFolder = await fs.readdir(pipeFolder);
-    pipesInFolder = pipesInFolder.filter(
-      (p: string) => p.match(allowedTrainedPatterns) && !p.match(disallowedPatterns),
-    );
-    if (pipesInFolder.length >= 2) {
+    if (item.startsWith('.') || !(await fs.stat(pipeFolder)).isDirectory()) return false;
+    const entries = await fs.readdir(pipeFolder, { withFileTypes: true });
+    const pipesInFolder = entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.pipe') && !entry.name.startsWith('embedded_'))
+      .map((entry) => entry.name);
+    if (pipesInFolder.length > 0) {
       // A training run can emit both a detector and a tracker; list each one
       // separately and disambiguate them the way web does.
       const pipeNames = pipesInFolder.filter((p) => p.endsWith('.pipe')).sort();
@@ -1168,7 +1157,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
           suffix = ' detector';
         }
         const pipeInfo = {
-          name: `${item}${suffix}`,
+          name: `${item}${suffix || (pipeNames.length > 1 ? ` ${npath.basename(pipeName, '.pipe')}` : '')}`,
           type: 'trained',
           pipe: npath.join(pipeFolder, pipeName),
         };

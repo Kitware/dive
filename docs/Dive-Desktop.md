@@ -224,12 +224,11 @@ DIVE Desktop looks for the these environment variables on launch.
 
 ## Import/Export of Models
 
-Trained models are kept in `${Project Data Storage Path}/DIVE_Pipelines` as described above.  Each model file consists of exactly 1 pipe file and some number of other model files.
-
-* The pipe file can be one of `detector.pipe`, `tracker.pipe`, or `generate.pipe`.
-* Other files can be `.zip`, `.svm`, `.lbl`, or `.cfg`.
-
-You can use externally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
+Open **Models**, immediately to the right of **Training**, to import model ZIPs,
+export complete packs to ZIP, convert models to ONNX, or delete packs. Models
+are stored under `${Project Data Storage Path}/DIVE_Pipelines`; a pack can contain
+multiple `.pipe` files and nested folders of model weights and supporting files.
+See [Pipeline Import and Export](Pipeline-Import-Export.md) for supported ZIP layouts.
 
 ## Troubleshooting
 

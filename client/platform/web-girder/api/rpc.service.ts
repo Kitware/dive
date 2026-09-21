@@ -58,6 +58,12 @@ function exportTrainedPipeline(path: string, pipeline: Pipe) {
   });
 }
 
+function importModelPack(archive: File) {
+  const body = new FormData();
+  body.append('archive', archive);
+  return girderRest.post('dive_rpc/model/import', body);
+}
+
 function convertLargeImage(folderId: string) {
   return girderRest.post(`dive_rpc/convert_large_image/${folderId}`, null, {});
 }
@@ -69,4 +75,5 @@ export {
   runTraining,
   deleteTrainedPipeline,
   exportTrainedPipeline,
+  importModelPack,
 };
