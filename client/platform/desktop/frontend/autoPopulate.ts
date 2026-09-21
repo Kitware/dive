@@ -23,6 +23,8 @@ export interface AutoPopulateOptions {
   orientLike?: [number, number][] | null;
   /** The box was mapped from the other stereo camera: refit it when the mask disagrees with it. */
   fitBoxToMask?: boolean;
+  /** Receives the mask the annotation was segmented to, whether or not it is stored. */
+  onMask?: (polygons: SegmentationPolygon[]) => void;
 }
 
 async function predictMask(
@@ -62,6 +64,7 @@ export default async function populateAnnotation(
   }
   const target = currentTarget();
   if (!target) return 'changed';
+  options.onMask?.(polygons);
   const { track, feature } = target;
   const features = feature.geometry?.features ?? [];
   const hasPolygon = features.some((f) => f.geometry.type === 'Polygon');
@@ -78,7 +81,7 @@ export default async function populateAnnotation(
     })));
   }
   const maskBounds = polygonBounds(polygons.flatMap((polygon) => polygon.exterior));
-  if (options.points && params.source === 'line') {
+  if ((options.points && params.source === 'line') || params.source === 'points') {
     track.setFeature({ frame: params.frameNum, keyframe: true, bounds: maskBounds });
   } else if (options.fitBoxToMask && params.source === 'box'
     && boundsIoU(params.bounds, maskBounds) < MAPPED_BOX_MIN_IOU) {

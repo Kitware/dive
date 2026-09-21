@@ -16,7 +16,7 @@ import CalibrationMenu from 'dive-common/components/CalibrationMenu.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { SegmentationPredictRequest } from 'dive-common/apispec';
+import { SegmentationPredictRequest, SegmentationPolygon } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
 import { isStereoscopicDatasetConfig } from 'dive-common/multicamDisplay';
 import type {
@@ -45,6 +45,7 @@ import {
   openLink,
   setScoringAnnotationPreviewFile,
 } from 'platform/desktop/frontend/api';
+import { interiorPromptPoints, polygonBounds } from 'dive-common/use/autoPopulate';
 import populateAnnotation from '../autoPopulate';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -1186,7 +1187,9 @@ export default defineComponent({
 
     // In-flight auto-populate passes for freshly drawn shapes, so the stereo
     // transfer of the same shape can populate its mapped copy afterwards.
-    const pendingAutoPopulate = new Map<string, Promise<void>>();
+    /** Outcome of one auto-populate pass; the mask is reported even when only points were asked for. */
+    type AutoPopulateOutcome = { status: 'applied' | 'changed' | 'failed' | 'skipped'; polygons: SegmentationPolygon[] };
+    const pendingAutoPopulate = new Map<string, Promise<AutoPopulateOutcome>>();
     const autoPopulateKey = (camera: string, trackId: number, frameNum: number) => `${camera}:${trackId}:${frameNum}`;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1785,6 +1788,9 @@ export default defineComponent({
               });
             }
           }
+        } else if (params.type === 'box'
+          && sourceAutoPopulate && await mapBoxThroughSourceMask(sourceAutoPopulate, params, otherCamera)) {
+          // The other camera's box came from its own segmentation.
         } else if (params.type === 'box') {
           // Convert box bounds to 4 corner points
           const [x1, y1, x2, y2] = params.bounds;
@@ -2130,18 +2136,21 @@ export default defineComponent({
     async function autoPopulateGeometry(
       params: NewAnnotationGeometryParams,
       stereo?: { orientLike: [number, number][] | null; fitBoxToMask: boolean },
-    ) {
+    ): Promise<AutoPopulateOutcome> {
       const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
-      if (!autoPopulateMask && !autoPopulatePoints) return;
       const cameraStore = viewerRef.value?.cameraStore;
-      if (!cameraStore) return;
+      if ((!autoPopulateMask && !autoPopulatePoints) || !cameraStore) return { status: 'skipped', polygons: [] };
+      let polygons: SegmentationPolygon[] = [];
       // Resolve the requested camera independently of recipe initialization and
       // whichever camera is selected when asynchronous work finishes.
       const datasetId = params.camera === 'singleCam' ? props.id : `${props.id}/${params.camera}`;
       autoPopulateActive.value += 1;
       try {
         const result = await populateAnnotation(params, {
-          mask: autoPopulateMask, points: autoPopulatePoints, ...stereo,
+          mask: autoPopulateMask,
+          points: autoPopulatePoints,
+          onMask: (mask) => { polygons = mask; },
+          ...stereo,
         }, {
           getTrack: () => cameraStore.getPossibleTrack(params.trackId, params.camera),
           getMedia: async () => {
@@ -2166,10 +2175,12 @@ export default defineComponent({
         if (result === 'changed' && cameraStore.getPossibleTrack(params.trackId, params.camera)) {
           autoPopulateMessage.value = `Auto-populate skipped for track ${params.trackId}: the annotation changed while the request was running.`;
         }
+        return { status: result, polygons };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         autoPopulateMessage.value = `Auto-populate — track ${params.trackId}, ${params.camera}, frame ${params.frameNum}: ${message}`;
         console.warn('[AutoPopulate] Could not populate the new annotation:', err);
+        return { status: 'failed', polygons };
       } finally {
         autoPopulateActive.value -= 1;
       }
@@ -2181,15 +2192,15 @@ export default defineComponent({
      * so a derived head/tail can follow the source's direction.
      */
     async function autoPopulateOtherCamera(
-      sourceJob: Promise<void>,
+      sourceJob: Promise<unknown>,
       sourceCamera: string,
       mapped: NewAnnotationGeometryParams,
-    ) {
+    ): Promise<AutoPopulateOutcome> {
       await sourceJob;
       const cameraStore = viewerRef.value?.cameraStore;
-      if (!cameraStore) return;
+      if (!cameraStore) return { status: 'skipped', polygons: [] };
       const sourceTrack = cameraStore.getPossibleTrack(mapped.trackId, sourceCamera);
-      await autoPopulateGeometry(mapped, {
+      const outcome = await autoPopulateGeometry(mapped, {
         orientLike: getStereoLineEndpoints(sourceTrack, mapped.frameNum),
         fitBoxToMask: true,
       });
@@ -2200,6 +2211,45 @@ export default defineComponent({
           console.warn('[Stereo] Measurement update failed:', err);
         }
       }
+      return outcome;
+    }
+
+    /**
+     * With auto-segmentation on, a new box reaches the other camera through
+     * its mask rather than its corners: a few points inside the source mask
+     * are warped (their disparities are stable, unlike corners that sit on the
+     * background), the other camera is segmented from them, and its box is
+     * that mask's bounds. False means fall back to warping the corners.
+     */
+    async function mapBoxThroughSourceMask(
+      sourceJob: Promise<AutoPopulateOutcome>,
+      params: { camera: string; trackId: number; frameNum: number },
+      otherCamera: string,
+    ): Promise<boolean> {
+      const source = await sourceJob;
+      const prompts = interiorPromptPoints(source.polygons);
+      if (!prompts.length) return false;
+      const response = await stereoTransferPoints({ points: prompts });
+      const warped = (response.transferredPoints ?? [])
+        .filter((p): p is [number, number] => !!p && Number.isFinite(p[0]) && Number.isFinite(p[1]));
+      const cameraStore = viewerRef.value?.cameraStore;
+      if (!response.success || !warped.length || !cameraStore) return false;
+      const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
+      if (!track) return false;
+      // A placeholder for the segmentation to replace; it needs a feature to target.
+      track.setFeature({
+        frame: params.frameNum,
+        flick: 0,
+        bounds: polygonBounds(warped),
+        keyframe: true,
+        interpolate: false,
+      });
+      const outcome = await autoPopulateOtherCamera(Promise.resolve(), params.camera, {
+        camera: otherCamera, trackId: params.trackId, frameNum: params.frameNum, source: 'points', points: warped,
+      });
+      if (outcome.status === 'applied' || outcome.status === 'changed') return true;
+      track.deleteFeature(params.frameNum);
+      return false;
     }
 
     /** A brand-new box or line just got drawn, or a brand-new mask point-segmented. */
@@ -2208,7 +2258,7 @@ export default defineComponent({
       if (!autoPopulateMask && !autoPopulatePoints) return;
       if (params.source === 'mask' && !autoPopulatePoints) return;
       const key = autoPopulateKey(params.camera, params.trackId, params.frameNum);
-      const job: Promise<void> = autoPopulateGeometry(params).finally(() => {
+      const job: Promise<AutoPopulateOutcome> = autoPopulateGeometry(params).finally(() => {
         if (pendingAutoPopulate.get(key) === job) pendingAutoPopulate.delete(key);
       });
       pendingAutoPopulate.set(key, job);

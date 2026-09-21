@@ -188,6 +188,22 @@ it('derives head/tail for a point-segmented mask without predicting again', asyn
   expect(lined.track.getFeature(0)[0]?.head).toEqual([2, 2]);
 });
 
+it('segments from given prompt points, boxes the mask, and reports it even when nothing is stored', async () => {
+  const h = harness();
+  const onMask = vi.fn();
+  h.services.predict.mockResolvedValue({ success: true, polygons: components });
+  expect(await populateAnnotation({
+    camera: 'right', trackId: 1, frameNum: 0, source: 'points', points: [[3, 3], [25, 5]],
+  }, { mask: false, points: false, onMask }, h.services)).toBe('applied');
+  expect(h.services.predict).toHaveBeenCalledWith(expect.objectContaining({
+    points: [[3, 3], [25, 5]], pointLabels: [1, 1], multimaskOutput: false,
+  }));
+  expect(onMask).toHaveBeenCalledWith(components);
+  expect(h.track.getFeature(0)[0]?.bounds).toEqual([0, 0, 30, 10]);
+  expect(h.track.getPolygonFeatures(0)).toHaveLength(0);
+  expect(h.services.keypoints).not.toHaveBeenCalled();
+});
+
 it('extracts points from all components when storing the mask is disabled', async () => {
   const h = harness();
   h.services.predict.mockResolvedValue({ success: true, polygons: components });

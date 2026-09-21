@@ -87,6 +87,7 @@ export type NewAnnotationGeometryParams = {
 } & (
   | { source: 'box'; bounds: [number, number, number, number] }
   | { source: 'line'; line: [number, number][] }
+  | { source: 'points'; points: [number, number][] }
   | { source: 'mask'; polygons: SegmentationPolygon[] }
 );
 

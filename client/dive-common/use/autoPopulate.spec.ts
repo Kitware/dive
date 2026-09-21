@@ -1,12 +1,32 @@
 import Track from 'vue-media-annotator/track';
 import { headTailFeatures } from 'vue-media-annotator/headTail';
 import {
-  autoPopulatePrompt, autoPopulateTarget, boundsIoU, closedRing, polygonBounds, orientLineLike, LINE_PROMPT_FRACTIONS,
+  autoPopulatePrompt, autoPopulateTarget, boundsIoU, closedRing, interiorPromptPoints, polygonBounds, orientLineLike,
+  LINE_PROMPT_FRACTIONS,
 } from './autoPopulate';
 
 it('prompts a box with its centre', () => {
   expect(autoPopulatePrompt({ source: 'box', bounds: [10, 20, 30, 60] })).toEqual({ points: [[20, 40]], labels: [1] });
   expect(autoPopulatePrompt({ source: 'mask', polygons: [] })).toEqual({ points: [], labels: [] });
+  expect(autoPopulatePrompt({ source: 'points', points: [[1, 2], [3, 4]] })).toEqual({ points: [[1, 2], [3, 4]], labels: [1, 1] });
+});
+
+it('samples prompt points inside a mask, spread apart and clear of its holes', () => {
+  const ring: [number, number][] = [[0, 0], [90, 0], [90, 30], [0, 30]];
+  const hole: [number, number][] = [[40, 10], [50, 10], [50, 20], [40, 20]];
+  const points = interiorPromptPoints([{ exterior: ring, holes: [hole] }], 4);
+  expect(points).toHaveLength(4);
+  points.forEach(([x, y]) => {
+    expect(x).toBeGreaterThan(0); expect(x).toBeLessThan(90);
+    expect(y).toBeGreaterThan(0); expect(y).toBeLessThan(30);
+    expect(x >= 40 && x <= 50 && y >= 10 && y <= 20).toBe(false);
+  });
+  const xs = points.map((p) => p[0]);
+  expect(Math.max(...xs) - Math.min(...xs)).toBeGreaterThan(60);
+  // A thin diagonal sliver still yields points on the object, never the empty corners.
+  const sliver: [number, number][] = [[0, 0], [100, 98], [100, 100], [0, 2]];
+  interiorPromptPoints([{ exterior: sliver, holes: [] }]).forEach(([x, y]) => expect(Math.abs(x - y)).toBeLessThan(3));
+  expect(interiorPromptPoints([{ exterior: [[0, 0], [1, 1]], holes: [] }])).toEqual([]);
 });
 
 it('prompts a line with foreground points spread along its length', () => {
