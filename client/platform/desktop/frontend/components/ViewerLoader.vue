@@ -2193,7 +2193,7 @@ export default defineComponent({
         orientLike: getStereoLineEndpoints(sourceTrack, mapped.frameNum),
         fitBoxToMask: true,
       });
-      if (mapped.source === 'box' && clientSettings.stereoSettings.updateLengthsOnModify) {
+      if (mapped.source !== 'line' && clientSettings.stereoSettings.updateLengthsOnModify) {
         try {
           await autoUpdateStereoLength(cameraStore, mapped.trackId, mapped.frameNum);
         } catch (err) {
@@ -2202,10 +2202,11 @@ export default defineComponent({
       }
     }
 
-    /** A brand-new box or line just got drawn. */
+    /** A brand-new box or line just got drawn, or a brand-new mask point-segmented. */
     function handleNewAnnotationGeometry(params: NewAnnotationGeometryParams) {
       const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
       if (!autoPopulateMask && !autoPopulatePoints) return;
+      if (params.source === 'mask' && !autoPopulatePoints) return;
       const key = autoPopulateKey(params.camera, params.trackId, params.frameNum);
       const job: Promise<void> = autoPopulateGeometry(params).finally(() => {
         if (pendingAutoPopulate.get(key) === job) pendingAutoPopulate.delete(key);
@@ -2258,6 +2259,36 @@ export default defineComponent({
       }
       params.frameNums.forEach((frameNum) => {
         preStereoSegmentationState.delete(`${params.trackId}:${frameNum}`);
+      });
+      autoPopulateStereoMasks(params.trackId, params.frameNums);
+    }
+
+    /**
+     * The other camera's point-segmented mask gets the same head/tail pass as
+     * the source camera's, once that one settles so the line runs the same way.
+     */
+    function autoPopulateStereoMasks(trackId: number, frameNums: number[]) {
+      if (!clientSettings.trackSettings.newTrackSettings.autoPopulatePoints) return;
+      const viewer = viewerRef.value;
+      const sourceCamera: string | undefined = viewer?.selectedCamera;
+      const multiCamList: string[] = viewer?.multiCamList ?? [];
+      const otherCamera = multiCamList.find((c) => c !== sourceCamera);
+      if (!sourceCamera || !otherCamera || multiCamList.length !== 2) return;
+      frameNums.forEach((frameNum) => {
+        const track = viewer?.cameraStore?.getPossibleTrack(trackId, otherCamera);
+        const [feature] = track?.getFeature(frameNum) ?? [null];
+        const polygons = (feature?.geometry?.features ?? [])
+          .filter((f: GeoJSON.Feature) => f.geometry.type === 'Polygon')
+          .map((f: GeoJSON.Feature<GeoJSON.Polygon>) => ({
+            exterior: f.geometry.coordinates[0] as [number, number][],
+            holes: f.geometry.coordinates.slice(1) as [number, number][][],
+          }));
+        if (!polygons.length) return;
+        const sourceJob = pendingAutoPopulate.get(autoPopulateKey(sourceCamera, trackId, frameNum))
+          ?? Promise.resolve();
+        autoPopulateOtherCamera(sourceJob, sourceCamera, {
+          camera: otherCamera, trackId, frameNum, source: 'mask', polygons,
+        });
       });
     }
 

@@ -31,6 +31,7 @@ import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
+import type { SegmentationPolygon } from 'dive-common/apispec';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
@@ -86,6 +87,7 @@ export type NewAnnotationGeometryParams = {
 } & (
   | { source: 'box'; bounds: [number, number, number, number] }
   | { source: 'line'; line: [number, number][] }
+  | { source: 'mask'; polygons: SegmentationPolygon[] }
 );
 
 export type StereoAnnotationCompleteParams =
@@ -1576,6 +1578,23 @@ export default function useModeManager({
   }
 
   /**
+   * A point-segmented mask is the first shape of a brand-new detection, so it
+   * gets the same auto-populate pass (head/tail from the mask) as a drawn box.
+   * Refining an existing detection's mask does not.
+   */
+  function emitMaskGeometry(trackId: number, frameNum: number, polygons: SegmentationPolygon[]) {
+    if (!onNewAnnotationGeometry || polygons.length === 0
+      || preSegmentationFeatures.get(frameNum)?.hadFeature === true) return;
+    onNewAnnotationGeometry({
+      camera: selectedCamera.value,
+      trackId,
+      frameNum,
+      source: 'mask',
+      polygons,
+    });
+  }
+
+  /**
    * Handle segmentation prediction ready - update visual display with pending polygon/mask.
    * This is called when the segmentation model returns a prediction.
    * During editing, we show the polygon preview but don't commit it yet.
@@ -1665,6 +1684,7 @@ export default function useModeManager({
         && trackSettings.value.newTrackSettings?.mode === 'Detection'
         && trackSettings.value.newTrackSettings.modeSettings.Detection.continuous
         && recipes.some((r) => r instanceof SegmentationPointClick && r.active.value)) {
+        emitMaskGeometry(selectedTrackId.value as number, targetFrame, components);
         preSegmentationFeatures.clear();
         handleAddTrackOrDetection();
       }
@@ -1705,6 +1725,8 @@ export default function useModeManager({
         applySegmentationPolygons(track, frameNum, components, frameResult.bounds);
 
         mirrorFeatureToAlignedCameras(track.id, frameNum);
+
+        emitMaskGeometry(track.id, frameNum, components);
 
         // Note: the other-camera (stereo) annotation is generated earlier, on
         // each fresh prediction (handleSegmentationPredictionReady), so there is

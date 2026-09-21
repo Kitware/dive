@@ -165,6 +165,29 @@ it('refits a stereo-mapped box to a mask that landed elsewhere, but keeps one th
   expect(drawn.track.getFeature(0)[0]?.bounds).toEqual([0, 0, 10, 10]);
 });
 
+it('derives head/tail for a point-segmented mask without predicting again', async () => {
+  const h = harness();
+  h.track.setFeature({ frame: 0, keyframe: true }, [{
+    type: 'Feature', geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 0]]] }, properties: { key: 'SegmentationPolygon' },
+  }]);
+  expect(await populateAnnotation({
+    camera: 'singleCam', trackId: 1, frameNum: 0, source: 'mask', polygons: components,
+  }, { mask: true, points: true }, h.services)).toBe('applied');
+  expect(h.services.predict).not.toHaveBeenCalled();
+  expect(h.services.getMedia).not.toHaveBeenCalled();
+  expect(h.services.keypoints).toHaveBeenCalledWith(components[0].exterior, components);
+  expect(h.track.getFeature(0)[0]?.head).toEqual([1, 1]);
+  expect(h.track.getPolygonFeatures(0)).toHaveLength(1);
+
+  const lined = harness();
+  lined.track.setFeature({ frame: 0, keyframe: true }, headTailFeatures([[2, 2], [8, 8]]));
+  await populateAnnotation({
+    camera: 'singleCam', trackId: 1, frameNum: 0, source: 'mask', polygons: components,
+  }, { mask: true, points: true }, lined.services);
+  expect(lined.services.keypoints).not.toHaveBeenCalled();
+  expect(lined.track.getFeature(0)[0]?.head).toEqual([2, 2]);
+});
+
 it('extracts points from all components when storing the mask is disabled', async () => {
   const h = harness();
   h.services.predict.mockResolvedValue({ success: true, polygons: components });

@@ -6,6 +6,7 @@ import {
 
 it('prompts a box with its centre', () => {
   expect(autoPopulatePrompt({ source: 'box', bounds: [10, 20, 30, 60] })).toEqual({ points: [[20, 40]], labels: [1] });
+  expect(autoPopulatePrompt({ source: 'mask', polygons: [] })).toEqual({ points: [], labels: [] });
 });
 
 it('prompts a line with foreground points spread along its length', () => {

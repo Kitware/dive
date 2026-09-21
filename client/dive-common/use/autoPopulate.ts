@@ -1,11 +1,14 @@
 import type Track from 'vue-media-annotator/track';
 import type { RectBounds } from 'vue-media-annotator/utils';
+import type { SegmentationPolygon } from 'dive-common/apispec';
 
 export type Point = [number, number];
 
 export type NewAnnotationGeometry =
   | { source: 'box'; bounds: RectBounds }
-  | { source: 'line'; line: Point[] };
+  | { source: 'line'; line: Point[] }
+  /** A mask that already exists on the detection (point segmentation); nothing to predict. */
+  | { source: 'mask'; polygons: SegmentationPolygon[] };
 
 /** Fractions of the way along a line at which foreground prompts are placed. */
 export const LINE_PROMPT_FRACTIONS = [0.1, 0.3, 0.5, 0.7, 0.9];
@@ -20,6 +23,7 @@ export function autoPopulatePrompt(geometry: NewAnnotationGeometry): { points: P
     const [x0, y0, x1, y1] = geometry.bounds;
     return { points: [[(x0 + x1) / 2, (y0 + y1) / 2]], labels: [1] };
   }
+  if (geometry.source === 'mask') return { points: [], labels: [] };
   const { line } = geometry;
   if (line.length < 2) return { points: line.map((p) => [...p] as Point), labels: line.map(() => 1) };
   const total = line.slice(1).reduce((sum, p, i) => sum + Math.hypot(p[0] - line[i][0], p[1] - line[i][1]), 0);

@@ -25,18 +25,12 @@ export interface AutoPopulateOptions {
   fitBoxToMask?: boolean;
 }
 
-/** Apply independent mask/point results without losing a valid mask if points fail. */
-export default async function populateAnnotation(
-  params: NewAnnotationGeometryParams,
-  options: AutoPopulateOptions,
+async function predictMask(
+  params: Exclude<NewAnnotationGeometryParams, { source: 'mask' }>,
   services: AutoPopulateServices,
-): Promise<'applied' | 'changed'> {
-  const currentTarget = autoPopulateTarget(services.getTrack, params.frameNum);
-  if (!currentTarget()) return 'changed';
+): Promise<SegmentationPolygon[]> {
   const media = await services.getMedia();
   if (!media.imagePath) throw new Error('The image for this annotation could not be found.');
-  await services.ensureReady();
-  if (!currentTarget()) return 'changed';
   const prompt = autoPopulatePrompt(params);
   const response = await services.predict({
     ...media,
@@ -46,9 +40,22 @@ export default async function populateAnnotation(
     line: params.source === 'line' ? params.line : undefined,
   });
   if (!response.success) throw new Error(response.error || 'Segmentation failed.');
-  const polygons = (response.polygons?.length
+  return response.polygons?.length
     ? response.polygons
-    : [{ exterior: response.polygon ?? [], holes: [] }])
+    : [{ exterior: response.polygon ?? [], holes: [] }];
+}
+
+/** Apply independent mask/point results without losing a valid mask if points fail. */
+export default async function populateAnnotation(
+  params: NewAnnotationGeometryParams,
+  options: AutoPopulateOptions,
+  services: AutoPopulateServices,
+): Promise<'applied' | 'changed'> {
+  const currentTarget = autoPopulateTarget(services.getTrack, params.frameNum);
+  if (!currentTarget()) return 'changed';
+  await services.ensureReady();
+  if (!currentTarget()) return 'changed';
+  const polygons = (params.source === 'mask' ? params.polygons : await predictMask(params, services))
     .filter((polygon) => polygon.exterior.length >= 3);
   if (!polygons.length) {
     throw new Error('Segmentation returned no mask for this annotation.');
@@ -77,7 +84,7 @@ export default async function populateAnnotation(
     && boundsIoU(params.bounds, maskBounds) < MAPPED_BOX_MIN_IOU) {
     track.setFeature({ frame: params.frameNum, keyframe: true, bounds: maskBounds });
   }
-  if (options.points && params.source === 'box' && !hasLine) {
+  if (options.points && params.source !== 'line' && !hasLine) {
     // Snapshot again after our own mask write, before awaiting the next service call.
     const pointsTarget = autoPopulateTarget(services.getTrack, params.frameNum);
     try {
