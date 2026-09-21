@@ -2066,8 +2066,9 @@ export default defineComponent({
     /**
      * Auto-populate: segment a box or line with whatever interactive model is
      * loaded and, per the settings, store the polygon, derive head/tail from
-     * it (box) or tighten the box to it (line). orientLike is the other stereo
-     * camera's line, which a derived head/tail is ordered to match.
+     * it (box) or tighten the box to it (line). For a copy mapped from the other
+     * stereo camera, orientLike is that camera's line, which a derived head/tail
+     * is ordered to match, and a box the mask disagrees with is refit to the mask.
      */
     const autoPopulateActive = ref(0);
     const autoPopulateMessage = ref('');
@@ -2089,7 +2090,7 @@ export default defineComponent({
 
     async function autoPopulateGeometry(
       params: NewAnnotationGeometryParams,
-      orientLike?: [number, number][] | null,
+      stereo?: { orientLike: [number, number][] | null; fitBoxToMask: boolean },
     ) {
       const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
       if (!autoPopulateMask && !autoPopulatePoints) return;
@@ -2101,7 +2102,7 @@ export default defineComponent({
       autoPopulateActive.value += 1;
       try {
         const result = await populateAnnotation(params, {
-          mask: autoPopulateMask, points: autoPopulatePoints, orientLike,
+          mask: autoPopulateMask, points: autoPopulatePoints, ...stereo,
         }, {
           getTrack: () => cameraStore.getPossibleTrack(params.trackId, params.camera),
           getMedia: async () => {
@@ -2149,7 +2150,10 @@ export default defineComponent({
       const cameraStore = viewerRef.value?.cameraStore;
       if (!cameraStore) return;
       const sourceTrack = cameraStore.getPossibleTrack(mapped.trackId, sourceCamera);
-      await autoPopulateGeometry(mapped, getStereoLineEndpoints(sourceTrack, mapped.frameNum));
+      await autoPopulateGeometry(mapped, {
+        orientLike: getStereoLineEndpoints(sourceTrack, mapped.frameNum),
+        fitBoxToMask: true,
+      });
       if (mapped.source === 'box' && clientSettings.stereoSettings.updateLengthsOnModify) {
         try {
           await autoUpdateStereoLength(cameraStore, mapped.trackId, mapped.frameNum);
