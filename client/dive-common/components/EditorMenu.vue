@@ -591,8 +591,8 @@ export default defineComponent({
         v-if="!activeSegmentationRecipe"
         name="delete-controls"
       />
-      <slot name="multicam-controls" />
       <v-spacer />
+      <slot name="multicam-controls" />
       <annotation-visibility-menu
         :visible-modes="visibleModes"
         :tail-settings="tailSettings"
