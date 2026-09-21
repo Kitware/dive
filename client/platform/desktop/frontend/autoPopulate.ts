@@ -5,7 +5,7 @@ import type { NewAnnotationGeometryParams } from 'dive-common/use/useModeManager
 import {
   autoPopulatePrompt, autoPopulateTarget, closedRing, orientLineLike, polygonBounds,
 } from 'dive-common/use/autoPopulate';
-import type { SegmentationPredictRequest, SegmentationPredictResponse } from 'dive-common/apispec';
+import type { SegmentationPolygon, SegmentationPredictRequest, SegmentationPredictResponse } from 'dive-common/apispec';
 import type { SegmentationPolygonKeypointsResponse } from '../backend/native/segmentation';
 
 interface AutoPopulateServices {
@@ -13,7 +13,7 @@ interface AutoPopulateServices {
   getMedia(): Promise<{ imagePath: string; frameTime?: number }>;
   ensureReady(): Promise<void>;
   predict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse>;
-  keypoints(polygon: [number, number][]): Promise<SegmentationPolygonKeypointsResponse>;
+  keypoints(polygon: [number, number][], polygons?: SegmentationPolygon[]): Promise<SegmentationPolygonKeypointsResponse>;
 }
 
 /** Apply independent mask/point results without losing a valid mask if points fail. */
@@ -37,7 +37,11 @@ export default async function populateAnnotation(
     line: params.source === 'line' ? params.line : undefined,
   });
   if (!response.success) throw new Error(response.error || 'Segmentation failed.');
-  if (!response.polygon || response.polygon.length < 3) {
+  const polygons = (response.polygons?.length
+    ? response.polygons
+    : [{ exterior: response.polygon ?? [], holes: [] }])
+    .filter((polygon) => polygon.exterior.length >= 3);
+  if (!polygons.length) {
     throw new Error('Segmentation returned no mask for this annotation.');
   }
   const target = currentTarget();
@@ -48,24 +52,27 @@ export default async function populateAnnotation(
   const hasLine = features.some((f) => f.geometry.type === 'LineString');
   const addedMask = options.mask && !hasPolygon;
   if (addedMask) {
-    track.setFeature({ frame: params.frameNum, keyframe: true }, [{
+    track.setFeature({ frame: params.frameNum, keyframe: true }, polygons.map((polygon, index) => ({
       type: 'Feature',
-      geometry: { type: 'Polygon', coordinates: [closedRing(response.polygon)] },
-      properties: { key: SegmentationPolygonKey },
-    }]);
+      geometry: {
+        type: 'Polygon',
+        coordinates: [closedRing(polygon.exterior), ...polygon.holes.map(closedRing)],
+      },
+      properties: { key: index === 0 ? SegmentationPolygonKey : `${SegmentationPolygonKey}-${index}` },
+    })));
   }
   if (options.points && params.source === 'line') {
     track.setFeature({
       frame: params.frameNum,
       keyframe: true,
-      bounds: response.bounds ?? polygonBounds(response.polygon),
+      bounds: polygonBounds(polygons.flatMap((polygon) => polygon.exterior)),
     });
   }
   if (options.points && params.source === 'box' && !hasLine) {
     // Snapshot again after our own mask write, before awaiting the next service call.
     const pointsTarget = autoPopulateTarget(services.getTrack, params.frameNum);
     try {
-      const keypoints = await services.keypoints(response.polygon);
+      const keypoints = await services.keypoints(polygons[0].exterior, polygons);
       if (!keypoints.success || !keypoints.head || !keypoints.tail) {
         throw new Error(keypoints.error || 'No head/tail points were returned.');
       }

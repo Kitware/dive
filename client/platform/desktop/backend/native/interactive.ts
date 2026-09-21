@@ -14,6 +14,7 @@
  * unnecessarily. Separate, unmodified VIAME config files drive each feature.
  */
 
+import type { SegmentationPolygon } from 'dive-common/apispec';
 import OS from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
@@ -384,8 +385,12 @@ export class InteractiveServiceManager extends EventEmitter {
   }
 
   /** Head/tail of a polygon, derived as VIAME's keypoint pipelines derive them. */
-  async polygonKeypoints(polygon: [number, number][]): Promise<SegmentationPolygonKeypointsResponse> {
-    const response = await this.sendRequest({ command: 'polygon_keypoints', polygon }, 'Polygon keypoints');
+  async polygonKeypoints(polygon: [number, number][], polygons?: SegmentationPolygon[]): Promise<SegmentationPolygonKeypointsResponse> {
+    const response = await this.sendRequest({
+      command: 'polygon_keypoints',
+      ...(polygons && (polygons.length > 1 || polygons[0]?.holes.length)
+        ? { polygons } : { polygon }),
+    }, 'Polygon keypoints');
     return response as unknown as SegmentationPolygonKeypointsResponse;
   }
 
