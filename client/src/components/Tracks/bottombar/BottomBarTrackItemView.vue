@@ -429,6 +429,7 @@ export default defineComponent({
         :value="editAttributeValue"
         type="text"
         class="compact-attribute-input"
+        :class="{ 'track-length': attrKey.split('_').pop()?.toLowerCase() === 'length' }"
         @input="handleAttributeInput"
         @blur="saveAttribute"
         @keydown.enter="saveAttribute"
@@ -439,7 +440,7 @@ export default defineComponent({
         v-else
         :key="attrKey"
         class="track-attribute text-truncate"
-        :class="{ editable: !readOnlyMode }"
+        :class="{ editable: !readOnlyMode, 'track-length': attrKey.split('_').pop()?.toLowerCase() === 'length' }"
         @click="startEditAttribute(attrKey, $event)"
       >{{ getAttributeValue(attrKey) || '-' }}</span>
     </template>
@@ -478,7 +479,7 @@ export default defineComponent({
         v-if="!merging"
         icon="mdi-pencil-box-outline"
         tooltip-text="Toggle edit mode"
-        size="x-small"
+        size="small"
         :disabled="!inputValue || readOnlyMode"
         @click="handler.trackEdit(track.trackId)"
       />
@@ -486,7 +487,7 @@ export default defineComponent({
         icon="mdi-delete"
         color="error"
         tooltip-text="Delete track"
-        size="x-small"
+        size="small"
         :disabled="merging || readOnlyMode"
         @click="handler.removeTrack([track.trackId])"
       />
@@ -572,7 +573,8 @@ export default defineComponent({
   .track-attribute {
     font-size: 12px;
     color: #888;
-    min-width: 60px;
+    width: 100px;
+    min-width: 100px;
     max-width: 100px;
     flex-shrink: 0;
     text-align: left;
@@ -589,7 +591,8 @@ export default defineComponent({
 
   .compact-attribute-input {
     font-size: 12px;
-    min-width: 60px;
+    width: 100px;
+    min-width: 100px;
     max-width: 100px;
     flex-shrink: 0;
     background-color: #333;
@@ -599,6 +602,10 @@ export default defineComponent({
     padding: 1px 4px;
     margin-right: 8px;
     outline: none;
+  }
+
+  .track-length {
+    text-align: center;
   }
 
   .track-notes-wrapper {
@@ -634,7 +641,7 @@ export default defineComponent({
     font-size: 14px;
     color: #666;
     flex-grow: 1;
-    padding: 1px 4px;
+    padding: 1px 0;
     pointer-events: none;
 
     &.has-notes {
@@ -678,7 +685,7 @@ export default defineComponent({
     width: 40px;
     min-width: 40px;
     flex-shrink: 0;
-    text-align: right;
+    text-align: center;
     background-color: #333;
     padding: 1px 4px;
     border-radius: 3px;
@@ -715,10 +722,11 @@ export default defineComponent({
   }
 
   .compact-confidence-input {
-    width: 54px;
-    min-width: 54px;
+    width: 40px;
+    min-width: 40px;
+    margin-right: 8px;
     flex-shrink: 0;
-    text-align: right;
+    text-align: center;
     -moz-appearance: textfield;
   }
 
