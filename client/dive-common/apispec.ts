@@ -621,6 +621,11 @@ export interface SegmentationPredictRequest {
   line?: [number, number][];
 }
 
+export interface SegmentationPolygon {
+  exterior: [number, number][];
+  holes: [number, number][][];
+}
+
 export interface SegmentationPredictResponse {
   /** Whether the prediction succeeded */
   success: boolean;
@@ -628,6 +633,8 @@ export interface SegmentationPredictResponse {
   error?: string;
   /** Polygon coordinates as [x, y] pairs */
   polygon?: [number, number][];
+  /** All components of one mask, including interior holes. */
+  polygons?: SegmentationPolygon[];
   /** Bounding box [x_min, y_min, x_max, y_max] */
   bounds?: [number, number, number, number];
   /** Quality score from segmentation model */

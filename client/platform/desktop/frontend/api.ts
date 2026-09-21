@@ -1,7 +1,5 @@
-import axios, { AxiosInstance } from 'axios';
-import { watch } from 'vue';
-
 import type {
+  SegmentationPolygon,
   AnnotationSchema,
   DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
@@ -15,6 +13,8 @@ import type {
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
   VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
 } from 'dive-common/apispec';
+import axios, { AxiosInstance } from 'axios';
+import { watch } from 'vue';
 
 import {
   fileVideoTypes, calibrationFileTypes,
@@ -544,8 +544,8 @@ async function segmentationEnsureStarted(): Promise<{ success: boolean }> {
   return invoke<{ success: boolean }>('segmentation-ensure-started');
 }
 
-async function segmentationPolygonKeypoints(polygon: [number, number][]): Promise<SegmentationPolygonKeypointsResponse> {
-  return invoke<SegmentationPolygonKeypointsResponse>('segmentation-polygon-keypoints', { polygon });
+async function segmentationPolygonKeypoints(polygon: [number, number][], polygons?: SegmentationPolygon[]): Promise<SegmentationPolygonKeypointsResponse> {
+  return invoke<SegmentationPolygonKeypointsResponse>('segmentation-polygon-keypoints', { polygon, polygons });
 }
 
 async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
