@@ -170,12 +170,12 @@ it('skips mode(null) when already disabled so a peer creation session stays inta
   const h = harness();
   await h.layer.changeData([]);
   expect(h.layer.getMode()).toBe('creation');
-  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
   h.layer.disable();
   expect(h.layer.getMode()).toBe('disabled');
-  modeSpy.mockClear();
+  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
   h.layer.disable();
-  expect(modeSpy).not.toHaveBeenCalled();
+  // getMode() still reads mode() with no args; only mode(null) must be skipped.
+  expect(modeSpy).not.toHaveBeenCalledWith(null);
 });
 
 it('reinstalls creation mode after a peer disable strips interactor actions', async () => {
