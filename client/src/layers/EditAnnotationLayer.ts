@@ -707,13 +707,22 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * A mode change on the peer layer strips every annotation action from the
-   * interactor, including the one for a handle still hovered on this layer.
+   * interactor, including the one for a handle still hovered on this layer
+   * and the actions that place the next creation vertex.
    */
   restoreHandleActions() {
-    if (this.getMode() !== 'editing') return;
-    const handle = this.featureLayer.currentAnnotation?._editHandle?.handle;
-    if (handle?.selected) {
-      this.featureLayer._selectEditHandle({ data: handle }, true);
+    const mode = this.getMode();
+    if (mode === 'editing') {
+      const handle = this.featureLayer.currentAnnotation?._editHandle?.handle;
+      if (handle?.selected) {
+        this.featureLayer._selectEditHandle({ data: handle }, true);
+      }
+    } else if (mode === 'creation') {
+      // Re-enter creation so GeoJS reinstalls annotation actions. Peer
+      // disable() calls mode(null), which clears the shared interactor
+      // without leaving this layer's mode string.
+      const layerMode = typeMapper.get(this.type);
+      if (layerMode) this.featureLayer.mode(layerMode);
     }
   }
 
@@ -729,6 +738,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       clearTimeout(this.leftButtonCheckTimeout);
       this.leftButtonCheckTimeout = -1;
       this.skipNextExternalUpdate = false;
+      // Already off: skip mode(null). Calling it again strips peer-layer
+      // creation/edit actions from the shared map interactor (LayerManager
+      // often disables the companion box on every refresh during line draw).
+      if (this.getMode() === 'disabled') {
+        return;
+      }
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
       if (this.arrowFeatureLayer) {

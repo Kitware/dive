@@ -166,6 +166,28 @@ it('limits a companion box editor to its corner handles', () => {
   });
 });
 
+it('skips mode(null) when already disabled so a peer creation session stays intact', async () => {
+  const h = harness();
+  await h.layer.changeData([]);
+  expect(h.layer.getMode()).toBe('creation');
+  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
+  h.layer.disable();
+  expect(h.layer.getMode()).toBe('disabled');
+  modeSpy.mockClear();
+  h.layer.disable();
+  expect(modeSpy).not.toHaveBeenCalled();
+});
+
+it('reinstalls creation mode after a peer disable strips interactor actions', async () => {
+  const h = harness();
+  await h.layer.changeData([]);
+  expect(h.layer.getMode()).toBe('creation');
+  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
+  h.layer.restoreHandleActions();
+  expect(modeSpy).toHaveBeenCalledWith('line');
+  expect(h.layer.getMode()).toBe('creation');
+});
+
 it('does not restore the editing cursor after disable cancels a deferred changeData', async () => {
   vi.useFakeTimers();
   const h = harness();
