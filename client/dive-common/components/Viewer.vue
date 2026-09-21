@@ -99,6 +99,7 @@ import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+import UnsavedChangesDialog from './UnsavedChangesDialog.vue';
 
 export interface ImageDataItem {
   url: string;
@@ -120,6 +121,7 @@ export default defineComponent({
     ConfidenceFilter,
     UserGuideButton,
     UserSettingsDialog,
+    UnsavedChangesDialog,
     EditorMenu,
     MultiCamToolbar,
     AlignedViewToggle,
@@ -1415,18 +1417,17 @@ export default defineComponent({
       // eslint-disable-next-line no-param-reassign
       event.returnValue = '';
     }
+    const unsavedChangesDialog = ref<InstanceType<typeof UnsavedChangesDialog>>();
+
+    async function saveBeforeLeave() {
+      if (pendingSaveCount.value > 0) await save(props.currentSet);
+      await saveRegistration();
+      if (hasUnsavedChanges.value) throw new Error('There are still unsaved changes.');
+    }
+
     async function navigateAwayGuard(): Promise<boolean> {
-      let result = true;
-      if (hasUnsavedChanges.value) {
-        result = await prompt({
-          title: 'Save Items',
-          text: 'There is unsaved data, would you like to continue or cancel and save?',
-          positiveButton: 'Discard and Leave',
-          negativeButton: 'Don\'t Leave',
-          confirm: true,
-        });
-      }
-      return result;
+      if (!hasUnsavedChanges.value) return true;
+      return unsavedChangesDialog.value?.confirm() ?? false;
     }
 
     async function handleSetChange(set: string) {
@@ -2455,7 +2456,7 @@ export default defineComponent({
       cameraPercentileStretch,
       disableAnnotationFilters,
       trackStyleManager,
-      visible,
+      visible: () => visible() || unsavedChangesDialog.value?.show === true,
       selectedTrackForDetails,
       showConfidenceFirst,
       showTrackAttributesFirst,
@@ -2493,6 +2494,8 @@ export default defineComponent({
       changeCamera,
       noteRightMouseDown,
       // For Navigation Guarding
+      unsavedChangesDialog,
+      saveBeforeLeave,
       navigateAwayGuard,
       warnBrowserExit,
       hasUnsavedChanges,
@@ -2510,6 +2513,12 @@ export default defineComponent({
 
 <template>
   <v-main class="viewer">
+    <unsaved-changes-dialog
+      ref="unsavedChangesDialog"
+      :save="saveBeforeLeave"
+      :saving="saveInProgress"
+      :readonly="readonlyState"
+    />
     <v-app-bar
       app
       extension-height="56"
