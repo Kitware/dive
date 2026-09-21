@@ -606,8 +606,11 @@ export default defineComponent({
     min-width: 80px;
   }
   .col-conf {
-    /* Matches track-confidence-compact: 40px + 8px margin */
-    min-width: 48px;
+    /* Match the value's content width and keep its trailing gap separate. */
+    width: 40px;
+    min-width: 40px;
+    flex-shrink: 0;
+    margin-right: 8px;
     text-align: center;
   }
   .col-start {
@@ -627,10 +630,24 @@ export default defineComponent({
     margin-right: 8px;
   }
   .col-attribute {
-    min-width: 60px;
+    width: 100px;
+    min-width: 100px;
+    flex-shrink: 0;
     max-width: 100px;
     text-align: left;
     margin-right: 8px;
+  }
+  .col-conf,
+  .col-length {
+    position: relative;
+    text-align: center;
+
+    .v-icon {
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
   }
   .col-notes {
     flex-grow: 1;
