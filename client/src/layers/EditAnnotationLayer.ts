@@ -600,6 +600,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         `mdi-vector-${typeMapper.get(this.type)}`,
         mode === 'editing',
       );
+    } else {
+      // Mode is disabled: drop any leftover creation/editing icon. Without
+      // this, a cross-camera blank click can clear selection while a deferred
+      // changeData still thinks the layer is editing and leaves the icon up.
+      this.annotator.setImageCursor('');
     }
   }
 
@@ -717,6 +722,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
+      // Cancel any changeData deferred while the left button was held (cross-
+      // camera mousedown). LayerManager often calls disable() directly on
+      // deselect; without this the timeout reloads the old edit geometry and
+      // restores the editing cursor after the track is already cleared.
+      clearTimeout(this.leftButtonCheckTimeout);
+      this.leftButtonCheckTimeout = -1;
       this.skipNextExternalUpdate = false;
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
@@ -814,6 +825,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // disable resets things before we load a new/different shape or mode
           this.disable();
           this.formattedData = this.formatData(frameData);
+          this.rehoverEditHandles();
         }
       }
     } else {
@@ -826,6 +838,22 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
     if (!this.companion) this.calculateCursorImage();
     this.redraw();
+  }
+
+  /**
+   * GeoJS only fires mouseon when the handle under the cursor changes, so
+   * handles rebuilt beneath a stationary cursor stay inert until the mouse
+   * leaves and returns. Forget the stale hover and replay the mouse position.
+   */
+  rehoverEditHandles() {
+    if (this.getMode() !== 'editing') return;
+    window.setTimeout(() => {
+      if (this.getMode() !== 'editing') return;
+      this.featureLayer.features().forEach(
+        (feature: { _clearSelectedFeatures?: () => void }) => feature._clearSelectedFeatures?.(),
+      );
+      this.annotator.geoViewerRef.value.interactor().retriggerMouseMove();
+    }, 0);
   }
 
   /**
