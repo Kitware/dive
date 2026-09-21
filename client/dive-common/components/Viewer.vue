@@ -2671,14 +2671,8 @@ export default defineComponent({
             />
           </template>
           <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
-            slot="multicam-controls-left"
-          >
-            <multi-cam-toolbar />
-          </template>
-          <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls-right"
+            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar"
+            slot="multicam-controls"
           >
             <multi-cam-toolbar />
           </template>
