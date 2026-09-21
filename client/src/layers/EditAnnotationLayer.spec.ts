@@ -135,6 +135,59 @@ it('synchronizes right-click exits and reopens the saved line repeatedly', async
   expect(h.track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toHaveLength(5);
 });
 
+it('moves and commits only the annotation whose handle was grabbed when a peer layer is live', async () => {
+  const h = harness(); await h.reopen();
+  const annotation = h.featureLayer.annotations()[0];
+  const process = vi.fn(() => true);
+  annotation.diveDragGuard = false; annotation.processEditAction = process;
+  h.layer.guardPeerDrags(annotation);
+  const drag = { annotation: { ...annotation, layer: () => h.featureLayer }, action: 'actionup' };
+
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(1);
+  expect(h.update).toHaveBeenCalledTimes(1);
+
+  h.layer.peer = h.layer; h.layer.ownsDrag = false;
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(1);
+  expect(h.update).toHaveBeenCalledTimes(1);
+
+  h.layer.ownsDrag = true;
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(2);
+  expect(h.update).toHaveBeenCalledTimes(2);
+});
+
+it('limits a companion box editor to its corner handles', () => {
+  const { layer } = harness();
+  layer.companion = true;
+  expect(layer.editHandleStyle().handles).toEqual({
+    vertex: true, edge: false, center: false, rotate: false, resize: false,
+  });
+});
+
+it('skips mode(null) when already disabled so a peer creation session stays intact', async () => {
+  const h = harness();
+  await h.layer.changeData([]);
+  expect(h.layer.getMode()).toBe('creation');
+  h.layer.disable();
+  expect(h.layer.getMode()).toBe('disabled');
+  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
+  h.layer.disable();
+  // getMode() still reads mode() with no args; only mode(null) must be skipped.
+  expect(modeSpy).not.toHaveBeenCalledWith(null);
+});
+
+it('reinstalls creation mode after a peer disable strips interactor actions', async () => {
+  const h = harness();
+  await h.layer.changeData([]);
+  expect(h.layer.getMode()).toBe('creation');
+  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
+  h.layer.restoreHandleActions();
+  expect(modeSpy).toHaveBeenCalledWith('line');
+  expect(h.layer.getMode()).toBe('creation');
+});
+
 it('does not restore the editing cursor after disable cancels a deferred changeData', async () => {
   vi.useFakeTimers();
   const h = harness();
