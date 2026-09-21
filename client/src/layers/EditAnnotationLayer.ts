@@ -835,7 +835,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         //TODO: Find a better way to track mouse up after placing a point or completing geometry
         //For line drawings and the actions of any recipes we want
         if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
-          this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
+          this.leftButtonCheckTimeout = globalThis.setTimeout(() => this.changeData(frameData), 20);
         } else {
           // disable resets things before we load a new/different shape or mode
           this.disable();
@@ -862,7 +862,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   rehoverEditHandles() {
     if (this.getMode() !== 'editing') return;
-    window.setTimeout(() => {
+    globalThis.setTimeout(() => {
       if (this.getMode() !== 'editing') return;
       this.featureLayer.features().forEach(
         (feature: { _clearSelectedFeatures?: () => void }) => feature._clearSelectedFeatures?.(),
