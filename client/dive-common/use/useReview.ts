@@ -80,6 +80,8 @@ export interface ReviewService {
   dataRevision: Readonly<Ref<number>>;
   /** True once tracks or the query changed after the last run. */
   stale: Readonly<Ref<boolean>>;
+  /** Bumps each time the query runs, so grids can return to their first page. */
+  queryGeneration: Readonly<Ref<number>>;
   types: Readonly<Ref<string[]>>;
   knownTypes: Readonly<Ref<string[]>>;
   attributeKeys: Readonly<Ref<string[]>>;
@@ -249,6 +251,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   const items = ref<ReviewItem[]>([]);
   const dataRevision = ref(0);
   const stale = ref(false);
+  const queryGeneration = ref(0);
   const saving = ref(false);
   const loading = ref(false);
   const error = ref<string | null>(null);
@@ -547,6 +550,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     });
     items.value = sortReviewItems(built, sort.value, order);
     stale.value = false;
+    queryGeneration.value += 1;
   }
 
   watch(sort, () => {
@@ -860,6 +864,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     entries,
     dataRevision,
     stale,
+    queryGeneration,
     types,
     knownTypes,
     attributeKeys,
