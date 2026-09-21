@@ -2945,6 +2945,16 @@ describe('native.common', () => {
     ]);
   });
 
+  it('lists arbitrary imported pipelines with nested weights and skips incomplete imports', async () => {
+    const folder = '/home/user/viamedata/DIVE_Pipelines/imported';
+    await fs.outputFile(`${folder}/custom_local.pipe`, '# Custom pipeline');
+    await fs.outputFile(`${folder}/second.pipe`, '# Another pipeline');
+    await fs.outputFile(`${folder}/models/weights.onnx`, 'weights');
+    await fs.outputFile('/home/user/viamedata/DIVE_Pipelines/.import-incomplete/custom.pipe', '');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes.map((p) => p.name).sort()).toEqual(['imported custom_local', 'imported second']);
+  });
+
   it('Full Annotation Loading and Attributes Testing', async () => {
     for (let num = 0; num < testData.length; num += 1) {
       // eslint-disable-next-line no-await-in-loop

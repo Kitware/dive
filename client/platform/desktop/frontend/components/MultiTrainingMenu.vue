@@ -12,7 +12,7 @@ import {
   watch,
 } from 'vue';
 import {
-  Pipelines, TrainingConfigs, useApi, Pipe,
+  Pipelines, TrainingConfigs, useApi,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName, isValidEmail } from 'dive-common/constants';
@@ -26,16 +26,11 @@ import {
 } from '../api';
 import { datasets, JsonConfigCache } from '../store/dataset';
 
-function joinPath(dir: string, filename: string) {
-  const separator = dir.includes('\\') ? '\\' : '/';
-  return `${dir.replace(/[\\/]+$/, '')}${separator}${filename}`;
-}
-
 export default defineComponent({
   components: { DatasetPicker },
   setup() {
     const {
-      runTraining, getPipelineList, deleteTrainedPipeline, getTrainingConfigurations, exportTrainedPipeline,
+      runTraining, getPipelineList, getTrainingConfigurations,
     } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
@@ -118,13 +113,6 @@ export default defineComponent({
       return [];
     });
 
-    const trainedModels = computed(() => {
-      if (unsortedPipelines.value.trained) {
-        return unsortedPipelines.value.trained.pipes;
-      }
-      return [];
-    });
-
     const nameRules = [
       (val: string) => (!trainedPipelines.value.includes(val) || 'A Trained pipeline with that name already exists'),
     ];
@@ -166,14 +154,6 @@ export default defineComponent({
         value: 'fps',
         sortable: true,
         width: 80,
-      },
-    ];
-
-    const trainedHeadersTmpl: DataTableHeader[] = [
-      {
-        text: 'Model',
-        value: 'name',
-        sortable: true,
       },
     ];
 
@@ -226,64 +206,6 @@ export default defineComponent({
         && data.trainingOutputName
         && (!data.monitorEmail || isValidEmail(data.monitorEmail))
     ));
-
-    async function deleteModel(item: Pipe) {
-      const confirmDelete = await prompt({
-        title: `Delete "${item.name}" model`,
-        text: 'Are you sure you want to delete this model?',
-        positiveButton: 'Delete',
-        negativeButton: 'Cancel',
-        confirm: true,
-      });
-
-      if (confirmDelete) {
-        try {
-          await deleteTrainedPipeline(item);
-          unsortedPipelines.value = await getPipelineList();
-        } catch (err) {
-          let text = 'Unable to delete model';
-          const deleteErr = err as { response?: { status?: number } };
-          if (deleteErr.response?.status === 403) text = 'You do not have permission to delete the selected resource(s).';
-          prompt({
-            title: 'Delete Failed',
-            text,
-            positiveButton: 'OK',
-          });
-        }
-      }
-    }
-
-    async function exportModel(item: Pipe) {
-      try {
-        const location = await window.diveDesktop.showSaveDialog({
-          title: 'Export Model',
-          defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), 'model.onnx'),
-        });
-        if (!location.canceled && location.filePath) {
-          await exportTrainedPipeline(location.filePath!, item);
-          const goToJobsPage = !await prompt({
-            title: 'Export Started',
-            text: 'You can check the export status in the Jobs tab.',
-            negativeButton: 'View',
-            positiveButton: 'OK',
-            confirm: true,
-          });
-          if (goToJobsPage) {
-            router.push('/jobs');
-          }
-        }
-      } catch (err) {
-        const errorTemplate = 'Unable to export model';
-        const exportErr = err as { response?: { status?: number } };
-        let text = `${errorTemplate}: ${err}`;
-        if (exportErr.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
-        prompt({
-          title: 'Export Failed',
-          text,
-          positiveButton: 'OK',
-        });
-      }
-    }
 
     async function runTrainingOnFolder() {
       // Get the full data for fine tuning
@@ -362,8 +284,6 @@ export default defineComponent({
       stagedIds,
       stageIds,
       unstageIds,
-      deleteModel,
-      exportModel,
       simplifyTrainingName,
       isReadyToTrain,
       runTrainingOnFolder,
@@ -377,20 +297,6 @@ export default defineComponent({
       resumable: {
         items: resumableItems,
         headers: resumableHeaders,
-      },
-      models: {
-        items: trainedModels,
-        headers: trainedHeadersTmpl.concat({
-          text: 'Export',
-          value: 'export',
-          sortable: false,
-          width: 80,
-        }, {
-          text: 'Delete',
-          value: 'delete',
-          sortable: false,
-          width: 80,
-        }),
       },
       available: {
         items: availableItems,
@@ -632,42 +538,6 @@ export default defineComponent({
             <v-icon small>
               mdi-trash-can
             </v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
-    </div>
-
-    <div>
-      <v-card-title class="text-h4 px-0">
-        Trained models
-      </v-card-title>
-      <v-card-text class="px-0">
-        Here are all your trained models
-      </v-card-text>
-      <v-data-table
-        dense
-        v-bind="{ headers: models.headers, items: models.items.value }"
-        no-data-text="You don't have any trained model"
-      >
-        <template #[`item.export`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="info"
-            x-small
-            @click="exportModel(item)"
-          >
-            <v-icon>mdi-export</v-icon>
-          </v-btn>
-        </template>
-
-        <template #[`item.delete`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="error"
-            x-small
-            @click="deleteModel(item)"
-          >
-            <v-icon>mdi-trash-can</v-icon>
           </v-btn>
         </template>
       </v-data-table>
