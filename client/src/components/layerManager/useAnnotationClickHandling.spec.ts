@@ -66,3 +66,94 @@ it('does not cancel in-progress line creation when a mask is right-clicked', () 
   expect(h.cancelCreation).not.toHaveBeenCalled();
   expect(h.selectedKey.value).toBe('HeadTails');
 });
+
+describe('right-clicking the edited detection on another camera', () => {
+  function editHarness(type = 'rectangle') {
+    const layer = () => ({ bus: new Vue() });
+    const camera = ref('right');
+    const selected = ref<number | null>(1);
+    const mode = ref<false | string>(type);
+    const edit = { ...layer(), type, getMode: () => 'editing' };
+    const rectangle = layer();
+    const line = layer();
+    const handler = {
+      selectCamera: vi.fn((next: string) => { camera.value = next; }),
+      trackSelect: vi.fn((id: number | null, editing: boolean) => {
+        selected.value = id;
+        mode.value = editing ? type : false;
+      }),
+      trackEdit: vi.fn(),
+      selectFeatureHandle: vi.fn(),
+      cancelCreation: vi.fn(),
+      registerFinalizeCreation: vi.fn(),
+    };
+    const refresh = vi.fn();
+    useAnnotationClickHandling({
+      camera: 'left',
+      selectedCamera: camera,
+      selectedTrackIdRef: selected,
+      selectedKeyRef: ref(''),
+      frameNumberRef: ref(0),
+      flickNumberRef: ref(0),
+      editingModeRef: mode,
+      editAnnotationLayer: edit,
+      polyAnnotationLayer: layer(),
+      rectAnnotationLayer: rectangle,
+      lineLayer: line,
+      handler,
+      refreshLayers: refresh,
+    } as never).wireHandlers();
+    // GeoJS ends this camera's editor on the same click.
+    const editorEnds = () => edit.bus.$emit('editing-annotation-sync', false);
+    return {
+      camera, selected, mode, edit, rectangle, line, handler, refresh, editorEnds,
+    };
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
+
+  it.each(['before', 'after'])('moves the edit to the clicked camera when its editor ends %s the click', (order) => {
+    const h = editHarness();
+    if (order === 'before') h.editorEnds();
+    h.rectangle.bus.$emit('edited-annotation-right-clicked', 1);
+    h.line.bus.$emit('edited-annotation-right-clicked', 1);
+    if (order === 'after') h.editorEnds();
+    vi.runAllTimers();
+    expect(h.handler.selectCamera).toHaveBeenCalledExactlyOnceWith('left', false);
+    expect(h.camera.value).toBe('left');
+    expect(h.selected.value).toBe(1);
+    expect(h.mode.value).toBe('rectangle');
+    if (order === 'after') expect(h.handler.trackSelect).not.toHaveBeenCalled();
+    else expect(h.handler.trackSelect).toHaveBeenLastCalledWith(1, true);
+    expect(h.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  it('still finishes the edit on the selected camera', () => {
+    const h = editHarness(); h.camera.value = 'left';
+    h.rectangle.bus.$emit('edited-annotation-right-clicked', 1);
+    h.editorEnds();
+    vi.runAllTimers();
+    expect(h.handler.selectCamera).not.toHaveBeenCalled();
+    expect(h.mode.value).toBe(false);
+    expect(h.selected.value).toBe(1);
+  });
+
+  it('ignores another detection and a camera it cannot select', () => {
+    const h = editHarness();
+    h.rectangle.bus.$emit('edited-annotation-right-clicked', 2);
+    expect(h.handler.selectCamera).not.toHaveBeenCalled();
+    h.handler.selectCamera.mockImplementation(() => undefined);
+    h.rectangle.bus.$emit('edited-annotation-right-clicked', 1);
+    h.editorEnds();
+    vi.runAllTimers();
+    expect(h.mode.value).toBe(false);
+    expect(h.refresh).not.toHaveBeenCalled();
+  });
+
+  it('leaves polygon editing to the polygon editor', () => {
+    const h = editHarness('Polygon');
+    h.rectangle.bus.$emit('edited-annotation-right-clicked', 1);
+    expect(h.handler.selectCamera).not.toHaveBeenCalled();
+  });
+});

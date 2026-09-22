@@ -132,6 +132,17 @@ it('selects the clicked camera before navigating its polygons', () => {
   expect(h.mode.value).toBe('Polygon');
 });
 
+it('keeps editing the same polygon when the click moves the edit to this camera', () => {
+  const h = harness(); h.camera.value = 'right';
+  h.handler.selectCamera.mockImplementation((next: string) => { h.camera.value = next; });
+  h.click(5, 5);
+  h.mode.value = false;
+  vi.runAllTimers();
+  expect(h.key.value).toBe('first');
+  expect(h.mode.value).toBe('Polygon');
+  expect(h.selected.value).toBe(1);
+});
+
 it('ignores a camera it cannot select and non-polygon editing modes', () => {
   const h = harness(); h.camera.value = 'right'; h.click(21, 5);
   h.camera.value = 'left'; h.mode.value = 'LineString'; h.click(21, 5);
