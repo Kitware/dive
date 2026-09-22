@@ -15,8 +15,10 @@ import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore';
 import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
-import useModeManager from './useModeManager';
+import useModeManager, { type StereoAnnotationCompleteParams } from './useModeManager';
 import HeadTail from '../recipes/headtail';
+import SegmentationPointClick from '../recipes/segmentationpointclick';
+import { clientSettings } from '../store/settings';
 import { headTailFeatures } from '../../src/headTail';
 import type Recipe from '../../src/recipe';
 
@@ -24,7 +26,11 @@ function translation(tx: number, ty: number): Matrix3 {
   return [[1, 0, tx], [0, 1, ty], [0, 0, 1]];
 }
 
-function makeHarness(markChangesPending: MarkChangesPending = () => undefined, recipes: Recipe[] = []) {
+function makeHarness(
+  markChangesPending: MarkChangesPending = () => undefined,
+  recipes: Recipe[] = [],
+  onStereoAnnotationComplete: ((params: StereoAnnotationCompleteParams) => void) | undefined = undefined,
+) {
   const cameraStore = new CameraStore({ markChangesPending });
   cameraStore.removeCamera('singleCam');
   cameraStore.addCamera('left');
@@ -77,6 +83,7 @@ function makeHarness(markChangesPending: MarkChangesPending = () => undefined, r
     readonlyState: ref(false),
     recipes,
     alignedView,
+    onStereoAnnotationComplete,
   });
   modeManager.selectedCamera.value = 'left';
   return {
@@ -454,5 +461,31 @@ describe('centerline editing continuity', () => {
     }, manager.selectedKey.value);
     expect(track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toEqual([[20, 20], [90, 10]]);
     expect(track.features[0].bounds).toEqual([0, 0, 100, 100]);
+  });
+});
+
+describe('stereo copy of a point-segmented mask', () => {
+  it('runs once per click and not again when the mask is confirmed', () => {
+    const wasAutoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+    clientSettings.stereoSettings.autoComputeOtherCamera = true;
+    try {
+      const recipe = new SegmentationPointClick();
+      const events: StereoAnnotationCompleteParams[] = [];
+      const { modeManager: manager } = makeHarness(undefined, [recipe], (params) => events.push(params));
+      manager.handler.trackAdd();
+      const result = {
+        polygon: [[0, 0], [10, 0], [10, 10]] as [number, number][],
+        bounds: null,
+        frameNum: 0,
+        controlPoints: { points: [[5, 5]] as [number, number][], labels: [1] },
+      };
+      recipe.bus.$emit('prediction-ready', result);
+      expect(events.map((e) => e.type)).toEqual(['segmentation']);
+      recipe.bus.$emit('prediction-confirmed', result);
+      recipe.bus.$emit('prediction-confirmed-multi', { frames: new Map([[0, result]]) });
+      expect(events.map((e) => e.type)).toEqual(['segmentation']);
+    } finally {
+      clientSettings.stereoSettings.autoComputeOtherCamera = wasAutoCompute;
+    }
   });
 });
