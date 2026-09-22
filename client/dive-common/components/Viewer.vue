@@ -1640,7 +1640,8 @@ export default defineComponent({
       // mouseup arrives -- leaving the detection selected -- so editingTrack
       // alone cannot tell; selectCamera(camera, true) would then put it
       // straight back into edit mode. Right-clicks ON an annotation never
-      // reach here: the annotation layers' right-click handoff switches the
+      // reach here: the annotation layers' right-click handoff (including the
+      // one that moves an edit in progress to this camera) switches the
       // selected camera synchronously first, so this handler returns at the
       // top (same camera).
       if (event?.button === 2 && (editingTrack.value || editingOnRightMouseDown)) {
