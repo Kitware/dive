@@ -141,8 +141,7 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
   if (starting || job?.running) throw new Error('An add-on installation is already running.');
   if (settings.readonlyMode) throw new Error('Add-on installation is disabled in read-only mode.');
   if (!request || typeof request.name !== 'string' || !request.name
-      || (request.archive !== undefined && typeof request.archive !== 'string')
-      || (request.force !== undefined && typeof request.force !== 'boolean')) throw new Error('Invalid add-on installation request.');
+      || (request.archive !== undefined && typeof request.archive !== 'string')) throw new Error('Invalid add-on installation request.');
   starting = true;
   cancelDuringStart = false;
   let cleanupJob = () => {};
@@ -151,13 +150,13 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
     const addon = catalog.addons.find((item) => item.name === request.name);
     if (!addon || addon.name.startsWith('-')) throw new Error('Unknown add-on. Refresh the catalog and try again.');
     if (!catalog.installerAvailable) throw new Error('Update VIAME to a version that includes configs/add_ons.py.');
-    if (addon.status === 'installed' && !request.force) throw new Error('This add-on is already installed. Use Reinstall to replace it.');
+    // Files already in place are simply replaced; the installer backs each
+    // one up and restores it if the install is interrupted.
     const args = [
       '-u', path.join(catalog.installDir, 'configs', 'add_ons.py'),
       '--install-dir', catalog.installDir, '--csv', path.join(catalog.installDir, 'bin', CSV_NAME),
-      'install', addon.name,
+      'install', addon.name, '--force',
     ];
-    if (request.force) args.push('--force');
     if (request.archive) {
       const archive = path.resolve(request.archive);
       if (!(await fs.stat(archive)).isFile()) throw new Error('Choose a downloaded ZIP file.');

@@ -65,7 +65,7 @@ async function install(addon: ViameAddon, fromFile = false) {
     if (catalog.value) catalog.value.job = null;
     showProgress.value = true;
     const job = await window.diveDesktop.invoke<AddonJob>('desktop:addons-install', {
-      name: addon.name, force: addon.status === 'installed', archive,
+      name: addon.name, archive,
     });
     if (catalog.value) catalog.value.job = job;
     await refresh(true);

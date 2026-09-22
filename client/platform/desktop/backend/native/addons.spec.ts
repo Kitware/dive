@@ -73,7 +73,7 @@ it('lists packs when the VIAME installer is unavailable', async () => {
 it('delegates installation with separate argv, preserving paths with spaces', async () => {
   const archive = path.join(root, 'my pack $(literal).zip');
   await fs.writeFile(archive, 'archive');
-  await installAddon(settings, { name: 'FISH', archive, force: true });
+  await installAddon(settings, { name: 'FISH', archive });
   const [, args, options] = vi.mocked(spawn).mock.calls[0];
   expect(args).toEqual(['-u', expect.stringContaining('runner.py'), path.join(root, 'configs/add_ons.py'), '--install-dir', root,
     '--csv', path.join(root, 'bin/download_viame_addons.csv'), 'install', 'FISH', '--force', '--from-file', archive]);
@@ -94,13 +94,14 @@ it('rejects simultaneous installs and reports errors without losing the log', as
   expect((await getAddons(settings)).job?.error).toBe('Python unavailable');
 });
 
-it('requires reinstall intent for an existing pack and blocks read-only installs', async () => {
+it('replaces an existing pack without complaint and blocks read-only installs', async () => {
   await fs.outputFile(path.join(root, 'configs/pipelines/models/fish.pt'), 'existing');
-  await expect(installAddon(settings, { name: 'FISH' })).rejects.toThrow('already installed');
-  await expect(installAddon({ ...settings, readonlyMode: true }, { name: 'FISH', force: true })).rejects.toThrow('read-only');
+  await expect(installAddon({ ...settings, readonlyMode: true }, { name: 'FISH' })).rejects.toThrow('read-only');
   await expect(installAddon(settings, { name: '--all' })).rejects.toThrow('Unknown add-on');
   await expect(installAddon(settings, { name: 'VIAME' })).rejects.toThrow('Unknown add-on');
   expect(spawn).not.toHaveBeenCalled();
+  await installAddon(settings, { name: 'FISH' });
+  expect(vi.mocked(spawn).mock.calls[0][1]).toContain('--force');
 });
 
 it('reads split progress records and keeps download and install progress separate', async () => {

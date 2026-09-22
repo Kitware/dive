@@ -66,18 +66,18 @@ it('refreshes filesystem status when the desktop regains focus', async () => {
 it('starts an install and disables further installs while the job runs', async () => {
   const wrapper = mount(); await flush();
   await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!.trigger('click'); await flush();
-  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: undefined, force: false });
+  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: undefined });
   expect(wrapper.text()).toContain('Installing');
   const installButton = wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!;
   expect(installButton.attributes('disabled')).toBeDefined();
   wrapper.destroy();
 });
 
-it('passes downloaded ZIPs and explicit reinstall intent to the installer', async () => {
+it('passes downloaded ZIPs to the installer', async () => {
   catalog.addons[0].status = 'installed';
   const wrapper = mount(); await flush();
   await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Import Local ZIP')!.trigger('click'); await flush();
-  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: '/tmp/pack.zip', force: true });
+  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: '/tmp/pack.zip' });
   wrapper.destroy();
 });
 
