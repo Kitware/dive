@@ -2,6 +2,7 @@ import Track, { TrackSupportedFeature } from 'vue-media-annotator/track';
 import {
   headTailFeatures, isHeadTailPoint, spineIndex, spineName,
 } from 'vue-media-annotator/headTail';
+import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
 
 export function namedPoint(track: Track | undefined, frame: number, key: string) {
   const [feature] = track ? track.getFeature(frame) : [null];
@@ -12,6 +13,40 @@ function mappedPoint(track: Track | undefined, frame: number, key: string, camer
   const [feature] = track ? track.getFeature(frame) : [null];
   return feature?.geometry?.features.find((g) => g.geometry.type === 'Point'
     && g.properties?.stereoSource === camera && g.properties?.stereoKey === key);
+}
+
+/**
+ * What maps a whole detection to the other stereo camera: its head/tail
+ * line, else its polygon, else its box.
+ */
+export function detectionTransferJob(track: Track | undefined, frame: number, camera: string): StereoAnnotationCompleteParams | null {
+  const [feature] = track ? track.getFeature(frame) : [null];
+  if (!track || !feature?.bounds) return null;
+  const base = { camera, trackId: track.id, frameNum: frame };
+  const shapes = feature.geometry?.features ?? [];
+  const line = shapes.find((g) => g.geometry.type === 'LineString' && g.geometry.coordinates.length >= 2);
+  if (line?.geometry.type === 'LineString') {
+    return {
+      ...base, type: 'line', line: line.geometry.coordinates as [number, number][], key: line.properties?.key ?? '',
+    };
+  }
+  const polygon = shapes.find((g) => g.geometry.type === 'Polygon');
+  if (polygon?.geometry.type === 'Polygon') {
+    return {
+      ...base, type: 'polygon', polygon: polygon.geometry.coordinates[0] as [number, number][], key: polygon.properties?.key ?? '',
+    };
+  }
+  return { ...base, type: 'box', bounds: feature.bounds as [number, number, number, number] };
+}
+
+/** Named keypoints of a detection that the other camera's copy of it lacks. */
+export function unmappedPoints(source: Track | undefined, target: Track | undefined, frame: number) {
+  const [feature] = source ? source.getFeature(frame) : [null];
+  return (feature?.geometry?.features ?? []).flatMap((g) => {
+    const key = g.properties?.key;
+    if (g.geometry.type !== 'Point' || !key || namedPoint(target, frame, key)) return [];
+    return [{ key: key as string, point: g.geometry.coordinates as [number, number] }];
+  });
 }
 
 /** A missing point can be added even when the target detection already exists. */
