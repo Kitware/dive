@@ -1,3 +1,4 @@
+import type { SegmentationPolygon, Pipe, GlobalStyleSettings } from 'dive-common/apispec';
 import OS from 'os';
 import http from 'http';
 import fs from 'fs';
@@ -6,7 +7,6 @@ import {
   app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
-import type { Pipe, GlobalStyleSettings } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   ExportMulticamEverythingArgs,
@@ -439,6 +439,10 @@ export default function register() {
     await segService.ensureStarted(settings.get());
     return { success: true };
   });
+
+  ipcMain.handle('segmentation-polygon-keypoints', async (_, args: { polygon: [number, number][]; polygons?: SegmentationPolygon[] }) => (
+    getInteractiveServiceManager().polygonKeypoints(args.polygon, args.polygons)
+  ));
 
   ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
     const segService = getInteractiveServiceManager();

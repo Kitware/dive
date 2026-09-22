@@ -1,19 +1,20 @@
-import axios, { AxiosInstance } from 'axios';
-import { watch } from 'vue';
-
 import type {
+  SegmentationPolygon,
   AnnotationSchema,
   DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
   DatasetCalibrationResult, GlobalStyleSettings, FrameMetadataSourcesResponse,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+  SegmentationPolygonKeypointsResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
   PipelineJobResult,
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
   VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
 } from 'dive-common/apispec';
+import axios, { AxiosInstance } from 'axios';
+import { watch } from 'vue';
 
 import {
   fileVideoTypes, calibrationFileTypes,
@@ -541,6 +542,10 @@ async function segmentationInitialize(): Promise<{ success: boolean; noSamInstal
 // model (used by text query, which loads its own model lazily).
 async function segmentationEnsureStarted(): Promise<{ success: boolean }> {
   return invoke<{ success: boolean }>('segmentation-ensure-started');
+}
+
+async function segmentationPolygonKeypoints(polygon: [number, number][], polygons?: SegmentationPolygon[]): Promise<SegmentationPolygonKeypointsResponse> {
+  return invoke<SegmentationPolygonKeypointsResponse>('segmentation-polygon-keypoints', { polygon, polygons });
 }
 
 async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
@@ -1115,6 +1120,7 @@ export {
   segmentationInitialize,
   segmentationEnsureStarted,
   segmentationPredict,
+  segmentationPolygonKeypoints,
   segmentationStereoSegment,
   segmentationSetImage,
   segmentationClearImage,

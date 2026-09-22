@@ -31,6 +31,7 @@ import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
+import type { SegmentationPolygon } from 'dive-common/apispec';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
@@ -79,6 +80,17 @@ interface SetAnnotationStateArgs {
   recipeName?: string;
 }
 
+export type NewAnnotationGeometryParams = {
+  camera: string;
+  trackId: number;
+  frameNum: number;
+} & (
+  | { source: 'box'; bounds: [number, number, number, number] }
+  | { source: 'line'; line: [number, number][] }
+  | { source: 'points'; points: [number, number][] }
+  | { source: 'mask'; polygons: SegmentationPolygon[] }
+);
+
 export type StereoAnnotationCompleteParams =
   | { type: 'point'; camera: string; trackId: number; frameNum: number; point: [number, number]; key: string; insert?: boolean; }
   | { type: 'line'; camera: string; trackId: number; frameNum: number;
@@ -119,6 +131,7 @@ export default function useModeManager({
   isStereoscopicDataset,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
+  onNewAnnotationGeometry,
   onStereoSegmentationFinalize,
 }: {
     cameraStore: CameraStore;
@@ -137,6 +150,8 @@ export default function useModeManager({
     isStereoscopicDataset?: Ref<boolean>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
+    /** A brand-new detection just got its first shape (a box or a line). */
+    onNewAnnotationGeometry?: (params: NewAnnotationGeometryParams) => void;
     onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
   let creating = false;
@@ -801,8 +816,19 @@ export default function useModeManager({
         // create a new track in continuous detection mode and change
         // selectedTrackId
         const completedTrackId = selectedTrackId.value as number;
+        const wasCreating = creating;
 
         newTrackSettingsAfterLogic(track);
+
+        if (onNewAnnotationGeometry && wasCreating && !isEditingExisting) {
+          onNewAnnotationGeometry({
+            camera: selectedCamera.value,
+            trackId: completedTrackId,
+            frameNum,
+            source: 'box',
+            bounds: bounds as [number, number, number, number],
+          });
+        }
 
         // Stereo: emit box annotation complete
         if (onStereoAnnotationComplete && stereoInteractiveActive()) {
@@ -1002,8 +1028,20 @@ export default function useModeManager({
             // Capture track ID before newTrackSettingsAfterLogic which may
             // change selectedTrackId in continuous detection mode
             const completedTrackId = selectedTrackId.value;
+            const wasCreating = creating;
 
             newTrackSettingsAfterLogic(track);
+
+            if (onNewAnnotationGeometry && wasCreating && completedTrackId !== null
+                && data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2) {
+              onNewAnnotationGeometry({
+                camera: selectedCamera.value,
+                trackId: completedTrackId as number,
+                frameNum,
+                source: 'line',
+                line: data.geometry.coordinates as [number, number][],
+              });
+            }
 
             // Stereo: emit line or polygon annotation complete
             if (onStereoAnnotationComplete && stereoInteractiveActive()
@@ -1499,6 +1537,24 @@ export default function useModeManager({
   }
 
   /**
+   * A point-segmented mask is the first shape of a brand-new detection, so it
+   * gets the same auto-populate pass (head/tail from the mask) as a drawn box,
+   * again after every click that reshapes it. Refining an existing detection's
+   * mask does not.
+   */
+  function emitMaskGeometry(trackId: number, frameNum: number, polygons: SegmentationPolygon[]) {
+    if (!onNewAnnotationGeometry || polygons.length === 0
+      || preSegmentationFeatures.get(frameNum)?.hadFeature === true) return;
+    onNewAnnotationGeometry({
+      camera: selectedCamera.value,
+      trackId,
+      frameNum,
+      source: 'mask',
+      polygons,
+    });
+  }
+
+  /**
    * Store a mask's components as keyed polygons on the detection, dropping the
    * components of the previous prediction that this one no longer has.
    */
@@ -1585,6 +1641,8 @@ export default function useModeManager({
       mirrorFeatureToAlignedCameras(track.id, targetFrame);
 
       _nudgeEditingCanary();
+
+      if (result.controlPoints) emitMaskGeometry(track.id, targetFrame, components);
 
       // Interactive stereo: as soon as the left polygon is predicted, generate
       // the other-camera polygon + head/tail lines + measurement automatically,
