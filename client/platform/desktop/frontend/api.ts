@@ -764,6 +764,10 @@ interface StereoTransferLineResponse {
 }
 
 interface StereoMeasureLineRequest {
+  /** Frame identity for deferred multi-point measurement. */
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   leftLine: [number, number][];
   rightLine: [number, number][];
 }
