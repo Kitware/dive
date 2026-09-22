@@ -169,7 +169,7 @@ highest-scoring candidate, resizes and unpads its logits, and returns a binary
 mask at the original image size. Selecting first avoids upscaling all three
 alternatives. This graph runs through ONNX Runtime/WASM and can also be used by
 a desktop ONNX host; it has no DIVE or model-weight dependency. Its reproducible
-exporter is `samples/scripts/exportSamPostprocess.py` (`--check` validates against
+exporter is [VIAME’s `plugins/onnx/export_sam_postprocess.py`](https://github.com/VIAME/VIAME/blob/main/plugins/onnx/export_sam_postprocess.py) (`--check` validates against
 an OpenCV reference). DIVE converts the resulting mask into editable polygons
 and manages annotation state and stereo transfer.
 
@@ -198,7 +198,7 @@ using original-image pixel spacing even when the ONNX model has lower resolution
 This sampling now runs in the bundled `stereo_sample.onnx` graph: interpolation,
 finite/positive-value filtering, border clipping, percentile selection and valid
 fractions are shared numerical operations rather than DIVE-specific code. The
-weight-free exporter is `samples/scripts/exportStereoSampler.py` (`--check`
+weight-free exporter is [VIAME’s `plugins/onnx/export_stereo_sampler.py`](https://github.com/VIAME/VIAME/blob/main/plugins/onnx/export_stereo_sampler.py) (`--check`
 validates its reference behavior). It gathers only 49 neighbours per point and
 batches a line's eleven samples into one ONNX Runtime/WASM call, reusing cached
 dense disparity without rerunning the network or resizing the full map. The
