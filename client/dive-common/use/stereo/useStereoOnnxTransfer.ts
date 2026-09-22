@@ -568,10 +568,28 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     return counts;
   }
 
+  /**
+   * Where one point on `sourceCamera` lands on the other camera at `frameNum`,
+   * or null when the match is rejected or the stereo setup is incomplete.
+   * Used for linked panning, so it never reports errors to the user.
+   */
+  async function warpPoint(point: Point, sourceCamera: string, frameNum: number): Promise<Point | null> {
+    const otherCamera = getMultiCamList().find((c) => c !== sourceCamera);
+    if (!otherCamera || getMultiCamList().length !== 2) return null;
+    try {
+      const [result] = await warp([point], sourceCamera, otherCamera, frameNum);
+      return result?.accepted && Number.isFinite(result.x) && Number.isFinite(result.y)
+        ? [result.x, result.y] : null;
+    } catch {
+      return null;
+    }
+  }
+
   return {
     handleStereoAnnotationComplete,
     handleStereoTrackLinked,
     warpAllFromCamera,
+    warpPoint,
     measureAtFrame,
     precomputeFrame,
   };

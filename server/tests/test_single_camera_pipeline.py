@@ -139,3 +139,19 @@ def test_real_stereo_association(tmp_path):
     unmatched = [row[0] for row in left + right if 'crab' in row or 'shark' in row]
     assert len(set(unmatched)) == 2
     assert set(unmatched).isdisjoint({row[0] for row in left_fish})
+
+
+def test_worker_pairing_settings_match_desktop():
+    desktop = (
+        Path(__file__).parents[2] / 'client/dive-common/singleCamera/association.ts'
+    ).read_text()
+
+    def pairing_settings(pipeline):
+        pairing = pipeline.split('process pairing', 1)[1].split('connect from', 1)[0]
+        return dict(
+            line.strip()[1:].split(None, 1)
+            for line in pairing.splitlines()
+            if line.strip().startswith(':') and not line.strip().startswith('::')
+        )
+
+    assert pairing_settings(module.association_pipeline()) == pairing_settings(desktop)

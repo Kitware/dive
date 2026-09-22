@@ -38,6 +38,7 @@ function harness() {
     selectFeatureHandle: vi.fn((_index, selectedKey) => { key.value = selectedKey; }),
     registerFinalizeCreation: vi.fn(),
     cancelCreation: vi.fn(),
+    selectCamera: vi.fn(),
   };
   const rectangle = layer();
   const refresh = vi.fn();
@@ -122,7 +123,16 @@ it('allows switching to a polygon with the default empty key', () => {
   expect(h.mode.value).toBe('Polygon');
 });
 
-it('ignores another camera and non-polygon editing modes', () => {
+it('selects the clicked camera before navigating its polygons', () => {
+  const h = harness(); h.camera.value = 'right';
+  h.handler.selectCamera.mockImplementation((next: string) => { h.camera.value = next; });
+  h.click(21, 5); vi.runAllTimers();
+  expect(h.handler.selectCamera).toHaveBeenCalledExactlyOnceWith('left', false);
+  expect(h.key.value).toBe('second');
+  expect(h.mode.value).toBe('Polygon');
+});
+
+it('ignores a camera it cannot select and non-polygon editing modes', () => {
   const h = harness(); h.camera.value = 'right'; h.click(21, 5);
   h.camera.value = 'left'; h.mode.value = 'LineString'; h.click(21, 5);
   vi.runAllTimers();

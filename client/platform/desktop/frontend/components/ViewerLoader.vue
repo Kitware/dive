@@ -9,7 +9,7 @@ import {
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import { useRoute, useRouter } from 'vue-router/composables';
-import Viewer from 'dive-common/components/Viewer.vue';
+import Viewer, { StereoViewLinkParams } from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 import CalibrationMenu from 'dive-common/components/CalibrationMenu.vue';
@@ -1509,6 +1509,36 @@ export default defineComponent({
      *   result status instead — used by bulk import "Warp to All" so failures
      *   can be aggregated rather than cleared by the next job.
      */
+    /**
+     * Where `point` on `camera` lands on the other stereo camera, for linked
+     * panning. Uses whatever matcher the stereo service loaded; null when the
+     * service is off or the match is rejected.
+     */
+    async function stereoViewLink(params: StereoViewLinkParams): Promise<[number, number] | null> {
+      if (!stereoEnabled.value) return null;
+      const cameras = Object.keys(stereoImagePathGetters.value);
+      if (cameras.length !== 2 || !cameras.includes(params.camera)) return null;
+      if (!(await ensureStereoFrame(params.frameNum))) return null;
+      const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+      try {
+        const response = await stereoTransferPoints({
+          points: [params.point],
+          strict: true,
+          sourceCamera: params.camera === cameras[0] ? 'left' : 'right',
+          leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+          rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+          frameTime: fps ? params.frameNum / fps : undefined,
+        });
+        const point = response.transferredPoints?.[0];
+        if (!response.success || response.validMatches?.[0] !== true || !point?.every(Number.isFinite)) {
+          return null;
+        }
+        return [point[0], point[1]];
+      } catch {
+        return null;
+      }
+    }
+
     async function handleStereoAnnotationComplete(
       params: StereoAnnotationCompleteParams,
       forceAutoCompute = false,
@@ -1854,10 +1884,14 @@ export default defineComponent({
             if (first[0] !== last[0] || first[1] !== last[1]) {
               closedPolygon.push([...first] as [number, number]);
             }
+            // Same key as the source polygon, so polygon editing reaches both.
+            const [sourceFeature] = sourceTrack?.getFeature(params.frameNum) ?? [null];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sourceKey = sourceFeature?.geometry?.features.find((f: any) => f.geometry.type === 'Polygon')?.properties?.key ?? '';
             const segGeometry: GeoJSON.Feature[] = [{
               type: 'Feature',
               geometry: { type: 'Polygon', coordinates: [closedPolygon] },
-              properties: { key: '' },
+              properties: { key: sourceKey },
             }];
             const segBounds = response.bounds || [
               Math.min(...response.polygon.map((p: [number, number]) => p[0])),
@@ -2193,6 +2227,7 @@ export default defineComponent({
       stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
+      stereoViewLink,
       handleStereoWarpImported,
       handleStereoAnnotationReset,
       handleStereoSegmentationFinalize,
@@ -2220,6 +2255,7 @@ export default defineComponent({
       :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
+      :stereo-view-link="stereoViewLink"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
