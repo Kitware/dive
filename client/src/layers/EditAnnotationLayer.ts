@@ -170,9 +170,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   trackShiftKey(e: MouseEvent) {
     this.lastShiftKeyState = e.shiftKey;
-    // Also track middle-click (button 1) from native events for background points
-    if (e.button === 1 && this.type === 'Point' && this.getMode() === 'creation') {
-      this.lastClickWasBackground = true;
+    // Also track middle-click (button 1) from native events for background points.
+    // Every Point-mode layer hears this document-level event, but only the one
+    // under the cursor consumes it, so a left click must clear a flag left over
+    // from a middle click that landed on another camera or off the canvas.
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = e.button === 1;
     }
   }
 
