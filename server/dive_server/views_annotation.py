@@ -1,4 +1,3 @@
-import json
 from typing import List, Optional
 
 import cherrypy
@@ -9,10 +8,9 @@ from girder.constants import AccessType, TokenScope
 from girder.exceptions import RestException
 from girder.models.folder import Folder
 
-from dive_utils import constants, fromMeta, models, setContentDisposition
+from dive_utils import constants, fromMeta, setContentDisposition
 
-from . import crud, crud_annotation
-from dive_utils.serializers import kwcoco
+from . import crud, crud_annotation, crud_dataset
 
 DatasetModelParam = {
     'description': "dataset id",
@@ -128,6 +126,14 @@ class AnnotationResource(Resource):
             default=None,
             requireArray=True,
         )
+        .param(
+            "set",
+            "Annotation set to export (viame_csv only).  Default is the default set.",
+            paramType="query",
+            dataType="string",
+            default=None,
+            required=False,
+        )
     )
     def export(
         self,
@@ -136,8 +142,21 @@ class AnnotationResource(Resource):
         revisionId: int,
         format: str,
         typeFilter: Optional[List[str]],
+        set: Optional[str],
     ):
         crud.verify_dataset(folder)
+
+        if fromMeta(folder, constants.TypeMarker) == constants.MultiType:
+            gen = crud_dataset.export_multicam_annotations_zipstream(
+                folder,
+                self.getCurrentUser(),
+                format,
+                excludeBelowThreshold,
+                typeFilter,
+                revisionId,
+            )
+            setContentDisposition(f'{folder["name"]}.zip', mime='application/zip')
+            return gen
 
         if format == 'viame_csv':
             filename, gen = crud_annotation.get_annotation_csv_generator(
@@ -146,76 +165,29 @@ class AnnotationResource(Resource):
                 excludeBelowThreshold=excludeBelowThreshold,
                 typeFilter=typeFilter,
                 revision=revisionId,
+                set=set or None,
             )
             setContentDisposition(filename, mime='text/csv')
             return gen
         elif format == 'dive_json':
             setContentDisposition(f'{folder["name"]}.dive.json', mime='application/json')
             setRawResponse()
-            annotations = crud_annotation.get_annotations(folder, revision=revisionId)
-            tracks = annotations['tracks']
-            thresholds = None
-            if excludeBelowThreshold:
-                thresholds = fromMeta(folder, "confidenceFilters", {})
-            if thresholds is None:
-                thresholds = {}
-
-            updated_tracks = []
-            if typeFilter is None:
-                typeFilter = set()
-            print(tracks)
-            for t in tracks:
-                print(t)
-                print(tracks[t])
-                track = models.Track(**tracks[t])
-                if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds):
-                    # filter by types if applicable
-                    if typeFilter:
-                        confidence_pairs = [
-                            item for item in track.confidencePairs if item[0] in typeFilter
-                        ]
-                        # skip line if no confidence pairs
-                        if not confidence_pairs:
-                            continue
-                    updated_tracks.append(tracks[t])
-            annotations['tracks'] = updated_tracks
-            return json.dumps(annotations).encode('utf-8')
+            return crud_dataset._dive_json_export_text(
+                folder,
+                revisionId,
+                excludeBelowThreshold,
+                typeFilter,
+            ).encode('utf-8')
         elif format == 'coco_json':
             setContentDisposition(f'{folder["name"]}.coco.json', mime='application/json')
             setRawResponse()
-            annotations = crud_annotation.get_annotations(folder, revision=revisionId)
-            tracks = annotations['tracks']
-            thresholds = fromMeta(folder, "confidenceFilters", {}) if excludeBelowThreshold else {}
-            selected_types = set(typeFilter) if typeFilter else None
-            filtered_tracks = []
-            for track_data in tracks.values():
-                track = models.Track(**track_data)
-                if excludeBelowThreshold and not track.exceeds_thresholds(thresholds):
-                    continue
-                if selected_types:
-                    pairs = [pair for pair in track.confidencePairs if pair[0] in selected_types]
-                    if not pairs:
-                        continue
-                filtered_tracks.append(track_data)
-            image_filenames = {}
-            dataset_type = fromMeta(folder, constants.TypeMarker)
-            if dataset_type == constants.ImageSequenceType:
-                images = crud.valid_images(folder, self.getCurrentUser())
-                image_filenames = {i: image['name'] for i, image in enumerate(images)}
-            else:
-                # COCO has no canonical video container field. For video datasets we
-                # export per-frame placeholders using a deterministic naming scheme.
-                max_frame = -1
-                for track_data in filtered_tracks:
-                    for feature in track_data.get('features', []):
-                        max_frame = max(max_frame, feature.get('frame', -1))
-                image_filenames = {i: f'frame_{i:06d}.jpg' for i in range(max_frame + 1)}
-            coco = kwcoco.export_dive_as_coco(
-                filtered_tracks,
-                image_filenames=image_filenames,
-                dataset_name=folder['name'],
-            )
-            return json.dumps(coco).encode('utf-8')
+            return crud_dataset._coco_json_export_text(
+                folder,
+                self.getCurrentUser(),
+                revisionId,
+                excludeBelowThreshold,
+                typeFilter,
+            ).encode('utf-8')
         else:
             raise RestException(f'Format {format} is not a valid option.')
 

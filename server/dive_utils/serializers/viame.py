@@ -6,12 +6,13 @@ import csv
 import datetime
 import io
 import json
+import math
 import os
 import re
 from typing import Any, Dict, Generator, List, Optional, Tuple, Union
 
 from dive_utils import constants, types
-from dive_utils.models import Feature, Track, interpolate
+from dive_utils.models import Feature, GeoJSONFeature, Track, interpolate
 
 
 def format_timestamp(fps: int, frame: int) -> str:
@@ -63,6 +64,41 @@ def row_info(row: List[str]) -> Tuple[int, str, int, List[int], float]:
     return trackId, filename, frame, bounds, fish_length
 
 
+def _resolve_detection_length(
+    attributes: Optional[Dict[str, Any]],
+    fish_length_from_column: float,
+) -> Tuple[Dict[str, Any], Optional[float]]:
+    """Resolve length from attributes.length or the VIAME length column."""
+    attributes = dict(attributes or {})
+    attr_length: Optional[float] = None
+    if attributes and 'length' in attributes:
+        try:
+            candidate = float(attributes['length'])
+            if candidate > 0:
+                attr_length = candidate
+            elif candidate <= 0:
+                attributes.pop('length')
+        except (TypeError, ValueError):
+            attr_length = None
+
+    column_length = fish_length_from_column if fish_length_from_column > 0 else None
+    resolved = attr_length if attr_length is not None else column_length
+    if resolved is None:
+        return attributes or {}, None
+
+    return {**(attributes or {}), 'length': resolved}, resolved
+
+
+# A fully numeric string. float() alone is too permissive for attribute
+# values: it accepts underscore digit separators ('20240624_120000') and
+# inf/nan spellings, which corrupts filename-like values.
+NUMERIC_VALUE_REGEX = re.compile(r'[+-]?(?:\d+(?:\.\d*)?|\.\d+)(?:[eE][+-]?\d+)?')
+
+
+def _is_numeric_string(value: Any) -> bool:
+    return bool(NUMERIC_VALUE_REGEX.fullmatch(str(value).strip()))
+
+
 def _deduceType(value: Any) -> Union[bool, float, str, None]:
     if isinstance(value, dict) or isinstance(value, list):
         return None
@@ -73,18 +109,36 @@ def _deduceType(value: Any) -> Union[bool, float, str, None]:
         return True
     if value == "false":
         return False
-    try:
-        number = float(value)
-        return number
-    except ValueError:
-        return value
+    if isinstance(value, (int, float)):
+        return float(value)
+    if _is_numeric_string(value):
+        return float(value)
+    return value
 
 
-def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any], key=''):
+def get_next_polygon_key(features: Dict[str, Any]) -> str:
+    """Get the next available polygon key for a feature."""
+    if "geometry" not in features or not features["geometry"]["features"]:
+        return ''
+    # Count existing polygons to determine the next key
+    polygon_count = sum(
+        1 for f in features["geometry"]["features"] if f["geometry"]["type"] == "Polygon"
+    )
+    return str(polygon_count) if polygon_count > 0 else ''
+
+
+def create_geoJSONFeature(
+    features: Dict[str, Any], type: str, coords: List[Any], key='', auto_key=False
+):
     feature = {}
     if "geometry" not in features:
         features["geometry"] = {"type": "FeatureCollection", "features": []}
-    else:  # check for existing type/key pairs
+
+    # For polygons with auto_key, always create a new feature with a unique key
+    if type == 'Polygon' and auto_key:
+        key = get_next_polygon_key(features)
+    elif not auto_key:
+        # Check for existing type/key pairs (for non-polygon or explicit key)
         if features["geometry"]["features"]:
             for subfeature in features["geometry"]["features"]:
                 if (
@@ -93,18 +147,72 @@ def create_geoJSONFeature(features: Dict[str, Any], type: str, coords: List[Any]
                 ):
                     feature = subfeature
                     break
+
     if "geometry" not in feature:
         feature = {
             "type": "Feature",
             "properties": {"key": key},
             "geometry": {"type": type},
         }
+        features['geometry']['features'].append(feature)
     if type == 'Polygon':
         feature["geometry"]['coordinates'] = [coords]
     elif type in ["LineString", "Point"]:
         feature['geometry']['coordinates'] = coords
 
-    features['geometry']['features'].append(feature)
+    return key  # Return the key used (useful for auto-generated keys)
+
+
+def add_hole_to_polygon(features: Dict[str, Any], coords: List[Any], key=''):
+    """Add a hole to an existing polygon feature with the given key."""
+    if "geometry" not in features or not features["geometry"]["features"]:
+        return
+    for subfeature in features["geometry"]["features"]:
+        if subfeature["geometry"]["type"] == 'Polygon' and subfeature["properties"]["key"] == key:
+            # Add hole as additional ring to the polygon coordinates
+            subfeature["geometry"]["coordinates"].append(coords)
+            break
+
+
+def _coordinate_text(value):
+    value = float(value)
+    return str(int(value)) if value.is_integer() else repr(value)
+
+
+def _centerline_features(features):
+    """Serialize edited LineString vertices even when a JSON file has no markers."""
+    line = next(
+        (
+            f
+            for f in features
+            if f.geometry.type == 'LineString' and f.properties.get('key') == 'HeadTails'
+        ),
+        None,
+    )
+    if line is None or len(line.geometry.coordinates) < 2:
+        return features
+    points = line.geometry.coordinates
+    retained = [
+        f
+        for f in features
+        if not (
+            f.geometry.type == 'Point'
+            and (
+                f.properties.get('key') in ('head', 'tail')
+                or re.fullmatch(r'spine_0*[1-9][0-9]*', str(f.properties.get('key', '')))
+            )
+        )
+    ]
+    for i, point in enumerate(points):
+        key = 'head' if i == 0 else 'tail' if i == len(points) - 1 else f'spine_{i:03d}'
+        retained.append(
+            GeoJSONFeature(
+                type='Feature',
+                properties={'key': key},
+                geometry={'type': 'Point', 'coordinates': point},
+            )
+        )
+    return retained
 
 
 def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
@@ -125,19 +233,15 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
     start = 9 + len(sorted_confidence_pairs) * 2
 
     for j in range(start, len(row)):
-        # (kp) head x y
-        head_regex = re.match(r"^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)", row[j])
-        if head_regex:
-            point = [float(head_regex[1]), float(head_regex[2])]
-            head_tail.append(point)
-            create_geoJSONFeature(features, 'Point', point, 'head')
-
-        # (kp) tail x y
-        tail_regex = re.match(r"^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)", row[j])
-        if tail_regex:
-            point = [float(tail_regex[1]), float(tail_regex[2])]
-            head_tail.append(point)
-            create_geoJSONFeature(features, 'Point', point, 'tail')
+        # Preserve every named keypoint, including ordered centerline vertices.
+        kp = re.fullmatch(r"\(kp\)\s+(\S+)\s+(\S+)\s+(\S+)\s*", row[j])
+        if kp:
+            try:
+                point = [float(kp[2]), float(kp[3])]
+                if all(math.isfinite(v) for v in point):
+                    create_geoJSONFeature(features, 'Point', point, kp[1])
+            except ValueError:
+                pass
 
         # (atr) text
         atr_regex = re.match(r"^\(atr\) (.*?)\s(.+)", row[j])
@@ -149,44 +253,69 @@ def _parse_row(row: List[str]) -> Tuple[Dict, Dict, Dict, List, List]:
         if trk_regex:
             track_attributes[trk_regex[1]] = _deduceType(trk_regex[2])
 
-        # (poly) x1 y1 x2 y2 ...
-        poly_regex = re.match(r"^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
+        # (poly) x1 y1 x2 y2 ... - polygon (multiple allowed, auto-keyed internally)
+        # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
+        poly_regex = re.match(r"^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
         if poly_regex:
-            temp = [float(x) for x in poly_regex[2].split()]
-            coords = list(zip(temp[::2], temp[1::2]))
-            create_geoJSONFeature(features, 'Polygon', coords)
+            temp = [float(x) for x in poly_regex.group(1).split()]
+            coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
+            # Create new polygon with auto-generated key
+            create_geoJSONFeature(features, 'Polygon', coords, auto_key=True)
+
+        # (hole) x1 y1 x2 y2 ... - hole in the most recent polygon
+        hole_regex = re.match(r"^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)", row[j])
+        if hole_regex:
+            temp = [float(x) for x in hole_regex.group(1).split()]
+            coords = [[temp[i], temp[i + 1]] for i in range(0, len(temp), 2)]
+            # Add hole to the most recent polygon (last one added)
+            if "geometry" in features and features["geometry"]["features"]:
+                polygons = [
+                    f
+                    for f in features["geometry"]["features"]
+                    if f["geometry"]["type"] == "Polygon"
+                ]
+                if polygons:
+                    last_poly_key = polygons[-1]["properties"]["key"]
+                    add_hole_to_polygon(features, coords, last_poly_key)
 
         # (note) text
         note_regex = re.match(r"^\(note\)\s*(.+)", row[j])
         if note_regex:
             notes.append(note_regex[1])
 
-    if len(head_tail) == 2:
+    points = {
+        f['properties']['key']: f['geometry']['coordinates']
+        for f in features.get('geometry', {}).get('features', [])
+        if f['geometry']['type'] == 'Point'
+    }
+    if 'head' in points and 'tail' in points:
+        spine = sorted(
+            (k for k in points if re.fullmatch(r'spine_0*[1-9][0-9]*', k)), key=lambda k: int(k[6:])
+        )
+        head_tail = [points['head']] + [points[k] for k in spine] + [points['tail']]
         create_geoJSONFeature(features, 'LineString', head_tail, 'HeadTails')
 
-    # ensure confidence pairs list is not empty
-    if len(sorted_confidence_pairs) == 0:
-        # extract Detection or Length Confidence field
-        try:
-            confidence = float(row[7])
-        except ValueError:  # in case field is empty
-            confidence = 1.0
-
-        # add a dummy pair with a default type
-        sorted_confidence_pairs.append(('unknown', confidence))
-
     return features, attributes, track_attributes, sorted_confidence_pairs, notes
+
+
+def _fallback_confidence(row: List[str]) -> float:
+    try:
+        return float(row[7])
+    except (ValueError, IndexError):
+        return 1.0
 
 
 def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
     head_tail_feature, attributes, track_attributes, confidence_pairs, notes = _parse_row(row)
     _, _, frame, bounds, fishLength = row_info(row)
 
+    attributes, resolved_length = _resolve_detection_length(attributes, fishLength)
+
     feature = Feature(
         frame=frame,
         bounds=bounds,
         attributes=attributes or None,
-        fishLength=fishLength if fishLength > 0 else None,
+        fishLength=resolved_length,
         notes=notes if notes else None,
         **head_tail_feature,
     )
@@ -196,7 +325,7 @@ def _parse_row_for_tracks(row: List[str]) -> Tuple[Feature, Dict, Dict, List]:
 
 
 def create_attributes(
-    metadata_attributes: Dict[str, Dict[str, Any]],
+    metadata_attributes: types.Attributes,
     test_vals: Dict[str, Dict[str, int]],
     atr_type: str,
     key: str,
@@ -223,7 +352,7 @@ def create_attributes(
 
 
 def calculate_attribute_types(
-    metadata_attributes: Dict[str, Dict[str, Any]], test_vals: Dict[str, Dict[str, int]]
+    metadata_attributes: types.Attributes, test_vals: Dict[str, Dict[str, int]]
 ):
     # count all keys must have a value to convert to predefined
     predefined_min_count = 3
@@ -236,11 +365,8 @@ def calculate_attribute_types(
                 if val <= low_count:
                     low_count = val
                 values.append(key)
-                if attribute_type == 'number':
-                    try:
-                        float(key)
-                    except ValueError:
-                        attribute_type = 'boolean'
+                if attribute_type == 'number' and not _is_numeric_string(key):
+                    attribute_type = 'boolean'
                 if attribute_type == 'boolean' and key != 'True' and key != 'False':
                     attribute_type = 'text'
             # If all text values are used 3 or more times they are defined values
@@ -252,19 +378,19 @@ def calculate_attribute_types(
 
 def load_json_as_track_and_attributes(
     json_data: types.DIVEAnnotationSchema,
-) -> Tuple[types.DIVEAnnotationSchema, dict]:
+) -> Tuple[types.DIVEAnnotationSchema, types.Attributes]:
     """
     Load VIAME Track JSON and Computes Attributes
     """
     # Go through tracks and gather all attributes
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     tracks = json_data['tracks']
     # Get Attribute Maps to values
     for key, track in tracks.items():
         track_attributes = {}
         detection_attributes = {}
-        for attrkey, attribute in track['attributes'].items():
+        for attrkey, attribute in track.get('attributes', {}).items():
             track_attributes[attrkey] = _deduceType(attribute)
         for feature in track['features']:
             if 'attributes' in feature.keys():
@@ -285,10 +411,32 @@ def custom_sort(row):
         return (1, int(row[2]))
 
 
+def parse_metadata_row(row: List[str]) -> Dict[str, Any]:
+    """Parse a ``# metadata`` comment row back into a dict.
+
+    Mirror of :func:`writeHeader`, which writes each field as
+    ``f"{key}: {json.dumps(value)}"``. Keys are lower-cased so lookups tolerate
+    producer casing (e.g. native VIAME's ``fps:`` vs a capitalized ``Fps:``).
+    Values that are not valid JSON are kept as the raw, trimmed string.
+    """
+    metadata: Dict[str, Any] = {}
+    for field in row[1:]:  # skip the leading '# metadata' marker
+        key, sep, raw = field.partition(':')
+        if not sep:
+            continue
+        try:
+            metadata[key.strip().lower()] = json.loads(raw.strip())
+        except (json.JSONDecodeError, ValueError):
+            metadata[key.strip().lower()] = raw.strip()
+    return metadata
+
+
 def load_csv_as_tracks_and_attributes(
     rows: List[str],
     imageMap: Optional[Dict[str, int]] = None,
-) -> Tuple[types.DIVEAnnotationSchema, dict, List[str], Optional[str]]:
+) -> Tuple[
+    types.DIVEAnnotationSchema, types.Attributes, types.Warnings, Optional[str], types.DatasetInfo
+]:
     """
     Convert VIAME CSV to json tracks
 
@@ -297,22 +445,27 @@ def load_csv_as_tracks_and_attributes(
     """
     reader = csv.reader(row for row in rows)
     tracks: Dict[int, Track] = {}
-    metadata_attributes: Dict[str, Dict[str, Any]] = {}
+    metadata_attributes: types.Attributes = {}
     test_vals: Dict[str, Dict[str, int]] = {}
     multiFrameTracks = False
     missingImages: List[str] = []
     foundImages: List[Dict[str, Any]] = []  # {image:str, frame: int, csvFrame: int}
+    fallbackConfidence: Dict[int, float] = {}
     sortedlist = sorted(reader, key=custom_sort)
-    warnings: List[str] = []
+    warnings: types.Warnings = []
     fps = None
+    datasetInfo: types.DatasetInfo = {}
     for row in sortedlist:
         if len(row) == 0 or row[0].startswith('#'):
             # This is not a data row
             if len(row) > 0 and row[0] == '# metadata':
-                if row[1].startswith('Fps: '):
-                    fps_splits = row[1].split(':')
-                    if len(fps_splits) > 1:
-                        fps = fps_splits[1]
+                # Read back the `key: <json>` fields written by writeHeader.
+                # fps is matched case-insensitively (native VIAME writes lowercase `fps:`).
+                metadata_fields = parse_metadata_row(row)
+                if fps is None and metadata_fields.get('fps') is not None:
+                    fps = metadata_fields['fps']
+                if isinstance(metadata_fields.get('dataset_info'), dict):
+                    datasetInfo = metadata_fields['dataset_info']
             continue
         (
             feature,
@@ -359,13 +512,22 @@ def load_csv_as_tracks_and_attributes(
         track.begin = min(feature.frame, track.begin)
         track.end = max(track.end, feature.frame)
         track.features.append(feature)
-        track.confidencePairs = confidence_pairs
+        # Pairs may be written on only one row of a track; rows without
+        # pairs must not clobber those already seen.
+        if confidence_pairs:
+            track.confidencePairs = confidence_pairs
+        else:
+            fallbackConfidence[trackId] = _fallback_confidence(row)
 
         for key, val in track_attributes.items():
             track.attributes[key] = val
             create_attributes(metadata_attributes, test_vals, 'track', key, val)
         for key, val in attributes.items():
             create_attributes(metadata_attributes, test_vals, 'detection', key, val)
+
+    for track in tracks.values():
+        if not track.confidencePairs:
+            track.confidencePairs = [('unknown', fallbackConfidence.get(track.id, 1.0))]
 
     if imageMap and len(missingImages) and len(foundImages):
         minFrame = float('inf')
@@ -470,7 +632,7 @@ def load_csv_as_tracks_and_attributes(
         'groups': {},
         'version': constants.AnnotationsCurrentVersion,
     }
-    return annotations, metadata_attributes, warnings, fps
+    return annotations, metadata_attributes, warnings, fps, datasetInfo
 
 
 def export_tracks_as_csv(
@@ -482,16 +644,20 @@ def export_tracks_as_csv(
     header=True,
     typeFilter=None,
     revision=None,
+    datasetInfo: Optional[types.DatasetInfo] = None,
 ) -> Generator[str, None, None]:
     """
     Export track json to a CSV format.
 
-    :param excludeBelowThreshold: omit tracks below a certain confidence.  Requires thresholds.
+    :param excludeBelowThreshold: omit tracks and confidence pairs below a certain
+        confidence.  Requires thresholds.
     :param thresholds: key/value pairs with threshold values
     :param filenames: list of string file names.  filenames[n] should be the image at frame n
     :param fps: if FPS is set, column 2 will be video timestamp derived from (frame / fps)
     :param header: include or omit header
     :param typeFilter: set of track types to only export if not empty
+    :param datasetInfo: per-dataset station metadata; emitted as a nested ``dataset_info`` JSON
+        entry on the ``# metadata`` line when non-empty (omitted entirely when empty/absent)
     """
     if thresholds is None:
         thresholds = {}
@@ -506,87 +672,126 @@ def export_tracks_as_csv(
             metadata["fps"] = fps
         if revision is not None:
             metadata["revision"] = revision
+        if datasetInfo:
+            metadata["dataset_info"] = datasetInfo
         writeHeader(writer, metadata)
 
     for t in track_iterator:
         track = Track(**t)
-        if (not excludeBelowThreshold) or track.exceeds_thresholds(thresholds, typeFilter):
-            # filter by types if applicable
-            if typeFilter:
-                confidence_pairs = [item for item in track.confidencePairs if item[0] in typeFilter]
-                # skip line if no confidence pairs
-                if not confidence_pairs:
-                    continue
-            else:
-                confidence_pairs = track.confidencePairs
+        confidence_pairs = track.confidencePairs
+        if excludeBelowThreshold:
+            default_threshold = thresholds.get('default', 0)
+            confidence_pairs = [
+                pair
+                for pair in confidence_pairs
+                if pair[1] >= thresholds.get(pair[0], default_threshold)
+            ]
+        if typeFilter:
+            confidence_pairs = [pair for pair in confidence_pairs if pair[0] in typeFilter]
+        if not confidence_pairs:
+            continue
 
-            sorted_confidence_pairs = sorted(
-                confidence_pairs, key=lambda item: item[1], reverse=True
-            )
+        sorted_confidence_pairs = sorted(confidence_pairs, key=lambda item: item[1], reverse=True)
 
-            for index, keyframe in enumerate(track.features):
-                features = [keyframe]
+        for index, keyframe in enumerate(track.features):
+            features = [keyframe]
 
-                # If this is not the last keyframe, and interpolation is
-                # enabled for this keyframe, interpolate
-                if keyframe.interpolate and index < len(track.features) - 1:
-                    nextKeyframe = track.features[index + 1]
-                    # interpolate all features in [a,b)
-                    features = interpolate(keyframe, nextKeyframe)
+            # If this is not the last keyframe, and interpolation is
+            # enabled for this keyframe, interpolate
+            if keyframe.interpolate and index < len(track.features) - 1:
+                nextKeyframe = track.features[index + 1]
+                # interpolate all features in [a,b)
+                features = interpolate(keyframe, nextKeyframe)
 
-                for feature in features:
-                    columns = [
-                        track.id,
-                        "",
-                        feature.frame,
-                        *feature.bounds,
-                        sorted_confidence_pairs[0][1],
-                        feature.fishLength or -1,
-                    ]
+            for feature in features:
+                attributes = dict(feature.attributes or {})
+                attr_length: Optional[float] = None
+                if 'length' in attributes:
+                    try:
+                        candidate = float(attributes['length'])
+                        if candidate == candidate:
+                            attr_length = candidate
+                    except (TypeError, ValueError):
+                        attr_length = None
+                resolved_length = attr_length if attr_length is not None else feature.fishLength
+                export_length = (
+                    resolved_length
+                    if resolved_length is not None and resolved_length == resolved_length
+                    else -1
+                )
 
-                    # If FPS is set, column 2 will be video timestamp
-                    if fps is not None and fps > 0:
-                        columns[1] = format_timestamp(fps, feature.frame)
-                    # else if filenames is set, column 2 will be image file name
-                    elif filenames and feature.frame < len(filenames):
-                        columns[1] = filenames[feature.frame]
+                columns = [
+                    track.id,
+                    "",
+                    feature.frame,
+                    *feature.bounds,
+                    sorted_confidence_pairs[0][1],
+                    export_length,
+                ]
 
-                    for pair in sorted_confidence_pairs:
-                        columns.extend(list(pair))
+                # If FPS is set, column 2 will be video timestamp
+                if fps is not None and fps > 0:
+                    columns[1] = format_timestamp(fps, feature.frame)
+                # else if filenames is set, column 2 will be image file name
+                elif filenames and feature.frame < len(filenames):
+                    columns[1] = filenames[feature.frame]
 
-                    if feature.attributes:
-                        for key, val in feature.attributes.items():
-                            columns.append(f"(atr) {key} {valueToString(val)}")
+                for pair in sorted_confidence_pairs:
+                    columns.extend(list(pair))
 
-                    if track.attributes:
-                        for key, val in track.attributes.items():
-                            columns.append(f"(trk-atr) {key} {valueToString(val)}")
+                if resolved_length is not None and resolved_length == resolved_length:
+                    attributes['length'] = resolved_length
 
-                    if feature.geometry and "FeatureCollection" == feature.geometry.type:
-                        for geoJSONFeature in feature.geometry.features:
-                            if 'Polygon' == geoJSONFeature.geometry.type:
-                                # Coordinates need to be flattened out from their list of tuples
-                                coordinates = [
+                if attributes:
+                    for key, val in attributes.items():
+                        columns.append(f"(atr) {key} {valueToString(val)}")
+
+                if track.attributes:
+                    for key, val in track.attributes.items():
+                        columns.append(f"(trk-atr) {key} {valueToString(val)}")
+
+                if feature.geometry and "FeatureCollection" == feature.geometry.type:
+                    for geoJSONFeature in _centerline_features(feature.geometry.features):
+                        if 'Polygon' == geoJSONFeature.geometry.type:
+                            all_rings = geoJSONFeature.geometry.coordinates  # type: ignore
+
+                            # Write outer ring (first ring)
+                            if len(all_rings) > 0:
+                                outer_coords = [
                                     item
-                                    for sublist in geoJSONFeature.geometry.coordinates[
-                                        0
-                                    ]  # type: ignore
+                                    for sublist in all_rings[0]
                                     for item in sublist  # type: ignore
                                 ]
                                 columns.append(
-                                    f"(poly) {' '.join(map(lambda x: str(round(x)), coordinates))}"
+                                    "(poly) " + ' '.join(map(lambda x: str(round(x)), outer_coords))
                                 )
-                            if 'Point' == geoJSONFeature.geometry.type:
-                                coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
-                                columns.append(
-                                    f"(kp) {geoJSONFeature.properties['key']} "
-                                    f"{round(coordinates[0])} {round(coordinates[1])}"
-                                )
-                            # TODO: support for multiple GeoJSON Objects of the same type
-                            # once the CSV supports it
 
-                    writer.writerow(columns)
-                    yield csvFile.getvalue()
-                    csvFile.seek(0)
-                    csvFile.truncate(0)
+                                # Write holes (additional rings)
+                                for hole_ring in all_rings[1:]:
+                                    hole_coords = [
+                                        item
+                                        for sublist in hole_ring
+                                        for item in sublist  # type: ignore
+                                    ]
+                                    columns.append(
+                                        "(hole) "
+                                        + ' '.join(map(lambda x: str(round(x)), hole_coords))
+                                    )
+                        if 'Point' == geoJSONFeature.geometry.type:
+                            coordinates = geoJSONFeature.geometry.coordinates  # type: ignore
+                            columns.append(
+                                f"(kp) {geoJSONFeature.properties['key']} "
+                                f"{_coordinate_text(coordinates[0])} "
+                                f"{_coordinate_text(coordinates[1])}"
+                            )
+
+                # Emitted last, matching the desktop TypeScript serializer's
+                # column order so both exporters produce identical rows.
+                for note in feature.notes or []:
+                    columns.append(f"(note) {note}")
+
+                writer.writerow(columns)
+                yield csvFile.getvalue()
+                csvFile.seek(0)
+                csvFile.truncate(0)
     yield csvFile.getvalue()

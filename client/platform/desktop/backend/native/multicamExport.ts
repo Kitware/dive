@@ -1,0 +1,204 @@
+/**
+ * Multi-camera dataset export for the desktop backend.
+ */
+
+import npath from 'path';
+import os from 'os';
+import fs from 'fs-extra';
+import { createWriteStream } from 'fs';
+import archiver from 'archiver';
+import { omit } from 'lodash';
+
+import { MultiType } from 'dive-common/constants';
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
+import { buildPerCameraRegistrationFiles } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
+import {
+  Camera, ExportMulticamEverythingArgs, JsonConfig, Settings,
+} from 'platform/desktop/constants';
+import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
+import * as dive from 'platform/desktop/backend/serializers/dive';
+
+import {
+  ArchiveMetadataFolderName, getValidatedProjectDir, loadAnnotationFile, loadJsonConfig,
+} from './common';
+import {
+  findParentFolderCalibrationFile,
+  getDatasetCalibrationExportPath,
+} from './datasetCalibration';
+import {
+  loadEffectiveRegistration, referenceCameraName,
+} from './cameraRegistration';
+
+async function writeJsonFile(absPath: string, data: unknown): Promise<void> {
+  await fs.writeFile(absPath, JSON.stringify(data, null, 2));
+}
+
+/**
+ * Attachment locators never travel in an archive: `metadataFile` holds this machine's absolute
+ * path, which a re-import would read as a local file that does not exist there. The attachment
+ * itself travels as the single file in each scope's `metadata/` directory, which is where both
+ * importers look for it.
+ */
+function withoutMetadataAttachment<T extends JsonConfig | Camera>(scope: T) {
+  return omit(scope, ['metadataFile', 'metadataOriginalName']);
+}
+
+function buildExportMetaJson(meta: JsonConfig): Record<string, unknown> {
+  const output: Record<string, unknown> = withoutMetadataAttachment(meta);
+  if (meta.multiCam?.cameras) {
+    output.multiCam = {
+      ...meta.multiCam,
+      cameras: Object.fromEntries(
+        Object.entries(meta.multiCam.cameras).map(([cameraName, camera]) => [
+          cameraName, withoutMetadataAttachment(camera),
+        ]),
+      ),
+    };
+  }
+  if (meta.type === 'image-sequence') {
+    const files = meta.transcodedImageFiles?.length
+      ? meta.transcodedImageFiles
+      : meta.originalImageFiles?.map((filePath) => npath.basename(filePath)) ?? [];
+    output.imageData = files.map((filename) => ({ filename }));
+  } else if (meta.type === 'video') {
+    const filename = meta.transcodedVideoFile || meta.originalVideoFile;
+    if (filename) {
+      output.video = { filename };
+    }
+  }
+  return output;
+}
+
+async function writeDatasetExportContents(
+  settings: Settings,
+  destDir: string,
+  datasetId: string,
+  excludeBelowThreshold: boolean,
+  typeFilter: Set<string>,
+  includeHierarchy = true,
+): Promise<void> {
+  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+  const meta = await loadJsonConfig(projectDirInfo.datasetFileAbsPath);
+  const data = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+  const serializeOptions = {
+    excludeBelowThreshold,
+    header: true,
+  };
+
+  await fs.ensureDir(destDir);
+  const exportMeta = buildExportMetaJson(meta);
+  if (!includeHierarchy) {
+    delete exportMeta.typeHierarchy;
+  }
+  if (meta.metadataFile) {
+    if (!await fs.pathExists(meta.metadataFile)) {
+      throw new Error(`Metadata attachment is missing: ${meta.metadataFile}`);
+    }
+    const metadataName = npath.basename(meta.metadataOriginalName ?? meta.metadataFile);
+    const metadataDir = npath.join(destDir, ArchiveMetadataFolderName);
+    await fs.ensureDir(metadataDir);
+    await fs.copy(meta.metadataFile, npath.join(metadataDir, metadataName));
+  }
+  await fs.writeJSON(npath.join(destDir, 'config.json'), exportMeta, { spaces: 2 });
+  await dive.serializeFile(
+    npath.join(destDir, 'annotations.dive.json'),
+    data,
+    meta,
+    typeFilter,
+    serializeOptions,
+  );
+  await viameSerializers.serializeFile(
+    npath.join(destDir, 'annotations.viame.csv'),
+    data,
+    meta,
+    typeFilter,
+    serializeOptions,
+  );
+}
+
+async function zipDirectory(sourceDir: string, destZipPath: string): Promise<void> {
+  await new Promise<void>((resolve, reject) => {
+    const output = createWriteStream(destZipPath);
+    const archive = archiver('zip', { zlib: { level: 9 } });
+    output.on('close', () => resolve());
+    output.on('error', reject);
+    archive.on('error', reject);
+    archive.pipe(output);
+    archive.directory(sourceDir, false);
+    archive.finalize();
+  });
+}
+
+// eslint-disable-next-line import/prefer-default-export -- single RPC export helper
+export async function exportMulticamEverything(
+  settings: Settings,
+  args: ExportMulticamEverythingArgs,
+): Promise<string> {
+  const parentId = args.id.split('/')[0];
+  const parentDirInfo = await getValidatedProjectDir(settings, parentId);
+  const parentMeta = await loadJsonConfig(parentDirInfo.datasetFileAbsPath);
+  if (parentMeta.type !== MultiType || !parentMeta.multiCam) {
+    throw new Error('Everything export is only available for multi-camera datasets.');
+  }
+
+  const cameraNames = orderedMultiCamCameraNames({
+    cameras: parentMeta.multiCam.cameras,
+    defaultDisplay: parentMeta.multiCam.defaultDisplay,
+  });
+  if (!cameraNames.length) {
+    throw new Error('Multi-camera dataset does not list any cameras.');
+  }
+
+  const tempDir = await fs.mkdtemp(npath.join(os.tmpdir(), 'dive-export-'));
+  try {
+    const datasetDir = npath.join(tempDir, parentMeta.name);
+    await fs.ensureDir(datasetDir);
+    await fs.writeJSON(
+      npath.join(datasetDir, 'multiCam.json'),
+      buildExportMetaJson(parentMeta).multiCam,
+      { spaces: 2 },
+    );
+    await writeDatasetExportContents(
+      settings,
+      datasetDir,
+      parentId,
+      args.exclude,
+      args.typeFilter,
+    );
+
+    const calibrationPath = await getDatasetCalibrationExportPath(settings, parentId)
+      ?? await findParentFolderCalibrationFile(parentDirInfo.basePath);
+    if (calibrationPath && await fs.pathExists(calibrationPath)) {
+      const calibrationName = parentMeta.multiCam.calibrationOriginalName
+        ?? npath.basename(calibrationPath);
+      await fs.copy(calibrationPath, npath.join(datasetDir, calibrationName));
+    }
+
+    // Regenerate the camera registration as its per-camera files so the
+    // zip carries it even when only the import-time seed exists.
+    const rigRegistration = await loadEffectiveRegistration(parentDirInfo.basePath, parentMeta);
+    await Promise.all(
+      buildPerCameraRegistrationFiles(rigRegistration, referenceCameraName(parentMeta)).map(
+        (file) => writeJsonFile(npath.join(datasetDir, file.name), file.body),
+      ),
+    );
+
+    for (let i = 0; i < cameraNames.length; i += 1) {
+      const cameraName = cameraNames[i];
+      // eslint-disable-next-line no-await-in-loop
+      await writeDatasetExportContents(
+        settings,
+        npath.join(datasetDir, cameraName),
+        `${parentId}/${cameraName}`,
+        args.exclude,
+        args.typeFilter,
+        false,
+      );
+    }
+
+    await zipDirectory(tempDir, args.path);
+  } finally {
+    await fs.remove(tempDir);
+  }
+  return args.path;
+}

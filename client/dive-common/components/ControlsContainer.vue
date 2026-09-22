@@ -14,11 +14,14 @@ import {
   Timeline,
 } from 'vue-media-annotator/components';
 import { clientSettings } from 'dive-common/store/settings';
+import context from 'dive-common/store/context';
 import {
   useHandler,
   useAttributesFilters,
+  useCameraRegistration,
   useCameraStore,
   useSelectedCamera,
+  useTime,
 } from '../../src/provides';
 
 export default defineComponent({
@@ -126,16 +129,82 @@ export default defineComponent({
       handler.trackSelect(trackId, false, modifiers);
     }
 
+    const aggregateController = injectAggregateController();
     const {
-      maxFrame, frame, seek, volume, setVolume, setSpeed, speed,
-    } = injectAggregateController().value;
+      volume, setVolume, setSpeed, speed,
+    } = aggregateController.value;
+    /**
+     * Registration-frame markers for the Timeline work-area, shown ONLY
+     * while the Camera Registration panel is open (the same signal the
+     * viewer's registrationActive keys off) -- outside that tab the timeline
+     * stays exactly as it is today.
+     *
+     * Observation frames are camA-local, but the Timeline draws in the
+     * SELECTED camera's local frame space. Those two spaces only coincide
+     * when the rig drops no frames (or when camA happens to be selected):
+     * a rig whose cameras drop frames independently accumulates an offset,
+     * putting every marker a frame or two off. Translate through the aligned
+     * timeline, and drop markers whose capture has no frame on the selected
+     * camera -- there is no honest place to draw those.
+     */
+    const cameraRegistration = useCameraRegistration();
+    const registrationMarkers = computed(() => {
+      if (context.state.active !== 'CameraRegistration') {
+        return [];
+      }
+      const key = cameraRegistration.activePairKey();
+      // Touch observations so edits recompute the markers.
+      // eslint-disable-next-line no-void
+      void cameraRegistration.observations.value;
+      if (!key) {
+        return [];
+      }
+      const [camA] = key.split('::');
+      const target = selectedCamera.value;
+      return cameraRegistration.framesForPair(key)
+        // Only frames that actually carry points. A producer records the
+        // candidates it considered and discarded too (auto-register proposes
+        // more frames than it matches, then prunes) -- those have no points
+        // and nothing to toggle, so a marker for them is just noise on the
+        // scrubber. The frame list still lists them with their skip reason.
+        .filter((row) => row.frame !== null && row.count > 0)
+        .map((row) => ({
+          frame: aggregateController.value.translateCameraFrame(camA, row.frame as number, target),
+          enabled: row.enabled,
+        }))
+        .filter((marker): marker is { frame: number; enabled: boolean } => (
+          marker.frame !== undefined
+        ));
+    });
+    // The timeline charts (line/event charts) are built from trackStores in
+    // the selected camera's own local frame space. Under an aligned timeline
+    // (SEAL feature 5) the aggregate controller's frame/maxFrame/seek operate
+    // in global slot space, which diverges from local frames -- so the
+    // playhead, axis extent, and chart click-seeks all stay in local space:
+    // time.frame + the selected camera's maxFrame, with seeks translated
+    // through seekCameraFrame. All three are passthroughs when alignment
+    // isn't active. (Controls.vue's main scrubber correctly stays in global
+    // space; mixing that maxFrame here with a local playhead caused drift.)
+    const { frame: localFrame } = useTime();
+    const timelineMaxFrame = computed(() => {
+      try {
+        return aggregateController.value.getController(selectedCamera.value).maxFrame.value;
+      } catch {
+        // Selected camera's annotator hasn't mounted yet (e.g. mid load);
+        // fall back to the aggregate max rather than throwing.
+        return aggregateController.value.maxFrame.value;
+      }
+    });
+    function seekToFrame(frame: number) {
+      aggregateController.value.seekCameraFrame(selectedCamera.value, frame);
+    }
     return {
       currentView,
       toggleView,
-      maxFrame,
+      maxFrame: timelineMaxFrame,
       multiCam,
-      frame,
-      seek,
+      frame: localFrame,
+      seek: seekToFrame,
       volume,
       setVolume,
       speed,
@@ -143,6 +212,7 @@ export default defineComponent({
       ticks,
       hasGroups,
       attributeData,
+      registrationMarkers,
       timelineEnabled,
       activeCountSettings,
       clientSettings,
@@ -159,7 +229,7 @@ export default defineComponent({
   <v-col
     dense
     :style="bottomLayout
-      ? 'position: relative; padding: 0px; margin: 0px; width: 100%;'
+      ? 'position: relative; padding: 0px; margin: 0px; width: 100%; height: 100%; display: flex; flex-direction: column; min-height: 0;'
       : 'position: absolute; bottom: 0px; padding: 0px; margin: 0px;'"
   >
     <Controls
@@ -169,7 +239,7 @@ export default defineComponent({
       :wrap-bottom-controls="wrapBottomControls"
     >
       <template slot="timelineControls">
-        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: '100%' }">
+        <div :style="{ 'min-width': bottomLayout && wrapBottomControls ? 'auto' : '270px', 'white-space': 'nowrap', width: bottomLayout && wrapBottomControls ? 'auto' : '100%' }">
           <v-tooltip
             v-if="!bottomLayout || !wrapBottomControls"
             open-delay="200"
@@ -319,24 +389,13 @@ export default defineComponent({
           </v-btn>
         </div>
       </template>
-      <template #bottomControlsActivator="{ activatorId }">
-        <v-btn
-          v-if="bottomLayout && wrapBottomControls"
-          :id="activatorId"
-          icon
-          small
-          class="ml-1"
-          title="Timeline controls"
-        >
-          <v-icon>mdi-tune-variant</v-icon>
-        </v-btn>
-      </template>
       <template #middle>
         <div :class="{ 'middle-content-bottom': bottomLayout }">
           <file-name-time-display
-            v-if="datasetType === 'image-sequence' || datasetType === 'large-image'"
-            class="text-middle px-3"
+            v-if="datasetType === 'image-sequence' || datasetType === 'large-image' || datasetType === 'multi'"
+            :class="bottomLayout ? 'filename-toolbar' : 'text-middle px-3'"
             display-type="filename"
+            :truncate-filename="bottomLayout"
           />
           <span v-else-if="datasetType === 'video'">
             <span class="mr-2">
@@ -452,6 +511,8 @@ export default defineComponent({
       :frame="frame"
       :display="!collapsed"
       :dataset-type="datasetType"
+      :bottom-layout="bottomLayout"
+      :markers="registrationMarkers"
       @seek="seek"
     >
       <template
@@ -499,7 +560,7 @@ export default defineComponent({
           :start-frame="startFrame"
           :end-frame="endFrame"
           :max-frame="endFrame"
-          :data="attributeData.data"
+          :data="attributeData ? attributeData.data : []"
           :client-width="clientWidth"
           :client-height="clientHeight"
           :margin="margin"
@@ -524,15 +585,15 @@ export default defineComponent({
 }
 .middle-content-bottom {
   display: flex;
-  align-items: center;
+  align-items: baseline;
   white-space: nowrap;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: visible;
   min-width: 0;
 }
-.middle-content-bottom .text-middle {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  flex-shrink: 1;
+.middle-content-bottom .filename-toolbar {
+  flex: 1 1 auto;
   min-width: 0;
+  max-width: 100%;
 }
 </style>

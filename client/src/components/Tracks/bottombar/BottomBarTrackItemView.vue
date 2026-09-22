@@ -10,14 +10,15 @@ import {
   useReadOnlyMode,
   useTrackFilters,
 } from '../../../provides';
-import Track from '../../../track';
+import type { TrackProjection } from '../../../TrackProjection';
 
 export default defineComponent({
   name: 'BottomBarTrackItemView',
   components: { TooltipBtn },
   props: {
-    track: { type: Object as PropType<Track>, required: true },
+    track: { type: Object as PropType<TrackProjection>, required: true },
     trackType: { type: String, required: true },
+    displayPairIndex: { type: Number, required: true },
     itemStyle: { type: Object, required: true },
     color: { type: String, required: true },
     lockTypes: { type: Boolean, default: false },
@@ -33,7 +34,8 @@ export default defineComponent({
   setup(props) {
     const handler = useHandler();
     const readOnlyMode = useReadOnlyMode();
-    const { allTypes } = useTrackFilters();
+    const trackFilters = useTrackFilters();
+    const { allTypes } = trackFilters;
     const cameraStore = useCameraStore();
 
     const editingType = ref(false);
@@ -58,10 +60,9 @@ export default defineComponent({
     });
 
     const topConfidence = computed(() => {
-      if (props.track.revision.value !== undefined
-          && props.track.confidencePairs
+      if (props.track.confidencePairs
           && props.track.confidencePairs.length > 0) {
-        return props.track.confidencePairs[0][1];
+        return props.track.confidencePairs[props.displayPairIndex]?.[1] ?? null;
       }
       return null;
     });
@@ -70,11 +71,9 @@ export default defineComponent({
       if (localNotesDisplay.value) {
         return localNotesDisplay.value;
       }
-      if (props.track.revision.value !== undefined) {
-        const feature = props.track.features[props.track.begin];
-        if (feature && feature.notes && feature.notes.length > 0) {
-          return feature.notes.join(', ');
-        }
+      const feature = props.track.features[props.track.begin];
+      if (feature && feature.notes && feature.notes.length > 0) {
+        return feature.notes.join(', ');
       }
       return '';
     });
@@ -103,8 +102,6 @@ export default defineComponent({
       if (localAttributeDisplay.value[attrKey]) {
         return localAttributeDisplay.value[attrKey];
       }
-
-      if (props.track.revision.value === undefined) return '';
 
       if (attrKey.startsWith('track_')) {
         const name = attrKey.replace('track_', '');
@@ -148,7 +145,11 @@ export default defineComponent({
     function saveType() {
       if (editTypeValue.value.trim() && editTypeValue.value !== props.trackType) {
         const confidence = topConfidence.value !== null ? topConfidence.value : 1;
-        props.track.setType(editTypeValue.value.trim(), confidence, props.trackType);
+        cameraStore.assignTrackType(props.track.id, editTypeValue.value.trim(), {
+          hierarchyIndex: trackFilters.hierarchyIndex.value,
+          replaceType: props.trackType,
+          confidence,
+        });
       }
       editingType.value = false;
     }
@@ -171,7 +172,7 @@ export default defineComponent({
     function saveConfidence() {
       const val = parseFloat(editConfidenceValue.value);
       if (!Number.isNaN(val) && val >= 0 && val <= 1) {
-        cameraStore.setTrackType(props.track.id, props.trackType, val);
+        cameraStore.setTrackPairConfidence(props.track.id, props.trackType, val);
       }
       editingConfidence.value = false;
     }
@@ -193,7 +194,7 @@ export default defineComponent({
 
     function saveNotes() {
       const newNotes = editNotesValue.value.trim();
-      props.track.setFeatureNotes(props.track.begin, newNotes);
+      cameraStore.setTrackNotes(props.track.id, newNotes);
       localNotesDisplay.value = newNotes;
       editingNotes.value = false;
     }
@@ -222,9 +223,13 @@ export default defineComponent({
       const actualKey = attrKey.replace(/^(track_|detection_)/, '');
 
       if (isTrackAttr) {
-        props.track.setAttribute(actualKey, newValue || undefined);
+        cameraStore.setTrackAttribute(props.track.id, actualKey, newValue || undefined);
       } else {
-        props.track.setFeatureAttribute(props.track.begin, actualKey, newValue || undefined);
+        cameraStore.setTrackFirstFeatureAttribute(
+          props.track.id,
+          actualKey,
+          newValue || undefined,
+        );
       }
 
       localAttributeDisplay.value[attrKey] = newValue;

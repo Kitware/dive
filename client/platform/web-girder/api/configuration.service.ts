@@ -1,3 +1,5 @@
+import type { AxiosProgressEvent } from 'axios';
+
 import { Pipelines, TrainingConfigs } from 'dive-common/apispec';
 import girderRest from 'platform/web-girder/plugins/girder';
 
@@ -9,6 +11,17 @@ export interface BrandData {
   loginMessage?: string;
   alertMessage?: string;
   trainingMessage?: string;
+}
+
+/** The served Fast-FoundationStereo export, as `dive_configuration/stereo_foundation_model/spec` reports it. */
+export interface StereoFoundationModelSpec {
+  name: string;
+  url: string;
+  md5: string;
+  /** Input size from the ONNX list or a sidecar yaml; null when unknown (read from the graph instead). */
+  height: number | null;
+  width: number | null;
+  size: number;
 }
 
 export interface StatsResponse {
@@ -50,7 +63,16 @@ export interface DiveConfiguration {
   distributedWorker?: string;
   pipelinesEnabled?: boolean;
   trainingEnabled?: boolean;
+  jobsDisabled?: boolean;
+  jobsDisabledMessage?: string;
 }
+
+export interface JobsDisabledConfig {
+  disabled: boolean;
+  message: string;
+}
+
+export const DEFAULT_JOBS_DISABLED_MESSAGE = 'Updates will be happening soon, we are disabling jobs until after the updates';
 
 function getConfig() {
   return girderRest.get<DiveConfiguration>('dive_configuration');
@@ -64,6 +86,10 @@ function putBrandData(brandData: BrandData) {
   return girderRest.put('dive_configuration/brand_data', brandData);
 }
 
+function putJobsDisabled(config: JobsDisabledConfig) {
+  return girderRest.put<JobsDisabledConfig>('dive_configuration/jobs_disabled', config);
+}
+
 function getPipelineList() {
   return girderRest.get<Pipelines>('dive_configuration/pipelines');
 }
@@ -74,6 +100,36 @@ function getTrainingConfigurations() {
 
 function getAddons() {
   return girderRest.get<AddOns>('dive_configuration/addons');
+}
+
+export interface ImagerySize {
+  width: number;
+  height: number;
+}
+
+/** `imagery` lets the server pick the export whose input fits the frames. */
+function getStereoFoundationModelSpec(imagery?: ImagerySize) {
+  return girderRest.get<StereoFoundationModelSpec>('dive_configuration/stereo_foundation_model/spec', {
+    params: imagery,
+  });
+}
+
+/**
+ * `onProgress` reports downloaded bytes so the caller can show a determinate
+ * bar for the ~100 MB export. `total` is absent when the length is not
+ * computable, e.g. a proxy re-encoded the stream.
+ */
+function getStereoFoundationModel(
+  imagery?: ImagerySize,
+  onProgress?: (loaded: number, total?: number) => void,
+) {
+  return girderRest.get<ArrayBuffer>('dive_configuration/stereo_foundation_model', {
+    responseType: 'arraybuffer',
+    params: imagery,
+    onDownloadProgress: onProgress
+      ? (event: AxiosProgressEvent) => onProgress(event.loaded, event.total)
+      : undefined,
+  });
 }
 
 function postAddons(urls: string[], forceDownload: boolean) {
@@ -99,9 +155,12 @@ export {
   getBrandData,
   getConfig,
   putBrandData,
+  putJobsDisabled,
   getPipelineList,
   getTrainingConfigurations,
   getAddons,
+  getStereoFoundationModelSpec,
+  getStereoFoundationModel,
   postAddons,
   updateContainers,
   getStats,

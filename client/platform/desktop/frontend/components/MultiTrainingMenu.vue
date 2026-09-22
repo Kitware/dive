@@ -12,14 +12,19 @@ import {
   watch,
 } from 'vue';
 import {
-  DatasetMeta, Pipelines, TrainingConfigs, useApi, Pipe,
+  Pipelines, TrainingConfigs, useApi, Pipe,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
+import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
 
-import { useRouter } from 'vue-router/composables';
-import { datasets } from '../store/dataset';
+import { useRoute, useRouter } from 'vue-router/composables';
+import { DesktopJob, RunTraining } from 'platform/desktop/constants';
+import {
+  listResumableTrainingJobs, resumeTraining, discardResumableTraining,
+} from '../api';
+import { datasets, JsonConfigCache } from '../store/dataset';
 
 function joinPath(dir: string, filename: string) {
   const separator = dir.includes('\\') ? '\\' : '/';
@@ -27,12 +32,14 @@ function joinPath(dir: string, filename: string) {
 }
 
 export default defineComponent({
+  components: { DatasetPicker },
   setup() {
     const {
       runTraining, getPipelineList, deleteTrainedPipeline, getTrainingConfigurations, exportTrainedPipeline,
     } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
+    const route = useRoute();
 
     const unsortedPipelines = ref({} as Pipelines);
     const labelFile = ref(null as File | null);
@@ -56,6 +63,54 @@ export default defineComponent({
       unsortedPipelines.value = await getPipelineList();
     });
 
+    /* Stage dataset ids handed off by another page (e.g. the Library selection). */
+    onBeforeMount(() => {
+      const query = route.query.datasetIds;
+      const values = Array.isArray(query) ? query : [query];
+      values
+        .flatMap((value) => (value || '').split(','))
+        .forEach((id) => {
+          const meta = datasets.value[id];
+          if (meta && meta.subType === null) {
+            set(data.stagedItems, id, meta);
+          }
+        });
+    });
+    const resumableJobs = ref([] as DesktopJob[]);
+
+    async function refreshResumable() {
+      resumableJobs.value = await listResumableTrainingJobs();
+    }
+    onBeforeMount(refreshResumable);
+
+    const resumableItems = computed(() => resumableJobs.value.map((job) => ({
+      job,
+      title: job.title,
+      config: (job.args as RunTraining).trainingConfig,
+      datasetCount: job.datasetIds.length,
+      started: job.startTime ? new Date(job.startTime).toLocaleString() : '',
+    })));
+
+    async function resumeJob(job: DesktopJob) {
+      await resumeTraining(job);
+      router.push({ name: 'jobs' });
+    }
+
+    async function discardJob(job: DesktopJob) {
+      const confirmDiscard = await prompt({
+        title: `Discard "${job.title}" training run`,
+        text: 'Delete this run\'s intermediate training files? This cannot be undone.',
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!confirmDiscard) {
+        return;
+      }
+      await discardResumableTraining(job);
+      await refreshResumable();
+    }
+
     const trainedPipelines = computed(() => {
       if (unsortedPipelines.value.trained) {
         return unsortedPipelines.value.trained.pipes.map((item) => item.name);
@@ -75,7 +130,7 @@ export default defineComponent({
     ];
 
     const data = reactive({
-      stagedItems: {} as Record<string, DatasetMeta>,
+      stagedItems: {} as Record<string, JsonConfigCache>,
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
       fineTuneTraining: false,
@@ -133,7 +188,7 @@ export default defineComponent({
       return [];
     });
 
-    function toggleStaged(meta: DatasetMeta) {
+    function toggleStaged(meta: JsonConfigCache) {
       if (data.stagedItems[meta.id]) {
         del(data.stagedItems, meta.id);
       } else {
@@ -141,13 +196,25 @@ export default defineComponent({
       }
     }
     const availableItems = computed(() => Object.values(datasets.value)
-      .filter((item) => item.subType === null)
-      .map((item) => ({
-        ...item,
-        included: item.id in data.stagedItems,
-      })));
+      .filter((item) => item.subType === null));
 
     const stagedItems = computed(() => Object.values(data.stagedItems));
+
+    const stagedIds = computed(() => Object.keys(data.stagedItems));
+
+    /** Stage the picked datasets that are not staged yet. */
+    function stageIds(ids: string[]) {
+      ids.forEach((id) => {
+        const meta = datasets.value[id];
+        if (meta && !data.stagedItems[id]) toggleStaged(meta);
+      });
+    }
+
+    function unstageIds(ids: string[]) {
+      ids.forEach((id) => {
+        if (data.stagedItems[id]) toggleStaged(data.stagedItems[id]);
+      });
+    }
 
     const isReadyToTrain = computed(() => (
       stagedItems.value.length > 0
@@ -170,7 +237,8 @@ export default defineComponent({
           unsortedPipelines.value = await getPipelineList();
         } catch (err) {
           let text = 'Unable to delete model';
-          if (err.response?.status === 403) text = 'You do not have permission to delete the selected resource(s).';
+          const deleteErr = err as { response?: { status?: number } };
+          if (deleteErr.response?.status === 403) text = 'You do not have permission to delete the selected resource(s).';
           prompt({
             title: 'Delete Failed',
             text,
@@ -201,8 +269,9 @@ export default defineComponent({
         }
       } catch (err) {
         const errorTemplate = 'Unable to export model';
+        const exportErr = err as { response?: { status?: number } };
         let text = `${errorTemplate}: ${err}`;
-        if (err.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
+        if (exportErr.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
         prompt({
           title: 'Export Failed',
           text,
@@ -230,7 +299,8 @@ export default defineComponent({
         router.push({ name: 'jobs' });
       } catch (err) {
         let text = 'Unable to run training';
-        if (err.response && err.response.status === 403) {
+        const trainingErr = err as { response?: { status?: number } };
+        if (trainingErr.response && trainingErr.response.status === 403) {
           text = 'You do not have permission to run training on the selected resource(s).';
         }
         prompt({
@@ -241,20 +311,66 @@ export default defineComponent({
       }
     }
 
+    const resumableHeaders: DataTableHeader[] = [
+      {
+        text: 'Name',
+        value: 'title',
+        sortable: true,
+      },
+      {
+        text: 'Configuration',
+        value: 'config',
+        sortable: true,
+      },
+      {
+        text: 'Datasets',
+        value: 'datasetCount',
+        sortable: false,
+        width: 100,
+      },
+      {
+        text: 'Started',
+        value: 'started',
+        sortable: true,
+        width: 200,
+      },
+      {
+        text: 'Resume',
+        value: 'resume',
+        sortable: false,
+        width: 90,
+      },
+      {
+        text: 'Discard',
+        value: 'discard',
+        sortable: false,
+        width: 90,
+      },
+    ];
+
     return {
       data,
       labelFile,
       clearLabelText,
       toggleStaged,
+      stagedIds,
+      stageIds,
+      unstageIds,
       deleteModel,
       exportModel,
       simplifyTrainingName,
       isReadyToTrain,
       runTrainingOnFolder,
+      resumeJob,
+      discardJob,
       nameRules,
       itemsPerPageOptions,
       clientSettings,
       modelNames,
+      resumable: {
+        items: resumableItems,
+        headers: resumableHeaders,
+      },
       models: {
         items: trainedModels,
         headers: trainedHeadersTmpl.concat({
@@ -271,17 +387,7 @@ export default defineComponent({
       },
       available: {
         items: availableItems,
-        headers: headersTmpl.concat({
-          text: 'View',
-          value: 'view',
-          sortable: false,
-          width: 80,
-        }, {
-          text: 'Include',
-          value: 'action',
-          sortable: false,
-          width: 80,
-        }),
+        headers: headersTmpl,
       },
       staged: {
         items: stagedItems,
@@ -300,11 +406,11 @@ export default defineComponent({
 <template>
   <div class="multitraining-menu">
     <div class="mb-4">
-      <v-card-title class="text-h4">
-        Staged for training ({{ staged.items.value.length }})
+      <v-card-title class="text-h4 px-0">
+        Training configuration
       </v-card-title>
-      <v-card-text>
-        Add datasets to the staging area and choose a training configuration.
+      <v-card-text class="px-0">
+        Name the model and choose a configuration, then add datasets below.
       </v-card-text>
       <v-row
         class="mt-4 pt-0"
@@ -379,25 +485,7 @@ export default defineComponent({
         </v-col>
         <v-spacer />
       </v-row>
-      <v-data-table
-        v-bind="{ headers: staged.headers, items: staged.items.value }"
-        hide-default-footer
-        dense
-        :hide-default-header="staged.items.value.length === 0"
-        no-data-text="No data chosen for training."
-      >
-        <template #[`item.action`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="error"
-            x-small
-            @click="toggleStaged(item)"
-          >
-            <v-icon>mdi-minus</v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
-      <div class="d-flex flex-row mt-7">
+      <div class="d-flex flex-row mt-4">
         <v-checkbox
           v-model="data.annotatedFramesOnly"
           label="Use annotated frames only"
@@ -406,16 +494,8 @@ export default defineComponent({
           persistent-hint
           class="py-0 my-0"
         />
-        <v-spacer />
-        <v-btn
-          :disabled="!isReadyToTrain"
-          color="primary"
-          @click="runTrainingOnFolder"
-        >
-          Train on ({{ staged.items.value.length }}) Datasets
-        </v-btn>
       </div>
-      <div class="d-flex flex-row mt-7">
+      <div class="d-flex flex-row mt-2">
         <v-checkbox
           v-model="data.fineTuneTraining"
           label="Fine Tuning"
@@ -431,50 +511,118 @@ export default defineComponent({
       </div>
     </div>
     <div>
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Available for training
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         These datasets meet the requirements for the chosen training configuration.
       </v-card-text>
-      <v-data-table
-        dense
-        v-bind="{ headers: available.headers, items: available.items.value }"
-        :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
-        :item-class="({ included }) => included ? 'disabled-row' : ''"
+      <DatasetPicker
+        :items="available.items.value"
+        :selected-ids="stagedIds"
+        :headers="available.headers"
         no-data-text="No data meets criteria for chosen configuration"
+        @add="stageIds([$event])"
+        @add-many="stageIds"
+        @remove="unstageIds([$event])"
+        @remove-many="unstageIds"
+      >
+        <template #row-actions="{ item }">
+          <v-btn
+            icon
+            x-small
+            color="info"
+            title="Open in the viewer"
+            @click="$router.push({ name: 'viewer', params: { id: item.id } })"
+          >
+            <v-icon small>
+              mdi-eye
+            </v-icon>
+          </v-btn>
+        </template>
+      </DatasetPicker>
+    </div>
+
+    <div class="mb-4 selected-datasets">
+      <v-card-title class="text-h4 px-0">
+        Selected datasets ({{ staged.items.value.length }})
+      </v-card-title>
+      <v-data-table
+        v-bind="{ headers: staged.headers, items: staged.items.value }"
+        hide-default-footer
+        dense
+        :hide-default-header="staged.items.value.length === 0"
+        no-data-text="Add datasets from the list above."
       >
         <template #[`item.action`]="{ item }">
           <v-btn
             :key="item.name"
-            :disabled="item.included"
-            color="success"
+            color="error"
             x-small
             @click="toggleStaged(item)"
           >
-            <v-icon>mdi-plus</v-icon>
+            <v-icon>mdi-minus</v-icon>
           </v-btn>
         </template>
-        <template #[`item.view`]="{ item }">
+      </v-data-table>
+      <div class="d-flex flex-row mt-4">
+        <v-spacer />
+        <v-btn
+          :disabled="!isReadyToTrain"
+          color="primary"
+          @click="runTrainingOnFolder"
+        >
+          Train on ({{ staged.items.value.length }}) Datasets
+        </v-btn>
+      </div>
+    </div>
+
+    <div v-if="resumable.items.value.length">
+      <v-card-title class="text-h4 px-0">
+        Interrupted training runs
+      </v-card-title>
+      <v-card-text class="px-0">
+        These runs did not finish, but their intermediate files are still on disk.
+        Resuming continues from the last saved training state.
+      </v-card-text>
+      <v-data-table
+        dense
+        v-bind="{ headers: resumable.headers, items: resumable.items.value }"
+        hide-default-footer
+      >
+        <template #[`item.config`]="{ item }">
+          {{ simplifyTrainingName(item.config || '') }}
+        </template>
+        <template #[`item.resume`]="{ item }">
           <v-btn
-            :key="item.name"
-            :disabled="item.included"
-            color="info"
+            color="primary"
             x-small
-            @click="$router.push({ name: 'viewer', params: { id: item.id } })"
+            @click="resumeJob(item.job)"
           >
-            <v-icon>mdi-eye</v-icon>
+            <v-icon small>
+              mdi-play
+            </v-icon>
+          </v-btn>
+        </template>
+        <template #[`item.discard`]="{ item }">
+          <v-btn
+            color="error"
+            x-small
+            @click="discardJob(item.job)"
+          >
+            <v-icon small>
+              mdi-trash-can
+            </v-icon>
           </v-btn>
         </template>
       </v-data-table>
     </div>
 
     <div>
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Trained models
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         Here are all your trained models
       </v-card-text>
       <v-data-table
@@ -507,11 +655,3 @@ export default defineComponent({
     </div>
   </div>
 </template>
-
-<style lang="scss">
-.multitraining-menu {
-  .disabled-row {
-    color: #444444;
-  }
-}
-</style>

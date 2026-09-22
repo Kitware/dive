@@ -1,8 +1,16 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
+import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export default defineComponent({
   setup() {
+    const desktopShortcuts = isDesktopRuntime() ? [{
+      name: 'Text Query',
+      icon: 'mdi-keyboard',
+      actions: ['Q Key'],
+      description: 'Open the SAM3 text query dialog to find objects by description in the current frame',
+    }] : [];
+
     return {
       categories: [
         {
@@ -104,6 +112,7 @@ export default defineComponent({
             {
               name: 'Add Head/Tail', icon: 'mdi-keyboard', actions: ['H Key - Head', 'T Key - Tail'], description: 'While a track is selected add head/tail annotations',
             },
+            ...desktopShortcuts,
           ],
         },
       ],

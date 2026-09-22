@@ -7,6 +7,8 @@ const SettingsKey = 'desktop.settings';
 const VersionKey = 'desktop.currentVersion';
 
 const settings = ref(null as Settings | null);
+/** True when the configured VIAME install path validates (setup script + binary). */
+const viamePathValid = ref(false);
 const currentVersion = window.diveDesktop.getAppVersionSync();
 const knownVersion = ref(window.localStorage.getItem(VersionKey));
 
@@ -39,14 +41,18 @@ const downgradedVersion = computed(() => {
 });
 
 function getDefaultSettings(): Promise<Settings> {
-  return window.diveDesktop.invoke('default-settings');
+  return window.diveDesktop.invoke<Settings>('default-settings');
 }
 
 function validateSettings(s: Settings | null): Promise<string | boolean> {
   if (s === null) {
     return Promise.resolve(false);
   }
-  return window.diveDesktop.invoke('validate-settings', s);
+  return window.diveDesktop.invoke<string | boolean>('validate-settings', s);
+}
+
+async function refreshViamePathValid() {
+  viamePathValid.value = (await validateSettings(settings.value)) === true;
 }
 
 // Type Guard https://www.typescriptlang.org/docs/handbook/advanced-types.html
@@ -93,6 +99,7 @@ async function init() {
   }
   settings.value = settingsValue;
   window.diveDesktop.send('update-settings', settings.value);
+  await refreshViamePathValid();
   return settings.value;
 }
 
@@ -100,6 +107,7 @@ async function updateSettings(s: Settings) {
   window.localStorage.setItem(SettingsKey, JSON.stringify(s));
   settings.value = cloneDeep(s);
   window.diveDesktop.send('update-settings', settings.value);
+  await refreshViamePathValid();
 }
 
 async function acknowledgeVersion() {
@@ -112,6 +120,7 @@ const initializedSettings = init();
 
 export {
   settings,
+  viamePathValid,
   initializedSettings,
   upgradedVersion,
   downgradedVersion,

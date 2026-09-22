@@ -18,9 +18,9 @@ interface DesktopRuntimeInfo {
 }
 
 interface DesktopBridge {
-  invoke(channel: string, ...args: unknown[]): Promise<unknown>;
+  invoke<T = unknown>(channel: string, ...args: unknown[]): Promise<T>;
   send(channel: string, ...args: unknown[]): void;
-  on(channel: string, listener: (...args: unknown[]) => void): () => void;
+  on<T = unknown>(channel: string, listener: (payload: T) => void): () => void;
   showOpenDialog(options: unknown): Promise<DesktopOpenDialogResult>;
   showSaveDialog(options: unknown): Promise<DesktopSaveDialogResult>;
   getAppVersionSync(): string;

@@ -1,32 +1,35 @@
-/* eslint-disable max-len */
 /**
  * VIAME CSV parser/serializer copied logically from
  * dive_utils.serializers.viame python module
  */
 
-import csvparser from 'csv-parse';
+import { parse as csvparser } from 'csv-parse';
 import csvstringify from 'csv-stringify';
 import fs from 'fs-extra';
 import moment from 'moment';
-import { cloneDeep, flattenDeep } from 'lodash';
+import { cloneDeep, flattenDeep, isEmpty } from 'lodash';
 import { pipeline, Readable, Writable } from 'stream';
 
-import { AnnotationSchema, MultiGroupRecord, MultiTrackRecord } from 'dive-common/apispec';
-import { JsonMeta } from 'platform/desktop/constants';
+import {
+  AnnotationSchema, DatasetInfoFields, MultiGroupRecord, MultiTrackRecord,
+} from 'dive-common/apispec';
+import { JsonConfig } from 'platform/desktop/constants';
 import { splitExt } from 'platform/desktop/backend/native/utils';
 // Imports that involve actual code require relative imports because ts-node barely works
 // https://github.com/TypeStrong/ts-node/issues/422
 import Track, {
   TrackData, Feature, TrackSupportedFeature,
 } from 'vue-media-annotator/track';
+import { orderedHeadTail, syncHeadTail } from 'vue-media-annotator/headTail';
 import { ConfidencePair, StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 
 const CommentRegex = /^\s*#/g;
-const HeadRegex = /^\(kp\) head (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
-const TailRegex = /^\(kp\) tail (-?[0-9]+\.*-?[0-9]*) (-?[0-9]+\.*-?[0-9]*)/g;
 const AttrRegex = /^\(atr\) (.*?)\s(.+)/g;
 const TrackAttrRegex = /^\(trk-atr\) (.*?)\s(.+)/g;
-const PolyRegex = /^(\(poly\)) ((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+// Polygon format: (poly) coordinates
+const PolyRegex = /^\(poly\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
+// Hole format: (hole) coordinates
+const HoleRegex = /^\(hole\)\s*((?:-?[0-9]+\.*-?[0-9]*\s*)+)/g;
 const NoteRegex = /^\(note\)\s*(.+)/g;
 const FpsRegex = /fps:\s*(\d+(\.\d+)?)/ig;
 const ExecTimeRegEx = /exec_time:\s*(\d+(\.\d+)?)/ig;
@@ -41,6 +44,7 @@ export interface AnnotationFileData {
   groups: MultiGroupRecord;
   fps?: number;
   execTime?: number;
+  datasetInfo?: DatasetInfoFields;
 }
 
 // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/matchAll
@@ -92,6 +96,62 @@ function _rowInfo(row: string[]) {
   };
 }
 
+/** Resolve detection length from attributes.length or fishLength (either may be set). */
+function resolveDetectionLength(
+  fishLength?: number,
+  attributes?: StringKeyObject,
+): number | undefined {
+  const lengthAttr = attributes?.length;
+  const fromAttr = lengthAttr !== undefined && lengthAttr !== null ? Number(lengthAttr) : NaN;
+  if (Number.isFinite(fromAttr)) {
+    return fromAttr;
+  }
+  if (fishLength !== undefined && Number.isFinite(fishLength) && fishLength !== -1) {
+    return fishLength;
+  }
+  return undefined;
+}
+
+/** Keep fishLength and attributes.length in sync when either is present. */
+function syncDetectionLengthFields(feature: Feature): Feature {
+  const resolved = resolveDetectionLength(feature.fishLength, feature.attributes);
+  if (resolved === undefined) {
+    return feature;
+  }
+  return {
+    ...feature,
+    fishLength: resolved,
+    attributes: { ...(feature.attributes || {}), length: resolved },
+  };
+}
+
+/**
+ * Read dataset info from a `dataset_info: <json>` comment field. Returns the parsed
+ * object, or a `warning` if the field is present but unusable so the import can continue.
+ */
+function parseDatasetInfo(row: string[]): {
+  datasetInfo?: DatasetInfoFields;
+  warning?: string;
+} {
+  const field = row.find((f) => f.trim().startsWith('dataset_info:'));
+  if (!field) {
+    return {};
+  }
+  const json = field.slice(field.indexOf(':') + 1).trim();
+  try {
+    const parsed = JSON.parse(json);
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+      return { datasetInfo: parsed as DatasetInfoFields };
+    }
+    // eslint-disable-next-line no-nested-ternary
+    const kind = parsed === null ? 'null' : Array.isArray(parsed) ? 'array' : typeof parsed;
+    return { warning: `Ignored dataset_info entry: expected a JSON object but got ${kind}` };
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { warning: `Ignored malformed dataset_info entry (${message})` };
+  }
+}
+
 function parseCommentRow(row: string[]) {
   const fullrow = row.join(' ');
   const matches = getCaptureGroups(FpsRegex, fullrow);
@@ -105,7 +165,11 @@ function parseCommentRow(row: string[]) {
     execTime = Number.parseFloat(execMatches[1]);
   }
 
-  return { fps, execTime };
+  const { datasetInfo, warning } = parseDatasetInfo(row);
+
+  return {
+    fps, execTime, datasetInfo, warning,
+  };
 }
 
 function _deduceType(value: string): boolean | number | string {
@@ -115,11 +179,28 @@ function _deduceType(value: string): boolean | number | string {
   if (value === 'false') {
     return false;
   }
-  const float = parseFloat(value);
-  if (!Number.isNaN(float)) {
-    return float;
+  // Number() rejects partial parses — parseFloat would truncate
+  // filename-like values such as '0123ABC456' to their leading digits.
+  // Empty/whitespace strings coerce to 0, so they explicitly stay strings.
+  if (value.trim() !== '') {
+    const float = Number(value);
+    if (!Number.isNaN(float)) {
+      return float;
+    }
   }
   return value;
+}
+
+/**
+ * Get the next available polygon key for a feature collection.
+ */
+function _getNextPolygonKey(
+  geoFeatureCollection: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>,
+): string {
+  const polygonCount = geoFeatureCollection.features.filter(
+    (f) => f.geometry.type === 'Polygon',
+  ).length;
+  return polygonCount > 0 ? String(polygonCount) : '';
 }
 
 /**
@@ -153,6 +234,28 @@ function _createGeoJsonFeature(
   return geoFeature;
 }
 
+/**
+ * Find an existing polygon feature by key and add a hole to it.
+ * @param geoFeatureCollection the feature collection to search
+ * @param coords hole coordinates
+ * @param key polygon key to find
+ */
+function _addHoleToPolygon(
+  geoFeatureCollection: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>,
+  coords: number[][],
+  key = '',
+) {
+  const matchingFeature = geoFeatureCollection.features.find(
+    (feature) => feature.geometry.type === 'Polygon' && feature.properties?.key === key,
+  );
+  if (matchingFeature) {
+    // Add hole as additional ring to the polygon coordinates
+    (matchingFeature.geometry.coordinates as number[][][]).push(coords);
+    return true;
+  }
+  return false;
+}
+
 function _parseRow(row: string[]) {
   // Create empty feature collection
   const geoFeatureCollection:
@@ -179,21 +282,12 @@ function _parseRow(row: string[]) {
     })
     .filter((val) => val[0] !== '')
     .sort((a, b) => b[1] - a[1]);
-  const headTail: [number, number][] = [];
+
   const start = 9 + (confidencePairs.length * 2);
   row.slice(start).forEach((value) => {
-    /* Head */
-    const head = getCaptureGroups(HeadRegex, value);
-    if (head !== null) {
-      headTail[0] = [parseFloat(head[1]), parseFloat(head[2])];
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[0]], 'head'));
-    }
-
-    /* Tail */
-    const tail = getCaptureGroups(TailRegex, value);
-    if (tail !== null) {
-      headTail[1] = [parseFloat(tail[1]), parseFloat(tail[2])];
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [headTail[1]], 'tail'));
+    const kp = /^\(kp\)\s+(\S+)\s+(\S+)\s+(\S+)\s*$/.exec(value);
+    if (kp && Number.isFinite(Number(kp[2])) && Number.isFinite(Number(kp[3]))) {
+      geoFeatureCollection.features.push(_createGeoJsonFeature('Point', [[Number(kp[2]), Number(kp[3])]], kp[1]));
     }
 
     /* Detection Attribute */
@@ -209,11 +303,13 @@ function _parseRow(row: string[]) {
       trackAttributes[trackattr[1]] = _deduceType(trackattr[2]);
     }
 
-    /* Polygon */
+    /* Polygon - format: (poly) coordinates
+     * Multiple (poly) entries create separate polygons with auto-generated keys */
     const poly = getCaptureGroups(PolyRegex, value);
     if (poly !== null) {
+      const coordString = poly[1];
       const coords: number[][] = [];
-      const polyList = poly[2].split(' ');
+      const polyList = coordString.split(' ');
       polyList.forEach((coord, j) => {
         if (j % 2 === 0) {
           // Filter out ODDs
@@ -222,7 +318,32 @@ function _parseRow(row: string[]) {
           }
         }
       });
-      geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords));
+      // Create new polygon with auto-generated key
+      const newKey = _getNextPolygonKey(geoFeatureCollection);
+      geoFeatureCollection.features.push(_createGeoJsonFeature('Polygon', coords, newKey));
+    }
+
+    /* Hole - format: (hole) coordinates
+     * Added to the most recent polygon */
+    const hole = getCaptureGroups(HoleRegex, value);
+    if (hole !== null) {
+      const coordString = hole[1];
+      const coords: number[][] = [];
+      const polyList = coordString.split(' ');
+      polyList.forEach((coord, j) => {
+        if (j % 2 === 0) {
+          // Filter out ODDs
+          if (polyList[j + 1]) {
+            coords.push([parseFloat(coord), parseFloat(polyList[j + 1])]);
+          }
+        }
+      });
+      // Add as hole to the most recent polygon
+      const polygons = geoFeatureCollection.features.filter((f) => f.geometry.type === 'Polygon');
+      if (polygons.length > 0) {
+        const lastPolyKey = polygons[polygons.length - 1].properties?.key || '';
+        _addHoleToPolygon(geoFeatureCollection, coords, lastPolyKey);
+      }
     }
 
     /* Note */
@@ -232,16 +353,9 @@ function _parseRow(row: string[]) {
     }
   });
 
-  if (headTail[0] !== undefined && headTail[1] !== undefined) {
+  const headTail = orderedHeadTail(geoFeatureCollection.features);
+  if (headTail) {
     geoFeatureCollection.features.push(_createGeoJsonFeature('LineString', headTail, 'HeadTails'));
-  }
-
-  // ensure confidence pairs list is not empty
-  if (confidencePairs.length === 0) {
-    // extract Detection or Length Confidence field
-    const confidence = parseFloat(row[7]) || 1.0;
-    // add a dummy pair with a default type
-    confidencePairs.push(['unknown', confidence] as ConfidencePair);
   }
 
   return {
@@ -256,21 +370,25 @@ function _parseFeature(row: string[]) {
     frame: rowInfo.frame,
     bounds: rowInfo.bounds,
   };
-  if (rowInfo.fishLength !== -1) {
+  if (rowInfo.fishLength > 0 && Number.isFinite(rowInfo.fishLength)) {
     feature.fishLength = rowInfo.fishLength;
   }
   if (rowData.attributes) {
     feature.attributes = rowData.attributes;
   }
+  if (feature.attributes?.length !== undefined && Number(feature.attributes.length) <= 0) {
+    delete feature.attributes.length;
+  }
+  const syncedFeature = syncDetectionLengthFields(feature);
   if (rowData.geoFeatureCollection.features.length > 0) {
-    feature.geometry = rowData.geoFeatureCollection;
+    syncedFeature.geometry = rowData.geoFeatureCollection;
   }
   if (rowData.notes.length > 0) {
-    feature.notes = rowData.notes;
+    syncedFeature.notes = rowData.notes;
   }
   return {
     rowInfo,
-    feature,
+    feature: syncedFeature,
     trackAttributes: rowData.trackAttributes,
     confidencePairs: rowData.confidencePairs,
   };
@@ -284,9 +402,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
   });
   let fps: number | undefined;
   let execTime: number | undefined;
+  let datasetInfo: DatasetInfoFields | undefined;
   const dataMap = new Map<number, TrackData>();
   const missingImages: string[] = [];
   const foundImages: {image: string; frame: number; csvFrame: number}[] = [];
+  const fallbackConfidence: Record<TrackData['id'], number> = {};
   let error: Error | undefined;
   let multiFrameTracks = false;
   const warnings: string[] = [];
@@ -393,13 +513,19 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           }
         }
       }
+      dataMap.forEach((track) => {
+        if (track.confidencePairs.length === 0) {
+          // eslint-disable-next-line no-param-reassign
+          track.confidencePairs = [['unknown', fallbackConfidence[track.id] ?? 1.0]];
+        }
+      });
       const tracks = Object.fromEntries(dataMap);
 
       if (error !== undefined) {
         reject(error);
       }
       resolve([{
-        tracks, groups: {}, fps, execTime,
+        tracks, groups: {}, fps, execTime, datasetInfo,
       }, warnings]);
     });
     parser.on('readable', () => {
@@ -469,7 +595,13 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
           track.begin = Math.min(rowInfo.frame, track.begin);
           track.end = Math.max(rowInfo.frame, track.end);
           track.features.push(feature);
-          track.confidencePairs = confidencePairs;
+          // Pairs may be written on only one row of a track; rows without
+          // pairs must not clobber those already seen.
+          if (confidencePairs.length) {
+            track.confidencePairs = confidencePairs;
+          } else {
+            fallbackConfidence[track.id] = parseFloat(record[7]) || 1.0;
+          }
           Object.entries(trackAttributes).forEach(([key, val]) => {
             // "track is possibly undefined" seems like a bug
             if (track && track.attributes) {
@@ -489,6 +621,12 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
             if (parsedComment.execTime) {
               execTime = parsedComment.execTime;
             }
+            if (parsedComment.datasetInfo) {
+              datasetInfo = parsedComment.datasetInfo;
+            }
+            if (parsedComment.warning) {
+              warnings.push(parsedComment.warning);
+            }
           } else if (!err.toString().includes('malformed row')) {
             // Allow malformed row errors
             error = err;
@@ -507,7 +645,7 @@ async function parseFile(path: string, imageMap?: Map<string, number>):
   return parse(stream, imageMap);
 }
 
-async function writeHeader(writer: Writable, meta: JsonMeta) {
+async function writeHeader(writer: Writable, meta: JsonConfig) {
   writer.write([
     '# 1: Detection or Track-id',
     '2: Video or Image Identifier',
@@ -521,7 +659,11 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     '10-11+: Repeated Species',
     'Confidence Pairs or Attributes',
   ]);
-  if (meta.fps) {
+  // Omit datasetInfo when empty so existing exports stay unchanged.
+  const datasetInfo = meta.datasetInfo && !isEmpty(meta.datasetInfo)
+    ? meta.datasetInfo
+    : undefined;
+  if (meta.fps || datasetInfo) {
     const metadataRow = [
       '# metadata',
       `fps: ${meta.fps}`,
@@ -531,6 +673,9 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
     if (meta.execTime) {
       metadataRow.push(`exec_time: ${meta.execTime}`);
     }
+    if (datasetInfo) {
+      metadataRow.push(`dataset_info: ${JSON.stringify(datasetInfo)}`);
+    }
     writer.write(metadataRow);
   }
 }
@@ -538,7 +683,7 @@ async function writeHeader(writer: Writable, meta: JsonMeta) {
 async function serialize(
   stream: Writable,
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,
@@ -592,18 +737,24 @@ async function serialize(
               column2 = moment.utc((feature.frame / meta.fps) * 1000).format('HH:mm:ss.SSSSSS');
             }
 
+            const lengthValue = resolveDetectionLength(feature.fishLength, feature.attributes);
+
             const row = [
               track.id,
               column2,
               feature.frame,
               ...(feature.bounds as number[]),
               sortedPairs[0][1], // always take highest confidence to be track confidence
-              feature.fishLength || -1,
+              (lengthValue !== undefined && Number.isFinite(lengthValue)) ? lengthValue : -1,
               ...flattenDeep(sortedPairs),
             ];
 
-            /* Feature Attributes */
-            Object.entries(feature.attributes || {}).forEach(([key, val]) => {
+            /* Feature Attributes — export length in (atr) as well as the length column */
+            const exportAttributes = { ...(feature.attributes || {}) };
+            if (lengthValue !== undefined && Number.isFinite(lengthValue)) {
+              exportAttributes.length = lengthValue;
+            }
+            Object.entries(exportAttributes).forEach(([key, val]) => {
               row.push(`${AtrToken} ${key} ${val}`);
             });
             /* Track Attributes */
@@ -613,20 +764,30 @@ async function serialize(
 
             /* Geometry */
             if (feature.geometry && feature.geometry.type === 'FeatureCollection') {
-              feature.geometry.features.forEach((geoJSONFeature) => {
+              syncHeadTail(feature.geometry.features).forEach((geoJSONFeature) => {
                 if (geoJSONFeature.geometry.type === 'Polygon') {
-                  const coordinates = flattenDeep(geoJSONFeature.geometry.coordinates[0]);
-                  row.push(`${PolyToken} ${coordinates.map(Math.round).join(' ')}`);
+                  const allRings = geoJSONFeature.geometry.coordinates as number[][][];
+
+                  // Write outer ring (first ring)
+                  if (allRings.length > 0) {
+                    const outerCoords = flattenDeep(allRings[0]);
+                    row.push(`${PolyToken} ${outerCoords.map(Math.round).join(' ')}`);
+
+                    // Write holes (additional rings)
+                    for (let holeIdx = 0; holeIdx < allRings.length - 1; holeIdx += 1) {
+                      const holeCoords = flattenDeep(allRings[holeIdx + 1]);
+                      row.push(`(hole) ${holeCoords.map(Math.round).join(' ')}`);
+                    }
+                  }
                 } else if (geoJSONFeature.geometry.type === 'Point') {
                   if (geoJSONFeature.properties) {
                     const kpname = geoJSONFeature.properties.key;
                     const { coordinates } = geoJSONFeature.geometry;
                     row.push(
-                      `${KeypointToken} ${kpname} ${coordinates.map(Math.round).join(' ')}`,
+                      `${KeypointToken} ${kpname} ${coordinates.join(' ')}`,
                     );
                   }
                 }
-                /* TODO support for multiple GeoJSON Objects of the same type */
               });
             }
 
@@ -648,7 +809,7 @@ async function serialize(
 async function serializeFile(
   path: string,
   data: AnnotationSchema,
-  meta: JsonMeta,
+  meta: JsonConfig,
   typeFilter = new Set<string>(),
   options = {
     excludeBelowThreshold: false,

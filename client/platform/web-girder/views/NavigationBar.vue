@@ -8,6 +8,7 @@ import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
 import { useBrand } from '../store/useBrand';
 import { useConfig } from '../store/useConfig';
 import { useLocation } from '../store/useLocation';
+import { useGirderRest } from '../plugins/girder';
 import JobsTab from './JobsTab.vue';
 
 export default defineComponent({
@@ -18,13 +19,14 @@ export default defineComponent({
     JobsTab,
     GirderSearch,
   },
-  inject: ['girderRest'],
   setup() {
+    const girderRest = useGirderRest();
     const { brandData } = useBrand();
     const { pipelinesEnabled, trainingEnabled } = useConfig();
     const { locationRoute, setRouteFromLocation } = useLocation();
 
     return {
+      girderRest,
       brandData,
       pipelinesEnabled,
       trainingEnabled,
@@ -79,6 +81,15 @@ export default defineComponent({
           to="/trained-models"
         >
           Models <v-icon>mdi-brain</v-icon>
+        </v-tab>
+        <v-tab to="/review">
+          Review <v-icon>mdi-view-grid-outline</v-icon>
+        </v-tab>
+        <v-tab
+          v-if="pipelinesEnabled"
+          to="/scoring"
+        >
+          Scoring <v-icon>mdi-chart-box-outline</v-icon>
         </v-tab>
         <v-tab
           v-if="isAdmin"

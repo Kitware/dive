@@ -2,6 +2,7 @@ import {
   ref, Ref, computed, set as VueSet, del as VueDel,
 } from 'vue';
 import { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
+import { ensureStereoLengthRendering } from 'dive-common/utils/stereoLengthRendering';
 import { StyleManager, Track } from '..';
 import CameraStore from '../CameraStore';
 import { isReservedAttributeName, RESERVED_ATTRIBUTES } from '../utils';
@@ -51,7 +52,13 @@ export default function UseAttributes(
   });
   const timelineEnabled: Ref<boolean> = ref(false);
 
-  function loadAttributes(metadataAttributes: Record<string, Attribute>) {
+  function loadAttributes(
+    metadataAttributes: Record<string, Attribute>,
+    options?: { enableStereoLengthRender?: boolean },
+  ) {
+    if (options?.enableStereoLengthRender) {
+      ensureStereoLengthRendering(metadataAttributes);
+    }
     attributes.value = metadataAttributes;
     Object.values(attributes.value).forEach((attribute) => {
       if (attribute.color === undefined) {

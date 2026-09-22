@@ -1,11 +1,19 @@
 <script lang="ts">
 import {
-  defineComponent, ref, onUnmounted, PropType, toRef, watch, computed,
+  defineComponent, ref, onUnmounted, PropType, toRef, watch, computed, markRaw,
 } from 'vue';
+import { debounce, map } from 'lodash';
 import geo from 'geojs';
-import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
+import {
+  ImageEnhancementOutputs,
+  PercentileStretch,
+  percentileStretchToTileStyle,
+} from 'vue-media-annotator/use/useImageEnhancements';
 import { SetTimeFunc } from '../../use/useTimeObserver';
+import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
+import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
+import { composeLargeImageFrameTexture } from './largeImageFrameTexture';
 
 export interface LargeImageDataItem {
   url: string;
@@ -39,6 +47,7 @@ function buildOutputFilename(inputFilename: string): string {
 
 export default defineComponent({
   name: 'LargeImageAnnotator',
+  components: { AnnotatorImageCursor },
   props: {
     imageData: {
       type: Array as PropType<LargeImageDataItem[]>,
@@ -101,6 +110,14 @@ export default defineComponent({
       type: Boolean as PropType<boolean>,
       required: true,
     },
+    filterId: {
+      type: String as PropType<string>,
+      default: 'imageEnhancements',
+    },
+    percentileStretch: {
+      type: Object as PropType<PercentileStretch | null>,
+      default: null,
+    },
   },
   setup(props) {
     const loadingVideo = ref(false);
@@ -119,11 +136,15 @@ export default defineComponent({
       container,
       initializeViewer,
       mediaController,
-    } = cameraInitializer(props.camera, {
+    } = cameraInitializer(props.camera, 'large-image', {
       // allow hoisting for these functions to pass a reference before defining them.
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek, pause, play, setVolume: unimplemented, setSpeed: unimplemented,
     });
+    const { playbackCursor } = useAnnotatorImageCursor(
+      toRef(data, 'imageCursor'),
+      toRef(data, 'cursor'),
+      toRef(data, 'imageCursorEditing'),
+    );
     const updateTileLoadErrorWidth = () => {
       const containerWidth = container.value?.getBoundingClientRect().width;
       tileLoadErrorWidth.value = typeof containerWidth === 'number'
@@ -181,6 +202,7 @@ export default defineComponent({
     };
     let projection: string | undefined;
     data.maxFrame = props.imageData.length - 1;
+    data.filenames = map(props.imageData, 'filename');
     // Below are configuration settings we can set until we decide on good numbers to utilize.
     let local = {
       playCache: 1, // seconds required to be fully cached before playback
@@ -202,6 +224,143 @@ export default defineComponent({
       nextLayer: '' as any,
       nextLayerFrame: 0,
     };
+    const activePercentileStretch = ref<PercentileStretch | null>(props.percentileStretch);
+
+    function stretchCacheKey(stretch: PercentileStretch | null): string {
+      if (!stretch) return 'none';
+      return `${stretch.lowPercentile}:${stretch.highPercentile}`;
+    }
+
+    function applyTileQueryParams(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      params: Record<string, any>,
+      proj?: string,
+    ) {
+      // Spreading a Record into a literal drops its index signature, so restate the param's type.
+      const updatedParams: typeof params = { ...params, encoding: 'PNG' };
+      if (proj) {
+        updatedParams.projection = proj;
+      }
+      const style = percentileStretchToTileStyle(activePercentileStretch.value);
+      if (style) {
+        updatedParams.style = style;
+      }
+      return updatedParams;
+    }
+
+    function refreshVisibleTileLayers() {
+      if (
+        !data.ready
+        || !local.currentLayer
+        || typeof local.currentLayer.url !== 'function'
+        || !props.imageData[data.frame]?.id
+      ) {
+        return;
+      }
+      local.currentLayer.url(_getTileURL(props.imageData[data.frame].id, projection));
+      if (
+        local.nextLayer
+        && typeof local.nextLayer.url === 'function'
+        && props.imageData[local.nextLayerFrame]?.id
+      ) {
+        local.nextLayer.url(_getTileURL(props.imageData[local.nextLayerFrame].id, projection));
+      }
+    }
+
+    const debouncedRefreshTileLayers = debounce(refreshVisibleTileLayers, 500, { trailing: true });
+    /** Abort in-flight overview texture composites when the frame/stretch changes. */
+    let frameTextureAbort: AbortController | null = null;
+
+    function setTileLayersVisible(visible: boolean) {
+      const visibility = visible ? '' : 'hidden';
+      if (local.currentLayer && typeof local.currentLayer.node === 'function') {
+        local.currentLayer.node().css('visibility', visibility);
+      }
+      if (local.nextLayer && typeof local.nextLayer.node === 'function') {
+        local.nextLayer.node().css('visibility', visibility);
+      }
+    }
+
+    function clearFrameTexture() {
+      frameTextureAbort?.abort();
+      frameTextureAbort = null;
+      data.frameTexture = null;
+      data.imageRevision += 1;
+    }
+
+    async function refreshFrameTexture() {
+      if (!data.ready || !data.hasFrame || !local.width || !local.height) {
+        return;
+      }
+      const itemId = props.imageData[data.frame]?.id;
+      if (!itemId) {
+        return;
+      }
+      frameTextureAbort?.abort();
+      const abort = new AbortController();
+      frameTextureAbort = abort;
+      const layerParams = (local.params && local.params.layer) ? local.params.layer : local.params;
+      const maxLevel = typeof layerParams?.maxLevel === 'number'
+        ? layerParams.maxLevel
+        : Math.max(0, (local.levels || 1) - 1);
+      try {
+        const texture = await composeLargeImageFrameTexture({
+          meta: {
+            sizeX: local.width,
+            sizeY: local.height,
+            tileWidth: local.metadata?.tileWidth || 256,
+            tileHeight: local.metadata?.tileHeight || 256,
+            levels: maxLevel + 1,
+          },
+          getTileURL: (x, y, level) => props.getTileURL(
+            itemId,
+            x,
+            y,
+            level,
+            applyTileQueryParams({}, projection),
+          ),
+          signal: abort.signal,
+        });
+        if (abort.signal.aborted) {
+          return;
+        }
+        data.frameTexture = markRaw(texture);
+        data.imageRevision += 1;
+      } catch (err) {
+        if ((err as DOMException)?.name === 'AbortError') {
+          return;
+        }
+        console.warn('Unable to build large-image frame texture for Align View / registration ghost', err);
+      }
+    }
+
+    const debouncedRefreshFrameTexture = debounce(refreshFrameTexture, 500, { trailing: true });
+    let previousStretchKey = stretchCacheKey(props.percentileStretch);
+
+    watch(
+      () => props.percentileStretch,
+      (stretch) => {
+        activePercentileStretch.value = stretch;
+        if (!data.ready) {
+          previousStretchKey = stretchCacheKey(stretch);
+          return;
+        }
+        const currentKey = stretchCacheKey(stretch);
+        const isToggle = (currentKey === 'none') !== (previousStretchKey === 'none');
+        previousStretchKey = currentKey;
+        if (isToggle) {
+          debouncedRefreshTileLayers.cancel();
+          debouncedRefreshFrameTexture.cancel();
+          refreshVisibleTileLayers();
+          refreshFrameTexture();
+        } else {
+          debouncedRefreshTileLayers();
+          debouncedRefreshFrameTexture();
+        }
+      },
+      { deep: true },
+    );
+
     function forceUnload(imgInternal: ImageDataItemInternal) {
       // Removal from list indicates we are no longer attempting to load this image
       local.imgs[imgInternal.frame] = undefined;
@@ -213,16 +372,12 @@ export default defineComponent({
     function _getTileURL(itemId: string, proj?: string) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const returnFunc = (x: number, y: number, level: number, params: any) => {
-        const updatedParams = { ...params, encoding: 'PNG' };
-        if (proj) {
-          updatedParams.projection = proj;
-        }
+        const updatedParams = applyTileQueryParams(params, proj);
         return props.getTileURL(itemId, x, y, level, updatedParams);
       };
       return returnFunc;
     }
     async function cacheFrame(frame: number) {
-      // eslint-disable-next-line no-unreachable
       const resp2 = await props.getTiles(props.imageData[frame].id, projection);
       const newParams = geo.util.pixelCoordinateParams(
         container.value,
@@ -244,6 +399,10 @@ export default defineComponent({
      * requests for image load.
      */
     onUnmounted(() => {
+      debouncedRefreshTileLayers.cancel();
+      debouncedRefreshFrameTexture.cancel();
+      frameTextureAbort?.abort();
+      frameTextureAbort = null;
       Array.from(local.pendingImgs).forEach(forceUnload);
       if (tileLoadErrorResizeObserver && container.value) {
         tileLoadErrorResizeObserver.unobserve(container.value);
@@ -253,9 +412,21 @@ export default defineComponent({
         tileLoadErrorResizeObserver = null;
       }
     });
-    async function seek(f: number) {
+    async function seek(f: number | undefined) {
       if (!data.ready) {
         return;
+      }
+      if (f === undefined) {
+        // No frame for this camera at the current aligned-timeline slot: blank
+        // the pane (same contract as ImageAnnotator / VideoAnnotator).
+        data.hasFrame = false;
+        setTileLayersVisible(false);
+        clearFrameTexture();
+        return;
+      }
+      if (!data.hasFrame) {
+        data.hasFrame = true;
+        setTileLayersVisible(true);
       }
       let newFrame = f;
       if (f < 0) newFrame = 0;
@@ -284,6 +455,7 @@ export default defineComponent({
           if (props.imageData[newFrame + 1]) {
             cacheFrame(newFrame + 1);
           }
+          refreshFrameTexture();
         } else {
           geoViewer.value.onIdle(async () => {
             loadingImage.value = true;
@@ -308,9 +480,12 @@ export default defineComponent({
               if (props.imageData[newFrame + 1]) {
                 cacheFrame(newFrame + 1);
               }
+              refreshFrameTexture();
             });
           });
         }
+      } else {
+        refreshFrameTexture();
       }
     }
     function pause() {
@@ -346,8 +521,9 @@ export default defineComponent({
           if (props.isDefaultImage) {
             local.currentLayer.node().css('filter', '');
           } else {
-            local.currentLayer.node().css('filter', 'url(#imageEhancements)');
+            local.currentLayer.node().css('filter', `url(#${props.filterId})`);
           }
+          data.imageRevision += 1;
         }
       },
       { deep: true },
@@ -356,6 +532,7 @@ export default defineComponent({
       tileLoadError.value = '';
       copiedConversionCommand.value = false;
       data.maxFrame = props.imageData.length - 1;
+      data.filenames = map(props.imageData, 'filename');
       // Below are configuration settings we can set until we decide on good numbers to utilize.
       local = {
         playCache: 1, // seconds required to be fully cached before playback
@@ -491,7 +668,7 @@ export default defineComponent({
         );
         // Set quadFeature and conditionally apply brightness filter
         if (!props.isDefaultImage) {
-          local.currentLayer.node().css('filter', 'url(#imageEhancements)');
+          local.currentLayer.node().css('filter', `url(#${props.filterId})`);
         }
         data.ready = true;
         loadingVideo.value = false;
@@ -499,9 +676,56 @@ export default defineComponent({
         seek(0);
       }
     }
+
+    /**
+     * Soft-refresh when the frame list identity changes (e.g. percentile-stretch
+     * URL remaps) without recreating the geoJS map. Full init() after the map
+     * already exists would exit/rebuild the map under live annotation layers and
+     * leak WebGL contexts.
+     */
+    async function refreshForImageDataChange() {
+      if (!data.ready || !geoViewer.value) {
+        await init();
+        return;
+      }
+      data.maxFrame = props.imageData.length - 1;
+      data.filenames = map(props.imageData, 'filename');
+      if (!props.imageData[data.frame]) {
+        await seek(Math.min(data.frame, Math.max(0, data.maxFrame)));
+        return;
+      }
+      data.filename = props.imageData[data.frame].filename;
+      try {
+        const resp = await props.getTiles(props.imageData[data.frame].id, projection);
+        local.width = resp.sizeX;
+        local.height = resp.sizeY;
+        local.levels = resp.levels;
+        local.metadata = resp;
+        if (local.currentLayer && typeof local.currentLayer.url === 'function') {
+          const newParams = geo.util.pixelCoordinateParams(
+            container.value,
+            resp.sizeX,
+            resp.sizeY,
+            resp.tileWidth,
+            resp.tileHeight,
+          );
+          local.currentLayer._options.maxLevel = newParams.layer.maxLevel;
+          local.currentLayer._options.tileWidth = newParams.layer.tileWidth;
+          local.currentLayer._options.tileHeight = newParams.layer.tileHeight;
+          local.currentLayer._options.tilesAtZoom = newParams.layer.tilesAtZoom;
+          local.currentLayer._options.tilesMaxBounds = newParams.layer.tilesMaxBounds;
+          local.currentLayer.url(_getTileURL(props.imageData[data.frame].id, projection));
+        }
+        refreshVisibleTileLayers();
+        refreshFrameTexture();
+      } catch (err) {
+        console.warn('Unable to refresh large-image tiles after imageData change', err);
+      }
+    }
+
     // Watch imageData for change
     watch(toRef(props, 'imageData'), () => {
-      init();
+      refreshForImageDataChange();
     });
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
@@ -510,6 +734,7 @@ export default defineComponent({
       data,
       loadingVideo,
       loadingImage,
+      playbackCursor,
       tileLoadError,
       tileLoadErrorStyle,
       conversionInputFilename,
@@ -534,7 +759,7 @@ export default defineComponent({
       style="position: absolute; top: -1px; left: -1px"
     >
       <defs>
-        <filter id="imageEhancements">
+        <filter :id="filterId">
           <feComponentTransfer id="feBrightness">
             <feFuncR
               type="linear"
@@ -592,12 +817,16 @@ export default defineComponent({
       ref="imageCursorRef"
       class="imageCursor"
     >
-      <v-icon> {{ data.imageCursor }} </v-icon>
+      <AnnotatorImageCursor
+        :image-cursor="data.imageCursor"
+        :image-cursor-editing="data.imageCursorEditing"
+        :cursor="data.cursor"
+      />
     </div>
     <div
       ref="containerRef"
       class="playback-container"
-      :style="{ cursor: data.cursor }"
+      :style="{ cursor: playbackCursor }"
       @mousemove="cursorHandler.handleMouseMove"
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"

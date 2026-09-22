@@ -2,6 +2,7 @@
 import {
   computed, defineComponent, onBeforeMount, ref,
 } from 'vue';
+import { isAxiosError } from 'axios';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { Pipelines, useApi, Pipe } from 'dive-common/apispec';
 import { DataTableHeader } from 'vuetify';
@@ -51,7 +52,7 @@ export default defineComponent({
           unsortedPipelines.value = await getPipelineList();
         } catch (err) {
           let text = 'Unable to delete model';
-          if (err.response?.status === 403) text = 'You do not have permission to run training on the selected resource(s).';
+          if (isAxiosError(err) && err.response?.status === 403) text = 'You do not have permission to run training on the selected resource(s).';
           prompt({
             title: 'Delete Failed',
             text,

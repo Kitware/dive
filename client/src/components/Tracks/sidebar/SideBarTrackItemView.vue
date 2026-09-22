@@ -1,6 +1,9 @@
 <script lang="ts">
-import { computed, defineComponent } from 'vue';
+import {
+  computed, defineComponent, PropType, ref,
+} from 'vue';
 import context from 'dive-common/store/context';
+import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 import TooltipBtn from '../../TooltipButton.vue';
 import TypePicker from '../../TypePicker.vue';
 import {
@@ -21,7 +24,7 @@ export default defineComponent({
     trackType: { type: String, required: true },
     itemStyle: { type: Object, required: true },
     color: { type: String, required: true },
-    track: { type: Object, required: true },
+    track: { type: Object as PropType<TrackProjection>, required: true },
     inputValue: { type: Boolean, required: true },
     disabled: { type: Boolean, default: false },
     isTrack: { type: Boolean, required: true },
@@ -29,12 +32,12 @@ export default defineComponent({
     keyframeDisabled: { type: Boolean, required: true },
     frame: { type: Number, required: true },
     merging: { type: Boolean, default: false },
-    toggleKeyframe: { type: Function, required: true },
-    clickToggleInterpolation: { type: Function, required: true },
-    toggleInterpolation: { type: Function, required: true },
-    toggleAllInterpolation: { type: Function, required: true },
-    gotoPrevious: { type: Function, required: true },
-    gotoNext: { type: Function, required: true },
+    toggleKeyframe: { type: Function as PropType<() => void>, required: true },
+    clickToggleInterpolation: { type: Function as PropType<(event: MouseEvent) => void>, required: true },
+    toggleInterpolation: { type: Function as PropType<() => void>, required: true },
+    toggleAllInterpolation: { type: Function as PropType<() => void>, required: true },
+    gotoPrevious: { type: Function as PropType<() => void>, required: true },
+    gotoNext: { type: Function as PropType<() => void>, required: true },
     editing: { type: Boolean, required: true },
   },
   setup(props) {
@@ -45,8 +48,28 @@ export default defineComponent({
     const { typeStyling } = useTrackStyleManager();
     const multiCam = computed(() => cameraStore.camMap.value.size > 1);
 
+    const notesDialog = ref(false);
+    const editNotesValue = ref('');
+
+    const currentNotes = computed(() => {
+      const feature = props.track.features[props.track.begin];
+      if (feature && feature.notes && feature.notes.length > 0) {
+        return feature.notes.join(', ');
+      }
+      return '';
+    });
+
+    const hasNotes = computed(() => currentNotes.value.length > 0);
+
+    const notesTooltip = computed(() => (
+      hasNotes.value ? currentNotes.value : 'Add note'
+    ));
+
     function setTrackType(type: string) {
-      cameraStore.setTrackType(props.track.id, type);
+      cameraStore.assignTrackType(props.track.id, type, {
+        hierarchyIndex: trackFilters.hierarchyIndex.value,
+        replaceType: props.trackType,
+      });
     }
 
     function openMultiCamTools() {
@@ -60,6 +83,26 @@ export default defineComponent({
       handler.trackSeek(props.track.trackId, modifiers);
     }
 
+    function openNotesDialog(event: MouseEvent) {
+      event.stopPropagation();
+      editNotesValue.value = currentNotes.value;
+      notesDialog.value = true;
+    }
+
+    function saveNotes() {
+      if (readOnlyMode.value) return;
+      cameraStore.setTrackNotes(props.track.id, editNotesValue.value.trim());
+      notesDialog.value = false;
+    }
+
+    function cancelNotes() {
+      notesDialog.value = false;
+    }
+
+    function clearNotes() {
+      editNotesValue.value = '';
+    }
+
     return {
       allTypes: trackFilters.allTypes,
       handler,
@@ -70,6 +113,15 @@ export default defineComponent({
       setTrackType,
       trackFilters,
       typeStyling,
+      currentNotes,
+      hasNotes,
+      notesTooltip,
+      notesDialog,
+      editNotesValue,
+      openNotesDialog,
+      saveNotes,
+      cancelNotes,
+      clearNotes,
     };
   },
 });
@@ -126,6 +178,29 @@ export default defineComponent({
         {{ track.set }}
       </v-chip>
       <v-spacer />
+      <v-tooltip
+        open-delay="200"
+        bottom
+        max-width="360"
+        content-class="sidebar-notes-tooltip"
+      >
+        <template #activator="{ on, attrs }">
+          <v-btn
+            v-bind="attrs"
+            small
+            icon
+            class="ma-0"
+            :color="hasNotes ? 'white' : 'grey darken-1'"
+            v-on="on"
+            @click="openNotesDialog"
+          >
+            <v-icon>
+              {{ hasNotes ? 'mdi-note-text' : 'mdi-note-text-outline' }}
+            </v-icon>
+          </v-btn>
+        </template>
+        <span>{{ notesTooltip }}</span>
+      </v-tooltip>
       <TypePicker
         :value="trackType"
         v-bind="{
@@ -182,7 +257,7 @@ export default defineComponent({
         <span v-else>
           <tooltip-btn
             icon="mdi-camera"
-            tooltip-text="Open MultiCamera Tools"
+            tooltip-text="Open Multi Camera Tools"
             @click="openMultiCamTools"
           />
         </span>
@@ -224,6 +299,56 @@ export default defineComponent({
         @click="handler.trackEdit(track.trackId)"
       />
     </v-row>
+
+    <v-dialog
+      v-model="notesDialog"
+      width="480"
+      @click:outside="cancelNotes"
+    >
+      <v-card>
+        <v-card-title>
+          {{ readOnlyMode ? 'View note' : 'Edit note' }} — track {{ track.trackId }}
+        </v-card-title>
+        <v-card-text>
+          <v-textarea
+            v-model="editNotesValue"
+            autofocus
+            auto-grow
+            rows="3"
+            outlined
+            dense
+            hide-details
+            :readonly="readOnlyMode"
+            :placeholder="readOnlyMode ? 'No note' : 'Add a note...'"
+            @keydown.ctrl.enter="saveNotes"
+          />
+        </v-card-text>
+        <v-card-actions>
+          <v-btn
+            v-if="!readOnlyMode"
+            text
+            :disabled="!editNotesValue"
+            @click="clearNotes"
+          >
+            Clear
+          </v-btn>
+          <v-spacer />
+          <v-btn
+            text
+            @click="cancelNotes"
+          >
+            {{ readOnlyMode ? 'Close' : 'Cancel' }}
+          </v-btn>
+          <v-btn
+            v-if="!readOnlyMode"
+            color="primary"
+            @click="saveNotes"
+          >
+            Save
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </div>
 </template>
 
@@ -245,5 +370,24 @@ export default defineComponent({
     min-height: 15px;
     max-height: 15px;
   }
+}
+</style>
+
+<!-- Unscoped: tooltip content is teleported outside this component -->
+<style lang="scss">
+.v-tooltip__content.sidebar-notes-tooltip {
+  opacity: 1 !important;
+  background-color: #1e1e1e !important;
+  color: #f5f5f5 !important;
+  font-size: 14px !important;
+  font-weight: 500;
+  line-height: 1.45;
+  letter-spacing: 0.01em;
+  padding: 10px 14px !important;
+  border: 1px solid #555;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.45);
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 </style>

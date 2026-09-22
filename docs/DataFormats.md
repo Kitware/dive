@@ -5,13 +5,20 @@ hide:
 
 # Data Formats
 
-DIVE Desktop and Web support a number of annotation and configuration formats.  The following formats can be uploaded or imported alongside your media and will be automatically parsed.
+DIVE Desktop and Web support a number of annotation, configuration, and
+media-side metadata formats. The annotation and configuration formats below can
+be uploaded or imported alongside your media and will be automatically parsed.
 
 * DIVE Annotation JSON (default annotation format)
 * DIVE Configuration JSON
+* KWCOCO Species List (configuration: the classes a dataset may use)
 * VIAME CSV
 * KPF (KWIVER Packet Format)
 * COCO and KWCOCO
+
+Frame metadata sidecars are media files rather than annotation imports. See
+[Frame Metadata Sidecars](Frame-Metadata.md) for their naming, placement, and
+text-file format.
 
 ## DIVE Annotation JSON
 
@@ -26,6 +33,11 @@ interface AnnotationSchema {
   tracks: Record<string, TrackData>;
   groups: Record<string, GroupData>;
   version: 2;
+  /**
+   * Annotation frame rate when present. Omitted when absent or unusable.
+   * Same role as the VIAME CSV `# metadata` `fps` field and COCO `videos[].annotation_fps`.
+   */
+  fps?: number;
 }
 
 interface TrackData {
@@ -81,6 +93,12 @@ interface Feature {
   attributes?: Record<string, unknown>;
   head?: [number, number];
   tail?: [number, number];
+  /**
+   * Free-form note text for this detection (frame). Stored as a string
+   * array for format compatibility; DIVE typically uses a single entry.
+   * Omitted when the detection has no note.
+   */
+  notes?: string[];
 }
 ```
 
@@ -100,6 +118,25 @@ These reserved names are enforced at both the UI level (when creating attributes
 
 The full source [TrackData definition can be found here](https://github.com/Kitware/dive/blob/main/client/src/track.ts) as a TypeScript interface.
 
+### Annotation frame rate (`fps`)
+
+Optional top-level `fps` carries the dataset annotation frame rate — the same value
+VIAME CSV writes in the `# metadata` header and COCO/KWCOCO records on `videos[].annotation_fps`.
+
+```json
+{
+  "version": 2,
+  "fps": 5,
+  "tracks": {},
+  "groups": {}
+}
+```
+
+* On export, DIVE writes a usable dataset `fps` (finite number greater than zero).
+* On import, that value is restored into dataset metadata. Unusable values (`0`, negative,
+  non-numeric, `inf`/`nan`) are ignored. A file with no `fps` leaves the dataset rate unchanged.
+* Older v1 track-map files have no place for `fps`; only the v2 document form carries it.
+
 ### Example JSON File
 
 This is a relatively simple example, and many optional fields are not included.
@@ -107,6 +144,7 @@ This is a relatively simple example, and many optional fields are not included.
 ```json
 {
   "version": 2,
+  "fps": 5,
 
   "tracks": {
     // Track 1 is a true multi-frame track
@@ -160,21 +198,161 @@ This is a relatively simple example, and many optional fields are not included.
 This information provides the specification for an individual dataset.  It consists of the following.
 
 * Allowed types (or labels) and their appearances are defined by `customTypeStyling` and `customGroupStyling`.
+  * These fields are **per-dataset** styles in the portable Configuration File.
+  * Separately, when [Type color scope](UI-Type-List.md#type-color-scope-and-saved-styles) is **Shared**, DIVE also keeps a cross-dataset style store (Desktop: `global_style_settings.json` in the [data storage path](Dive-Desktop.md#data-storage-path); Web: browser `localStorage`). That shared store is not part of this Configuration JSON export format.
 * Preset confidence filters for those types are defined in `confidenceFilters`
 * Track and Detection attribute specifications are defined in `attributes`
+* Free-form, dataset-level metadata (cruise id, station id, location, …) is stored in `datasetInfo` as a key/value object.
+  * Edited from the [Dataset Info panel](UI-DatasetInfo.md).
+  * Included in DIVE Configuration JSON as `datasetInfo`.
+  * Included in [VIAME CSV](#viame-csv) and [COCO / KWCOCO](#coco-and-kwcoco) export, and restored on import.
+* Annotation frame rate is stored as dataset `fps`.
+  * Included in [DIVE Annotation JSON](#annotation-frame-rate-fps) as top-level `fps`.
+  * Included in [VIAME CSV](#dataset-metadata-in-the-header) as the `# metadata` `fps` field.
+  * Included in [COCO / KWCOCO](#annotation-frame-rate-videosannotation_fps) as `videos[].annotation_fps` for video datasets.
+* A track type hierarchy is stored in `typeHierarchy` as a child-type to immediate-parent-type map.
+
+For example, this configuration makes `fish` a heading-only parent (it does not need to be an
+explicit configured type or appear in a track):
+
+```json
+{
+  "typeHierarchy": {
+    "shark": "fish",
+    "great white shark": "shark"
+  }
+}
+```
+
+A type hierarchy is a single-parent forest. Child and parent names must be non-empty strings,
+self-edges and cycles are invalid, and each child can have only one immediate parent. Names are
+preserved exactly; whitespace is used only to determine whether a name is empty.
+
+A missing `typeHierarchy` leaves the saved hierarchy unchanged. On overwrite import or direct
+save, `null` and `{}` delete it, while a non-empty map replaces it completely. Additive import
+follows JSON merge semantics: `null` deletes the hierarchy, `{}` makes no change, and a non-empty
+map adds edges to the existing hierarchy.
+Identical edges coalesce; a different parent for an existing child or a cycle rejects the whole
+configuration without changing it. Invalid saves and imports report
+`Type hierarchy is invalid: {reason}. No configuration was changed.`
+
+DIVE Configuration JSON exports include a valid non-empty hierarchy and omit an absent or empty
+one. The `config.json` embedded in a dataset zip follows the same rules. Invalid stored hierarchy
+prevents either configuration export and reports
+`Type hierarchy is invalid: {reason}. No configuration file was exported.` It prevents KWCOCO
+export and reports `Type hierarchy is invalid: {reason}. No COCO file was exported.` Hierarchy is
+not transported by DIVE Annotation JSON, VIAME CSV, KPF, NIST, or `labels.txt`. KWCOCO transports it
+through category `supercategory` fields as described in
+[COCO and KWCOCO](#coco-and-kwcoco), including a
+[hierarchy classification example](#example-kwcoco-file-with-hierarchy-classifications).
+
+When importing a DIVE Configuration JSON with `datasetInfo`, **Overwrite** import (the
+default) replaces the existing `datasetInfo` block; an additive import merges it per-key
+(imported values win). A configuration file with no `datasetInfo` entry leaves existing
+dataset metadata untouched.
 
 The full [DatasetMetaMutable definition can be found here](https://github.com/Kitware/dive/blob/main/client/dive-common/apispec.ts).
 
 ```typescript
 interface DatasetMetaMutable {
   version: number;
+  typeHierarchy?: Record<string, string> | null;
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
-  imageEnhancments?: ImageEnhancements;
+  imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
+  datasetInfo?: Record<string, unknown>;
 }
 ```
+
+`imageEnhancements` stores viewer display settings (brightness, contrast, saturation,
+sharpen, and optional percentile stretch bounds). See
+[Image Enhancements](UI-Image-Enhancements.md) for platform support of high bit-depth stretch.
+
+### Media frame metadata
+
+Each frame in an image-sequence or multicam dataset may carry a `timestamp` field (epoch
+seconds) parsed from the filename at load time. When every frame on every camera in a
+multicam dataset has a timestamp, DIVE builds a global aligned timeline for playback. See
+[Aligned playback and timestamps](Multicamera-data.md#aligned-playback-and-timestamps).
+
+```typescript
+interface FrameImage {
+  url: string;
+  filename: string;
+  id?: string; // large-image item id (web tiled TIFF)
+  timestamp?: number; // capture time in epoch seconds, when parseable from filename
+}
+```
+
+## KWCOCO Species List
+
+A species list pre-loads the classes readers pick from, so a dataset opens with the whole list
+already in the [Type List](UI-Type-List.md) instead of being typed in one video at a time.
+
+The format is a KWCOCO `categories` block and nothing else — no `images`, no `annotations`:
+
+```json
+{
+  "categories": [
+    { "id": 1, "name": "Sebastes" },
+    { "id": 2, "name": "Sebastes melanops", "supercategory": "Sebastes" },
+    { "id": 3, "name": "Sebastes flavidus",  "supercategory": "Sebastes" }
+  ]
+}
+```
+
+This is the only species-list format DIVE reads. A file that carries media or annotations is an
+ordinary [COCO / KWCOCO](#coco-and-kwcoco) annotation import, even when its annotation list is
+empty.
+
+* Each `name` becomes a type the dataset declares, listed in the Type List under **Show Empty**
+  and selectable in [locked mode](UI-Type-List.md#locked-mode).
+* `supercategory` — or a one-element `parents` array — becomes a
+  [type hierarchy](UI-Type-List.md#hierarchical-types) edge, read exactly as it is for an
+  annotation import.
+* Nameless category slots are skipped, with the same warning a COCO import reports.
+* A repeated `name` fails the import. Two slots claiming the same class may disagree about its
+  parent, and the category block of an annotation file would only drop its hierarchy; a species
+  list is imported for its classes, so it is refused instead.
+* A species list never creates, changes, or removes annotations.
+
+### Importing a species list
+
+* **In the viewer**, use **Import** and choose the file, on Web and on Desktop.
+* **At upload**, put it in the **Species List** field on the Web upload page or the Desktop
+  import dialog. On Web it may be uploaded together with an annotation file and a DIVE
+  Configuration JSON; one species list per dataset.
+* **Beside the media**, name it to end in `species.json` (for example, `rockfish.species.json`)
+  and it is picked up automatically when the folder is imported. For a Desktop multicamera
+  import it is looked for in the folder the cameras share, then beside each camera; if the
+  cameras carry different lists none is applied and the import dialog warns, so you can pick
+  one in its Species List field.
+
+### Overwrite and additive imports
+
+The import dialog's **Overwrite** checkbox decides how a list meets what the dataset already
+declares:
+
+* **Overwrite** (the default) makes the file the whole declaration. Types it omits stop being
+  declared and the hierarchy is replaced; a list with no `supercategory` clears the stored
+  hierarchy. Styles are kept for the types the file names.
+* **Additive** adds the file's species and hierarchy edges and keeps everything already declared.
+  A list with no `supercategory` leaves the stored hierarchy alone.
+
+Neither mode can orphan annotations: a type a track actually uses is listed from that track's
+confidence pairs whether or not it is declared. Removing it from the declaration only drops its
+saved color, which falls back to the default palette.
+
+A list whose hierarchy cannot be applied — a cycle, a self-edge, or a child given two different
+parents — fails the import with `Type hierarchy is invalid: {reason}. No configuration was
+changed.` rather than importing a flat list, and a list that repeats a name fails with `Species
+list repeats category names: {names}. No configuration was changed.` Unlike the category block
+of an annotation file, which degrades to a warning, a species list is imported for its classes.
+
+For a multicamera dataset the declared types and the hierarchy are stored on the parent, so a
+species list imported against one camera updates the whole dataset.
 
 ## VIAME CSV
 
@@ -182,6 +360,66 @@ Read the [VIAME CSV Specification](https://viame.readthedocs.io/en/latest/sectio
 
 !!! warning
     VIAME CSV is the format that DIVE exports to.  It doesn't support all features of the annotator (like groups) so you may need to use the DIVE Json format.  It's easier to work with.
+
+### Dataset metadata in the header
+
+DIVE writes a `# metadata` comment line near the top of the CSV carrying dataset-level
+values such as `fps`. When a dataset has [Dataset Info](UI-DatasetInfo.md) custom
+metadata, the whole `datasetInfo` object is added to that line as a single nested JSON
+entry keyed `dataset_info`:
+
+```
+# metadata,fps: 23.976,"dataset_info: {""gfishsite_id"": ""2024TXN012"", ""year"": ""2024""}", ...
+```
+
+* On import the `# metadata` line is parsed back into dataset metadata.
+  * `fps` and the `dataset_info` block are restored; other fields (such as `exported_by`) are ignored.
+  * **Overwrite** import (the default) replaces the existing `dataset_info` block; an additive import merges it per-key (imported values win).
+  * A CSV with no `dataset_info` entry leaves existing metadata untouched.
+* This is how dataset context, for example a `gfishsite_id` used to re-link
+  annotations to an external database, travels with the exported annotations without
+  renaming files. See the [Dataset Info panel](UI-DatasetInfo.md) for how to populate it.
+
+### VIAME CSV polygons and length
+
+DIVE extends standard VIAME CSV with additional geometry and measurement fields:
+
+**Polygons** — one or more `(poly)` columns per row, each followed by flat `x y` coordinate pairs:
+
+```
+0,1.png,0,100,100,500,500,1.0,-1,fish,1.0,(poly) 100 100 200 100 200 200 100 200
+```
+
+**Multiple polygons** — additional `(poly)` columns on the same row:
+
+```
+..., (poly) 100 100 200 100 200 200 100 200, (poly) 300 300 400 300 400 400 300 400
+```
+
+**Holes** — `(hole)` columns follow the outer `(poly)` they belong to:
+
+```
+..., (poly) 100 100 500 100 500 500 100 500, (hole) 200 200 400 200 400 400 200 400
+```
+
+Multiple holes are supported with additional `(hole)` columns.
+
+**Length measurements** — the standard VIAME length column (8th numeric field) stores stereo fish-length values. DIVE also reads and writes a `length` entry in detection attributes; on export, the resolved value is written to both the column and attributes when present. Interactive stereo in [DIVE Desktop](Interactive-Annotation.md) populates these values during annotation.
+
+### VIAME CSV notes
+
+DIVE stores a free-form note on each detection (`Feature.notes`). In VIAME CSV
+it is written as a `(note)` column on the detection row:
+
+```
+0,1.png,0,100,100,500,500,1.0,-1,fish,1.0,(note) primary observation
+```
+
+* The `(note)` column is followed by the note text (whitespace after `(note)` is trimmed on import).
+* Notes are per-detection (CSV row), not track-level. There is no track-scoped note token.
+* On import, `(note)` text is stored in `Feature.notes` (typically a single-element `string[]`).
+* On export, the note is emitted last among the token columns so DIVE Desktop and Web produce identical row order.
+* If a row contains more than one `(note)` column, all values are imported into `Feature.notes` and preserved on re-export, but the DIVE UI edits a single combined note string.
 
 ## KWIVER Packet Format (KPF)
 
@@ -204,6 +442,10 @@ DIVE Web and Desktop can import and export COCO for a single dataset at a time
 (an image-sequence dataset or a single video dataset). KWCOCO-compatible files
 are also accepted on import.
 
+When **Checked Types Only** is enabled, export matches the checked names against each track's raw
+stored confidence pairs and removes nonmatching pairs from the exported vector. It does not replace
+that evidence with the hierarchy-resolved type currently displayed in the viewer.
+
 * Read the [COCO Specification](https://cocodataset.org/#format-data)
 * Read the [KWCOCO Specification](https://kwcoco.readthedocs.io/en/release/getting_started.html)
 
@@ -213,18 +455,87 @@ are also accepted on import.
 * For video datasets, DIVE exports per-frame synthetic names (for example, `frame_000123.jpg`)
   because base COCO does not define a canonical video container field.
 
+### DIVE KWCOCO Classification Profile
+
+DIVE Web and Desktop use the same KWCOCO profile for hierarchy and complete confidence vectors:
+
+* `categories` contains every type in an exported confidence vector and every child or parent in
+  the dataset hierarchy. A child's immediate parent is written as `supercategory`. On import, that
+  field is the parent edge; a one-element `parents` list is used only when `supercategory` is
+  absent.
+* Every annotation retains standard `category_id` and `score` fields for the highest-confidence
+  exported pair, so readers that ignore KWCOCO extensions still receive a primary category.
+* Every annotation also has a dense `prob` array aligned by position with the document's complete
+  `categories` array.
+* `dive_confidence_pairs` stores the track's ordered sparse vector exactly. This preserves the
+  difference between a missing pair and a pair explicitly scored `0`, which a dense `prob` array
+  cannot express. The extension is listed in `info.dive_extensions` and takes precedence when a
+  DIVE-authored file is imported again. A present but malformed extension produces one import
+  warning and falls back to a valid `prob` vector or the primary category and score.
+
+For an external KWCOCO file without `dive_confidence_pairs`, DIVE maps `prob` by the original
+category-array order, including unnamed positional slots. It accepts finite numeric values, clamps
+them to `[0, 1]`, keeps the ten highest entries above `0.001`, and falls back to `category_id` plus
+`score` when the vector length is wrong or duplicate category names make the mapping ambiguous.
+For a track whose annotations contain different vectors, the annotation at the highest frame index
+wins; the greater annotation ID wins a same-frame tie, independent of file order.
+
+Categories with missing names, duplicate names, multiple parents, invalid edges, or cycles produce
+an import warning. Usable annotations are still imported. In a multicamera import, the first valid
+camera hierarchy in configured camera order becomes the parent dataset hierarchy. Matching later
+hierarchies coalesce; conflicting later hierarchies are skipped with a warning. Camera datasets do
+not retain separate hierarchy copies.
+
+See [Example KWCOCO file with hierarchy classifications](#example-kwcoco-file-with-hierarchy-classifications)
+for a complete document that round-trips a multi-level hierarchy and an exact
+confidence vector.
+
 ### DIVE COCO Attribute Extensions
 
-COCO does not define standard fields for arbitrary track or detection attributes.
-To preserve DIVE attributes during COCO export/import, DIVE uses extension fields
-on each COCO `annotation` object:
+COCO does not define standard fields for arbitrary track or detection attributes
+or free-form notes. To preserve DIVE attributes and notes during COCO
+export/import, DIVE uses extension fields on each COCO `annotation` object:
 
 * `dive_detection_attributes`: Detection/frame-level attributes (maps to `Feature.attributes`)
 * `dive_track_attributes`: Track-level attributes (maps to `Track.attributes`)
+* `dive_notes`: Per-detection note (maps to `Feature.notes`)
 
 These extension keys are declared in the COCO `info` object as:
 
-* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes"]`
+* `info.dive_extensions = ["dive_detection_attributes", "dive_track_attributes", "dive_notes", "dive_confidence_pairs"]`
+
+### Dataset-level metadata (`datasetInfo`)
+
+The dataset's free-form [Dataset Info](UI-DatasetInfo.md) metadata (e.g. `gfishsite_id`,
+cruise, station) is written to the COCO `info` block under a single `dive_dataset_info` key and
+advertised in `info.dive_extensions`:
+
+* `info.dive_dataset_info = { "gfishsite_id": "2024TXN012", "year": "2024", ... }`
+
+### Annotation frame rate (`videos[].annotation_fps`)
+
+Neither MS-COCO nor KWCOCO define a frame-rate field. On import, DIVE reads the
+annotation FPS the same way VIAME writes it: a positive numeric `fps` on an entry
+in the top-level `videos` table (the COCO counterpart of the VIAME CSV `# metadata`
+`fps` header). Image-sequence documents typically omit `videos` and carry no rate.
+
+```json
+{
+  "videos": [
+    { "id": 1, "name": "clip", "fps": 5 }
+  ],
+  "images": [
+    { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0, "video_id": 1 }
+  ]
+}
+```
+
+* A usable value (finite number greater than zero) is restored into dataset metadata as
+  `fps`. Unusable values (`0`, negative, non-numeric, `inf`/`nan`) are ignored.
+* When multiple video entries are present, the first usable `fps` wins.
+* On export of a **video** dataset, DIVE writes a one-entry `videos` table with the
+  annotation FPS and sets `images[].video_id`. Image-sequence exports omit `videos`
+  so re-import does not treat them as video.
 
 ### Extension Field Details
 
@@ -237,11 +548,17 @@ Values are typically strings, numbers, or booleans.
 * `annotation.dive_track_attributes`
   * Scope: logical track identity across frames (`track_id`)
   * DIVE mapping: `Track.attributes`
+* `annotation.dive_notes`
+  * Scope: one COCO annotation (one frame-level detection)
+  * Type: `string[]` (typically one entry; a single non-empty string is also accepted on import)
+  * DIVE mapping: `Track.features[i].notes`
+  * Legacy alias: on import, if `dive_notes` is absent, DIVE also reads `notes`
 
-When importing, DIVE merges any keys in these objects into the target
+When importing, DIVE merges any keys in the attribute objects into the target
 detection/track attribute dictionaries. If the same key appears in multiple
 annotations belonging to the same track, later imported entries may overwrite
-earlier values for that track-level key.
+earlier values for that track-level key. The note is attached to the feature for
+that annotation only.
 
 ### Round-Trip Behavior
 
@@ -250,7 +567,13 @@ For COCO files produced by DIVE:
 * DIVE writes `info.dive_extensions` to advertise the extension keys used.
 * DIVE writes `dive_detection_attributes` and `dive_track_attributes` on each
   annotation when attributes are present.
-* Re-importing that file into DIVE preserves those attributes.
+* DIVE writes `dive_notes` on each annotation when that feature has a note.
+* DIVE writes category-aligned `prob` plus exact `dive_confidence_pairs` on each annotation.
+* Re-importing that file into DIVE preserves hierarchy edges, track IDs, complete confidence
+  vectors, attributes, and notes.
+* For video datasets, DIVE also writes `videos[].annotation_fps` (and `images[].video_id`) so annotation
+  FPS round-trips. Image-sequence exports omit `videos`. See
+  [Annotation frame rate (`videos[].annotation_fps`)](#annotation-frame-rate-videosannotation_fps).
 
 For COCO files not produced by DIVE:
 
@@ -261,12 +584,14 @@ For COCO files not produced by DIVE:
 
 * Supported:
   * Bounding boxes (`bbox`)
-  * Polygon segmentations in list format (`segmentation: [[x1, y1, ...]]`)
+  * Polygon segmentations in list format (`segmentation: [[x1, y1, ...]]`); if `bbox` is
+    omitted, DIVE derives it from the polygon's axis-aligned bounds
   * Head/tail keypoints from category keypoint labels
 * Partially supported:
   * COCO has no direct equivalent for DIVE groups, so groups are not represented in COCO export.
-* Unsupported:
-  * Run-length encoded segmentations (RLE)
+* Partially supported:
+  * Run-length encoded segmentations (RLE): bounding boxes and other fields import,
+    but masks are skipped and a warning is shown.
 
 ### Example COCO Annotation with DIVE Extensions
 
@@ -274,22 +599,25 @@ For COCO files not produced by DIVE:
 {
   "info": {
     "description": "DIVE export for my-dataset",
-    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes"]
+    "dive_extensions": ["dive_detection_attributes", "dive_track_attributes", "dive_notes", "dive_confidence_pairs"]
   },
   "images": [
     { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
   ],
   "categories": [
     { "id": 1, "name": "fish", "keypoints": ["head", "tail"] },
-    { "id": 2, "name": "crab" }
+    { "id": 2, "name": "shark", "supercategory": "fish" },
+    { "id": 3, "name": "crab" }
   ],
   "annotations": [
     {
       "id": 1,
       "image_id": 1,
-      "category_id": 1,
+      "category_id": 2,
       "bbox": [100, 200, 50, 80],
       "score": 0.97,
+      "prob": [0.03, 0.97, 0],
+      "dive_confidence_pairs": [["shark", 0.97], ["fish", 0.03]],
       "track_id": 42,
       "dive_detection_attributes": {
         "visibility": "poor",
@@ -298,14 +626,17 @@ For COCO files not produced by DIVE:
       "dive_track_attributes": {
         "reviewed": true,
         "source": "analyst"
-      }
+      },
+      "dive_notes": ["primary observation"]
     },
     {
       "id": 2,
       "image_id": 1,
-      "category_id": 2,
+      "category_id": 3,
       "bbox": [320, 140, 120, 90],
       "score": 0.91,
+      "prob": [0, 0, 0.91],
+      "dive_confidence_pairs": [["crab", 0.91]],
       "track_id": 77,
       "segmentation": [
         [320, 140, 360, 130, 430, 170, 440, 220, 360, 230, 325, 200]
@@ -322,3 +653,121 @@ For COCO files not produced by DIVE:
   ]
 }
 ```
+
+### Example KWCOCO file with hierarchy classifications
+
+A DIVE type hierarchy is a child-to-parent map. This configuration:
+
+```json
+{
+  "typeHierarchy": {
+    "shark": "fish",
+    "great white shark": "shark",
+    "ray": "fish"
+  }
+}
+```
+
+is the forest `fish` → `shark` → `great white shark` plus unused sibling `ray`.
+KWCOCO stores each immediate parent on the child category as `supercategory`.
+DIVE also writes every hierarchy member into `categories`, including heading-only
+parents (`fish`) and unused children (`ray`).
+
+The annotation below scores `great white shark` highest, keeps ancestor `shark`
+at an explicit `0`, and scores unrelated `rock`. Dense `prob` is aligned with
+`categories` order; missing pairs become `0` there. Sparse
+`dive_confidence_pairs` is the source of truth: `shark` scored `0` is kept, while
+`fish` and `ray` are absent rather than zero.
+
+```json
+{
+  "info": {
+    "description": "DIVE export for my-dataset",
+    "dive_extensions": ["dive_confidence_pairs"]
+  },
+  "images": [
+    { "id": 1, "file_name": "frame_000000.jpg", "frame_index": 0 }
+  ],
+  "categories": [
+    { "id": 1, "name": "shark", "supercategory": "fish" },
+    { "id": 2, "name": "great white shark", "supercategory": "shark" },
+    { "id": 3, "name": "rock" },
+    { "id": 4, "name": "ray", "supercategory": "fish" },
+    { "id": 5, "name": "fish" }
+  ],
+  "annotations": [
+    {
+      "id": 1,
+      "image_id": 1,
+      "category_id": 2,
+      "bbox": [100, 200, 50, 80],
+      "score": 0.91,
+      "prob": [0, 0.91, 0.22, 0, 0],
+      "dive_confidence_pairs": [
+        ["shark", 0],
+        ["great white shark", 0.91],
+        ["rock", 0.22]
+      ],
+      "track_id": 42
+    }
+  ]
+}
+```
+
+On import, that document restores:
+
+```json
+{
+  "typeHierarchy": {
+    "shark": "fish",
+    "great white shark": "shark",
+    "ray": "fish"
+  }
+}
+```
+
+and the track confidence vector `[["shark", 0], ["great white shark", 0.91], ["rock", 0.22]]`.
+
+External KWCOCO files may omit `supercategory` and use a one-element `parents`
+list instead. DIVE treats that as the same parent edge; `supercategory` wins when
+both are present.
+
+```json
+{ "id": 1, "name": "shark", "parents": ["fish"] }
+```
+
+### Multi-point head/tail centerlines
+
+Centerlines reuse named keypoints and the existing `HeadTails` GeoJSON LineString.
+An example optional section in a VIAME CSV row is:
+
+```text
+(kp) head 100.25 120,(kp) spine_001 140 105.5,(kp) spine_002 180 115,(kp) tail 210 140
+```
+
+Point names are ordered `head`, numerically sorted `spine_N`, then `tail`.
+Writers preserve subpixel coordinates. The editor assigns zero-padded sequential
+names; indices may be renumbered after editing and are not cross-camera IDs.
+
+DIVE JSON stores the ordered coordinates in a feature with
+`properties.key = "HeadTails"` and `geometry.type = "LineString"`, alongside named
+Point features. When a line is present its coordinates are authoritative; its
+point markers are regenerated on import/edit/export to prevent stale vertices.
+Line-only JSON can therefore be exported to CSV without losing interior points.
+Two-point head/tail files remain valid. Older DIVE versions may drop the new
+interior points; use the updated readers and writers for round trips.
+
+COCO import/export supports these centerlines in both desktop and web DIVE.
+Exports use category `keypoints` labels (`head`, `spine_001`, …, `tail`),
+1-based `skeleton` edges, and annotation `[x, y, visibility]` triples plus
+`num_keypoints`. A shared label list covers curves with different numbers of
+vertices; absent slots are `[0, 0, 0]` and do not become vertices on import.
+Coordinates retain subpixel precision. The edited `HeadTails` LineString is
+authoritative on export, including when it has no separate point markers.
+
+DIVE also imports VIAME's KWCOCO named-point lists, resolving either
+`keypoint_category` names or `keypoint_category_id` through `keypoint_categories`.
+Both formats reconstruct the editable line from head, numerically ordered spine
+points, and tail. Without both endpoints, points are retained without creating a
+complete line. Other named keypoints are retained separately. These fields store
+the sampled polyline, not spline coefficients or physical stereo correspondences.

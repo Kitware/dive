@@ -14,6 +14,7 @@ import {
   RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
+  RunScoring,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import * as viame from './viame';
@@ -46,7 +47,33 @@ const ViameLinuxConstants = {
 
 function sourceString(settings: Settings) {
   const setupScriptAbs = npath.join(settings.viamePath, ViameLinuxConstants.setup);
-  return `. "${setupScriptAbs}"`;
+  // Clear inherited VIAME paths so setup_viame.sh defines a consistent environment.
+  const clearEnv = [
+    'KWIVER_PLUGIN_PATH',
+    'SPROKIT_PYTHON_MODULES',
+    'PYTHONPATH',
+    'VIAME_INSTALL',
+    'SPROKIT_MODULE_PATH',
+  ].join(' ');
+  return `unset ${clearEnv} && . "${setupScriptAbs}"`;
+}
+
+function getViameConstants(settings: Settings): viame.ViameConstants {
+  return {
+    ...ViameLinuxConstants,
+    setupScriptAbs: sourceString(settings),
+  };
+}
+
+function getViamePythonExe(settings: Settings): string {
+  // Packaged binary installs bundle an interpreter at bin/python. From-source
+  // builds against system python have no such interpreter and instead rely on
+  // setup_viame.sh putting the correct python on PATH, so fall back to that.
+  const bundled = npath.join(settings.viamePath, 'bin', 'python');
+  if (fs.existsSync(bundled)) {
+    return bundled;
+  }
+  return 'python';
 }
 
 async function validateViamePath(settings: Settings): Promise<true | string> {
@@ -82,10 +109,7 @@ async function runPipeline(
   runPipelineArgs: RunPipeline,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  return viame.runPipeline(settings, runPipelineArgs, updater, validateViamePath, {
-    ...ViameLinuxConstants,
-    setupScriptAbs: sourceString(settings),
-  });
+  return viame.runPipeline(settings, runPipelineArgs, updater, validateViamePath, getViameConstants(settings));
 }
 
 async function exportTrainedPipeline(
@@ -93,10 +117,13 @@ async function exportTrainedPipeline(
   exportTrainedPipelineArgs: ExportTrainedPipeline,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  return viame.exportTrainedPipeline(settings, exportTrainedPipelineArgs, updater, validateViamePath, {
-    ...ViameLinuxConstants,
-    setupScriptAbs: sourceString(settings),
-  });
+  return viame.exportTrainedPipeline(
+    settings,
+    exportTrainedPipelineArgs,
+    updater,
+    validateViamePath,
+    getViameConstants(settings),
+  );
 }
 
 async function train(
@@ -104,10 +131,15 @@ async function train(
   runTrainingArgs: RunTraining,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  return viame.train(settings, runTrainingArgs, updater, validateViamePath, {
-    ...ViameLinuxConstants,
-    setupScriptAbs: sourceString(settings),
-  });
+  return viame.train(settings, runTrainingArgs, updater, validateViamePath, getViameConstants(settings));
+}
+
+async function runScoring(
+  settings: Settings,
+  runScoringArgs: RunScoring,
+  updater: DesktopJobUpdater,
+): Promise<DesktopJob> {
+  return viame.runScoring(settings, runScoringArgs, updater, validateViamePath, getViameConstants(settings));
 }
 
 // Based on https://github.com/chrisallenlane/node-nvidia-smi
@@ -145,5 +177,8 @@ export default {
   runPipeline,
   exportTrainedPipeline,
   train,
+  runScoring,
   validateViamePath,
+  getViameConstants,
+  getViamePythonExe,
 };

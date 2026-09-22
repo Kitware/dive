@@ -159,7 +159,7 @@ docker run --gpus=all --rm nvidia/cuda:11.0-base nvidia-smi
 # Test regular nvidia runtime
 nvidia-smi
 
-# For Scenario 2 and 3, check that the VIAME CLI is available (DIVE jobs use `viame runner` / `viame train`)
+# For Scenario 2 and 3, check that the VIAME CLI is available (DIVE jobs use `viame run` / `viame train`)
 cd /opt/noaa/viame
 source setup_viame.sh
 viame --help

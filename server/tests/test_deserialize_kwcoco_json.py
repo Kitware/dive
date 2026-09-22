@@ -1,9 +1,14 @@
 import json
+from pathlib import Path
 from typing import Dict, List, Tuple
 
 import pytest
 
 from dive_utils.serializers import kwcoco
+
+KWCOCO_PROFILE = json.loads(
+    (Path(__file__).parents[2] / 'testutils/kwcoco/import-profile.json').read_text()
+)
 
 test_tuple: List[Tuple[dict, dict, dict]] = [
     (
@@ -308,6 +313,11 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                                 },
                                 {
                                     "type": "Feature",
+                                    "geometry": {"type": "Point", "coordinates": [58.45, 262.91]},
+                                    "properties": {"key": "eye"},
+                                },
+                                {
+                                    "type": "Feature",
                                     "geometry": {
                                         "type": "LineString",
                                         "coordinates": [
@@ -353,6 +363,19 @@ test_tuple: List[Tuple[dict, dict, dict]] = [
                     {
                         "frame": 1,
                         "bounds": [73, 125, 142, 184],
+                        "geometry": {
+                            "type": "FeatureCollection",
+                            "features": [
+                                {
+                                    "type": "Feature",
+                                    "geometry": {
+                                        "type": "Point",
+                                        "coordinates": [136.825, 131.145],
+                                    },
+                                    "properties": {"key": "eye"},
+                                }
+                            ],
+                        },
                     }
                 ],
                 "confidencePairs": [["eff", 1.0]],
@@ -680,7 +703,7 @@ def test_read_kwcoco_json(
     expected_tracks: Dict[str, dict],
     expected_attributes: Dict[str, dict],
 ):
-    (converted, attributes) = kwcoco.load_coco_as_tracks_and_attributes(input)
+    converted, attributes, _, _ = kwcoco.load_coco_as_tracks_and_attributes(input)
     assert json.dumps(converted['tracks'], sort_keys=True) == json.dumps(
         expected_tracks, sort_keys=True
     )
@@ -727,6 +750,142 @@ def test_export_dive_as_coco_single_dataset():
     assert "dive_notes" in coco["info"]["dive_extensions"]
 
 
+def test_export_dive_as_coco_preserves_pairs_and_category_hierarchy_roundtrip():
+    profile = KWCOCO_PROFILE['exportRoundTrip']
+    exported = kwcoco.export_dive_as_coco(
+        profile['tracks'],
+        {int(frame): name for frame, name in profile['imageFilenames'].items()},
+        dataset_name=profile['datasetName'],
+        typeHierarchy=profile['typeHierarchy'],
+    )
+    categories = {category['name']: category for category in exported['categories']}
+    assert list(categories) == profile['expectedCategoryNames']
+    assert {
+        name: category['supercategory']
+        for name, category in categories.items()
+        if 'supercategory' in category
+    } == profile['expectedParents']
+    annotation = exported['annotations'][0]
+    assert annotation['track_id'] == profile['tracks'][0]['id']
+    assert annotation['category_id'] == categories['leaf']['id']
+    assert annotation['score'] == 0.75
+    assert annotation['prob'] == profile['expectedProb']
+    assert annotation['dive_confidence_pairs'] == profile['expectedPairs']
+    assert 'dive_confidence_pairs' in exported['info']['dive_extensions']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(exported)
+    track_id = str(profile['tracks'][0]['id'])
+    assert converted['tracks'][track_id]['confidencePairs'] == [
+        tuple(pair) for pair in profile['expectedPairs']
+    ]
+    assert warnings == []
+
+
+# --- datasetInfo passthrough ---
+
+DATASET_INFO = {
+    "gfishsite_id": "2024TXN012",
+    "cruise": "2403",
+    "sta_lat": "26.8195",
+    "year": "2024",
+}
+
+_EXPORT_TRACKS = [
+    {
+        "id": 1,
+        "begin": 0,
+        "end": 0,
+        "confidencePairs": [["fish", 0.9]],
+        "features": [{"frame": 0, "bounds": [10, 20, 30, 60]}],
+    }
+]
+
+
+def test_export_dive_as_coco_writes_dataset_info():
+    """A populated datasetInfo lands under info.dive_dataset_info and is advertised in dive_extensions."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=DATASET_INFO
+    )
+    assert coco["info"]["dive_dataset_info"] == DATASET_INFO
+    assert "dive_dataset_info" in coco["info"]["dive_extensions"]
+
+
+@pytest.mark.parametrize("datasetInfo", [None, {}])
+def test_export_dive_as_coco_omits_empty_dataset_info(datasetInfo):
+    """No dive_dataset_info key (and dive_extensions unchanged) when empty/absent -> byte-unchanged."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=datasetInfo
+    )
+    baseline = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo"
+    )
+    assert "dive_dataset_info" not in coco["info"]
+    assert "dive_dataset_info" not in coco["info"]["dive_extensions"]
+    assert coco["info"] == baseline["info"]
+
+
+def test_export_dive_as_coco_writes_video_fps():
+    """Video annotation FPS lands on videos[].annotation_fps, images linked by video_id."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="clip", fps=5
+    )
+    assert coco["videos"] == [{"id": 1, "name": "clip", "annotation_fps": 5.0}]
+    assert all(image.get("video_id") == 1 for image in coco["images"])
+    assert kwcoco.frame_rate_from_coco(coco) == 5.0
+
+
+@pytest.mark.parametrize("fps", [None, 0, -1, float("nan"), float("inf")])
+def test_export_dive_as_coco_omits_unusable_or_absent_fps(fps):
+    """Image-sequence callers pass no fps; unusable values must not emit videos."""
+    coco = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", fps=fps
+    )
+    baseline = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo"
+    )
+    assert "videos" not in coco
+    assert all("video_id" not in image for image in coco["images"])
+    assert coco == baseline
+
+
+def test_load_coco_restores_dataset_info():
+    """info.dive_dataset_info is surfaced as the 4th return value for the caller to persist."""
+    coco = {
+        "info": {"dive_dataset_info": DATASET_INFO},
+        "images": [{"id": 1, "file_name": "img_1.jpg"}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [1, 2, 3, 4]}],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    _converted, _attributes, _warnings, datasetInfo = kwcoco.load_coco_as_tracks_and_attributes(
+        coco
+    )
+    assert datasetInfo == DATASET_INFO
+
+
+def test_load_coco_without_dataset_info_returns_empty():
+    """A COCO file with no info.dive_dataset_info yields an empty datasetInfo (nothing to persist)."""
+    coco = {
+        "images": [{"id": 1, "file_name": "img_1.jpg"}],
+        "annotations": [{"id": 1, "image_id": 1, "category_id": 1, "bbox": [1, 2, 3, 4]}],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    _converted, _attributes, _warnings, datasetInfo = kwcoco.load_coco_as_tracks_and_attributes(
+        coco
+    )
+    assert datasetInfo == {}
+
+
+def test_dataset_info_export_import_roundtrip():
+    """Export then re-import carries datasetInfo through unchanged (values are opaque strings)."""
+    exported = kwcoco.export_dive_as_coco(
+        _EXPORT_TRACKS, {0: "frame_000000.jpg"}, dataset_name="demo", datasetInfo=DATASET_INFO
+    )
+    _converted, _attributes, _warnings, datasetInfo = kwcoco.load_coco_as_tracks_and_attributes(
+        exported
+    )
+    assert datasetInfo == DATASET_INFO
+
+
 def test_import_dive_attribute_extensions():
     coco = {
         "images": [{"id": 1, "file_name": "img_1.jpg"}],
@@ -744,9 +903,543 @@ def test_import_dive_attribute_extensions():
         ],
         "categories": [{"id": 1, "name": "fish"}],
     }
-    converted, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    converted, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
     track = converted["tracks"]["5"]
     assert track["attributes"]["reviewed"] is True
     assert track["features"][0]["attributes"]["visibility"] == "poor"
     assert track["features"][0]["notes"] == ["first pass", "manual review"]
 
+
+def test_import_rle_segmentation_skips_masks_with_warning():
+    coco = {
+        "images": [{"id": 1, "file_name": "img_1.jpg"}],
+        "annotations": [
+            {
+                "id": 10,
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [10, 20, 30, 40],
+                "track_id": 5,
+                "iscrowd": 1,
+                "segmentation": {
+                    "size": [480, 640],
+                    "counts": "eNq...",
+                },
+            }
+        ],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    track = converted["tracks"]["5"]
+    assert track["features"][0]["bounds"] == [10, 20, 40, 60]
+    assert "geometry" not in track["features"][0]
+    assert len(warnings) == 1
+    assert "segmentation masks" in warnings[0]
+
+
+def test_import_missing_bbox_raises_descriptive_error():
+    coco = {
+        "images": [{"id": 1, "file_name": "frame_000001.jpg", "frame_index": 0}],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "track_id": 201,
+                "iscrowd": 1,
+                "segmentation": {"size": [1080, 1920], "counts": "abc"},
+            }
+        ],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    with pytest.raises(ValueError) as exc:
+        kwcoco.load_coco_as_tracks_and_attributes(coco)
+    message = str(exc.value)
+    assert "no bbox and no usable polygon" in message
+    assert "RLE segmentation masks still require a bbox" in message
+
+
+def test_import_polygon_without_bbox_derives_bounds():
+    coco = {
+        "images": [{"id": 1, "file_name": "frame_000001.jpg", "frame_index": 0}],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "track_id": 401,
+                "segmentation": [[120, 80, 200, 80, 200, 120, 120, 120]],
+            }
+        ],
+        "categories": [{"id": 1, "name": "fish"}],
+    }
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    track = converted["tracks"]["401"]
+    assert track["features"][0]["bounds"] == [120, 80, 200, 120]
+    assert track["features"][0]["geometry"] is not None
+    assert warnings == []
+
+
+def test_import_polygon_and_rle_segmentation():
+    coco = {
+        "images": [{"id": 1, "file_name": "frame_000001.jpg", "frame_index": 0}],
+        "annotations": [
+            {
+                "id": 1,
+                "image_id": 1,
+                "category_id": 1,
+                "bbox": [120, 80, 80, 40],
+                "track_id": 301,
+                "segmentation": [[120, 80, 200, 80, 200, 120, 120, 120]],
+            },
+            {
+                "id": 2,
+                "image_id": 1,
+                "category_id": 2,
+                "bbox": [400, 200, 200, 60],
+                "track_id": 302,
+                "iscrowd": 1,
+                "segmentation": {"size": [1080, 1920], "counts": "abc"},
+            },
+        ],
+        "categories": [
+            {"id": 1, "name": "person"},
+            {"id": 2, "name": "crowd"},
+        ],
+    }
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    polygon_track = converted["tracks"]["301"]
+    assert polygon_track["features"][0]["geometry"] is not None
+    rle_track = converted["tracks"]["302"]
+    assert rle_track["features"][0]["bounds"] == [400, 200, 600, 260]
+    assert "geometry" not in rle_track["features"][0]
+    assert len(warnings) == 1
+
+
+def _classification_coco(categories, annotations):
+    return {
+        'images': [
+            {'id': 1, 'file_name': 'frame_1.jpg', 'frame_index': 1},
+            {'id': 2, 'file_name': 'frame_2.jpg', 'frame_index': 2},
+        ],
+        'annotations': annotations,
+        'categories': categories,
+    }
+
+
+def _classification_annotation(annotation_id, image_id=1, **extra):
+    return {
+        'id': annotation_id,
+        'image_id': image_id,
+        'category_id': 1,
+        'track_id': 9,
+        'bbox': [1, 2, 3, 4],
+        **extra,
+    }
+
+
+def test_prob_uses_raw_category_order_and_preserves_unnamed_slots():
+    coco = _classification_coco(
+        [{'id': 10, 'name': 'fish'}, {'id': 1}, {'id': 4, 'name': 'shark'}],
+        [_classification_annotation(1, category_id=10, prob=[0.2, 0.9, 0.1])],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    assert converted['tracks']['9']['confidencePairs'] == [('fish', 0.2), ('shark', 0.1)]
+    assert warnings == []
+
+
+def test_unnamed_primary_category_falls_back_to_unknown():
+    coco = _classification_coco(
+        [{'id': 1}, {'id': 2, 'name': 'fish'}],
+        [_classification_annotation(1, category_id=1)],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    assert converted['tracks']['9']['confidencePairs'] == [('unknown', 1.0)]
+    assert warnings == []
+
+
+def test_prob_prunes_and_warns_once_for_mismatch_or_duplicate_names():
+    categories = [{'id': index, 'name': f'class_{index}'} for index in range(12)]
+    annotations = [
+        _classification_annotation(
+            1,
+            track_id=1,
+            prob=[0.5 - index * 0.01 for index in range(12)],
+        ),
+        _classification_annotation(2, track_id=2, prob=[0.1]),
+        _classification_annotation(3, track_id=3, prob=[0.2]),
+    ]
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        _classification_coco(categories, annotations)
+    )
+    assert len(converted['tracks']['1']['confidencePairs']) == 10
+    assert warnings == [kwcoco.PROB_LENGTH_MISMATCH_WARNING]
+
+    duplicate = _classification_coco(
+        [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'fish'}],
+        [_classification_annotation(4, prob=[0.1, 0.9])],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(duplicate)
+    assert converted['tracks']['9']['confidencePairs'] == [('fish', 1.0)]
+    assert warnings == [kwcoco.PROB_DUPLICATE_CATEGORY_WARNING]
+
+
+def test_dive_confidence_pairs_prefer_exact_sparse_zero_membership():
+    coco = _classification_coco(
+        [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}],
+        [
+            _classification_annotation(
+                1,
+                prob=[0.1, 0.9],
+                dive_confidence_pairs=[['shark', 0.0], ['fish', 0.25]],
+            )
+        ],
+    )
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+    assert converted['tracks']['9']['confidencePairs'] == [('shark', 0.0), ('fish', 0.25)]
+    assert warnings == []
+
+
+@pytest.mark.parametrize(
+    'value',
+    [
+        [],
+        'not a pair list',
+        [['fish']],
+        [['fish', 0.2], ['fish', 0.3]],
+        [['fish', float('nan')]],
+        [['fish', 1.1]],
+    ],
+)
+def test_malformed_dive_confidence_pairs_warns_once_and_falls_back(value):
+    coco = _classification_coco(
+        [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}],
+        [
+            _classification_annotation(1, prob=[0.2, 0.8], dive_confidence_pairs=value),
+            _classification_annotation(2, prob=[0.2, 0.8], dive_confidence_pairs=value),
+        ],
+    )
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(coco)
+
+    assert converted['tracks']['9']['confidencePairs'] == [('shark', 0.8), ('fish', 0.2)]
+    assert warnings == [kwcoco.DIVE_CONFIDENCE_PAIRS_WARNING]
+
+
+def test_highest_frame_confidence_wins_independent_of_source_order():
+    categories = [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}]
+    annotations = [
+        _classification_annotation(1, image_id=2, prob=[0.2, 0.8]),
+        _classification_annotation(2, image_id=1, prob=[0.9, 0.1]),
+    ]
+    converted, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        _classification_coco(categories, annotations)
+    )
+    assert converted['tracks']['9']['confidencePairs'] == [('shark', 0.8), ('fish', 0.2)]
+
+
+def test_same_highest_frame_uses_greater_annotation_id_independent_of_source_order():
+    categories = [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'shark'}]
+    annotations = [
+        _classification_annotation(2, prob=[0.9, 0.1]),
+        _classification_annotation(1, prob=[0.2, 0.8]),
+    ]
+    document = _classification_coco(categories, annotations)
+
+    converted, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(document)
+    reordered, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(
+        {**document, 'annotations': list(reversed(annotations))}
+    )
+
+    expected = [('fish', 0.9), ('shark', 0.1)]
+    assert converted['tracks']['9']['confidencePairs'] == expected
+    assert reordered['tracks']['9']['confidencePairs'] == expected
+
+
+def test_supercategory_extraction_handles_roots_duplicates_and_multiple_parents():
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
+        {
+            'categories': [
+                {'id': 1, 'name': 'root', 'supercategory': 'root'},
+                {'id': 2, 'name': 'leaf', 'supercategory': 'root', 'parents': ['root', 'other']},
+                {'id': 3, 'name': 'external', 'supercategory': 'outside'},
+                {'id': 4},
+            ]
+        }
+    )
+    assert hierarchy == {'leaf': 'root', 'external': 'outside'}
+    assert warnings == [
+        kwcoco.SUPERCATEGORY_MULTI_PARENT_WARNING,
+        kwcoco.CATEGORY_MISSING_NAME_WARNING,
+    ]
+
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
+        {'categories': [{'id': 1, 'name': 'fish'}, {'id': 2, 'name': 'fish'}]}
+    )
+    assert hierarchy is None
+    assert warnings == [kwcoco.SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING]
+
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(
+        {
+            'categories': [
+                {'id': 1, 'name': 'fish'},
+                {'id': 2, 'name': 'shark', 'parents': ['fish']},
+                {'id': 3, 'name': 'tuna', 'supercategory': 'animal', 'parents': ['fish']},
+                {'id': 4, 'name': 'whale', 'parents': ['mammal', 'fish']},
+            ]
+        }
+    )
+    assert hierarchy == {'shark': 'fish', 'tuna': 'animal'}
+    assert warnings == [kwcoco.SUPERCATEGORY_MULTI_PARENT_WARNING]
+
+
+def test_shared_exact_vector_and_hierarchy_import_profile():
+    profile = KWCOCO_PROFILE['highestFrameExact']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(profile['document'])
+    hierarchy, hierarchy_warnings = kwcoco.type_hierarchy_from_categories(profile['document'])
+
+    pairs = converted['tracks'][str(profile['trackId'])]['confidencePairs']
+    assert [list(pair) for pair in pairs] == profile['expectedPairs']
+    assert hierarchy == profile['expectedHierarchy']
+    assert warnings == []
+    assert hierarchy_warnings == []
+
+
+def test_shared_missing_frame_index_profile():
+    profile = KWCOCO_PROFILE['missingFrameIndexExact']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(profile['document'])
+
+    pairs = converted['tracks'][str(profile['trackId'])]['confidencePairs']
+    assert [list(pair) for pair in pairs] == profile['expectedPairs']
+    assert warnings == []
+
+
+def test_shared_empty_dive_confidence_pairs_profile():
+    profile = KWCOCO_PROFILE['emptyDiveConfidencePairs']
+
+    converted, _, warnings, _ = kwcoco.load_coco_as_tracks_and_attributes(profile['document'])
+
+    pairs = converted['tracks'][str(profile['trackId'])]['confidencePairs']
+    assert [list(pair) for pair in pairs] == profile['expectedPairs']
+    assert warnings == [kwcoco.DIVE_CONFIDENCE_PAIRS_WARNING]
+
+
+def _fps_document(videos=None):
+    document = {
+        'images': [{'id': 1, 'file_name': 'frame_000000.png', 'frame_index': 0}],
+        'annotations': [
+            {'id': 1, 'image_id': 1, 'category_id': 1, 'bbox': [0, 0, 1, 1], 'track_id': 1}
+        ],
+        'categories': [{'id': 1, 'name': 'fish'}],
+    }
+    if videos is not None:
+        document['videos'] = videos
+    return document
+
+
+def test_frame_rate_read_from_video():
+    """The COCO counterpart of the VIAME CSV header's fps."""
+    assert (
+        kwcoco.frame_rate_from_coco(_fps_document([{'id': 1, 'name': 'clip', 'annotation_fps': 5}]))
+        == 5.0
+    )
+    assert (
+        kwcoco.frame_rate_from_coco(
+            _fps_document([{'id': 1}, {'id': 2, 'name': 'clip', 'annotation_fps': 29.97}])
+        )
+        == 29.97
+    )
+
+
+def test_frame_rate_absent_or_unusable():
+    """An image sequence carries no rate, and no caller should see fps: 0."""
+    assert kwcoco.frame_rate_from_coco(_fps_document()) is None
+    assert kwcoco.frame_rate_from_coco(_fps_document([])) is None
+    for fps in [0, -5, '5', True, float('inf'), float('nan'), None]:
+        assert (
+            kwcoco.frame_rate_from_coco(_fps_document([{'id': 1, 'annotation_fps': fps}])) is None
+        )
+
+
+def test_species_list_is_a_category_block_with_no_media_behind_it():
+    """The list declares what a dataset may use; it asserts nothing was observed."""
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1, 'name': 'fish'}]}) is True
+    # A KWCOCO document that spells its empty media out is still only a declaration.
+    assert (
+        kwcoco.is_coco_species_list(
+            {'images': [], 'annotations': [], 'categories': [{'id': 1, 'name': 'fish'}]}
+        )
+        is True
+    )
+
+
+def test_documents_that_are_not_species_lists():
+    document = {'images': [{'id': 1, 'file_name': 'a.png'}], 'categories': [{'id': 1, 'name': 'f'}]}
+    # Media present: an ordinary COCO document, even with nothing annotated on it.
+    assert kwcoco.is_coco_species_list(document) is False
+    assert (
+        kwcoco.is_coco_species_list(
+            {'annotations': [{'id': 1}], 'categories': [{'id': 1, 'name': 'f'}]}
+        )
+        is False
+    )
+    assert kwcoco.is_coco_species_list({'categories': []}) is False
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1}]}) is False
+    assert kwcoco.is_coco_species_list({'categories': [{'id': 1, 'name': ''}]}) is False
+    assert kwcoco.is_coco_species_list({'categories': ['fish']}) is False
+    assert kwcoco.is_coco_species_list({'tracks': {}, 'groups': {}}) is False
+    assert kwcoco.is_coco_species_list([{'name': 'fish'}]) is False
+
+
+def test_species_names_keep_file_order_without_repeats():
+    document = {
+        'categories': [
+            {'id': 1, 'name': 'Sebastes'},
+            {'id': 2, 'name': 'Sebastes melanops', 'supercategory': 'Sebastes'},
+            {'id': 3},
+            {'id': 4, 'name': ''},
+            {'id': 5, 'name': 'Sebastes'},
+            {'id': 6, 'name': 'Sebastes flavidus', 'supercategory': 'Sebastes'},
+        ]
+    }
+
+    assert kwcoco.species_list_from_categories(document) == [
+        'Sebastes',
+        'Sebastes melanops',
+        'Sebastes flavidus',
+    ]
+    # The nameless slots are reported once, by the hierarchy reader both callers use.
+    # Repeats also cost the file its hierarchy, which that same reader reports; an import
+    # refuses the file instead, using the repeated names listed below.
+    hierarchy, warnings = kwcoco.type_hierarchy_from_categories(document)
+    assert hierarchy is None
+    assert warnings == [
+        kwcoco.CATEGORY_MISSING_NAME_WARNING,
+        kwcoco.SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
+    ]
+    assert kwcoco.repeated_category_names(document) == ['Sebastes']
+
+
+def test_repeated_category_names_are_listed_once_in_first_seen_order():
+    document = {
+        'categories': [
+            {'id': 1, 'name': 'b'},
+            {'id': 2, 'name': 'a'},
+            {'id': 3, 'name': 'b'},
+            {'id': 4, 'name': 'a'},
+            {'id': 5, 'name': 'b'},
+            {'id': 6},
+            {'id': 7, 'name': ''},
+            'not a category',
+        ]
+    }
+    assert kwcoco.repeated_category_names(document) == ['b', 'a']
+    # Nameless slots never count as repeats of each other.
+    assert kwcoco.repeated_category_names({'categories': [{'id': 1}, {'id': 2}]}) == []
+    assert kwcoco.repeated_category_names({'categories': [{'id': 1, 'name': 'a'}]}) == []
+
+
+@pytest.mark.parametrize('named', [False, True])
+def test_centerline_keypoints_roundtrip(named):
+    labels = ['tail', 'spine_010', 'head', 'spine_002', 'spine_003', 'eye']
+    triples = [
+        [90.5, 20.25, 2],
+        [60.1, 35.2, 2],
+        [10.25, 20.5, 2],
+        [30.75, 40.125, 1],
+        [0, 0, 0],
+        [12.5, 18.5, 2],
+    ]
+    keypoints = [v for triple in triples for v in triple]
+    if named:
+        keypoints = [
+            {'keypoint_category_id': 10 + i * 3, 'xy': p[:2], 'visible': p[2]}
+            for i, p in enumerate(triples)
+        ]
+    doc = {
+        'images': [{'id': 1, 'file_name': 'fish.png'}],
+        'categories': [{'id': 7, 'name': 'fish', 'keypoints': labels}],
+        'keypoint_categories': [{'id': 10 + i * 3, 'name': k} for i, k in enumerate(labels)],
+        'annotations': [
+            {
+                'id': 1,
+                'image_id': 1,
+                'category_id': 7,
+                'bbox': [0, 0, 100, 50],
+                'keypoints': keypoints,
+            }
+        ],
+    }
+    tracks, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(doc)
+    feature = next(iter(tracks['tracks'].values()))['features'][0]
+    geometry = feature['geometry']['features']
+    expected = [triples[i][:2] for i in [2, 3, 1, 0]]
+    assert (
+        next(g for g in geometry if g['geometry']['type'] == 'LineString')['geometry'][
+            'coordinates'
+        ]
+        == expected
+    )
+    assert not any(g['properties']['key'] == 'spine_003' for g in geometry)
+    # Test line-only geometry and stale point markers: the edited line wins.
+    feature['geometry']['features'] = [g for g in geometry if g['geometry']['type'] == 'LineString']
+    out = kwcoco.export_dive_as_coco(tracks['tracks'].values(), {0: 'fish.png'}, 'fish')
+    assert out['categories'][0]['keypoints'] == ['head', 'spine_001', 'spine_002', 'tail']
+    assert out['categories'][0]['skeleton'] == [[1, 2], [2, 3], [3, 4]]
+    assert out['annotations'][0]['num_keypoints'] == 4
+    again, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    geo = next(iter(again['tracks'].values()))['features'][0]['geometry']['features']
+    assert (
+        next(g for g in geo if g['geometry']['type'] == 'LineString')['geometry']['coordinates']
+        == expected
+    )
+
+
+def test_centerlines_with_different_vertex_counts_share_coco_schema():
+    lines = [[[1.25, 2.5], [4.5, 6.25], [9.5, 3.25]], [[2.5, 3.5], [8.5, 4.5]]]
+    tracks = [
+        dict(
+            id=1,
+            begin=0,
+            end=1,
+            confidencePairs=[['fish', 1]],
+            features=[
+                dict(
+                    frame=i,
+                    bounds=[0, 0, 10, 10],
+                    geometry={
+                        'type': 'FeatureCollection',
+                        'features': [
+                            {
+                                'type': 'Feature',
+                                'properties': {'key': 'HeadTails'},
+                                'geometry': {'type': 'LineString', 'coordinates': line},
+                            }
+                        ],
+                    },
+                )
+                for i, line in enumerate(lines)
+            ],
+        )
+    ]
+    out = kwcoco.export_dive_as_coco(tracks, {0: 'a.png', 1: 'b.png'}, 'fish')
+    assert out['annotations'][1]['keypoints'] == [2.5, 3.5, 2, 0, 0, 0, 8.5, 4.5, 2]
+    assert out['annotations'][1]['num_keypoints'] == 2
+    result, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    for feature, line in zip(result['tracks']['1']['features'], lines):
+        geometry = feature['geometry']['features']
+        assert (
+            next(g for g in geometry if g['geometry']['type'] == 'LineString')['geometry'][
+                'coordinates'
+            ]
+            == line
+        )
+    # No tail means no complete centerline, even with visible interior points.
+    out['annotations'][0]['keypoints'][-1] = 0
+    result, _, _, _ = kwcoco.load_coco_as_tracks_and_attributes(out)
+    assert all(
+        g['geometry']['type'] != 'LineString'
+        for g in result['tracks']['1']['features'][0]['geometry']['features']
+    )

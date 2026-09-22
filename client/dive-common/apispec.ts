@@ -8,6 +8,19 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { CustomStyle } from 'vue-media-annotator/StyleManager';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
+import type {
+  CameraHomographies, CameraObservations, CameraTransformTypes, RegistrationSource,
+} from 'vue-media-annotator/alignedView/CameraRegistrationStore';
+import type { CameraRole } from 'dive-common/pipelineCameraOrder';
+import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
+import type {
+  ScoringDatasetSummary,
+  ScoringJobArgs,
+  ScoringPair,
+  ScoringResult,
+  ScoringResultSummary,
+  ScoringSourceOptions,
+} from 'dive-common/scoring/types';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -23,6 +36,8 @@ interface AnnotationSchema {
   version: number;
   tracks: MultiTrackRecord;
   groups: MultiGroupRecord;
+  /** Annotation frame rate when present; omitted when absent or unusable. */
+  fps?: number;
 }
 
 /**
@@ -42,6 +57,8 @@ interface DiveParam {
   type_props?: string[];
   key: string;
   default: string;
+  /** True if the user must supply a value before the pipeline can run. */
+  required?: boolean;
 }
 
 interface PipeMetadata {
@@ -49,15 +66,85 @@ interface PipeMetadata {
   inputType?: string;
   outputType?: string;
   diveParams?: DiveParam[];
+  requiresCalibration?: boolean;
+  /**
+   * KWIVER config key (e.g. "stabilizer:flight_log") that the dataset's optional
+   * metadata file should be bound to at run time. Parsed from a pipe header
+   * `# Metadata File: <block>:<key>`. When unset, the pipe does not consume a
+   * metadata file and none is injected.
+   */
+  metadataFileKey?: string;
+  /**
+   * KWIVER config key templates (e.g. "stabilizer:image_list{cam}") bound to the
+   * run's per-camera input image lists — one single-file, line-separated list per
+   * camera. A `{cam}` placeholder is expanded per camera (1-based); a key without
+   * it gets the first camera's list. Parsed from a `# Image List Keys:` header.
+   */
+  imageListKeys?: string[];
+  /**
+   * KWIVER config keys (e.g. "depth_map:computer:ocv_stereo_disparity:calibration_file")
+   * that the dataset's stereo calibration file is bound to at run time. Parsed from a
+   * `# Calibration Keys: <k> [k...]` header. Pipes whose calibration consumer is not the
+   * conventional `measurer`/`calibration_reader` declare their own keys here; when unset
+   * the two conventional keys are used.
+   */
+  calibrationKeys?: string[];
+  /**
+   * Camera role per pipeline input for 2-cam/3-cam pipes (e.g. ["EO", "UV", "IR"]:
+   * input1 is optical, input2 ultraviolet, input3 thermal), parsed from a
+   * `# Camera Order: <cam> [cam...]` header. Labels the slots of the pre-run
+   * camera-assignment step (dive-common/pipelineCameraOrder.ts); pipes without
+   * it show bare input1..N slots.
+   */
+  cameraOrder?: string[];
+  /**
+   * Input positions whose detections/images the pipe warps onto camera 1
+   * (`process warpN :: warp_detections | warp_image` in the pipe body), e.g.
+   * [2, 3]. Each such camera needs a fitted registration (Camera Registration tab) onto
+   * camera 1; DIVE checks that before the run instead of letting the pipe
+   * fail at configure time on a missing file.
+   */
+  registrationWarps?: number[];
 }
 
 interface PipelineRuntimeParams {
   frameRange?: [number, number] | null;
+  /**
+   * Multicam registration subset: camera name -> ordered image identifiers
+   * for exactly the frames the job should process. Row i of one camera's
+   * list pairs with row i of every other's. Identifiers are the camera's
+   * own image names (the platform backend resolves them to real paths) or
+   * `frame://N` pseudo-names for video cameras (the backend extracts those
+   * frames to temp images before the job).
+   */
+  imagePairs?: Record<string, string[]>;
 }
 
 interface PipelineParams {
+  /** Postprocess a single-camera run against the rig's existing annotations. */
+  singleCameraMode?: 'associate' | 'separate';
   kwiverParams?: Record<string, string>;
   runtimeParams?: PipelineRuntimeParams;
+  /**
+   * 2-cam/3-cam pipes: the dataset camera to feed each inputN, in order, as
+   * confirmed by the user before the run. When omitted (API callers) the
+   * dataset's stored camera order is used.
+   */
+  cameraOrder?: string[];
+  /** Filter / transcode / disparity pipelines: name for the newly created dataset. */
+  outputDatasetName?: string;
+  /**
+   * Web only: Girder folder id that should own the newly created dataset.
+   * When omitted, the dataset is created as a sibling of the input folder.
+   */
+  outputParentFolderId?: string;
+}
+
+/** Confirm payload from the filter/transcode/disparity dataset-creation dialog. */
+interface NewDatasetJobConfig {
+  names: Record<string, string>;
+  /** Web only: Girder folder that should own the new dataset(s). */
+  parentFolderId?: string;
 }
 
 interface Pipe {
@@ -122,16 +209,55 @@ interface FrameImage {
   filename: string;
   /** Required for large-image (tiled) datasets; used as itemId for getTiles/getTileURL */
   id?: string;
+  /** Best-effort capture timestamp (epoch seconds) parsed from the filename, when available */
+  timestamp?: number;
+}
+
+/** One metadata attachment loaded by a platform implementation. */
+interface FrameMetadataAttachmentText {
+  /** Preserved original name, falling back to the resolved item/path basename. */
+  name: string;
+  /** Present for a readable TXT/CSV attachment. */
+  text?: string;
+  /** Present when the selected locator could not be read. */
+  error?: string;
+}
+
+/** Complete normalized attachment response for one dataset. */
+interface FrameMetadataSourcesResponse {
+  /** Single-camera dataset attachment or multicamera parent attachment. */
+  shared?: FrameMetadataAttachmentText;
+  /** Camera-local attachments only, keyed by camera name. */
+  cameras: Record<string, FrameMetadataAttachmentText>;
 }
 
 export interface MultiCamImportFolderArgs {
+  datasetName?: string; // Girder parent folder name (required on web)
   defaultDisplay: string; // In multicam the default camera to display
+  /** Display order for cameras (matches sourceList / UI order). */
+  cameraOrder?: string[];
   sourceList: Record<string, {
     sourcePath: string;
     trackFile: string;
+    /**
+     * Optional alignment transform file for cameras after the first (desktop
+     * only): a DIVE registration .json, parsed at import time to seed the
+     * dataset's saved camera registration.
+     */
+    transformFile?: string;
+    /** Optional camera-local metadata attachment. */
+    metadataFile?: string;
+    /** Per-camera media type when cameras differ (e.g. EO JPG + IR TIFF on web). */
+    type?: 'image-sequence' | 'video' | 'large-image';
+    /**
+     * Filename glob selecting this camera's images when cameras share one
+     * folder (e.g. flat view folders split by *_rgb.* / *_ir.* / *_uv.*).
+     */
+    glob?: string;
   }>; // path/track file per camera
   calibrationFile?: string; // NPZ calibation matrix file
-  type: 'image-sequence' | 'video';
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
+  type: 'image-sequence' | 'video' | 'large-image';
 }
 
 export interface MultiCamImportKeywordArgs {
@@ -142,6 +268,7 @@ export interface MultiCamImportKeywordArgs {
     trackFile: string;
   }>; // glob pattern for base folder
   calibrationFile?: string; // NPZ calibation matrix file
+  metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence'; // Always image-sequence type for glob matching
 }
 
@@ -154,19 +281,26 @@ interface MultiCamMedia {
     videoUrl: string;
   }>;
   defaultDisplay: string; // Default camera for displaying the MultiCamMedia
+  /** Camera names in display order (import / UI order). */
+  cameraOrder?: string[];
 }
 
 interface MediaImportResponse {
-  jsonMeta: {
+  jsonConfig: {
     originalImageFiles: string[];
   };
   globPattern: string;
   mediaConvertList: string[];
 }
+
+/** User-editable datasetInfo stored on the dataset's backing metadata object. */
+type DatasetInfoFields = Record<string, unknown>;
+
 /**
- * The parts of metadata a user should be able to modify.
+ * The parts of dataset config a user should be able to modify.
  */
-interface DatasetMetaMutable {
+interface DatasetConfigMutable {
+  typeHierarchy?: Record<string, string> | null;
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
   confidenceFilters?: Record<string, number>;
@@ -174,11 +308,56 @@ interface DatasetMetaMutable {
   imageEnhancements?: ImageEnhancements;
   attributes?: Readonly<Record<string, Attribute>>;
   attributeTrackFilters?: Readonly<Record<string, AttributeTrackFilter>>;
+  datasetInfo?: DatasetInfoFields;
+  cameraHomographies?: CameraHomographies;
+  /**
+   * Per-image-pair correspondence observations, keyed by directional
+   * "left::right". Each entry lists the observations (image-pair identity,
+   * enabled flag, producer source, stats, and points) behind that pair's fit.
+   */
+  cameraCorrespondences?: CameraObservations;
+  cameraTransformTypes?: CameraTransformTypes;
+  /** Producer provenance of the camera registration (see RegistrationSource). */
+  cameraRegistrationSource?: RegistrationSource | null;
+  /**
+   * Sensor role per multicam camera name (eo / ir / uv), inferred at import
+   * from the camera and image names and editable afterwards; used to place
+   * cameras onto a pipeline's declared camera slots. Cameras with no known
+   * role are absent.
+   */
+  cameraRoles?: Record<string, CameraRole>;
   error?: string;
 }
-const DatasetMetaMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
+/**
+ * Cross-dataset color/style overrides, reused across every dataset when the
+ * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
+ * On desktop this is one store shared across all sequences; on web it is
+ * scoped to the current user/browser.
+ * Entries may include sourceDatasetId / sourceDatasetName provenance on
+ * CustomStyle (ignored for rendering; used by the Saved Styles UI).
+ */
+interface GlobalStyleSettings {
+  customTypeStyling?: Record<string, CustomStyle>;
+  customGroupStyling?: Record<string, CustomStyle>;
+}
+/**
+ * Mutable keys the multicam/stereo viewer loads from the parent dataset.
+ * Camera-targeted imports sync only these onto the parent — not per-camera
+ * imageEnhancements, and not camera registration (homographies / correspondences /
+ * transform types / registration source), which must not be clobbered by config import.
+ */
+const MulticamSharedMutableKeys = [
+  'attributes',
+  'confidenceFilters',
+  'timeFilters',
+  'customTypeStyling',
+  'customGroupStyling',
+  'attributeTrackFilters',
+  'datasetInfo',
+];
 
-interface DatasetMeta extends DatasetMetaMutable {
+interface DatasetConfig extends DatasetConfigMutable {
   id: Readonly<string>;
   imageData: Readonly<FrameImage[]>;
   videoUrl: Readonly<string | undefined>;
@@ -189,13 +368,80 @@ interface DatasetMeta extends DatasetMetaMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
+  /** Stereo calibration / camera file currently associated with the dataset (desktop). */
+  calibration?: Readonly<string | null>;
+  /** Optional metadata file associated with the dataset, passed to opt-in pipelines. */
+  metadataFile?: Readonly<string | null>;
+  /** Girder item id of the optional per-dataset metadata file (web). */
+  metadataFileItemId?: Readonly<string | null>;
+  /** Original filename of the optional per-dataset metadata file (web). */
+  metadataFileOriginalName?: Readonly<string | null>;
+}
+
+interface CameraCalibration {
+  cx?: number
+  cy?: number
+  fx?: number
+  fy?: number
+  k1?: number
+  k2?: number
+  k3?: number
+  p1?: number
+  p2?: number
+  rmsError?: number
+}
+
+interface DatasetStereoCalibration {
+  R: number[]
+  T: number[]
+  gridHeight?: number
+  gridWidth?: number
+  imageHeight?: number
+  imageWidth?: number
+  squareSize?: number
+  rmsError?: number
+  calibrations: Record<string, CameraCalibration>
+}
+
+interface DatasetCalibrationResult {
+  /** Parsed calibration parameters from the JSON camera-rig file. */
+  calibration?: DatasetStereoCalibration
+  /** Source calibration item (calibrationFile). Used by pipelines and download. */
+  itemId?: string;
+  /** JSON camera-rig item (jsonCalibrationFile). Used for display parameters. */
+  jsonItemId?: string;
+  /** Source calibration filename. */
+  originalName?: string;
+  /** JSON camera-rig filename. */
+  jsonPath?: string;
+  /** Alias for jsonPath (legacy). */
+  path?: string;
+  /** Present when a background conversion job failed for the linked source file. */
+  conversionError?: string;
+}
+
+/** Terminal state of a pipeline job, as reported by {@link Api.watchPipelineJob}. */
+export interface PipelineJobResult {
+  /** True when the job exited successfully. */
+  ok: boolean;
+  /** Human-readable reason when `ok` is false. */
+  message?: string;
 }
 
 interface Api {
   getPipelineList(): Promise<Pipelines>;
   runPipeline(itemId: string, pipeline: Pipe, pipelineParams?: PipelineParams): Promise<unknown>;
+  /**
+   * Resolve once the pipeline job this dataset just launched reaches a terminal
+   * state, so a caller can key completion off the job instead of off whatever
+   * the job was expected to write. Optional: a platform without a job feed
+   * leaves it undefined and callers fall back to watching for the artifact,
+   * which cannot tell "finished, output identical" from "still running".
+   */
+  watchPipelineJob?(datasetId: string, pipeline: Pipe): Promise<PipelineJobResult>;
   deleteTrainedPipeline(pipeline: Pipe): Promise<void>;
   exportTrainedPipeline(path: string, pipeline: Pipe): Promise<unknown>;
+  getDatasetCalibration(datasetId: string): Promise<DatasetCalibrationResult | null>;
 
   getTrainingConfigurations(): Promise<TrainingConfigs>;
   runTraining(
@@ -212,26 +458,133 @@ interface Api {
     },
   ): Promise<unknown>;
 
-  loadMetadata(datasetId: string): Promise<DatasetMeta>;
+  /**
+   * Scoring mode. Every member is optional so a platform that cannot run the
+   * `viame score` applet simply leaves the mode unavailable.
+   */
+  runScoring?(args: ScoringJobArgs): Promise<unknown>;
+  /** Resolve once the scoring job stored on this dataset, launched after this call, ends. */
+  watchScoringJob?(datasetId: string): Promise<PipelineJobResult>;
+  /** Runs stored on one dataset, or every run the user can read when omitted. */
+  listScoringResults?(datasetId?: string): Promise<ScoringResultSummary[]>;
+  loadScoringResult?(datasetId: string, resultId: string): Promise<ScoringResult>;
+  deleteScoringResult?(datasetId: string, resultId: string): Promise<void>;
+  /** Annotation sets, revisions or on-disk files a source on this dataset can point at. */
+  listScoringSources?(datasetId: string): Promise<ScoringSourceOptions>;
+  /**
+   * Datasets that may be named as the other side of a comparison; also the
+   * dataset list the review page offers.
+   */
+  listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
+  /**
+   * Open a platform dataset picker; returns null when the user cancels.
+   * Shared by the scoring and review pages.
+   */
+  pickScoringDataset?(excludeIds: string[]): Promise<ScoringDatasetSummary | null>;
+  /** Save a text export where the user chooses; resolves false when they cancel. */
+  saveScoringExport?(args: { filename: string; mime: string; content: string }): Promise<boolean>;
+  /** Print the page as it stands (the scoring report view) to a PDF; false when cancelled. */
+  exportScoringPdf?(
+    filename: string,
+    hooks?: {
+      onBeforePrint?: () => void | Promise<void>;
+      onAfterPrint?: () => void | Promise<void>;
+    },
+  ): Promise<boolean>;
+
+  loadConfig(datasetId: string): Promise<DatasetConfig>;
+  /**
+   * loadConfig without the platform's viewer bookkeeping (desktop recents,
+   * web browse location), for pages that read many datasets at once such as
+   * Review. Callers fall back to loadConfig when absent.
+   */
+  peekConfig?(datasetId: string): Promise<DatasetConfig>;
   loadDetections(datasetId: string, revision?: number, set?: string): Promise<AnnotationSchemaList>;
+  /** Tracks only, for bulk review; avoids fetching unused groups and annotation sets. */
+  loadReviewTracks?(datasetId: string): Promise<TrackData[]>;
+  loadFrameMetadata(datasetId: string): Promise<FrameMetadataSourcesResponse>;
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
-  saveMetadata(datasetId: string, metadata: DatasetMetaMutable): Promise<unknown>;
+  saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
   // Non-Endpoint shared functions
-  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'text' | 'zip', directory?: boolean):
-    Promise<{canceled?: boolean; filePaths: string[]; fileList?: File[]; root?: string}>;
+  openFromDisk(datasetType: DatasetType | 'bulk' | 'calibration' | 'annotation' | 'config' | 'species' | 'text' | 'zip' | 'transform' | 'metadata', directory?: boolean):
+    Promise<{
+      canceled?: boolean;
+      filePaths: string[];
+      fileList?: File[];
+      root?: string;
+      selectionId?: string;
+    }>;
+  /** Desktop: immediate child directory names under a parent folder (multicam subfolder import). */
+  listImmediateSubfolders?(parentPath: string): Promise<string[]>;
+  /** Desktop: subfolders or root-level video files under a parent folder (multicam import). */
+  listParentFolderCameras?(
+    parentPath: string,
+    mediaType: 'image-sequence' | 'video',
+  ): Promise<{ name: string; sourcePath: string }[]>;
+  /** Desktop: folder path for image-sequence, or first video file inside the folder for video. */
+  resolveMulticamCameraSourcePath?(
+    subfolderPath: string,
+    mediaType: 'image-sequence' | 'video',
+  ): Promise<string>;
+  /** Desktop: stereoscopic calibration file in a parent folder root. */
+  findParentFolderCalibrationFile?(parentPath: string): Promise<string | null>;
+  /**
+   * Desktop: every DIVE camera-calibration .json (alignment transforms) in a
+   * parent folder root: per-camera *_registration.json files first, then
+   * other self-identified candidates.
+   */
+  findParentFolderTransformFiles?(parentPath: string): Promise<string[]>;
+  /** True when the dataset folder has an attached stereoscopic calibration file. */
+  hasCalibrationFile?(datasetId: string): Promise<boolean>;
+  /** Web: stash a calibration File for multicam upload lookup. */
+  stashCalibrationFile?(key: string, file: File): void;
+  /** Web: stash a per-camera registration transform File for multicam upload lookup. */
+  stashTransformFile?(key: string, file: File): void;
   getTiles?(itemId: string, projection?: string): Promise<StringKeyObject>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   getTileURL?(itemId: string, x: number, y: number, level: number, query: Record<string, any>):
    string;
+  getTileHistogram?(itemId: string, options?: {
+    bins?: number;
+    frame?: number;
+    width?: number;
+    height?: number;
+  }): Promise<unknown>;
   importAnnotationFile(id: string, path: string, file?: File,
     additive?: boolean, additivePrepend?: string, set?: string): Promise<boolean | string[]>;
   // Desktop-only calibration persistence functions
   getLastCalibration?(): Promise<string | null>;
   saveCalibration?(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }>;
+  /** Desktop: set the stereo camera/calibration file for a single dataset. */
+  importCalibrationFile?(datasetId: string, path: string): Promise<{ calibration: string }>;
+  /**
+   * Merge a DIVE registration .json into an existing multicam dataset's
+   * saved camera registration. Web reads the provided File; desktop reads
+   * the path. options.camera keeps only the file's pairs naming that
+   * camera, replacing that camera's current pairs while other cameras'
+   * pairs are kept.
+   */
+  importCameraRegistration?(datasetId: string, path: string, file?: File,
+    options?: { camera?: string }):
+    Promise<{ cameras: string[]; pairCount: number }>;
+  /** Desktop: copy the dataset's current camera/calibration file out to destPath. */
+  exportCalibrationFile?(datasetId: string, destPath: string): Promise<{ exportedPath: string }>;
+  /** Download/export the dataset's current calibration file (platform-specific). */
+  downloadCalibration?(datasetId: string): Promise<void>;
+  /** Remove the calibration file currently associated with the dataset. */
+  deleteCalibration?(datasetId: string): Promise<void>;
+  /**
+   * Load the cross-dataset "shared" color/style overrides. Desktop reads one
+   * store shared across all sequences; web reads the current user/browser's
+   * store. Absent on platforms that don't support shared colors.
+   */
+  loadGlobalStyleSettings?(): Promise<GlobalStyleSettings>;
+  /** Persist the cross-dataset "shared" color/style overrides. */
+  saveGlobalStyleSettings?(settings: GlobalStyleSettings): Promise<unknown>;
 }
 const ApiSymbol = Symbol('api');
 
@@ -248,27 +601,296 @@ function useApi() {
   return use<Readonly<Api>>(ApiSymbol);
 }
 
+/**
+ * Interactive Segmentation Types
+ */
+export interface SegmentationPredictRequest {
+  /** Path to the image file */
+  imagePath: string;
+  /** Point coordinates as [x, y] pairs */
+  points: [number, number][];
+  /** Point labels: 1 for foreground, 0 for background */
+  pointLabels: number[];
+  /** Optional low-res mask from previous prediction for refinement */
+  maskInput?: number[][];
+  /** Whether to return multiple mask options */
+  multimaskOutput?: boolean;
+  /** Time in seconds when imagePath is a video file */
+  frameTime?: number;
+}
+
+export interface SegmentationPredictResponse {
+  /** Whether the prediction succeeded */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
+  /** Polygon coordinates as [x, y] pairs */
+  polygon?: [number, number][];
+  /** Bounding box [x_min, y_min, x_max, y_max] */
+  bounds?: [number, number, number, number];
+  /** Quality score from segmentation model */
+  score?: number;
+  /** Low-res mask for subsequent refinement */
+  lowResMask?: number[][];
+  /** Mask dimensions [height, width] */
+  maskShape?: [number, number];
+  /** RLE-encoded full-resolution mask for display: [[value, count], ...] */
+  rleMask?: [number, number][];
+}
+
+/**
+ * Stereo point-segmentation. The segmentation service warps the seed to the
+ * other camera (configured stereo backend), segments there, and -- when enabled
+ * -- derives head/tail lines + the measurement.
+ */
+export interface SegmentationStereoSegmentRequest {
+  /** The already-segmented source-camera polygon (sampling + measurement). */
+  polygon?: [number, number][];
+  /** Source-camera click points and labels. */
+  points: [number, number][];
+  pointLabels: number[];
+  /** Source (clicked) and other camera image/video paths. */
+  sourceImagePath: string;
+  otherImagePath: string;
+  /** Calibration file path, read by the embedded stereo warper. */
+  calibrationFile?: string;
+  /** Time in seconds when the paths are video files. */
+  frameTime?: number;
+}
+
+export interface SegmentationStereoSegmentResponse {
+  id: string;
+  success: boolean;
+  error?: string;
+  /** Other-camera polygon from SAM. */
+  polygon?: [number, number][];
+  bounds?: [number, number, number, number];
+  score?: number;
+  /** Seed point(s) used on the other camera (median of warped samples). */
+  seedPoints?: [number, number][];
+  seedLabels?: number[];
+  /** Optional head/tail lines: source = clicked camera, other = warped. */
+  generateLine?: boolean;
+  lineSource?: [[number, number], [number, number]];
+  lineOther?: [[number, number], [number, number]];
+  /** Stereo measurement for the derived line (calibration units, e.g. mm). */
+  measurement?: {
+    length: number;
+    midpoint_x: number;
+    midpoint_y: number;
+    midpoint_z: number;
+    midpoint_range: number;
+    stereo_rms: number;
+  };
+}
+
+export interface SegmentationStatusResponse {
+  /** Whether segmentation is available */
+  available: boolean;
+  /** Whether the model is currently loaded */
+  loaded?: boolean;
+  /** Whether the service is ready for predictions */
+  ready?: boolean;
+}
+
+/**
+ * Text Query Types for open-vocabulary detection/segmentation
+ */
+
+/** A single detection returned from a text query */
+export interface TextQueryDetection {
+  /** Bounding box [x1, y1, x2, y2] */
+  box: [number, number, number, number];
+  /** Polygon coordinates as [x, y] pairs */
+  polygon?: [number, number][];
+  /** Confidence score */
+  score: number;
+  /** Label/class name (often the query text) */
+  label: string;
+  /** Low-res mask for refinement (optional) */
+  lowResMask?: number[][];
+}
+
+export interface TextQueryRequest {
+  /** Path to the image file (or video file for video datasets) */
+  imagePath: string;
+  /** Frame time in seconds, required when imagePath is a video so the service
+   * extracts the correct frame. Omitted for image-sequence datasets. */
+  frameTime?: number;
+  /** Text query describing what to find (e.g., "fish", "person swimming") */
+  text: string;
+  /** Confidence threshold for detections (default: 0.3) */
+  boxThreshold?: number;
+  /** Maximum number of detections to return (default: 10) */
+  maxDetections?: number;
+  /** Optional boxes to refine [x1, y1, x2, y2][] */
+  boxes?: [number, number, number, number][];
+  /** Optional keypoints for refinement [x, y][] */
+  points?: [number, number][];
+  /** Labels for points: 1 for foreground, 0 for background */
+  pointLabels?: number[];
+  /** Optional masks to refine */
+  masks?: number[][][];
+}
+
+export interface TextQueryResponse {
+  /** Whether the query succeeded */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
+  /** List of detections found */
+  detections?: TextQueryDetection[];
+  /** The original query text */
+  query?: string;
+  /** Whether fallback method was used (no native text support) */
+  fallback?: boolean;
+}
+
+export interface RefineDetectionsRequest {
+  /** Path to the image file */
+  imagePath: string;
+  /** Detections to refine */
+  detections: TextQueryDetection[];
+  /** Optional additional keypoints for refinement [x, y][] */
+  points?: [number, number][];
+  /** Labels for additional points: 1 for foreground, 0 for background */
+  pointLabels?: number[];
+  /** Whether to include refined masks in response */
+  refineMasks?: boolean;
+}
+
+export interface RefineDetectionsResponse {
+  /** Whether the refinement succeeded */
+  success: boolean;
+  /** Error message if failed */
+  error?: string;
+  /** Refined detections */
+  detections?: TextQueryDetection[];
+}
+
+/**
+ * Video Search / IQR (rapid model generation) Types
+ */
+
+export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing' | 'frames';
+
+/**
+ * One indexed media stream (video/sequence identifier) in the shared search
+ * database. All database rows key on this identifier, so a dataset can be
+ * added, updated, or removed from the index independently.
+ */
+export interface VideoSearchStreamEntry {
+  datasetId: string;
+  method: VideoSearchIndexMethod;
+  // frame rate the media was indexed at (video only; must match dataset fps)
+  fps?: number;
+  createdAt: string;
+}
+
+/** How a search index stores descriptors: per-stream files or an embedded PostgreSQL database. */
+export type SearchIndexBackend = 'files' | 'postgres';
+
+/** Sidecar metadata describing the shared search index. */
+export interface VideoSearchIndexMeta {
+  version: number;
+  /** Storage backend the index was built with; absent on indexes from before it was recorded (postgres). */
+  backend?: SearchIndexBackend;
+  // stream identifier (as reported in query results) -> source dataset
+  streams: Record<string, VideoSearchStreamEntry>;
+}
+
+export interface VideoSearchIndexStatus {
+  /** The shared index exists and is queryable (ITQ files present). */
+  built: boolean;
+  /** This dataset has been ingested into the index. */
+  indexed: boolean;
+  /** The stream entry for this dataset, when indexed. */
+  stream?: VideoSearchStreamEntry & { streamName: string };
+  /** Total datasets in the shared index. */
+  datasetCount: number;
+  meta?: VideoSearchIndexMeta;
+}
+
+export interface VideoSearchTrackState {
+  frame: number;
+  bbox?: [number, number, number, number];
+}
+
+export interface VideoSearchResultTrack {
+  id: number;
+  states: VideoSearchTrackState[];
+}
+
+/** One ranked similarity result returned by the query service. */
+export interface VideoSearchResult {
+  /** Unique reference for adjudication: "<session>:<instance_id>" */
+  ref: string;
+  /** Federated session index this result came from */
+  session: number;
+  /** Index directory this result came from */
+  index_dir: string;
+  instance_id: number;
+  query_id: string;
+  stream_id: string;
+  relevancy_score: number;
+  start_frame: number | null;
+  end_frame: number | null;
+  tracks: VideoSearchResultTrack[];
+}
+
+/** One dataset present in the shared search index. */
+export interface VideoSearchIndexInfo {
+  /** Stream identifier query results report for this dataset */
+  streamName: string;
+  datasetId: string;
+  /** Dataset display name */
+  name: string;
+  /** How the entry was built. */
+  method: VideoSearchIndexMethod;
+}
+
+export interface VideoSearchQueryResponse {
+  success: boolean;
+  error?: string;
+  descriptor_count?: number;
+  model_available?: boolean;
+  results?: VideoSearchResult[];
+  feedback_requests?: VideoSearchResult[];
+}
+
 export {
   provideApi,
   useApi,
 };
 
 export {
+  DatasetConfigMutableKeys,
+  MulticamSharedMutableKeys,
+};
+
+export type {
   AnnotationSchema,
   Api,
-  DatasetMeta,
-  DatasetMetaMutable,
-  DatasetMetaMutableKeys,
+  DatasetConfig,
+  DatasetConfigMutable,
+  DatasetInfoFields,
+  GlobalStyleSettings,
   DatasetType,
   DiveParam,
+  CameraCalibration,
+  DatasetStereoCalibration,
+  DatasetCalibrationResult,
   SubType,
   PipelineParamType,
   FrameImage,
+  FrameMetadataAttachmentText,
+  FrameMetadataSourcesResponse,
   MultiTrackRecord,
   MultiGroupRecord,
   Pipe,
   PipelineParams,
   PipelineRuntimeParams,
+  NewDatasetJobConfig,
   PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,
@@ -278,4 +900,12 @@ export {
   TrainingConfigs,
   MultiCamMedia,
   MediaImportResponse,
+  ScoringDatasetSummary,
+  ScoringJobArgs,
+  ScoringPair,
+  ScoringResult,
+  ScoringResultSummary,
+  ScoringSourceOptions,
 };
+
+export type { PercentileStretch, CameraObservations };

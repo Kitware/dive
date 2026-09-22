@@ -49,8 +49,72 @@ After `electron-vite build`, **`electron-builder --config electron-builder.json`
 
 ### npm scripts (in `client/package.json`)
 
-* **`serve:electron`** — `electron-vite dev`: compiles main/preload, serves the renderer from Vite, opens Electron with `ELECTRON_ENTRY=.electron/main/background.js` (and related env).
+* **`serve:electron`** / **`dev:electron`** — `electron-vite dev`: compiles main/preload, serves the renderer from Vite, opens Electron with `ELECTRON_ENTRY=.electron/main/background.js` (and related env). Use this to develop interactive segmentation and stereo features locally.
 * **`build:electron`** — `electron-vite build` then `electron-builder --config electron-builder.json`.
+* **`build:electron:dir`** — same as `build:electron` but produces an unpacked directory instead of an installer (faster iteration for testing).
+
+## Launching from the command line
+
+DIVE Desktop can be started directly on a dataset, skipping the import wizard:
+
+```bash
+dive-desktop --import <media> [--annotations <file>] [--metadata <file>] [--name <name>]
+```
+
+* **`--import`, `-i`** — the media to open. Anything the import wizard accepts: an image-sequence directory, an image-list text file (one image path per line), or a video.
+* **`--annotations`, `-a`** — optional VIAME CSV or DIVE JSON to load onto the dataset.
+* **`--metadata`** — optional pipeline metadata sidecar (`.json` / `.txt` / `.csv`), e.g. a flight log. Same as the import wizard's Metadata File picker.
+* **`--name`, `-n`** — optional display name; defaults to the media basename.
+
+Relative paths are resolved against the working directory. For example, to review a detector's output over an image list:
+
+```bash
+dive-desktop --import input_list.txt --annotations detections.csv --name "Sea Lions"
+```
+
+### Multi-camera and stereo
+
+Name each camera with a repeated `--camera` instead of using `--import`:
+
+```bash
+dive-desktop --camera left=/data/left --camera right=/data/right \
+             --annotations left=/data/left.csv --annotations right=/data/right.csv \
+             --calibration /data/calibration_matrices.npz \
+             --metadata /data/flight_log.csv
+```
+
+* **`--camera`, `-c`** — `<name>=<media>`, repeated once per camera (two or more). Each media path is the same set of things `--import` accepts. Only the first `=` separates, so Windows paths survive. Flag order is the display order.
+* **`--annotations`, `-a`** — becomes `<camera>=<file>` in multi-camera mode. Give it once per camera that has annotations; cameras may be omitted.
+* **`--calibration`** — stereo calibration file (`.npz` or `.json`). Multi-camera only.
+* **`--metadata`** — optional pipeline metadata sidecar; available for single-camera and multi-camera imports alike.
+* **`--default-display`** — camera shown on open. Defaults to `left` when present, else the first camera.
+
+**Stereo is not a separate flag.** As elsewhere in DIVE, a dataset whose cameras are named exactly `left` and `right` is typed `stereo`; any other set of names is `multicam`. So the example above produces a stereo dataset, and adding a `--calibration` is what makes stereo measurement work.
+
+Every camera must be the same kind of media — all videos or all image sequences — since one dataset type covers them all. `--import` and `--camera` are mutually exclusive.
+
+### Notes
+
+Single-camera datasets go through the same backend calls as the wizard (`beginMediaImport` → `finalizeMediaImport` → `dataFileImport`); multi-camera ones go through `beginMultiCamImport` → `finalizeMediaImport`, which ingests the per-camera track files and copies/normalizes the calibration. Either way the result is a normal dataset: it is added to the recents list and can be reopened from the dataset list later. Media that requires transcoding is converted first, and the viewer opens when the conversion job completes. In that case the main process logs a message and the renderer gets `desktop:cli-transcoding` so a dialog appears whether the app just started or another dataset is already open; recents also show the converting status immediately.
+
+If an instance is already running, the single-instance lock forwards the arguments to it and the dataset opens in the existing window.
+
+Glob/keyword multi-camera import (`MultiCamImportKeywordArgs`, one folder matched by per-camera glob) is not exposed on the command line; use one `--camera` per source instead.
+
+Implementation: `backend/cliImport.ts` (argument parsing and import), wired up in `background.ts`. The renderer asks for any pending CLI dataset once mounted (`desktop:cli-open-pending`) and is told to navigate via `desktop:open-dataset`, so an import that finishes before the window is ready is not missed. Transcoding waits use `desktop:cli-transcoding` before that navigation.
+
+Note this is distinct from `divecli` (`backend/cli.ts`), a separate headless entrypoint for format conversion and running pipelines, which does not open the GUI.
+
+## Interactive service (segmentation + stereo)
+
+Desktop-only interactive annotation runs through a single persistent Python subprocess managed by `backend/native/interactive.ts`. It hosts:
+
+* **Interactive segmentation** — point-click mask prediction (`backend/native/segmentation.ts`, IPC via `ipcService.ts`)
+* **Interactive stereo** — line transfer, length measurement, dense disparity (`backend/native/stereo.ts`)
+
+Models load lazily on first use. The renderer calls into the service through `frontend/api.ts`; shared UI types live in `dive-common/apispec.ts`. The segmentation recipe is `dive-common/recipes/segmentationpointclick.ts`; stereo wiring is in `platform/desktop/frontend/components/ViewerLoader.vue` and `dive-common/use/useModeManager.ts`.
+
+User documentation: [Interactive Annotation](../../docs/Interactive-Annotation.md).
 
 ## Main process, preload, and renderer
 
@@ -93,38 +157,38 @@ Due to tight OS coupling, some methods will have to be implemented to target a s
 
 Desktop has the capability to import and run pipelines on stereo and multicamera pipelines.  There is a Root folder as well as individual folders for each camera.  To achieve this the folder structure for storage of data is slightly different.
 
-* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `meta.json` file will contain a parmeter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`. 
-* Camera Folders - Individual folders for each camera which behave like their own dataset with their own meta.json and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
+* Root Folder - Base folder which contains the multicamera dataset.  It is tied to a single camera folder which is known as the `defaultDisplay`.  The `defaultDisplay` is the camera that is shown by default when the dataset is loaded.  The Root Folder `dataset.json` file will contain a parameter called `multiCam` and this will point to the multicams in the dataset as well as provide the `defaultDisplay`. Legacy datasets may still have `meta.json`; DIVE reads that as a fallback and migrates to `dataset.json` on the next save.
+* Camera Folders - Individual folders for each camera which behave like their own dataset with their own `dataset.json` and annotations file.  This is achieved by giving them a dataset id of `RootFolder/CameraName`.
 
 ``` text
 DIVE_Projects
 ├── stereodataset_jp7hq88vfv
-│  ├── meta.json
+│  ├── dataset.json
 │  ├── result_06-01-2021_10-55-38.627.json
 │  ├── left
 |  |  ├── auxiliary
 |  │  │  └── result_06-01-2021_10-52-28.347.json
-│  │  ├── meta.json
+│  │  ├── dataset.json
 │  │  └── result_06-01-2021_10-55-38.627.json
 │  └── right
 |     ├── auxiliary
 |     │  └── result_06-01-2021_10-52-28.347.json
-│     ├── meta.json
+│     ├── dataset.json
 │     └── result_06-01-2021_10-55-38.627.json
 └── multicamera_jrgdq760gu
-   ├── meta.json
+   ├── dataset.json
    ├── result_06-18-2021_22-50-38.435.json
    ├── camera1
    |  ├── auxiliary
-   │  ├── meta.json
+   │  ├── dataset.json
    │  └── result_06-18-2021_22-50-38.435.json
    ├── camera2
    |  ├── auxiliary
-   │  ├── meta.json
+   │  ├── dataset.json
    │  └── result_06-18-2021_22-50-38.234.json
    └──── camera3
       ├── auxiliary
-      ├── meta.json
+      ├── dataset.json
       └── result_06-18-2021_22-50-38.126.json
 ```
 
@@ -134,7 +198,7 @@ When multicamera pipelines are run they will create individual annotation files 
 
 ### MultiCamera Ids and Requests
 
-Internally to reference difference cameras the system creates a datasetId which combines the base datasetId with the cameraName.  So in the example above `stereodataset_jp7hq88vfv` and the `left` camera would be referenced by `stereodataset_jp7hq88vfv/left`.  That is the Id that would be used to loadMetadata, saveMetadata, loadDetections and saveDetections.
+Internally to reference difference cameras the system creates a datasetId which combines the base datasetId with the cameraName.  So in the example above `stereodataset_jp7hq88vfv` and the `left` camera would be referenced by `stereodataset_jp7hq88vfv/left`.  That is the Id that would be used to loadConfig, saveConfig, loadDetections and saveDetections.
 
 ### MultiCamera Display/Loading Process
 

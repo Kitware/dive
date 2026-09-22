@@ -49,6 +49,18 @@ Most editing controls are available when a track or detection is selected.
 | ++g++ | create new group including the selected track |
 | ++shift+enter++ | focus class select/text box on selected track in track list.  Press ++arrow-down++ to open all options.  Pres ++enter++ twice to accept an option.  Press ++escape++ to unfocus. |
 
+## Interactive Segmentation (Desktop only)
+
+Available when a track or detection is in edit mode. See [Interactive Annotation](Interactive-Annotation.md).
+
+| control    | description |
+| ---------- | ------------|
+| ++s++ | activate **Segment** (point-click segmentation) mode |
+| Left Click | add foreground (include) point |
+| ++shift++ + Left Click or Middle Click | add background (exclude) point |
+| Right Click or ++enter++ | confirm segmentation and commit polygon |
+| ++escape++ | cancel segmentation; clear points and restore previous polygon when editing |
+
 ## Adding new shortcuts
 
 If you think a new shortcut or hotkey would be useful, [please send us feedback](Support.md).

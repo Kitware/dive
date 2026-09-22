@@ -1,19 +1,25 @@
 import { UploadManager, Location } from '@girder/components/src';
 import {
-  calibrationFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
-  otherImageTypes, otherVideoTypes, websafeImageTypes, websafeVideoTypes, zipFileTypes,
+  calibrationFileTypes, metadataFileTypes, inputAnnotationFileTypes, inputAnnotationTypes,
+  getImageSequenceFileAccept, getLargeImageAllowedExtensions, getLargeImageFileAccept,
+  otherVideoTypes, transformFileTypes,
+  websafeVideoTypes, zipFileTypes,
 } from 'dive-common/constants';
 import { DatasetType } from 'dive-common/apispec';
 import type { LocationType, RootlessLocationType } from 'platform/web-girder/store/types';
-import { Route } from 'vue-router';
 import { AxiosInstance } from 'axios';
 
 /**
  * If the current route is representable by a LocationType, return it.
  * _modelType comes from the router spec and must be converted into LocationType
  */
-function getLocationFromRoute(route: Route): LocationType | null {
+function getLocationFromRoute(
+  route: { params: { routeType?: string; routeId?: string } },
+): LocationType | null {
   const { params } = route;
+  if (params.routeType === undefined) {
+    return null;
+  }
   if (['root', 'collections', 'users'].indexOf(params.routeType) >= 0) {
     return { type: params.routeType } as LocationType;
   }
@@ -36,25 +42,53 @@ function getRouteFromLocation(location: LocationType): string {
   return `/${location._modelType}/${location._id}`;
 }
 
-async function openFromDisk(datasetType: DatasetType | 'calibration' | 'annotation' | 'zip'):
-Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
+async function openFromDisk(
+  datasetType: DatasetType | 'calibration' | 'annotation' | 'config' | 'text' | 'zip' | 'transform' | 'metadata',
+  directory = false,
+): Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]; root?: string }> {
   const input: HTMLInputElement = document.createElement('input');
   input.type = 'file';
-  const baseTypes: string[] = inputAnnotationFileTypes.map((item) => `.${item}`);
-  if (!['calbiration', 'annotation', 'zip'].includes(datasetType)) {
+  // Side files a media selection may carry: an annotation source or a metadata attachment.
+  // Filtering one out here would settle its fate before the server ever classified it.
+  const baseTypes: string[] = [...new Set([...inputAnnotationFileTypes, ...metadataFileTypes])]
+    .map((item) => `.${item}`);
+  if (!['calibration', 'annotation', 'config', 'zip', 'metadata'].includes(datasetType)) {
     input.multiple = true;
   }
-  if (datasetType === 'image-sequence') {
-    input.accept = baseTypes.concat(websafeImageTypes).concat(otherImageTypes).join(',');
+  if (
+    directory
+    && (datasetType === 'image-sequence' || datasetType === 'video' || datasetType === 'large-image')
+  ) {
+    // Empty accept so multi-dot names (e.g. a.b.c.png) are not hidden by MIME/extension filters.
+    input.setAttribute('webkitdirectory', '');
+    input.multiple = true;
+    input.accept = '';
+  } else if (datasetType === 'image-sequence') {
+    // Extensions + MIME: some Linux pickers miss multi-dot PNGs when only MIME is listed.
+    input.accept = [...baseTypes, getImageSequenceFileAccept()].join(',');
   } else if (datasetType === 'video') {
     input.accept = baseTypes.concat(websafeVideoTypes).concat(otherVideoTypes).join(',');
+  } else if (datasetType === 'large-image') {
+    input.accept = getLargeImageFileAccept();
   } else if (datasetType === 'calibration') {
     input.accept = calibrationFileTypes.map((item) => `.${item}`).join(',');
   } else if (datasetType === 'annotation') {
     input.accept = inputAnnotationTypes
       .concat(inputAnnotationFileTypes.map((item) => `.${item}`)).join(',');
+  } else if (datasetType === 'config') {
+    input.accept = '.json';
+    input.multiple = false;
   } else if (datasetType === 'zip') {
     input.accept = zipFileTypes.map((item) => `.${item}`).join(',');
+  } else if (datasetType === 'transform') {
+    input.accept = transformFileTypes.map((item) => `.${item}`).join(',');
+    input.multiple = false;
+  } else if (datasetType === 'text') {
+    input.accept = '.txt,.text';
+    input.multiple = false;
+  } else if (datasetType === 'metadata') {
+    input.accept = metadataFileTypes.map((item) => `.${item}`).join(',');
+    input.multiple = false;
   }
 
   return new Promise(((resolve, reject) => {
@@ -67,11 +101,40 @@ Promise<{ canceled: boolean; filePaths: string[]; fileList?: File[]}> {
             if (!fileList.every((item) => inputAnnotationTypes.includes(item.type))) {
               reject(new Error('File Types did not match JSON or CSV'));
             }
+          } else if (datasetType === 'large-image') {
+            const allowed = new Set(getLargeImageAllowedExtensions().map((ext) => ext.toLowerCase()));
+            if (!fileList.every((item) => {
+              const ext = item.name.split('.').pop()?.toLowerCase();
+              return ext && allowed.has(ext);
+            })) {
+              reject(new Error('File types did not match tiled image formats'));
+            }
+          }
+          const filePaths = fileList.map(
+            (item) => item.webkitRelativePath || item.name,
+          );
+          let root: string | undefined;
+          if (directory && filePaths.length) {
+            const parts = filePaths.map((p) => p.split('/').filter(Boolean));
+            if (parts[0].length > 1) {
+              const prefix: string[] = [];
+              const depth = Math.min(...parts.map((p) => p.length - 1));
+              for (let i = 0; i < depth; i += 1) {
+                const segment = parts[0][i];
+                if (parts.every((p) => p[i] === segment)) {
+                  prefix.push(segment);
+                } else {
+                  break;
+                }
+              }
+              root = prefix.join('/');
+            }
           }
           const response = {
             canceled: !files.length,
             fileList,
-            filePaths: fileList.map((item) => item.name),
+            filePaths,
+            root,
           };
           return resolve(response);
         }

@@ -42,7 +42,7 @@ export default defineComponent({
     }
 
     async function cancelInProgressJob(job: DesktopJob): Promise<void> {
-      if (job.exitCode === null && !job.cancelledJob) {
+      if (job.pid > 0 && job.exitCode === null && !job.cancelledJob) {
         await cancelJob(job);
       }
     }
@@ -134,7 +134,10 @@ export default defineComponent({
                     </tr>
                     <tr>
                       <td>PID</td>
-                      <td>{{ job.job.pid }}</td>
+                      <!-- A negative pid is the placeholder a job carries
+                           while its inputs are being prepared and no process
+                           exists yet. -->
+                      <td>{{ job.job.pid >= 0 ? job.job.pid : 'starting…' }}</td>
                     </tr>
                     <tr v-if="job.job.datasetIds.length > 0">
                       <td>datasets</td>
@@ -200,6 +203,7 @@ export default defineComponent({
                     text
                     small
                     class="mb-2 error--text text--lighten-3 text-decoration-none"
+                    :disabled="job.job.pid <= 0"
                     @click="cancelInProgressJob(job.job)"
                   >
                     <v-icon

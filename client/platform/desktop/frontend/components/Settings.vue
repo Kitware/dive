@@ -250,8 +250,9 @@ export default defineComponent({
         <v-card-title>Synchronize Recents</v-card-title>
         <v-card-subtitle v-if="settings">
           Scan project directory (<b><u>{{ settings.dataPath }}</u></b>) to rediscover
-          datasets and update Recents page.  This is useful if you've manually deleted or moved
-          dataset folders around.  DIVE Desktop stores annotation files, metadata, and possibly
+          datasets and update Recents. Missing or invalid project folders are removed from
+          Recents; existing access times are preserved. Useful if you've manually deleted or
+          moved dataset folders. DIVE Desktop stores annotation files, metadata, and possibly
           trancoded copies of your source media here.
           <browser-link
             display="inline"

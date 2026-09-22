@@ -1,4 +1,3 @@
-/* eslint-disable import/prefer-default-export -- singleton composable store */
 import Vue, { computed, ref } from 'vue';
 import { GirderJob } from '@girder/components/src';
 import { all } from '@girder/components/src/components/Job/status';
@@ -12,6 +11,21 @@ const NonRunningStates = [
   JobStatus.ERROR.value,
   JobStatus.SUCCESS.value,
 ];
+
+/** True once a job reached a terminal state (success, error or canceled). */
+export function isJobFinished(status: number): boolean {
+  return NonRunningStates.includes(status);
+}
+
+/** True for the one terminal state that is not a failure. */
+export function jobSucceeded(status: number): boolean {
+  return status === JobStatus.SUCCESS.value;
+}
+
+/** True when the job ended because someone canceled it. */
+export function jobCanceled(status: number): boolean {
+  return status === JobStatus.CANCELED.value;
+}
 
 const jobIds = ref<Record<string, number>>({});
 const datasetStatus = ref<Record<string, { status: number; jobId: string }>>({});
@@ -119,7 +133,10 @@ function updateJobFromMessage(job: GirderJob & { type?: string; title?: string }
       status: job.status,
       jobId: job._id,
     });
-    if (['pipelines', 'convert'].includes(job.type || '') && NonRunningStates.includes(job.status)) {
+    if (
+      ['pipelines', 'convert', 'scoring'].includes(job.type || '')
+      && NonRunningStates.includes(job.status)
+    ) {
       jobs.setCompleteJobsInfo({
         datasetId: job.dataset_id,
         type: job.type || '',

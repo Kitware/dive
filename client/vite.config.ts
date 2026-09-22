@@ -7,6 +7,17 @@ import { loadEnv } from 'vite';
 import { defineConfig } from 'vitest/config';
 
 import packageJson from './package.json';
+import { cssConfig } from './vite.css';
+
+const testExcludes = ['**/node_modules/**', '**/bin/**'];
+// Component specs mount Vue, and the web-girder plugin layer reads `window` at
+// import time, so anything reaching it needs a DOM.
+const domTests = [
+  'src/components/**/*.spec.ts',
+  'dive-common/components/**/*.spec.ts',
+  'dive-common/store/**/*.spec.ts',
+  'platform/web-girder/**/*.spec.ts',
+];
 
 function getGitHash() {
   try {
@@ -37,10 +48,14 @@ export default defineConfig(({ mode }) => {
   const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'http://localhost:8010';
 
   const sharedConfig: UserConfig = {
+    css: cssConfig,
     plugins: [vue()],
     resolve: {
       dedupe: ['axios', 'vue', 'vuetify'],
       alias: {
+        // Force a single Vue build; production Rollup can otherwise bundle both
+        // vue.runtime.esm.js (from vuetify/lib) and vue.runtime.common.prod.js (from vuetify dist).
+        vue: resolve(__dirname, 'node_modules/vue/dist/vue.runtime.esm.js'),
         'dive-common': resolve(__dirname, 'dive-common'),
         'vue-media-annotator': resolve(__dirname, 'src'),
         platform: resolve(__dirname, 'platform'),
@@ -73,8 +88,21 @@ export default defineConfig(({ mode }) => {
       },
     },
     optimizeDeps: {
-      include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
-      exclude: ['@huggingface/transformers'],
+      include: [
+        'axios',
+        'qs',
+        'markdown-it',
+        'js-cookie',
+        'vue',
+        'vuetify',
+        '@girder/components/src',
+      ],
+      // onnxruntime locates its .wasm relative to its own module URL. Pre-bundled
+      // into node_modules/.vite/deps that resolves to a path the dev server
+      // answers with the SPA HTML fallback, so the runtime fails to instantiate.
+      // Served unbundled, the .wasm sits next to the module and loads. The
+      // production build already emits it as a hashed asset either way.
+      exclude: ['onnxruntime-web', 'onnxruntime-web/webgpu'],
     },
     build: {
       sourcemap: true,
@@ -90,6 +118,25 @@ export default defineConfig(({ mode }) => {
     base: '/',
     test: {
       globals: true,
+      projects: [
+        {
+          extends: true,
+          test: {
+            name: 'node',
+            environment: 'node',
+            exclude: [...testExcludes, ...domTests],
+          },
+        },
+        {
+          extends: true,
+          test: {
+            name: 'dom',
+            environment: 'jsdom',
+            include: domTests,
+            exclude: testExcludes,
+          },
+        },
+      ],
     },
   };
 

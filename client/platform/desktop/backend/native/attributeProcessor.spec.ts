@@ -1,6 +1,3 @@
-/* eslint-disable quote-props */
-/* eslint-disable @typescript-eslint/naming-convention */
-
 import { MultiTrackRecord } from 'dive-common/apispec';
 import { TrackData } from 'vue-media-annotator/track';
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';

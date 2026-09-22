@@ -6,7 +6,9 @@ import {
 
 import type { DatasetType, MultiCamImportArgs } from 'dive-common/apispec';
 import { itemsPerPageOptions } from 'dive-common/constants';
-import { JobType, DesktopMediaImportResponse, Job } from 'platform/desktop/constants';
+import {
+  JobType, DesktopMediaImportResponse, Job, ConversionArgs,
+} from 'platform/desktop/constants';
 
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 
@@ -15,36 +17,45 @@ import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
+import { getResponseError } from 'vue-media-annotator/utils';
 import { DataTableHeader } from 'vuetify';
 
 import { useRouter } from 'vue-router/composables';
 import * as api from '../api';
 import {
-  JsonMetaCache, recents, removeRecents, setRecents,
+  JsonConfigCache, recents, removeRecents, setRecents,
 } from '../store/dataset';
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
 } from '../store/settings';
 import { setOrGetConversionJob, cpuJobQueue, queuedCpuJobs } from '../store/jobs';
 import BrowserLink from './BrowserLink.vue';
+import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import NavigationBar from './NavigationBar.vue';
 import ImportDialog from './ImportDialog.vue';
 import BulkImportDialog from './BulkImportDialog.vue';
+import ImportMultiCamBatchDialog from './ImportMultiCamBatchDialog.vue';
+import ImportStereoBatchDialog from './ImportStereoBatchDialog.vue';
 
 export default defineComponent({
   components: {
     BrowserLink,
+    DatasetSourceInfo,
     ImportButton,
     ImportDialog,
     BulkImportDialog,
     NavigationBar,
     ImportMultiCamDialog,
+    ImportMultiCamBatchDialog,
+    ImportStereoBatchDialog,
     TooltipBtn,
   },
 
   setup() {
     const router = useRouter();
     const importMultiCamDialog = ref(false);
+    const importMultiCamBatchDialog = ref(false);
+    const importStereoBatchDialog = ref(false);
     const pendingImportPayload: Ref<DesktopMediaImportResponse[] | null> = ref(null);
     const bulkImport = ref(false);
     const searchText: Ref<string | null> = ref('');
@@ -55,6 +66,19 @@ export default defineComponent({
     const {
       error, loading: checkingMedia, request, reset: resetError,
     } = useRequest();
+
+    async function presentImportWarnings(imports: ConversionArgs[]) {
+      const warnings = Array.from(new Set(imports.flatMap(({ importWarnings }) => (
+        importWarnings || []
+      ))));
+      if (warnings.length) {
+        await prompt({
+          title: 'Import Warnings',
+          text: warnings,
+          positiveButton: 'Okay',
+        });
+      }
+    }
 
     async function open(dstype: DatasetType | 'bulk' | 'text', directory = false) {
       bulkImport.value = false;
@@ -87,12 +111,14 @@ export default defineComponent({
       const imports = await request(async () => Promise.all(argsArray.map((args) => api.finalizeImport(args))));
       pendingImportPayload.value = null;
 
+      await presentImportWarnings(imports);
+
       imports.forEach(async (conversionArgs) => {
         // Queue conversion job
         if (conversionArgs.mediaList.length > 0) {
           await api.convert(conversionArgs);
         }
-        const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
+        const recentsMeta = await api.loadConfig(conversionArgs.meta.id);
         setRecents(recentsMeta);
       });
 
@@ -104,6 +130,7 @@ export default defineComponent({
       importing.value = true;
       await request(async () => {
         const conversionArgs = await api.finalizeImport(args);
+        await presentImportWarnings([conversionArgs]);
         pendingImportPayload.value = null; // close dialog
         if (conversionArgs.mediaList.length === 0) {
           router.push({
@@ -114,7 +141,7 @@ export default defineComponent({
           // Queue conversion job
           await api.convert(conversionArgs);
           // Display new data and await transcoding to complete
-          const recentsMeta = await api.loadMetadata(conversionArgs.meta.id);
+          const recentsMeta = await api.loadConfig(conversionArgs.meta.id);
           setRecents(recentsMeta);
         }
       });
@@ -142,27 +169,115 @@ export default defineComponent({
       pendingImportPayload.value = [await request(() => api.importMultiCam(args))];
     }
 
-    async function confirmDeleteDataset(datasetId: string, datasetName: string) {
+    const selectedRecents = ref([] as JsonConfigCache[]);
+    const selectedIds = computed(() => new Set(selectedRecents.value.map((item) => item.id)));
+
+    function isSelected(item: JsonConfigCache) {
+      return selectedIds.value.has(item.id);
+    }
+
+    function toggleSelected(item: JsonConfigCache) {
+      if (isSelected(item)) {
+        selectedRecents.value = selectedRecents.value.filter((v) => v.id !== item.id);
+      } else {
+        selectedRecents.value = selectedRecents.value.concat([item]);
+      }
+    }
+
+    async function confirmDeleteSelected() {
+      const items = selectedRecents.value;
+      if (items.length === 0) {
+        return;
+      }
       const result = await prompt({
-        title: 'Warning Deleting Dataset',
-        text: [`Do you want to delete dataset ${datasetName}?`,
-          '1.  Deleting dataset will not remove source media, such as images or video.',
-          '2.  It will not remove annotations files that were imported when the dataset was created.',
-          '3.  This will remove any annotations that bave been created in DIVE for this dataset',
-          '4.  Use the Export button for the dataset to create a copy of the last set of annotations'],
+        title: `Delete ${items.length} dataset${items.length > 1 ? 's' : ''}`,
+        text: ['Do you want to delete the selected datasets?',
+          '1.  Deleting datasets will not remove source media, such as images or video.',
+          '2.  It will not remove annotations files that were imported when the datasets were created.',
+          '3.  This will remove any annotations that have been created in DIVE for these datasets',
+          '4.  Use the Export button for a dataset to create a copy of the last set of annotations'],
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
         confirm: true,
       });
       if (!result) {
         return;
       }
-      await request(() => api.deleteDataset(datasetId));
-      //Now we need to update recents by removing the dataset from localStorage
-      removeRecents(datasetId);
+      const failures: { id: string; name: string; reason: string }[] = [];
+      // Continue through the full selection so one failure does not skip the rest
+      // eslint-disable-next-line no-restricted-syntax
+      for (const item of items) {
+        try {
+          // eslint-disable-next-line no-await-in-loop
+          await api.deleteDataset(item.id);
+          removeRecents(item.id);
+        } catch (err) {
+          failures.push({ id: item.id, name: item.name, reason: getResponseError(err) });
+        }
+      }
+      const failedIds = new Set(failures.map((failure) => failure.id));
+      selectedRecents.value = items.filter((item) => failedIds.has(item.id));
+      if (failures.length > 0) {
+        const deletedCount = items.length - failures.length;
+        await prompt({
+          title: deletedCount > 0
+            ? 'Some datasets could not be deleted'
+            : 'Failed to delete datasets',
+          text: [
+            deletedCount > 0
+              ? `Deleted ${deletedCount} of ${items.length} datasets. The following could not be deleted:`
+              : 'None of the selected datasets could be deleted:',
+            ...failures.map((failure) => `${failure.name}: ${failure.reason}`),
+          ],
+          positiveButton: 'Okay',
+        });
+      }
     }
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
-    function getTypeIcon(recent: JsonMetaCache) {
+    const visibleRecents = ref([] as JsonConfigCache[]);
+    const allSelected = computed(() => visibleRecents.value.length > 0
+      && visibleRecents.value.every((item) => selectedIds.value.has(item.id)));
+    const someSelected = computed(() => visibleRecents.value.some(
+      (item) => selectedIds.value.has(item.id),
+    ));
+
+    function toggleSelectAll() {
+      if (allSelected.value) {
+        const visibleIds = new Set(visibleRecents.value.map((item) => item.id));
+        selectedRecents.value = selectedRecents.value.filter((item) => !visibleIds.has(item.id));
+      } else {
+        selectedRecents.value = selectedRecents.value.concat(
+          visibleRecents.value.filter((item) => !selectedIds.value.has(item.id)),
+        );
+      }
+    }
+
+    function selectedIdsQuery() {
+      return { datasetIds: selectedRecents.value.map((item) => item.id).join(',') };
+    }
+
+    function runPipelineOnSelected() {
+      router.push({ name: 'pipeline', query: selectedIdsQuery() });
+    }
+
+    function runTrainingOnSelected() {
+      router.push({ name: 'training', query: selectedIdsQuery() });
+    }
+
+    function scoreSelected() {
+      router.push({ name: 'scoring', query: selectedIdsQuery() });
+    }
+
+    function reviewSelected() {
+      router.push({ name: 'review', query: selectedIdsQuery() });
+    }
+
+    function indexSelected() {
+      router.push({ name: 'query', query: { ...selectedIdsQuery(), view: 'datasets' } });
+    }
+    function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
         if (recent.subType === 'stereo') {
           return 'mdi-binoculars';
@@ -182,12 +297,12 @@ export default defineComponent({
       return 'mdi-image-multiple';
     }
 
-    async function preloadCheck(recent: JsonMetaCache) {
+    async function preloadCheck(recent: JsonConfigCache) {
       //Attempts to preload the data to see if there are any isues
       try {
         await api.checkDataset(recent.id);
       } catch (e) {
-        const recentsMeta = await api.loadMetadata(recent.id);
+        const recentsMeta = await api.loadConfig(recent.id);
         setRecents(recentsMeta);
         await prompt({
           title: 'Error Loading Data',
@@ -213,6 +328,12 @@ export default defineComponent({
 
     const headers: DataTableHeader[] = [
       {
+        text: '',
+        value: 'select',
+        sortable: false,
+        width: 40,
+      },
+      {
         text: 'Type',
         value: 'type',
         sortable: false,
@@ -229,12 +350,6 @@ export default defineComponent({
         sortable: true,
         sort: (a: string, b: string) => parseRecentDate(b).valueOf() - parseRecentDate(a).valueOf(),
         width: 140,
-      },
-      {
-        text: '',
-        value: 'delete',
-        sortable: false,
-        width: 40,
       },
     ];
     const toDisplayString = (dateString: string) => {
@@ -253,7 +368,15 @@ export default defineComponent({
       openMultiCamDialog,
       getTypeIcon,
       importMedia: api.importMedia,
-      confirmDeleteDataset,
+      confirmDeleteSelected,
+      runPipelineOnSelected,
+      runTrainingOnSelected,
+      scoreSelected,
+      reviewSelected,
+      indexSelected,
+      isSelected,
+      toggleSelected,
+      toggleSelectAll,
       preloadCheck,
       toDisplayString,
       resetError,
@@ -261,19 +384,25 @@ export default defineComponent({
       multiCamOpenType,
       stereo,
       filteredRecents,
+      visibleRecents,
+      selectedRecents,
+      allSelected,
+      someSelected,
       pendingImportPayload,
       bulkImport,
       searchText,
       error,
       importing,
       importMultiCamDialog,
+      importMultiCamBatchDialog,
+      importStereoBatchDialog,
       headers,
       upgradedVersion,
       downgradedVersion,
       knownVersion,
       checkingMedia,
       clientSettings,
-      itemsPerPageOptions,
+      itemsPerPageOptions: [...itemsPerPageOptions, 1000, -1],
       queuedConversionDatasetIds,
     };
   },
@@ -302,9 +431,35 @@ export default defineComponent({
         v-else-if="importMultiCamDialog"
         :stereo="stereo"
         :data-type="multiCamOpenType"
+        :enable-subfolder-import="true"
+        :enable-transform-import="true"
         :import-media="importMedia"
         @begin-multicam-import="multiCamImport($event)"
         @abort="importMultiCamDialog = false"
+      />
+    </v-dialog>
+    <v-dialog
+      :value="importMultiCamBatchDialog"
+      persistent
+      overlay-opacity="0.95"
+      max-width="80%"
+      width="1000"
+    >
+      <ImportMultiCamBatchDialog
+        v-if="importMultiCamBatchDialog"
+        @abort="importMultiCamBatchDialog = false"
+      />
+    </v-dialog>
+    <v-dialog
+      :value="importStereoBatchDialog"
+      persistent
+      overlay-opacity="0.95"
+      max-width="80%"
+      width="1000"
+    >
+      <ImportStereoBatchDialog
+        v-if="importStereoBatchDialog"
+        @abort="importStereoBatchDialog = false"
       />
     </v-dialog>
     <v-dialog
@@ -405,7 +560,11 @@ export default defineComponent({
               icon="mdi-folder-multiple"
               open-type="bulk"
               class="my-3"
+              :bulk-import="true"
+              :stereo-batch-import="true"
               @open="open($event)"
+              @multi-cam-batch="importMultiCamBatchDialog = true"
+              @stereo-batch="importStereoBatchDialog = true"
             />
             <ImportButton
               name="Open Image Sequence"
@@ -413,6 +572,7 @@ export default defineComponent({
               open-type="image-sequence"
               class="my-3"
               :multi-cam-import="true"
+              :large-image-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
             />
@@ -424,13 +584,6 @@ export default defineComponent({
               :multi-cam-import="true"
               @open="open($event)"
               @multi-cam="openMultiCamDialog"
-            />
-            <ImportButton
-              name="Open Large Image (TIFF)"
-              icon="mdi-map"
-              open-type="large-image"
-              class="my-3"
-              @open="open($event)"
             />
           </v-col>
         </v-row>
@@ -447,6 +600,134 @@ export default defineComponent({
                 Recent
               </div>
               <v-spacer />
+              <template v-if="selectedRecents.length > 0">
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="runPipelineOnSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-play
+                      </v-icon>
+                      Run Pipeline
+                    </v-btn>
+                  </template>
+                  <span>Run a pipeline on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="runTrainingOnSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-brain
+                      </v-icon>
+                      Training
+                    </v-btn>
+                  </template>
+                  <span>Train a model on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="indexSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-database-plus
+                      </v-icon>
+                      Index
+                    </v-btn>
+                  </template>
+                  <span>Build search indexes for the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="reviewSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-view-grid-outline
+                      </v-icon>
+                      Review
+                    </v-btn>
+                  </template>
+                  <span>Review the selected datasets' annotations as a grid</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="scoreSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-chart-box-outline
+                      </v-icon>
+                      Score
+                    </v-btn>
+                  </template>
+                  <span>Score the selected datasets against ground truth</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="error"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="confirmDeleteSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-delete
+                      </v-icon>
+                      Delete ({{ selectedRecents.length }})
+                    </v-btn>
+                  </template>
+                  <span>Delete all selected datasets</span>
+                </v-tooltip>
+              </template>
               <v-text-field
                 v-model="searchText"
                 dense
@@ -454,7 +735,7 @@ export default defineComponent({
                 clearable
                 hide-details
                 placeholder="search"
-                class="shrink"
+                class="shrink ml-4"
                 color="grey darken-1"
               >
                 <template #append>
@@ -476,10 +757,20 @@ export default defineComponent({
               dense
               v-bind="{ headers: headers, items: filteredRecents }"
               sort-by="accessedAt"
+              item-key="id"
               :footer-props="{ itemsPerPageOptions }"
               :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
+              @current-items="visibleRecents = $event"
             >
+              <template #[`header.select`]>
+                <v-simple-checkbox
+                  :value="allSelected"
+                  :indeterminate="someSelected && !allSelected"
+                  :ripple="false"
+                  @input="toggleSelectAll"
+                />
+              </template>
               <template #[`item.type`]="{ item }">
                 <tooltip-btn
                   :key="item.id"
@@ -542,12 +833,18 @@ export default defineComponent({
                   >
                     {{ item.name }}
                   </div>
-                  <div class="grey--text text-caption">
-                    {{
-                      item.imageListPath
-                        || item.originalBasePath
-                        || 'Data imported from several locations'
-                    }}
+                  <div class="grey--text text-caption d-flex align-center">
+                    <dataset-source-info
+                      :dataset-id="item.id"
+                      class="flex-shrink-0 mr-1"
+                    />
+                    <span>
+                      {{
+                        item.imageListPath
+                          || item.originalBasePath
+                          || 'Data imported from several locations'
+                      }}
+                    </span>
                   </div>
                 </span>
               </template>
@@ -559,13 +856,12 @@ export default defineComponent({
                   {{ toDisplayString(item.accessedAt) }}
                 </span>
               </template>
-              <template #[`item.delete`]="{ item }">
-                <tooltip-btn
+              <template #[`item.select`]="{ item }">
+                <v-simple-checkbox
                   :key="item.id"
-                  color="error"
-                  icon="mdi-delete"
-                  :tooltip-text="'Delete'"
-                  @click="confirmDeleteDataset(item.id, item.name)"
+                  :value="isSelected(item)"
+                  :ripple="false"
+                  @input="toggleSelected(item)"
                 />
               </template>
             </v-data-table>

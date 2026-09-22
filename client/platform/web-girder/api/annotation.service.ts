@@ -4,6 +4,7 @@ import type { SaveDetectionsArgs } from 'dive-common/apispec';
 
 import girderRest from 'platform/web-girder/plugins/girder';
 import { AnnotationsCurrentVersion } from 'platform/desktop/constants';
+import { resolveDatasetFolderId } from './multicamResolve';
 
 export interface Revision {
   additions: Readonly<number>;
@@ -27,7 +28,8 @@ export interface Label {
   }>;
 }
 
-async function loadDetections(folderId: string, revision?: number, set?: string) {
+async function loadDetections(datasetId: string, revision?: number, set?: string) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   const params: Record<string, unknown> = { folderId };
   if (revision !== undefined) {
     params.revision = revision;
@@ -43,13 +45,22 @@ async function loadDetections(folderId: string, revision?: number, set?: string)
   };
 }
 
-function loadRevisions(
-  folderId: string,
+/** Review needs only the live tracks; retain the normal Girder access checks. */
+async function loadReviewTracks(datasetId: string): Promise<TrackData[]> {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
+  return (await girderRest.get<TrackData[]>('dive_annotation/track', {
+    params: { folderId },
+  })).data;
+}
+
+async function loadRevisions(
+  datasetId: string,
   limit?: number,
   offset?: number,
   sort?: string,
   set?: string,
 ) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.get<Revision[]>('dive_annotation/revision', {
     params: {
       folderId, sortdir: -1, limit, offset, sort, set,
@@ -57,7 +68,8 @@ function loadRevisions(
   });
 }
 
-function saveDetections(folderId: string, args: SaveDetectionsArgs) {
+async function saveDetections(datasetId: string, args: SaveDetectionsArgs) {
+  const { folderId } = await resolveDatasetFolderId(datasetId);
   return girderRest.patch('dive_annotation', args, {
     params: { folderId },
   });
@@ -71,6 +83,7 @@ async function getLabels() {
 export {
   getLabels,
   loadDetections,
+  loadReviewTracks,
   loadRevisions,
   saveDetections,
 };

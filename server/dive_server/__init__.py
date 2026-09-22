@@ -1,10 +1,9 @@
-import os
 import logging
+import os
 from pathlib import Path
 
 from girder import events, plugin
 from girder.constants import AccessType
-from girder.models.setting import Setting
 from girder.models.user import User
 from girder.plugin import getPlugin
 from girder.utility import mail_utils
@@ -25,8 +24,10 @@ from .views_override import (
     use_private_queue,
 )
 from .views_rpc import RpcResource
+from .views_scoring import ScoringResource
 
 logger = logging.getLogger(__name__)
+
 
 class GirderPlugin(plugin.GirderPlugin):
     def load(self, info):
@@ -38,6 +39,7 @@ class GirderPlugin(plugin.GirderPlugin):
         info["apiRoot"].dive_configuration = ConfigurationResource("dive_configuration")
         info["apiRoot"].dive_dataset = DatasetResource("dive_dataset")
         info["apiRoot"].dive_rpc = RpcResource("dive_rpc")
+        info["apiRoot"].dive_scoring = ScoringResource("dive_scoring")
         # required because girder doesn't load plugins in order so we need to manually load first.
         getPlugin('jobs').load(info)
         # Setup route additions for exsting resources
@@ -49,8 +51,9 @@ class GirderPlugin(plugin.GirderPlugin):
         )
         User().exposeFields(AccessType.READ, constants.UserPrivateQueueEnabledMarker)
 
-        # Expose Job dataset assocation
+        # Expose Job dataset association and params (login, input_folder, etc.)
         Job().exposeFields(AccessType.READ, constants.JOBCONST_DATASET_ID)
+        Job().exposeFields(AccessType.READ, constants.JOBCONST_PARAMS)
 
         DIVE_MAIL_TEMPLATES = Path(os.path.realpath(__file__)).parent / 'mail_templates'
         mail_utils.addTemplateDirectory(str(DIVE_MAIL_TEMPLATES))
@@ -59,7 +62,6 @@ class GirderPlugin(plugin.GirderPlugin):
         core_girder.script_name = '/girder'
         info['serverRoot'].mount(core_girder, '/girder', core_girder.config)
         del info['serverRoot'].apps['']
-
 
         conf = {
             '/': {

@@ -13,7 +13,7 @@ import { FrameDataTrack } from '../LayerTypes';
 
 interface TailData {
   trackId: TrackId;
-  confidencePairs: [string, number] | null;
+  styleType: [string, number] | null;
   selected: boolean;
   t: number; // GeoJS tail data t(time)
   x: number;
@@ -62,7 +62,7 @@ export default class TailLayer extends BaseLayer<TailData[]> {
       if (bounds) {
         const point: TailData = {
           trackId: track.trackId,
-          confidencePairs: track.getType(),
+          styleType: fd.styleType,
           selected: fd.selected,
           t: frame,
           x: bounds[0] + (bounds[2] - bounds[0]) / 2.0,
@@ -138,8 +138,8 @@ export default class TailLayer extends BaseLayer<TailData[]> {
           if (trackData[0].selected) {
             return this.stateStyling.selected.color;
           }
-          if (trackData[0].confidencePairs) {
-            return this.typeStyling.value.color(trackData[0].confidencePairs[0]);
+          if (trackData[0].styleType) {
+            return this.typeStyling.value.color(trackData[0].styleType[0]);
           }
         }
 
@@ -152,8 +152,8 @@ export default class TailLayer extends BaseLayer<TailData[]> {
           if (trackData[0].selected) {
             return this.stateStyling.selected.color;
           }
-          if (trackData[0].confidencePairs) {
-            return this.typeStyling.value.color(trackData[0].confidencePairs[0]);
+          if (trackData[0].styleType) {
+            return this.typeStyling.value.color(trackData[0].styleType[0]);
           }
         }
 
@@ -172,8 +172,8 @@ export default class TailLayer extends BaseLayer<TailData[]> {
             }
             return this.stateStyling.selected.color;
           }
-          if (trackData[0].confidencePairs) {
-            return this.typeStyling.value.color(trackData[0].confidencePairs[0]);
+          if (trackData[0].styleType) {
+            return this.typeStyling.value.color(trackData[0].styleType[0]);
           }
         }
         return this.typeStyling.value.color('');

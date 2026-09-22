@@ -8,7 +8,7 @@ This directory contains the code for:
 
 ## Development
 
-Requires Node 18+.
+Requires Node 20+.
 
 ``` bash
 # install dependencies
@@ -21,8 +21,9 @@ npm run serve
 npm run build:web
 
 # Electron
-npm run serve:electron
+npm run serve:electron   # alias: npm run dev:electron
 npm run build:electron
+npm run build:electron:dir   # unpacked build (no installer) for local testing
 
 # lint and test
 npm run lint

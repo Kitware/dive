@@ -12,11 +12,18 @@ The navigation bar is the row of controls at the very top of the window.
     * overwrite the style and attribute configuration with a config `.json` file.
 * ==:material-download: Download== (Web) or ==:material-application-export: Export== (Desktop) allows for exporting all or part of the current dataset.
     * **Exclude Tracks** - this allows you to remove tracks below a specific confidence threshold when exporting the CSV.  It is how you can export only the higher detections/tracks after running a pipeline.
-    * **Checked Types Only** - allows you to only export the annotations of types that are currently checked in the type list.
+    * **Checked Types Only** - filters stored confidence pairs by their raw type names and removes
+      unchecked pairs from exported tracks. This export boundary intentionally does not substitute
+      the hierarchy-resolved display type.
     * **Web-specific options** are documented in the [web download section](Web-Version.md#download-or-export-data)
 * ==:material-content-copy: Clone== is documented in the [web clone section](Web-Version.md#dataset-clones).
 * ==:material-help-circle: Help== provides mouse/keyboard shortcuts as well as a link to this documentation.
-* ==:material-content-save:== is used to save outstanding annotation changes and any custom styles applied to the different types.  Changes are not immediately committed and will instead update the save icon with a number badge indicating how many changes are outstanding.  Clicking this button will commit your changes and reset the count to zero.
+* ==:material-cog:== opens **User Settings**:
+    * **Type color scope** — reuse type/group colors across all datasets (**Shared**, the default) or keep them **Per dataset**. See [Type color scope and Saved Styles](UI-Type-List.md#type-color-scope-and-saved-styles).
+    * **Saved Styles** — browse, add, edit, and delete the shared type and group style overrides used when scope is Shared.
+    * **Auto-save annotations** — optionally save annotation changes after a delay.
+    * **Show multi-camera toolbar** (Desktop) — show multi-camera tools in the top toolbar when a track is selected.
+* ==:material-content-save:== is used to save outstanding annotation changes and any custom styles applied to the different types.  Changes are not immediately committed and will instead update the save icon with a number badge indicating how many changes are outstanding.  Clicking this button will commit your changes and reset the count to zero.  When type color scope is **Shared**, style edits are also mirrored to the shared style store (separately from this dataset save).
 
 ## Editing Bar
 
@@ -26,7 +33,7 @@ The editing bar is the second row below navigation.
 
 On the right side of the editing bar, ==:material-chevron-left-box:== (or ==:material-chevron-right-box:== when open) toggles the **context sidebar** — advanced tools and settings panels on the right side of the viewer.
 
-Use the dropdown at the top of that panel to switch tools, including [Revision History](Web-Version.md#revision-history), Group Manager, threshold controls, and (when applicable) [Annotation Sets](Annotation-Sets.md).
+Use the dropdown at the top of that panel to switch tools, including [Dataset Info](UI-DatasetInfo.md), [Revision History](Web-Version.md#revision-history), [Image Enhancements](UI-Image-Enhancements.md), Group Manager, threshold controls, and (when applicable) [Annotation Sets](Annotation-Sets.md).
 
 ### Editing Status Indicator
 
@@ -38,6 +45,27 @@ On the far left, the editing mode status indicator shows you what mode you're in
 
 Editing mode toggles control the type of geometry being created or edited during annotation.  See the [Annotation Quickstart](Annotation-QuickStart.md) for an in-depth guide to annotation.
 
+Standard geometry modes:
+
+* ==:material-vector-square:== **Rectangle** (++1++)
+* ==:material-vector-polygon:== **Polygon** (++2++)
+* ==:material-vector-line:== **Head/tail line** (++3++)
+
+#### Segment mode (Desktop)
+
+On [DIVE Desktop](Dive-Desktop.md), an additional ==Segment== toggle (magic-wand icon, ++s++ hotkey) activates [interactive point-click segmentation](Interactive-Annotation.md#interactive-segmentation).
+
+![Segmentation editing bar](images/CreationMode/SegmentationMode.png)
+
+While segmentation is active:
+
+* The status indicator shows **Creating Segment** or **Editing Segment** with click instructions.
+* A **Reset Points** button appears to clear prompt points without leaving segmentation mode.
+* Green and red dots show foreground and background prompt points on the image.
+* A loading spinner appears while the model loads or a prediction is in progress.
+
+Segment mode is not available in the web annotator.
+
 ### Visibility Toggles
 
 The **:material-eye: visibility** section contains toggle buttons that control the different types of annotation data can be hidden or shown.
@@ -46,5 +74,8 @@ The **:material-eye: visibility** section contains toggle buttons that control t
 * ==:material-vector-polygon:== toggles **polygon** visibility
 * ==:material-vector-line:== toggles **head/tail line** visibility
 * ==:material-format-text:== toggles annotation type & confidence **text** visibility
+    * **Show user created/modified** — when text is on, optionally show a pencil glyph on annotations you created or edited.
+    * **Show suppressed tags** — when text is on, show an ==:material-eye-off:== glyph on [attribute-suppressed](UI-Suppression.md#attribute-suppression) detections in labels and hover tooltips.
 * ==:material-comment-text-outline:== toggles a **cursor hover tooltip**, helpful for reviewing very dense scenes with lots of overlap.
 * ==:material-navigation:== toggles **track trail** visibility.  The track trail is configurable to show up to 100 frames both ahead and behind each bounding box.  The trail line is made of bounding box midpoints.
+* ==:material-eye-off:== toggles **suppression** styling for attribute-suppressed detections (dashed outline, outline/fill opacity, optional fill color). Region-suppressed detections stay hidden regardless. See [Suppression](UI-Suppression.md#visibility-and-styling).

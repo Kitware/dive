@@ -7,9 +7,12 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { clientSettings } from 'dive-common/store/settings';
 import { DatasetType, useApi } from 'dive-common/apispec';
+import { computeGapGradient } from 'dive-common/alignedTimeline';
 import { frameToTimestamp } from 'vue-media-annotator/utils';
 import { injectAggregateController } from '../annotators/useMediaController';
-import { useTime, useTrackFilters, useDatasetId } from '../../provides';
+import {
+  useTime, useTrackFilters, useDatasetId, useAlignedView,
+} from '../../provides';
 
 export default defineComponent({
   name: 'Controls',
@@ -37,16 +40,43 @@ export default defineComponent({
       dragging: false,
     });
     const mediaController = injectAggregateController().value;
+    let alignedView: ReturnType<typeof useAlignedView> | undefined;
+    try {
+      alignedView = useAlignedView();
+    } catch {
+      // aligned view store may not be provided in tests or minimal embeds.
+    }
+    /**
+     * The raw screen-delta camera sync is only offered while the transform
+     * -aware aligned view (the Align button) is unavailable: once every
+     * camera has a calibration transform, Align is the single place to link
+     * pan/zoom, and this cruder link (which assumes identical pixel scale
+     * between panes) would just be a second, worse toggle for the same thing.
+     */
+    const rawSyncAvailable = computed(() => mediaController.cameras.value.length > 1
+      && !alignedView?.available.value);
+    const toggleRawSync = () => {
+      if (rawSyncAvailable.value) {
+        mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value);
+      }
+    };
+    // If transforms become available while the raw sync is on, switch it off:
+    // its toggle is hidden from that point, and the aligned-view link stands
+    // down while raw sync is enabled, so a stuck-on raw sync would silently
+    // block the Align button's linking with no visible control to clear it.
+    watch(rawSyncAvailable, (available) => {
+      if (!available && mediaController.cameraSync.value) {
+        mediaController.toggleSynchronizeCameras(false);
+      }
+    }, { immediate: true });
     const isVideo = computed(() => props.datasetType === 'video');
     const { frameRate } = useTime();
     const { visible } = usePrompt();
     const trackFilters = useTrackFilters();
-    const { saveMetadata } = useApi();
+    const { saveConfig } = useApi();
     const datasetId = useDatasetId();
     const activeLockedCamera = ref(false);
     const activeTimeFilter = ref(false);
-    const activeBottomControlsMenu = ref(false);
-    const bottomControlsActivatorId = 'bottom-controls-menu-activator';
     watch(mediaController.frame, (frame) => {
       if (!data.dragging) {
         data.frame = frame;
@@ -62,6 +92,21 @@ export default defineComponent({
       }
       data.frame = value;
     }
+
+    /**
+     * A CSS gradient overlay marking timeline slots where at least one camera
+     * has no frame (SEAL feature 5's aligned timeline, see alignedTimeline.ts).
+     * Uses a gradient rather than one element per gap so this stays cheap
+     * regardless of how many gaps there are. Each band is centered on the
+     * v-slider thumb position for its slot (see computeGapGradient); this is
+     * a lightweight visual approximation drawn under the v-slider, not
+     * pixel-exact with its clickable thumb track.
+     */
+    const alignedGapGradient = computed(() => computeGapGradient(
+      mediaController.alignedGapSlots.value,
+      mediaController.maxFrame.value,
+    ));
+    const alignedGapCount = computed(() => mediaController.alignedGapSlots.value.length);
     function togglePlay(_: HTMLElement, keyEvent: KeyboardEvent) {
       // Prevent scroll from spacebar and other default effects.
       keyEvent.preventDefault();
@@ -86,7 +131,7 @@ export default defineComponent({
     const timeFilterMax = computed(() => trackFilters.timeFilters.value?.[1] ?? mediaController.maxFrame.value);
 
     function saveTimeFilter() {
-      saveMetadata(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
+      saveConfig(datasetId.value, { timeFilters: trackFilters.timeFilters.value });
     }
 
     function handleTimeFilterClick() {
@@ -213,12 +258,14 @@ export default defineComponent({
     return {
       activeLockedCamera,
       activeTimeFilter,
-      activeBottomControlsMenu,
-      bottomControlsActivatorId,
       data,
       mediaController,
+      rawSyncAvailable,
+      toggleRawSync,
       dragHandler,
       input,
+      alignedGapGradient,
+      alignedGapCount,
       togglePlay,
       toggleEnhancements,
       visible,
@@ -260,10 +307,11 @@ export default defineComponent({
       { bind: 'd', handler: mediaController.prevFrame, disabled: visible() },
       {
         bind: 'l',
-        handler: () => mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value),
+        handler: toggleRawSync,
         disabled: visible(),
       },
     ]"
+    :class="{ 'controls-bottom-layout': bottomLayout }"
     style="position: relative;"
   >
     <v-card
@@ -278,6 +326,12 @@ export default defineComponent({
         @start="dragHandler.start"
         @end="dragHandler.end"
         @input="input"
+      />
+      <div
+        v-if="alignedGapCount > 0"
+        class="aligned-gap-indicator"
+        :style="{ background: alignedGapGradient }"
+        :title="`${alignedGapCount} timeline slot(s) with a missing camera frame`"
       />
       <v-row
         no-gutters
@@ -295,17 +349,48 @@ export default defineComponent({
               justify="start"
               name="timelineControls"
             />
-            <slot
-              name="bottomControlsActivator"
-              :activator-id="bottomControlsActivatorId"
-            />
           </div>
         </v-col>
         <v-col
           v-if="bottomLayout"
-          class="py-1 shrink d-flex align-center bottom-controls-actions"
+          class="py-1 d-flex align-center bottom-controls-actions"
           style="min-width: auto;"
         >
+          <v-btn
+            icon
+            small
+            title="(d, left-arrow) previous frame"
+            @click="mediaController.prevFrame"
+          >
+            <v-icon>mdi-skip-previous</v-icon>
+          </v-btn>
+          <v-btn
+            v-if="!mediaController.playing.value"
+            icon
+            small
+            title="(space) Play"
+            @click="mediaController.play"
+          >
+            <v-icon>mdi-play</v-icon>
+          </v-btn>
+          <v-btn
+            v-else
+            icon
+            small
+            title="(space) Pause"
+            @click="mediaController.pause"
+          >
+            <v-icon>mdi-pause</v-icon>
+          </v-btn>
+          <v-btn
+            icon
+            small
+            title="(f, right-arrow) next frame"
+            @click="mediaController.nextFrame"
+          >
+            <v-icon>mdi-skip-next</v-icon>
+          </v-btn>
+          <v-divider vertical class="mx-1" />
           <v-menu
             v-model="activeTimeFilter"
             bottom
@@ -562,121 +647,29 @@ export default defineComponent({
             color="warning"
             dot
             overlap
-          />
-          <v-menu
-            v-model="activeBottomControlsMenu"
-            :activator="`#${bottomControlsActivatorId}`"
-            :nudge-left="8"
-            left
             bottom
-            :close-on-content-click="false"
           >
-            <v-card
-              outlined
-              class="pa-2"
-              color="blue-grey darken-3"
-              min-width="360"
+            <v-btn
+              icon
+              small
+              :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+              @click="toggleEnhancements"
             >
-              <div class="d-flex align-center mb-2">
-                <slot name="middle" />
-              </div>
-              <div class="d-flex align-center">
-                <v-btn
-                  icon
-                  small
-                  title="(d, left-arrow) previous frame"
-                  @click="mediaController.prevFrame"
-                >
-                  <v-icon>mdi-skip-previous</v-icon>
-                </v-btn>
-                <v-btn
-                  v-if="!mediaController.playing.value"
-                  icon
-                  small
-                  title="(space) Play"
-                  @click="mediaController.play"
-                >
-                  <v-icon>mdi-play</v-icon>
-                </v-btn>
-                <v-btn
-                  v-else
-                  icon
-                  small
-                  title="(space) Pause"
-                  @click="mediaController.pause"
-                >
-                  <v-icon>mdi-pause</v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  title="(f, right-arrow) next frame"
-                  @click="mediaController.nextFrame"
-                >
-                  <v-icon>mdi-skip-next</v-icon>
-                </v-btn>
-                <v-divider vertical class="mx-1" />
-                <v-btn
-                  icon
-                  small
-                  :color="timeFilterActive ? 'primary' : 'default'"
-                  title="Filter tracks by time range"
-                  @click="handleTimeFilterClick"
-                >
-                  <v-icon>
-                    {{ timeFilterActive ? 'mdi-filter' : 'mdi-filter-outline' }}
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  :color="clientSettings.annotatorPreferences.lockedCamera.enabled ? 'primary' : 'default'"
-                  title="center camera on selected track"
-                  @click="clientSettings.annotatorPreferences.lockedCamera.enabled = !clientSettings.annotatorPreferences.lockedCamera.enabled"
-                >
-                  <v-icon>
-                    {{ clientSettings.annotatorPreferences.lockedCamera.enabled ? 'mdi-lock-check' : 'mdi-lock-open' }}
-                  </v-icon>
-                </v-btn>
-                <v-btn
-                  icon
-                  small
-                  title="(r)eset pan and zoom"
-                  @click="mediaController.resetZoom"
-                >
-                  <v-icon>mdi-image-filter-center-focus</v-icon>
-                </v-btn>
-                <v-badge
-                  :value="!isDefaultImage"
-                  color="warning"
-                  dot
-                  overlap
-                  bottom
-                >
-                  <v-btn
-                    icon
-                    small
-                    :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
-                    @click="toggleEnhancements"
-                  >
-                    <v-icon>mdi-contrast-box</v-icon>
-                  </v-btn>
-                </v-badge>
-                <v-btn
-                  v-if="mediaController.cameras.value.length > 1"
-                  icon
-                  small
-                  :color="mediaController.cameraSync.value ? 'primary' : 'default'"
-                  title="Synchronize camera controls"
-                  @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
-                >
-                  <v-icon>
-                    {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
-                  </v-icon>
-                </v-btn>
-              </div>
-            </v-card>
-          </v-menu>
+              <v-icon>mdi-contrast-box</v-icon>
+            </v-btn>
+          </v-badge>
+          <v-btn
+            v-if="rawSyncAvailable"
+            icon
+            small
+            :color="mediaController.cameraSync.value ? 'primary' : 'default'"
+            title="Synchronize camera controls"
+            @click="toggleRawSync"
+          >
+            <v-icon>
+              {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
+            </v-icon>
+          </v-btn>
         </v-col>
         <template v-else>
           <v-col
@@ -986,12 +979,12 @@ export default defineComponent({
                 </v-btn>
               </v-badge>
               <v-btn
-                v-if="mediaController.cameras.value.length > 1"
+                v-if="rawSyncAvailable"
                 icon
                 small
                 :color="mediaController.cameraSync.value ? 'primary' : 'default'"
                 title="Synchronize camera controls"
-                @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+                @click="toggleRawSync"
               >
                 <v-icon>
                   {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
@@ -1276,13 +1269,13 @@ export default defineComponent({
             </v-badge>
 
             <v-btn
-              v-if="mediaController.cameras.value.length > 1"
+              v-if="rawSyncAvailable"
               icon
               small
               :color="mediaController.cameraSync.value ? 'primary' : 'default'"
               title="Synchronize camera controls"
 
-              @click="mediaController.toggleSynchronizeCameras(!mediaController.cameraSync.value)"
+              @click="toggleRawSync"
             >
               <v-icon>
                 {{ mediaController.cameraSync.value ? 'mdi-link' : 'mdi-link-off' }}
@@ -1291,45 +1284,51 @@ export default defineComponent({
           </v-col>
         </template>
       </v-row>
+      <div
+        v-if="bottomLayout"
+        class="bottom-controls-filename px-1 py-1"
+      >
+        <slot name="middle" />
+      </div>
     </v-card>
   </div>
 </template>
 
 <style scoped>
+.aligned-gap-indicator {
+  height: 4px;
+  margin: -8px 0 4px;
+  border-radius: 2px;
+}
+
 .bottom-controls-row {
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
 }
 
 .bottom-controls-row-nowrap {
   flex-wrap: nowrap;
 }
 
-.bottom-controls-left {
-  order: 1;
-}
-
-.bottom-controls-middle {
-  order: 2;
-}
-
-.bottom-controls-actions {
-  order: 3;
-}
-
 .bottom-controls-row .bottom-controls-left {
-  flex: 1 1 auto;
-}
-
-.bottom-controls-row .bottom-controls-middle {
-  flex: 1 1 260px;
-  min-width: 0;
-  overflow: hidden;
+  flex: 0 0 auto;
 }
 
 .bottom-controls-row .bottom-controls-actions {
   flex: 0 0 auto;
-  margin-left: auto;
-  justify-content: flex-end;
+  flex-wrap: nowrap;
+}
+
+.controls-bottom-layout {
+  flex-shrink: 0;
+}
+
+.bottom-controls-filename {
+  display: flex;
+  align-items: baseline;
+  overflow-x: hidden;
+  overflow-y: visible;
+  white-space: nowrap;
+  min-width: 0;
 }
 
 .bottom-controls-row-nowrap .bottom-controls-left {

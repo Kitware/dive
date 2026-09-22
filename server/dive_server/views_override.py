@@ -1,11 +1,9 @@
 """adds functionality to existing girder views"""
 
-import types
-
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource, boundHandler
-from girder.constants import AccessType, SortDir, TokenScope
+from girder.constants import AccessType, SortDir
 from girder.models.folder import Folder
 from girder.models.user import User
 from girder_jobs.models import job

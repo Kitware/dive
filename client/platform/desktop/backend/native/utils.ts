@@ -6,7 +6,7 @@ import os from 'os';
 
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 import {
-  DesktopJob, DesktopJobUpdater, JsonMeta, Settings, JobsFolderName,
+  DesktopJob, DesktopJobUpdater, JsonConfig, Settings, JobsFolderName,
 } from 'platform/desktop/constants';
 
 const processChunk = (chunk: Buffer) => chunk
@@ -89,17 +89,26 @@ Promise<{ output: null | string; exitCode: number | null; error: string}> {
 }
 
 /**
+ * Collapse whitespace, dots and separators into underscores so a value is safe
+ * (and pleasant) to embed in a job folder name. Applied to every interpolated
+ * component: pipeline display names carry spaces ("utility align cameras 3
+ * cam"), which made for awkward-to-type, quoting-hostile paths.
+ */
+// eslint won't recognize \. as valid escape
+// eslint-disable-next-line no-useless-escape
+const pathSafeSegment = (segment: string) => segment.replace(/[\.\s/]+/g, '_');
+
+/**
  * Create job run working directory
  */
-async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta[], pipeline: string) {
-  if (jsonMetaList.length === 0) {
-    throw new Error('At least 1 jsonMeta item must be provided');
+async function createWorkingDirectory(settings: Settings, jsonConfigList: JsonConfig[], pipeline: string) {
+  if (jsonConfigList.length === 0) {
+    throw new Error('At least 1 jsonConfig item must be provided');
   }
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
-  // eslint won't recognize \. as valid escape
-  // eslint-disable-next-line no-useless-escape
-  const safeDatasetName = jsonMetaList[0].id.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safeDatasetName}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const safeDatasetName = pathSafeSegment(jsonConfigList[0].id);
+  const safePipeline = pathSafeSegment(pipeline);
+  const runFolderName = moment().format(`[${safeDatasetName}_${safePipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
@@ -111,9 +120,9 @@ async function createWorkingDirectory(settings: Settings, jsonMetaList: JsonMeta
 async function createCustomWorkingDirectory(settings: Settings, prefix: string, pipeline: string) {
   const jobFolderPath = path.join(settings.dataPath, JobsFolderName);
   // Formating prefix if for any reason the prefix is input by the user in the futur
-  // eslint-disable-next-line no-useless-escape
-  const safePrefix = prefix.replace(/[\.\s/]+/g, '_');
-  const runFolderName = moment().format(`[${safePrefix}_${pipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
+  const safePrefix = pathSafeSegment(prefix);
+  const safePipeline = pathSafeSegment(pipeline);
+  const runFolderName = moment().format(`[${safePrefix}_${safePipeline}]_MM-DD-yy_hh-mm-ss.SSS`);
   const runFolderPath = path.join(jobFolderPath, runFolderName);
   if (!fs.existsSync(jobFolderPath)) {
     await fs.mkdir(jobFolderPath);
@@ -164,6 +173,32 @@ async function updateJobFilesOnCancel(workingDir: string): Promise<void> {
   ]);
 }
 
+/**
+ * Build the final training job manifest after process exit. Cancel writes
+ * cancelledJob to disk before killing the child; the exit handler must not
+ * overwrite that with the raw process code (signal kills often report null).
+ */
+function buildTrainingExitManifest(
+  jobBase: DesktopJob,
+  processExitCode: number | null,
+  endTime: Date,
+  existing: Partial<DesktopJob> | null | undefined,
+): DesktopJob {
+  if (existing?.cancelledJob) {
+    return {
+      ...jobBase,
+      cancelledJob: true,
+      exitCode: existing.exitCode ?? -1,
+      endTime: existing.endTime ? new Date(existing.endTime) : endTime,
+    };
+  }
+  return {
+    ...jobBase,
+    exitCode: processExitCode,
+    endTime,
+  };
+}
+
 export {
   getBinaryPath,
   jobFileEchoMiddleware,
@@ -172,4 +207,5 @@ export {
   spawnResult,
   splitExt,
   updateJobFilesOnCancel,
+  buildTrainingExitManifest,
 };

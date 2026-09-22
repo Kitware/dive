@@ -2,10 +2,10 @@ from datetime import datetime
 from typing import Any, Dict, List, Optional, Set, Tuple, Union
 
 from bson.objectid import ObjectId
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, StrictStr, validator
 from typing_extensions import Literal
 
-from dive_utils import constants
+from dive_utils import constants, types
 
 
 class PydanticObjectId(str):
@@ -29,7 +29,8 @@ class GeoJSONGeometry(BaseModel):
 class GeoJSONFeature(BaseModel):
     type: str
     geometry: GeoJSONGeometry
-    properties: Dict[str, Union[bool, float, str]]
+    # str first in the Union to keep numeric strings like "1" from coercing to bool/float
+    properties: Dict[str, Union[str, float, bool]]
 
 
 class GeoJSONFeatureCollection(BaseModel):
@@ -168,6 +169,7 @@ class RenderingDisplayDimension(BaseModel):
 class RenderingAttributes(BaseModel):
     typeFilter: List[str]
     selected: Optional[bool]
+    hideEmpty: Optional[bool]
     displayName: str
     displayColor: str
     displayTextSize: float
@@ -226,6 +228,42 @@ class AttributeTrackFilter(BaseModel):
     primaryDisplay: Optional[bool]
 
 
+class CorrespondencePoint(BaseModel):
+    id: int
+    a: Tuple[float, float]
+    b: Tuple[float, float]
+
+
+class CameraObservation(BaseModel):
+    """The correspondence points contributed by one image pair of a camera
+    pair (registration format v2). The image names are the identity; ``frame``
+    is a dataset-local index the client re-resolves from them at load time.
+    ``source`` is the producer id ('manual' for hand-picked, else a matcher
+    id like 'minima_loftr'); ``stats`` are free-form producer quality
+    statistics preserved verbatim.
+    """
+
+    imageA: str
+    imageB: str
+    frame: Optional[int]
+    enabled: bool = True
+    source: str = 'manual'
+    stats: Optional[Dict[str, Any]]
+    points: List[CorrespondencePoint]
+
+
+class PairHomography(BaseModel):
+    AtoB: List[List[float]]
+    BtoA: List[List[float]]
+
+
+CameraTransformType = Literal['translation', 'rigid', 'similarity', 'affine', 'homography']
+TypeHierarchy = Dict[StrictStr, StrictStr]
+
+# Sensor modality of a multicam camera; see dive_tasks.multicam_pipeline.CAMERA_ROLE_ALIASES.
+CameraRole = Literal['eo', 'ir', 'uv']
+
+
 class MetadataMutable(BaseModel):
     version = (
         constants.JsonMetaCurrentVersion
@@ -237,6 +275,29 @@ class MetadataMutable(BaseModel):
     imageEnhancements: Optional[Dict[str, Any]]
     attributes: Optional[Dict[str, Attribute]]
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
+    datasetInfo: Optional[types.DatasetInfo]
+    typeHierarchy: Optional[TypeHierarchy] = None
+    # Per-camera-pair alignment homographies, keyed by directional "left::right".
+    # Each value holds the 3x3 AtoB / BtoA matrices.
+    cameraHomographies: Optional[Dict[str, PairHomography]]
+    # The per-image-pair correspondence observations behind those homographies,
+    # keyed the same way. Each entry lists the observations (image-pair
+    # identity, enabled flag, producer source, stats, and points) that pool
+    # into that pair's fit.
+    cameraCorrespondences: Optional[Dict[str, List[CameraObservation]]]
+    # The fit model used to compute each pair's homography (translation / rigid /
+    # similarity / affine / homography), keyed the same way. Missing entries
+    # default to 'similarity' client-side.
+    cameraTransformTypes: Optional[Dict[str, CameraTransformType]]
+    # Free-form producer provenance for the camera calibration (e.g. an external
+    # model step's version / swathe / generation time). Never interpreted by
+    # DIVE; preserved verbatim so refined calibrations can be traced back to the
+    # model version they were made against.
+    cameraRegistrationSource: Optional[Dict[str, Any]]
+    # Sensor role per multicam camera name, inferred at import from the camera
+    # and image names and editable afterwards; used to place cameras onto a
+    # pipeline's declared camera slots. Cameras with no known role are absent.
+    cameraRoles: Optional[Dict[str, CameraRole]]
     fps: Optional[float]
 
     @staticmethod
@@ -244,16 +305,60 @@ class MetadataMutable(BaseModel):
         """
         Check if value is a configuration file if at lease one of the config options is populated
         """
+        # Annotation documents may carry annotation fps alongside tracks/groups.
+        if 'tracks' in value or 'groups' in value:
+            return False
+
         keys = list(MetadataMutable.schema()['properties'].keys())
 
         # Remove version: its appearance is not enough to indicate that
         # the value is actually a configuration object.
         keys.remove("version")
 
-        return any([value.get(key, False) for key in keys])
+        return 'typeHierarchy' in value or any([value.get(key, False) for key in keys])
+
+
+class MediaResource(BaseModel):
+    url: str
+    id: str
+    filename: str
+
+
+class MultiCamCameraMeta(BaseModel):
+    """Per-camera entry stored on the parent folder meta.multiCam.cameras."""
+
+    folderId: str
+    type: str
+
+
+class MultiCamMetaStorage(BaseModel):
+    """Parent-folder multiCam metadata (storage shape)."""
+
+    defaultDisplay: str
+    cameras: Dict[str, MultiCamCameraMeta]
+    cameraOrder: List[str] = Field(default_factory=list)
+    calibrationItemId: Optional[str] = None
+    jsonCalibrationItemId: Optional[str] = None
+    calibrationOriginalName: Optional[str] = None
+
+
+class MultiCamMediaCamera(BaseModel):
+    """Per-camera media returned to the client (matches dive-common MultiCamMedia)."""
+
+    type: str
+    imageData: List[MediaResource] = Field(default_factory=list)
+    videoUrl: str = ''
+
+
+class MultiCamMedia(BaseModel):
+    cameras: Dict[str, MultiCamMediaCamera]
+    defaultDisplay: str
+    cameraOrder: List[str] = Field(default_factory=list)
 
 
 class GirderMetadataStatic(MetadataMutable):
+    # Reads preserve legacy malformed storage so the viewer can report and repair it.
+    typeHierarchy: Optional[Any] = None
     # Required
     id: str
     name: str
@@ -268,12 +373,13 @@ class GirderMetadataStatic(MetadataMutable):
     originalFps: Optional[Union[float, int]]
     ffprobe_info: Optional[Dict[str, Any]]
     foreign_media_id: Optional[str]
-
-
-class MediaResource(BaseModel):
-    url: str
-    id: str
-    filename: str
+    subType: Optional[Literal['stereo', 'multicam']] = None
+    multiCamMedia: Optional[MultiCamMedia] = None
+    # Optional per-dataset metadata file (folder meta; mirrors calibrationItemId
+    # / calibrationOriginalName on multiCam). Must be declared so get_dataset
+    # does not drop them when constructing from folder meta.
+    metadataFileItemId: Optional[str] = None
+    metadataFileOriginalName: Optional[str] = None
 
 
 class DatasetSourceMedia(BaseModel):
@@ -292,6 +398,11 @@ class CocoMetadata(BaseModel):
     keypoint_categories: Dict[int, dict]
     images: Dict[int, dict]
     videos: Dict[int, dict]
+    datasetInfo: types.DatasetInfo = {}
+    # KWCOCO ``prob`` arrays align positionally with the document's categories array,
+    # rather than the id-keyed category lookup above.  Keep unnamed slots so that
+    # vector length validation remains meaningful.
+    ordered_category_names: List[Optional[str]] = Field(default_factory=list)
 
 
 class BrandData(BaseModel):
@@ -302,6 +413,14 @@ class BrandData(BaseModel):
     loginMessage: Optional[str]
     alertMessage: Optional[str]
     trainingMessage: Optional[str]
+
+    class Config:
+        extra = 'forbid'
+
+
+class JobsDisabledConfig(BaseModel):
+    disabled: bool = False
+    message: Optional[str] = None
 
     class Config:
         extra = 'forbid'

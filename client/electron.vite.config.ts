@@ -6,6 +6,7 @@ import { defineConfig, externalizeDepsPlugin } from 'electron-vite';
 import { loadEnv } from 'vite';
 
 import packageJson from './package.json';
+import { cssConfig } from './vite.css';
 
 function getGitHash() {
   try {
@@ -67,10 +68,12 @@ export default defineConfig(({ mode }) => {
     },
     renderer: {
       root: resolve(__dirname, '.'),
+      css: cssConfig,
       plugins: [vue()],
       resolve: {
         dedupe: ['axios', 'vue', 'vuetify'],
         alias: {
+          vue: resolve(__dirname, 'node_modules/vue/dist/vue.runtime.esm.js'),
           'dive-common': resolve(__dirname, 'dive-common'),
           'vue-media-annotator': resolve(__dirname, 'src'),
           platform: resolve(__dirname, 'platform'),
@@ -102,8 +105,15 @@ export default defineConfig(({ mode }) => {
         },
       },
       optimizeDeps: {
-        include: ['axios', 'qs', 'markdown-it', 'js-cookie'],
-        exclude: ['@huggingface/transformers'],
+        include: [
+          'axios',
+          'qs',
+          'markdown-it',
+          'js-cookie',
+          'vue',
+          'vuetify',
+          '@girder/components/src',
+        ],
       },
       build: {
         outDir: 'dist_desktop',

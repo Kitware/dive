@@ -18,7 +18,13 @@ The timeline provides a control bar and a few different temporal visualizations.
 * ==:material-lock-open:== will enable camera lock, which causes the annotation view to auto-zoom and pan to whatever annotation is currently selected.  This is useful when reviewing the output of a pipeline.
     * Hovering over the camera lock will open additional settings for forcing transition and locking to a zoomed in multiple of the bbox size
 * ==:material-image-filter-center-focus:== or the ++r++ key will reset zoom/pan in the annotation view.
-* ==:material-contrast-box:== will open the image contrast adjustment panel.
+* ==:material-contrast-box:== will open the [Image Enhancements](UI-Image-Enhancements.md) panel.
+
+## Multicam gap indicators
+
+On multicam image-sequence datasets where [timestamp-aligned playback](Multicamera-data.md#aligned-playback-and-timestamps) is active, the frame scrubber may show **red bands** beneath the slider track. Each band marks a global timeline slot where at least one camera has no frame at that instant — scrubbing there blanks that camera's pane.
+
+Hover the scrubber to see a tooltip with the count of such gap slots. Consecutive gap slots are merged into a single visible band on long sequences.
 
 ## Detection/Track Count
 

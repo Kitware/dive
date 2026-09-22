@@ -1,28 +1,36 @@
 <script lang="ts">
 import {
-  defineComponent, PropType, reactive, toRef, watch,
+  computed, defineComponent, onBeforeUnmount, PropType, reactive, toRef, unref, watch,
 } from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { TypeHierarchyError } from 'dive-common/typeHierarchy';
 
 import TrackFilterControls from '../TrackFilterControls';
 import BaseFilterControls from '../BaseFilterControls';
 import type Group from '../Group';
 import type StyleManager from '../StyleManager';
 import type Track from '../track';
-import { useCameraStore, useReadOnlyMode } from '../provides';
+import { useReadOnlyMode } from '../provides';
+import ParentTypePicker from './ParentTypePicker.vue';
 
 export default defineComponent({
   name: 'TypeEditor',
+
+  components: { ParentTypePicker },
 
   props: {
     selectedType: {
       type: String,
       required: true,
     },
+    /**
+     * When omitted, the editor only updates StyleManager (rename/delete style
+     * keys) and does not touch annotation type lists. Used by SavedStylesEditor.
+     */
     filterControls: {
       type: Object as PropType<BaseFilterControls<Track | Group>>,
-      required: true,
+      default: undefined,
     },
     styleManager: {
       type: Object as PropType<StyleManager>,
@@ -32,20 +40,35 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** When true, Delete removes the style override rather than an empty type. */
+    styleOnly: {
+      type: Boolean,
+      default: false,
+    },
   },
 
   setup(props, { emit }) {
-    const typeStylingRef = props.styleManager.typeStyling;
-    const trackFilters = props.filterControls;
-    const usedTypesRef = trackFilters.usedTypes;
+    const trackFilters = computed(() => (
+      props.filterControls instanceof TrackFilterControls ? props.filterControls : undefined
+    ));
+    const isStyleOnly = computed(() => props.styleOnly || !props.filterControls);
+    const showParentType = computed(() => (
+      !props.group && !isStyleOnly.value && trackFilters.value !== undefined
+    ));
+    const usedTypesRef = computed(() => props.filterControls?.usedTypes.value ?? []);
     const readOnlyMode = useReadOnlyMode();
-    const cameraStore = useCameraStore();
     const { prompt } = usePrompt();
+    let active = true;
+    onBeforeUnmount(() => {
+      active = false;
+    });
 
     const data = reactive({
       selectedColor: '',
       selectedType: '',
       editingType: '',
+      editingParent: null as string | null,
+      parentSearchValid: true,
       editingColor: '',
       editingThickness: 5,
       editingFill: false,
@@ -53,66 +76,160 @@ export default defineComponent({
       editingShowLabel: true,
       editingShowConfidence: true,
       valid: true,
+      definitionError: '',
     });
 
+    const definitionValidation = computed(() => {
+      const controls = trackFilters.value;
+      if (!controls || !data.editingType.trim() || !data.parentSearchValid) {
+        return undefined;
+      }
+      return controls.validateTypeDefinition({
+        currentType: data.selectedType,
+        newType: data.editingType,
+        parent: data.editingParent ?? undefined,
+      });
+    });
+    const nameDefinitionError = computed(() => (
+      definitionValidation.value?.field === 'name'
+        ? `Type hierarchy is invalid: ${definitionValidation.value.reason}.`
+        : ''
+    ));
+    const parentDefinitionError = computed(() => (
+      definitionValidation.value?.field === 'parent'
+        ? `Type hierarchy is invalid: ${definitionValidation.value.reason}.`
+        : ''
+    ));
+    const saveDisabled = computed(() => (
+      !data.valid || !data.parentSearchValid
+      || nameDefinitionError.value !== '' || parentDefinitionError.value !== ''
+    ));
+
+    const currentStyleValue = () => ({
+      color: data.editingColor,
+      strokeWidth: data.editingThickness,
+      fill: data.editingFill,
+      opacity: data.editingOpacity,
+      showLabel: data.editingShowLabel,
+      showConfidence: data.editingShowConfidence,
+    });
+    let styleSnapshot = currentStyleValue();
+
     function acceptChanges() {
-      if (data.editingType !== data.selectedType) {
-        const updatedTypeObj = {
+      if (saveDisabled.value) {
+        return;
+      }
+      data.definitionError = '';
+      if (isStyleOnly.value) {
+        if (data.editingType !== data.selectedType) {
+          props.styleManager.renameTypeStyle(data.selectedType, data.editingType);
+        }
+      } else if (trackFilters.value) {
+        try {
+          trackFilters.value.updateTypeDefinition({
+            currentType: data.selectedType,
+            newType: data.editingType,
+            parent: data.editingParent ?? undefined,
+          });
+        } catch (error) {
+          if (error instanceof TypeHierarchyError) {
+            data.definitionError = `Type hierarchy is invalid: ${error.reason}. No type changes were applied.`;
+            return;
+          }
+          throw error;
+        }
+      } else if (props.filterControls && data.editingType !== data.selectedType) {
+        props.filterControls.updateTypeName({
           currentType: data.selectedType,
           newType: data.editingType,
-        };
-        trackFilters.updateTypeName(updatedTypeObj);
-        if (trackFilters instanceof TrackFilterControls) {
-          cameraStore.changeTrackTypes(updatedTypeObj);
-        }
+        });
       }
-      props.styleManager.updateTypeStyle({
-        type: data.editingType,
-        value: {
-          color: data.editingColor,
-          strokeWidth: data.editingThickness,
-          fill: data.editingFill,
-          opacity: data.editingOpacity,
-          showLabel: data.editingShowLabel,
-          showConfidence: data.editingShowConfidence,
-        },
-      });
+      const styleValue = currentStyleValue();
+      const styleChanged = Object.entries(styleValue).some(
+        ([key, value]) => styleSnapshot[key as keyof typeof styleSnapshot] !== value,
+      );
+      if (styleChanged && trackFilters.value) {
+        trackFilters.value.importTypes([data.editingType], false);
+      }
+      props.styleManager.updateTypeStyle({ type: data.editingType, value: styleValue });
       emit('close');
     }
 
     async function clickDeleteType(type: string) {
-      const text = `Do you want to delete this empty Type: ${type}`;
+      if (isStyleOnly.value) {
+        const result = await prompt({
+          title: 'Confirm',
+          text: `Do you want to delete the saved style for "${type}"?`,
+          confirm: true,
+        });
+        if (result && active) {
+          props.styleManager.deleteTypeStyle(type);
+          emit('close');
+        }
+        return;
+      }
+      const hierarchy = trackFilters.value?.typeHierarchy.value;
+      const hasChildren = hierarchy
+        ? Object.values(hierarchy).some((parent) => parent === type)
+        : false;
+      let text = `Delete the unused type "${type}"?`;
+      if (hasChildren) {
+        const parent = hierarchy?.[type];
+        text = parent
+          ? `Remove "${type}" from the hierarchy? Its children will move under "${parent}". Stored annotations will not be changed.`
+          : `Remove "${type}" from the hierarchy? Its children will become top-level types. Stored annotations will not be changed.`;
+      }
       const result = await prompt({
         title: 'Confirm',
         text,
         confirm: true,
       });
-      if (result) {
-        trackFilters.deleteType(type);
-        emit('close');
+      if (result && active && props.filterControls) {
+        if (props.filterControls.deleteType(type)) {
+          emit('close');
+        }
       }
     }
 
     function init() {
       data.selectedType = props.selectedType;
       data.editingType = props.selectedType;
-      data.editingColor = typeStylingRef.value.color(props.selectedType);
-      data.editingThickness = typeStylingRef.value.strokeWidth(props.selectedType);
-      data.editingFill = typeStylingRef.value.fill(props.selectedType);
-      data.editingOpacity = typeStylingRef.value.opacity(props.selectedType);
-      const labelSettings = typeStylingRef.value.labelSettings(props.selectedType);
+      data.editingParent = trackFilters.value?.typeHierarchy.value?.[props.selectedType] ?? null;
+      data.parentSearchValid = true;
+      const typeStyling = props.styleManager.typeStyling.value;
+      data.editingColor = typeStyling.color(props.selectedType);
+      data.editingThickness = typeStyling.strokeWidth(props.selectedType);
+      data.editingFill = typeStyling.fill(props.selectedType);
+      data.editingOpacity = typeStyling.opacity(props.selectedType);
+      const labelSettings = typeStyling.labelSettings(props.selectedType);
       data.editingShowConfidence = labelSettings.showConfidence;
       data.editingShowLabel = labelSettings.showLabel;
+      data.definitionError = '';
+      styleSnapshot = currentStyleValue();
     }
     watch(toRef(props, 'selectedType'), init);
     init();
 
+    const nameRules = [(val: string) => !!val?.trim() || 'Name is required'];
+    const thicknessRules = [(val: number) => val >= 0 || 'Must be >= 0'];
+
     return {
       data,
-      usedTypesRef,
+      isStyleOnly,
+      showParentType,
       readOnlyMode,
+      parentTypes: computed(() => trackFilters.value?.allTypes.value ?? []),
+      nameDefinitionError,
+      parentDefinitionError,
+      saveDisabled,
       acceptChanges,
       clickDeleteType,
+      nameRules,
+      thicknessRules,
+      deleteBlocked: computed(() => (
+        unref(usedTypesRef).includes(data.selectedType)
+        || (trackFilters.value?.typeInUseOnAnyCamera(data.selectedType) ?? false)
+      )),
     };
   },
 });
@@ -124,7 +241,7 @@ export default defineComponent({
   >
     <v-card>
       <v-card-title>
-        Editing Type
+        {{ isStyleOnly ? 'Editing Style' : 'Editing Type' }}
         <v-spacer />
         <v-btn
           icon
@@ -147,14 +264,38 @@ export default defineComponent({
         </v-container>
       </v-card-subtitle>
       <v-card-text>
+        <v-alert
+          v-if="data.definitionError"
+          type="error"
+          dense
+        >
+          {{ data.definitionError }}
+        </v-alert>
         <v-form v-model="data.valid">
           <v-row>
             <v-col clas="py-0">
               <v-text-field
                 v-model="data.editingType"
                 :disabled="readOnlyMode"
-                :label="readOnlyMode ? 'Type Name (disabled in ReadOnly Mode)' : 'Type Name'"
-                hide-details
+                :rules="nameRules"
+                :error-messages="nameDefinitionError"
+                :label="readOnlyMode
+                  ? 'Type Name (disabled in ReadOnly Mode)'
+                  : (isStyleOnly ? 'Style Name' : 'Type Name')"
+                hide-details="auto"
+              />
+            </v-col>
+          </v-row>
+          <v-row v-if="showParentType">
+            <v-col>
+              <ParentTypePicker
+                :key="data.selectedType"
+                v-model="data.editingParent"
+                :all-types="parentTypes"
+                :excluded-types="[data.selectedType, data.editingType]"
+                :disabled="readOnlyMode"
+                :error-message="parentDefinitionError"
+                @search-valid="data.parentSearchValid = $event"
               />
             </v-col>
           </v-row>
@@ -182,9 +323,7 @@ export default defineComponent({
               <v-text-field
                 v-model="data.editingThickness"
                 type="number"
-                :rules="[
-                  val => val >= 0 || 'Must be >= 0',
-                ]"
+                :rules="thicknessRules"
                 required
                 hide-details
                 label="Box Border Thickness"
@@ -231,28 +370,30 @@ export default defineComponent({
       </v-card-text>
       <v-card-actions class="">
         <v-tooltip
-          v-if="!group"
+          v-if="!group || isStyleOnly"
           open-delay="100"
           bottom
-          :color="usedTypesRef.includes(data.selectedType) ? 'error' : ''"
+          :color="(!isStyleOnly && deleteBlocked) ? 'error' : ''"
         >
           <template #activator="{ on }">
             <div v-on="on">
               <v-btn
                 class="hover-show-child"
-                :disabled="usedTypesRef.includes(data.selectedType)"
+                :disabled="!isStyleOnly && deleteBlocked"
                 small
                 color="error"
                 @click="clickDeleteType(data.selectedType)"
               >
-                Delete Type
+                {{ isStyleOnly ? 'Delete Style' : 'Delete Type' }}
               </v-btn>
             </div>
           </template>
           <span
             class="ma-0 pa-1"
           >
-            Only types without any annotations can be deleted.
+            {{ isStyleOnly
+              ? 'Remove this saved style override.'
+              : 'Only types without annotations can be deleted.' }}
           </span>
         </v-tooltip>
         <v-spacer />
@@ -266,7 +407,7 @@ export default defineComponent({
         <v-btn
           color="primary"
           depressed
-          :disabled="!data.valid"
+          :disabled="saveDisabled"
           @click="acceptChanges"
         >
           Save

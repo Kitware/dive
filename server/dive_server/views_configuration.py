@@ -6,7 +6,7 @@ from urllib.parse import urlparse
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
-from girder.api.rest import Resource
+from girder.api.rest import Resource, setRawResponse, setResponseHeader
 from girder.constants import AccessType
 from girder.exceptions import RestException
 from girder.models.folder import Folder
@@ -19,7 +19,7 @@ import requests
 
 from dive_server import crud, crud_rpc, worker_capabilities
 from dive_tasks import tasks
-from dive_utils import TRUTHY_META_VALUES, constants, models, types
+from dive_utils import TRUTHY_META_VALUES, constants, models, stereo_models, types
 
 
 @setting_utilities.validator({constants.SETTINGS_CONST_JOBS_CONFIGS})
@@ -48,6 +48,13 @@ def validateInstalledAddons(doc):
         assert isinstance(val['downloaded'], list), 'downloaded key is not a list'
 
 
+@setting_utilities.validator({constants.JOBS_DISABLED_CONFIG})
+def validateJobsDisabledConfig(doc):
+    val = doc['value']
+    if val is not None:
+        crud.get_validated_model(models.JobsDisabledConfig, **val)
+
+
 class ConfigurationResource(Resource):
     """Configuration resource handles get/set of global configuration"""
 
@@ -60,10 +67,15 @@ class ConfigurationResource(Resource):
         self.route("GET", ("brand_data",), self.get_brand_data)
         self.route("GET", ("pipelines",), self.get_pipelines)
         self.route("GET", ("training_configs",), self.get_training_configs)
+        self.route("GET", ("stereo_foundation_model",), self.get_stereo_foundation_model)
+        self.route(
+            "GET", ("stereo_foundation_model", "spec"), self.get_stereo_foundation_model_spec
+        )
 
         self.route("PUT", ("brand_data",), self.update_brand_data)
         self.route("PUT", ("static_pipeline_configs",), self.update_static_pipeline_configs)
         self.route("PUT", ("installed_addons",), self.update_installed_addons)
+        self.route("PUT", ("jobs_disabled",), self.update_jobs_disabled)
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("update_containers",), self.update_containers)
         self.route("GET", ("stats",), self.get_dataset_stats)
@@ -74,9 +86,12 @@ class ConfigurationResource(Resource):
         env = os.environ.copy()
         distributed_worker = env.get("RABBITMQ_DISTRIBUTED_WORKER")
         capabilities = worker_capabilities.get_worker_capabilities()
+        jobs_disabled = worker_capabilities.get_jobs_disabled_config()
         return {
             'distributedWorker': distributed_worker,
             **capabilities,
+            'jobsDisabled': jobs_disabled['disabled'],
+            'jobsDisabledMessage': jobs_disabled['message'],
         }
 
     @access.public
@@ -106,6 +121,58 @@ class ConfigurationResource(Resource):
             "models": model_configs,
         }
         return training_configs
+
+    @staticmethod
+    def _stereo_foundation_model(params) -> stereo_models.FoundationModel:
+        try:
+            return stereo_models.ensure_stereo_foundation_model(
+                params.get('height'), params.get('width')
+            )
+        except stereo_models.ModelUnavailableError as exc:
+            raise RestException(str(exc), code=502)
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "Describe the Fast-FoundationStereo ONNX export served by "
+            "stereo_foundation_model for imagery of the given size, fetching it from "
+            "the VIAME ONNX list on first use"
+        )
+        .param('height', 'Frame height in pixels', required=False, dataType='integer')
+        .param('width', 'Frame width in pixels', required=False, dataType='integer')
+    )
+    def get_stereo_foundation_model_spec(self, params):
+        model = self._stereo_foundation_model(params)
+        return {
+            'name': model.onnx_path.name,
+            'url': model.url,
+            'md5': model.md5,
+            'height': model.height,
+            'width': model.width,
+            'size': model.onnx_path.stat().st_size,
+        }
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Download the Fast-FoundationStereo ONNX export for imagery of the given size")
+        .param('height', 'Frame height in pixels', required=False, dataType='integer')
+        .param('width', 'Frame width in pixels', required=False, dataType='integer')
+    )
+    def get_stereo_foundation_model(self, params):
+        model = self._stereo_foundation_model(params)
+        setResponseHeader('Content-Type', 'application/octet-stream')
+        setResponseHeader('Content-Length', str(model.onnx_path.stat().st_size))
+        setResponseHeader('Content-Disposition', f'attachment; filename="{model.onnx_path.name}"')
+        setRawResponse()
+
+        def stream():
+            with open(model.onnx_path, 'rb') as handle:
+                chunk = handle.read(stereo_models.DOWNLOAD_CHUNK_BYTES)
+                while chunk:
+                    yield chunk
+                    chunk = handle.read(stereo_models.DOWNLOAD_CHUNK_BYTES)
+
+        return stream()
 
     @access.admin
     @autoDescribeRoute(
@@ -142,6 +209,24 @@ class ConfigurationResource(Resource):
     def update_installed_addons(self, addons: Dict):
         Setting().set(constants.INSTALLED_ADDONS_CONFIGS, addons)
 
+    @access.admin
+    @autoDescribeRoute(
+        Description("Enable or disable job launching with an optional message").jsonParam(
+            "data",
+            "Jobs disabled configuration",
+            paramType='body',
+            requireObject=True,
+            required=True,
+        )
+    )
+    def update_jobs_disabled(self, data):
+        validated = crud.get_validated_model(models.JobsDisabledConfig, **data)
+        payload = validated.dict()
+        if not payload.get('message'):
+            payload['message'] = constants.DEFAULT_JOBS_DISABLED_MESSAGE
+        Setting().set(constants.JOBS_DISABLED_CONFIG, payload)
+        return worker_capabilities.get_jobs_disabled_config()
+
     # https://github.com/VIAME/VIAME/raw/main/cmake/download_viame_addons.csv - CSV URL
     @access.admin
     @autoDescribeRoute(Description("Upgrade addon pipelines"))
@@ -153,8 +238,10 @@ class ConfigurationResource(Resource):
             installed_addons = addons_config['downloaded']
             download = s.get(constants.AddonsListURL)
             decoded_content = download.content.decode('utf-8')
-            cr = csv.reader(decoded_content.splitlines(), delimiter=',')
-            my_list = list(cr)
+            cr = csv.reader(decoded_content.splitlines(), delimiter=',', skipinitialspace=True)
+            my_list = [
+                item for item in cr if len(item) >= 5 and item[4].strip() != 'ALL-EXCEPT-DIVE'
+            ]
             for item in my_list:
                 addon = item[1]
                 download_name = urlparse(addon).path.replace(os.path.sep, '_')
@@ -272,10 +359,8 @@ class ConfigurationResource(Resource):
                 start_dt = datetime.fromisoformat(start_str.strip())
                 end_dt = datetime.fromisoformat(end_str.strip())
             except ValueError:
-                raise RestException(
-                    "Invalid overrideDateTime format. Use ISO format:\
-                          'YYYY-MM-DDTHH:MM:SS, YYYY-MM-DDTHH:MM:SS'"
-                )
+                raise RestException("Invalid overrideDateTime format. Use ISO format:\
+                          'YYYY-MM-DDTHH:MM:SS, YYYY-MM-DDTHH:MM:SS'")
         elif dateRange and dateRange in date_map:
             start_dt = end_dt - date_map[dateRange]
         else:

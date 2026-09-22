@@ -1,7 +1,7 @@
 import { computed, Ref } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import Track from 'vue-media-annotator/track';
+import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 import type { TrackWithContext } from '../BaseFilterControls';
 import type { TypeStyling } from '../StyleManager';
 
@@ -9,7 +9,7 @@ interface UseLineChartParams {
   enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
   typeStyling: Ref<TypeStyling>;
   allTypes: Readonly<Ref<readonly string[]>>;
-  getTracksMerged: (id: AnnotationId) => Track;
+  getTrackProjection: (id: AnnotationId) => TrackProjection;
 
 }
 
@@ -55,7 +55,7 @@ export default function useLineChart({
   enabledTracks,
   typeStyling,
   allTypes,
-  getTracksMerged,
+  getTrackProjection,
 }: UseLineChartParams) {
   const lineChartData = computed(() => {
     /* Histogram map contains multiple histograms keyed
@@ -74,8 +74,10 @@ export default function useLineChart({
     enabledTracks.value.forEach((filtered) => {
       const { annotation: track } = filtered;
       if (clientSettings.timelineCountSettings.defaultView === 'detections') {
-        const trackObj = getTracksMerged(track.id);
-        const frames = trackObj.features.filter((item) => item && item.keyframe).map((item) => item.frame);
+        const trackObj = getTrackProjection(track.id);
+        const frames = trackObj.features
+          .filter((item) => item?.keyframe)
+          .map((item) => item?.frame as number);
         const segments = framesToSegments(frames);
         segments.forEach((segment) => {
           const ibegin = segment[0];

@@ -1,71 +1,17 @@
 <script lang="ts">
 import {
-  defineComponent, onBeforeUnmount, PropType, watch,
+  defineComponent, onBeforeUnmount, PropType, watch, toRef,
 } from 'vue';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
+import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
+import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
-import { resizeAndPadBox } from '../../sam2/imageUtils';
-/**
- * For MPEG codecs, the PTS (Presentation Timestamp)
- * should be forced ahead 1 tick. currentTime has a finite
- * resolution of 90MHZ
- *
- * Chrome has a PTS precision bug:
- * https://bugs.chromium.org/p/chromium/issues/detail?id=555376
- * "currentTime must be in the range [PTS, PTS + duration)",
- * but Chrome behaves as if currentTime in = [PTS, PTS + duration]
- *
- * Firefox behaves correctly, so it's harmless to advance a single
- * tick into the already correct PTS.
- *
- * Other browsers can be wrong by more than an entire frame and are
- * futile to attempt to correct.
- *
- * TODO: VideoAnnotator _should_not_ report this PTS force hack
- * when reporting currentTime, as it would be inaccurate re: the
- * MPEG specification.
- */
-const OnePTSTick = 1 / (90 * 1000);
-/**
- * The Kwiver seek function performs seek based on
- * downsampled frame number such that the converse of the
- * function (maping timestamp to downsampled frame)
- * is consistent with the implementation in kwiver:
- *
- * https://github.com/Kitware/kwiver/blob/1c97ad72c8b6237cb4b9618665d042be16825005/sprokit/processes/core/downsample_process.cxx#L267
- */
-function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
-  /**
-   * If the downsample rate is truly lower than the original,
-   * ceiling to find the sample boundary, else floor
-   */
-  const roundOrFloor = frameRate < originalFps ? Math.ceil : Math.floor;
-  /**
-   * requestedTimeInSeconds is the position, in seconds, that was
-   * requested for seek
-   */
-  const requestedTimeInSeconds = frame / frameRate;
-  /**
-   * RequestedTrueVideoFrame is the floating point frame number
-   * expected to be found at requested time
-   */
-  const requestedTrueVideoFrame = requestedTimeInSeconds * originalFps;
-  /**
-   * nextTrueFrameBoundary is the time, in seconds, of the
-   * next frame transition boundary ASSUMING even frame spacing.
-   *
-   * For videos with b frames or inconsistent frame widths, this
-   * will only be an aggregate approximation
-   */
-  const nextTrueFrameBoundary = roundOrFloor(requestedTrueVideoFrame) / originalFps;
-  /**
-   * Return one tick over the appropriate boundary
-   */
-  return nextTrueFrameBoundary + OnePTSTick;
-}
+import { kwiverSeek, OnePTSTick } from './videoSeek';
+
 export default defineComponent({
   name: 'VideoAnnotator',
+  components: { AnnotatorImageCursor },
   props: {
     videoUrl: {
       type: String,
@@ -104,6 +50,10 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    filterId: {
+      type: String as PropType<string>,
+      default: 'imageEnhancements',
+    },
   },
   setup(props) {
     const cameraInitializer = injectCameraInitializer();
@@ -115,15 +65,20 @@ export default defineComponent({
       container,
       initializeViewer,
       mediaController,
-    } = cameraInitializer(props.camera, {
+      externallyDriven,
+    } = cameraInitializer(props.camera, 'video', {
       // allow hoisting for these functions.
-      // eslint-disable-next-line @typescript-eslint/no-use-before-define
       seek,
       pause,
       play,
       setVolume,
       setSpeed,
     });
+    const { playbackCursor } = useAnnotatorImageCursor(
+      toRef(data, 'imageCursor'),
+      toRef(data, 'cursor'),
+      toRef(data, 'imageCursorEditing'),
+    );
     function makeVideo() {
       const video = document.createElement('video');
       video.preload = 'auto';
@@ -137,7 +92,26 @@ export default defineComponent({
         video.pause();
       }
     });
-    async function seek(frame: number) {
+    async function seek(frame: number | undefined) {
+      if (frame === undefined) {
+        // No frame for this camera at the current aligned-timeline slot: blank
+        // the pane. Leaves data.frame untouched -- it's read elsewhere (e.g.
+        // annotation-overlay lookups) and this phase doesn't touch annotation
+        // storage. In practice unreachable today since a video-backed camera
+        // (empty imageData) always disqualifies the whole dataset from aligned
+        // mode (see alignedTimeline.ts's canAlign) -- kept for symmetry/safety.
+        data.hasFrame = false;
+        if (quadFeatureLayer !== undefined) {
+          quadFeatureLayer.node().css('visibility', 'hidden');
+        }
+        return;
+      }
+      if (!data.hasFrame) {
+        data.hasFrame = true;
+        if (quadFeatureLayer !== undefined) {
+          quadFeatureLayer.node().css('visibility', '');
+        }
+      }
       /** Only perform seek for whole frame numbers */
       const requestedFrame = Math.round(frame);
       /** Different seek approaches based on known information */
@@ -171,6 +145,8 @@ export default defineComponent({
         data.frame = Math.floor(newFrame);
         data.flick = Math.round(video.currentTime * Flick);
         data.syncedFrame = data.frame;
+        // Keep shared time.frame in sync so Timeline playhead tracks playback
+        props.updateTime(data);
         geoViewer.value.scheduleAnimationFrame(syncWithVideo);
       }
       data.currentTime = video.currentTime;
@@ -180,7 +156,12 @@ export default defineComponent({
         await video.play();
         data.playing = true;
         props.updateTime(data);
-        syncWithVideo();
+        // When a global aligned timeline is driving playback, the aggregate
+        // controller's own centralized tick calls seek() directly -- this
+        // camera must not also free-run its own loop.
+        if (!externallyDriven.value) {
+          syncWithVideo();
+        }
       } catch (ex) {
         console.error(ex);
       }
@@ -205,8 +186,9 @@ export default defineComponent({
           if (newVal) {
             quadFeatureLayer.node().css('filter', '');
           } else {
-            quadFeatureLayer.node().css('filter', 'url(#imageEhancements)');
+            quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
           }
+          data.imageRevision += 1;
         }
       },
       { deep: true },
@@ -248,11 +230,14 @@ export default defineComponent({
           },
         ])
         .draw();
+      // The <video> element renders in place from here on, so this is the
+      // one swap imageRevision watchers ever see for a video pane.
+      data.imageRevision += 1;
       // Force the first frame to load on slow networks.
       // See https://github.com/Kitware/dive/issues/447 for more details.
       seek(0);
       if (!props.isDefaultImage) {
-        quadFeatureLayer.node().css('filter', 'url(#imageEhancements)');
+        quadFeatureLayer.node().css('filter', `url(#${props.filterId})`);
       }
       data.ready = true;
       data.volume = video.volume;
@@ -264,41 +249,24 @@ export default defineComponent({
     // is switching from number -> undefined, or vice versa.
     function pendingUpdate() {
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
+      // The aligned-view warp is a canvas snapshot of this <video> element,
+      // redrawn only on an imageRevision bump -- unlike the native pane,
+      // which the browser keeps live on its own. loadedmetadata bumps it
+      // once for the initial frame; without another bump here, a scrub
+      // leaves the warp showing whatever the video displayed mid-seek
+      // (often a black frame) instead of the frame the seek landed on.
+      data.imageRevision += 1;
     }
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);
     video.addEventListener('error', logError);
-    /**
-     * Current video frame at native resolution (letterboxed to square) for client-side models (e.g. SAM2).
-     */
-    function captureFullFrameCanvas(): HTMLCanvasElement | null {
-      if (!data.ready || video.videoWidth <= 0 || video.videoHeight <= 0) {
-        return null;
-      }
-      if (video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
-        return null;
-      }
-      const nw = video.videoWidth;
-      const nh = video.videoHeight;
-      const largestDim = Math.max(nw, nh);
-      const box = resizeAndPadBox({ h: nh, w: nw }, { h: largestDim, w: largestDim });
-      const canvas = document.createElement('canvas');
-      canvas.width = largestDim;
-      canvas.height = largestDim;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) {
-        return null;
-      }
-      ctx.drawImage(video, 0, 0, nw, nh, box.x, box.y, box.w, box.h);
-      return canvas;
-    }
     return {
       data,
+      playbackCursor,
       imageCursorRef: imageCursor,
       containerRef: container,
       cursorHandler,
       mediaController,
-      captureFullFrameCanvas,
     };
   },
 });
@@ -308,7 +276,7 @@ export default defineComponent({
   <div class="video-annotator" :style="{ cursor: data.cursor }">
     <svg width="0" height="0" style="position: absolute; top: -1px; left: -1px">
       <defs>
-        <filter id="imageEhancements">
+        <filter :id="filterId">
           <feComponentTransfer id="feBrightness">
             <feFuncR
               type="linear"
@@ -362,16 +330,30 @@ export default defineComponent({
         </filter>
       </defs>
     </svg>
-    <div ref="imageCursorRef" class="imageCursor">
-      <v-icon> {{ data.imageCursor }} </v-icon>
+    <div
+      ref="imageCursorRef"
+      class="imageCursor"
+    >
+      <AnnotatorImageCursor
+        :image-cursor="data.imageCursor"
+        :image-cursor-editing="data.imageCursorEditing"
+        :cursor="data.cursor"
+      />
     </div>
     <div
       ref="containerRef"
       class="playback-container"
+      :style="{ cursor: playbackCursor }"
       @mousemove="cursorHandler.handleMouseMove"
       @mouseleave="cursorHandler.handleMouseLeave"
       @mouseover="cursorHandler.handleMouseEnter"
     />
+    <div
+      v-if="data.ready && !data.hasFrame"
+      class="no-frame-overlay"
+    >
+      No frame at this instant
+    </div>
     <slot name="control" />
     <slot v-if="data.ready" />
   </div>

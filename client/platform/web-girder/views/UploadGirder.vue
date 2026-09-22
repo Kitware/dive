@@ -7,7 +7,9 @@ import {
   fileSuffixRegex,
 } from 'platform/web-girder/constants';
 
-import { makeViameFolder, postProcess } from 'platform/web-girder/api';
+import {
+  makeViameFolder, postProcess, uploadAndSetMetadataFile,
+} from 'platform/web-girder/api';
 import { GirderUploadManager } from 'platform/web-girder/utils';
 
 export default Vue.extend({
@@ -44,8 +46,7 @@ export default Vue.extend({
       this.$emit('abort');
     },
     remove(pendingUpload) {
-      const index = this.pendingUploads.indexOf(pendingUpload);
-      this.$emit('remove-upload', index);
+      this.$emit('remove-upload', pendingUpload);
     },
     async upload() {
       if (this.location._modelType !== 'folder') {
@@ -62,15 +63,20 @@ export default Vue.extend({
           // eslint-disable-next-line no-await-in-loop
           await this.uploadPending(pendingUplodsCopy[i], uploaded);
         } catch (err) {
-          // eslint-disable-next-line no-console
           console.error(err);
           error = err;
           break;
         }
       }
-      if (!error) {
-        this.$emit('update:uploading', false);
+      if (error) {
+        // Reset failed/interrupted rows so the dialog recovers: the progress
+        // spinner stops and each row's controls (remove, FPS) re-enable.
+        pendingUplodsCopy.forEach((pendingUpload) => {
+          // eslint-disable-next-line no-param-reassign
+          pendingUpload.uploading = false;
+        });
       }
+      this.$emit('update:uploading', false);
     },
     convertFileToInternal(file) {
       if (file === null) {
@@ -90,13 +96,12 @@ export default Vue.extend({
     },
     async uploadPending(pendingUpload, uploaded) {
       const {
-        name, createSubFolders, meta, annotationFile, mediaList,
+        name, createSubFolders, uploadFiles, metadataFile,
       } = pendingUpload;
-      //Combine the files for uploading
-      let files = mediaList.map((item) => this.convertFileToInternal(item));
-      files.push(this.convertFileToInternal(meta));
-      files.push(this.convertFileToInternal(annotationFile));
-      files = files.filter((item) => item !== null);
+      // The validated package is the only source of files to upload.
+      const files = uploadFiles
+        .map(this.convertFileToInternal)
+        .filter((item) => item !== null);
       // eslint-disable-next-line no-param-reassign
       pendingUpload.files = files;
       const fps = parseInt(pendingUpload.fps, 10);
@@ -110,9 +115,23 @@ export default Vue.extend({
         folder = await this.createUploadFolder(name, fps, pendingUpload.type);
         if (folder) {
           await this.uploadFiles(pendingUpload.name, folder, files, uploaded, skipTranscoding);
-          this.remove(pendingUpload);
+          // The media dataset is created and uploaded at this point. A metadata attachment
+          // failure must not unwind the upload: doing so
+          // would orphan the finished dataset on the server and leave the pending row stuck for a
+          // duplicate retry. Surface the failure, but always retire the row and keep the dataset.
+          try {
+            if (metadataFile) {
+              await uploadAndSetMetadataFile(folder._id, metadataFile);
+            }
+          } catch (err) {
+            this.$emit('error', { err, name: pendingUpload.name });
+          } finally {
+            this.remove(pendingUpload);
+          }
         }
       } else {
+        // Fan-out: N videos have N independent frame numberings, so one frame-keyed metadata
+        // attachment cannot serve them. The row reports it in `ignored` instead.
         while (files.length > 0) {
           // take the file name and convert it to a folder name;
           const subfile = files.splice(0, 1);
@@ -129,10 +148,10 @@ export default Vue.extend({
         this.remove(pendingUpload);
       }
     },
-    async createUploadFolder(name, fps, type) {
+    async createUploadFolder(name, fps, type, parentFolderId = null) {
       try {
         const { data } = await makeViameFolder({
-          folderId: this.location._id,
+          folderId: parentFolderId || this.location._id,
           name,
           type,
           fps,
@@ -144,6 +163,7 @@ export default Vue.extend({
       }
     },
     async uploadFiles(name, folder, files, uploaded, skipTranscoding = false) {
+      let jobIds = [];
       // function called after mixins upload finishes
       const postUpload = async (data) => {
         uploaded.push({
@@ -151,9 +171,11 @@ export default Vue.extend({
           results: data.results,
         });
         try {
-          await postProcess(folder._id, false, skipTranscoding);
+          const { data: postprocessResult } = await postProcess(folder._id, false, skipTranscoding);
+          jobIds = postprocessResult.job_ids ?? [];
         } catch (err) {
           this.$emit('error', { err, name });
+          throw err;
         }
       };
       // Sets the files used by the fileUploader mixin
@@ -164,6 +186,24 @@ export default Vue.extend({
         postUpload,
         uploadCls: GirderUploadManager,
       });
+      return { folder, jobIds };
+    },
+    /**
+     * Upload a single camera dataset folder (used by multicam import).
+     */
+    async uploadCameraDataset({
+      name, fps, type, uploadFiles, skipTranscoding = true, parentFolderId = null,
+    }) {
+      // The validated package is the only source of files to upload for the camera.
+      const files = uploadFiles
+        .map(this.convertFileToInternal)
+        .filter((item) => item !== null);
+      const folder = await this.createUploadFolder(name, parseInt(fps, 10), type, parentFolderId);
+      if (!folder) {
+        throw new Error(`Failed to create folder for camera ${name}`);
+      }
+      const { folder: uploadedFolder, jobIds } = await this.uploadFiles(name, folder, files, [], skipTranscoding);
+      return { folder: uploadedFolder, jobIds };
     },
   },
 });

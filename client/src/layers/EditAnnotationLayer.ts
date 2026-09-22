@@ -18,6 +18,8 @@ import BaseLayer, { BaseLayerParams, LayerStyle } from './BaseLayer';
 export type EditAnnotationTypes = 'Point' | 'rectangle' | 'Polygon' | 'LineString';
 interface EditAnnotationLayerParams {
   type: EditAnnotationTypes;
+  /** Edits a detection's box corners alongside another edit layer. */
+  companion?: boolean;
 }
 
 interface EditHandleStyle {
@@ -69,6 +71,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   selectedKey?: string;
 
+  selectedPolygonIndex: number;
+
   selectedHandleIndex: number;
 
   hoverHandleIndex: number;
@@ -80,26 +84,121 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /* in-progress events only emitted for lines and polygons */
   shapeInProgress: GeoJSON.LineString | GeoJSON.Polygon | null;
 
+  /* Track if the last click was a right-click or shift-click for Point mode */
+  lastClickWasBackground: boolean;
+
+  /* Track shift key state from native DOM events (more reliable than GeoJS events) */
+  lastShiftKeyState: boolean;
+
+  /* Bound event handlers for cleanup */
+  private boundTrackShiftKey: ((e: MouseEvent) => void) | null = null;
+
+  private boundHandleContextMenu: ((e: MouseEvent) => void) | null = null;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   arrowFeatureLayer: any;
 
   unrotatedGeoJSONCoords: GeoJSON.Position[] | null;
+
+  companion: boolean;
+
+  /* The other edit layer live on this map, when a line and its box are edited together */
+  peer: EditAnnotationLayer | null;
+
+  /* GeoJS sends every edit drag to every annotation layer in edit mode */
+  ownsDrag: boolean;
 
   constructor(params: BaseLayerParams & EditAnnotationLayerParams) {
     super(params);
     this.skipNextExternalUpdate = false;
     this._mode = 'editing';
     this.selectedKey = '';
+    this.selectedPolygonIndex = 0;
     this.type = params.type;
     this.selectedHandleIndex = -1;
     this.hoverHandleIndex = -1;
     this.shapeInProgress = null;
     this.disableModeSync = false;
     this.leftButtonCheckTimeout = -1;
+    this.lastClickWasBackground = false;
+    this.lastShiftKeyState = false;
     this.unrotatedGeoJSONCoords = null;
+    this.companion = !!params.companion;
+    this.peer = null;
+    this.ownsDrag = false;
+
+    // Bind event handlers once (listeners are added/removed dynamically based on type)
+    this.boundTrackShiftKey = this.trackShiftKey.bind(this);
+    this.boundHandleContextMenu = this.handleContextMenu.bind(this);
+
+    // Add listeners if starting in Point mode
+    if (this.type === 'Point') {
+      this.addPointModeListeners();
+    }
 
     //Only initialize once, prevents recreating Layer each edit
     this.initialize();
+  }
+
+  /**
+   * Add event listeners needed for Point mode (segmentation).
+   */
+  private addPointModeListeners() {
+    if (this.boundTrackShiftKey) {
+      document.addEventListener('mousedown', this.boundTrackShiftKey, true);
+    }
+    if (this.boundHandleContextMenu) {
+      document.addEventListener('contextmenu', this.boundHandleContextMenu, true);
+    }
+  }
+
+  /**
+   * Remove event listeners used for Point mode.
+   */
+  private removePointModeListeners() {
+    if (this.boundTrackShiftKey) {
+      document.removeEventListener('mousedown', this.boundTrackShiftKey, true);
+    }
+    if (this.boundHandleContextMenu) {
+      document.removeEventListener('contextmenu', this.boundHandleContextMenu, true);
+    }
+  }
+
+  /**
+   * Track shift key state from native DOM mousedown events.
+   * This is more reliable than GeoJS events for detecting shift+click.
+   */
+  trackShiftKey(e: MouseEvent) {
+    this.lastShiftKeyState = e.shiftKey;
+    // Also track middle-click (button 1) from native events for background points
+    if (e.button === 1 && this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = true;
+    }
+  }
+
+  /**
+   * Handle right-click context menu in Point mode.
+   * In segmentation mode, right-click confirms/locks the annotation.
+   * Prevents browser context menu.
+   */
+  handleContextMenu(e: MouseEvent) {
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      e.preventDefault();
+      e.stopPropagation();
+
+      // Native contextmenu is used because GeoJS mouseclick may not fire for
+      // right-button on Windows/Electron.
+      this.bus.$emit('confirm-annotation');
+    }
+  }
+
+  /**
+   * Clean up event listeners when the layer is destroyed.
+   */
+  destroy() {
+    this.removePointModeListeners();
+    this.boundTrackShiftKey = null;
+    this.boundHandleContextMenu = null;
   }
 
   /**
@@ -114,6 +213,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         continuousPointProximity: false,
         finalPointProximity: 1,
         adjacentPointProximity: 1,
+      });
+      // Handle segment insertion before GeoJS's default click handler, which
+      // otherwise exits edit mode when the click is not on a drag handle.
+      const defaultClick = this.featureLayer._handleMouseClick;
+      this.featureLayer.geoOff(geo.event.mouseclick, defaultClick);
+      this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
+        if (!this.insertLineVertex(e)) defaultClick(e);
       });
       // For these we need to use an anonymous function to prevent geoJS from erroring
       this.featureLayer.geoOn(
@@ -130,13 +236,55 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         (e: GeoEvent) => this.hoverEditHandle(e),
       );
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
+        // The peer layer reports clicks that leave edit mode.
+        if (this.companion) return;
+        if (this.type === 'LineString' && e.handled) return;
+        // Right-click in creation mode (non-Point): cancel and fully deselect.
+        // Point mode has its own right-click handler (handleContextMenu).
+        if (e.buttonsDown.right && this.getMode() === 'creation' && this.type !== 'Point') {
+          this.shapeInProgress = null;
+          this.bus.$emit('editing-annotation-sync', false, true);
+          return;
+        }
+        if (e.buttonsDown.right && this.type === 'Polygon' && this.featureLayer.annotations()[0]) {
+          this.bus.$emit('polygon-edit-right-click', e.geo);
+        }
         //Used to sync clicks that kick out of editing mode with application
         //This prevents that pseudo Edit state when left clicking on a object in edit mode
-        if (!this.disableModeSync && (e.buttonsDown.left)
+        if (!this.disableModeSync && (e.buttonsDown.left || e.buttonsDown.right)
           && this.getMode() === 'disabled' && this.featureLayer.annotations()[0]) {
           this.bus.$emit('editing-annotation-sync', false);
         } else if (e.buttonsDown.left) {
           const newIndex = this.hoverHandleIndex;
+          // If not hovering over an edit handle and not on the edit polygon,
+          // emit event so other layers can handle the click (e.g., selecting different polygon)
+          if (newIndex < 0 && this.type === 'Polygon') {
+            const annotations = this.featureLayer.annotations();
+            if (annotations.length > 0) {
+              const annotation = annotations[0];
+              const geojson = annotation.geojson();
+              if (geojson && geojson.geometry && geojson.geometry.type === 'Polygon') {
+                const coords = geojson.geometry.coordinates[0] as [number, number][];
+                const point: [number, number] = [e.geo.x, e.geo.y];
+                // Ray casting algorithm to check if point is inside polygon
+                let inside = false;
+                for (let i = 0, j = coords.length - 1; i < coords.length; j = i, i += 1) {
+                  const xi = coords[i][0];
+                  const yi = coords[i][1];
+                  const xj = coords[j][0];
+                  const yj = coords[j][1];
+                  const intersect = ((yi > point[1]) !== (yj > point[1]))
+                    && (point[0] < ((xj - xi) * (point[1] - yi)) / (yj - yi) + xi);
+                  if (intersect) inside = !inside;
+                }
+                if (!inside) {
+                  // Click is outside the current edit polygon - emit passthrough event
+                  this.bus.$emit('click-outside-edit', e.geo);
+                  return;
+                }
+              }
+            }
+          }
           // Click features like a toggle: unselect if it's clicked twice.
           if (newIndex === this.selectedHandleIndex) {
             this.selectedHandleIndex = -1;
@@ -144,7 +292,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             this.selectedHandleIndex = newIndex;
           }
           let divisor = 1;
-          if (this.type === 'Polygon' && this.selectedHandleIndex >= 0) {
+          if (['Polygon', 'LineString'].includes(this.type) && this.selectedHandleIndex >= 0) {
             divisor = 2;
           }
           window.setTimeout(() => this.redraw(), 0); //Redraw timeout to update the selected handle
@@ -159,7 +307,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         }
         this.disableModeSync = false;
       });
-      this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => this.setShapeInProgress(e));
+      this.featureLayer.geoOn(geo.event.actiondown, (e: GeoEvent) => {
+        this.ownsDrag = !!this.featureLayer.currentAnnotation?._editHandle?.handle?.selected;
+        if (!this.companion) this.setShapeInProgress(e);
+      });
 
       const arrowLayer = this.annotator.geoViewerRef.value.createLayer('feature', { features: ['line'] });
       this.arrowFeatureLayer = arrowLayer.createFeature('line');
@@ -184,10 +335,56 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * shape that GeoJS is keeps internally.  Emit the shape as update:in-progress-geojson
    */
   setShapeInProgress(e: GeoEvent) {
-    // Allow middle click movement when placing points
-    if (e.mouse.buttons.middle && !e.propogated) {
+    // Allow middle click movement when placing points (except in Point mode where it creates background points)
+    if (e.mouse.buttons.middle && !e.propogated && this.type !== 'Point') {
       return;
     }
+    // Right-click should never add vertices - cancel/confirm is handled by
+    // mouseclick (line/polygon cancel) and contextmenu (Point confirm)
+    if (e.mouse.buttons.right) {
+      return;
+    }
+
+    // Track if this is a background point (shift+click or middle-click) for Point mode
+    // Check both GeoJS event modifiers and our native DOM event tracking for reliability
+    // Preserve the value if it was already set to true by trackShiftKey (native event)
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = this.lastClickWasBackground
+        || e.mouse.buttons.middle
+        || e.mouse.modifiers.shift
+        || this.lastShiftKeyState;
+    }
+
+    // Handle middle-click in Point mode - GeoJS doesn't create points on middle-click,
+    // so we need to manually create the point and emit the event
+    if (this.type === 'Point' && this.getMode() === 'creation' && e.mouse.buttons.middle) {
+      const pointGeojson: GeoJSON.Feature<GeoJSON.Point> = {
+        type: 'Feature',
+        geometry: {
+          type: 'Point',
+          coordinates: [Math.round(e.mouse.geo.x), Math.round(e.mouse.geo.y)],
+        },
+        properties: {
+          background: true,
+        },
+      };
+
+      // Emit the point creation event directly
+      this.bus.$emit(
+        'update:geojson',
+        'editing',
+        true, // geometryCompleteEvent - point is complete
+        pointGeojson,
+        this.type,
+        this.selectedKey,
+        this.skipNextFunc(),
+      );
+
+      // Reset background flag for next point
+      this.lastClickWasBackground = false;
+      return;
+    }
+
     if (this.getMode() === 'creation' && ['LineString', 'Polygon'].includes(this.type)) {
       if (this.shapeInProgress === null) {
         // Initialize a new in-progress shape
@@ -205,6 +402,25 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       } else {
         const coords = this.shapeInProgress?.coordinates as GeoJSON.Position[];
         coords.push(newPoint);
+        // Auto-complete LineString after 2 points (simple line with 2 endpoints)
+        if (coords.length >= 2) {
+          const feature: GeoJSON.Feature = {
+            type: 'Feature',
+            geometry: this.shapeInProgress!,
+            properties: {},
+          };
+          this.shapeInProgress = null;
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true, // geometryCompleteEvent - line is complete
+            feature,
+            this.type,
+            this.selectedKey,
+          );
+          return;
+        }
       }
       this.bus.$emit(
         'update:geojson',
@@ -229,8 +445,46 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
   }
 
+  /** Insert at the clicked position along an open line, in screen pixels. */
+  insertLineVertex(e: GeoEvent): boolean {
+    if (this.type !== 'LineString' || this.getMode() !== 'editing' || !e.buttonsDown.left) return false;
+    const annotation = this.featureLayer.annotations()[0];
+    if (!annotation || annotation.state() !== 'edit') return false;
+    const map = this.annotator.geoViewerRef.value;
+    const vertices: { x: number; y: number }[] = annotation.options('vertices');
+    const displayed = map.gcsToDisplay(vertices, null);
+    const click = map.gcsToDisplay(e.geo);
+    // Existing vertex clicks select handles for movement/deletion.
+    const tolerance = 8;
+    if (displayed.some((p: { x: number; y: number }) => Math.hypot(p.x - click.x, p.y - click.y) <= tolerance)) return false;
+    let segment = -1;
+    let nearest = tolerance;
+    displayed.slice(1).forEach((b: { x: number; y: number }, i: number) => {
+      const a = displayed[i];
+      const dx = b.x - a.x; const dy = b.y - a.y;
+      const t = ((click.x - a.x) * dx + (click.y - a.y) * dy) / (dx * dx + dy * dy);
+      if (t <= 0 || t >= 1) return;
+      const distance = Math.hypot(click.x - a.x - t * dx, click.y - a.y - t * dy);
+      if (distance <= nearest) { nearest = distance; segment = i; }
+    });
+    if (segment < 0) return false;
+    const coordinates = vertices.map((p) => ({ ...p }));
+    coordinates.splice(segment + 1, 0, map.displayToGcs(click, null));
+    annotation.options('vertices', coordinates);
+    this.selectedHandleIndex = (segment + 1) * 2;
+    this.hoverHandleIndex = this.selectedHandleIndex;
+    this.formattedData = [annotation.geojson()];
+    this.bus.$emit('update:geojson', 'editing', false, this.formattedData[0], this.type, this.selectedKey, this.skipNextFunc());
+    this.bus.$emit('update:selectedIndex', segment + 1, this.type, this.selectedKey);
+    e.handled = true;
+    this.redraw();
+    return true;
+  }
+
   hoverEditHandle(e: GeoEvent) {
-    const divisor = this.type === 'LineString' ? 1 : 2; //For Polygons we skip over edge handles (midpoints)
+    // The map rebroadcasts this to every layer; only our own handles count.
+    if (e.annotation && e.annotation.layer() !== this.featureLayer) return;
+    const divisor = 2; // Vertex/edge handles alternate for polygons and open lines.
     if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
         && (e.handle.handle.index * divisor) !== this.hoverHandleIndex) {
@@ -239,7 +493,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       if (!e.handle.handle.selected) {
         this.hoverHandleIndex = -1;
       }
-    } else if (e.enable && e.handle.handle.type === 'center') {
+    } else if (e.enable && ['center', 'edge'].includes(e.handle.handle.type)) {
       this.hoverHandleIndex = -1;
     }
     if (e.enable) {
@@ -281,9 +535,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   /**
    * Set the current Editing type for switching between editing polygons or rects.
-   * */
+   * Also manages event listeners that are only needed for Point mode (segmentation).
+   */
   setType(type: EditAnnotationTypes) {
+    const wasPoint = this.type === 'Point';
+    const isPoint = type === 'Point';
     this.type = type;
+
+    // Add or remove Point mode listeners based on type change
+    if (!wasPoint && isPoint) {
+      this.addPointModeListeners();
+    } else if (wasPoint && !isPoint) {
+      this.removePointModeListeners();
+    }
   }
 
   setKey(key: string) {
@@ -323,15 +587,142 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         throw new Error(`No such mode ${mode}`);
       }
       this.featureLayer.mode(newLayerMode, geom);
+      if (geom) this.guardPeerDrags(geom);
     } else {
       this.featureLayer.mode(null);
     }
   }
 
   calculateCursorImage() {
-    if (this.getMode() === 'creation') {
-      // TODO:  we may want to make this more generic or utilize the icons from editMenu
-      this.annotator.setImageCursor(`mdi-vector-${typeMapper.get(this.type)}`);
+    const mode = this.getMode();
+    if (mode === 'creation' || mode === 'editing') {
+      this.annotator.setImageCursor(
+        `mdi-vector-${typeMapper.get(this.type)}`,
+        mode === 'editing',
+      );
+    } else {
+      // Mode is disabled: drop any leftover creation/editing icon. Without
+      // this, a cross-camera blank click can clear selection while a deferred
+      // changeData still thinks the layer is editing and leaves the icon up.
+      this.annotator.setImageCursor('');
+    }
+  }
+
+  /**
+   * Attempt to finalize any in-progress annotation before switching tracks.
+   * Handles:
+   * - Polygon with 3+ vertices tracked in shapeInProgress
+   * - GeoJS-managed annotations (rectangles) in creation/done state
+   * - Discards invalid partial shapes (polygon < 3 vertices, line with 1 point)
+   * Returns true if a shape was finalized.
+   */
+  finalizeInProgress(): boolean {
+    // Handle shapeInProgress (polygon/line tracked manually)
+    if (this.shapeInProgress && this.getMode() === 'creation') {
+      if (this.shapeInProgress.type === 'Polygon') {
+        const coords = this.shapeInProgress.coordinates as GeoJSON.Position[][];
+        if (coords[0] && coords[0].length >= 3) {
+          const ring = coords[0];
+          const first = ring[0];
+          const last = ring[ring.length - 1];
+          if (first[0] !== last[0] || first[1] !== last[1]) {
+            ring.push([...first]);
+          }
+          const feature: GeoJSON.Feature = {
+            type: 'Feature',
+            geometry: this.shapeInProgress,
+            properties: {},
+          };
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true,
+            feature,
+            this.type,
+            this.selectedKey,
+            this.skipNextFunc(),
+          );
+          this.shapeInProgress = null;
+          return true;
+        }
+      }
+      // Discard invalid partial shapes (polygon < 3 vertices, line with 1 point)
+      this.shapeInProgress = null;
+      return false;
+    }
+
+    // Handle GeoJS-managed annotations (rectangles, completed shapes)
+    // Skip Point mode — segmentation manages its own polygon via the recipe,
+    // not through the edit layer's GeoJS annotation.
+    if (this.featureLayer && this.type !== 'Point') {
+      // For LineString in creation mode, the native GeoJS annotation is a
+      // garbage trace: the real feature is managed in shapeInProgress (handled
+      // above). Emitting it would commit a bogus line to the track.
+      if (this.type === 'LineString' && this.getMode() === 'creation') {
+        return false;
+      }
+      const annotations = this.featureLayer.annotations();
+      if (annotations.length > 0) {
+        const annotation = annotations[0];
+        const geoJSONData = annotation.geojson();
+        if (geoJSONData && geoJSONData.geometry) {
+          if (this.type === 'rectangle') {
+            geoJSONData.geometry.coordinates[0] = reOrdergeoJSON(
+              geoJSONData.geometry.coordinates[0] as GeoJSON.Position[],
+            );
+          }
+          this.disableModeSync = true;
+          this.bus.$emit(
+            'update:geojson',
+            'editing',
+            true,
+            geoJSONData,
+            this.type,
+            this.selectedKey,
+            this.skipNextFunc(),
+          );
+          return true;
+        }
+      }
+    }
+
+    return false;
+  }
+
+  /**
+   * With two edit layers on one map GeoJS applies a handle drag to both
+   * annotations; only the one whose handle was grabbed may move.
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  guardPeerDrags(annotation: any) {
+    if (!annotation || annotation.diveDragGuard) return;
+    const process = annotation.processEditAction;
+    // eslint-disable-next-line no-param-reassign
+    annotation.processEditAction = (evt: GeoEvent) => (
+      this.peer && !this.ownsDrag ? undefined : process(evt));
+    // eslint-disable-next-line no-param-reassign
+    annotation.diveDragGuard = true;
+  }
+
+  /**
+   * A mode change on the peer layer strips every annotation action from the
+   * interactor, including the one for a handle still hovered on this layer
+   * and the actions that place the next creation vertex.
+   */
+  restoreHandleActions() {
+    const mode = this.getMode();
+    if (mode === 'editing') {
+      const handle = this.featureLayer.currentAnnotation?._editHandle?.handle;
+      if (handle?.selected) {
+        this.featureLayer._selectEditHandle({ data: handle }, true);
+      }
+    } else if (mode === 'creation') {
+      // Re-enter creation so GeoJS reinstalls annotation actions. Peer
+      // disable() calls mode(null), which clears the shared interactor
+      // without leaving this layer's mode string.
+      const layerMode = typeMapper.get(this.type);
+      if (layerMode) this.featureLayer.mode(layerMode);
     }
   }
 
@@ -340,7 +731,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
+      // Cancel any changeData deferred while the left button was held (cross-
+      // camera mousedown). LayerManager often calls disable() directly on
+      // deselect; without this the timeout reloads the old edit geometry and
+      // restores the editing cursor after the track is already cleared.
+      clearTimeout(this.leftButtonCheckTimeout);
+      this.leftButtonCheckTimeout = -1;
       this.skipNextExternalUpdate = false;
+      // Already off: skip mode(null). Calling it again strips peer-layer
+      // creation/edit actions from the shared map interactor (LayerManager
+      // often disables the companion box on every refresh during line draw).
+      if (this.getMode() === 'disabled') {
+        return;
+      }
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
       if (this.arrowFeatureLayer) {
@@ -352,52 +755,120 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.hoverHandleIndex = -1;
         this.bus.$emit('update:selectedIndex', this.selectedHandleIndex, this.type, this.selectedKey);
       }
-      this.annotator.setCursor('default');
-      this.annotator.setImageCursor('');
+      if (!this.companion) {
+        this.annotator.setCursor('default');
+        this.annotator.setImageCursor('');
+      }
     }
   }
 
   /**
    * retrieves geoJSON data based on the key and type
-   * @param frameData
+   * @param track
+   * @param polygonIndex optional index to get a specific polygon when multiple exist
    */
-  getGeoJSONData(track: FrameDataTrack) {
-    let geoJSONData;
+  getGeoJSONData(
+    track: FrameDataTrack,
+    polygonIndex?: number,
+  ): GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined {
+    let geoJSONData: GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString | undefined;
     if (track && track.features && track.features.geometry) {
+      const matchingFeatures: (GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString)[] = [];
       track.features.geometry.features.forEach((feature) => {
         if (feature.geometry
             && feature.geometry.type.toLowerCase() === this.type.toLowerCase()) {
-          if (feature.properties && feature.properties.key !== 'undefined') {
-            if (feature.properties.key === this.selectedKey) {
-              geoJSONData = feature.geometry;
-            }
+          // Get the feature key, defaulting to '' for undefined/null keys
+          const featureKey = feature.properties?.key ?? '';
+          if (featureKey === this.selectedKey) {
+            matchingFeatures.push(
+              feature.geometry as GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString,
+            );
           }
         }
       });
+      // If polygonIndex is specified and valid, use it; otherwise use first match
+      if (polygonIndex !== undefined && polygonIndex >= 0 && polygonIndex < matchingFeatures.length) {
+        geoJSONData = matchingFeatures[polygonIndex];
+      } else if (matchingFeatures.length > 0) {
+        [geoJSONData] = matchingFeatures;
+      }
     }
     return geoJSONData;
+  }
+
+  /**
+   * Set which polygon index to edit when multiple polygons exist
+   */
+  setPolygonIndex(index: number) {
+    this.selectedPolygonIndex = index;
+  }
+
+  /**
+   * Get the currently selected polygon index
+   */
+  getPolygonIndex() {
+    return this.selectedPolygonIndex;
   }
 
   /** overrides default function to disable and clear anotations before drawing again */
   async changeData(frameData: FrameDataTrack[]) {
     if (this.skipNextExternalUpdate === false) {
-      // disable resets things before we load a new/different shape or mode
-      this.disable();
-      //TODO: Find a better way to track mouse up after placing a point or completing geometry
-      //For line drawings and the actions of any recipes we want
-      if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
-        this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
-      } else {
+      // disable() resets this layer before loading a new shape/mode, but a
+      // cross-camera handoff triggers changeData during the very mousedown that
+      // started an action on the newly selected camera, and resetting mid-action
+      // forces the user to click a second time. Guard both cases:
+      //  - Mid-creation stroke (polygon/line first vertex): skip the reset
+      //    entirely, otherwise disable() clears shapeInProgress before the
+      //    in-progress geometry is committed.
+      //  - Left button still held (e.g. an edit handle just grabbed on the
+      //    camera the mousedown selected): defer the reset until release, and
+      //    crucially do NOT disable() first — that would cancel the drag.
+      const midCreationStroke = this.shapeInProgress !== null
+        && ['LineString', 'Polygon'].includes(this.type);
+      if (!midCreationStroke) {
+        // Always cancel a pending deferred reset before (re)deciding what to do.
+        // Otherwise rapid changeData calls during a cross-camera edit stack up
+        // multiple timeouts, and an earlier one — holding stale pre-edit
+        // frameData in its closure — fires after mouse-up and snaps the
+        // annotation back to its original geometry.
         clearTimeout(this.leftButtonCheckTimeout);
-        this.formattedData = this.formatData(frameData);
+        //TODO: Find a better way to track mouse up after placing a point or completing geometry
+        //For line drawings and the actions of any recipes we want
+        if (this.annotator.geoViewerRef.value.interactor().mouse().buttons.left) {
+          this.leftButtonCheckTimeout = window.setTimeout(() => this.changeData(frameData), 20);
+        } else {
+          // disable resets things before we load a new/different shape or mode
+          this.disable();
+          this.formattedData = this.formatData(frameData);
+          this.rehoverEditHandles();
+        }
       }
     } else {
-      // prevent was called and it has prevented this update.
-      // disable the skip for next time.
+      // A self-made change (e.g. a just-committed rectangle/geometry edit)
+      // triggered this update. Skip it, and cancel any deferred reset still
+      // pending from the drag so it can't overwrite the commit and revert the
+      // annotation to its pre-edit geometry.
+      clearTimeout(this.leftButtonCheckTimeout);
       this.skipNextExternalUpdate = false;
     }
-    this.calculateCursorImage();
+    if (!this.companion) this.calculateCursorImage();
     this.redraw();
+  }
+
+  /**
+   * GeoJS only fires mouseon when the handle under the cursor changes, so
+   * handles rebuilt beneath a stationary cursor stay inert until the mouse
+   * leaves and returns. Forget the stale hover and replay the mouse position.
+   */
+  rehoverEditHandles() {
+    if (this.getMode() !== 'editing') return;
+    window.setTimeout(() => {
+      if (this.getMode() !== 'editing') return;
+      this.featureLayer.features().forEach(
+        (feature: { _clearSelectedFeatures?: () => void }) => feature._clearSelectedFeatures?.(),
+      );
+      this.annotator.geoViewerRef.value.interactor().retriggerMouseMove();
+    }, 0);
   }
 
   /**
@@ -469,6 +940,28 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   }
 
   /**
+   * True when a finalized annotation has enough vertices to be a real shape.
+   * Guards against degenerate geometry emitted by a programmatic mode change.
+   */
+  isValidCompletedGeometry(feature: GeoJSON.Feature): boolean {
+    const { geometry } = feature;
+    if (!geometry) return false;
+    if (geometry.type === 'Polygon') {
+      const ring = geometry.coordinates?.[0] as GeoJSON.Position[] | undefined;
+      return !!ring && ring.length >= 3;
+    }
+    if (geometry.type === 'LineString') {
+      const coords = geometry.coordinates as GeoJSON.Position[] | undefined;
+      return !!coords && coords.length >= 2;
+    }
+    if (geometry.type === 'Point') {
+      const coords = geometry.coordinates as GeoJSON.Position | undefined;
+      return !!coords && coords.length >= 2;
+    }
+    return true;
+  }
+
+  /**
    *
    * @param e geo.event emitting by handlers
    */
@@ -477,6 +970,26 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       // Only calls this once on completion of an annotation
       if (e.annotation.state() === 'done' && this.getMode() === 'creation') {
         const geoJSONData = [e.annotation.geojson()];
+        // Ignore degenerate geometry. A programmatic setMode (e.g. changeData([])
+        // keeping the creation cursor live on a non-drawing camera) can finalize
+        // an empty stale annotation as 'done'; committing it would add a bogus
+        // shape. Real user completions always have enough vertices.
+        if (!geoJSONData[0] || !this.isValidCompletedGeometry(geoJSONData[0])) {
+          return;
+        }
+        if (this.type === 'rectangle') {
+          geoJSONData[0].geometry.coordinates[0] = reOrdergeoJSON(
+            geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[],
+          );
+        }
+        // For Point mode, add background property if it was a right-click or shift-click
+        if (this.type === 'Point' && this.lastClickWasBackground) {
+          geoJSONData[0].properties = {
+            ...geoJSONData[0].properties,
+            background: true,
+          };
+          this.lastClickWasBackground = false; // Reset for next point
+        }
 
         this.unrotatedGeoJSONCoords = geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[];
         this.formattedData = geoJSONData;
@@ -503,6 +1016,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * @param e geo.event
    */
   handleEditAction(e: GeoEvent) {
+    if (this.peer && !this.ownsDrag) return;
     if (this.featureLayer === e.annotation.layer()) {
       if (e.action === geo.event.actionup) {
         // This will commit the change to the current annotation on mouse up while editing
@@ -664,6 +1178,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    * Styling for the handles used to drag the annotation for ediing
    */
   editHandleStyle() {
+    if (this.companion) {
+      return {
+        handles: {
+          vertex: true, edge: false, center: false, rotate: false, resize: false,
+        },
+      };
+    }
     if (this.type === 'rectangle') {
       return {
         handles: {
@@ -680,7 +1201,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       return {
         handles: {
           rotate: false,
-          edge: this.type !== 'LineString',
+          edge: true,
+          // A two-point line's center handle obscures its insertion handle.
+          center: this.type !== 'LineString',
         },
         fill: true,
         radius: (handle: EditHandleStyle): number => {

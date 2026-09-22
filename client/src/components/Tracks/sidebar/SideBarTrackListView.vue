@@ -19,7 +19,7 @@ export default defineComponent({
     lockTypes: { type: Boolean, required: true },
     disabled: { type: Boolean, required: true },
     fps: { type: Number, default: null },
-    virtualListRef: { type: null, required: true },
+    setVirtualListRef: { type: Function, required: true },
     mouseTrap: { type: Array, required: true },
     virtualHeight: { type: Number, required: true },
   },
@@ -57,6 +57,7 @@ export default defineComponent({
             v-model="data.settingsActive"
             :close-on-content-click="false"
             :nudge-bottom="28"
+            class="track-settings-menu-content"
           >
             <template #activator="{ on, attrs }">
               <v-btn
@@ -132,7 +133,7 @@ export default defineComponent({
       </option>
     </datalist>
     <v-virtual-scroll
-      :ref="virtualListRef"
+      :ref="setVirtualListRef"
       v-mousetrap="mouseTrap"
       class="tracks"
       :items="virtualListItems"

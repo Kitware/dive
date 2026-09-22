@@ -7,7 +7,7 @@ import {
   ConversionArgs,
   DesktopJobUpdater,
   FFProbeFrameResults,
-  JsonMeta,
+  JsonConfig,
 } from 'platform/desktop/constants';
 import { observeChild } from 'platform/desktop/backend/native/processManager';
 
@@ -15,7 +15,6 @@ import {
   jobFileEchoMiddleware, spawnResult, createWorkingDirectory, getBinaryPath,
 } from './utils';
 // TODO:  Check to Refactor this
-// eslint-disable-next-line import/no-cycle
 import {
   getTranscodedMultiCamType,
 } from './multiCamUtils';
@@ -85,6 +84,8 @@ function frameRateStringFromProbeStream(stream: {
 
 async function checkFrameMisalignment(file: string): Promise<boolean> {
   const args = [
+    '-select_streams',
+    'v:0',
     file,
     '-hide_banner',
     '-read_intervals',
@@ -193,8 +194,8 @@ async function convertMedia(
   settings: Settings,
   args: ConversionArgs,
   updater: DesktopJobUpdater,
-  onComplete?: (jobKey: string, meta: JsonMeta) => void,
-  onFail?: (jobKey: string, meta: JsonMeta, errorMessage: string) => void,
+  onComplete?: (jobKey: string, meta: JsonConfig) => void,
+  onFail?: (jobKey: string, meta: JsonConfig, errorMessage: string) => void,
   setTranscodingKey = false,
   mediaIndex = 0,
   key = '',
@@ -212,6 +213,12 @@ async function convertMedia(
   ffmpegArgs.push('-i', args.mediaList[mediaIndex][0]);
   if ((args.meta.type === 'video' || multiType === 'video') && mediaIndex < args.mediaList.length) {
     ffmpegArgs.push(...VideoArgs);
+  } else {
+    // Image conversions write exactly one frame to a literal filename. Without
+    // -update the image2 muxer logs "does not contain an image sequence
+    // pattern" for every frame; it still writes the file, so this is noise
+    // rather than a failure, but it buries real errors in the job log.
+    ffmpegArgs.push('-update', '1', '-frames:v', '1');
   }
   ffmpegArgs.push(args.mediaList[mediaIndex][1]);
 
@@ -259,7 +266,6 @@ async function convertMedia(
         endTime: new Date(),
       });
       // Update meta to reflect error
-      // eslint-disable-next-line no-param-reassign
       onFail?.(jobKey, args.meta, `Transcoding job failed with exit code ${code}`);
     } else {
       if (args.meta.type === 'video' || multiType === 'video') {

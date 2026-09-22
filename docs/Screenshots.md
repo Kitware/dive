@@ -47,3 +47,11 @@ Desktop
 Desktop
 
 ![Settings Desktop](images/General/desktop-settings.png)
+
+## Interactive Annotation (Desktop only)
+
+Interactive segmentation and stereo settings are not available on web.
+
+![Segmentation mode](images/CreationMode/SegmentationMode.png)
+
+![Stereo settings](images/CreationMode/StereoSettings.png)

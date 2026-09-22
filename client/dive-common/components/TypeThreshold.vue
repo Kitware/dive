@@ -17,10 +17,10 @@ export default defineComponent({
   setup() {
     const trackFilters = useTrackFilters();
     const datasetIdRef = useDatasetId();
-    const { saveMetadata } = useApi();
+    const { saveConfig } = useApi();
 
     function saveThreshold() {
-      saveMetadata(datasetIdRef.value, {
+      saveConfig(datasetIdRef.value, {
         confidenceFilters: trackFilters.confidenceFilters.value,
       });
     }

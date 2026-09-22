@@ -71,7 +71,8 @@ export default defineComponent({
     const editingError: Ref<string | null> = ref(null);
     const editingModeRef = useEditingMode();
     const typeStylingRef = useTrackStyleManager().typeStyling;
-    const allTypesRef = useTrackFilters().allTypes;
+    const trackFilters = useTrackFilters();
+    const allTypesRef = trackFilters.allTypes;
     const cameraStore = useCameraStore();
     const multiCam = ref(cameraStore.camMap.value.size > 1);
     const selectedCamera = useSelectedCamera();
@@ -183,7 +184,7 @@ export default defineComponent({
       try {
         await setAttribute({ data, oldAttribute });
       } catch (err) {
-        editingError.value = err.message;
+        editingError.value = err instanceof Error ? err.message : String(err);
       }
       if (!editingError.value && close) {
         closeEditor();
@@ -194,7 +195,7 @@ export default defineComponent({
       try {
         await deleteAttribute({ data });
       } catch (err) {
-        editingError.value = err.message;
+        editingError.value = err instanceof Error ? err.message : String(err);
       }
       if (!editingError.value) {
         closeEditor();
@@ -237,8 +238,13 @@ export default defineComponent({
     });
 
     function updateSelectedTracksType() {
-      multiSelectList.value.forEach((trackId: number) => {
-        cameraStore.setTrackType(trackId, multiTrackType.value);
+      if (!editingMultiTrack.value) return;
+      selectedTrackList.value.forEach((track) => {
+        const pairIndex = Math.max(trackFilters.displayPairIndex(track, 0), 0);
+        cameraStore.assignTrackType(track.id, multiTrackType.value, {
+          hierarchyIndex: trackFilters.hierarchyIndex.value,
+          replaceType: track.confidencePairs[pairIndex]?.[0],
+        });
       });
     }
 
@@ -253,12 +259,27 @@ export default defineComponent({
       return pairs.sort((a, b) => b[1] - a[1]);
     });
 
-    function setTrackType(type: string) {
+    function acceptTrackType(type: string) {
       const track = selectedTrackList.value[0];
       if (!track) return;
-      const currentType = track.confidencePairs[0]?.[0];
-      cameraStore.setTrackType(track.id, type, 1, currentType);
+      cameraStore.acceptTrackType(track.id, type, trackFilters.hierarchyIndex.value);
     }
+
+    const displayRows = computed(() => selectedTrackList.value.map((track) => {
+      // trackFilters returns -1 when no confidence pair passes the filters, but this panel
+      // always shows the selected track, so clamp to pair 0.
+      const pairIndex = Math.max(trackFilters.displayPairIndex(track, 0), 0);
+      return {
+        track,
+        // Re-run when track confidence pairs change (see AttributesSubsection revision pattern)
+        revision: track.revision.value,
+        // TrackItem reads a TrackProjection, whose identity changes on every recompute; a live
+        // Track keeps one identity, so the child's computeds would never see the mutation.
+        projection: cameraStore.getTrackProjection(track.id),
+        pairIndex,
+        pair: track.confidencePairs.length ? track.confidencePairs[pairIndex] : null,
+      };
+    }));
 
     return {
       selectedTrackIdRef,
@@ -300,8 +321,10 @@ export default defineComponent({
       toggleMerge,
       unstageFromMerge,
       updateSelectedTracksType,
-      setTrackType,
+      acceptTrackType,
       displayConfidencePairs,
+      displayRows,
+      trackFilters,
     };
   },
 });
@@ -356,7 +379,7 @@ export default defineComponent({
           <span class="trackNumber">{{ editingGroup.id }}</span>
           <v-spacer />
           <TypePicker
-            :value="editingGroup.getType()"
+            :value="editingGroup.getType()[0]"
             :all-types="allGroupTypesRef"
             :read-only-mode="readOnlyMode"
             data-list-source="allGroupTypesOptions"
@@ -423,7 +446,9 @@ export default defineComponent({
         class="track-details"
       >
         <v-card
-          v-for="track in selectedTrackList"
+          v-for="{
+            track, projection, pair, pairIndex,
+          } in displayRows"
           :key="track.trackId"
           class="mx-2 mb-2"
           outlined
@@ -431,15 +456,17 @@ export default defineComponent({
         >
           <div class="d-flex align-center">
             <TrackItem
+              v-if="pair"
               :solo="true"
               :merging="multiSelectInProgress"
-              :track="track"
-              :track-type="track.confidencePairs[0][0]"
+              :track="projection"
+              :track-type="pair[0]"
+              :display-pair-index="pairIndex"
               :selected="selectedTrackIdRef === track.id"
               :secondary-selected="true"
               :editing="!!editingModeRef"
               :input-value="true"
-              :color="typeStylingRef.color(track.confidencePairs[0][0])"
+              :color="typeStylingRef.color(pair[0])"
               :lock-types="lockTypes"
               :disabled="disabled"
               class="grow"
@@ -591,6 +618,7 @@ export default defineComponent({
           />
         </div>
         <v-btn
+          v-if="editingMultiTrack"
           class="mx-2 mb-2"
           :disabled="readOnlyMode || disabled"
           color="primary"
@@ -608,7 +636,7 @@ export default defineComponent({
         :confidence-pairs="displayConfidencePairs"
         :disabled="selectedTrackList.length > 1"
         :user-modified="isUserModified"
-        @set-type="setTrackType($event)"
+        @set-type="acceptTrackType($event)"
       />
       <attribute-subsection
         v-if="!multiSelectInProgress"
@@ -639,7 +667,7 @@ export default defineComponent({
       <attribute-editor
         v-if="editingAttribute != null"
         :selected-attribute="editingAttribute"
-        :error="editingError"
+        :error="editingError ?? undefined"
         @close="closeEditor"
         @save="saveAttributeHandler"
         @delete="deleteAttributeHandler"

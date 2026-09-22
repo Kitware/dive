@@ -206,9 +206,7 @@ export default abstract class BaseAnnotationStore<T extends Track | Group> {
 
   clearAll() {
     this.annotationMap.clear();
-    this.intervalTree.items.forEach((item) => {
-      this.intervalTree.remove(item.key);
-    });
+    this.intervalTree.clear();
     this.annotationIds.value = [];
   }
 }

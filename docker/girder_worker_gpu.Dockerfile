@@ -4,10 +4,17 @@
 # ====================
 # == FFMPEG FETCHER ==
 # ====================
-FROM python:3.8-bookworm AS ffmpeg-builder
-RUN wget -O ffmpeg.tar.xz https://johnvansickle.com/ffmpeg/releases/ffmpeg-release-amd64-static.tar.xz
-RUN mkdir /tmp/ffextracted
-RUN tar -xvf ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1
+# BtbN FFmpeg 8.1 release-branch builds (not git master). Supports -/headers so
+# Girder tokens need not appear in ffprobe argv. See:
+# https://github.com/BtbN/FFmpeg-Builds/releases/latest
+FROM python:3.11-bookworm AS ffmpeg-builder
+RUN apt-get update && apt-get install -qy --no-install-recommends wget ca-certificates xz-utils \
+  && rm -rf /var/lib/apt/lists/*
+RUN wget -O /tmp/ffmpeg.tar.xz \
+  https://github.com/BtbN/FFmpeg-Builds/releases/download/latest/ffmpeg-n8.1-latest-linux64-gpl-8.1.tar.xz \
+  && mkdir /tmp/ffextracted \
+  && tar -xvf /tmp/ffmpeg.tar.xz -C /tmp/ffextracted --strip-components 1 \
+  && rm /tmp/ffmpeg.tar.xz
 
 # =================
 # == GPU WORKER ==
@@ -23,8 +30,8 @@ RUN chmod +x /tini
 
 
 
-# VIAME tooling expects `python` to stay on the image default (3.10).
-RUN ln -fs /usr/bin/python3.10 /usr/bin/python
+# VIAME tooling expects `python` to stay on the image default (3.12).
+RUN ln -fs /usr/bin/python3.12 /usr/bin/python
 WORKDIR /opt/dive/src
 
 # Use a globally accessible uv binary (works before/after USER switch)
@@ -58,8 +65,8 @@ USER dive
 RUN uv sync --frozen --no-dev
 
 # Copy the built python installation
-# Copy ffmpeg
-COPY --from=ffmpeg-builder /tmp/ffextracted/ffmpeg /tmp/ffextracted/ffprobe /opt/dive/local/ffmpeg/
+# Copy ffmpeg (BtbN layout: bin/ffmpeg, bin/ffprobe)
+COPY --from=ffmpeg-builder /tmp/ffextracted/bin/ffmpeg /tmp/ffextracted/bin/ffprobe /opt/dive/local/ffmpeg/
 # Copy provision scripts
 COPY --chown=dive:dive docker/entrypoint_worker.sh /
 

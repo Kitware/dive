@@ -13,6 +13,7 @@ import {
   DesktopJob, RunPipeline, NvidiaSmiReply, RunTraining,
   DesktopJobUpdater,
   ExportTrainedPipeline,
+  RunScoring,
 } from 'platform/desktop/constants';
 import * as viame from './viame';
 
@@ -83,7 +84,16 @@ async function validateViamePath(settings: Settings): Promise<true | string> {
   });
 }
 
-// Mock the validate call when starting jobs because it just takes too long to run.
+function getViameConstants(settings: Settings): viame.ViameConstants {
+  return {
+    ...ViameWindowsConstants,
+    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
+  };
+}
+
+function getViamePythonExe(settings: Settings): string {
+  return npath.join(settings.viamePath, 'bin', 'python.exe');
+}
 // TODO: maybe perform a lightweight check or some other test that doesn't spawn() viame
 const validateFake = () => Promise.resolve(true as const);
 
@@ -92,10 +102,7 @@ async function runPipeline(
   runPipelineArgs: RunPipeline,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  return viame.runPipeline(settings, runPipelineArgs, updater, validateFake, {
-    ...ViameWindowsConstants,
-    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
-  });
+  return viame.runPipeline(settings, runPipelineArgs, updater, validateFake, getViameConstants(settings));
 }
 
 async function exportTrainedPipeline(
@@ -103,10 +110,13 @@ async function exportTrainedPipeline(
   exportTrainedPipelineArgs: ExportTrainedPipeline,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  return viame.exportTrainedPipeline(settings, exportTrainedPipelineArgs, updater, validateFake, {
-    ...ViameWindowsConstants,
-    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
-  });
+  return viame.exportTrainedPipeline(
+    settings,
+    exportTrainedPipelineArgs,
+    updater,
+    validateFake,
+    getViameConstants(settings),
+  );
 }
 
 async function train(
@@ -114,10 +124,15 @@ async function train(
   runTrainingArgs: RunTraining,
   updater: DesktopJobUpdater,
 ): Promise<DesktopJob> {
-  return viame.train(settings, runTrainingArgs, updater, validateFake, {
-    ...ViameWindowsConstants,
-    setupScriptAbs: `"${npath.join(settings.viamePath, ViameWindowsConstants.setup)}"`,
-  });
+  return viame.train(settings, runTrainingArgs, updater, validateFake, getViameConstants(settings));
+}
+
+async function runScoring(
+  settings: Settings,
+  runScoringArgs: RunScoring,
+  updater: DesktopJobUpdater,
+): Promise<DesktopJob> {
+  return viame.runScoring(settings, runScoringArgs, updater, validateFake, getViameConstants(settings));
 }
 
 function checkDefaultNvidiaSmi(resolve: (value: NvidiaSmiReply) => void) {
@@ -188,6 +203,9 @@ export default {
   runPipeline,
   exportTrainedPipeline,
   train,
+  runScoring,
   nvidiaSmi,
   initialize,
+  getViameConstants,
+  getViamePythonExe,
 };

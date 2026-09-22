@@ -22,7 +22,7 @@ version: "3.8"
 services:
 
   traefik:
-    image: traefik:v2.4
+    image: traefik:v3.7.4
     container_name: traefik
     command: >
       --providers.docker=true
@@ -43,6 +43,8 @@ services:
       - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS:-guest}
       - RABBITMQ_DEFAULT_VHOST=${RABBITMQ_DEFAULT_VHOST:-default}
       - RABBITMQ_DISTRIBUTED_WORKER=${RABBITMQ_DISTRIBUTED_WORKER:-0}
+      # Allow long pipeline/training jobs to run with acks_late (5 days; default is 30 minutes).
+      - "RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS=-rabbit consumer_timeout 432000000"
 
   mongo:
     image: mongo:5.0
@@ -51,8 +53,7 @@ services:
       - ${MONGO_DB_PATH:-mongo_db}:/data/db
   redis:
     image: redis:latest
-    ports:
-      - "6379:6379"
+    command: ["redis-server", "--maxmemory", "8192MB", "--maxmemory-policy", "volatile-lru"]
     volumes:
       - redis_data:/data
 
@@ -93,6 +94,9 @@ services:
       - memcached
     volumes:
       - girder_assetstore:/home/assetstore
+      # Models the girder service fetches on demand (e.g. the stereo model the
+      # web client runs), kept across container recreation.
+      - girder_model_cache:/tmp/dive_models
       # Bind mount nocopy public data
       - type: bind
         source: ${PUBLIC_DATA_PATH:-./docker/girder_data}
@@ -107,6 +111,7 @@ services:
       - "GIRDER_SETTING_WORKER_API_URL=${GIRDER_SETTING_WORKER_API_URL:-http://girder:8080/api/v1}"
       - "GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder"
       - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
+      - "DIVE_MODEL_CACHE_DIR=/tmp/dive_models"
 
       # Rabbitmq management variables
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
@@ -123,7 +128,7 @@ services:
       - "traefik.enable=true"
       - "traefik.http.services.girder-svc.loadbalancer.server.port=8080"
       - "traefik.http.routers.girder-rtr.entrypoints=web"
-      - "traefik.http.routers.girder-rtr.rule=HostRegexp(`{catchall:.*}`)"
+      - "traefik.http.routers.girder-rtr.rule=HostRegexp(`.+`)"
 
   # Worker for misc non gpu-bound tasks
   girder_worker_default:
@@ -232,4 +237,5 @@ volumes:
   addons:
   mongo_db:
   girder_assetstore:
+  girder_model_cache:
   redis_data:

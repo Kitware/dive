@@ -1,11 +1,13 @@
 <script lang="ts">
-import {
+import Vue, {
   defineComponent, reactive, computed, ref,
   watch,
 } from 'vue';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
+import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 
 import { clientSettings } from 'dive-common/store/settings';
 import {
@@ -18,8 +20,10 @@ import {
   useTrackStyleManager,
   useMultiSelectList,
   useCameraStore,
+  usePendingSaveCount,
 } from '../../provides';
 import useVirtualScrollTo from '../../use/useVirtualScrollTo';
+import { getSuppressedTrackIds, suppressionTypeResolver } from '../../use/suppression';
 import SideBarTrackListView from './sidebar/SideBarTrackListView.vue';
 import BottomBarTrackListView from './bottombar/BottomBarTrackListView.vue';
 
@@ -81,12 +85,13 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
+    const pendingSaveCount = usePendingSaveCount();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
     const { frame: frameRef, isPlaying } = useTime();
     const multiSelectList = useMultiSelectList();
     const {
-      trackSplit, removeTrack, trackAdd, trackSelect,
+      trackSplit, removeTrack, trackAdd, trackSelect, trackSelectNext,
     } = useHandler();
 
     const data = reactive({
@@ -98,6 +103,15 @@ export default defineComponent({
     const sortKey = ref<SortKey>('id');
     const sortDirection = ref<SortDirection>('asc');
 
+    const displayConfidence = (
+      track: TrackProjection,
+      contextIndex: number,
+    ) => {
+      const pairIndex = trackFilters.hierarchyActive.value ? contextIndex : 0;
+      return track.confidencePairs[pairIndex]?.[1] ?? 0;
+    };
+    const suppressionResolutionRef = computed(() => suppressionTypeResolver(trackFilters));
+
     const filterDetectionsByFrame = ref(clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame);
     watch(
       () => clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame,
@@ -106,23 +120,61 @@ export default defineComponent({
       },
     );
 
-    const finalFilteredTracks = computed(() => {
+    const finalFilteredTracks = computed<TrackWithContext[]>(() => {
       let tracks = filteredTracksRef.value;
+      if (trackFilters.hierarchyActive.value) {
+        tracks = tracks.filter(({ annotation, context }) => (
+          annotation.confidencePairs[context.confidencePairIndex] !== undefined
+        ));
+      }
       if (filterDetectionsByFrame.value && !isPlaying.value) {
+        // Depend on the edit counter so moving a suppression region re-runs the
+        // filter (geometry mutations are not reactive track-set changes).
+        const editRevision = pendingSaveCount.value;
+        const suppType = clientSettings.typeSettings.suppressionType;
+        const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
+        const suppressionResolver = suppressionResolutionRef.value;
+        // Per-camera region suppression at this frame; a track stays visible if
+        // any camera has an unsuppressed keyframe (same union as type frame filter).
+        const suppressedByCamera = new Map<string, Set<number>>();
+        cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+          suppressedByCamera.set(
+            cameraName,
+            (editRevision >= 0)
+              ? getSuppressedTrackIds(
+                trackStore,
+                frameRef.value,
+                suppType,
+                suppThreshold,
+                { revision: editRevision, resolver: suppressionResolver },
+              )
+              : new Set<number>(),
+          );
+        });
         tracks = tracks.filter((track) => {
-          const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
-          if (possibleTrack) {
+          let visible = false;
+          cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+            if (visible) {
+              return;
+            }
+            if (suppressedByCamera.get(cameraName)?.has(track.annotation.id)) {
+              return;
+            }
+            const possibleTrack = trackStore.getPossible(track.annotation.id);
+            if (!possibleTrack) {
+              return;
+            }
             const [feature] = possibleTrack.getFeature(frameRef.value);
             if (feature && feature.keyframe) {
-              return true;
+              visible = true;
             }
-          }
-          return false;
+          });
+          return visible;
         });
       }
 
       // Helper to get notes from a track's first keyframe
-      function getTrackNotes(track: ReturnType<typeof cameraStore.getTracksMerged>): string {
+      function getTrackNotes(track: TrackProjection): string {
         // Try direct access first (most common case)
         const directFeature = track.features[track.begin];
         if (directFeature && directFeature.notes && directFeature.notes.length > 0) {
@@ -139,7 +191,7 @@ export default defineComponent({
 
       // Helper to get attribute value from a track
       function getTrackAttributeValue(
-        track: ReturnType<typeof cameraStore.getTracksMerged>,
+        track: TrackProjection,
         attrKey: string,
       ): string | number | undefined {
         // Check if it's a track attribute (track_*) or detection attribute (detection_*)
@@ -165,13 +217,21 @@ export default defineComponent({
       const sorted = [...tracks];
       const direction = sortDirection.value === 'asc' ? 1 : -1;
 
-      sorted.sort((a, b) => {
-        let trackA;
-        let trackB;
+      // Projections copy the whole feature history, so build one per track rather than
+      // one per comparison: the comparator runs O(n log n) times over the same n tracks.
+      const projections = new Map<AnnotationId, TrackProjection>();
+      tracks.forEach(({ annotation }) => {
         try {
-          trackA = cameraStore.getTracksMerged(a.annotation.id);
-          trackB = cameraStore.getTracksMerged(b.annotation.id);
+          projections.set(annotation.id, cameraStore.getTrackProjection(annotation.id));
         } catch {
+          // Track vanished between filtering and sorting; comparisons involving it are ties.
+        }
+      });
+
+      sorted.sort((a, b) => {
+        const trackA = projections.get(a.annotation.id);
+        const trackB = projections.get(b.annotation.id);
+        if (!trackA || !trackB) {
           return 0;
         }
 
@@ -205,8 +265,8 @@ export default defineComponent({
           case 'endTime':
             return (trackA.end - trackB.end) * direction;
           case 'confidence': {
-            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
-            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            const confA = displayConfidence(trackA, a.context.confidencePairIndex);
+            const confB = displayConfidence(trackB, b.context.confidencePairIndex);
             return (confA - confB) * direction;
           }
           case 'type': {
@@ -215,8 +275,8 @@ export default defineComponent({
             const typeCompare = typeA.localeCompare(typeB);
             if (typeCompare !== 0) return typeCompare * direction;
             // Secondary sort by confidence within same type
-            const confA = trackA.confidencePairs?.[0]?.[1] ?? 0;
-            const confB = trackB.confidencePairs?.[0]?.[1] ?? 0;
+            const confA = displayConfidence(trackA, a.context.confidencePairIndex);
+            const confB = displayConfidence(trackB, b.context.confidencePairIndex);
             return (confA - confB) * direction;
           }
           case 'notes': {
@@ -270,8 +330,16 @@ export default defineComponent({
       filteredListRef: finalFilteredTracks,
       selectedIdRef: selectedTrackIdRef,
       multiSelectList,
-      trackSelect,
+      selectNext: (delta) => trackSelectNext(
+        delta,
+        finalFilteredTracks.value.map((filtered) => filtered.annotation),
+      ),
     });
+
+    /** Template refs cannot be passed as props (Vue unwraps them to null). */
+    function setVirtualListRef(instance: Vue | null): void {
+      virtualScroll.virtualList.value = instance;
+    }
 
     function getItemProps(item: typeof virtualListItems.value[number]) {
       const confidencePair = item.filteredTrack.annotation.getType(
@@ -279,7 +347,7 @@ export default defineComponent({
       );
       const trackType = confidencePair;
       const selected = item.selectedTrackId === item.filteredTrack.annotation.id;
-      const track = cameraStore.getTracksMerged(item.filteredTrack.annotation.id);
+      const track = cameraStore.getTrackProjection(item.filteredTrack.annotation.id);
       return {
         trackType,
         track,
@@ -289,6 +357,9 @@ export default defineComponent({
         editing: selected && item.editingTrack,
         color: typeStylingRef.value.color(trackType),
         types: item.allTypes,
+        displayPairIndex: trackFilters.hierarchyActive.value
+          ? item.filteredTrack.context.confidencePairIndex
+          : 0,
       };
     }
 
@@ -382,7 +453,7 @@ export default defineComponent({
       trackAdd,
       virtualHeight,
       virtualListItems,
-      virtualList: virtualScroll.virtualList,
+      setVirtualListRef,
       multiDelete,
       sortKey,
       sortDirection,
@@ -407,7 +478,7 @@ export default defineComponent({
     :lock-types="lockTypes"
     :disabled="disabled"
     :fps="fps"
-    :virtual-list-ref="virtualList"
+    :set-virtual-list-ref="setVirtualListRef"
     :mouse-trap="mouseTrap"
     :virtual-height="virtualHeight"
     :sort-key="sortKey"
@@ -438,7 +509,7 @@ export default defineComponent({
     :lock-types="lockTypes"
     :disabled="disabled"
     :fps="fps"
-    :virtual-list-ref="virtualList"
+    :set-virtual-list-ref="setVirtualListRef"
     :mouse-trap="mouseTrap"
     :virtual-height="virtualHeight"
     @track-seek="$emit('track-seek', $event)"
@@ -569,5 +640,10 @@ export default defineComponent({
   &::-webkit-scrollbar-thumb:hover {
     background: #666;
   }
+}
+
+/* Above timeline current-frame bar (z-index: 10) */
+.track-settings-menu-content {
+  z-index: 999;
 }
 </style>

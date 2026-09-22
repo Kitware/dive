@@ -8,6 +8,10 @@ import {
 } from 'vue';
 
 import { VisibleAnnotationTypes } from 'vue-media-annotator/layers';
+import { DEFAULT_SUPPRESSION_DISPLAY, SuppressionDisplaySettings } from 'vue-media-annotator/types';
+
+import OutlinedLabeledGroup from './OutlinedLabeledGroup.vue';
+import ToolbarExpandToggle from './ToolbarExpandToggle.vue';
 
 interface ButtonData {
   id: string;
@@ -20,6 +24,10 @@ interface ButtonData {
 
 export default defineComponent({
   name: 'AnnotationVisibilityMenu',
+  components: {
+    OutlinedLabeledGroup,
+    ToolbarExpandToggle,
+  },
   props: {
     visibleModes: {
       type: Array as PropType<(VisibleAnnotationTypes)[]>,
@@ -33,8 +41,22 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    showSuppressedTags: {
+      type: Boolean,
+      default: true,
+    },
+    suppressionDisplay: {
+      type: Object as PropType<SuppressionDisplaySettings>,
+      default: () => ({ ...DEFAULT_SUPPRESSION_DISPLAY }),
+    },
   },
-  emits: ['set-annotation-state', 'update:tail-settings', 'update:show-user-created-icon'],
+  emits: [
+    'set-annotation-state',
+    'update:tail-settings',
+    'update:show-user-created-icon',
+    'update:show-suppressed-tags',
+    'update:suppression-display',
+  ],
   setup(props, { emit }) {
     const STORAGE_KEY = 'annotationVisibilityMenu.expanded';
 
@@ -117,6 +139,16 @@ export default defineComponent({
         },
       ]));
 
+    const primaryViewButtons = computed(
+      () => viewButtons.value.filter((button) => button.id !== 'tooltip'),
+    );
+
+    const advancedVisibilityActive = computed(
+      () => isVisible('tooltip')
+        || isVisible('TrackTail')
+        || !!props.suppressionDisplay?.enabled,
+    );
+
     const updateTailSettings = (type: 'before' | 'after', event: Event) => {
       const value = Number.parseFloat((event.target as HTMLInputElement).value);
       const settings = { ...props.tailSettings, [type]: value };
@@ -127,22 +159,61 @@ export default defineComponent({
       emit('update:show-user-created-icon', !props.showUserCreatedIcon);
     };
 
+    const toggleShowSuppressedTags = () => {
+      emit('update:show-suppressed-tags', !props.showSuppressedTags);
+    };
+
+    const patchSuppressionDisplay = (patch: Partial<SuppressionDisplaySettings>) => {
+      emit('update:suppression-display', {
+        ...DEFAULT_SUPPRESSION_DISPLAY,
+        ...props.suppressionDisplay,
+        ...patch,
+      });
+    };
+
+    const toggleSuppressionDisplay = () => {
+      patchSuppressionDisplay({ enabled: !props.suppressionDisplay?.enabled });
+    };
+
+    const updateSuppressionSlider = (
+      key: 'outlineOpacity' | 'fillOpacity',
+      event: Event,
+    ) => {
+      const value = Number.parseFloat((event.target as HTMLInputElement).value);
+      patchSuppressionDisplay({ [key]: value });
+    };
+
+    const updateSuppressionFillColor = (event: Event) => {
+      patchSuppressionDisplay({
+        fillColor: (event.target as HTMLInputElement).value,
+      });
+    };
+
     return {
       isExpanded,
       layoutKey,
       viewButtons,
+      primaryViewButtons,
+      advancedVisibilityActive,
       isVisible,
       toggleVisible,
       toggleExpanded,
       updateTailSettings,
       toggleShowUserCreatedIcon,
+      toggleShowSuppressedTags,
+      toggleSuppressionDisplay,
+      patchSuppressionDisplay,
+      updateSuppressionSlider,
+      updateSuppressionFillColor,
     };
   },
 });
 </script>
 
 <template>
-  <span class="pb-1">
+  <span
+    class="toolbar-group-host"
+  >
     <!-- Dropdown mode when collapsed -->
     <v-menu
       v-if="!isExpanded"
@@ -154,19 +225,15 @@ export default defineComponent({
       <template #activator="{ on, attrs }">
         <v-btn
           v-bind="attrs"
-          class="mx-1 mode-button"
+          class="mx-1 mode-button toolbar-group-activator"
           small
           v-on="on"
         >
           <v-icon>mdi-eye</v-icon>
-          <v-btn
-            icon
-            x-small
-            class="ml-1 expand-toggle"
-            @click.stop="toggleExpanded"
-          >
-            <v-icon small>mdi-chevron-right</v-icon>
-          </v-btn>
+          <toolbar-expand-toggle
+            :expanded="false"
+            @click="toggleExpanded"
+          />
         </v-btn>
       </template>
       <v-list dense>
@@ -191,13 +258,46 @@ export default defineComponent({
             <v-checkbox
               v-if="button.id === 'text'"
               :input-value="showUserCreatedIcon"
-              label="Show user created/modified icons"
               dense
               hide-details
               class="mt-0"
               @click.stop
               @change="toggleShowUserCreatedIcon"
-            />
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show user created/modified
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-pencil
+                  </v-icon>
+                </span>
+              </template>
+            </v-checkbox>
+            <v-checkbox
+              v-if="button.id === 'text'"
+              :input-value="showSuppressedTags"
+              dense
+              hide-details
+              class="mt-0"
+              @click.stop
+              @change="toggleShowSuppressedTags"
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show suppressed tags
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-eye-off
+                  </v-icon>
+                  <span class="ml-1 text--secondary">(labels & tooltips)</span>
+                </span>
+              </template>
+            </v-checkbox>
           </v-list-item-content>
         </v-list-item>
         <v-list-item>
@@ -213,6 +313,21 @@ export default defineComponent({
           </v-list-item-icon>
           <v-list-item-content>
             <v-list-item-title>Track Trails</v-list-item-title>
+          </v-list-item-content>
+        </v-list-item>
+        <v-list-item>
+          <v-list-item-icon>
+            <v-btn
+              :color="suppressionDisplay.enabled ? 'grey darken-2' : ''"
+              class="mx-1 mode-button"
+              small
+              @click="toggleSuppressionDisplay"
+            >
+              <v-icon>mdi-eye-off</v-icon>
+            </v-btn>
+          </v-list-item-icon>
+          <v-list-item-content>
+            <v-list-item-title>Suppression</v-list-item-title>
           </v-list-item-content>
         </v-list-item>
         <v-divider />
@@ -250,33 +365,93 @@ export default defineComponent({
             </v-card>
           </v-list-item-content>
         </v-list-item>
+        <v-list-item v-if="suppressionDisplay.enabled">
+          <v-list-item-content>
+            <v-card
+              class="pa-4 flex-column d-flex"
+              outlined
+              flat
+            >
+              <v-checkbox
+                :input-value="suppressionDisplay.dashed"
+                label="Dashed outline"
+                dense
+                hide-details
+                class="mt-0"
+                @click.stop
+                @change="patchSuppressionDisplay({ dashed: !suppressionDisplay.dashed })"
+              />
+              <label
+                for="suppression-outline-opacity"
+                class="mt-3"
+              >
+                Outline opacity: {{ Math.round(suppressionDisplay.outlineOpacity * 100) }}%
+              </label>
+              <input
+                id="suppression-outline-opacity"
+                type="range"
+                class="tail-slider-width"
+                min="0"
+                max="1"
+                step="0.05"
+                :value="suppressionDisplay.outlineOpacity"
+                @input="updateSuppressionSlider('outlineOpacity', $event)"
+              >
+              <div class="d-flex align-center mt-3">
+                <label for="suppression-fill-color">Fill color</label>
+                <input
+                  id="suppression-fill-color"
+                  type="color"
+                  class="ml-2 suppression-color-input"
+                  :value="suppressionDisplay.fillColor || '#888888'"
+                  :title="suppressionDisplay.fillColor || '#888888'"
+                  @input="updateSuppressionFillColor"
+                >
+              </div>
+              <label
+                for="suppression-fill-opacity"
+                class="mt-3"
+              >
+                Fill opacity: {{ Math.round(suppressionDisplay.fillOpacity * 100) }}%
+              </label>
+              <input
+                id="suppression-fill-opacity"
+                type="range"
+                class="tail-slider-width"
+                min="0"
+                max="1"
+                step="0.05"
+                :value="suppressionDisplay.fillOpacity"
+                @input="updateSuppressionSlider('fillOpacity', $event)"
+              >
+            </v-card>
+          </v-list-item-content>
+        </v-list-item>
       </v-list>
     </v-menu>
 
     <!-- Full button mode when expanded -->
-    <span
+    <outlined-labeled-group
       v-else
       :key="`visibility-${layoutKey}`"
-      class="visibility-expanded d-inline-flex align-center flex-wrap"
     >
-      <span class="mr-1 px-3 py-1">
-        <v-icon class="pr-1">
-          mdi-eye
-        </v-icon>
-        <span class="text-subtitle-2">
-          Visibility
+      <template #legend>
+        <span class="d-inline-flex align-center">
+          <v-icon
+            small
+            class="pr-1"
+          >
+            mdi-eye
+          </v-icon>
+          <span>Visibility</span>
+          <toolbar-expand-toggle
+            :expanded="true"
+            @click="toggleExpanded"
+          />
         </span>
-        <v-btn
-          icon
-          x-small
-          class="ml-1 expand-toggle"
-          @click="toggleExpanded"
-        >
-          <v-icon small>mdi-chevron-left</v-icon>
-        </v-btn>
-      </span>
+      </template>
       <template
-        v-for="button in viewButtons"
+        v-for="button in primaryViewButtons"
       >
         <v-menu
           v-if="button.id === 'text'"
@@ -304,11 +479,42 @@ export default defineComponent({
           >
             <v-checkbox
               :input-value="showUserCreatedIcon"
-              label="Show user created/modified icons"
               dense
               hide-details
               @change="toggleShowUserCreatedIcon"
-            />
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show user created/modified
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-pencil
+                  </v-icon>
+                </span>
+              </template>
+            </v-checkbox>
+            <v-checkbox
+              :input-value="showSuppressedTags"
+              dense
+              hide-details
+              class="mt-2"
+              @change="toggleShowSuppressedTags"
+            >
+              <template #label>
+                <span class="d-inline-flex align-center">
+                  Show suppressed tags
+                  <v-icon
+                    small
+                    class="ml-1"
+                  >
+                    mdi-eye-off
+                  </v-icon>
+                  <span class="ml-1 text--secondary">(labels & tooltips)</span>
+                </span>
+              </template>
+            </v-checkbox>
           </v-card>
         </v-menu>
         <v-btn
@@ -323,59 +529,174 @@ export default defineComponent({
         </v-btn>
       </template>
       <v-menu
-        key="track-tail-settings"
-        open-on-hover
-        bottom
+        key="visibility-advanced"
         offset-y
         :close-on-content-click="false"
+        min-width="280"
       >
-        <template #activator="{ on, attrs }">
-          <v-btn
-            v-bind="attrs"
-            :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
-            class="mx-1 mode-button"
-            small
-            v-on="on"
-            @click="toggleVisible('TrackTail')"
-          >
-            <v-icon>mdi-navigation</v-icon>
-          </v-btn>
+        <template #activator="{ on: menuOn, attrs: menuAttrs }">
+          <v-tooltip bottom>
+            <template #activator="{ on: tooltipOn, attrs: tooltipAttrs }">
+              <v-btn
+                v-bind="{ ...menuAttrs, ...tooltipAttrs }"
+                :color="advancedVisibilityActive ? 'grey darken-2' : ''"
+                class="mx-1 mode-button"
+                small
+                v-on="{ ...menuOn, ...tooltipOn }"
+              >
+                <v-icon>mdi-tune</v-icon>
+              </v-btn>
+            </template>
+            <span>Advanced settings</span>
+          </v-tooltip>
         </template>
         <v-card
-          class="pa-4 flex-column d-flex"
+          class="pa-3 flex-column d-flex"
           outlined
         >
-          <label for="frames-before-full">Frames before: {{ tailSettings.before }}</label>
-          <input
-            id="frames-before-full"
-            type="range"
-            name="frames-before-full"
-            class="tail-slider-width"
-            label
-            min="0"
-            max="100"
-            :value="tailSettings.before"
-            @input="updateTailSettings('before', $event)"
-          >
-          <div class="py-2" />
-          <label for="frames-after-full">Frames after: {{ tailSettings.after }}</label>
-          <input
-            id="frames-after-full"
-            type="range"
-            name="frames-after-full"
-            class="tail-slider-width"
-            min="0"
-            max="100"
-            :value="tailSettings.after"
-            @input="updateTailSettings('after', $event)"
-          >
+          <div class="d-flex align-center advanced-menu-row">
+            <v-btn
+              :color="isVisible('tooltip') ? 'grey darken-2' : ''"
+              class="mode-button"
+              small
+              @click="toggleVisible('tooltip')"
+            >
+              <v-icon>mdi-tooltip-text-outline</v-icon>
+            </v-btn>
+            <span class="ml-2">Tooltip</span>
+          </div>
+          <div class="d-flex align-center advanced-menu-row">
+            <v-btn
+              :color="isVisible('TrackTail') ? 'grey darken-2' : ''"
+              class="mode-button"
+              small
+              @click="toggleVisible('TrackTail')"
+            >
+              <v-icon>mdi-navigation</v-icon>
+            </v-btn>
+            <span class="ml-2">Track Trails</span>
+          </div>
+          <template v-if="isVisible('TrackTail')">
+            <v-divider class="my-2" />
+            <label for="frames-before-full">Frames before: {{ tailSettings.before }}</label>
+            <input
+              id="frames-before-full"
+              type="range"
+              name="frames-before-full"
+              class="tail-slider-width"
+              min="0"
+              max="100"
+              :value="tailSettings.before"
+              @input="updateTailSettings('before', $event)"
+            >
+            <div class="py-2" />
+            <label for="frames-after-full">Frames after: {{ tailSettings.after }}</label>
+            <input
+              id="frames-after-full"
+              type="range"
+              name="frames-after-full"
+              class="tail-slider-width"
+              min="0"
+              max="100"
+              :value="tailSettings.after"
+              @input="updateTailSettings('after', $event)"
+            >
+          </template>
+          <div class="d-flex align-center advanced-menu-row">
+            <v-btn
+              :color="suppressionDisplay.enabled ? 'grey darken-2' : ''"
+              class="mode-button"
+              small
+              @click="toggleSuppressionDisplay"
+            >
+              <v-icon>mdi-eye-off</v-icon>
+            </v-btn>
+            <span class="ml-2">Suppression</span>
+            <v-tooltip
+              open-delay="200"
+              bottom
+              max-width="280"
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  class="ml-1"
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>
+                Detections flagged with a suppression attribute stay visible
+                with their real type. When enabled, they can be drawn with a
+                dashed outline, custom fill, and opacity so they are easy to
+                distinguish from normal detections.
+              </span>
+            </v-tooltip>
+          </div>
+          <template v-if="suppressionDisplay.enabled">
+            <v-divider class="my-2" />
+            <v-checkbox
+              :input-value="suppressionDisplay.dashed"
+              label="Dashed outline"
+              dense
+              hide-details
+              class="mt-0"
+              @change="patchSuppressionDisplay({ dashed: !suppressionDisplay.dashed })"
+            />
+            <label
+              for="suppression-outline-opacity-full"
+              class="mt-3"
+            >
+              Outline opacity: {{ Math.round(suppressionDisplay.outlineOpacity * 100) }}%
+            </label>
+            <input
+              id="suppression-outline-opacity-full"
+              type="range"
+              class="tail-slider-width"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="suppressionDisplay.outlineOpacity"
+              @input="updateSuppressionSlider('outlineOpacity', $event)"
+            >
+            <div class="d-flex align-center mt-3">
+              <label for="suppression-fill-color-full">Fill color</label>
+              <input
+                id="suppression-fill-color-full"
+                type="color"
+                class="ml-2 suppression-color-input"
+                :value="suppressionDisplay.fillColor || '#888888'"
+                :title="suppressionDisplay.fillColor || '#888888'"
+                @input="updateSuppressionFillColor"
+              >
+            </div>
+            <label
+              for="suppression-fill-opacity-full"
+              class="mt-3"
+            >
+              Fill opacity: {{ Math.round(suppressionDisplay.fillOpacity * 100) }}%
+            </label>
+            <input
+              id="suppression-fill-opacity-full"
+              type="range"
+              class="tail-slider-width"
+              min="0"
+              max="1"
+              step="0.05"
+              :value="suppressionDisplay.fillOpacity"
+              @input="updateSuppressionSlider('fillOpacity', $event)"
+            >
+          </template>
         </v-card>
       </v-menu>
-    </span>
+    </outlined-labeled-group>
   </span>
 </template>
 
-<style scoped>
+<style scoped lang="scss">
+@import './toolbarGroup.scss';
+
 .mode-button {
   border: 1px solid grey;
   min-width: 36px;
@@ -383,11 +704,15 @@ export default defineComponent({
 .tail-slider-width {
   width: 240px;
 }
-.expand-toggle {
-  opacity: 0.5;
-  transition: opacity 0.2s;
+.advanced-menu-row + .advanced-menu-row {
+  margin-top: 8px;
 }
-.expand-toggle:hover {
-  opacity: 1;
+.suppression-color-input {
+  width: 36px;
+  height: 24px;
+  padding: 0;
+  border: 1px solid grey;
+  background: transparent;
+  cursor: pointer;
 }
 </style>

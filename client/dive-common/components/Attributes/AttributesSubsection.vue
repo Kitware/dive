@@ -54,28 +54,22 @@ export default defineComponent({
     const sortingMethodIcons = ['mdi-sort-alphabetical-ascending', 'mdi-sort-numeric-ascending'];
     const sortingMode = ref(0);
 
-    const selectedTrack = computed(() => {
-      if (selectedTrackIdRef.value !== null) {
-        return cameraStore.getAnyTrack(selectedTrackIdRef.value);
-      }
-      return null;
-    });
-
-    // Using Revision to nudge the attributes after updating them
+    // Logical-track reads: same projection as the track row, so Detection
+    // Attributes stay visible when the selected camera has no replica.
     const selectedAttributes = computed(() => {
-      if (selectedTrack.value && selectedTrack.value.revision.value) {
-        const t = selectedTrack.value;
-        if (t !== undefined && t !== null) {
-          if (props.mode === 'Track') {
-            return t;
-          }
-          if (props.mode === 'Detection') {
-            const [real] = t.getFeature(frameRef.value);
-            return real;
-          }
-        }
+      if (selectedTrackIdRef.value === null) {
+        return null;
       }
-      return null;
+      try {
+        const projection = cameraStore.getTrackProjection(selectedTrackIdRef.value);
+        if (props.mode === 'Track') {
+          return projection;
+        }
+        const [real] = projection.getFeature(frameRef.value);
+        return real;
+      } catch {
+        return null;
+      }
     });
 
     const filteredFullAttributes = computed(() => {
@@ -111,22 +105,24 @@ export default defineComponent({
       attribute: Attribute,
     ) {
       if (selectedTrackIdRef.value !== null) {
-        // Tracks across all cameras get the same attributes set if they are linked
-        const tracks = cameraStore.getTrackAll(selectedTrackIdRef.value);
         let user: null | string = null;
         if (attribute && attribute.user) {
           user = props.user || null;
         }
-        if (tracks.length) {
-          let updatedValue = value;
-          if (attribute.datatype === 'number' && value !== undefined) {
-            updatedValue = parseFloat(value as string);
-          }
-          if (props.mode === 'Track') {
-            tracks.forEach((track) => track.setAttribute(name, updatedValue, user));
-          } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
-            tracks.forEach((track) => track.setFeatureAttribute(frameRef.value, name, updatedValue, user));
-          }
+        let updatedValue = value;
+        if (attribute.datatype === 'number' && value !== undefined) {
+          updatedValue = parseFloat(value as string);
+        }
+        if (props.mode === 'Track') {
+          cameraStore.setTrackAttribute(selectedTrackIdRef.value, name, updatedValue, user);
+        } else if (props.mode === 'Detection' && frameRef.value !== undefined) {
+          cameraStore.setTrackFeatureAttribute(
+            selectedTrackIdRef.value,
+            frameRef.value,
+            name,
+            updatedValue,
+            user,
+          );
         }
       }
     }
@@ -162,18 +158,25 @@ export default defineComponent({
       context.openClose('AttributesSideBar', true, 'Timeline');
     }
 
-    function getAttributeValue(attribute: Attribute) {
+    function toAttributeValue(val: unknown): string | number | boolean | undefined {
+      if (typeof val === 'string' || typeof val === 'number' || typeof val === 'boolean') {
+        return val;
+      }
+      return undefined;
+    }
+
+    function getAttributeValue(attribute: Attribute): string | number | boolean | undefined {
       if (selectedAttributes.value && selectedAttributes.value.attributes) {
         if (!attribute.user) {
-          return selectedAttributes.value.attributes[attribute.name];
+          return toAttributeValue(selectedAttributes.value.attributes[attribute.name]);
         }
         const user = props.user || null;
         if (user && selectedAttributes.value.attributes?.userAttributes !== undefined
         && selectedAttributes.value.attributes.userAttributes[user]) {
-          if ((selectedAttributes.value.attributes
-            .userAttributes[user] as StringKeyObject)[attribute.name]) {
-            return ((selectedAttributes.value.attributes
-              .userAttributes[user] as StringKeyObject)[attribute.name]);
+          const userAttrs = selectedAttributes.value.attributes
+            .userAttributes[user] as StringKeyObject;
+          if (userAttrs[attribute.name]) {
+            return toAttributeValue(userAttrs[attribute.name]);
           }
         }
       }
@@ -310,7 +313,8 @@ export default defineComponent({
           <v-row
             v-if="
               activeSettings
-                || selectedAttributes.attributes[attribute.name] !== undefined
+                || (selectedAttributes.attributes
+                  && selectedAttributes.attributes[attribute.name] !== undefined)
             "
             class="ma-0"
             dense
@@ -330,7 +334,7 @@ export default defineComponent({
                 :datatype="attribute.datatype"
                 :name="attribute.name"
                 :disabled="readOnlyMode"
-                :values="attribute.values ? attribute.values : null"
+                :values="attribute.values ? attribute.values : undefined"
                 :value="getAttributeValue(attribute)"
                 :type-settings="attribute.editor || null"
                 @change="
@@ -349,7 +353,7 @@ export default defineComponent({
                     :datatype="attribute.datatype"
                     :name="attribute.name"
                     :disabled="readOnlyMode"
-                    :values="attribute.values ? attribute.values : null"
+                    :values="attribute.values ? attribute.values : undefined"
                     :value="getAttributeValue(attribute)"
                     :type-settings="attribute.editor || null"
                     focus

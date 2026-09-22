@@ -8,6 +8,7 @@ import type { EditAnnotationTypes } from './layers/EditAnnotationLayer';
 import type { AnnotationId, StringKeyObject } from './BaseAnnotation';
 import type { VisibleAnnotationTypes } from './layers';
 import type { RectBounds } from './utils';
+import type { TrackSupportedFeature } from './track';
 import type {
   Attribute,
   AttributeFilter,
@@ -15,10 +16,16 @@ import type {
   TimelineAttribute,
 } from './use/AttributeTypes';
 import type { Time } from './use/useTimeObserver';
-import type { ImageEnhancements } from './use/useImageEnhancements';
+import type {
+  ImageEnhancements,
+  PercentileHistogram,
+  PercentileStretch,
+} from './use/useImageEnhancements';
 import TrackFilterControls from './TrackFilterControls';
 import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
+import CameraRegistrationStore from './alignedView/CameraRegistrationStore';
+import AlignedViewStore from './alignedView/AlignedViewStore';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -53,6 +60,12 @@ type EditingModeType = Readonly<Ref<false | EditAnnotationTypes>>;
 
 const MultiSelectSymbol = Symbol('multiSelect');
 type MultiSelectType = Readonly<Ref<readonly AnnotationId[]>>;
+
+const SegmentationPointsSymbol = Symbol('segmentationPoints');
+type SegmentationPointsType = Readonly<Ref<{ points: [number, number][]; labels: number[]; frameNum: number }>>;
+
+const SegmentationCursorLoadingSymbol = Symbol('segmentationCursorLoading');
+type SegmentationCursorLoadingType = Readonly<Ref<boolean>>;
 
 const PendingSaveCountSymbol = Symbol('pendingSaveCount');
 type pendingSaveCountType = Readonly<Ref<number>>;
@@ -104,8 +117,17 @@ type ReadOnylModeType = Readonly<Ref<boolean>>;
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
+const PercentileStretchSupportedSymbol = Symbol('percentileStretchSupported');
+type PercentileStretchSupportedType = Readonly<Ref<boolean>>;
+const PercentileHistogramSymbol = Symbol('percentileHistogram');
+type PercentileHistogramType = Readonly<Ref<PercentileHistogram | null>>;
+const PercentileHistogramLoadingSymbol = Symbol('percentileHistogramLoading');
+type PercentileHistogramLoadingType = Readonly<Ref<boolean>>;
+
 /** Class-based symbols */
 const CameraStoreSymbol = Symbol('cameraStore');
+const CameraRegistrationSymbol = Symbol('cameraRegistration');
+const AlignedViewSymbol = Symbol('alignedView');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
 const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
@@ -126,12 +148,16 @@ export interface Handler {
   seekFrame(frame: number): void;
   /* Toggle editing mode for track */
   trackEdit(AnnotationId: AnnotationId): void;
+  /* Confirm/lock the current annotation for active recipes */
+  confirmRecipe(): void;
+  /* Finalize pending segmentation without deselecting (cross-camera handoff) */
+  segmentationFinalizePending(): void;
   /* toggle selection mode for track */
   trackSelect(AnnotationId: AnnotationId | null, edit: boolean, modifiers?: { ctrl: boolean }): void;
   /* select tracks enclosed by a lasso polygon */
   lassoSelect(trackIds: AnnotationId[], modifiers?: { ctrl: boolean }): void;
   /* select next track in the list */
-  trackSelectNext(delta: number): void;
+  trackSelectNext(delta: number, filteredOverride?: readonly { id: AnnotationId }[]): void;
   /* split track */
   trackSplit(AnnotationId: AnnotationId | null, frame: number): void;
   /* Add new empty track and select it */
@@ -142,6 +168,13 @@ export interface Handler {
     flickNum: number,
     bounds: RectBounds,
     rotation?: number,
+  ): void;
+  /* Set a feature on the selected track with proper interpolation handling */
+  setTrackFeature(
+    frameNum: number,
+    bounds: RectBounds,
+    geometry: GeoJSON.Feature<TrackSupportedFeature>[],
+    runAfterLogic?: boolean,
   ): void;
   /* update geojson for track */
   updateGeoJSON(
@@ -162,7 +195,7 @@ export interface Handler {
   /* Remove an entire annotation from selected track by selected key */
   removeAnnotation(): void;
   /* selectCamera */
-  selectCamera(camera: string, editMode: boolean): void;
+  selectCamera(camera: string, editMode: boolean, preserveSelection?: boolean): void;
   /* set selectFeatureHandle and selectedKey */
   selectFeatureHandle(i: number, key: string): void;
   /* set an Attribute in the metaData */
@@ -185,8 +218,14 @@ export interface Handler {
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
   setSVGFilters({
-    brightness, contrast, saturation, sharpen,
-  }: {brightness?: number; contrast?: number; saturation?: number; sharpen?: number}): void;
+    brightness, contrast, saturation, sharpen, percentileStretch,
+  }: {
+    brightness?: number;
+    contrast?: number;
+    saturation?: number;
+    sharpen?: number;
+    percentileStretch?: PercentileStretch | null;
+  }): void;
   /* unlink Camera Track */
   unlinkCameraTrack(trackId: AnnotationId, camera: string): void;
   /* link Camera Track */
@@ -194,6 +233,14 @@ export interface Handler {
   startLinking(camera: string): void;
   stopLinking(): void;
   setChange(set: string): void;
+  /* Add a hole to the current polygon */
+  addHole(): void;
+  /* Add a new separate polygon */
+  addPolygon(): void;
+  /* Cancel any in-progress creation mode (hole or polygon addition) */
+  cancelCreation(): void;
+  /* Register callback to finalize in-progress shapes (used by LayerManager) */
+  registerFinalizeCreation(cb: () => void): void;
 
 }
 const HandlerSymbol = Symbol('handler');
@@ -209,12 +256,15 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     trackSeek(...args) { handle('trackSeek', args); },
     seekFrame(...args) { handle('seekFrame', args); },
     trackEdit(...args) { handle('trackEdit', args); },
+    confirmRecipe(...args) { handle('confirmRecipe', args); },
+    segmentationFinalizePending(...args) { handle('segmentationFinalizePending', args); },
     trackSelect(...args) { handle('trackSelect', args); },
     lassoSelect(...args) { handle('lassoSelect', args); },
     trackSelectNext(...args) { handle('trackSelectNext', args); },
     trackSplit(...args) { handle('trackSplit', args); },
     trackAdd(...args) { handle('trackAdd', args); return 0; },
     updateRectBounds(...args) { handle('updateRectBounds', args); },
+    setTrackFeature(...args) { handle('setTrackFeature', args); },
     updateGeoJSON(...args) { handle('updateGeoJSON', args); },
     removeTrack(...args) { handle('removeTrack', args); },
     removeGroup(...args) { handle('removeGroup', args); },
@@ -237,6 +287,10 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     startLinking(...args) { handle('startLinking', args); },
     stopLinking(...args) { handle('stopLinking', args); },
     setChange(...args) { handle('setChange', args); },
+    addHole(...args) { handle('addHole', args); },
+    addPolygon(...args) { handle('addPolygon', args); },
+    cancelCreation(...args) { handle('cancelCreation', args); },
+    registerFinalizeCreation(...args) { handle('registerFinalizeCreation', args); },
   };
 }
 
@@ -251,6 +305,8 @@ export interface State {
   annotatorPreferences: AnnotatorPreferences;
   attributes: AttributesType;
   cameraStore: CameraStore;
+  cameraRegistration: CameraRegistrationStore;
+  alignedView: AlignedViewStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
   groupFilters: GroupFilterControls;
@@ -262,6 +318,8 @@ export interface State {
   annotationSet: AnnotationSetType;
   annotationSets: AnnotationSetsType;
   comparisonSets: ComparisonSetsType;
+  segmentationPoints: SegmentationPointsType;
+  segmentationCursorLoading: SegmentationCursorLoadingType;
   selectedCamera: SelectedCameraType;
   selectedKey: SelectedKeyType;
   selectedTrackId: SelectedTrackIdType;
@@ -273,9 +331,11 @@ export interface State {
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
   imageEnhancements: ImageEnhancementsType;
+  percentileStretchSupported: Readonly<Ref<boolean>>;
+  percentileHistogram: PercentileHistogramType;
+  percentileHistogramLoading: PercentileHistogramLoadingType;
 }
 
-// eslint-disable-next-line @typescript-eslint/no-empty-function
 const markChangesPending = () => { };
 
 /**
@@ -284,22 +344,23 @@ const markChangesPending = () => { };
  */
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
-  const setTrackType = (
+  const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
+  const setGroupType = (
     id: AnnotationId,
     newType: string,
     confidenceVal?: number,
     currentType?: string,
   ) => {
-    cameraStore.setTrackType(id, newType, confidenceVal, currentType);
+    cameraStore.setGroupType(id, newType, confidenceVal, currentType);
   };
-  const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
+  const removeGroupTypes = (id: AnnotationId, types: string[]) => cameraStore.removeGroupTypes(id, types);
   const groupFilterControls = new GroupFilterControls(
     {
       sorted: cameraStore.sortedGroups,
       remove: cameraStore.removeGroups,
       markChangesPending,
-      setType: setTrackType,
-      removeTypes,
+      setGroupType,
+      removeTypes: removeGroupTypes,
     },
   );
   const trackFilterControls = new TrackFilterControls({
@@ -308,8 +369,10 @@ function dummyState(): State {
     markChangesPending,
     groupFilterControls,
     lookupGroups: cameraStore.lookupGroups,
-    getTrack: (track: AnnotationId, camera = 'singleCam') => (cameraStore.getTrack(track, camera)),
-    setType: setTrackType,
+    getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
+    renameTrackPair: (id, currentType, newType) => (
+      cameraStore.renameTrackPair(id, currentType, newType)
+    ),
     removeTypes,
 
   });
@@ -317,6 +380,8 @@ function dummyState(): State {
     annotatorPreferences: ref({ trackTails: { before: 20, after: 10 }, lockedCamera: { enabled: false } }),
     attributes: ref([]),
     cameraStore,
+    cameraRegistration: new CameraRegistrationStore(),
+    alignedView: new AlignedViewStore(),
     datasetId: ref(''),
     editingMode: ref(false),
     multiSelectList: ref([]),
@@ -328,6 +393,8 @@ function dummyState(): State {
     comparisonSets: ref([]),
     groupFilters: groupFilterControls,
     groupStyleManager: new StyleManager({ markChangesPending }),
+    segmentationPoints: ref({ points: [], labels: [], frameNum: -1 }),
+    segmentationCursorLoading: ref(false),
     selectedCamera: ref('singleCam'),
     selectedKey: ref(''),
     selectedTrackId: ref(null),
@@ -350,6 +417,9 @@ function dummyState(): State {
       saturation: 1,
       sharpen: 0,
     }),
+    percentileStretchSupported: ref(false),
+    percentileHistogram: ref(null),
+    percentileHistogramLoading: ref(false),
   };
 }
 
@@ -366,6 +436,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotatorPreferencesSymbol, state.annotatorPreferences);
   provide(AttributesSymbol, state.attributes);
   provide(CameraStoreSymbol, state.cameraStore);
+  provide(CameraRegistrationSymbol, state.cameraRegistration);
+  provide(AlignedViewSymbol, state.alignedView);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
   provide(GroupFilterControlsSymbol, state.groupFilters);
@@ -377,6 +449,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(AnnotationSetSymbol, state.annotationSet);
   provide(AnnotationSetsSymbol, state.annotationSets);
   provide(ComparisonSetsSymbol, state.comparisonSets);
+  provide(SegmentationPointsSymbol, state.segmentationPoints);
+  provide(SegmentationCursorLoadingSymbol, state.segmentationCursorLoading);
   provide(TrackFilterControlsSymbol, state.trackFilters);
   provide(TrackStyleManagerSymbol, state.trackStyleManager);
   provide(SelectedCameraSymbol, state.selectedCamera);
@@ -388,6 +462,9 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
+  provide(PercentileStretchSupportedSymbol, state.percentileStretchSupported);
+  provide(PercentileHistogramSymbol, state.percentileHistogram);
+  provide(PercentileHistogramLoadingSymbol, state.percentileHistogramLoading);
   provide(HandlerSymbol, handler);
   provide(AttributesFilterSymbol, attributesFilters);
 }
@@ -418,6 +495,12 @@ function useAttributesFilters() {
 
 function useCameraStore() {
   return use<CameraStore>(CameraStoreSymbol);
+}
+function useCameraRegistration() {
+  return use<CameraRegistrationStore>(CameraRegistrationSymbol);
+}
+function useAlignedView() {
+  return use<AlignedViewStore>(AlignedViewSymbol);
 }
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
@@ -513,6 +596,26 @@ function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
 
+function usePercentileStretchSupported() {
+  return use<PercentileStretchSupportedType>(PercentileStretchSupportedSymbol);
+}
+
+function usePercentileHistogram() {
+  return use<PercentileHistogramType>(PercentileHistogramSymbol);
+}
+
+function usePercentileHistogramLoading() {
+  return use<PercentileHistogramLoadingType>(PercentileHistogramLoadingSymbol);
+}
+
+function useSegmentationPoints() {
+  return use<SegmentationPointsType>(SegmentationPointsSymbol);
+}
+
+function useSegmentationCursorLoading() {
+  return use<SegmentationCursorLoadingType>(SegmentationCursorLoadingSymbol);
+}
+
 export {
   LassoModeSymbol,
   dummyHandler,
@@ -522,6 +625,8 @@ export {
   useAnnotatorPreferences,
   useAttributes,
   useCameraStore,
+  useCameraRegistration,
+  useAlignedView,
   useDatasetId,
   useEditingMode,
   useHandler,
@@ -546,5 +651,10 @@ export {
   useVisibleModes,
   useReadOnlyMode,
   useImageEnhancements,
+  usePercentileStretchSupported,
+  usePercentileHistogram,
+  usePercentileHistogramLoading,
   useAttributesFilters,
+  useSegmentationPoints,
+  useSegmentationCursorLoading,
 };

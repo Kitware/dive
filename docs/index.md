@@ -20,6 +20,9 @@ This is the documentation site for DIVE, a [**free and open-source**](https://ww
 Load your own images and videos | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Image and video transcoding | ✔️ | ✔️
 | &nbsp;&nbsp;&nbsp; Import using image lists  | ❌ | ✔️
+Multicamera and stereo datasets | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Batch multicam import (collect folders) | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Timestamp-aligned multicam playback | ✔️ | ✔️
 Load annotations from [supported formats](DataFormats.md) | ✔️ | ✔️
 Create new object and track annotation | ✔️ | ✔️
 Annotation export | ✔️ | ✔️
@@ -34,15 +37,19 @@ Track split | ✔️ | ✔️
 Multi-way track merge | ✔️ | ✔️
 Complex Interactions and activity groups | ✔️ | ✔️
 Freeform or multi-select attributes | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Interactive point-click segmentation | ❌ | ✔️
+| &nbsp;&nbsp;&nbsp; Interactive stereo (warp / length recompute) | ❌ | ✔️
 | **Data Review** |
-Image enhancement (thresholding) | ✔️ | ✔️
+Image enhancement (brightness, contrast, saturation, sharpness) | ✔️ | ✔️
+| &nbsp;&nbsp;&nbsp; Percentile stretch for high bit-depth TIFF | ✔️ (large-image) | ✔️ (image-sequence)
 Advanced per-type annotation confidence threshoding | ✔️ | ✔️
 Review save history and load previous states | ✔️ | ❌
 Multiple parallel annotation sets on one dataset | ✔️ | ❌
 | **VIAME Integration** |
 Run VIAME object detection and tracking | ✔️ | ✔️
 Run VIAME detector and tracker **training** | ✔️ | ✔️
-VIAME multi-camera pipelines  | ❌ | ✔️
+VIAME multi-camera pipelines  | ✔️ | ✔️
+Score computed annotations against ground truth | ✔️ | ✔️
 Manual refinement of auto-generated annotations | ✔️ | ✔️
 
 ## Concepts and Definitions
@@ -70,3 +77,5 @@ Manual refinement of auto-generated annotations | ✔️ | ✔️
 **Interpolation** - The implicit bounding boxes between keyframes in a track.
 
 **Attributes** - Attributes are free-form secondary characteristics on both tracks and detections. For example, a `fish` type track may have an `is_adult` boolean attribute.
+
+**Suppression** - A review feature that hides detections under configured ignore regions, or visually flags detections that carry a suppression attribute, while excluding them from type counts. See [Suppression](UI-Suppression.md).

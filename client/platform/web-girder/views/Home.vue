@@ -4,11 +4,17 @@ import {
   ref,
   computed,
 } from 'vue';
+import { isAxiosError } from 'axios';
 import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import type { SubType } from 'dive-common/apispec';
+import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
+import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
+import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { isGirderModel } from '../store/types';
 import { useConfig } from '../store/useConfig';
 import { useJobs } from '../store/useJobs';
 import { useLocation } from '../store/useLocation';
@@ -27,7 +33,7 @@ const buttonOptions = {
   left: true,
   depressed: true,
   color: 'primary',
-  class: ['my-2', 'd-flex', 'justify-start'],
+  class: ['d-flex', 'justify-start'],
 };
 
 const menuOptions = {
@@ -57,7 +63,12 @@ export default defineComponent({
     const {
       location, selected, locationIsViameFolder, setSelected,
     } = useLocation();
-    const { pipelinesEnabled, trainingEnabled } = useConfig();
+    const {
+      pipelinesEnabled,
+      trainingEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
+    } = useConfig();
     const jobs = useJobs();
 
     const clearSelected = () => {
@@ -65,27 +76,39 @@ export default defineComponent({
     };
 
     const runningPipelines = computed(() => {
-      const results = [];
       const inputs = locationIsViameFolder.value && location.value
         ? [(location.value as { _id: string })._id]
         : selected.value.filter(
           ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
         ).map(({ _id }) => _id);
-      inputs.forEach((item) => {
-        if (jobs.getDatasetRunningState(item)) {
-          results.push(item);
-        }
-      });
-      return results;
+      return inputs.filter((item) => jobs.getDatasetRunningState(item));
     });
 
-    const selectedViameFolderIds = computed(() => selected.value.filter(
+    const selectedViameFolders = computed(() => selected.value.filter(
       ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-    ).map(({ _id }) => _id));
+    ));
 
-    const selectedViameFolderNames = computed(() => selected.value.filter(
-      ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-    ).map(({ name }) => name));
+    const selectedViameFolderIds = computed(() => selectedViameFolders.value.map(({ _id }) => _id));
+
+    const selectedViameFolderNames = computed(() => selectedViameFolders.value.map(({ name }) => name));
+
+    const pipelineTargetFolders = computed(() => (
+      locationIsViameFolder.value && location.value && isGirderModel(location.value)
+        ? [location.value]
+        : selectedViameFolders.value
+    ));
+
+    const subTypeList = computed((): SubType[] => pipelineTargetFolders.value.map(
+      (item) => item.meta?.subType ?? null,
+    ));
+
+    const cameraNumbers = computed(() => pipelineTargetFolders.value.map(
+      (item) => getMultiCamCameraCount(item.meta),
+    ));
+
+    const datasetTypeList = computed(() => pipelineTargetFolders.value.map(
+      (item) => item.meta?.type ?? null,
+    ));
 
     const selectedFileIds = computed(() => selected.value.filter(
       (element) => element._modelType === 'item',
@@ -94,6 +117,13 @@ export default defineComponent({
     const includesLargeImage = computed(() => (selected.value.filter(
       ({ meta }) => meta && meta.type === 'large-image',
     )).length > 0);
+
+    const includesMultiCamDataset = computed(() => isMultiCamTrainingTarget(
+      pipelineTargetFolders.value,
+      locationIsViameFolder.value && isGirderModel(location.value)
+        ? location.value
+        : null,
+    ));
 
     const locationInputs = computed(() => (
       locationIsViameFolder.value && location.value
@@ -119,11 +149,17 @@ export default defineComponent({
       locationIsViameFolder,
       pipelinesEnabled,
       trainingEnabled,
+      jobsDisabled,
+      jobsDisabledMessage,
       runningPipelines,
       selectedViameFolderIds,
       selectedViameFolderNames,
+      subTypeList,
+      cameraNumbers,
+      datasetTypeList,
       selectedFileIds,
       includesLargeImage,
+      includesMultiCamDataset,
       locationInputs,
       locationInputNames,
       selectedDescription,
@@ -131,9 +167,22 @@ export default defineComponent({
       prompt,
       clearSelected,
       eventBus,
+      webExcludedPipelineTerms,
     };
   },
   methods: {
+    scoreSelection() {
+      this.$router.push({
+        name: 'scoring',
+        query: { datasetIds: this.selectedViameFolderIds.join(',') },
+      });
+    },
+    reviewSelection() {
+      this.$router.push({
+        name: 'review',
+        query: { datasetIds: this.selectedViameFolderIds.join(',') },
+      });
+    },
     async deleteSelection() {
       const result = await this.prompt({
         title: 'Confirm',
@@ -150,7 +199,7 @@ export default defineComponent({
         this.clearSelected();
       } catch (err) {
         let text = 'Unable to delete resource(s)';
-        if (err.response && err.response.status === 403) {
+        if (isAxiosError(err) && err.response?.status === 403) {
           text = 'You do not have permission to delete selected resource(s).';
         }
         this.prompt({
@@ -185,19 +234,10 @@ export default defineComponent({
             :value="selected.length ? selected : [location]"
           >
             <template #actions>
-              <div class="pa-2">
+              <div class="pa-2 folder-actions">
                 <Clone
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
-                />
-                <run-training-menu
-                  v-if="trainingEnabled"
-                  v-bind="{
-                    buttonOptions:
-                      { ...buttonOptions, disabled: includesLargeImage },
-                    menuOptions,
-                  }"
-                  :selected-dataset-ids="locationInputs"
                 />
                 <run-pipeline-menu
                   v-if="pipelinesEnabled"
@@ -205,11 +245,50 @@ export default defineComponent({
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
                     menuOptions,
+                    subTypeList,
+                    cameraNumbers,
+                    typeList: datasetTypeList,
                   }"
                   :selected-dataset-ids="locationInputs"
                   :selected-dataset-name="locationInputNames"
                   :running-pipelines="runningPipelines"
+                  :exclude-pipeline-terms="webExcludedPipelineTerms"
+                  :jobs-disabled="jobsDisabled"
+                  :jobs-disabled-message="jobsDisabledMessage"
                 />
+                <run-training-menu
+                  v-if="trainingEnabled"
+                  v-bind="{
+                    buttonOptions:
+                      { ...buttonOptions, disabled: includesLargeImage || includesMultiCamDataset },
+                    menuOptions,
+                  }"
+                  :selected-dataset-ids="locationInputs"
+                />
+                <v-btn
+                  v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="scoreSelection"
+                >
+                  <v-icon>
+                    mdi-chart-box-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Score
+                  </span>
+                </v-btn>
+                <v-btn
+                  v-if="selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="reviewSelection"
+                >
+                  <v-icon>
+                    mdi-view-grid-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Review
+                  </span>
+                </v-btn>
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-ids="locationInputs"
@@ -261,5 +340,11 @@ export default defineComponent({
 <style lang='scss'>
 .nowraptable table thead tr th .row {
   flex-wrap: nowrap;
+}
+
+.folder-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 </style>

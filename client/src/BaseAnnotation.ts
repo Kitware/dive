@@ -1,4 +1,5 @@
 import { Ref, ref } from 'vue';
+import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 
 export type ConfidencePair = [string, number];
 export type AnnotationId = number;
@@ -57,9 +58,6 @@ export default abstract class BaseAnnotation {
   /** A callback to notify about changes to the track. */
   notifier?: NotifierFunc<this>;
 
-  /** Enables/Disables the notifier specifically for multicam merge */
-  notifierEnabled: boolean;
-
   constructor(id: AnnotationId, {
     meta = {},
     begin = Infinity,
@@ -74,7 +72,6 @@ export default abstract class BaseAnnotation {
     this.begin = begin;
     this.end = end;
     this.confidencePairs = confidencePairs;
-    this.notifierEnabled = true;
   }
 
   get length() {
@@ -106,7 +103,7 @@ export default abstract class BaseAnnotation {
 
   protected notify(name: string, oldValue: unknown = undefined) {
     /* Prevent broadcast until the first feature is initialized */
-    if (this.isInitialized() && this.notifierEnabled) {
+    if (this.isInitialized()) {
       this.revision.value += 1;
       if (this.notifier) {
         this.notifier({
@@ -138,6 +135,12 @@ export default abstract class BaseAnnotation {
       this.notify('confidencePairs', old);
     }
     return this.confidencePairs;
+  }
+
+  setConfidencePairs(pairs: readonly (readonly [string, number])[]) {
+    const old = this.confidencePairs;
+    this.confidencePairs = pairs.map(([type, confidence]) => [type, confidence]);
+    this.notify('confidencePairs', old);
   }
 
   setType(annotationType: string, confidenceVal = 1, replace: string | undefined = undefined) {
@@ -178,7 +181,8 @@ export default abstract class BaseAnnotation {
    * Figure out if any confidence pairs are above any corresponding thresholds
    */
   static exceedsThreshold(pairs: Array<ConfidencePair>, thresholds: Record<string, number>): Array<ConfidencePair> {
-    const defaultThresh = thresholds.default || 0;
-    return pairs.filter(([name, value]) => value >= (thresholds[name] || defaultThresh));
+    return pairs.filter(([name, value]) => (
+      value >= resolveConfidenceThreshold(thresholds, name)
+    ));
   }
 }

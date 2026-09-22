@@ -140,12 +140,18 @@ def rollback(dsFolder: types.GirderModel, revision: int):
     # And erase deletions for anything deleted after revision
     dsId = dsFolder['_id']
     RevisionLogItem().removeWithQuery({DATASET: dsId, REVISION: {'$gt': revision}})
-    listQuery = {DATASET: dsId, REVISION_CREATED: {'$gt': revision}}
+    removeQuery = {DATASET: dsId, REVISION_CREATED: {'$gt': revision}}
+    # Deletion is lazy, so restoring a record means clearing its rev_deleted
+    # tombstone.  Those records must be selected by REVISION_DELETED: keying this
+    # off REVISION_CREATED only ever matches records removeWithQuery just dropped,
+    # leaving live records tombstoned with a revision number that save_annotations
+    # will re-issue, silently deleting them again on the next save.
+    restoreQuery = {DATASET: dsId, REVISION_DELETED: {'$gt': revision}}
     updateQuery = {'$unset': {REVISION_DELETED: ""}}
-    TrackItem().removeWithQuery(listQuery)
-    TrackItem().update(listQuery, updateQuery)
-    GroupItem().removeWithQuery(listQuery)
-    GroupItem().update(listQuery, updateQuery)
+    TrackItem().removeWithQuery(removeQuery)
+    TrackItem().update(restoreQuery, updateQuery)
+    GroupItem().removeWithQuery(removeQuery)
+    GroupItem().update(restoreQuery, updateQuery)
 
 
 def get_annotation_csv_generator(
@@ -154,6 +160,7 @@ def get_annotation_csv_generator(
     excludeBelowThreshold=False,
     typeFilter=None,
     revision=None,
+    set: Optional[str] = None,
 ) -> Tuple[str, Callable[[], Generator[str, None, None]]]:
     """Get the annotation generator for a folder"""
     fps = None
@@ -166,9 +173,10 @@ def get_annotation_csv_generator(
         imageFiles = [img['name'] for img in crud.valid_images(folder, user)]
 
     thresholds = fromMeta(folder, "confidenceFilters", {})
+    datasetInfo = fromMeta(folder, "datasetInfo", {})
 
     def downloadGenerator():
-        datalist = TrackItem().list(folder, revision=revision)
+        datalist = TrackItem().list(folder, revision=revision, set=set)
         for data in viame.export_tracks_as_csv(
             datalist,
             excludeBelowThreshold,
@@ -177,6 +185,7 @@ def get_annotation_csv_generator(
             fps=fps,
             typeFilter=typeFilter,
             revision=revision,
+            datasetInfo=datasetInfo,
         ):
             yield data
 
@@ -386,7 +395,13 @@ def add_annotations(
 
 
 def get_labels(user: types.GirderUserModel, published=False, shared=False):
-    """Find all the labels in all datasets belonging to the user"""
+    """Find raw highest-score confidence-pair labels in datasets visible to ``user``.
+
+    This aggregation intentionally does not resolve type hierarchies.  Resolved display
+    types depend on each viewer's checked types and confidence thresholds, neither of
+    which the server has.  The aggregation chooses the maximum raw score while keeping
+    the first stored pair when scores tie.
+    """
     accessLevel = AccessType.WRITE
     if published or shared:
         accessLevel = AccessType.READ
@@ -410,10 +425,42 @@ def get_labels(user: types.GirderUserModel, published=False, shared=False):
                     {'$match': {'$expr': {'$eq': [{'$type': "$rev_deleted"}, 'missing']}}},
                     # Select the confidencePairs, which is the only field needed
                     {'$project': {'confidencePairs': 1}},
-                    # Use the first confidence pair in the array, which assumes they are
-                    # sorted in descending order
-                    {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
-                    {'$set': {'confidencePairs': {'$first': '$confidencePairs'}}},
+                    # Preserve the raw highest-score pair.  Do not resolve hierarchy here:
+                    # resolved display types are viewer-specific (checked types/thresholds).
+                    # A strict comparison keeps the first stored pair when scores tie.
+                    {
+                        '$set': {
+                            'confidencePairs': {
+                                '$reduce': {
+                                    'input': '$confidencePairs',
+                                    'initialValue': [],
+                                    'in': {
+                                        '$cond': [
+                                            {
+                                                '$or': [
+                                                    {'$eq': [{'$size': '$$value'}, 0]},
+                                                    {
+                                                        '$gt': [
+                                                            {'$arrayElemAt': ['$$this', 1]},
+                                                            {'$arrayElemAt': ['$$value', 1]},
+                                                        ]
+                                                    },
+                                                ]
+                                            },
+                                            '$$this',
+                                            '$$value',
+                                        ],
+                                    },
+                                },
+                            }
+                        }
+                    },
+                    # Reduce returns the winning [type, score] pair.  Library labels are
+                    # strings, so project the pair back to its raw type name before grouping.
+                    {'$set': {'confidencePairs': {'$arrayElemAt': ['$confidencePairs', 0]}}},
+                    # Imported empty vectors have no raw label and must not create a null
+                    # Library row.  The public label API guarantees string identifiers.
+                    {'$match': {'$expr': {'$eq': [{'$type': '$confidencePairs'}, 'string']}}},
                 ],
             },
         },

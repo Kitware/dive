@@ -1,0 +1,319 @@
+/** Stash browser File selections for multicam import (paths are not filesystem paths on web). */
+
+import { Location } from '@girder/components/src';
+import type { AxiosInstance } from 'axios';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
+import {
+  ImageSequenceType,
+  VideoType,
+  fileVideoTypes,
+  largeImageFileExtensions,
+} from 'dive-common/constants';
+import { fileImageTypes } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import { openFromDisk, GirderUploadManager } from './utils';
+
+const LAST_CALIBRATION_STORAGE_KEY = 'dive_web_last_calibration';
+
+const filesByKey = new Map<string, File[]>();
+const annotationFilesByKey = new Map<string, File>();
+const calibrationFilesByKey = new Map<string, File>();
+const transformFilesByKey = new Map<string, File>();
+const metadataFilesByKey = new Map<string, File>();
+let metadataSelectionCounter = 0;
+
+function commonDirectoryRoot(paths: string[]): string {
+  if (!paths.length) {
+    return '';
+  }
+  const splitPaths = paths.map((p) => p.split('/').filter(Boolean));
+  if (splitPaths.some((parts) => parts.length <= 1)) {
+    return paths[0].includes('/') ? paths[0].split('/').slice(0, -1).join('/') : '';
+  }
+  const prefix: string[] = [];
+  const depth = Math.min(...splitPaths.map((parts) => parts.length - 1));
+  for (let i = 0; i < depth; i += 1) {
+    const segment = splitPaths[0][i];
+    if (splitPaths.every((parts) => parts[i] === segment)) {
+      prefix.push(segment);
+    } else {
+      break;
+    }
+  }
+  return prefix.join('/');
+}
+
+export function stashFileSelection(ret: {
+  filePaths: string[];
+  fileList?: File[];
+  root?: string;
+}): void {
+  if (!ret.fileList?.length) {
+    return;
+  }
+  const keys = new Set<string>();
+  if (ret.root) {
+    keys.add(ret.root);
+  }
+  keys.add(ret.filePaths[0]);
+  const root = ret.root ?? commonDirectoryRoot(
+    ret.fileList.map((f) => f.webkitRelativePath || f.name),
+  );
+  if (root) {
+    keys.add(root);
+  }
+  keys.forEach((key) => {
+    if (key) {
+      filesByKey.set(key, ret.fileList as File[]);
+    }
+  });
+}
+
+export function getFilesForSourceKey(sourcePath: string): File[] | undefined {
+  return filesByKey.get(sourcePath);
+}
+
+export function stashCameraFolderFiles(sourcePath: string, files: File[]): void {
+  filesByKey.set(sourcePath, flattenUploadFiles(files));
+}
+
+export function removeCameraFolderFiles(sourcePath: string): void {
+  filesByKey.delete(sourcePath);
+}
+
+export function renameCameraFolderFiles(oldSourcePath: string, newSourcePath: string): void {
+  const files = filesByKey.get(oldSourcePath);
+  if (files) {
+    filesByKey.delete(oldSourcePath);
+    filesByKey.set(newSourcePath, files);
+  }
+}
+
+/** Strip webkitRelativePath so Girder items are created flat in each camera folder. */
+export function flattenUploadFiles(files: File[]): File[] {
+  return files.map((file) => {
+    if (!file.webkitRelativePath || file.webkitRelativePath === file.name) {
+      return file;
+    }
+    return new File([file], file.name, { type: file.type, lastModified: file.lastModified });
+  });
+}
+
+function fileExtension(fileName: string): string {
+  return fileName.split('.').pop()?.toLowerCase() ?? '';
+}
+
+/**
+ * Extensions a camera folder can contribute as importable images: the set multicam subfolder
+ * discovery accepts, plus the large-image formats an all-TIFF camera folder imports as. A
+ * camera that discovery registered must never report zero media files here, or Begin Import
+ * is disabled with no way to correct it.
+ */
+const importableImageExtensions = [...fileImageTypes, ...largeImageFileExtensions];
+
+export function mediaFileNamesForImport(
+  files: File[],
+  mediaType: typeof ImageSequenceType | typeof VideoType = ImageSequenceType,
+): string[] {
+  const allowedExtensions = mediaType === VideoType ? fileVideoTypes : importableImageExtensions;
+  return files
+    .map((file) => file.name)
+    .filter((name) => allowedExtensions.includes(fileExtension(name)));
+}
+
+export function stashAnnotationFile(key: string, file: File): void {
+  annotationFilesByKey.set(key, file);
+}
+
+export function getAnnotationFile(key: string): File | undefined {
+  return annotationFilesByKey.get(key);
+}
+
+export interface CameraPackage {
+  /** Files to validate and upload with the camera. */
+  files: File[];
+  /**
+   * Camera-folder files left out only because an explicit pick claimed their name. They are
+   * a different file than the one the user chose, so the caller must report them.
+   */
+  replaced: File[];
+}
+
+/** Two selections of the same file on disk are distinct File objects; treat them as one. */
+function isSameSelection(a: File, b: File): boolean {
+  return a === b
+    || (a.name === b.name && a.size === b.size && a.lastModified === b.lastModified);
+}
+
+/**
+ * Assemble the complete file package for one multicam camera: the camera folder's files plus
+ * the annotation file explicitly chosen for that camera.
+ *
+ * An explicit pick always wins over a folder file of the same name — the folder copy is
+ * dropped, so the user uploads the file they chose and Girder never sees a duplicate name.
+ * The explicitly chosen metadata attachment is dropped from the package entirely: it is
+ * uploaded and declared separately once the camera dataset exists.
+ *
+ * A dropped folder copy that is not the picked file is a real file leaving the upload, so it
+ * is returned in `replaced` rather than vanishing.
+ *
+ * `flattenUploadFiles` is applied here, before validation, so the names sent to
+ * the server for validation match the names uploaded to Girder.
+ */
+export function getCameraPackageFiles(
+  folderFiles: File[],
+  annotationKey?: string,
+  metadataKey?: string,
+): CameraPackage {
+  const annotationFile = annotationKey ? getAnnotationFile(annotationKey) : undefined;
+  const metadataFile = metadataKey ? getMetadataFile(metadataKey) : undefined;
+  const explicitFiles = [annotationFile, metadataFile]
+    .filter((file): file is File => file !== undefined);
+  const explicitNames = new Set(explicitFiles.map((file) => file.name));
+  const folderPackage = flattenUploadFiles(
+    folderFiles.filter((file) => !explicitNames.has(file.name)),
+  );
+  return {
+    files: annotationFile ? [...folderPackage, annotationFile] : folderPackage,
+    replaced: folderFiles.filter((file) => explicitNames.has(file.name)
+      && !explicitFiles.some((pick) => isSameSelection(pick, file))),
+  };
+}
+
+function calibrationLookupKeys(key: string): string[] {
+  const keys = new Set<string>();
+  if (key) {
+    keys.add(key);
+    const base = key.split(/[/\\]/).pop();
+    if (base) {
+      keys.add(base);
+    }
+  }
+  return [...keys];
+}
+
+export function stashCalibrationFile(key: string, file: File): void {
+  calibrationLookupKeys(key).forEach((lookupKey) => {
+    calibrationFilesByKey.set(lookupKey, file);
+  });
+  calibrationFilesByKey.set(file.name, file);
+}
+
+/** Stash a per-camera registration transform File for multicam import lookup. */
+export function stashTransformFile(key: string, file: File): void {
+  calibrationLookupKeys(key).forEach((lookupKey) => {
+    transformFilesByKey.set(lookupKey, file);
+  });
+  transformFilesByKey.set(file.name, file);
+}
+
+export function getTransformFile(key: string): File | undefined {
+  if (!key) {
+    return undefined;
+  }
+  return calibrationLookupKeys(key)
+    .map((lookupKey) => transformFilesByKey.get(lookupKey))
+    .find((file) => file !== undefined);
+}
+
+export function getCalibrationFile(key: string): File | undefined {
+  if (!key) {
+    return undefined;
+  }
+  const lookupMatch = calibrationLookupKeys(key)
+    .map((lookupKey) => calibrationFilesByKey.get(lookupKey))
+    .find((file) => file !== undefined);
+  if (lookupMatch) {
+    return lookupMatch;
+  }
+  return [...calibrationFilesByKey.values()].find((file) => file.name === key);
+}
+
+/** Stash a chosen metadata File under its opaque selection key. */
+export function stashMetadataFile(key: string, file: File): void {
+  metadataFilesByKey.set(key, file);
+}
+
+export function getMetadataFile(key: string): File | undefined {
+  return key ? metadataFilesByKey.get(key) : undefined;
+}
+
+export function clearMulticamFileRegistry(): void {
+  filesByKey.clear();
+  annotationFilesByKey.clear();
+  calibrationFilesByKey.clear();
+  transformFilesByKey.clear();
+  metadataFilesByKey.clear();
+  metadataSelectionCounter = 0;
+}
+
+export async function openFromDiskWithRegistry(
+  datasetType: Parameters<typeof openFromDisk>[0],
+  directory?: boolean,
+) {
+  const ret = await openFromDisk(datasetType, directory);
+  if (!ret.canceled && ret.fileList?.length) {
+    if (datasetType === 'annotation') {
+      stashAnnotationFile(ret.filePaths[0], ret.fileList[0]);
+    } else if (datasetType === 'calibration') {
+      stashCalibrationFile(ret.filePaths[0], ret.fileList[0]);
+    } else if (datasetType === 'transform') {
+      stashTransformFile(ret.filePaths[0], ret.fileList[0]);
+    } else if (datasetType === 'metadata') {
+      metadataSelectionCounter += 1;
+      const selectionId = `metadata-selection-${metadataSelectionCounter}`;
+      stashMetadataFile(selectionId, ret.fileList[0]);
+      return { ...ret, selectionId };
+    } else {
+      stashFileSelection(ret);
+    }
+  }
+  return ret;
+}
+
+export function getLastCalibration(): Promise<string | null> {
+  const stored = localStorage.getItem(LAST_CALIBRATION_STORAGE_KEY);
+  if (!stored) {
+    return Promise.resolve(null);
+  }
+  // Browser sessions cannot restore File objects from localStorage; only prefill when
+  // the user already chose a calibration file in this session.
+  if (getCalibrationFile(stored)) {
+    return Promise.resolve(stored);
+  }
+  return Promise.resolve(null);
+}
+
+export function saveCalibration(path: string): Promise<{ savedPath: string; updatedDatasetIds: string[] }> {
+  const savedPath = path.split(/[/\\]/).pop() || path;
+  localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, savedPath);
+  return Promise.resolve({ savedPath, updatedDatasetIds: [] });
+}
+
+/**
+ * Upload a calibration file (previously chosen via openFromDiskWithRegistry, so its
+ * File is stashed under `fileName`) into the dataset's Girder folder and mark it as
+ * the dataset's stereoscopic calibration.
+ */
+export async function importCalibrationFile(
+  datasetId: string,
+  fileName: string,
+): Promise<{ calibration: string }> {
+  const file = getCalibrationFile(fileName);
+  if (!file) {
+    throw new Error(`Calibration file "${fileName}" is no longer available; please re-select it.`);
+  }
+  const parentFolderId = parentDatasetId(datasetId);
+  // Import the Girder REST client lazily: its module touches `window` at load time,
+  // so a top-level import breaks node-environment unit tests that import this module.
+  const { default: girderRest } = await import('platform/web-girder/plugins/girder');
+  const manager = new GirderUploadManager(file, {
+    $rest: girderRest as unknown as AxiosInstance,
+    parent: { _id: parentFolderId, _modelType: 'folder' } as Location,
+  });
+  const uploaded = await manager.start() as { _id: string };
+  await girderRest.post(`dive_dataset/${parentFolderId}/calibration`, null, {
+    params: { fileId: uploaded._id },
+  });
+  localStorage.setItem(LAST_CALIBRATION_STORAGE_KEY, file.name);
+  return { calibration: file.name };
+}

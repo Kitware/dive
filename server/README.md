@@ -11,7 +11,7 @@ There are several important python packages in this application
 
 The server targets **Girder 5** (`girder`, `girder_jobs`, `girder_worker`, and related plugins pinned in `pyproject.toml`). Docker Compose adds **Redis** for notifications (`GIRDER_NOTIFICATION_REDIS_URL`); the web client receives job updates over WebSockets.
 
-When developing with `docker-compose.override.yml`, a **`localworker`** service runs Celery on the `local` queue in addition to the standard workers.
+Docker Compose runs a required **`localworker`** service on the `local` queue in addition to the standard workers. With `docker-compose.override.yml`, that service mounts your local `server/` code for development.
 
 Upgrading an existing deployment: [Upgrading to Girder 5](https://kitware.github.io/dive/Deployment-Girder-5-Upgrade/).
 
@@ -151,7 +151,8 @@ Image chips that compose a video are stored as girder items in a folder.  Videos
 * `fps` (number) annotation framerate, not to be confused with video raw framerate
 * `ffprobe_info` (JSON) output of ffprobe for raw input video
 * `confidenceFilters` (JSON) map of filter name to float in [0, 1]
-* `imageEnhancements` (JSON) values for image enhancements (brightness, contrast, saturation, sharpen)
+* `imageEnhancements` (JSON) values for image enhancements (brightness, contrast,
+  saturation, sharpen, optional `percentileStretch` with `lowPercentile` / `highPercentile`)
 * `customTypeStyline` (JSON) map of class name to GeoJS display attributes.
 * `foreign_media_id` (string) For "cloned" datasets, this is an objectId pointer to the source media
 

@@ -170,13 +170,13 @@ Authoritative JSON shapes (including `TrackData`, `Feature`, `GroupData`, and im
 
 | Service | Image / build | Purpose |
 |---------|---------------|---------|
-| **`traefik`** | `traefik:v2.4` | Reverse proxy; app on host port **8010** |
+| **`traefik`** | `traefik:v3.7.4` | Reverse proxy; app on host port **8010** |
 | **`girder`** | `docker/girder.Dockerfile` → `kitware/viame-web` | API + static DIVE + Girder web clients |
 | **`mongo`** | `mongo:5.0` | Girder database |
 | **`rabbit`** | `rabbitmq:4.2-management` | Celery broker (management UI on **15672**) |
 | **`redis`** | `redis:latest` | Job notifications (`GIRDER_NOTIFICATION_REDIS_URL`) |
 | **`memcached`** | `memcached` | Tile cache for `girder-large-image` |
-| **`localworker`** | Same image as girder | Celery on queue **`local`** (lightweight jobs in-container) |
+| **`localworker`** | Same image as girder | Celery on queue **`local`** (required; batch postprocess, async assetstore import) |
 | **`girder_worker_default`** | `docker/girder_worker.Dockerfile` → `kitware/viame-worker:cpu` | Queue **`celery`** — transcoding, zip, image conversion |
 | **`girder_worker_pipelines`** | `docker/girder_worker_gpu.Dockerfile` | Queue **`pipelines`** — VIAME detection pipelines (GPU) |
 | **`girder_worker_training`** | GPU Dockerfile | Queue **`training`** — VIAME training (GPU) |
@@ -308,7 +308,7 @@ Dependency management: **[uv](https://astral.sh/uv/)** (`uv sync` locally; Docke
 | **`celery`** | `girder_worker_default` | Media prep: video transcode, image conversion, zip extract, large-image conversion |
 | **`pipelines`** | `girder_worker_pipelines` | Run VIAME detection/tracking/analysis pipelines on a dataset |
 | **`training`** | `girder_worker_training` | VIAME training jobs |
-| **`local`** | `localworker` (in girder container) | Batch postprocess, async assetstore import |
+| **`local`** | `localworker` | Batch postprocess, async assetstore import |
 | **`{login}@private`** | User’s own worker (optional) | Same tasks, routed per-user when private queue is enabled |
 
 Worker entry: `python -m dive_tasks` (see `dive_tasks/__main__.py`, `dive_tasks/celeryconfig.py`).
@@ -418,8 +418,11 @@ Optional methods on **`Api`** (for example `getTiles`, `getTileURL`, `getLastCal
 - **Renderer:** `main.ts`, `frontend/` — same viewer stack as web
 - **Backend:** `backend/server.ts` — Express routes mirroring Girder
 - **Native jobs:** `backend/native/` — VIAME pipelines, training, media jobs
+- **Interactive service:** `backend/native/interactive.ts` — unified segmentation + stereo subprocess (desktop only)
 - **Serializers:** `backend/serializers/` — format conversion (viame, coco, kpf, dive, …)
-- **Build:** `npm run build:electron` → `dist_electron/`
+- **Build:** `npm run build:electron` → `dist_electron/`; `npm run dev:electron` for local development
+
+Shared segmentation recipe: `dive-common/recipes/segmentationpointclick.ts`. User docs: [Interactive Annotation](Interactive-Annotation.md).
 
 More detail: [client/platform/desktop/README.md](https://github.com/Kitware/dive/blob/main/client/platform/desktop/README.md).
 

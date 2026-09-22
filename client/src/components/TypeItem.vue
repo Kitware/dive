@@ -2,6 +2,11 @@
 import { computed, defineComponent } from 'vue';
 import TooltipBtn from './TooltipButton.vue';
 
+const INDENT_STEP_PX = 12;
+const TREE_PREFIX_PX = 20;
+const CHECKBOX_LEFT_PAD_PX = 8;
+const CHECKBOX_LABEL_GAP_TRIM_PX = 4;
+
 export default defineComponent({
   name: 'TypeItem',
 
@@ -16,6 +21,10 @@ export default defineComponent({
       type: String,
       required: true,
     },
+    displayTooltip: {
+      type: String,
+      default: '',
+    },
     confidenceFilterNum: {
       type: Number,
       required: true,
@@ -27,6 +36,30 @@ export default defineComponent({
     checked: {
       type: Boolean,
       required: true,
+    },
+    indeterminate: {
+      type: Boolean,
+      default: false,
+    },
+    tree: {
+      type: Boolean,
+      default: false,
+    },
+    depth: {
+      type: Number,
+      default: 0,
+    },
+    hasChildren: {
+      type: Boolean,
+      default: false,
+    },
+    expanded: {
+      type: Boolean,
+      default: false,
+    },
+    disclosureVisible: {
+      type: Boolean,
+      default: true,
     },
     width: {
       type: Number,
@@ -40,6 +73,15 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    isSuppressionType: {
+      type: Boolean,
+      default: false,
+    },
+    /** Configured region-overlap percent (0–100]; invalid values fall back to 99. */
+    suppressionThreshold: {
+      type: Number,
+      default: 99,
+    },
   },
   setup(props, { emit }) {
     /* Horizontal padding is the width of checkbox, scrollbar, and edit button */
@@ -49,12 +91,30 @@ export default defineComponent({
       }
       return 42 + 14 + 20 + 30;
     });
-    const cssVars = computed(() => ({ '--content-width': `${props.width - HorizontalPadding.value}px` }));
+    const HierarchyPadding = computed(() => (props.tree
+      ? (props.depth * INDENT_STEP_PX) + TREE_PREFIX_PX
+        - CHECKBOX_LEFT_PAD_PX - CHECKBOX_LABEL_GAP_TRIM_PX
+      : 0));
+    const cssVars = computed(() => ({
+      '--content-width': `${Math.max(
+        0,
+        props.width - HorizontalPadding.value - HierarchyPadding.value,
+      )}px`,
+      '--tree-depth': `${props.depth * INDENT_STEP_PX}px`,
+    }));
+    const effectiveOverlapPercent = computed(() => {
+      const p = Number(props.suppressionThreshold);
+      if (!Number.isFinite(p) || p <= 0 || p > 100) {
+        return 99;
+      }
+      return p;
+    });
     const goToFrame = () => {
       emit('goToMaxFrame', props.type);
     };
     return {
       cssVars,
+      effectiveOverlapPercent,
       goToFrame,
     };
   },
@@ -65,17 +125,42 @@ export default defineComponent({
   <v-row
     :style="cssVars"
     align="center"
-    class="hover-show-parent"
+    :class="['hover-show-parent', { 'tree-row': tree }]"
+    :role="tree ? 'listitem' : undefined"
+    :aria-level="tree ? depth + 1 : undefined"
   >
     <v-col class="d-flex flex-row py-0 align-center">
+      <div
+        v-if="tree"
+        class="tree-prefix d-flex align-center justify-center"
+      >
+        <button
+          v-if="hasChildren && disclosureVisible"
+          type="button"
+          class="tree-disclosure"
+          :aria-label="`${expanded ? 'Collapse' : 'Expand'} descendants of ${type}`"
+          :aria-expanded="expanded"
+          @click="$emit('toggleExpanded')"
+        >
+          <v-icon small>
+            {{ expanded ? 'mdi-chevron-down' : 'mdi-chevron-right' }}
+          </v-icon>
+        </button>
+        <span
+          v-else
+          class="tree-disclosure-spacer"
+          aria-hidden="true"
+        />
+      </div>
       <v-checkbox
-        :input-value="checked"
+        :input-value="checked || indeterminate"
+        :indeterminate="indeterminate"
         :color="color"
         :disabled="disabled"
         dense
         shrink
         hide-details
-        class="my-1 pl-2"
+        :class="['my-1', { 'pl-2': !tree }]"
         @change="$emit('setCheckedTypes', $event)"
       >
         <template #label>
@@ -92,7 +177,7 @@ export default defineComponent({
                   {{ displayText }}
                 </span>
               </template>
-              <span>{{ displayText }} </span>
+              <span>{{ displayTooltip || displayText }}</span>
             </v-tooltip>
             <v-tooltip
               v-if="confidenceFilterNum"
@@ -110,6 +195,31 @@ export default defineComponent({
                 </span>
               </template>
               <span>Type has threshold set individually</span>
+            </v-tooltip>
+            <v-tooltip
+              v-if="isSuppressionType"
+              open-delay="200"
+              bottom
+              max-width="280"
+            >
+              <template #activator="{ on, attrs }">
+                <v-icon
+                  small
+                  class="ml-1 suppression-icon"
+                  color="orange darken-2"
+                  v-bind="attrs"
+                  v-on="on"
+                >
+                  mdi-eye-off
+                </v-icon>
+              </template>
+              <span>
+                This type is used for suppression.
+                Detections lying {{ effectiveOverlapPercent }}% or more under its regions
+                are hidden and excluded from counts.
+                Detections with an attribute of this name set true stay visible
+                with their real type and an eye-off tag.
+              </span>
             </v-tooltip>
           </div>
         </template>
@@ -164,6 +274,11 @@ export default defineComponent({
 </template>
 
 <style lang="scss" scoped>
+@import 'src/components/styles/hover-reveal.scss';
+
+/* Keep in sync with `TREE_PREFIX_PX`. */
+$tree-prefix-width: 20px;
+
 .nowrap {
   white-space: nowrap;
   overflow: hidden;
@@ -171,23 +286,50 @@ export default defineComponent({
   text-overflow: ellipsis;
 }
 
-.hover-show-parent {
-  .hover-show-child {
-    display: none;
-  }
-
-  &:hover {
-    .hover-show-child {
-      display: inherit;
-    }
-  }
+.tree-row ::v-deep .v-input--selection-controls__input {
+  margin-right: 4px;
 }
+
+.tree-prefix {
+  flex: 0 0 $tree-prefix-width;
+  height: 30px;
+  margin-left: var(--tree-depth);
+}
+
+.tree-disclosure {
+  min-width: $tree-prefix-width;
+  width: $tree-prefix-width;
+  height: 24px;
+  padding: 0;
+  border: 0;
+  border-radius: 2px;
+  color: inherit;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tree-disclosure:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 1px;
+}
+
+.tree-disclosure-spacer {
+  display: inline-block;
+  width: $tree-prefix-width;
+}
+
 .outlined {
   background-color: gray;
   color: #222;
   font-weight: 600;
   border-radius: 6px;
+  margin-left: 4px;
   padding: 0 5px;
   font-size: 12px;
+}
+
+.suppression-icon {
+  flex-shrink: 0;
+  align-self: center;
 }
 </style>

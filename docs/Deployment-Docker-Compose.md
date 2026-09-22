@@ -69,8 +69,8 @@ VIAME server will be running at [http://localhost:8010](http://localhost:8010/).
 
 There are two ways to run the stack:
 
-* **Default (GPU-enabled):** runs the web services, the standard worker, and GPU workers.
-* **CPU profile (`--profile cpu`):** runs only the standard worker (`girder_worker_default`).
+* **Default (GPU-enabled):** runs the web services, `localworker`, the standard worker, and GPU workers.
+* **CPU profile (`--profile cpu`):** runs `girder_worker_default` and `localworker` only.
 
 Use these commands:
 
@@ -84,6 +84,12 @@ docker-compose -f docker-compose.yml --profile cpu up -d
 
 When GPU workers are not connected (for example, in CPU-only mode), the UI and API automatically disable pipeline and training features.
 
+### `localworker`
+
+Docker Compose includes a required **`localworker`** service (in `docker-compose.yml`, under the `gpu` and `cpu` profiles) that runs `celery -A girder_worker.app worker -Q local`. It uses the same image as the Girder web server and consumes the **`local`** queue for lightweight tasks such as batch postprocess and async assetstore import. **You must run `localworker` in both development and production**; without it, jobs routed to the `local` queue will not execute.
+
+When developing with `docker-compose.override.yml`, the same service mounts your local `server/` code. See also [Upgrading to Girder 5](Deployment-Girder-5-Upgrade.md).
+
 ![Login Page](images/General/login.png)
 
 ## Production deployment
@@ -93,7 +99,7 @@ If you have a server with a **public-facing IP address** and a **domain name** t
 * `containrrr/watchtower` updates the running containers on a schedule using automated image builds from docker hub (above).
 * `linuxserver/duplicati` is included to schedule nightly backups, but must be manually configured.
 
-You should scale the girder web server up to an appropriate number.  This stack will automatically load-balance across however many instances you bring up.
+You should scale the girder web server up to an appropriate number.  This stack will automatically load-balance across however many instances you bring up. Keep **`localworker`** running as well (one instance is enough; it is not scaled with `--scale girder`).
 
 ```bash
 # Continuing from above, modify .env again to include the production variables
@@ -111,22 +117,107 @@ docker-compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale gi
 It's possible to split your web server and task runner between multiple nodes.  This may be useful if you want to run DIVE Web without a GPU or if you want to save money by keeping your GPU instance stopped when not in use.  You could also increase parallel task capacity by running task runners on multiple nodes.
 
 * Make two cloud VM instances, one with NVIDIA drivers and container toolkit, and one without.  This is still a special case of scenario 1 from the [Provisioning Guide](Deployment-Provision.md)
-* Clone the dive repository on both, and set up `.env` on both with the same configuration.
-* On worker nodes, uncomment and set:
-    * `GIRDER_WORKER_BROKER` — RabbitMQ URL reachable on the web server (e.g. `amqp://guest:guest@your-web-host/default`)
-    * `GIRDER_SETTING_WORKER_API_URL` — Girder API URL on the web server (e.g. `http://your-web-host:8080/api/v1`)
-    * `GIRDER_NOTIFICATION_REDIS_URL` — Redis URL on the web server if workers use the same notification settings as Compose (e.g. `redis://your-web-host:6379`)
-* The web server must be network-accessible from workers for the API URL and from workers to RabbitMQ and Redis.
+* Clone the dive repository on both VMs. The `.env` files are **not** identical — the web VM keeps the internal Compose service names, while the worker VM points at the web VM's IP or hostname (referred to below as `WEB_HOST`).
+
+### Worker API URL settings
+
+Two related variables control how workers call back to Girder. They apply at different layers:
+
+| Variable | Where to set it | Role |
+|----------|-----------------|------|
+| `GIRDER_SETTING_WORKER_API_URL` | **Girder web server** process | Sets the Girder system setting `worker.api_url`. That value is **stamped into every job** when it is scheduled (Celery headers / `jobInfoSpec`). |
+| `GIRDER_WORKER_API_URL` | **Worker** process only | Optional **per-worker override**. When set, the worker uses this URL for API callbacks instead of the URL stamped at schedule time (including job status/log updates). |
+
+!!! tip "When to set `GIRDER_WORKER_API_URL`"
+
+    Use it when a worker cannot reach the API URL stamped by the server — typically remote or external workers that cannot resolve Docker-internal names like `girder:8080`.
+
+    Typical mixed setup:
+
+    * Web VM + `localworker` on the Compose network keep the default stamped URL `http://girder:8080/api/v1`.
+    * Remote worker VMs set `GIRDER_WORKER_API_URL=http://WEB_HOST:8010/api/v1` so they reach Girder through the host-published Traefik port.
+
+    Leave `GIRDER_WORKER_API_URL` **unset** on single-node stacks and on any worker that can already reach the stamped URL.
+
+!!! warning
+
+    `GIRDER_SETTING_WORKER_API_URL` only affects the **web server** process that schedules jobs. Setting it on a worker container does **not** change the callback URL that worker uses at runtime — use `GIRDER_WORKER_API_URL` for that.
+
+    Port `8080` is Girder's in-container port and is **not** published on the host. Traefik publishes the API on host port `8010` (base `docker-compose.yml`) or on `80`/`443` when you also use `docker-compose.prod.yml`. Remote workers should use the published port — never `8080` unless you publish it yourself.
+
+### Web VM `.env`
+
+The web VM runs RabbitMQ, Redis, and Mongo as Compose services and should keep internal service names. For a mixed local + remote worker deployment, leave the server stamping the internal URL (the Compose default):
+
+```
+# Optional — this is already the Compose default for a single-node / mixed stack
+#GIRDER_SETTING_WORKER_API_URL=http://girder:8080/api/v1
+```
+
+`localworker` on the same Compose network can reach `girder:8080` and does not need `GIRDER_WORKER_API_URL`.
+
+!!! note
+
+    If **every** worker (including `localworker`) can reach a single public API URL — for example via host hairpin to `WEB_HOST:8010` — you may instead set `GIRDER_SETTING_WORKER_API_URL=http://WEB_HOST:8010/api/v1` on the web VM and omit `GIRDER_WORKER_API_URL`. Prefer `GIRDER_WORKER_API_URL` on remote workers when local and remote workers need different reachable URLs.
+
+### Worker VM `.env`
+
+On the worker VM, uncomment and set these to point at `WEB_HOST`:
+
+* `GIRDER_WORKER_BROKER` — RabbitMQ URL on the web VM (e.g. `amqp://guest:guest@WEB_HOST/default`)
+* `GIRDER_WORKER_API_URL` — Girder API URL reachable from this worker (e.g. `http://WEB_HOST:8010/api/v1`)
+* `GIRDER_NOTIFICATION_REDIS_URL` — Redis URL on the web VM (e.g. `redis://WEB_HOST:6379`); required so workers can publish job/UI status notifications
+
+Example:
+
+```
+GIRDER_WORKER_BROKER=amqp://guest:guest@WEB_HOST/default
+GIRDER_WORKER_API_URL=http://WEB_HOST:8010/api/v1
+GIRDER_NOTIFICATION_REDIS_URL=redis://WEB_HOST:6379
+```
+
+### Required connectivity
+
+The worker VM must be able to reach the web VM on these ports (port `8080` does **not** need to be open between VMs):
+
+| Port | Service | Purpose |
+|------|---------|---------|
+| `8010` | Girder API (via Traefik) | Worker fetches job data and uploads results |
+| `5672` | RabbitMQ | Celery message broker |
+| `6379` | Redis | Job/UI status notifications |
+
+You can verify reachability from the worker VM with `nc -zv WEB_HOST 8010 5672 6379`.
 
 ``` bash
 ## On the web server
-docker-compose -f docker-compose.yml up -d girder rabbit mongo redis
+docker-compose -f docker-compose.yml up -d girder rabbit mongo redis localworker
 
 ## On the GPU server(s)
 docker-compose -f docker-compose.yml up -d --no-deps girder_worker_default girder_worker_pipelines girder_worker_training
 ```
 
-In this split setup, `girder_worker_default` handles standard queue jobs while the GPU workers handle pipeline/training queues. If GPU workers are offline, only non-GPU worker functionality remains available and pipeline/training actions are disabled.
+In this split setup, `localworker` on the web server handles the `local` queue, `girder_worker_default` handles standard queue jobs, and the GPU workers handle pipeline/training queues. If GPU workers are offline, only non-GPU worker functionality remains available and pipeline/training actions are disabled.
+
+### Verify the configuration
+
+After the stack is up:
+
+1. Confirm what the web server stamps into jobs (Swagger or curl on the web VM):
+
+```
+GET /api/v1/system/setting?key=worker.api_url
+```
+
+For the recommended mixed setup this is `http://girder:8080/api/v1`. That value is correct for `localworker`; remote workers rely on `GIRDER_WORKER_API_URL` instead.
+
+2. On each remote worker container, confirm the override is present:
+
+```bash
+docker compose exec girder_worker_default printenv GIRDER_WORKER_API_URL
+# -> http://WEB_HOST:8010/api/v1
+```
+
+If remote workers stall while `GET /worker/status` looks healthy (broker only), they usually cannot reach the stamped URL and `GIRDER_WORKER_API_URL` is missing or wrong.
 
 ## Addon management
 
@@ -184,7 +275,7 @@ This image contains both the backend and client.
 | GIRDER_ADMIN_PASS | `letmein` | admin password |
 | GIRDER_WORKER_BROKER | `amqp://guest:guest@rabbit/default` | RabbitMQ connection string (Celery broker) |
 | GIRDER_WORKER_BACKEND | `rpc://guest:guest@localhost/` | Celery result backend (RPC) |
-| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder REST API URL used by workers |
+| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder system setting `worker.api_url` stamped into jobs at schedule time. Default is correct for single-node and for `localworker` on the Compose network. See [Worker API URL settings](#worker-api-url-settings). |
 | GIRDER_NOTIFICATION_REDIS_URL | `redis://redis:6379` | Redis URL for notification fan-out |
 | GIRDER_STATIC_ROOT_DIR | `/opt/dive/clients/girder` | Built web client static files (set in image/Compose) |
 
@@ -211,7 +302,8 @@ This image contains a celery worker to run VIAME pipelines and transcoding jobs.
 | WORKER_CONCURRENCY | `# of CPU cores` | max concurrnet jobs. **Lower this if you run training** |
 | WORKER_GPU_UUID | null | leave empty to use all GPUs.  Specify UUID to use specific device |
 | GIRDER_WORKER_BROKER | `amqp://guest:guest@rabbit/default` | RabbitMQ connection string. Ignored in standalone mode. |
-| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Girder API URL (split/multi-node deployments). Ignored in standalone mode when using `DIVE_API_URL`. |
+| GIRDER_WORKER_API_URL | unset | Optional per-worker override of the Girder API base URL used for callbacks. Set on remote/external workers that cannot reach the URL stamped by the server (e.g. `http://WEB_HOST:8010/api/v1`). See [Worker API URL settings](#worker-api-url-settings). Ignored in standalone mode when using `DIVE_API_URL`. |
+| GIRDER_SETTING_WORKER_API_URL | `http://girder:8080/api/v1` | Only meaningful on the **web server** (stamped at schedule time). Setting it on a worker process does not override callback URLs at runtime — use `GIRDER_WORKER_API_URL` instead. |
 | GIRDER_NOTIFICATION_REDIS_URL | `redis://redis:6379` | Redis for notifications when running workers in Compose |
 | KWIVER_DEFAULT_LOG_LEVEL | `warn` | Log level for VIAME pipeline jobs (env name unchanged; used by the Kwiver logging stack) |
 | DIVE_USERNAME | null | Username to start private queue processor. Providing this enables standalone mode. |
@@ -246,6 +338,3 @@ docker run --rm --name dive_worker \
   kitware/viame-worker:latest
 ```
 
-### Development: `localworker`
-
-With `docker-compose.override.yml`, Compose also starts a **`localworker`** service that runs `celery -A girder_worker.app worker -Q local` for development tasks. It is not required for production; see [Upgrading to Girder 5](Deployment-Girder-5-Upgrade.md).

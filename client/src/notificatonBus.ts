@@ -52,7 +52,6 @@ export default function registerNotifications(_rc: any) {
 
   function onWebSocketError() {
     disconnect();
-    // eslint-disable-next-line @typescript-eslint/no-use-before-define
     window.setTimeout(connect, retryMsDefault);
   }
 
