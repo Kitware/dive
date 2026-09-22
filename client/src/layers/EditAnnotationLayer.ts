@@ -764,13 +764,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       clearTimeout(this.leftButtonCheckTimeout);
       this.leftButtonCheckTimeout = -1;
       this.skipNextExternalUpdate = false;
-      // Already off: skip mode(null). Calling it again strips peer-layer
-      // creation/edit actions from the shared map interactor (LayerManager
-      // often disables the companion box on every refresh during line draw).
-      if (this.getMode() === 'disabled') {
-        return;
+      // Skip redundant mode(null), which strips a peer's interactor actions,
+      // but always clear overlays: GeoJS can finish editing before DIVE
+      // disables the layer, leaving completed annotations in disabled mode.
+      if (this.getMode() !== 'disabled') {
+        this.setMode(null);
       }
-      this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
       if (this.arrowFeatureLayer) {
         this.arrowFeatureLayer.data([]).draw();

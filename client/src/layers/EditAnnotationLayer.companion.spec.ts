@@ -48,7 +48,7 @@ async function harness() {
   const lineCoords = () => round(line.featureLayer.annotations()[0].geojson().geometry.coordinates);
   const boxCoords = () => round(box.featureLayer.annotations()[0].geojson().geometry.coordinates[0]);
   return {
-    mouse, drag, lineUpdate, boxUpdate, lineCoords, boxCoords, line, box, frameData, cursors,
+    mouse, drag, lineUpdate, boxUpdate, lineCoords, boxCoords, line, box, frameData, cursors, map, track,
   };
 }
 
@@ -61,6 +61,28 @@ it('drags a box corner in line mode without disturbing a previously hovered line
   expect(h.boxCoords()).toContainEqual([30, 30]);
   expect(h.lineUpdate).not.toHaveBeenCalled();
   expect(h.lineCoords()).toEqual([[100, 100], [300, 300]]);
+});
+
+it('clears finalized line and box overlays before displaying a frame without the detection', async () => {
+  const h = await harness();
+  // GeoJS ends edit mode on right-click but keeps the completed annotations.
+  h.map.interactor().simulateEvent('mousedown', { map: { x: 200, y: 200 }, button: 'right' });
+  h.map.interactor().simulateEvent('mouseup', { map: { x: 200, y: 200 }, button: 'right' });
+  expect(h.line.getMode()).toBe('disabled');
+  expect(h.box.getMode()).toBe('disabled');
+  expect(h.box.featureLayer.annotations()).toHaveLength(1);
+
+  // Deselect and the next frame's refresh both disable the editing layers.
+  h.line.disable();
+  h.box.disable();
+  expect(h.track.getFeature(1)[0]).toBeNull();
+  h.line.disable();
+  h.box.disable();
+  h.mouse('mousemove', 50, 50);
+  expect(h.line.featureLayer.annotations()).toHaveLength(0);
+  expect(h.box.featureLayer.annotations()).toHaveLength(0);
+  expect(h.lineUpdate).not.toHaveBeenCalled();
+  expect(h.boxUpdate).not.toHaveBeenCalled();
 });
 
 it('drags a line vertex without disturbing a previously hovered box corner', async () => {
