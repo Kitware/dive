@@ -1699,7 +1699,9 @@ export default function useModeManager({
    * This is called when the user confirms the segmentation (right-click or Enter).
    */
   function handleSegmentationPredictionConfirmed(result: SegmentationPredictionResult) {
-    handleSegmentationPredictionReady(result);
+    // Each click already ran the stereo copy and auto-populate for this mask;
+    // confirming only commits it.
+    handleSegmentationPredictionReady({ ...result, controlPoints: undefined });
   }
 
   /** Click-path variant: a fresh point click that should honor continuous mode. */

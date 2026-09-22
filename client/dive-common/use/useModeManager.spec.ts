@@ -615,3 +615,29 @@ describe('auto-populate of point-segmented masks', () => {
     expect(newGeometryEvents).toEqual([]);
   });
 });
+
+describe('stereo copy of a point-segmented mask', () => {
+  it('runs once per click and not again when the mask is confirmed', () => {
+    const wasAutoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+    clientSettings.stereoSettings.autoComputeOtherCamera = true;
+    try {
+      const recipe = new SegmentationPointClick();
+      const events: StereoAnnotationCompleteParams[] = [];
+      const { modeManager: manager } = makeHarness(undefined, [recipe], (params) => events.push(params));
+      manager.handler.trackAdd();
+      const result = {
+        polygon: [[0, 0], [10, 0], [10, 10]] as [number, number][],
+        bounds: null,
+        frameNum: 0,
+        controlPoints: { points: [[5, 5]] as [number, number][], labels: [1] },
+      };
+      recipe.bus.$emit('prediction-ready', result);
+      expect(events.map((e) => e.type)).toEqual(['segmentation']);
+      recipe.bus.$emit('prediction-confirmed', result);
+      recipe.bus.$emit('prediction-confirmed-multi', { frames: new Map([[0, result]]) });
+      expect(events.map((e) => e.type)).toEqual(['segmentation']);
+    } finally {
+      clientSettings.stereoSettings.autoComputeOtherCamera = wasAutoCompute;
+    }
+  });
+});
