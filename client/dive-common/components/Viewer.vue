@@ -727,7 +727,7 @@ export default defineComponent({
       sorted: cameraStore.sortedTracks,
       remove: removeTracks,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
-      lookupGroups: cameraStore.lookupGroups,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
       getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
       renameTrackPair: (id, currentType, newType) => (
         cameraStore.renameTrackPair(id, currentType, newType)

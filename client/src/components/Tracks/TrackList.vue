@@ -122,6 +122,47 @@ export default defineComponent({
       },
     );
 
+    /** Same per-frame / suppression visibility the list uses when frame filtering is on. */
+    function isListedAtCurrentFrame(trackId: number): boolean {
+      const editRevision = pendingSaveCount.value;
+      const suppType = clientSettings.typeSettings.suppressionType;
+      const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
+      const suppressionResolver = suppressionResolutionRef.value;
+      const suppressedByCamera = new Map<string, Set<number>>();
+      cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+        suppressedByCamera.set(
+          cameraName,
+          (editRevision >= 0)
+            ? getSuppressedTrackIds(
+              trackStore,
+              frameRef.value,
+              suppType,
+              suppThreshold,
+              { revision: editRevision, resolver: suppressionResolver },
+            )
+            : new Set<number>(),
+        );
+      });
+      let visible = false;
+      cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+        if (visible) {
+          return;
+        }
+        if (suppressedByCamera.get(cameraName)?.has(trackId)) {
+          return;
+        }
+        const possibleTrack = trackStore.getPossible(trackId);
+        if (!possibleTrack) {
+          return;
+        }
+        const [feature] = possibleTrack.getFeature(frameRef.value);
+        if (feature && feature.keyframe) {
+          visible = true;
+        }
+      });
+      return visible;
+    }
+
     const finalFilteredTracks = computed<TrackWithContext[]>(() => {
       let tracks = filteredTracksRef.value;
       if (trackFilters.hierarchyActive.value) {
@@ -132,47 +173,7 @@ export default defineComponent({
       if (filterDetectionsByFrame.value && !isPlaying.value) {
         // Depend on the edit counter so moving a suppression region re-runs the
         // filter (geometry mutations are not reactive track-set changes).
-        const editRevision = pendingSaveCount.value;
-        const suppType = clientSettings.typeSettings.suppressionType;
-        const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
-        const suppressionResolver = suppressionResolutionRef.value;
-        // Per-camera region suppression at this frame; a track stays visible if
-        // any camera has an unsuppressed keyframe (same union as type frame filter).
-        const suppressedByCamera = new Map<string, Set<number>>();
-        cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
-          suppressedByCamera.set(
-            cameraName,
-            (editRevision >= 0)
-              ? getSuppressedTrackIds(
-                trackStore,
-                frameRef.value,
-                suppType,
-                suppThreshold,
-                { revision: editRevision, resolver: suppressionResolver },
-              )
-              : new Set<number>(),
-          );
-        });
-        tracks = tracks.filter((track) => {
-          let visible = false;
-          cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
-            if (visible) {
-              return;
-            }
-            if (suppressedByCamera.get(cameraName)?.has(track.annotation.id)) {
-              return;
-            }
-            const possibleTrack = trackStore.getPossible(track.annotation.id);
-            if (!possibleTrack) {
-              return;
-            }
-            const [feature] = possibleTrack.getFeature(frameRef.value);
-            if (feature && feature.keyframe) {
-              visible = true;
-            }
-          });
-          return visible;
-        });
+        tracks = tracks.filter((track) => isListedAtCurrentFrame(track.annotation.id));
       }
 
       // Helper to get notes from a track's first keyframe
@@ -379,7 +380,12 @@ export default defineComponent({
       const types = [...trackFilters.checkedTypes.value];
       const ids = new Set(scope === 'below' ? [] : checkedDisplayedTracks());
       if (scope !== 'above') {
-        trackFilters.annotationIdsBelowThreshold(types).forEach((id) => ids.add(id));
+        let below = trackFilters.annotationIdsBelowThreshold(types);
+        // Match the list's frame / suppression visibility when that filter is on.
+        if (filterDetectionsByFrame.value && !isPlaying.value) {
+          below = below.filter((id) => isListedAtCurrentFrame(id));
+        }
+        below.forEach((id) => ids.add(id));
       }
       // Use the same track deletion path for every scope (including group and selection cleanup).
       removeTrack([...ids], true);

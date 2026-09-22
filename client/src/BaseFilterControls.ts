@@ -239,7 +239,10 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     });
   }
 
-  /** Tracks with enabled classes, none of which reach their confidence threshold. */
+  /**
+   * Tracks with enabled classes, none of which reach their confidence threshold.
+   * TrackFilterControls overrides this to also apply time, group, and attribute filters.
+   */
   annotationIdsBelowThreshold(types: string[]): AnnotationId[] {
     const wanted = new Set(types);
     const filters = this.confidenceFilters.value;
