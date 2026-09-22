@@ -41,6 +41,9 @@ import SegmentationPointClick, {
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
 import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import {
+  componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
+} from 'dive-common/recipes/segmentationPolygons';
 import { linePointEdit } from './stereo/keypointTransfer';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
@@ -1539,16 +1542,43 @@ export default function useModeManager({
    * again after every click that reshapes it. Refining an existing detection's
    * mask does not.
    */
-  function emitMaskGeometry(trackId: number, frameNum: number, polygon: [number, number][]) {
-    if (!onNewAnnotationGeometry || polygon.length < 3
+  function emitMaskGeometry(trackId: number, frameNum: number, polygons: SegmentationPolygon[]) {
+    if (!onNewAnnotationGeometry || polygons.length === 0
       || preSegmentationFeatures.get(frameNum)?.hadFeature === true) return;
     onNewAnnotationGeometry({
       camera: selectedCamera.value,
       trackId,
       frameNum,
       source: 'mask',
-      polygons: [{ exterior: polygon, holes: [] }],
+      polygons,
     });
+  }
+
+  /**
+   * Store a mask's components as keyed polygons on the detection, dropping the
+   * components of the previous prediction that this one no longer has.
+   */
+  function applySegmentationPolygons(
+    track: Track,
+    frameNum: number,
+    components: ReturnType<typeof segmentationComponents>,
+    bounds: RectBounds | null | undefined,
+  ) {
+    const polygons = segmentationPolygonFeatures(components, SegmentationPolygonKey);
+    const keys = new Set(polygons.map((polygon) => polygon.properties?.key));
+    track.getPolygonFeatures(frameNum).forEach((existing) => {
+      if (isSegmentationPolygonKey(existing.key, SegmentationPolygonKey) && !keys.has(existing.key)) {
+        track.removeFeatureGeometry(frameNum, { key: existing.key, type: 'Polygon' });
+      }
+    });
+    const { interpolate } = track.canInterpolate(frameNum);
+    track.setFeature({
+      frame: frameNum,
+      flick: 0,
+      bounds: bounds || componentsBounds(components),
+      keyframe: true,
+      interpolate,
+    }, polygons as GeoJSON.Feature<TrackSupportedFeature>[]);
   }
 
   /**
@@ -1567,35 +1597,11 @@ export default function useModeManager({
     }
 
     // Create polygon geometry from prediction result
-    if (result.polygon && result.polygon.length >= 3) {
-      const bounds = result.bounds || [
-        Math.min(...result.polygon.map((p) => p[0])),
-        Math.min(...result.polygon.map((p) => p[1])),
-        Math.max(...result.polygon.map((p) => p[0])),
-        Math.max(...result.polygon.map((p) => p[1])),
-      ] as [number, number, number, number];
-
-      // Close polygon if not already closed
-      const closedPolygon = [...result.polygon];
-      const first = closedPolygon[0];
-      const last = closedPolygon[closedPolygon.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        closedPolygon.push([...first] as [number, number]);
-      }
-
-      const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [closedPolygon],
-        },
-        properties: { key: SegmentationPolygonKey },
-      }];
-
+    const components = segmentationComponents(result);
+    if (components.length > 0) {
       // Update the track's feature with the preview polygon
       // Use frame number from the result if provided, otherwise current frame
       const targetFrame = result.frameNum ?? selectedCameraFrame();
-      const { interpolate } = track.canInterpolate(targetFrame);
 
       // Save original feature state before first prediction modifies the track
       if (!preSegmentationFeatures.has(targetFrame)) {
@@ -1630,19 +1636,13 @@ export default function useModeManager({
         }
       }
 
-      track.setFeature({
-        frame: targetFrame,
-        flick: 0,
-        bounds,
-        keyframe: true,
-        interpolate,
-      }, polygonGeometry);
+      applySegmentationPolygons(track, targetFrame, components, result.bounds);
 
       mirrorFeatureToAlignedCameras(track.id, targetFrame);
 
       _nudgeEditingCanary();
 
-      if (result.controlPoints) emitMaskGeometry(track.id, targetFrame, result.polygon);
+      if (result.controlPoints) emitMaskGeometry(track.id, targetFrame, components);
 
       // Interactive stereo: as soon as the left polygon is predicted, generate
       // the other-camera polygon + head/tail lines + measurement automatically,
@@ -1708,40 +1708,9 @@ export default function useModeManager({
 
     // Apply each frame's prediction to the track
     result.frames.forEach((frameResult, frameNum) => {
-      if (frameResult.polygon && frameResult.polygon.length >= 3) {
-        const bounds = frameResult.bounds || [
-          Math.min(...frameResult.polygon.map((p) => p[0])),
-          Math.min(...frameResult.polygon.map((p) => p[1])),
-          Math.max(...frameResult.polygon.map((p) => p[0])),
-          Math.max(...frameResult.polygon.map((p) => p[1])),
-        ] as [number, number, number, number];
-
-        // Close polygon if not already closed
-        const closedPolygon = [...frameResult.polygon];
-        const first = closedPolygon[0];
-        const last = closedPolygon[closedPolygon.length - 1];
-        if (first[0] !== last[0] || first[1] !== last[1]) {
-          closedPolygon.push([...first] as [number, number]);
-        }
-
-        const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [closedPolygon],
-          },
-          properties: { key: SegmentationPolygonKey },
-        }];
-
-        const { interpolate } = track.canInterpolate(frameNum);
-
-        track.setFeature({
-          frame: frameNum,
-          flick: 0,
-          bounds,
-          keyframe: true,
-          interpolate,
-        }, polygonGeometry);
+      const components = segmentationComponents(frameResult);
+      if (components.length > 0) {
+        applySegmentationPolygons(track, frameNum, components, frameResult.bounds);
 
         mirrorFeatureToAlignedCameras(track.id, frameNum);
 

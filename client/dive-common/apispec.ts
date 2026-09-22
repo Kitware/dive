@@ -626,6 +626,11 @@ export interface SegmentationPolygon {
   holes: [number, number][][];
 }
 
+export interface SegmentationPolygon {
+  exterior: [number, number][];
+  holes: [number, number][][];
+}
+
 export interface SegmentationPredictResponse {
   /** Whether the prediction succeeded */
   success: boolean;
