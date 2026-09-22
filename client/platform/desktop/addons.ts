@@ -10,7 +10,6 @@ export interface ViameAddon {
 export interface AddonInstallRequest {
   name: string;
   archive?: string;
-  force?: boolean;
 }
 export interface AddonJob {
   name: string;
