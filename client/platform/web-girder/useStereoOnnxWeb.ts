@@ -447,8 +447,8 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     handleStereoTrackLinked,
     warpAllFromCamera,
     getFrame,
-    warpPoints: async (points: [number, number][], camera: string, frame: number) => (
-      getTransfer()?.warpPoints(points, camera, frame) ?? []
+    warpPoints: async (points: [number, number][], camera: string, frame: number, line = false) => (
+      getTransfer()?.warpPoints(points, camera, frame, line) ?? []
     ),
     refreshMeasurement: async (id: number, frame: number) => getTransfer()?.refreshMeasurement(id, frame),
     stereoViewLink,

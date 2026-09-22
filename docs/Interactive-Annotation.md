@@ -172,14 +172,25 @@ VIAME's `hull_extremes` method. Multiple components and holes are retained.
 Browser contours can differ slightly from native OpenCV contours.
 
 For calibrated stereo datasets, enable automatic other-camera computation and
-length updates. DIVE transfers segmentation prompts using the selected stereo
-correspondence method, then runs SAM on the other camera. Existing masks supply
-interior sample points; boxes with auto-population enabled transfer through
-their masks instead of background box corners. Both cameras' geometry is
-finished before length is updated. Uncertain prompt matches and masks far out
-of scale with the source are rejected. Manually edited counterparts are
+length updates. DIVE uses the desktop mask-transfer rules with the selected stereo correspondence
+method, then runs SAM on the other camera. Each mask component supplies deep,
+spread-out interior points (five overall, with at least two per component).
+Matches with offsets inconsistent with their component are discarded. Original
+clicks and their positive/negative labels provide a fallback if no interior
+matches survive. Boxes with auto-population enabled transfer through their masks. Both cameras' geometry is
+finished before length is updated. Transfers with no matched prompts are rejected, as are masks whose area
+is more than 2.5 times larger or smaller than the source (subtracting holes). Manually edited counterparts are
 preserved. Reset/cancel removes the generated counterpart preview; confirming
 keeps it.
+
+Fast-FoundationStereo caches one dense disparity map per frame pair/direction.
+Like desktop, it samples the 90th-percentile disparity in a 7×7 neighbourhood,
+using original-image pixel spacing even when the ONNX model has lower resolution.
+Straight measurement lines use an 11-sample disparity fit, allowing three outliers
+and a 10-pixel residual; failed fits fall back to endpoint matching. Curves keep
+individually transferred vertices. NCC retains its own correspondence search.
+The transfer rules follow desktop defaults, but browser rectification, model
+exports, and polygon rasterization can still produce different results.
 
 Image sequences and loaded video frames are supported. Video pixels are
 captured at the annotation event so model loading cannot accidentally use a

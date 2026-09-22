@@ -16,7 +16,9 @@ import { SegmentationPolygonKey } from 'dive-common/recipes/segmentationpointcli
 import populateAnnotation from 'dive-common/use/populateAnnotation';
 import { autoPopulateTarget } from 'dive-common/use/autoPopulate';
 import SamOnnx from 'dive-common/use/segmentation/SamOnnx';
-import { maskSeeds, maskKeypoints } from 'dive-common/use/segmentation/maskGeometry';
+import {
+  maskSeeds, maskKeypoints, consistentMaskSeeds, maskArea,
+} from 'dive-common/use/segmentation/maskGeometry';
 import type { RgbaImage } from 'dive-common/use/stereo/image';
 import { STEREO_USER_LINE_ATTR } from 'dive-common/use/stereo/useStereoOnnxTransfer';
 import type useStereoOnnxWeb from './useStereoOnnxWeb';
@@ -163,16 +165,30 @@ export default function useWebSegmentation(
       const sourceUnchanged = autoPopulateTarget(() => trackAt(params), params.frameNum);
       const targetBefore = signature(prior, params.frameNum);
       const components = params.type === 'segmentation' ? polygonsAt(params) : sourceMask;
-      const points = params.type === 'segmentation' ? params.points : maskSeeds(components);
-      const labels = params.type === 'segmentation' ? params.labels : points.map(() => 1);
-      if (!points.length) throw new Error('No foreground prompts inside the source mask.');
-      const warped = await stereo.warpPoints(points, params.camera, params.frameNum);
-      // Never turn a failed negative prompt into an unintended positive mask.
-      if (warped.length !== points.length || warped.some((p) => p === null)) {
-        throw new Error('No confident stereo match for the segmentation prompts.');
+      // Desktop samples the source mask even for click segmentation; negative
+      // clicks have already carved the source mask and its holes.
+      const groups = components.map((polygon) => maskSeeds([polygon], Math.max(2, Math.ceil(5 / components.length))));
+      const sampled = groups.flat();
+      const mappedSeeds = sampled.length ? await stereo.warpPoints(sampled, params.camera, params.frameNum) : [];
+      let offset = 0;
+      let warped = groups.flatMap((points, i) => {
+        const matches = consistentMaskSeeds(points, mappedSeeds.slice(offset, offset + points.length), components[i]);
+        offset += points.length;
+        return matches;
+      });
+      let labels = warped.map(() => 1);
+      // Like desktop, fall back to the user's prompts only if mask sampling
+      // yielded no matches; keep the original positive/negative labels aligned.
+      if (!warped.length && params.type === 'segmentation') {
+        const direct = await stereo.warpPoints(params.points, params.camera, params.frameNum);
+        warped = []; labels = [];
+        direct.forEach((point, i) => {
+          if (point) { warped.push(point); labels.push(params.labels[i]); }
+        });
       }
+      if (!warped.length) throw new Error('No confident stereo match for the segmentation prompts.');
       if (!valid() || !sourceUnchanged()) return;
-      const warpedLine = params.type === 'line' ? await stereo.warpPoints(params.line, params.camera, params.frameNum) : null;
+      const warpedLine = params.type === 'line' ? await stereo.warpPoints(params.line, params.camera, params.frameNum, true) : null;
       if (params.type === 'line' && (!warpedLine || warpedLine.length !== params.line.length || warpedLine.some((p) => p === null))) {
         throw new Error('No confident stereo match for the line endpoints.');
       }
@@ -183,11 +199,11 @@ export default function useWebSegmentation(
       if (!response.success || !targetMask.length) throw new Error(response.error || 'No mask found on the other camera.');
       if (!valid() || !sourceUnchanged() || trackAt(mapped) !== prior
         || signature(prior, params.frameNum) !== targetBefore) return;
-      const sourceBounds = componentsBounds(components);
       const bounds = componentsBounds(targetMask);
-      const extent = (b: number[]) => Math.max(b[2] - b[0], b[3] - b[1]);
-      const ratio = extent(bounds) / extent(sourceBounds);
-      if (ratio < 0.25 || ratio > 4) throw new Error('The other-camera mask is out of scale with the source mask.');
+      const sourceArea = maskArea(components); const targetArea = maskArea(targetMask);
+      if (sourceArea > 0 && targetArea > 0 && (targetArea / sourceArea < 1 / 2.5 || targetArea / sourceArea > 2.5)) {
+        throw new Error('The other-camera mask is out of scale with the source mask.');
+      }
       let track = prior;
       if (!track) {
         const source = trackAt(params);

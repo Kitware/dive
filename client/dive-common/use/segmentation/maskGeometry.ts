@@ -1,4 +1,4 @@
-import { contours, polygonHull, polygonContains } from 'd3';
+import { contours, polygonHull, polygonArea } from 'd3';
 import type { SegmentationPolygon, SegmentationPredictResponse } from 'dive-common/apispec';
 import { componentsBounds } from 'dive-common/recipes/segmentationPolygons';
 
@@ -94,32 +94,129 @@ export function maskKeypoints(polygons: SegmentationPolygon[]): { success: true;
   return { success: true, head: clipped[0], tail: clipped[1] };
 }
 
-/** Interior seeds for existing masks; polygon centres may fall in holes or
- * outside concave objects. Sample each component independently. */
-export function maskSeeds(polygons: SegmentationPolygon[]): Point[] {
+/** Rasterize rounded polygon rings, including their boundary pixels, as in
+ * desktop's fillPoly. Work only in the component bounds, not the full frame. */
+function rasterRing(
+  mask: Uint8Array,
+  width: number,
+  height: number,
+  ring: Point[],
+  value: number,
+  origin: Point,
+) {
+  if (ring.length < 3) return;
+  // numpy.rint uses ties-to-even when desktop translates vertices into its ROI.
+  const round = (v: number) => (v % 1 === 0.5 ? 2 * Math.round(v / 2) : Math.round(v));
+  const vertices = ring.map(([x, y]) => [round(x - origin[0]), round(y - origin[1])] as Point);
+  const pixels = mask;
+  const put = (x: number, y: number) => { if (x >= 0 && y >= 0 && x < width && y < height) pixels[y * width + x] = value; };
+  for (let y = 0; y < height; y += 1) {
+    const crossings: number[] = [];
+    vertices.forEach(([x0, y0], i) => {
+      const [x1, y1] = vertices[(i + 1) % vertices.length];
+      if ((y0 <= y && y1 > y) || (y1 <= y && y0 > y)) crossings.push(x0 + ((y - y0) * (x1 - x0)) / (y1 - y0));
+    });
+    crossings.sort((a, b) => a - b);
+    for (let i = 0; i + 1 < crossings.length; i += 2) {
+      for (let x = Math.ceil(crossings[i]); x <= Math.floor(crossings[i + 1]); x += 1) put(x, y);
+    }
+  }
+  vertices.forEach(([ax, ay], i) => {
+    const [bx, by] = vertices[(i + 1) % vertices.length];
+    let x = ax; let y = ay;
+    const dx = Math.abs(bx - ax); const dy = -Math.abs(by - ay);
+    const sx = ax < bx ? 1 : -1; const sy = ay < by ? 1 : -1;
+    let error = dx + dy;
+    for (;;) {
+      put(x, y);
+      if (x === bx && y === by) break;
+      const twice = 2 * error;
+      if (twice >= dy) { error += dy; x += sx; }
+      if (twice <= dx) { error += dx; y += sy; }
+    }
+  });
+}
+
+/** Desktop mask sampling: deepest point first, then farthest-point sampling
+ * among pixels at least one third of the maximum interior depth. */
+export function maskSeeds(polygons: SegmentationPolygon[], count = Math.max(2, Math.ceil(5 / polygons.length))): Point[] {
   return polygons.flatMap((polygon) => {
+    if (polygon.exterior.length < 3) return [];
     const [x0, y0, x1, y1] = componentsBounds([polygon]);
-    const inside = (p: Point) => polygonContains(polygon.exterior, p)
-      && !polygon.holes.some((hole) => polygonContains(hole, p));
-    const candidates: Point[] = [];
-    for (let y = 1; y < 10; y += 1) {
-      for (let x = 1; x < 10; x += 1) {
-        const p: Point = [x0 + ((x1 - x0) * x) / 10, y0 + ((y1 - y0) * y) / 10];
-        if (inside(p)) candidates.push(p);
+    if (![x0, y0, x1, y1].every(Number.isFinite)) return [];
+    const origin: Point = [Math.floor(x0) - 1, Math.floor(y0) - 1];
+    const width = Math.ceil(x1) - origin[0] + 2; const height = Math.ceil(y1) - origin[1] + 2;
+    const mask = new Uint8Array(width * height);
+    rasterRing(mask, width, height, polygon.exterior, 1, origin);
+    polygon.holes.forEach((hole) => rasterRing(mask, width, height, hole, 0, origin));
+    const depth = Float32Array.from(mask, (v) => (v ? Infinity : 0));
+    // OpenCV DIST_L2, mask size 3: axial 0.955, diagonal 1.3693.
+    for (let y = 1; y < height - 1; y += 1) {
+      for (let x = 1; x < width - 1; x += 1) {
+        const i = y * width + x;
+        if (mask[i]) {
+          depth[i] = Math.min(
+            depth[i],
+            depth[i - 1] + 0.955,
+            depth[i - width] + 0.955,
+            depth[i - width - 1] + 1.3693,
+            depth[i - width + 1] + 1.3693,
+          );
+        }
       }
     }
-    // Thin objects may miss the grid: test points just inside their edges.
-    if (!candidates.length) {
-      polygon.exterior.forEach((a, i) => {
-        const b = polygon.exterior[(i + 1) % polygon.exterior.length];
-        const d = Math.hypot(b[0] - a[0], b[1] - a[1]) || 1;
-        [-0.25, 0.25].forEach((offset) => {
-          const p: Point = [(a[0] + b[0]) / 2 - (offset * (b[1] - a[1])) / d,
-            (a[1] + b[1]) / 2 + (offset * (b[0] - a[0])) / d];
-          if (inside(p)) candidates.push(p);
-        });
-      });
+    let deepest = 0;
+    for (let y = height - 2; y > 0; y -= 1) {
+      for (let x = width - 2; x > 0; x -= 1) {
+        const i = y * width + x;
+        if (mask[i]) {
+          depth[i] = Math.min(
+            depth[i],
+            depth[i + 1] + 0.955,
+            depth[i + width] + 0.955,
+            depth[i + width - 1] + 1.3693,
+            depth[i + width + 1] + 1.3693,
+          );
+        }
+      }
     }
-    return candidates.filter((_, i) => i % Math.max(1, Math.ceil(candidates.length / 5)) === 0).slice(0, 5);
+    for (let i = 0; i < depth.length; i += 1) if (depth[i] > depth[deepest]) deepest = i;
+    if (!depth[deepest] || !Number.isFinite(depth[deepest])) return [];
+    const candidates: number[] = [];
+    const minDepth = Math.fround(depth[deepest] / 3);
+    for (let i = 0; i < depth.length; i += 1) if (depth[i] >= minDepth) candidates.push(i);
+    const point = (i: number): Point => [(i % width) + origin[0], Math.floor(i / width) + origin[1]];
+    const result = [point(deepest)];
+    const distances = new Float64Array(candidates.length).fill(Infinity);
+    while (result.length < count) {
+      const last = result[result.length - 1]; let farthest = 0;
+      candidates.forEach((i, j) => {
+        const p = point(i);
+        distances[j] = Math.min(distances[j], (p[0] - last[0]) ** 2 + (p[1] - last[1]) ** 2);
+        if (distances[j] > distances[farthest]) farthest = j;
+      });
+      if (distances[farthest] <= 0) break;
+      result.push(point(candidates[farthest]));
+    }
+    return result;
   });
+}
+
+/** Remove correspondences whose offsets disagree with the component median. */
+export function consistentMaskSeeds(points: Point[], warped: (Point | null)[], polygon: SegmentationPolygon): Point[] {
+  const matches = points.flatMap((p, i) => (warped[i] ? [{ point: warped[i]!, shift: [warped[i]![0] - p[0], warped[i]![1] - p[1]] }] : []));
+  if (!matches.length) return [];
+  const median = (axis: number) => {
+    const values = matches.map((m) => m.shift[axis]).sort((a, b) => a - b);
+    return (values[Math.floor(values.length / 2)] + values[Math.floor((values.length - 1) / 2)]) / 2;
+  };
+  const mx = median(0); const my = median(1);
+  const [x0, y0, x1, y1] = componentsBounds([polygon]);
+  const tolerance = Math.max(4, 0.1 * Math.hypot(x1 - x0, y1 - y0));
+  return matches.filter((m) => Math.hypot(m.shift[0] - mx, m.shift[1] - my) <= tolerance).map((m) => m.point);
+}
+
+export function maskArea(polygons: SegmentationPolygon[]): number {
+  return polygons.reduce((sum, p) => sum + Math.max(0, Math.abs(polygonArea(p.exterior))
+    - p.holes.reduce((area, hole) => area + Math.abs(polygonArea(hole)), 0)), 0);
 }

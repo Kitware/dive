@@ -49,7 +49,7 @@ function solidImage(width: number, height: number, rgb: [number, number, number]
 }
 
 /** Returns a constant disparity and counts runs; `gate` can hold a run open. */
-function fakeSession(disparity: number): DisparitySession & { runs: number; feeds: Record<string, ort.Tensor>[] } {
+function fakeSession(disparity: number | Float32Array): DisparitySession & { runs: number; feeds: Record<string, ort.Tensor>[] } {
   const session = {
     runs: 0,
     feeds: [] as Record<string, ort.Tensor>[],
@@ -58,7 +58,7 @@ function fakeSession(disparity: number): DisparitySession & { runs: number; feed
       session.feeds.push(feeds);
       const plane = SPEC.width * SPEC.height;
       return {
-        disparity: new ort.Tensor('float32', new Float32Array(plane).fill(disparity), [1, 1, SPEC.height, SPEC.width]),
+        disparity: new ort.Tensor('float32', typeof disparity === 'number' ? new Float32Array(plane).fill(disparity) : disparity.slice(), [1, 1, SPEC.height, SPEC.width]),
       };
     },
   };
@@ -129,6 +129,43 @@ describe('StereoFoundationMatcher with a fake session', () => {
     });
   });
 
+  it('refines straight lines with one cached inference and keeps short-line fallback', async () => {
+    const session = fakeSession(6);
+    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const line = await matcher.warpLine(points, left, right, rig, RANGE);
+    expect(session.runs).toBe(1);
+    line.forEach((p, i) => {
+      expect(p.accepted).toBe(true);
+      expect(p.x).toBeCloseTo(points[i][0] - 20, 3);
+      expect(p.y).toBeCloseTo(points[i][1], 3);
+    });
+    const short: [number, number][] = [[160, 120], [161, 120]];
+    expect(await matcher.warpLine(short, left, right, rig, RANGE))
+      .toEqual(await matcher.warpPoints(short, left, right, rig, RANGE));
+  });
+
+  it('uses interior disparity to repair outlier line endpoints', async () => {
+    const field = new Float32Array(SPEC.width * SPEC.height).fill(6);
+    for (let y = 0; y < SPEC.height; y += 1) {
+      for (let x = 0; x < SPEC.width; x += 1) {
+        if ((x >= 22 && x <= 26) || (x >= 70 && x <= 74)) field[y * SPEC.width + x] = 30;
+      }
+    }
+    const session = fakeSession(field);
+    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const line: [number, number][] = [[80, 120], [240, 120]];
+    const opts = { ...RANGE, frameKey: 'outliers' };
+    const raw = await matcher.warpPoints(line, left, right, rig, opts);
+    expect(raw[0].x).toBeCloseTo(-20, 3);
+    const fitted = await matcher.warpLine(line, left, right, rig, opts);
+    expect(fitted[0].x).toBeCloseTo(60, 3);
+    expect(fitted[1].x).toBeCloseTo(220, 3);
+    expect(session.runs).toBe(1);
+    const curve: [number, number][] = [line[0], [160, 120], line[1]];
+    expect(await matcher.warpLine(curve, left, right, rig, opts))
+      .toEqual(await matcher.warpPoints(curve, left, right, rig, opts));
+  });
+
   it('feeds the model at its own resolution', async () => {
     const session = fakeSession(4);
     const matcher = new StereoFoundationMatcher(session, SPEC);
@@ -137,11 +174,11 @@ describe('StereoFoundationMatcher with a fake session', () => {
     expect(session.feeds[0].right_image.dims).toEqual([1, 3, SPEC.height, SPEC.width]);
   });
 
-  it('rejects a disparity outside the configured range', async () => {
+  it('uses dense disparity independently of the NCC search range', async () => {
     const matcher = new StereoFoundationMatcher(fakeSession(6), SPEC);
-    // 6 model px = 20 source px; a range that excludes it must reject.
+    // 6 model px = 20 source px; the desktop dense method ignores NCC search limits.
     const res = await matcher.warpPoints(points, left, right, rig, { range: { minDisparity: 30, maxDisparity: 200 } });
-    expect(res.every((r) => !r.accepted)).toBe(true);
+    expect(res.every((r) => r.accepted)).toBe(true);
     expect(res.every((r) => Number.isFinite(r.x))).toBe(true);
   });
 

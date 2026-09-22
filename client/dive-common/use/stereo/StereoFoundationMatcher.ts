@@ -22,6 +22,9 @@
  */
 
 import * as ort from 'onnxruntime-web';
+import {
+  sampleDisparity, fitDisparitySegment, SAMPLE_RADIUS, SEGMENT_SAMPLES,
+} from './disparitySampling';
 
 import { RgbaImage, GrayImage, isGrayImage } from './image';
 import { StereoRig } from './calibration';
@@ -42,22 +45,9 @@ import {
  */
 type OrtModule = typeof ort;
 
-/**
- * Half-width of the window whose disparities are pooled for one point.
- *
- * A head or tail tip is a couple of pixels wide at the network's working
- * resolution, so the disparity sampled exactly at the tip is often the
- * background's. Pooling a small neighbourhood by median rejects that without
- * dragging the estimate off the animal.
- */
-export const DEFAULT_SAMPLE_RADIUS = 3;
-
-/**
- * Fraction of the pooled window that must carry a finite positive disparity for
- * the match to be accepted. The network emits a dense map with no confidence
- * channel, so validity density is the available proxy.
- */
-export const DEFAULT_MIN_VALID_FRACTION = 0.34;
+/** Desktop neighbourhood and minimum valid fraction defaults. */
+export const DEFAULT_SAMPLE_RADIUS = SAMPLE_RADIUS;
+export const DEFAULT_MIN_VALID_FRACTION = 0;
 
 /** Disparity maps kept per matcher: two directions per frame, so ~4 frames. */
 export const DEFAULT_DISPARITY_CACHE_SIZE = 8;
@@ -120,22 +110,6 @@ function rigKey(rig: StereoRig): string {
 function cacheKey(frameKey: string | undefined, rig: StereoRig, source: { width: number; height: number }): string | null {
   if (frameKey === undefined) return null;
   return `${frameKey}|${source.width}x${source.height}|${rigKey(rig)}`;
-}
-
-/** Bilinear sample of a single-channel image, NaN outside. */
-function sampleBilinear(data: Float32Array, width: number, height: number, x: number, y: number): number {
-  if (!(x >= 0 && y >= 0 && x <= width - 1 && y <= height - 1)) return NaN;
-  const x0 = Math.floor(x);
-  const y0 = Math.floor(y);
-  const x1 = Math.min(x0 + 1, width - 1);
-  const y1 = Math.min(y0 + 1, height - 1);
-  const fx = x - x0;
-  const fy = y - y0;
-  const a = data[y0 * width + x0];
-  const b = data[y0 * width + x1];
-  const c = data[y1 * width + x0];
-  const d = data[y1 * width + x1];
-  return a * (1 - fx) * (1 - fy) + b * fx * (1 - fy) + c * (1 - fx) * fy + d * fx * fy;
 }
 
 /**
@@ -387,8 +361,7 @@ export class StereoFoundationMatcher implements StereoMatcher {
    * Warp source-image points onto the target image, matching
    * {@link StereoOnnxMatcher.warpPoints} so the two are interchangeable.
    *
-   * `opts.range` bounds the accepted disparity exactly as it bounds the NCC
-   * search: a correspondence outside it is rejected rather than trusted.
+   * Dense disparity is not restricted by the NCC search range, matching desktop.
    */
   async warpPoints(
     points: [number, number][],
@@ -402,51 +375,66 @@ export class StereoFoundationMatcher implements StereoMatcher {
     const disparity = await this.disparityFor(cacheKey(opts.frameKey, rig, source), source, target, rig, false);
     if (!disparity) throw new Error('The stereo disparity map could not be computed.');
 
-    const radius = DEFAULT_SAMPLE_RADIUS;
-    const minValid = DEFAULT_MIN_VALID_FRACTION;
-    const [minDisp, maxDisp] = 'minDisparity' in opts.range
-      ? [opts.range.minDisparity, opts.range.maxDisparity]
-      : [0, Number.POSITIVE_INFINITY];
-    // The search range is expressed in source-image pixels; the network works
-    // at its own resolution, so carry the bound across in the same ratio.
-    const dispScale = width / source.width;
-
+    const sx = width / source.width; const sy = height / source.height;
     return points.map(([px, py]) => {
       const [rx, ry] = rectifyPoint(px, py, rig, rect, false);
+      const sample = sampleDisparity(disparity, width, height, source.width, source.height, rx / sx, ry / sy);
       const fail: WarpResult = {
         x: NaN, y: NaN, score: 0, secondScore: 0, accepted: false,
       };
-      if (!Number.isFinite(rx) || !Number.isFinite(ry)) return fail;
-
-      const samples: number[] = [];
-      let considered = 0;
-      for (let dy = -radius; dy <= radius; dy += 1) {
-        for (let dx = -radius; dx <= radius; dx += 1) {
-          considered += 1;
-          const sx = rx + dx;
-          const v = sampleBilinear(disparity, width, height, sx, ry + dy);
-          // A match that would land left of the target image is invisible.
-          if (Number.isFinite(v) && v > 0 && sx - v >= 0) samples.push(v);
-        }
-      }
-      if (!samples.length) return fail;
-
-      samples.sort((a, b) => a - b);
-      const d = samples[Math.floor(samples.length / 2)];
-      const validFraction = samples.length / considered;
-
-      const dSource = d / dispScale;
-      const inRange = dSource >= minDisp && dSource <= maxDisp;
-      const [ox, oy] = unrectifyPoint(rx - d, ry, rig, rect, true);
-      if (!Number.isFinite(ox) || !Number.isFinite(oy)) return fail;
-
+      if (!sample) return fail;
+      const [x, y] = unrectifyPoint(rx - sample.disparity * sx, ry, rig, rect, true);
       return {
-        x: ox,
-        y: oy,
-        score: validFraction,
-        secondScore: 0,
-        accepted: validFraction >= minValid && inRange,
+        x, y, score: sample.fraction, secondScore: 0, accepted: Number.isFinite(x) && Number.isFinite(y),
       };
     });
   }
+
+  /** Fit straight measurement lines in disparity space; failed fits retain the
+   * ordinary endpoint matches. Curves keep their individually mapped vertices. */
+  async warpLine(
+    points: [number, number][],
+    source: RgbaImage | GrayImage,
+    target: RgbaImage | GrayImage,
+    rig: StereoRig,
+    opts: WarpOptions,
+  ): Promise<WarpResult[]> {
+    // Give both operations a shared key even for callers without a frame key.
+    const shared = opts.frameKey === undefined ? { ...opts, frameKey: `line-${this.lineSequence += 1}` } : opts;
+    const fallback = await this.warpPoints(points, source, target, rig, shared);
+    if (points.length !== 2) return fallback;
+    const { rect } = this.geometry(rig, source);
+    const { width, height } = this.spec;
+    const sx = width / source.width; const sy = height / source.height;
+    const ends = points.map(([x, y]) => rectifyPoint(x, y, rig, rect, false));
+    const [[ax, ay], [bx, by]] = ends;
+    if (Math.hypot((bx - ax) / sx, (by - ay) / sy) < SEGMENT_SAMPLES - 1) return fallback;
+    const disparity = await this.disparityFor(cacheKey(shared.frameKey, rig, source), source, target, rig, false);
+    if (!disparity) return fallback;
+    const samples: [number, number][] = [];
+    for (let i = 0; i < SEGMENT_SAMPLES; i += 1) {
+      const f = i / (SEGMENT_SAMPLES - 1);
+      const sample = sampleDisparity(
+        disparity,
+        width,
+        height,
+        source.width,
+        source.height,
+        (ax + f * (bx - ax)) / sx,
+        (ay + f * (by - ay)) / sy,
+      );
+      if (sample) samples.push([f, sample.disparity]);
+    }
+    const fit = fitDisparitySegment(samples);
+    if (!fit) return fallback;
+    const result = ends.map(([rx, ry], i) => {
+      const [x, y] = unrectifyPoint(rx - fit[i] * sx, ry, rig, rect, true);
+      return {
+        x, y, score: 1, secondScore: 0, accepted: Number.isFinite(x) && Number.isFinite(y),
+      };
+    });
+    return result.every((p) => p.accepted) ? result : fallback;
+  }
+
+  private lineSequence = 0;
 }

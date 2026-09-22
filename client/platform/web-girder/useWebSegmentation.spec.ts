@@ -137,11 +137,12 @@ it.each(['cancel', 'source-edit', 'target-edit'])('rejects a late mask after %s'
   expect(tracks.get('right')?.getPolygonFeatures(0) ?? []).toHaveLength(0);
 });
 
-it('preserves negative prompts and refuses an uncertain match', async () => {
+it('falls back to labelled clicks when mask samples fail, and rejects a wholly unmatched transfer', async () => {
   const { service, stereo, error } = harness();
+  stereo.warpPoints.mockResolvedValueOnce([]);
   await service.handleStereoAnnotationComplete({ ...event, points: [[25, 2], [22, 2]], labels: [1, 0] });
   expect(mocks.predict.mock.calls[0][2].pointLabels).toEqual([1, 0]);
-  stereo.warpPoints.mockResolvedValueOnce([null] as never);
+  stereo.warpPoints.mockResolvedValue([null] as never);
   await service.handleStereoAnnotationComplete(event);
   expect(error).toHaveBeenCalledWith(expect.stringContaining('No confident stereo match'));
 });
@@ -170,7 +171,7 @@ it('honors confirmation while other-camera inference is still running', async ()
 
 it.each(['box', 'line'] as const)('populates a new %s on both cameras before measuring', async (sourceKind) => {
   const {
-    service, tracks, source, error,
+    service, tracks, source, error, stereo,
   } = harness();
   source.deleteFeature(0);
   const line: [number, number][] = [[30, 2], [20, 2]];
@@ -192,5 +193,28 @@ it.each(['box', 'line'] as const)('populates a new %s on both cameras before mea
     expect(track.getFeature(0)[0]?.head).toBeDefined();
     expect(track.getFeature(0)[0]?.attributes?.length).toBe(10);
   });
+  if (sourceKind === 'line') expect(stereo.warpPoints).toHaveBeenCalledWith(line, 'left', 0, true);
   if (sourceKind === 'box') expect(mocks.predict.mock.calls[0][2].pointLabels).toEqual([1, 2, 3]);
+});
+
+it('uses mask interior positives and retains consistent seeds when some matches fail', async () => {
+  const { service, stereo, error } = harness();
+  stereo.warpPoints.mockImplementationOnce(async (points) => points.map(([x, y], i) => {
+    if (i === 0) return null as never;
+    return [x - (i === 1 ? 50 : 10), y];
+  }));
+  await service.handleStereoAnnotationComplete({ ...event, points: [[25, 2], [22, 2]], labels: [1, 0] });
+  expect(error).not.toHaveBeenCalled();
+  expect(stereo.warpPoints.mock.calls[0][0]).toHaveLength(5);
+  expect(mocks.predict.mock.calls[0][2].pointLabels).toEqual([1, 1, 1]);
+  expect(stereo.warpPoints).toHaveBeenCalledTimes(1);
+});
+
+it('rejects a target mask with over 2.5 times the source area before writing geometry', async () => {
+  const { service, tracks, error } = harness();
+  // Same maximum extent as the source, but area 100 instead of 40.
+  mocks.predict.mockResolvedValue(result([{ exterior: [[10, 0], [21, 0], [21, 10], [10, 10]], holes: [] }]));
+  await service.handleStereoAnnotationComplete(event);
+  expect(error).toHaveBeenCalledWith(expect.stringContaining('out of scale'));
+  expect(tracks.has('right')).toBe(false);
 });

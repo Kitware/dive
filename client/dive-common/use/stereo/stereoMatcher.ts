@@ -24,6 +24,8 @@ export interface StereoMatcher {
     rig: StereoRig,
     opts: WarpOptions,
   ): Promise<WarpResult[]>;
+  /** Optional disparity refinement for a straight measurement line. */
+  warpLine?: StereoMatcher['warpPoints'];
   /**
    * Compute and cache whatever per-frame state a later `warpPoints` with the
    * same `frameKey` would need, so the warp itself is quick. `stillWanted` is
