@@ -1817,6 +1817,19 @@ export default function useModeManager({
     }
   }
 
+  /** Drop tool previews without replaying segmentation reset over restored data. */
+  function prepareAnnotationUndo() {
+    preSegmentationFeatures.clear();
+    if (selectedTrackId.value !== null) _removeIfEmpty(selectedTrackId.value);
+    selectedTrackId.value = null;
+    recipes.forEach((recipe) => {
+      if (recipe instanceof SegmentationPointClick) recipe.resetPoints();
+    });
+    handleCancelCreation();
+    handleEscapeMode();
+    onStereoSegmentationFinalize?.();
+  }
+
   /**
    * Register a callback to finalize in-progress creation shapes.
    * Called by LayerManager to connect the edit layer's finalize method.
@@ -1883,6 +1896,7 @@ export default function useModeManager({
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,
+      prepareAnnotationUndo,
       trackEdit: handleTrackEdit,
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,

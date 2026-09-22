@@ -5,6 +5,7 @@
  */
 import { ref, shallowRef } from 'vue';
 import CameraStore from 'vue-media-annotator/CameraStore';
+import AnnotationHistory from 'vue-media-annotator/AnnotationHistory';
 import AlignedViewStore from 'vue-media-annotator/alignedView/AlignedViewStore';
 import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
@@ -15,6 +16,7 @@ import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore';
 import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
+import SegmentationPointClick from '../recipes/segmentationpointclick';
 import useModeManager from './useModeManager';
 import HeadTail from '../recipes/headtail';
 import { headTailFeatures } from '../../src/headTail';
@@ -23,6 +25,30 @@ import type Recipe from '../../src/recipe';
 function translation(tx: number, ty: number): Matrix3 {
   return [[1, 0, tx], [0, 1, ty], [0, 0, 1]];
 }
+
+it('undoes a segmentation refinement without the tool reset deleting the restored mask', async () => {
+  const recipe = new SegmentationPointClick();
+  let history: AnnotationHistory;
+  const { cameraStore, modeManager } = makeHarness((change) => history?.record(change), [recipe]);
+  history = new AnnotationHistory(cameraStore);
+  history.start();
+  const id = modeManager.handler.trackAdd();
+  const first = [[0, 0], [10, 0], [10, 10]];
+  const second = [[0, 0], [20, 0], [20, 20]];
+  const predict = (polygon: number[][]) => recipe.bus.$emit('prediction-ready', {
+    frameNum: 0, polygon, bounds: null, controlPoints: { points: [[5, 5]], labels: [1] },
+  });
+  predict(first); await Promise.resolve();
+  const before = JSON.parse(JSON.stringify(cameraStore.getTrack(id, 'left').serialize()));
+  predict(second); await Promise.resolve();
+  expect(history.undo(modeManager.handler.prepareAnnotationUndo)).toBe(true);
+  expect(cameraStore.getTrack(id, 'left').serialize()).toEqual(before);
+  expect(modeManager.selectedTrackId.value).toBeNull();
+  expect(modeManager.editingTrack.value).toBe(false);
+  // No stale reset event can remove the restored geometry after undo.
+  recipe.bus.$emit('prediction-reset', { frameNum: 0 });
+  expect(cameraStore.getTrack(id, 'left').serialize()).toEqual(before);
+});
 
 function makeHarness(markChangesPending: MarkChangesPending = () => undefined, recipes: Recipe[] = []) {
   const cameraStore = new CameraStore({ markChangesPending });
