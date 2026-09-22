@@ -1878,10 +1878,14 @@ export default defineComponent({
             if (first[0] !== last[0] || first[1] !== last[1]) {
               closedPolygon.push([...first] as [number, number]);
             }
+            // Same key as the source polygon, so polygon editing reaches both.
+            const [sourceFeature] = sourceTrack?.getFeature(params.frameNum) ?? [null];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sourceKey = sourceFeature?.geometry?.features.find((f: any) => f.geometry.type === 'Polygon')?.properties?.key ?? '';
             const segGeometry: GeoJSON.Feature[] = [{
               type: 'Feature',
               geometry: { type: 'Polygon', coordinates: [closedPolygon] },
-              properties: { key: '' },
+              properties: { key: sourceKey },
             }];
             const segBounds = response.bounds || [
               Math.min(...response.polygon.map((p: [number, number]) => p[0])),

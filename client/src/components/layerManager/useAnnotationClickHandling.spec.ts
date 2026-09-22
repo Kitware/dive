@@ -1,7 +1,7 @@
 import Vue, { ref } from 'vue';
 import useAnnotationClickHandling from './useAnnotationClickHandling';
 
-function harness(type = 'LineString') {
+function harness(type = 'LineString', selectedCamera = 'left') {
   const layer = () => ({ bus: new Vue() });
   const polygon = layer();
   const selectedKey = ref(type === 'LineString' ? 'HeadTails' : '');
@@ -11,7 +11,7 @@ function harness(type = 'LineString') {
   const refresh = vi.fn();
   useAnnotationClickHandling({
     camera: 'left',
-    selectedCamera: ref('left'),
+    selectedCamera: ref(selectedCamera),
     selectedTrackIdRef: ref(1),
     selectedKeyRef: selectedKey,
     frameNumberRef: ref(0),
@@ -42,6 +42,14 @@ it('defers polygon key selection to the edit layer while polygon editing', () =>
   h.polygon.bus.$emit('polygon-right-clicked', 1, 'segmentation');
   expect(h.selectedKey.value).toBe('');
   expect(h.selectFeatureHandle).not.toHaveBeenCalled();
+});
+
+it('defers to the edit layer on a camera that is not selected while polygon editing', () => {
+  const h = harness('Polygon', 'right');
+  h.polygon.bus.$emit('polygon-right-clicked', 1, 'segmentation');
+  h.polygon.bus.$emit('polygon-right-clicked-outside');
+  expect(h.selectFeatureHandle).not.toHaveBeenCalled();
+  expect(h.cancelCreation).not.toHaveBeenCalled();
 });
 
 it('does not cancel in-progress line creation when a mask is right-clicked', () => {
