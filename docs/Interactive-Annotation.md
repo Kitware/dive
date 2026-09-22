@@ -1,6 +1,6 @@
-# Interactive Annotation (Desktop)
+# Interactive Annotation
 
-DIVE Desktop can run **interactive point-click segmentation** and **interactive stereo** tools backed by a local VIAME Python service. Both features are **desktop-only** and require a working [VIAME installation](Dive-Desktop.md#desktop-settings).
+DIVE Desktop can run **interactive point-click segmentation** and **interactive stereo** tools backed by a local VIAME Python service. The desktop implementation requires a working [VIAME installation](Dive-Desktop.md#desktop-settings). DIVE Web runs point-prompt segmentation and stereo correspondence in the browser using ONNX models (see [Web segmentation](#web-segmentation)).
 
 | Feature | Description |
 |---------|-------------|
@@ -9,7 +9,7 @@ DIVE Desktop can run **interactive point-click segmentation** and **interactive 
 
 See also: [Multicamera and Stereo Data](Multicamera-data.md#interactive-stereo-desktop), [Annotation Quickstart](Annotation-QuickStart.md#interactive-segmentation-desktop), [Keyboard shortcuts](Mouse-Keyboard-Shortcuts.md).
 
-## Requirements
+## Desktop requirements
 
 * [DIVE Desktop](Dive-Desktop.md) with a valid **VIAME Install Path**
 * For stereo features: a **stereo dataset** imported with a calibration `.npz` file
@@ -146,3 +146,44 @@ and results that arrive after either affected annotation changes are discarded.
 These behaviors use the existing automatic mapping option in desktop and web.
 Browser ONNX matching supports transfers in either direction. Both implementations
 rematch image locations rather than pairing equally numbered intermediate points.
+
+
+## Web segmentation
+
+In **Track Settings → New Track/Detection Settings**, choose **SAM2.1 Tiny**
+(the default) or **SAM3** under **Segmentation model**. Activate **Segment** in
+edit mode, or press **S**, and use the same positive/negative clicks and
+confirm/cancel controls described above. Both choices are point/box-prompt
+models; selecting SAM3 does not enable text-prompt object search.
+
+The first use downloads the selected model from Hugging Face. Browser caching
+avoids downloading it again when cached files remain available. Models run
+locally in the browser: image pixels are not uploaded to Hugging Face. WebGPU
+on HTTPS or localhost is preferred; the loader tries CPU/WASM if GPU model
+initialization fails, and uses CPU directly for software GPU adapters. SAM3 uses substantially more resources than SAM2.1 Tiny.
+Initial encoding can be slow, especially on software graphics. Subsequent
+clicks reuse image embeddings; only two camera frames are retained in memory.
+
+**Auto-populate mask** segments newly drawn boxes and lines. **Auto-populate
+points / tighten box** derives head/tail from masks, or fits a drawn line's
+box to its mask. Generated head/tail uses the minimum-area convex-hull
+rectangle and clips its short-edge midpoints to mask boundaries, following
+VIAME's `hull_extremes` method. Multiple components and holes are retained.
+Browser contours can differ slightly from native OpenCV contours.
+
+For calibrated stereo datasets, enable automatic other-camera computation and
+length updates. DIVE transfers segmentation prompts using the selected stereo
+correspondence method, then runs SAM on the other camera. Existing masks supply
+interior sample points; boxes with auto-population enabled transfer through
+their masks instead of background box corners. Both cameras' geometry is
+finished before length is updated. Uncertain prompt matches and masks far out
+of scale with the source are rejected. Manually edited counterparts are
+preserved. Reset/cancel removes the generated counterpart preview; confirming
+keeps it.
+
+Image sequences and loaded video frames are supported. Video pixels are
+captured at the annotation event so model loading cannot accidentally use a
+later frame. Tiled large-image datasets are not supported by this browser SAM
+path. Model switching finalizes an existing preview and discards unfinished
+predictions; the next click starts a fresh prompt set. Frame changes, resets,
+and later edits also prevent stale predictions from overwriting annotations.

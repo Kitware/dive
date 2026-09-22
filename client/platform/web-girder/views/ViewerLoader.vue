@@ -27,6 +27,7 @@ import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
+import useWebSegmentation from 'platform/web-girder/useWebSegmentation';
 import type { StereoModelProgress } from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
@@ -175,10 +176,7 @@ export default defineComponent({
       }
     }
 
-    const {
-      handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
-      invalidateCalibration, stereoViewLink,
-    } = useStereoOnnxWeb({
+    const stereo = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
       ensureMeasurementAttributes,
@@ -200,6 +198,14 @@ export default defineComponent({
         stereoLengthSnackbar.value = true;
       },
     });
+
+    const {
+      handleStereoTrackLinked, warpAllFromCamera, invalidateCalibration, stereoViewLink,
+    } = stereo;
+    const {
+      status: segmentationStatus, handleNewAnnotationGeometry, handleStereoAnnotationComplete,
+      handleStereoAnnotationReset, handleStereoSegmentationFinalize,
+    } = useWebSegmentation(() => viewerRef.value, stereo, (message) => { stereoError.value = String(message); });
 
     function closeStereoError() {
       stereoError.value = '';
@@ -519,6 +525,10 @@ export default defineComponent({
       handleStereoAnnotationComplete,
       handleStereoTrackLinked,
       stereoViewLink,
+      segmentationStatus,
+      handleNewAnnotationGeometry,
+      handleStereoAnnotationReset,
+      handleStereoSegmentationFinalize,
       stereoBusyMessage,
       stereoDownloadProgress,
       stereoDownloadPercent,
@@ -557,6 +567,9 @@ export default defineComponent({
       @update:set="routeSet"
       @change-camera="changeCamera"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
+      @new-annotation-geometry="handleNewAnnotationGeometry"
+      @stereo-annotation-reset="handleStereoAnnotationReset"
+      @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
     >
       <template #title>
@@ -650,7 +663,7 @@ export default defineComponent({
       max-width="560"
     >
       <v-card>
-        <v-card-title>{{ stereoError ? 'Stereo Transfer Error' : 'Interactive Stereo' }}</v-card-title>
+        <v-card-title>{{ stereoError ? 'Annotation Error' : 'Interactive Stereo' }}</v-card-title>
         <v-card-text>
           <div v-if="!stereoError">
             <div class="d-flex align-center">
@@ -695,6 +708,10 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-snackbar :value="!!segmentationStatus" :timeout="-1" bottom left>
+      <v-progress-circular indeterminate size="18" width="2" class="mr-2" />
+      {{ segmentationStatus }}
+    </v-snackbar>
     <v-snackbar
       v-model="stereoLengthSnackbar"
       :timeout="4000"

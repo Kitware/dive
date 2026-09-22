@@ -35,7 +35,8 @@ import type { SearchRange } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import {
   rigFromNpz, rigFromJson, StereoRig,
 } from 'dive-common/use/stereo/calibration';
-import { geoViewerToImageElement, imageElementToRgba } from 'dive-common/use/stereo/frameSource';
+import { imageElementToRgba } from 'dive-common/use/stereo/frameSource';
+import { findQuadMediaSource } from 'vue-media-annotator/components/layerManager/quadMediaSource';
 import type { RgbaImage } from 'dive-common/use/stereo/image';
 import type { StereoMeasurement } from 'dive-common/use/stereo/triangulate';
 import { getCalibrationFile, getLastCalibration } from './multicamFileRegistry';
@@ -310,23 +311,35 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
 
   async function getFrame(cameraName: string, frameNum: number): Promise<RgbaImage | null> {
     const viewer = opts.getViewer();
+    // URLs identify the requested frame even while the viewer is still
+    // displaying the previous image during an asynchronous seek.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imageData = fromViewer<any>(viewer?.imageData);
+    const url = imageData?.[cameraName]?.[frameNum]?.url;
+    if (url) return urlToRgba(url);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const aggregate = fromViewer<any>(viewer?.aggregateController);
       const controller = aggregate?.getController(cameraName);
-      // The viewer only holds pixels for the frame on screen.
-      if (controller?.frame?.value === frameNum) {
-        const geoViewer = controller?.geoViewerRef?.value;
-        const img = geoViewer ? geoViewerToImageElement(geoViewer) : null;
-        if (img) return imageElementToRgba(img);
+      // Read unscaled native pixels, including video, never an overlay screenshot.
+      if (controller?.frame?.value === frameNum && controller?.hasFrame?.value !== false) {
+        const media = findQuadMediaSource(controller?.geoViewerRef?.value);
+        if (media && media.width && media.height) {
+          if (media.kind === 'video' && ((media.source as HTMLVideoElement).seeking
+            || (media.source as HTMLVideoElement).readyState < 2)) return null;
+          const canvas = document.createElement('canvas');
+          canvas.width = media.width; canvas.height = media.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(media.source, 0, 0, media.width, media.height);
+            return ctx.getImageData(0, 0, media.width, media.height);
+          }
+        }
       }
     } catch {
-      // Fall through to the URL path.
+      // Media is unavailable during teardown or while a frame is loading.
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const imageData = fromViewer<any>(viewer?.imageData);
-    const url = imageData?.[cameraName]?.[frameNum]?.url;
-    return url ? urlToRgba(url) : null;
+    return null;
   }
 
   /** The frame the viewer is on, once its media has loaded. */
@@ -433,6 +446,11 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     handleStereoAnnotationComplete,
     handleStereoTrackLinked,
     warpAllFromCamera,
+    getFrame,
+    warpPoints: async (points: [number, number][], camera: string, frame: number) => (
+      getTransfer()?.warpPoints(points, camera, frame) ?? []
+    ),
+    refreshMeasurement: async (id: number, frame: number) => getTransfer()?.refreshMeasurement(id, frame),
     stereoViewLink,
     precomputeCurrentFrame,
     invalidateCalibration,

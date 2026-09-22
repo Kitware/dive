@@ -260,7 +260,18 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
-      <template v-if="isDesktopRuntime">
+      <template>
+        <v-select
+          v-if="!isDesktopRuntime"
+          v-model="clientSettings.trackSettings.newTrackSettings.segmentationModel"
+          :items="[{ text: 'SAM2.1 Tiny', value: 'sam2' }, { text: 'SAM3', value: 'sam3' }]"
+          label="Segmentation model"
+          hint="Downloads on first use and runs in your browser. SAM3 requires more memory."
+          persistent-hint
+          outlined
+          dense
+          class="mt-3"
+        />
         <v-row>
           <v-col class="py-1">
             <v-switch

@@ -591,6 +591,16 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     warpAllFromCamera,
     warpPoint,
     measureAtFrame,
+    refreshMeasurement: async (id: number, frame: number) => {
+      if (measureLengths()) await measureAndReport(id, frame);
+    },
+    warpPoints: async (points: Point[], camera: string, frame: number): Promise<(Point | null)[]> => {
+      const other = getMultiCamList().find((c) => c !== camera);
+      if (!other || getMultiCamList().length !== 2) return [];
+      return (await warp(points, camera, other, frame)).map((p) => (
+        p.accepted && Number.isFinite(p.x) && Number.isFinite(p.y) ? [p.x, p.y] : null
+      ));
+    },
     precomputeFrame,
   };
 }

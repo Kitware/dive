@@ -196,7 +196,10 @@ export default class SegmentationPointClick implements Recipe {
     }
   }
 
+  private predictionLoadingEpoch = 0;
+
   private clearPredictingState(): void {
+    this.predictionLoadingEpoch += 1;
     this.clearPredictionLoadingTimer();
     this.predicting.value = false;
     this.pendingPredictionCount = 0;
@@ -227,6 +230,8 @@ export default class SegmentationPointClick implements Recipe {
    * Must be called before using the recipe.
    */
   initialize(options: SegmentationRecipeOptions): void {
+    this.predictionVersion += 1;
+    this.toggleable.value = true;
     this.predictFn = options.predictFn;
     this.getImagePath = options.getImagePath;
     this.getFrameTime = options.getFrameTime || null;
@@ -239,6 +244,7 @@ export default class SegmentationPointClick implements Recipe {
    * Reset the recipe state (clear accumulated points for all frames)
    */
   private reset(): void {
+    this.predictionVersion += 1;
     this.points = [];
     this.pointLabels = [];
     this.lastLowResMask = null;
@@ -266,6 +272,7 @@ export default class SegmentationPointClick implements Recipe {
    * Reset only the current frame's points (used when clearing current frame)
    */
   private resetCurrentFrame(): void {
+    this.predictionVersion += 1;
     this.points = [];
     this.pointLabels = [];
     this.lastLowResMask = null;
@@ -330,6 +337,7 @@ export default class SegmentationPointClick implements Recipe {
     if (!this.active.value) return;
     if (newFrame === this.currentFrame) return;
 
+    this.predictionVersion += 1;
     // Save current frame's data
     this.saveCurrentFrameData();
 
@@ -365,6 +373,8 @@ export default class SegmentationPointClick implements Recipe {
    * @param frameNum - The frame number to predict on
    * @param isFirstPoint - Whether this is the first point (affects error handling)
    */
+  private predictionVersion = 0;
+
   private async makePrediction(frameNum: number, isFirstPoint: boolean = false): Promise<void> {
     if (!this.predictFn || !this.getImagePath) {
       return;
@@ -374,6 +384,11 @@ export default class SegmentationPointClick implements Recipe {
       return;
     }
 
+    this.predictionVersion += 1;
+    const version = this.predictionVersion;
+    const loadingEpoch = this.predictionLoadingEpoch;
+    const points = this.points.map((p) => [...p] as [number, number]);
+    const labels = [...this.pointLabels];
     this.beginPrediction();
 
     try {
@@ -385,14 +400,15 @@ export default class SegmentationPointClick implements Recipe {
 
       const request: SegmentationPredictRequest = {
         imagePath,
-        points: this.points,
-        pointLabels: this.pointLabels,
+        points,
+        pointLabels: labels,
         maskInput: this.lastLowResMask ?? undefined,
         multimaskOutput: this.points.length === 1, // Use multimask for single point
         frameTime: this.getFrameTime ? this.getFrameTime(frameNum) : undefined,
       };
 
       const response = await this.predictFn(request, frameNum);
+      if (version !== this.predictionVersion) return;
 
       if (response.success && response.polygon && response.polygon.length > 0) {
         this.pendingPolygon = response.polygon;
@@ -427,11 +443,12 @@ export default class SegmentationPointClick implements Recipe {
         this.handlePredictionError(response.error || 'Prediction failed', isFirstPoint, frameNum);
       }
     } catch (error) {
+      if (version !== this.predictionVersion) return;
       // Exception during prediction - handle point rejection
       const errorMessage = error instanceof Error ? error.message : 'Prediction failed';
       this.handlePredictionError(errorMessage, isFirstPoint, frameNum);
     } finally {
-      this.endPrediction();
+      if (loadingEpoch === this.predictionLoadingEpoch) this.endPrediction();
     }
   }
 

@@ -47,6 +47,8 @@ interface AnnotationSettings {
       type: string;
       /** Segment a freshly drawn box or line and store the polygon. */
       autoPopulateMask: boolean;
+      /** Browser point-prompt segmentation model (loaded lazily). */
+      segmentationModel: 'sam2' | 'sam3';
       /** Derive head/tail from that polygon for a box; a tighter box from it for a line. */
       autoPopulatePoints: boolean;
       modeSettings: {
@@ -116,6 +118,7 @@ const defaultSettings: AnnotationSettings = {
       mode: 'Track' as 'Track' | 'Detection',
       type: 'unknown',
       autoPopulateMask: false,
+      segmentationModel: 'sam2',
       autoPopulatePoints: false,
       modeSettings: {
         Track: {
