@@ -638,7 +638,9 @@ export default defineComponent({
           ...trackFrame,
           features: featureToDisplay(trackFrame.features),
         })));
-      } else {
+      } else if (boxEditLayer.getMode() !== 'disabled') {
+        // Skip no-op disables: mode(null) on an already-idle companion clears
+        // the primary layer's creation actions from the shared interactor.
         boxEditLayer.disable();
       }
       editAnnotationLayer.restoreHandleActions();

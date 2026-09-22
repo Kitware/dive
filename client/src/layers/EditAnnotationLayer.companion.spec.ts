@@ -9,6 +9,13 @@ import { headTailFeatures } from '../headTail';
 /** Real GeoJS: both layers sit in edit mode on one map, as in LayerManager. */
 beforeAll(() => (geo.util as any).mockWebglRenderer());
 
+const liveLayers: EditAnnotationLayer[] = [];
+
+afterEach(() => {
+  // Cancel deferred changeData timeouts before jsdom tears down `window`.
+  liveLayers.splice(0).forEach((layer) => layer.disable());
+});
+
 async function harness() {
   const node = document.createElement('div');
   document.body.appendChild(node);
@@ -23,6 +30,7 @@ async function harness() {
   } as any;
   const line = new EditAnnotationLayer({ ...params, type: 'LineString' });
   const box = new EditAnnotationLayer({ ...params, type: 'rectangle', companion: true });
+  liveLayers.push(line, box);
   line.peer = box; box.peer = line;
   line.setKey('HeadTails');
   const track = new Track(1, { begin: 0, end: 0, meta: {} });
@@ -103,6 +111,7 @@ it('moves a lone head point while the line tool waits for its tail', async () =>
   } as any;
   const line = new EditAnnotationLayer({ ...params, type: 'LineString' });
   const point = new EditAnnotationLayer({ ...params, type: 'rectangle', companion: true });
+  liveLayers.push(line, point);
   line.peer = point; point.peer = line;
   line.setKey('HeadTails'); point.setType('Point'); point.setKey('head');
   const track = new Track(1, { begin: 0, end: 0, meta: {} });

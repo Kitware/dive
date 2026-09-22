@@ -485,7 +485,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     // The map rebroadcasts this to every layer; only our own handles count.
     if (e.annotation && e.annotation.layer() !== this.featureLayer) return;
     // GeoJS strips the annotation actions right after this event fires.
-    if (this.companion && !e.enable) window.setTimeout(() => this.peer?.restoreCreationActions(), 0);
+    if (this.companion && !e.enable) window.setTimeout(() => this.peer?.restoreHandleActions(), 0);
     const divisor = 2; // Vertex/edge handles alternate for polygons and open lines.
     if (e.enable && e.handle.handle.type === 'vertex') {
       if (e.handle.handle.selected
@@ -603,6 +603,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         `mdi-vector-${typeMapper.get(this.type)}`,
         mode === 'editing',
       );
+    } else {
+      // Mode is disabled: drop any leftover creation/editing icon. Without
+      // this, a cross-camera blank click can clear selection while a deferred
+      // changeData still thinks the layer is editing and leaves the icon up.
+      this.annotator.setImageCursor('');
     }
   }
 
@@ -703,36 +708,28 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     annotation.diveDragGuard = true;
   }
 
-  /**
-   * A mode change on the peer layer strips every annotation action from the
-   * interactor, including the one for a handle still hovered on this layer.
-   */
   handleSelected(): boolean {
     return !!this.featureLayer.currentAnnotation?._editHandle?.handle?.selected;
   }
 
   /**
-   * Hovering a peer's handle strips this layer's creation actions along with
-   * every other annotation action; put them back so drawing can continue.
+   * A mode change on the peer layer strips every annotation action from the
+   * interactor, including the one for a handle still hovered on this layer
+   * and the actions that place the next creation vertex.
    */
-  restoreCreationActions() {
-    if (this.getMode() !== 'creation') return;
-    const annotation = this.featureLayer.currentAnnotation;
-    if (!annotation) return;
-    const interactor = this.annotator.geoViewerRef.value.interactor();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    annotation.actions('create').forEach((action: any) => {
-      if (!interactor.hasAction(action.action, action.name, action.owner)) {
-        interactor.addAction(action);
-      }
-    });
-  }
-
   restoreHandleActions() {
-    if (this.getMode() !== 'editing') return;
-    const handle = this.featureLayer.currentAnnotation?._editHandle?.handle;
-    if (handle?.selected) {
-      this.featureLayer._selectEditHandle({ data: handle }, true);
+    const mode = this.getMode();
+    if (mode === 'editing') {
+      const handle = this.featureLayer.currentAnnotation?._editHandle?.handle;
+      if (handle?.selected) {
+        this.featureLayer._selectEditHandle({ data: handle }, true);
+      }
+    } else if (mode === 'creation') {
+      // Re-enter creation so GeoJS reinstalls annotation actions. Peer
+      // disable() calls mode(null), which clears the shared interactor
+      // without leaving this layer's mode string.
+      const layerMode = typeMapper.get(this.type);
+      if (layerMode) this.featureLayer.mode(layerMode);
     }
   }
 
@@ -741,7 +738,19 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   disable() {
     if (this.featureLayer) {
+      // Cancel any changeData deferred while the left button was held (cross-
+      // camera mousedown). LayerManager often calls disable() directly on
+      // deselect; without this the timeout reloads the old edit geometry and
+      // restores the editing cursor after the track is already cleared.
+      clearTimeout(this.leftButtonCheckTimeout);
+      this.leftButtonCheckTimeout = -1;
       this.skipNextExternalUpdate = false;
+      // Already off: skip mode(null). Calling it again strips peer-layer
+      // creation/edit actions from the shared map interactor (LayerManager
+      // often disables the companion box on every refresh during line draw).
+      if (this.getMode() === 'disabled') {
+        return;
+      }
       this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
       if (this.arrowFeatureLayer) {
@@ -838,6 +847,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           // disable resets things before we load a new/different shape or mode
           this.disable();
           this.formattedData = this.formatData(frameData);
+          this.rehoverEditHandles();
         }
       }
     } else {
@@ -850,6 +860,22 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
     }
     if (!this.companion) this.calculateCursorImage();
     this.redraw();
+  }
+
+  /**
+   * GeoJS only fires mouseon when the handle under the cursor changes, so
+   * handles rebuilt beneath a stationary cursor stay inert until the mouse
+   * leaves and returns. Forget the stale hover and replay the mouse position.
+   */
+  rehoverEditHandles() {
+    if (this.getMode() !== 'editing') return;
+    window.setTimeout(() => {
+      if (this.getMode() !== 'editing') return;
+      this.featureLayer.features().forEach(
+        (feature: { _clearSelectedFeatures?: () => void }) => feature._clearSelectedFeatures?.(),
+      );
+      this.annotator.geoViewerRef.value.interactor().retriggerMouseMove();
+    }, 0);
   }
 
   /**
