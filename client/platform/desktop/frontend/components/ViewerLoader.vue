@@ -1454,6 +1454,8 @@ export default defineComponent({
         applyStereoMeasurement(rightTrack, frameNum, response.measurement);
         return response.measurement;
       }
+      // A rejection for a frame the user has already left is expected, not an error.
+      if (getViewerFrame() !== frameNum) return null;
       throw new Error(response.error || 'The stereo service could not measure these lines.');
     }
 
@@ -1467,6 +1469,24 @@ export default defineComponent({
       if (measurement) {
         reportStereoMeasurement(measurement);
         await updateStereoTrackAverages(cameraStore, trackId);
+      }
+    }
+
+    /**
+     * Refresh the stereo length after a human edit, reporting service failures
+     * in the stereo dialog unless the caller owns it.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function refreshStereoLength(cameraStore: any, trackId: number, frameNum: number, quiet: boolean) {
+      try {
+        await autoUpdateStereoLength(cameraStore, trackId, frameNum);
+      } catch (err) {
+        console.warn('[Stereo] Measurement update failed:', err);
+        if (quiet) return;
+        stereoErrorTitle.value = 'Stereo Measurement Error';
+        stereoErrorSeverity.value = 'warning';
+        stereoLoadingError.value = `Could not update the stereo length. ${err instanceof Error ? err.message : String(err)}`;
+        stereoLoadingDialog.value = true;
       }
     }
 
@@ -1624,15 +1644,7 @@ export default defineComponent({
           // user (never overwrite it) or cross-camera auto-compute is disabled.
           // If both cameras now have a line, just refresh the measurement.
           if (updateLengths && otherHasFeature) {
-            try {
-              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
-            } catch (err) {
-              console.warn('[Stereo] Measurement update failed:', err);
-              stereoErrorTitle.value = 'Stereo Measurement Error';
-              stereoErrorSeverity.value = 'warning';
-              stereoLoadingError.value = `Could not update the stereo length. ${err instanceof Error ? err.message : String(err)}`;
-              stereoLoadingDialog.value = true;
-            }
+            await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
           }
           return 'skipped';
         }
@@ -1642,7 +1654,7 @@ export default defineComponent({
       } else if (params.type === 'point') {
         if (!autoCompute || (!params.insert && !canMapPoint(otherTrack, params.frameNum, params.key, params.camera))) {
           if (isHeadTailPoint(params.key) && updateLengths && otherHasFeature) {
-            await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
           }
           return 'skipped';
         }
