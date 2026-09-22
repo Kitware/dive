@@ -1003,7 +1003,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.lastClickWasBackground = false; // Reset for next point
         }
 
-        this.unrotatedGeoJSONCoords = geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[];
+        this.unrotatedGeoJSONCoords = this.type === 'rectangle'
+          ? geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[] : null;
         this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
@@ -1037,10 +1038,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             e.annotation.geojson()
           );
           const newCoords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
-          let rotationBetween: number;
-          if (this.type === 'Point') {
-            rotationBetween = 0;
-          } else if (this.formattedData.length > 0 && this.type === 'rectangle') {
+          // Rotation metadata belongs to rectangles. Point/line coordinates do
+          // not contain polygon rings and must not enter the rotation helpers.
+          let rotationBetween = 0;
+          if (this.formattedData.length > 0 && this.type === 'rectangle') {
             const existingRotation = getRotationFromAttributes(this.formattedData[0].properties as Record<string, unknown>) ?? 0;
             const oldCoords = rotateGeoJSONCoordinates(
               this.unrotatedGeoJSONCoords || [],
@@ -1054,7 +1055,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
                 newCoords,
               );
             }
-          } else {
+          } else if (this.type === 'rectangle') {
             rotationBetween = getRotationBetweenCoordinateArrays(
               this.unrotatedGeoJSONCoords || [],
               newCoords,

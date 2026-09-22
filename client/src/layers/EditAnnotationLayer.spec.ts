@@ -195,6 +195,36 @@ it('moves and commits only the annotation whose handle was grabbed when a peer l
   expect(h.update).toHaveBeenCalledTimes(2);
 });
 
+it('persists line endpoints after point-click annotation on the same editor', async () => {
+  const h = harness();
+  // Segmentation clicks complete Point annotations before switching to the line.
+  h.layer.bus.$off('update:geojson', h.update);
+  h.layer.type = 'Point';
+  h.layer.setMode('Point');
+  h.layer.handleEditStateChange({
+    annotation: {
+      layer: () => h.featureLayer,
+      state: () => 'done',
+      geojson: () => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [25, 10] } }),
+    },
+  } as any);
+  h.layer.type = 'LineString';
+  h.layer.bus.$on('update:geojson', h.update);
+  h.layer.skipNextExternalUpdate = false;
+  await h.reopen();
+  const annotation = h.featureLayer.annotations()[0];
+  annotation.options('vertices', [{ x: 5, y: 15 }, { x: 95, y: 20 }]);
+  h.layer.handleEditAction({
+    annotation: { ...annotation, layer: () => h.featureLayer }, action: 'actionup',
+  } as any);
+  expect(h.update).toHaveBeenCalledTimes(1);
+  expect(h.track.getFeatureGeometry(0, { key: 'head' })[0].geometry.coordinates).toEqual([5, 15]);
+  expect(h.track.getFeatureGeometry(0, { key: 'tail' })[0].geometry.coordinates).toEqual([95, 20]);
+  h.layer.disable();
+  await h.reopen();
+  expect(h.featureLayer.annotations()[0].geojson().geometry.coordinates).toEqual([[5, 15], [95, 20]]);
+});
+
 it('limits a companion box editor to its corner handles', () => {
   const { layer } = harness();
   layer.companion = true;
