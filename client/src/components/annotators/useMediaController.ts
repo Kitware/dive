@@ -7,6 +7,7 @@ import Vue, {
   ref, shallowRef, reactive, provide, toRef, Ref, UnwrapRef, computed, watch,
 } from 'vue';
 import { map, over } from 'lodash';
+import createViewLink from './viewLink';
 
 import { use } from '../../provides';
 import type {
@@ -113,10 +114,27 @@ export function useMediaController() {
   let state: Record<string, UnwrapRef<MediaControllerReactiveData>> = {};
   let cameraControllerSymbols: Record<string, symbol> = {};
   const synchronizeCameras: Ref<boolean> = ref(false);
+
+  // Installed by the viewer while stereo auto-compute is on; otherwise
+  // synchronised panes only copy each other's screen motion.
+  const viewLink = createViewLink({
+    center: (key) => geoViewers[key]?.value?.center(),
+    cameraName: (key) => state[key]?.cameraName,
+    synced: () => synchronizeCameras.value,
+    recenter: (sourceKey, point) => {
+      allowCameraTrigger = false;
+      Object.entries(geoViewers).forEach(([camera, geoViewer]) => {
+        if (geoViewer.value && camera !== sourceKey) {
+          geoViewer.value.center({ x: point[0], y: point[1] });
+        }
+      });
+      allowCameraTrigger = true;
+    },
+  });
   const resizeTrigger: Ref<number> = ref(0);
   // Raised only while onResize applies its programmatic resetZoom, so the
-  // linked-viewer navigation ignores the resulting pan/zoom events (see
-  // AggregateMediaController.resizing).
+  // linked-viewer navigation and stereo view-link ignore the resulting
+  // pan/zoom events (see AggregateMediaController.resizing).
   const resizing: Ref<boolean> = ref(false);
   // shallowRef: an AlignedFrameResolver carries nested Refs (slotCount, frameRate)
   // that must NOT be deep-reactive-converted/auto-unwrapped by a plain ref().
@@ -150,6 +168,7 @@ export function useMediaController() {
     currentTime: emptyControllerCurrentTime,
     getController,
     toggleSynchronizeCameras,
+    setViewLinkResolver,
     cameraSync: synchronizeCameras,
     resizeTrigger,
     resizing,
@@ -287,6 +306,12 @@ export function useMediaController() {
     synchronizeCameras.value = val;
   }
 
+  function setViewLinkResolver(
+    resolver: Parameters<typeof viewLink.setResolver>[0],
+  ) {
+    viewLink.setResolver(resolver);
+  }
+
   /**
    * Optional replacement for the aggregate "reset pan and zoom" behavior,
    * installed by the aligned-view navigation link (useAlignedNavigation).
@@ -320,6 +345,12 @@ export function useMediaController() {
         }
       });
       allowCameraTrigger = true;
+      // onResize's resetZoom emits pan/zoom in native space; skip the stereo
+      // lookup so a pane's native center isn't warped onto the other camera
+      // after the resize settles (same guard as aligned/registration nav).
+      if (!resizing.value) {
+        viewLink.schedule(camEvent.camera);
+      }
     }
   });
 
@@ -333,6 +364,9 @@ export function useMediaController() {
         }
       });
       allowCameraTrigger = true;
+      if (!resizing.value) {
+        viewLink.schedule(camEvent.camera);
+      }
     }
   });
   /**
@@ -654,6 +688,7 @@ export function useMediaController() {
       getController,
       resetMapDimensions,
       toggleSynchronizeCameras,
+      setViewLinkResolver,
       cameraSync: synchronizeCameras,
       resizeTrigger,
       resizing,
@@ -820,6 +855,7 @@ export function useMediaController() {
       currentTime: defaultController.currentTime,
       getController,
       toggleSynchronizeCameras,
+      setViewLinkResolver,
       cameraSync: synchronizeCameras,
       resizeTrigger,
       resizing,

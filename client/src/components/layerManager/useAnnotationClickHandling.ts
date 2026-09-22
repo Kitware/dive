@@ -29,6 +29,7 @@ export default function useAnnotationClickHandling(options: {
     'alignedDisplayInverse' | 'mapNativePoint' | 'mapEditGeoJSONToNative'
   >;
   editAnnotationLayer: EditAnnotationLayer;
+  boxEditLayer?: EditAnnotationLayer;
   rectAnnotationLayer: RectangleLayer;
   polyAnnotationLayer: PolygonLayer;
   lineLayer: LineLayer;
@@ -47,6 +48,7 @@ export default function useAnnotationClickHandling(options: {
     trackStore,
     alignedView,
     editAnnotationLayer,
+    boxEditLayer,
     rectAnnotationLayer,
     polyAnnotationLayer,
     lineLayer,
@@ -208,7 +210,7 @@ export default function useAnnotationClickHandling(options: {
       }
     });
 
-    editAnnotationLayer.bus.$on('update:geojson', (
+    const updateGeoJSON = (
       mode: 'in-progress' | 'editing',
       geometryCompleteEvent: boolean,
       data: GeoJSON.Feature<GeoJSON.Polygon | GeoJSON.LineString | GeoJSON.Point>,
@@ -255,7 +257,21 @@ export default function useAnnotationClickHandling(options: {
         window.setTimeout(() => { justFinalizedCreation = false; }, 0);
         refreshLayers();
       }
-    });
+    };
+    editAnnotationLayer.bus.$on('update:geojson', updateGeoJSON);
+    // A box edit leaves the line untouched, so the line layer keeps its
+    // annotation (and any selected vertex) rather than rebuilding.
+    boxEditLayer?.bus.$on('update:geojson', (
+      mode: 'in-progress' | 'editing',
+      geometryCompleteEvent: boolean,
+      data: GeoJSON.Feature<GeoJSON.Polygon>,
+      type: string,
+      key = '',
+      cb: () => void = () => (undefined),
+    ) => updateGeoJSON(mode, geometryCompleteEvent, data, type, key, () => {
+      cb();
+      editAnnotationLayer.skipNextExternalUpdate = true;
+    }));
 
     editAnnotationLayer.bus.$on(
       'update:selectedIndex',
