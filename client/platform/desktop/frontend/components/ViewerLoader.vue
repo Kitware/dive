@@ -49,6 +49,7 @@ import {
   componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
 } from 'dive-common/recipes/segmentationPolygons';
 import populateAnnotation from '../autoPopulate';
+import shouldTransferStereoSegmentation from '../stereoSegmentation';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
@@ -1626,8 +1627,28 @@ export default defineComponent({
           }
           return 'skipped';
         }
+      } else if (params.type === 'segmentation') {
+        const saved = preStereoSegmentationState.get(`${params.trackId}:${params.frameNum}`);
+        if (!shouldTransferStereoSegmentation({
+          autoCompute,
+          otherHasFeature,
+          otherHadFeatureBeforeSegmentation: saved?.[otherCamera]?.hadFeature,
+          otherHasUserLine: otherFeature?.attributes?.[STEREO_USER_LINE_ATTR] === true,
+        })) {
+          // A pre-existing counterpart stays intact, but source auto-populate
+          // can move its head/tail and invalidate the previous measurement.
+          if (updateLengths && otherHasFeature) {
+            await sourceAutoPopulate;
+            try {
+              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            } catch (err) {
+              console.warn('[Stereo] Measurement update failed:', err);
+            }
+          }
+          return 'skipped';
+        }
       } else if (otherHasFeature) {
-        // Box / polygon / segmentation: warp only once; leave existing untouched.
+        // Box / polygon: warp only once; leave existing untouched.
         return 'skipped';
       } else if (!autoCompute) {
         // Creating geometry on the other camera is gated by auto-compute.
@@ -1905,6 +1926,9 @@ export default defineComponent({
 
           // Optionally add a head/tail line to each camera and store the
           // length/measurement attributes (as the line-transfer flow does).
+          // Finish the source's point extraction before storing the measurement;
+          // a late head/tail write would otherwise clear the new length again.
+          await sourceAutoPopulate;
           if (response.generateLine) {
             if (response.lineSource) applyStereoLine(sourceTrack, params.frameNum, response.lineSource);
             if (track && response.lineOther) applyStereoLine(track, params.frameNum, response.lineOther);
@@ -1916,7 +1940,7 @@ export default defineComponent({
               await updateStereoTrackAverages(cameraStore, params.trackId);
             }
           }
-          autoPopulateStereoMask(params.camera, otherCamera, params.trackId, params.frameNum);
+          await autoPopulateStereoMask(params.camera, otherCamera, params.trackId, params.frameNum);
         }
         // Success — hide loading dialog (interactive path only)
         if (!quiet) {
@@ -2352,13 +2376,13 @@ export default defineComponent({
      * the source camera's, once that one settles so the line runs the same way.
      * Runs after each click's stereo segmentation, like the source camera's.
      */
-    function autoPopulateStereoMask(sourceCamera: string, otherCamera: string, trackId: number, frameNum: number) {
+    async function autoPopulateStereoMask(sourceCamera: string, otherCamera: string, trackId: number, frameNum: number) {
       if (!clientSettings.trackSettings.newTrackSettings.autoPopulatePoints) return;
       const polygons = trackMaskPolygons(viewerRef.value?.cameraStore?.getPossibleTrack(trackId, otherCamera), frameNum);
       if (!polygons.length) return;
       const sourceJob = pendingAutoPopulate.get(autoPopulateKey(sourceCamera, trackId, frameNum))
         ?? Promise.resolve();
-      autoPopulateOtherCamera(sourceJob, sourceCamera, {
+      await autoPopulateOtherCamera(sourceJob, sourceCamera, {
         camera: otherCamera, trackId, frameNum, source: 'mask', polygons,
       });
     }
