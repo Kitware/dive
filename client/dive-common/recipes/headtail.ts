@@ -189,6 +189,17 @@ export default class HeadTail implements Recipe {
     data: GeoJSON.Feature<GeoJSON.LineString | GeoJSON.Polygon | GeoJSON.Point>[],
     key?: string,
   ) {
+    // A lone head or tail dragged to a new spot (companion point editing).
+    const point = data.find((d) => d.geometry.type === 'Point') as GeoJSON.Feature<GeoJSON.Point> | undefined;
+    if (point && mode === 'editing' && key && isHeadTailPoint(key)) {
+      const bounds = track.getFeature(frameNum)[0]?.bounds;
+      return {
+        ...EmptyResponse,
+        data: { [key]: [{ ...point, properties: {} }] },
+        union: bounds ? HeadTail.encloseVertices(bounds, [point.geometry.coordinates]) : [],
+        done: true,
+      };
+    }
     const linestrings = data.filter((d) => d.geometry.type === 'LineString');
     if (linestrings.length) {
       const linestring = linestrings[0] as GeoJSON.Feature<GeoJSON.LineString>;

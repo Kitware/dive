@@ -97,3 +97,43 @@ it('shows the hand over a line vertex and a resize cursor only over a box corner
   expect(h.cursors.at(-1)).toBe('nw-resize');
   expect(h.cursors).not.toContain('grab');
 });
+
+it('moves a lone head point while the line tool waits for its tail', async () => {
+  const node = document.createElement('div');
+  document.body.appendChild(node);
+  const map = geo.map({
+    node, width: 800, height: 600, ...geo.util.pixelCoordinateParams(node, 800, 600, 800, 600).map,
+  });
+  const params = {
+    annotator: { geoViewerRef: ref(map), setCursor: vi.fn(), setImageCursor: vi.fn() },
+    stateStyling: { standard: { color: '#f00' }, selected: { color: '#f00' } },
+    typeStyling: ref({ color: () => '#f00', strokeWidth: () => 1, opacity: () => 1 }),
+  } as any;
+  const line = new EditAnnotationLayer({ ...params, type: 'LineString' });
+  const point = new EditAnnotationLayer({ ...params, type: 'rectangle', companion: true });
+  liveLayers.push(line, point);
+  line.peer = point; point.peer = line;
+  line.setKey('HeadTails'); point.setType('Point'); point.setKey('head');
+  const track = new Track(1, { begin: 0, end: 0, meta: {} });
+  track.setFeature({ frame: 0, keyframe: true, bounds: [50, 50, 400, 400] }, [{
+    type: 'Feature', properties: { key: 'head' }, geometry: { type: 'Point', coordinates: [100, 100] },
+  }]);
+  const frameData = [{ features: track.features[0], track }] as any;
+  await line.changeData(frameData); await point.changeData(frameData);
+  expect(line.getMode()).toBe('creation');
+  expect(point.getMode()).toBe('editing');
+  const lineUpdate = vi.fn(); const pointUpdate = vi.fn();
+  line.bus.$on('update:geojson', lineUpdate); point.bus.$on('update:geojson', pointUpdate);
+  const mouse = (type: string, x: number, y: number) => map.interactor().simulateEvent(type, { map: { x, y }, button: 'left' });
+  mouse('mousemove', 100, 100); mouse('mousedown', 100, 100);
+  mouse('mousemove', 130, 110); mouse('mouseup', 130, 110);
+  expect(pointUpdate).toHaveBeenCalledTimes(1);
+  expect(pointUpdate.mock.calls[0][2].geometry).toEqual({ type: 'Point', coordinates: [130, 110] });
+  expect(pointUpdate.mock.calls[0][4]).toBe('head');
+  expect(lineUpdate).not.toHaveBeenCalled();
+  expect(line.shapeInProgress).toBeNull();
+  // Leaving the handle gives the line tool its click-to-place actions back.
+  mouse('mousemove', 300, 300);
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(map.interactor().hasAction(undefined, undefined, geo.annotation.actionOwner)).toBeTruthy();
+});
