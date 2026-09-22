@@ -797,9 +797,9 @@ export default defineComponent({
     }
 
     // Push the stereo frame (left/right paths + frame time) to the backend and
-    // wait for it to land. Returns whether disparity/images are ready, so callers
-    // that need a correspondence (line/point transfer) can guarantee readiness
-    // instead of racing the proactive watcher. Updates lastStereoFrame on success.
+    // wait for acceptance. Dense disparity may still be computing; the backend
+    // defers correspondence and multi-point measurement requests until ready.
+    // Updates lastStereoFrame on successful acceptance.
     async function ensureStereoFrame(frameNum: number | undefined): Promise<boolean> {
       if (frameNum === undefined || !stereoEnabled.value) return false;
       const cameras = Object.keys(stereoImagePathGetters.value);
@@ -1104,7 +1104,7 @@ export default defineComponent({
     }
 
     /**
-     * Extract the two endpoints of a 2-point LineString from a track's feature
+     * Extract all vertices of a measurement LineString from a track's feature
      * at the given frame. Returns null if there is no such line.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1419,8 +1419,8 @@ export default defineComponent({
 
     /**
      * Triangulate and store the stereo measurement for one frame of a track that
-     * has a 2-point line on both cameras. Returns the measurement, or null if
-     * either side lacks a line (or the service fails).
+     * has a line on both cameras. Returns null if either side lacks a line or
+     * the geometry changed while waiting; service failures are reported.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function measureStereoLineAtFrame(cameraStore: any, trackId: number, frameNum: number) {
@@ -1433,8 +1433,19 @@ export default defineComponent({
       const rightLine = getStereoLineEndpoints(rightTrack, frameNum);
       if (!leftLine || !rightLine) return null;
 
-      if (leftLine.length > 2 || rightLine.length > 2) await ensureStereoFrame(frameNum);
-      const response = await stereoMeasureLine({ leftLine, rightLine });
+      const fps = stereoCameraFps.value[leftCamera]
+        || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+      const request = {
+        leftLine,
+        rightLine,
+        leftImagePath: stereoImagePathGetters.value[leftCamera](frameNum),
+        rightImagePath: stereoImagePathGetters.value[rightCamera](frameNum),
+        frameTime: fps ? frameNum / fps : undefined,
+      };
+      if ((leftLine.length > 2 || rightLine.length > 2) && !(await ensureStereoFrame(frameNum))) {
+        throw new Error('Could not prepare stereo images for multi-point measurement.');
+      }
+      const response = await stereoMeasureLine(request);
       if (JSON.stringify(getStereoLineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
           || JSON.stringify(getStereoLineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
       if (response.success && response.measurement) {
@@ -1443,7 +1454,7 @@ export default defineComponent({
         applyStereoMeasurement(rightTrack, frameNum, response.measurement);
         return response.measurement;
       }
-      return null;
+      throw new Error(response.error || 'The stereo service could not measure these lines.');
     }
 
     /**
@@ -1462,7 +1473,7 @@ export default defineComponent({
     /**
      * Handle two detections being linked across cameras (multicam link tool).
      * Recompute the stereo measurement for every frame where both the left and
-     * right tracks now have a 2-point line.
+     * right tracks now have a measurement line.
      */
     async function handleStereoTrackLinked(trackId: number) {
       // Wait out a still-starting service rather than dropping the recompute.
@@ -1617,6 +1628,10 @@ export default defineComponent({
               await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
             } catch (err) {
               console.warn('[Stereo] Measurement update failed:', err);
+              stereoErrorTitle.value = 'Stereo Measurement Error';
+              stereoErrorSeverity.value = 'warning';
+              stereoLoadingError.value = `Could not update the stereo length. ${err instanceof Error ? err.message : String(err)}`;
+              stereoLoadingDialog.value = true;
             }
           }
           return 'skipped';
