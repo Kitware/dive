@@ -4,6 +4,7 @@ import type {
 import type { SegmentationPredictRequest, SegmentationPredictResponse } from 'dive-common/apispec';
 import type { RgbaImage } from '../stereo/image';
 import { maskGeometry } from './maskGeometry';
+import SamMaskPostprocessor from './SamMaskPostprocessor';
 
 export type SamModel = 'sam2' | 'sam3';
 export const SAM_MODELS = {
@@ -15,6 +16,7 @@ type EncodedFrame = {
   embeddings: Record<string, Tensor>;
   original: [number, number][];
   reshaped: [number, number][];
+  padded: [number, number];
 };
 
 type GpuAccess = {
@@ -37,6 +39,8 @@ export default class SamOnnx {
   private model: Sam2Model | null = null;
 
   private processor: Sam2Processor | null = null;
+
+  private postprocessor: SamMaskPostprocessor | null = null;
 
   private kind: SamModel = 'sam2';
 
@@ -72,6 +76,8 @@ export default class SamOnnx {
       await this.model?.dispose();
       this.model = null;
       this.processor = null;
+      await this.postprocessor?.dispose();
+      this.postprocessor = null;
     });
   }
 
@@ -141,6 +147,7 @@ export default class SamOnnx {
               embeddings: await model.get_image_embeddings(inputs),
               original: inputs.original_sizes,
               reshaped: inputs.reshaped_input_sizes,
+              padded: [inputs.pixel_values.dims[2], inputs.pixel_values.dims[3]],
             };
           } finally { inputs.pixel_values.dispose(); }
           if (this.frames.size >= 2) {
@@ -164,17 +171,10 @@ export default class SamOnnx {
       try {
         const output = await model({ ...frame.embeddings, ...promptInputs });
         try {
-          // SAM returns alternative masks, not separate object components.
-          // Pick the highest-scoring candidate; preserve all of its components.
-          const scores = Array.from(output.iou_scores.data, Number);
-          const best = scores.reduce((a, score, i) => (score > scores[a] ? i : a), 0);
-          const masks: Tensor[] = await processor.post_process_masks(output.pred_masks, frame.original, frame.reshaped);
-          try {
-            if (version !== this.version) throw new Error('Segmentation model changed.');
-            const size = image.width * image.height;
-            const mask = Uint8Array.from(masks[0].data.slice(best * size, (best + 1) * size), Number);
-            return { ...maskGeometry(mask, image.width, image.height), score: scores[best] };
-          } finally { masks.forEach((mask) => mask.dispose()); }
+          if (!this.postprocessor) this.postprocessor = await SamMaskPostprocessor.create();
+          const { mask, score } = await this.postprocessor.run(output.pred_masks, output.iou_scores, frame.original[0], frame.reshaped[0], frame.padded);
+          if (version !== this.version) throw new Error('Segmentation model changed.');
+          return { ...maskGeometry(mask, image.width, image.height), score };
         } finally {
           output.pred_masks.dispose();
           output.iou_scores.dispose();

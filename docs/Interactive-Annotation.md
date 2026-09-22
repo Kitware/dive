@@ -164,6 +164,15 @@ initialization fails, and uses CPU directly for software GPU adapters. SAM3 uses
 Initial encoding can be slow, especially on software graphics. Subsequent
 clicks reuse image embeddings; only two camera frames are retained in memory.
 
+SAM2 and SAM3 share a small bundled ONNX post-processing graph that selects the
+highest-scoring candidate, resizes and unpads its logits, and returns a binary
+mask at the original image size. Selecting first avoids upscaling all three
+alternatives. This graph runs through ONNX Runtime/WASM and can also be used by
+a desktop ONNX host; it has no DIVE or model-weight dependency. Its reproducible
+exporter is `samples/scripts/exportSamPostprocess.py` (`--check` validates against
+an OpenCV reference). DIVE converts the resulting mask into editable polygons
+and manages annotation state and stereo transfer.
+
 **Auto-populate mask** segments newly drawn boxes and lines. **Auto-populate
 points / tighten box** derives head/tail from masks, or fits a drawn line's
 box to its mask. Generated head/tail uses the minimum-area convex-hull
