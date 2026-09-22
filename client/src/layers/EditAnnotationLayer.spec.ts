@@ -20,6 +20,7 @@ function harness() {
   const handlers = new Map<string, Set<(event: any) => void>>();
   let mode: string | null = null;
   let annotation: any;
+  const handles = { _clearSelectedFeatures: vi.fn() };
   const featureLayer: any = {
     annotations: () => (annotation ? [annotation] : []),
     mode: (value?: string | null, edited?: any) => {
@@ -36,6 +37,7 @@ function harness() {
     geoOff: (name: string, fn: (e: any) => void) => handlers.get(name)?.delete(fn),
     removeAllAnnotations: () => { annotation = undefined; },
     draw: vi.fn(),
+    features: () => [handles],
     geojson: (feature: GeoJSON.Feature<GeoJSON.LineString>) => {
       let vertices = feature.geometry.coordinates.map(([x, y]) => ({ x, y }));
       annotation = {
@@ -53,7 +55,8 @@ function harness() {
   };
   featureLayer.geoOn('mouseclick', featureLayer._handleMouseClick);
   const arrow: any = { style: vi.fn(), draw: vi.fn(), data: () => arrow };
-  const interactor = { mouse: () => ({ buttons: { left: false } }) };
+  const mouseButtons = { left: false };
+  const interactor = { mouse: () => ({ buttons: mouseButtons }), retriggerMouseMove: vi.fn() };
   const project = (p: { x: number; y: number }) => ({ x: p.x * 10, y: p.y * 10 });
   const map = {
     createLayer: (type: string) => (type === 'annotation' ? featureLayer : { createFeature: () => arrow }),
@@ -61,9 +64,10 @@ function harness() {
     displayToGcs: (p: any) => ({ x: p.x / 10, y: p.y / 10 }),
     interactor: () => interactor,
   };
+  const annotator = { geoViewerRef: ref(map), setCursor: vi.fn(), setImageCursor: vi.fn() };
   const layer = new EditAnnotationLayer({
     type: 'LineString',
-    annotator: { geoViewerRef: ref(map), setCursor: vi.fn(), setImageCursor: vi.fn() },
+    annotator,
     stateStyling: { standard: { color: '#f00' }, selected: { color: '#f00' } },
     typeStyling: ref({ color: () => '#f00' }),
   } as any);
@@ -83,7 +87,7 @@ function harness() {
     handlers.get('mouseclick')!.forEach((fn) => fn(event));
   };
   return {
-    layer, track, reopen, update, click, featureLayer,
+    layer, track, reopen, update, click, featureLayer, annotator, mouseButtons, handles, interactor,
   };
 }
 
@@ -164,4 +168,94 @@ it('does not carry a middle click on another Point layer into the next left clic
   finish(idle, 3);
   expect(emitted.mock.calls[1][2].properties.background).toBe(true);
   [consumed, idle].forEach((h) => h.layer.destroy());
+});
+
+it('moves and commits only the annotation whose handle was grabbed when a peer layer is live', async () => {
+  const h = harness(); await h.reopen();
+  const annotation = h.featureLayer.annotations()[0];
+  const process = vi.fn(() => true);
+  annotation.diveDragGuard = false; annotation.processEditAction = process;
+  h.layer.guardPeerDrags(annotation);
+  const drag = { annotation: { ...annotation, layer: () => h.featureLayer }, action: 'actionup' };
+
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(1);
+  expect(h.update).toHaveBeenCalledTimes(1);
+
+  h.layer.peer = h.layer; h.layer.ownsDrag = false;
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(1);
+  expect(h.update).toHaveBeenCalledTimes(1);
+
+  h.layer.ownsDrag = true;
+  annotation.processEditAction({}); h.layer.handleEditAction(drag as any);
+  expect(process).toHaveBeenCalledTimes(2);
+  expect(h.update).toHaveBeenCalledTimes(2);
+});
+
+it('limits a companion box editor to its corner handles', () => {
+  const { layer } = harness();
+  layer.companion = true;
+  expect(layer.editHandleStyle().handles).toEqual({
+    vertex: true, edge: false, center: false, rotate: false, resize: false,
+  });
+});
+
+it('skips mode(null) when already disabled so a peer creation session stays intact', async () => {
+  const h = harness();
+  await h.layer.changeData([]);
+  expect(h.layer.getMode()).toBe('creation');
+  h.layer.disable();
+  expect(h.layer.getMode()).toBe('disabled');
+  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
+  h.layer.disable();
+  // getMode() still reads mode() with no args; only mode(null) must be skipped.
+  expect(modeSpy).not.toHaveBeenCalledWith(null);
+});
+
+it('reinstalls creation mode after a peer disable strips interactor actions', async () => {
+  const h = harness();
+  await h.layer.changeData([]);
+  expect(h.layer.getMode()).toBe('creation');
+  const modeSpy = vi.spyOn(h.featureLayer, 'mode');
+  h.layer.restoreHandleActions();
+  expect(modeSpy).toHaveBeenCalledWith('line');
+  expect(h.layer.getMode()).toBe('creation');
+});
+
+it('does not restore the editing cursor after disable cancels a deferred changeData', async () => {
+  vi.useFakeTimers();
+  const h = harness();
+  await h.reopen();
+  expect(h.layer.getMode()).toBe('editing');
+  expect(h.annotator.setImageCursor).toHaveBeenCalledWith('mdi-vector-line', true);
+
+  // Cross-camera blank click: mousedown keeps the left button down so
+  // changeData defers its reset, then LayerManager disable()s on deselect.
+  h.mouseButtons.left = true;
+  const editFrame = [{ features: h.track.features[0], track: h.track }] as any;
+  await h.layer.changeData(editFrame);
+  h.annotator.setImageCursor.mockClear();
+  h.layer.disable();
+  expect(h.layer.getMode()).toBe('disabled');
+  expect(h.annotator.setImageCursor).toHaveBeenCalledWith('');
+
+  h.mouseButtons.left = false;
+  h.annotator.setImageCursor.mockClear();
+  await vi.advanceTimersByTimeAsync(50);
+  expect(h.layer.getMode()).toBe('disabled');
+  expect(h.annotator.setImageCursor).not.toHaveBeenCalledWith('mdi-vector-line', true);
+  vi.useRealTimers();
+});
+
+it('re-hovers the handle under a stationary cursor after the edit annotation is rebuilt', async () => {
+  vi.useFakeTimers();
+  const h = harness(); await h.reopen();
+  vi.runAllTimers();
+  expect(h.handles._clearSelectedFeatures).toHaveBeenCalledTimes(1);
+  expect(h.interactor.retriggerMouseMove).toHaveBeenCalledTimes(1);
+  h.layer.disable(); await h.layer.changeData([]);
+  vi.runAllTimers();
+  expect(h.interactor.retriggerMouseMove).toHaveBeenCalledTimes(1);
+  vi.useRealTimers();
 });

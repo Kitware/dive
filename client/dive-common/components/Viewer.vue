@@ -100,6 +100,13 @@ import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
 
+export interface StereoViewLinkParams {
+  camera: string;
+  frameNum: number;
+  point: [number, number];
+}
+export type StereoViewLinkFunc = (params: StereoViewLinkParams) => Promise<[number, number] | null>;
+
 export interface ImageDataItem {
   url: string;
   filename: string;
@@ -183,6 +190,15 @@ export default defineComponent({
     /** Deep link: track to select once annotations are loaded. */
     initialTrackId: {
       type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+    /**
+     * Where a point on one stereo camera lands on the other, using the loaded
+     * stereo matcher; null when it cannot be found. Lets synchronised panning
+     * follow the same object on both cameras.
+     */
+    stereoViewLink: {
+      type: Function as PropType<StereoViewLinkFunc | undefined>,
       default: undefined,
     },
   },
@@ -727,7 +743,7 @@ export default defineComponent({
       sorted: cameraStore.sortedTracks,
       remove: removeTracks,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
-      lookupGroups: cameraStore.lookupGroups,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
       getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
       renameTrackPair: (id, currentType, newType) => (
         cameraStore.renameTrackPair(id, currentType, newType)
@@ -800,6 +816,32 @@ export default defineComponent({
     });
     provideAutoRegisterJob(autoRegisterJob);
     onBeforeUnmount(() => autoRegisterJob.dispose());
+
+    // Linked panning: with camera controls synchronised and auto-compute on,
+    // the other pane recentres on where this pane's centre is on its camera.
+    const stereoViewLinkResolver = async (camera: string, point: [number, number]) => {
+      if (!props.stereoViewLink) return null;
+      let frameNum: number;
+      try {
+        frameNum = aggregateController.value.getController(camera).frame.value;
+      } catch {
+        return null;
+      }
+      return props.stereoViewLink({ camera, frameNum, point });
+    };
+    watch(
+      [
+        () => clientSettings.stereoSettings.autoComputeOtherCamera,
+        () => props.stereoViewLink,
+        () => multiCamList.value.length,
+      ],
+      ([autoCompute, link, cameras]) => {
+        aggregateController.value.setViewLinkResolver(
+          autoCompute && link && cameras === 2 ? stereoViewLinkResolver : null,
+        );
+      },
+      { immediate: true },
+    );
 
     // Provides wrappers for actions to integrate with settings
     const {
@@ -1563,6 +1605,10 @@ export default defineComponent({
       }
       return false;
     };
+    let editingOnRightMouseDown = false;
+    const noteRightMouseDown = () => {
+      editingOnRightMouseDown = editingTrack.value;
+    };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
     const changeCamera = (camera: string, event?: MouseEvent) => {
@@ -1586,15 +1632,20 @@ export default defineComponent({
       if (event && isExtendingDetectionToCamera(camera)) {
         return;
       }
-      // A right-click while editing must finalize and deselect the detection
-      // in a single press -- matching single-camera behavior -- not merely
-      // switch cameras (which used to leave the detection selected until a
-      // second right-click on the new camera). Right-clicks ON an annotation
-      // never reach here: the annotation layers' right-click handoff switches
-      // the selected camera synchronously first, so this handler returns at
-      // the top (same camera).
-      if (event?.button === 2 && editingTrack.value) {
+      // A right-click off the detection while editing must finalize it,
+      // deselect it AND select the clicked camera in a single press, whatever
+      // the edit mode. When the track also has geometry on the clicked camera,
+      // that camera's edit layer has already ended editing by the time this
+      // mouseup arrives -- leaving the detection selected -- so editingTrack
+      // alone cannot tell; selectCamera(camera, true) would then put it
+      // straight back into edit mode. Right-clicks ON an annotation never
+      // reach here: the annotation layers' right-click handoff switches the
+      // selected camera synchronously first, so this handler returns at the
+      // top (same camera).
+      if (event?.button === 2 && (editingTrack.value || editingOnRightMouseDown)) {
+        editingOnRightMouseDown = false;
         handler.trackSelect(null, false);
+        selectCamera(camera, false);
         return;
       }
       // While editing a track that exists on the target camera, its edit
@@ -2482,6 +2533,7 @@ export default defineComponent({
       defaultCamera,
       selectedCamera,
       changeCamera,
+      noteRightMouseDown,
       // For Navigation Guarding
       navigateAwayGuard,
       warnBrowserExit,
@@ -2671,14 +2723,8 @@ export default defineComponent({
             />
           </template>
           <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
-            slot="multicam-controls-left"
-          >
-            <multi-cam-toolbar />
-          </template>
-          <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls-right"
+            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar"
+            slot="multicam-controls"
           >
             <multi-cam-toolbar />
           </template>
@@ -2843,6 +2889,7 @@ export default defineComponent({
               :class="displayedCameras.includes(camera) ? 'd-flex flex-column grow' : 'd-none'"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
+              @mousedown.right="noteRightMouseDown"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
@@ -2940,6 +2987,7 @@ export default defineComponent({
               :key="camera"
               class="d-flex flex-column grow"
               @mousedown.left="changeCamera(camera, $event)"
+              @mousedown.right="noteRightMouseDown"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component

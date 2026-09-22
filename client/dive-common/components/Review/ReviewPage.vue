@@ -110,7 +110,10 @@ export default defineComponent({
       footerPx,
       // The box is drawn over the chip (and follows edits), not into it.
       outline: '',
+      // Deleting or editing an entry keeps the page; only a new query resets it.
+      retainPage: true,
     });
+    watch(review.queryGeneration, () => grid.goToPage(0));
 
     const showDatasetNames = computed(() => review.datasets.value.length > 1);
     const readyDatasets = computed(() => review.datasets.value.filter((d) => d.status === 'ready').length);
