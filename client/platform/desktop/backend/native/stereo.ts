@@ -77,6 +77,10 @@ export interface StereoTransferLineResponse {
 
 /** Request to triangulate the length of a line already corresponded on both images */
 export interface StereoMeasureLineRequest {
+  /** Frame identity for deferred multi-point measurement. */
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   leftLine: [number, number][];
   rightLine: [number, number][];
 }
