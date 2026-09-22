@@ -36,7 +36,7 @@ export default class AnnotationHistory {
 
   readonly canUndo = computed(() => this.count.value > 0 && this.active && !this.busy.value);
 
-  constructor(private cameras: CameraStore, private limit = 100) {
+  constructor(private cameras: CameraStore, private limit = 20) {
     if (limit < 1) throw new Error('Undo history must retain at least one edit');
   }
 

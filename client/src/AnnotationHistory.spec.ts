@@ -4,7 +4,7 @@ import CameraStore from './CameraStore';
 import Track from './track';
 import Group from './Group';
 
-function harness(limit = 100) {
+function harness(limit?: number) {
   let history: AnnotationHistory;
   const changed = vi.fn();
   const cameras = new CameraStore({

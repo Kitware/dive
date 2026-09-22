@@ -52,7 +52,7 @@ Most editing controls are available when a track or detection is selected.
 
 The **Undo** button beside Save provides the same action in web and desktop.
 Undo restores annotation creation, deletion, geometry, types, attributes, and
-groups, including changes across cameras. Up to 100 edits are retained for the
+groups, including changes across cameras. Up to 20 edits are retained for the
 current session. Saving does not clear history: undoing a saved edit creates a
 new pending change to save. Loading another dataset or reloading annotations
 clears history. Text fields keep their normal text undo behavior.
