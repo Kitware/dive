@@ -1,7 +1,7 @@
 import Track from 'vue-media-annotator/track';
 import { headTailFeatures } from 'vue-media-annotator/headTail';
 import {
-  autoPopulatePrompt, autoPopulateTarget, boundsIoU, closedRing, polygonBounds, orientLineLike,
+  autoPopulatePrompt, autoPopulateTarget, boundsEnclosing, boundsIoU, closedRing, polygonBounds, orientLineLike,
   LINE_PROMPT_FRACTIONS,
 } from './autoPopulate';
 
@@ -25,6 +25,11 @@ it('closes rings and measures polygon bounds', () => {
   expect(closedRing([[0, 0], [4, 0], [4, 3]])).toEqual([[0, 0], [4, 0], [4, 3], [0, 0]]);
   expect(closedRing([[0, 0], [4, 0], [0, 0]])).toHaveLength(3);
   expect(polygonBounds([[1, 5], [4, 2], [3, 9]])).toEqual([1, 2, 4, 9]);
+});
+
+it('grows a box only as far as the points need', () => {
+  expect(boundsEnclosing([10, 10, 50, 40], [[20, 20], [30, 30]])).toEqual([10, 10, 50, 40]);
+  expect(boundsEnclosing([10, 10, 50, 40], [[4.5, 20], [55.2, 45.1]])).toEqual([4, 10, 56, 46]);
 });
 
 it('measures the overlap of two boxes', () => {

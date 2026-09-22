@@ -48,6 +48,7 @@ import {
 import {
   componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
 } from 'dive-common/recipes/segmentationPolygons';
+import { boundsEnclosing } from 'dive-common/use/autoPopulate';
 import populateAnnotation from '../autoPopulate';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
@@ -1499,6 +1500,38 @@ export default defineComponent({
       }
     }
 
+    function paddedLineBounds(points: [number, number][]): RectBounds {
+      const minX = Math.min(...points.map((p) => p[0]));
+      const minY = Math.min(...points.map((p) => p[1]));
+      const maxX = Math.max(...points.map((p) => p[0]));
+      const maxY = Math.max(...points.map((p) => p[1]));
+      const width = maxX - minX;
+      const height = maxY - minY;
+      const padX = width * 0.10 || height * 0.10;
+      const padY = height * 0.10 || width * 0.10;
+      let bx0 = minX - padX;
+      let bx1 = maxX + padX;
+      let by0 = minY - padY;
+      let by1 = maxY + padY;
+      // Cap the aspect ratio so a near-axis-aligned warped line doesn't make
+      // a razor-thin box (matches headtail.ts MAX_BOX_ASPECT_RATIO).
+      const MAX_BOX_ASPECT_RATIO = 6;
+      const bw = bx1 - bx0;
+      const bh = by1 - by0;
+      if (bw > 0 && bh > 0) {
+        if (bw / bh > MAX_BOX_ASPECT_RATIO) {
+          const grow = (bw / MAX_BOX_ASPECT_RATIO - bh) / 2;
+          by0 -= grow;
+          by1 += grow;
+        } else if (bh / bw > MAX_BOX_ASPECT_RATIO) {
+          const grow = (bh / MAX_BOX_ASPECT_RATIO - bw) / 2;
+          bx0 -= grow;
+          bx1 += grow;
+        }
+      }
+      return [bx0, by0, bx1, by1] as RectBounds;
+    }
+
     /**
      * Handle stereo annotation complete event from Viewer
      * Warps annotation from source camera to the other camera
@@ -1681,35 +1714,12 @@ export default defineComponent({
               properties: g.geometry.type === 'Point'
                 ? { ...g.properties, stereoSource: params.camera, stereoKey: g.properties?.key } : g.properties,
             }));
-            const minX = Math.min(...points.map((p) => p[0]));
-            const minY = Math.min(...points.map((p) => p[1]));
-            const maxX = Math.max(...points.map((p) => p[0]));
-            const maxY = Math.max(...points.map((p) => p[1]));
-            const width = maxX - minX;
-            const height = maxY - minY;
-            const padX = width * 0.10 || height * 0.10;
-            const padY = height * 0.10 || width * 0.10;
-            let bx0 = minX - padX;
-            let bx1 = maxX + padX;
-            let by0 = minY - padY;
-            let by1 = maxY + padY;
-            // Cap the aspect ratio so a near-axis-aligned warped line doesn't make
-            // a razor-thin box (matches headtail.ts MAX_BOX_ASPECT_RATIO).
-            const MAX_BOX_ASPECT_RATIO = 6;
-            const bw = bx1 - bx0;
-            const bh = by1 - by0;
-            if (bw > 0 && bh > 0) {
-              if (bw / bh > MAX_BOX_ASPECT_RATIO) {
-                const grow = (bw / MAX_BOX_ASPECT_RATIO - bh) / 2;
-                by0 -= grow;
-                by1 += grow;
-              } else if (bh / bw > MAX_BOX_ASPECT_RATIO) {
-                const grow = (bh / MAX_BOX_ASPECT_RATIO - bw) / 2;
-                bx0 -= grow;
-                bx1 += grow;
-              }
-            }
-            const bounds = [bx0, by0, bx1, by1] as [number, number, number, number];
+            // A box already fitted to this camera's mask only grows to keep the
+            // moved line inside, as the source camera's box does on an edit.
+            const [existing] = track.getFeature(params.frameNum);
+            const bounds = existing?.bounds && track.getPolygonFeatures(params.frameNum).length
+              ? boundsEnclosing(existing.bounds, points)
+              : paddedLineBounds(points);
 
             track.setFeature({
               frame: params.frameNum,
