@@ -1,5 +1,6 @@
 import { readFileSync } from 'fs';
-import { sampleDisparity, fitDisparitySegment } from '../disparitySampling';
+import { fitDisparitySegment } from '../disparitySampling';
+import sampleDisparity from './disparitySamplingReference';
 
 const desktopFits: { samples: [number, number][]; expected: [number, number] | null }[] = JSON.parse(readFileSync(new URL('./desktopSegmentFits.json', import.meta.url), 'utf8'));
 

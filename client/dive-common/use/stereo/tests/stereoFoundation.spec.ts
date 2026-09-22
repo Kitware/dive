@@ -22,8 +22,19 @@ import {
 import { rigFromNpz, StereoRig } from '../calibration';
 import { rodrigues, computeRectification, rectifyPoint } from '../rectify';
 import { RgbaImage } from '../image';
+import { DisparitySampler } from '../DisparitySampler';
 
 const fixture = (name: string) => fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url));
+
+let sampler: DisparitySampler;
+beforeAll(async () => {
+  sampler = await DisparitySampler.create(readFileSync(new URL('../../../../public/models/stereo_sample.onnx', import.meta.url)));
+});
+afterAll(async () => { await sampler.dispose(); });
+
+function makeMatcher(session: DisparitySession, spec: { width: number; height: number }, cacheSize?: number) {
+  return new StereoFoundationMatcher(session, spec, cacheSize, ort, sampler.run);
+}
 
 const SPEC = { width: 96, height: 64 };
 const SRC = { width: 320, height: 240 };
@@ -113,7 +124,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('shifts each point by the disparity, scaled back to source pixels', async () => {
     const disparity = 6;
-    const matcher = new StereoFoundationMatcher(fakeSession(disparity), SPEC);
+    const matcher = makeMatcher(fakeSession(disparity), SPEC);
     const res = await matcher.warpPoints(points, left, right, rig, RANGE);
     const rect = computeRectification(rig, SRC.width, SRC.height, SPEC.width, SPEC.height);
     res.forEach((r, i) => {
@@ -131,9 +142,12 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('refines straight lines with one cached inference and keeps short-line fallback', async () => {
     const session = fakeSession(6);
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const sample = vi.fn(sampler.run);
+    const matcher = new StereoFoundationMatcher(session, SPEC, undefined, ort, sample);
     const line = await matcher.warpLine(points, left, right, rig, RANGE);
     expect(session.runs).toBe(1);
+    expect(sample).toHaveBeenCalledTimes(1);
+    expect(sample.mock.calls[0][5]).toHaveLength(11);
     line.forEach((p, i) => {
       expect(p.accepted).toBe(true);
       expect(p.x).toBeCloseTo(points[i][0] - 20, 3);
@@ -152,7 +166,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
       }
     }
     const session = fakeSession(field);
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     const line: [number, number][] = [[80, 120], [240, 120]];
     const opts = { ...RANGE, frameKey: 'outliers' };
     const raw = await matcher.warpPoints(line, left, right, rig, opts);
@@ -168,14 +182,14 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('feeds the model at its own resolution', async () => {
     const session = fakeSession(4);
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     await matcher.warpPoints(points, left, right, rig, RANGE);
     expect(session.feeds[0].left_image.dims).toEqual([1, 3, SPEC.height, SPEC.width]);
     expect(session.feeds[0].right_image.dims).toEqual([1, 3, SPEC.height, SPEC.width]);
   });
 
   it('uses dense disparity independently of the NCC search range', async () => {
-    const matcher = new StereoFoundationMatcher(fakeSession(6), SPEC);
+    const matcher = makeMatcher(fakeSession(6), SPEC);
     // 6 model px = 20 source px; the desktop dense method ignores NCC search limits.
     const res = await matcher.warpPoints(points, left, right, rig, { range: { minDisparity: 30, maxDisparity: 200 } });
     expect(res.every((r) => r.accepted)).toBe(true);
@@ -184,7 +198,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('reuses the disparity map across warps with the same frame key', async () => {
     const session = fakeSession(4);
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     await matcher.warpPoints(points, left, right, rig, { ...RANGE, frameKey: 'a>b@1' });
     await matcher.warpPoints(points.slice(0, 1), left, right, rig, { ...RANGE, frameKey: 'a>b@1' });
     expect(session.runs).toBe(1);
@@ -198,7 +212,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('prepare makes the following warp free', async () => {
     const session = fakeSession(4);
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     await matcher.prepare('a>b@7', left, right, rig);
     expect(session.runs).toBe(1);
     expect(matcher.isPrepared('a>b@7', rig, left)).toBe(true);
@@ -208,7 +222,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('drops a prefetch that is no longer wanted, but not one a warp is waiting on', async () => {
     const session = fakeSession(4);
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     await matcher.prepare('stale', left, right, rig, () => false);
     expect(session.runs).toBe(0);
     expect(matcher.isPrepared('stale', rig, left)).toBe(false);
@@ -237,7 +251,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
         return { disparity: new ort.Tensor('float32', new Float32Array(plane).fill(3), [1, 1, SPEC.height, SPEC.width]) };
       },
     };
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     await Promise.all([
       matcher.prepare('f1', left, right, rig),
       matcher.warpPoints(points, left, right, rig, { ...RANGE, frameKey: 'f1' }),
@@ -250,7 +264,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('evicts the least recently used map beyond the cache size', async () => {
     const session = fakeSession(4);
-    const matcher = new StereoFoundationMatcher(session, SPEC, 2);
+    const matcher = makeMatcher(session, SPEC, 2);
     await matcher.prepare('k1', left, right, rig);
     await matcher.prepare('k2', left, right, rig);
     await matcher.warpPoints(points, left, right, rig, { ...RANGE, frameKey: 'k1' });
@@ -269,7 +283,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
         throw new Error('[WebGPU] Kernel failed');
       },
     };
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     await expect(matcher.prepare('f1', left, right, rig)).rejects.toThrow('Kernel failed');
     await expect(matcher.warpPoints(points, left, right, rig, { ...RANGE, frameKey: 'f2' })).rejects.toThrow('Kernel failed');
     expect(runs).toBe(1);
@@ -278,7 +292,7 @@ describe('StereoFoundationMatcher with a fake session', () => {
 
   it('keys the cache by rig so a new calibration is not served an old map', async () => {
     const session = fakeSession(4);
-    const matcher = new StereoFoundationMatcher(session, SPEC);
+    const matcher = makeMatcher(session, SPEC);
     await matcher.prepare('f', left, right, rig);
     const other = { ...rig, T: Float32Array.from([-120, 0, 0]) };
     expect(matcher.isPrepared('f', other, left)).toBe(false);

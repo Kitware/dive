@@ -22,8 +22,9 @@
  */
 
 import * as ort from 'onnxruntime-web';
+import { sampleDisparities, SampleDisparities } from './DisparitySampler';
 import {
-  sampleDisparity, fitDisparitySegment, SAMPLE_RADIUS, SEGMENT_SAMPLES,
+  fitDisparitySegment, SAMPLE_RADIUS, SEGMENT_SAMPLES,
 } from './disparitySampling';
 
 import { RgbaImage, GrayImage, isGrayImage } from './image';
@@ -204,16 +205,20 @@ export class StereoFoundationMatcher implements StereoMatcher {
    */
   private failure: Error | null = null;
 
+  private sample: SampleDisparities;
+
   constructor(
     session: DisparitySession,
     spec: FoundationModelSpec,
     cacheSize = DEFAULT_DISPARITY_CACHE_SIZE,
     runtime: OrtModule = ort,
+    sample: SampleDisparities = sampleDisparities,
   ) {
     this.session = session;
     this.spec = spec;
     this.cacheSize = cacheSize;
     this.ort = runtime;
+    this.sample = sample;
   }
 
   /**
@@ -370,24 +375,7 @@ export class StereoFoundationMatcher implements StereoMatcher {
     rig: StereoRig,
     opts: WarpOptions,
   ): Promise<WarpResult[]> {
-    const { rect } = this.geometry(rig, source);
-    const { width, height } = this.spec;
-    const disparity = await this.disparityFor(cacheKey(opts.frameKey, rig, source), source, target, rig, false);
-    if (!disparity) throw new Error('The stereo disparity map could not be computed.');
-
-    const sx = width / source.width; const sy = height / source.height;
-    return points.map(([px, py]) => {
-      const [rx, ry] = rectifyPoint(px, py, rig, rect, false);
-      const sample = sampleDisparity(disparity, width, height, source.width, source.height, rx / sx, ry / sy);
-      const fail: WarpResult = {
-        x: NaN, y: NaN, score: 0, secondScore: 0, accepted: false,
-      };
-      if (!sample) return fail;
-      const [x, y] = unrectifyPoint(rx - sample.disparity * sx, ry, rig, rect, true);
-      return {
-        x, y, score: sample.fraction, secondScore: 0, accepted: Number.isFinite(x) && Number.isFinite(y),
-      };
-    });
+    return this.warp(points, source, target, rig, opts, false);
   }
 
   /** Fit straight measurement lines in disparity space; failed fits retain the
@@ -399,35 +387,56 @@ export class StereoFoundationMatcher implements StereoMatcher {
     rig: StereoRig,
     opts: WarpOptions,
   ): Promise<WarpResult[]> {
-    // Give both operations a shared key even for callers without a frame key.
-    const shared = opts.frameKey === undefined ? { ...opts, frameKey: `line-${this.lineSequence += 1}` } : opts;
-    const fallback = await this.warpPoints(points, source, target, rig, shared);
-    if (points.length !== 2) return fallback;
+    return this.warp(points, source, target, rig, opts, true);
+  }
+
+  private async warp(
+    points: [number, number][],
+    source: RgbaImage | GrayImage,
+    target: RgbaImage | GrayImage,
+    rig: StereoRig,
+    opts: WarpOptions,
+    refineLine: boolean,
+  ): Promise<WarpResult[]> {
+    if (!points.length) return [];
     const { rect } = this.geometry(rig, source);
     const { width, height } = this.spec;
+    const disparity = await this.disparityFor(cacheKey(opts.frameKey, rig, source), source, target, rig, false);
+    if (!disparity) throw new Error('The stereo disparity map could not be computed.');
     const sx = width / source.width; const sy = height / source.height;
-    const ends = points.map(([x, y]) => rectifyPoint(x, y, rig, rect, false));
-    const [[ax, ay], [bx, by]] = ends;
-    if (Math.hypot((bx - ax) / sx, (by - ay) / sy) < SEGMENT_SAMPLES - 1) return fallback;
-    const disparity = await this.disparityFor(cacheKey(shared.frameKey, rig, source), source, target, rig, false);
-    if (!disparity) return fallback;
-    const samples: [number, number][] = [];
-    for (let i = 0; i < SEGMENT_SAMPLES; i += 1) {
-      const f = i / (SEGMENT_SAMPLES - 1);
-      const sample = sampleDisparity(
-        disparity,
-        width,
-        height,
-        source.width,
-        source.height,
-        (ax + f * (bx - ax)) / sx,
-        (ay + f * (by - ay)) / sy,
-      );
-      if (sample) samples.push([f, sample.disparity]);
+    const rectified = points.map(([x, y]) => rectifyPoint(x, y, rig, rect, false));
+    let queries: [number, number][] = rectified.map(([x, y]) => [x / sx, y / sy]);
+    const fitLine = refineLine && points.length === 2
+      && Math.hypot(queries[1][0] - queries[0][0], queries[1][1] - queries[0][1]) >= SEGMENT_SAMPLES - 1;
+    if (fitLine) {
+      const [[ax, ay], [bx, by]] = queries;
+      queries = Array.from({ length: SEGMENT_SAMPLES }, (_, i) => {
+        const f = i / (SEGMENT_SAMPLES - 1);
+        return [ax + f * (bx - ax), ay + f * (by - ay)];
+      });
     }
-    const fit = fitDisparitySegment(samples);
+    // One sparse graph call per line or group of prompts. The first and last
+    // line samples also provide ordinary endpoint fallback, with no extra run.
+    const samples = await this.sample(disparity, width, height, source.width, source.height, queries);
+    const pointSamples = fitLine ? [samples[0], samples[SEGMENT_SAMPLES - 1]] : samples;
+    const fallback = rectified.map(([rx, ry], i) => {
+      const sample = pointSamples[i];
+      if (!sample) {
+        return {
+          x: NaN, y: NaN, score: 0, secondScore: 0, accepted: false,
+        };
+      }
+      const [x, y] = unrectifyPoint(rx - sample.disparity * sx, ry, rig, rect, true);
+      return {
+        x, y, score: sample.fraction, secondScore: 0, accepted: Number.isFinite(x) && Number.isFinite(y),
+      };
+    });
+    if (!fitLine) return fallback;
+    const fit = fitDisparitySegment(samples.flatMap((sample, i) => (
+      sample ? [[i / (SEGMENT_SAMPLES - 1), sample.disparity] as [number, number]] : []
+    )));
     if (!fit) return fallback;
-    const result = ends.map(([rx, ry], i) => {
+    const result = rectified.map(([rx, ry], i) => {
       const [x, y] = unrectifyPoint(rx - fit[i] * sx, ry, rig, rect, true);
       return {
         x, y, score: 1, secondScore: 0, accepted: Number.isFinite(x) && Number.isFinite(y),
@@ -435,6 +444,4 @@ export class StereoFoundationMatcher implements StereoMatcher {
     });
     return result.every((p) => p.accepted) ? result : fallback;
   }
-
-  private lineSequence = 0;
 }

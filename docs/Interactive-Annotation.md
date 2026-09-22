@@ -195,6 +195,15 @@ keeps it.
 Fast-FoundationStereo caches one dense disparity map per frame pair/direction.
 Like desktop, it samples the 90th-percentile disparity in a 7×7 neighbourhood,
 using original-image pixel spacing even when the ONNX model has lower resolution.
+This sampling now runs in the bundled `stereo_sample.onnx` graph: interpolation,
+finite/positive-value filtering, border clipping, percentile selection and valid
+fractions are shared numerical operations rather than DIVE-specific code. The
+weight-free exporter is `samples/scripts/exportStereoSampler.py` (`--check`
+validates its reference behavior). It gathers only 49 neighbours per point and
+batches a line's eleven samples into one ONNX Runtime/WASM call, reusing cached
+dense disparity without rerunning the network or resizing the full map. The
+same graph can be used by desktop ONNX hosts; the desktop service still uses its
+native sampler. Float32 arithmetic can introduce small numerical differences.
 Straight measurement lines use an 11-sample disparity fit, allowing three outliers
 and a 10-pixel residual; failed fits fall back to endpoint matching. Curves keep
 individually transferred vertices. NCC retains its own correspondence search.
