@@ -1,6 +1,7 @@
 import {
   ref, computed, Ref, watch,
 } from 'vue';
+import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 import type { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { SortedAnnotation } from './BaseAnnotationStore';
 import type Group from './Group';
@@ -15,6 +16,9 @@ interface MarkChangesPendingData {
 export type MarkChangesPendingFilter = (data?: MarkChangesPendingData) => void;
 
 export const DefaultConfidence = 0.1;
+
+/** Which annotations a delete-all reaches, relative to each type's threshold. */
+export type ThresholdScope = 'above' | 'below' | 'all';
 /**
  * AnnotationWithContext wraps an annotation with additional information
  * such as why the annotation was included or returned by a system
@@ -233,6 +237,21 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
         }
       }
     });
+  }
+
+  /**
+   * Tracks with enabled classes, none of which reach their confidence threshold.
+   * TrackFilterControls overrides this to also apply time, group, and attribute filters.
+   */
+  annotationIdsBelowThreshold(types: string[]): AnnotationId[] {
+    const wanted = new Set(types);
+    const filters = this.confidenceFilters.value;
+    return this.sorted.value.filter((annotation) => {
+      const matching = annotation.confidencePairs.filter(([type]) => wanted.has(type));
+      return matching.length > 0 && matching.every(([type, confidence]) => (
+        confidence < resolveConfidenceThreshold(filters, type)
+      ));
+    }).map(({ id }) => id);
   }
 
   updateCheckedTypes(types: string[]) {
