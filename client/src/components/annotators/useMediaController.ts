@@ -133,8 +133,8 @@ export function useMediaController() {
   });
   const resizeTrigger: Ref<number> = ref(0);
   // Raised only while onResize applies its programmatic resetZoom, so the
-  // linked-viewer navigation ignores the resulting pan/zoom events (see
-  // AggregateMediaController.resizing).
+  // linked-viewer navigation and stereo view-link ignore the resulting
+  // pan/zoom events (see AggregateMediaController.resizing).
   const resizing: Ref<boolean> = ref(false);
   // shallowRef: an AlignedFrameResolver carries nested Refs (slotCount, frameRate)
   // that must NOT be deep-reactive-converted/auto-unwrapped by a plain ref().
@@ -345,7 +345,12 @@ export function useMediaController() {
         }
       });
       allowCameraTrigger = true;
-      viewLink.schedule(camEvent.camera);
+      // onResize's resetZoom emits pan/zoom in native space; skip the stereo
+      // lookup so a pane's native center isn't warped onto the other camera
+      // after the resize settles (same guard as aligned/registration nav).
+      if (!resizing.value) {
+        viewLink.schedule(camEvent.camera);
+      }
     }
   });
 
@@ -359,7 +364,9 @@ export function useMediaController() {
         }
       });
       allowCameraTrigger = true;
-      viewLink.schedule(camEvent.camera);
+      if (!resizing.value) {
+        viewLink.schedule(camEvent.camera);
+      }
     }
   });
   /**

@@ -641,3 +641,37 @@ describe('stereo copy of a point-segmented mask', () => {
     }
   });
 });
+
+describe('useModeManager point segmentation masks', () => {
+  const components = [
+    { exterior: [[0, 0], [10, 0], [10, 10]] as [number, number][], holes: [[[2, 2], [4, 2], [4, 4]] as [number, number][]] },
+    { exterior: [[20, 0], [30, 0], [30, 10]] as [number, number][], holes: [] },
+  ];
+
+  it('stores every component with its holes, then drops the ones a refinement loses', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    const predicted = (polygons: typeof components) => recipe.bus.$emit('prediction-ready', {
+      polygon: polygons[0].exterior,
+      polygons,
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+
+    predicted(components);
+    const track = cameraStore.getTrack(trackId, 'left');
+    expect(track.getPolygonFeatures(0).map((p) => [p.key, p.holeCount])).toEqual([
+      ['SegmentationPolygon', 1], ['SegmentationPolygon-1', 0],
+    ]);
+    expect(track.getFeature(0)[0]?.bounds).toEqual([0, 0, 30, 10]);
+
+    predicted([components[1]]);
+    expect(track.getPolygonFeatures(0).map((p) => p.key)).toEqual(['SegmentationPolygon']);
+    expect(track.getFeature(0)[0]?.bounds).toEqual([20, 0, 30, 10]);
+
+    recipe.bus.$emit('prediction-reset', { frameNum: 0 });
+    expect(track.getFeature(0)[0]).toBeNull();
+  });
+});
