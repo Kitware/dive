@@ -972,9 +972,11 @@ export default function useModeManager({
 
           mirrorFeatureToAlignedCameras(track.id, frameNum);
 
-          // Emit persisted named points, including a head placed before its tail.
-          // Completed lines use their existing whole-line transfer event instead.
+          // Emit persisted named points. Completed lines use their existing
+          // whole-line transfer event instead, and the first end of a line still
+          // being drawn waits for it: mapping it mid-draw interrupts the draw.
           if (onStereoAnnotationComplete && stereoInteractiveActive()
+              && update.done.every((v) => v !== false)
               && !(data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2)) {
             Object.entries(update.geoJsonFeatureRecord).forEach(([pointKey, geoms]) => {
               geoms.forEach((geom) => {
