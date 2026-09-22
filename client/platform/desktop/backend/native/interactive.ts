@@ -417,6 +417,8 @@ export class InteractiveServiceManager extends EventEmitter {
     const r = await this.sendRequest({
       command: 'stereo_segment',
       polygon: request.polygon,
+      polygons: request.polygons,
+      source_camera: request.sourceCamera,
       points: request.points,
       point_labels: request.pointLabels,
       source_image_path: request.sourceImagePath,
@@ -429,6 +431,7 @@ export class InteractiveServiceManager extends EventEmitter {
       success: r.success ?? false,
       error: r.error,
       polygon: r.polygon,
+      polygons: r.polygons as SegmentationPolygon[] | undefined,
       bounds: r.bounds,
       score: r.score,
       seedPoints: r.seed_points as [number, number][] | undefined,

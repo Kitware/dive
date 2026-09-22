@@ -23,6 +23,8 @@ export interface AutoPopulateOptions {
   orientLike?: [number, number][] | null;
   /** The box was mapped from the other stereo camera: refit it when the mask disagrees with it. */
   fitBoxToMask?: boolean;
+  /** The mask is already known (carried over from the other stereo camera); nothing to predict. */
+  knownMask?: SegmentationPolygon[];
   /** Receives the mask the annotation was segmented to, whether or not it is stored. */
   onMask?: (polygons: SegmentationPolygon[]) => void;
   /** A head/tail this routine derived earlier; still ours to replace unless the user moved it. */
@@ -66,7 +68,7 @@ export default async function populateAnnotation(
   if (!currentTarget()) return 'changed';
   await services.ensureReady();
   if (!currentTarget()) return 'changed';
-  const polygons = (params.source === 'mask' ? params.polygons : await predictMask(params, services))
+  const polygons = (params.source === 'mask' ? params.polygons : options.knownMask ?? await predictMask(params, services))
     .filter((polygon) => polygon.exterior.length >= 3);
   if (!polygons.length) {
     throw new Error('Segmentation returned no mask for this annotation.');

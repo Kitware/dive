@@ -1,5 +1,5 @@
 import type Track from 'vue-media-annotator/track';
-import { pointInPolygon, RectBounds } from 'vue-media-annotator/utils';
+import type { RectBounds } from 'vue-media-annotator/utils';
 import type { SegmentationPolygon } from 'dive-common/apispec';
 
 export type Point = [number, number];
@@ -75,48 +75,6 @@ export function boundsIoU(a: RectBounds, b: RectBounds): number {
   ]);
   const union = area(a) + area(b) - intersection;
   return union > 0 ? intersection / union : 0;
-}
-
-/** Grid resolution across a mask's bounds when sampling prompt points inside it. */
-const INTERIOR_GRID = 9;
-
-/**
- * Up to `count` points inside a mask, spread across it: the one nearest its
- * centre first, then repeatedly the candidate farthest from those chosen.
- * Points inside the object warp to the other camera far more reliably than a
- * box's corners, which sit on the background.
- */
-export function interiorPromptPoints(polygons: SegmentationPolygon[], count = 5): Point[] {
-  const xy = ([x, y]: Point) => ({ x, y });
-  const valid = polygons.filter((polygon) => polygon.exterior.length >= 3);
-  if (!valid.length) return [];
-  const [x0, y0, x1, y1] = polygonBounds(valid.flatMap((polygon) => polygon.exterior));
-  const inside: Point[] = [];
-  for (let i = 0; i < INTERIOR_GRID; i += 1) {
-    for (let j = 0; j < INTERIOR_GRID; j += 1) {
-      const point: Point = [
-        x0 + ((i + 0.5) / INTERIOR_GRID) * (x1 - x0),
-        y0 + ((j + 0.5) / INTERIOR_GRID) * (y1 - y0),
-      ];
-      if (valid.some((polygon) => pointInPolygon(xy(point), polygon.exterior.map(xy), polygon.holes.map((h) => h.map(xy))))) {
-        inside.push(point);
-      }
-    }
-  }
-  if (!inside.length) return [];
-  const centre: Point = [(x0 + x1) / 2, (y0 + y1) / 2];
-  const distance = (a: Point, b: Point) => Math.hypot(a[0] - b[0], a[1] - b[1]);
-  const chosen = [inside.reduce((best, p) => (distance(p, centre) < distance(best, centre) ? p : best))];
-  while (chosen.length < count && chosen.length < inside.length) {
-    const next = inside
-      .filter((p) => !chosen.includes(p))
-      .reduce((best, p) => {
-        const gap = (q: Point) => Math.min(...chosen.map((c) => distance(q, c)));
-        return gap(p) > gap(best) ? p : best;
-      });
-    chosen.push(next);
-  }
-  return chosen;
 }
 
 /**

@@ -233,3 +233,13 @@ it('extracts points from all components when storing the mask is disabled', asyn
   expect(h.track.getPolygonFeatures(0)).toHaveLength(0);
   expect(h.services.keypoints).toHaveBeenCalledWith(components[0].exterior, components);
 });
+
+it('stores a mask carried over from the other stereo camera without predicting one', async () => {
+  const h = harness();
+  const knownMask = [{ exterior: [[2, 2], [8, 2], [8, 8]] as [number, number][], holes: [] }];
+  await expect(populateAnnotation({
+    camera: 'right', trackId: 1, frameNum: 0, source: 'box', bounds: [0, 0, 10, 10],
+  }, { mask: true, points: false, knownMask }, h.services)).resolves.toBe('applied');
+  expect(h.services.predict).not.toHaveBeenCalled();
+  expect(h.track.getPolygonFeatures(0)).toHaveLength(1);
+});
