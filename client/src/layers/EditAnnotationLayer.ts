@@ -87,6 +87,11 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /* Track if the last click was a right-click or shift-click for Point mode */
   lastClickWasBackground: boolean;
 
+  /** A middle press in Point mode, placed as a negative point only if released in place. */
+  private pendingBackgroundPoint: { geo: { x: number; y: number }; page: { x: number; y: number } } | null = null;
+
+  static readonly MIDDLE_CLICK_TOLERANCE_PX = 5;
+
   /* Track shift key state from native DOM events (more reliable than GeoJS events) */
   lastShiftKeyState: boolean;
 
@@ -314,6 +319,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.ownsDrag = !!this.featureLayer.currentAnnotation?._editHandle?.handle?.selected;
         if (!this.companion && !this.peer?.handleSelected()) this.setShapeInProgress(e);
       });
+      this.featureLayer.geoOn(geo.event.actionup, (e: GeoEvent) => this.handleActionUp(e));
 
       const arrowLayer = this.annotator.geoViewerRef.value.createLayer('feature', { features: ['line'] });
       this.arrowFeatureLayer = arrowLayer.createFeature('line');
@@ -331,6 +337,23 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   skipNextFunc() {
     return () => { this.skipNextExternalUpdate = true; };
+  }
+
+  /** Place the held negative point unless the middle button was dragged to pan. */
+  handleActionUp(e: GeoEvent) {
+    const pending = this.pendingBackgroundPoint;
+    if (!pending) return;
+    this.pendingBackgroundPoint = null;
+    if (this.type !== 'Point' || this.getMode() !== 'creation') return;
+    const page = e.mouse?.page ?? pending.page;
+    const moved = Math.hypot(page.x - pending.page.x, page.y - pending.page.y);
+    if (moved > EditAnnotationLayer.MIDDLE_CLICK_TOLERANCE_PX) return;
+    const pointGeojson: GeoJSON.Feature<GeoJSON.Point> = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [Math.round(pending.geo.x), Math.round(pending.geo.y)] },
+      properties: { background: true },
+    };
+    this.bus.$emit('update:geojson', 'editing', true, pointGeojson, this.type, this.selectedKey, this.skipNextFunc());
   }
 
   /**
@@ -358,32 +381,13 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         || this.lastShiftKeyState;
     }
 
-    // Handle middle-click in Point mode - GeoJS doesn't create points on middle-click,
-    // so we need to manually create the point and emit the event
+    // GeoJS doesn't create points on middle-click. The press may also be the
+    // start of a middle-button pan, so the negative point waits for release.
     if (this.type === 'Point' && this.getMode() === 'creation' && e.mouse.buttons.middle) {
-      const pointGeojson: GeoJSON.Feature<GeoJSON.Point> = {
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [Math.round(e.mouse.geo.x), Math.round(e.mouse.geo.y)],
-        },
-        properties: {
-          background: true,
-        },
+      this.pendingBackgroundPoint = {
+        geo: { x: e.mouse.geo.x, y: e.mouse.geo.y },
+        page: { x: e.mouse.page?.x ?? 0, y: e.mouse.page?.y ?? 0 },
       };
-
-      // Emit the point creation event directly
-      this.bus.$emit(
-        'update:geojson',
-        'editing',
-        true, // geometryCompleteEvent - point is complete
-        pointGeojson,
-        this.type,
-        this.selectedKey,
-        this.skipNextFunc(),
-      );
-
-      // Reset background flag for next point
       this.lastClickWasBackground = false;
       return;
     }
@@ -775,6 +779,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.arrowFeatureLayer.data([]).draw();
       }
       this.shapeInProgress = null;
+      this.pendingBackgroundPoint = null;
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
