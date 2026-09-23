@@ -18,7 +18,9 @@ vi.mock('dive-common/vue-utilities/prompt-service', () => ({ usePrompt: () => ({
 vi.mock('vue-router/composables', () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock('./NavigationBar.vue', () => ({ default: { render: () => null } }));
 Vue.config.ignoredElements = [/^v-/];
-const model = { name: 'Fish', type: 'trained', pipe: '/models/fish/custom.pipe', onnxConvertible: true };
+const model = {
+  name: 'Fish', type: 'trained', pipe: '/models/fish/custom.pipe', onnxConvertible: true,
+};
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.getPipelineList.mockResolvedValue({ trained: { pipes: [model] } });

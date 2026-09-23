@@ -146,6 +146,8 @@ export default defineComponent({
     }
 
     async function waitUntilPackGone(folderId: string | undefined, name: string) {
+      /* Sequential polls until Girder finishes deleting the pack. */
+      /* eslint-disable no-await-in-loop */
       for (let attempt = 0; attempt < DELETE_POLL_ATTEMPTS; attempt += 1) {
         const pipelines = await getPipelineList();
         unsortedPipelines.value = pipelines;
@@ -156,6 +158,7 @@ export default defineComponent({
         }
         await sleep(DELETE_POLL_MS);
       }
+      /* eslint-enable no-await-in-loop */
       toastMessage.value = `"${name}" is still deleting; refresh if it remains.`;
       toast.value = true;
     }
