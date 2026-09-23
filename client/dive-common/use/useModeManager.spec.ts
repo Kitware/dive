@@ -489,3 +489,31 @@ describe('stereo copy of a point-segmented mask', () => {
     }
   });
 });
+
+describe('a right-click that enters point segmentation editing', () => {
+  it('is not finalized by the contextmenu that follows it, unlike a user reset', () => {
+    const recipe = new SegmentationPointClick();
+    const { modeManager: manager } = makeHarness(undefined, [recipe]);
+    recipe.activate();
+    const first = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    const second = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [20, 20, 30, 30]);
+    expect(manager.selectedTrackId.value).toBe(second);
+    // Selecting another detection clears the recipe, but not as a user reset.
+    manager.handler.trackEdit(first);
+    expect(manager.selectedTrackId.value).toBe(first);
+    expect(manager.editingTrack.value).toBe(true);
+    expect(recipe.wasReset).toBe(false);
+    // On Windows the contextmenu of that right-click arrives after edit mode began.
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBe(first);
+    expect(manager.editingTrack.value).toBe(true);
+    // A reset by the user still lets the next right-click finalize.
+    recipe.resetPoints();
+    expect(recipe.wasReset).toBe(true);
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBeNull();
+    expect(manager.editingTrack.value).toBe(false);
+  });
+});
