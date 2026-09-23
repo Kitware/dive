@@ -175,14 +175,38 @@ async function indexIsBuilt(settings: Settings): Promise<boolean> {
     && (await fs.readdir(itqDir)).some((f) => f.startsWith('itq.model'));
 }
 
+/**
+ * Why the shared index cannot be queried, or null when it can. The index
+ * tool reports success from its own working folder, so a build that landed
+ * elsewhere, or that trained no model, is caught here by name.
+ */
+async function describeMissingIndex(settings: Settings): Promise<string | null> {
+  if (await indexIsBuilt(settings)) return null;
+  const database = npath.join(getIndexDir(settings), 'database');
+  let contents = '(folder missing)';
+  if (await fs.pathExists(database)) {
+    const names = (await fs.readdir(database)).sort();
+    contents = names.length ? names.slice(0, 40).join(', ') + (names.length > 40 ? ', …' : '') : '(empty)';
+  }
+  return `No ITQ model (database/ITQ/itq.model*) in ${database}. Folder contents: ${contents}`;
+}
+
 async function getIndexStatus(settings: Settings, datasetId: string): Promise<SearchIndexStatus> {
   const meta = await readIndexMeta(settings);
-  const built = await indexIsBuilt(settings);
+  const missing = await describeMissingIndex(settings);
+  const built = missing === null;
   const streamName = Object.keys(meta.streams)
     .find((s) => meta.streams[s].datasetId === datasetId);
+  const indexed = built && streamName !== undefined;
+  let reason: string | undefined;
+  if (!indexed) {
+    reason = missing ?? `${datasetId} is not recorded in ${npath.join(getIndexDir(settings), IndexMetaFileName)}`
+      + ` (recorded: ${Object.values(meta.streams).map((s) => s.datasetId).join(', ') || 'none'})`;
+  }
   return {
     built,
-    indexed: built && streamName !== undefined,
+    indexed,
+    reason,
     stream: streamName !== undefined
       ? { ...meta.streams[streamName], streamName } : undefined,
     datasetCount: built
@@ -380,6 +404,10 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
     if (jobBase.endTime) return;
     if (code === 0) {
       try {
+        // A successful exit must have left a queryable index where DIVE
+        // reads it, or every later status check would only say "not indexed".
+        const missing = await describeMissingIndex(settings);
+        if (missing) throw new Error(`The build finished without producing a search index. ${missing}`);
         const latest = await readIndexMeta(settings);
         latest.backend = backend;
         latest.streams[streamName] = {
@@ -391,7 +419,7 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
         await writeIndexMeta(settings, latest);
       } catch (err) {
         jobBase.exitCode = 1;
-        updater({ ...jobBase, body: [`ERROR: Failed to write search index metadata: ${err}`] });
+        updater({ ...jobBase, body: [`ERROR: ${err instanceof Error ? err.message : `Failed to write search index metadata: ${err}`}`] });
       }
     }
     jobBase.exitCode = jobBase.exitCode ?? code;
