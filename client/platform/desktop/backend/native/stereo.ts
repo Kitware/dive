@@ -90,6 +90,8 @@ export interface StereoMeasureLineResponse {
   id: string;
   success: boolean;
   error?: string;
+  /** The measurement is usable but the stereo matches dispute the drawn lines. */
+  warning?: string;
   /** Triangulated 3D length in calibration units (e.g. mm). */
   length?: number;
   /** Full stereo measurement (length, midpoint, range, RMS). */

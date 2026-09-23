@@ -691,7 +691,12 @@ export class InteractiveServiceManager extends EventEmitter {
       frame_time: request.frameTime,
     }, 'measure_line');
     return {
-      id: r.id, success: r.success ?? false, error: r.error, length: r.length, measurement: r.measurement,
+      id: r.id,
+      success: r.success ?? false,
+      error: r.error,
+      warning: r.warning,
+      length: r.length,
+      measurement: r.measurement,
     };
   }
 

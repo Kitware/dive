@@ -776,6 +776,7 @@ interface StereoMeasureLineResponse {
   id: string;
   success: boolean;
   error?: string;
+  warning?: string;
   length?: number;
   measurement?: StereoMeasurement;
 }
