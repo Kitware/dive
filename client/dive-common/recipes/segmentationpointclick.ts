@@ -735,15 +735,19 @@ export default class SegmentationPointClick implements Recipe {
   /**
    * Public method to reset (clear) all accumulated points and pending prediction.
    * Called from UI Reset button. Clears all frames.
+   *
+   * @param byUser false when a selection change clears the points instead of
+   *   the user, so a right-click that only entered edit mode cannot count as
+   *   a reset to finalize.
    */
-  resetPoints(): void {
+  resetPoints(byUser = true): void {
     // Emit reset event for all frames with data
     const framesToReset = [this.currentFrame, ...this.frameData.keys()];
     framesToReset.forEach((frameNum) => {
       this.bus.$emit('prediction-reset', { frameNum });
     });
     this.reset();
-    this._wasReset = true;
+    this._wasReset = byUser;
     this.icon.value = 'mdi-auto-fix';
   }
 

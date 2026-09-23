@@ -258,11 +258,14 @@ export default function useModeManager({
 
   function selectTrack(trackId: AnnotationId | null, edit = false) {
     // Reset segmentation recipe state when switching to a different track
-    // so stale points/mask from the previous detection don't interfere
+    // so stale points/mask from the previous detection don't interfere. This
+    // is not a user reset: on Windows the contextmenu of the right-click that
+    // selected the detection arrives after it entered Point edit mode, and
+    // handleConfirmRecipe must not take it as a request to finalize.
     if (trackId !== selectedTrackId.value) {
       recipes.forEach((r) => {
         if (r instanceof SegmentationPointClick && r.active.value) {
-          r.resetPoints();
+          r.resetPoints(false);
         }
       });
     }
