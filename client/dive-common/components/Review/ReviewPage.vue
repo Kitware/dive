@@ -58,6 +58,8 @@ export default defineComponent({
     /** Current viewer dataset, used whenever the Review selection is empty. */
     fallbackDatasetId: { type: String, default: '' },
     retainSession: { type: Boolean, default: true },
+    /** Ask the browser to confirm unloading with pending edits (off where the host prompts itself). */
+    unloadGuard: { type: Boolean, default: true },
     initialDatasetIds: {
       type: Array as PropType<string[]>,
       default: () => [],
@@ -362,7 +364,7 @@ export default defineComponent({
 
     onMounted(async () => {
       window.addEventListener('keydown', onKeydown);
-      window.addEventListener('beforeunload', onBeforeUnload);
+      if (props.unloadGuard) window.addEventListener('beforeunload', onBeforeUnload);
       if (resumed) {
         await review.refreshOnResume();
         await review.loadQueued();

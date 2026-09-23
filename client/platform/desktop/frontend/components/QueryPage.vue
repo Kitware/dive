@@ -24,6 +24,7 @@ import QueryDatasetsPanel from './QueryDatasetsPanel.vue';
 import VideoSearchResultsGrid from './VideoSearchResultsGrid.vue';
 import QueryExemplar from './QueryExemplar.vue';
 import { takeQueryLaunch } from '../queryLaunch';
+import { unsavedChangesCloseGuard, useDesktopCloseGuard } from '../store/closeGuard';
 
 type QueryView = 'query' | 'datasets';
 
@@ -166,13 +167,12 @@ export default defineComponent({
       }));
     }
 
-    function onBeforeUnload(event: BeforeUnloadEvent) {
-      if (searchReview.hasChanges.value) {
-        event.preventDefault();
-        // eslint-disable-next-line no-param-reassign
-        event.returnValue = '';
-      }
-    }
+    // The window's close button asks through the native prompt; a beforeunload
+    // handler would only make Electron cancel the close silently.
+    useDesktopCloseGuard(unsavedChangesCloseGuard({
+      unsaved: () => searchReview.hasChanges.value,
+      save: async () => (await searchReview.save()) !== 'failed',
+    }));
 
     onBeforeRouteLeave(async (_to, _from, next) => {
       if (!searchReview.hasChanges.value) { next(); return; }
@@ -215,7 +215,6 @@ export default defineComponent({
     onMounted(async () => {
       const launch = typeof route.query.launch === 'string' ? takeQueryLaunch(route.query.launch) : undefined;
       window.addEventListener('keydown', onKeydown);
-      window.addEventListener('beforeunload', onBeforeUnload);
       if (resumed) {
         await nextTick();
         textGrid.goToPage(resumed.textPage);
@@ -240,7 +239,6 @@ export default defineComponent({
     });
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
-      window.removeEventListener('beforeunload', onBeforeUnload);
       page.cancelTextQuery();
       const textPage = textGrid.page.value;
       textGrid.dispose();
