@@ -154,7 +154,7 @@ export function createQueryPage() {
       const status = await videoSearchIndexStatus(id);
       if (!entry(id)) return;
       const index = status.indexed ? 'indexed' : 'not-indexed';
-      patch(id, { index: isBuilding(id) ? 'building' : index, error: undefined });
+      patch(id, { index: isBuilding(id) ? 'building' : index, error: status.indexed ? undefined : status.reason });
     } catch (err) {
       if (!entry(id)) return;
       patch(id, { index: 'error', error: err instanceof Error ? err.message : String(err) });

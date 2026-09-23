@@ -806,6 +806,8 @@ export interface VideoSearchIndexStatus {
   built: boolean;
   /** This dataset has been ingested into the index. */
   indexed: boolean;
+  /** Why it is not indexed: the missing model, or the unrecorded dataset. */
+  reason?: string;
   /** The stream entry for this dataset, when indexed. */
   stream?: VideoSearchStreamEntry & { streamName: string };
   /** Total datasets in the shared index. */
