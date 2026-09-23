@@ -20,7 +20,7 @@ vi.mock('platform/web-girder/api', () => ({ importModelPack: mocks.importModelPa
 Vue.config.ignoredElements = [/^v-/];
 
 const model = {
-  name: 'Fish', type: 'trained', pipe: 'detector.pipe', folderId: 'model-id',
+  name: 'Fish', type: 'trained', pipe: 'detector.pipe', folderId: 'model-id', onnxConvertible: true,
 };
 beforeEach(() => {
   vi.clearAllMocks();
@@ -50,6 +50,7 @@ interface ModelsVm extends Vue {
   importModel(): Promise<void>;
   deleteModel(item: typeof model): Promise<void>;
   exportModel(item: typeof model): Promise<void>;
+  onnxTooltip(item: typeof model): string;
 }
 
 function mountModels(): Wrapper<ModelsVm> {
@@ -113,6 +114,21 @@ it('keeps ONNX conversion separate from ZIP export', async () => {
   expect(mocks.exportTrainedPipeline).toHaveBeenCalledWith('model-id', model);
   expect(mocks.push).toHaveBeenCalledWith('/jobs');
   expect(mocks.importModelPack).not.toHaveBeenCalled();
+  wrapper.destroy();
+});
+
+it('explains why ONNX conversion is unavailable without convertible weights', () => {
+  const wrapper = mountModels();
+  expect(wrapper.vm.onnxTooltip({ ...model, onnxConvertible: false })).toContain('.weights');
+  expect(wrapper.vm.onnxTooltip(model)).toBe('Convert to ONNX');
+  wrapper.destroy();
+});
+
+it('does not start ONNX conversion when the pack is not convertible', async () => {
+  const wrapper = mountModels();
+  await wrapper.vm.exportModel({ ...model, onnxConvertible: false });
+  expect(mocks.exportTrainedPipeline).not.toHaveBeenCalled();
+  expect(mocks.push).not.toHaveBeenCalled();
   wrapper.destroy();
 });
 

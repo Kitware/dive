@@ -1142,9 +1142,14 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
     const pipeFolder = npath.join(trainedPipelinePath, item);
     if (item.startsWith('.') || !(await fs.stat(pipeFolder)).isDirectory()) return false;
     const entries = await fs.readdir(pipeFolder, { withFileTypes: true });
+    const onnxWeightExtensions = ['.weights', '.ckpt', '.pth'];
     const pipesInFolder = entries
       .filter((entry) => entry.isFile() && entry.name.endsWith('.pipe') && !entry.name.startsWith('embedded_'))
       .map((entry) => entry.name);
+    const onnxConvertible = entries.some(
+      (entry) => entry.isFile()
+        && onnxWeightExtensions.some((ext) => entry.name.toLowerCase().endsWith(ext)),
+    );
     if (pipesInFolder.length > 0) {
       // A training run can emit both a detector and a tracker; list each one
       // separately and disambiguate them the way web does.
@@ -1160,6 +1165,7 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
           name: `${item}${suffix || (pipeNames.length > 1 ? ` ${npath.basename(pipeName, '.pipe')}` : '')}`,
           type: 'trained',
           pipe: npath.join(pipeFolder, pipeName),
+          onnxConvertible,
         };
         if ('trained' in ret) {
           ret.trained.pipes.push(pipeInfo);

@@ -190,12 +190,19 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     response = next(Folder().collection.aggregate(models))
     folders = [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
 
+    onnx_weight_extensions = ('.weights', '.ckpt', '.pth')
     for folder in folders:
+        folder_items = list(Folder().childItems(folder))
         pipe_items = [
             item
-            for item in Folder().childItems(folder)
+            for item in folder_items
             if item['name'].endswith('.pipe') and not item['name'].startswith('embedded_')
         ]
+        onnx_convertible = any(
+            item['name'].lower().endswith(ext)
+            for item in folder_items
+            for ext in onnx_weight_extensions
+        )
         for item in pipe_items:
             pipename = item['name']
             append_text = ''
@@ -213,6 +220,7 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
                     "folderId": str(folder["_id"]),
                     "ownerLogin": folder["ownerLogin"],
                     "ownerId": folder["creatorId"],
+                    "onnxConvertible": onnx_convertible,
                 }
             )
     return pipelines

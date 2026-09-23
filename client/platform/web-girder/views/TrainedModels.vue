@@ -190,6 +190,7 @@ export default defineComponent({
     }
 
     async function exportModel(item: Pipe) {
+      if (!item.onnxConvertible) return;
       try {
         await exportTrainedPipeline(item.folderId!, item);
         router.push('/jobs');
@@ -204,6 +205,12 @@ export default defineComponent({
 
     async function browseModel(item: Pipe) {
       router.push(`/folder/${item.folderId}`);
+    }
+
+    function onnxTooltip(item: Pipe) {
+      return item.onnxConvertible
+        ? 'Convert to ONNX'
+        : 'ONNX conversion requires a .weights, .ckpt, or .pth file in the model pack';
     }
 
     const trainedHeadersTmpl: DataTableHeader[] = [
@@ -261,6 +268,7 @@ export default defineComponent({
       deleteModel,
       exportModel,
       browseModel,
+      onnxTooltip,
       items: trainedModels,
       headers: trainedHeadersTmpl,
       search,
@@ -377,17 +385,27 @@ export default defineComponent({
         </template>
 
         <template #[`item.export`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="info"
-            small
-            :disabled="busy"
-            title="Convert to ONNX"
-            aria-label="Convert to ONNX"
-            @click="exportModel(item)"
-          >
-            <v-icon>mdi-export</v-icon>
-          </v-btn>
+          <v-tooltip bottom max-width="280">
+            <template #activator="{ on, attrs }">
+              <span
+                class="d-inline-block"
+                v-bind="attrs"
+                v-on="on"
+              >
+                <v-btn
+                  :key="item.name"
+                  color="info"
+                  small
+                  :disabled="busy || !item.onnxConvertible"
+                  aria-label="Convert to ONNX"
+                  @click="exportModel(item)"
+                >
+                  <v-icon>mdi-export</v-icon>
+                </v-btn>
+              </span>
+            </template>
+            <span>{{ onnxTooltip(item) }}</span>
+          </v-tooltip>
         </template>
 
         <template #[`item.delete`]="{ item }">

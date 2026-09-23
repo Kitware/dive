@@ -2922,6 +2922,8 @@ describe('native.common', () => {
     expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
     expect(pipes.trained.pipes[0].name).toBe('trainedPipelineName detector');
+    // Training fixtures ship a .zip, not .weights/.ckpt/.pth — not ONNX-convertible.
+    expect(pipes.trained.pipes[0].onnxConvertible).toBe(false);
   });
 
   it('getPipelineList lists both detector and tracker from one trained model', async () => {
@@ -2943,6 +2945,7 @@ describe('native.common', () => {
       'detector.pipe',
       'tracker.pipe',
     ]);
+    expect(pipes.trained.pipes.every((p) => p.onnxConvertible === false)).toBe(true);
   });
 
   it('lists arbitrary imported pipelines with nested weights and skips incomplete imports', async () => {
@@ -2953,6 +2956,21 @@ describe('native.common', () => {
     await fs.outputFile('/home/user/viamedata/DIVE_Pipelines/.import-incomplete/custom.pipe', '');
     const pipes = await common.getPipelineList(settings);
     expect(pipes.trained.pipes.map((p) => p.name).sort()).toEqual(['imported custom_local', 'imported second']);
+    // Nested models/weights.onnx does not count; conversion only accepts top-level weight files.
+    expect(pipes.trained.pipes.every((p) => p.onnxConvertible === false)).toBe(true);
+  });
+
+  it('marks packs with top-level weight files as ONNX convertible', async () => {
+    const folder = '/home/user/viamedata/DIVE_Pipelines/withWeights';
+    await fs.outputFile(`${folder}/detector.pipe`, '# pipe');
+    await fs.outputFile(`${folder}/model.pth`, 'weights');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes).toEqual([
+      expect.objectContaining({
+        name: 'withWeights detector',
+        onnxConvertible: true,
+      }),
+    ]);
   });
 
   it('Full Annotation Loading and Attributes Testing', async () => {
