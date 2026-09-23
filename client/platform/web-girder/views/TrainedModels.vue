@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeMount, ref,
+  computed, defineComponent, onBeforeMount, ref, watch,
 } from 'vue';
 import { isAxiosError } from 'axios';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -19,6 +19,12 @@ function sleep(ms: number) {
   });
 }
 
+function formatBytes(bytes: number) {
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 export default defineComponent({
   name: 'TrainedModels',
   setup() {
@@ -33,20 +39,82 @@ export default defineComponent({
     const search = ref('');
     const importDialog = ref(false);
     const archive = ref<File | null>(null);
+    const fileInput = ref<HTMLInputElement | null>(null);
     const busy = ref(false);
     const error = ref('');
     const toast = ref(false);
     const toastMessage = ref('');
+    /** Bytes uploaded so far; null when not uploading. */
+    const uploadLoaded = ref<number | null>(null);
+    const uploadTotal = ref<number | undefined>(undefined);
+
+    const uploadPercent = computed(() => {
+      if (uploadLoaded.value === null) return 0;
+      const total = uploadTotal.value;
+      if (!total) return 0;
+      return Math.min(100, Math.round((uploadLoaded.value / total) * 100));
+    });
+
+    const uploadIndeterminate = computed(() => (
+      busy.value && (uploadLoaded.value === null
+        || !uploadTotal.value
+        || uploadPercent.value >= 100)
+    ));
+
+    const uploadLabel = computed(() => {
+      if (!busy.value) return '';
+      if (uploadLoaded.value === null) return 'Preparing upload…';
+      if (!uploadTotal.value) return `Uploading ${formatBytes(uploadLoaded.value)}…`;
+      if (uploadPercent.value >= 100) return 'Importing model pack…';
+      return `Uploading ${formatBytes(uploadLoaded.value)} of ${formatBytes(uploadTotal.value)} (${uploadPercent.value}%)`;
+    });
+
+    function openFilePicker() {
+      error.value = '';
+      fileInput.value?.click();
+    }
+
+    function onFilePicked(event: Event) {
+      const input = event.target as HTMLInputElement;
+      const file = input.files?.[0] ?? null;
+      // Allow picking the same file again after cancel/reopen.
+      input.value = '';
+      if (!file) return;
+      archive.value = file;
+      uploadLoaded.value = null;
+      uploadTotal.value = undefined;
+      importDialog.value = true;
+    }
+
+    function closeImportDialog() {
+      if (busy.value) return;
+      importDialog.value = false;
+    }
+
+    watch(importDialog, (open) => {
+      if (open || busy.value) return;
+      archive.value = null;
+      error.value = '';
+      uploadLoaded.value = null;
+      uploadTotal.value = undefined;
+    });
 
     async function importModel() {
       if (!archive.value) return;
       busy.value = true;
       error.value = '';
+      uploadLoaded.value = 0;
+      uploadTotal.value = archive.value.size || undefined;
       try {
-        await importModelPack(archive.value);
+        await importModelPack(archive.value, (loaded, total) => {
+          uploadLoaded.value = loaded;
+          uploadTotal.value = total ?? archive.value?.size;
+        });
         unsortedPipelines.value = await getPipelineList();
         importDialog.value = false;
         archive.value = null;
+        uploadLoaded.value = null;
+        uploadTotal.value = undefined;
       } catch (err) {
         error.value = isAxiosError(err) ? (err.response?.data?.message || err.message) : String(err);
       } finally {
@@ -175,12 +243,19 @@ export default defineComponent({
     ];
 
     return {
+      fileInput,
       importDialog,
       archive,
       busy,
       error,
       toast,
       toastMessage,
+      uploadPercent,
+      uploadIndeterminate,
+      uploadLabel,
+      openFilePicker,
+      onFilePicked,
+      closeImportDialog,
       importModel,
       exportZip,
       deleteModel,
@@ -196,11 +271,20 @@ export default defineComponent({
 
 <template>
   <v-container :fluid="$vuetify.breakpoint.mdAndDown">
+    <input
+      ref="fileInput"
+      type="file"
+      accept=".zip,application/zip"
+      class="d-none"
+      aria-hidden="true"
+      tabindex="-1"
+      @change="onFilePicked"
+    >
     <v-card class="trained-models-wrapper mt-4 pa-6">
       <v-card-title>
         Trained Models
         <v-spacer />
-        <v-btn color="primary" :disabled="busy" @click="error = ''; importDialog = true">
+        <v-btn color="primary" :disabled="busy" @click="openFilePicker">
           <v-icon left>
             mdi-import
           </v-icon>
@@ -211,15 +295,38 @@ export default defineComponent({
         <v-card>
           <v-card-title>Import model ZIP</v-card-title>
           <v-card-text>
-            Choose a ZIP containing pipeline files and model weights.
-            <v-file-input v-model="archive" accept=".zip" label="Model ZIP" :disabled="busy" />
-            <v-alert v-if="error" type="error">
+            <p class="mb-3">
+              Choose a ZIP containing pipeline files and model weights.
+            </p>
+            <div v-if="archive" class="d-flex align-center mb-3">
+              <v-icon left>
+                mdi-folder-zip
+              </v-icon>
+              <span class="text-truncate">{{ archive.name }}</span>
+              <v-spacer />
+              <v-btn text small :disabled="busy" @click="openFilePicker">
+                Change
+              </v-btn>
+            </div>
+            <template v-if="busy">
+              <div class="text-caption mb-1">
+                {{ uploadLabel }}
+              </div>
+              <v-progress-linear
+                :value="uploadPercent"
+                :indeterminate="uploadIndeterminate"
+                height="8"
+                rounded
+                aria-label="Upload progress"
+              />
+            </template>
+            <v-alert v-if="error" type="error" class="mt-3">
               {{ error }}
             </v-alert>
           </v-card-text>
           <v-card-actions>
             <v-spacer />
-            <v-btn text :disabled="busy" @click="importDialog = false">
+            <v-btn text :disabled="busy" @click="closeImportDialog">
               Cancel
             </v-btn>
             <v-btn color="primary" :disabled="!archive || busy" :loading="busy" @click="importModel">

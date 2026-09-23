@@ -1,3 +1,4 @@
+import type { AxiosProgressEvent } from 'axios';
 import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
 import type { Pipe, PipelineParams } from 'dive-common/apispec';
@@ -58,10 +59,21 @@ function exportTrainedPipeline(path: string, pipeline: Pipe) {
   });
 }
 
-function importModelPack(archive: File) {
+/**
+ * Upload a model-pack ZIP. `onProgress` reports uploaded bytes so the UI can
+ * show a determinate bar; `total` is absent when the length is not computable.
+ */
+function importModelPack(
+  archive: File,
+  onProgress?: (loaded: number, total?: number) => void,
+) {
   const body = new FormData();
   body.append('archive', archive);
-  return girderRest.post('dive_rpc/model/import', body);
+  return girderRest.post('dive_rpc/model/import', body, {
+    onUploadProgress: onProgress
+      ? (event: AxiosProgressEvent) => onProgress(event.loaded, event.total)
+      : undefined,
+  });
 }
 
 function convertLargeImage(folderId: string) {

@@ -26,6 +26,10 @@ beforeEach(() => {
   vi.clearAllMocks();
   vi.useRealTimers();
   mocks.getPipelineList.mockResolvedValue({ trained: { pipes: [model] } });
+  mocks.importModelPack.mockImplementation(async (_file: File, onProgress?: (loaded: number, total?: number) => void) => {
+    onProgress?.(50, 100);
+    onProgress?.(100, 100);
+  });
 });
 
 interface ModelsVm extends Vue {
@@ -36,6 +40,13 @@ interface ModelsVm extends Vue {
   error: string;
   toast: boolean;
   toastMessage: string;
+  uploadPercent: number;
+  uploadIndeterminate: boolean;
+  uploadLabel: string;
+  fileInput: HTMLInputElement | null;
+  openFilePicker(): void;
+  onFilePicked(event: Event): void;
+  closeImportDialog(): void;
   importModel(): Promise<void>;
   deleteModel(item: typeof model): Promise<void>;
   exportModel(item: typeof model): Promise<void>;
@@ -54,13 +65,29 @@ it('places ZIP export before ONNX conversion and keeps the description in one pa
   wrapper.destroy();
 });
 
-it('imports a ZIP, refreshes the list, and closes the import dialog', async () => {
+it('opens the file picker from Import, then populates the dialog with the chosen ZIP', () => {
+  const wrapper = mountModels();
+  const click = vi.fn();
+  wrapper.vm.fileInput = { click } as unknown as HTMLInputElement;
+  wrapper.vm.openFilePicker();
+  expect(click).toHaveBeenCalled();
+
+  const file = new File(['zip'], 'fish.zip', { type: 'application/zip' });
+  const input = document.createElement('input');
+  Object.defineProperty(input, 'files', { value: [file] });
+  wrapper.vm.onFilePicked({ target: input } as unknown as Event);
+  expect(wrapper.vm.archive).toBe(file);
+  expect(wrapper.vm.importDialog).toBe(true);
+  wrapper.destroy();
+});
+
+it('imports a ZIP with upload progress, refreshes the list, and closes the import dialog', async () => {
   const wrapper = mountModels();
   const file = new File(['zip'], 'fish.zip', { type: 'application/zip' });
   wrapper.vm.archive = file;
   wrapper.vm.importDialog = true;
   await wrapper.vm.importModel();
-  expect(mocks.importModelPack).toHaveBeenCalledWith(file);
+  expect(mocks.importModelPack).toHaveBeenCalledWith(file, expect.any(Function));
   expect(mocks.getPipelineList).toHaveBeenCalledTimes(2);
   expect(wrapper.vm.importDialog).toBe(false);
   expect(wrapper.vm.archive).toBeNull();
