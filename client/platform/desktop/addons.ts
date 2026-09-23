@@ -31,6 +31,9 @@ export interface AddonJob {
 export interface AddonCatalog {
   installDir: string;
   addons: ViameAddon[];
+  /** The latest catalog on GitHub, or the one bundled with the VIAME installation. */
+  catalogSource: 'online' | 'bundled';
+  catalogNotice?: string;
   installerAvailable: boolean;
   readOnly: boolean;
   job: AddonJob | null;

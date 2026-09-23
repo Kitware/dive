@@ -28,6 +28,7 @@ let showOpenDialog: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   catalog = {
     installDir: '/opt/viame',
+    catalogSource: 'online',
     installerAvailable: true,
     readOnly: false,
     job: null,
@@ -89,12 +90,16 @@ it('does not install when the ZIP picker is canceled', async () => {
   wrapper.destroy();
 });
 
-it('shows unavailable installer and unknown-status explanations', async () => {
+it('shows unavailable installer, unknown-status and bundled-catalog explanations', async () => {
   catalog.installerAvailable = false;
   catalog.addons[0].status = 'unknown';
+  catalog.catalogSource = 'bundled';
+  catalog.catalogNotice = 'GitHub could not be reached.';
   const wrapper = mount(); await flush();
   expect(wrapper.text()).toContain('Update VIAME');
   expect(wrapper.text()).toContain('status is unknown');
+  expect(wrapper.text()).toContain('Catalog: bundled with this VIAME installation');
+  expect(wrapper.text()).toContain('GitHub could not be reached.');
   expect(wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!.attributes('disabled')).toBeDefined();
   wrapper.destroy();
 });

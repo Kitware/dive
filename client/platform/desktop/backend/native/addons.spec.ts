@@ -7,7 +7,7 @@ import { spawn } from 'child_process';
 import type { Settings } from 'platform/desktop/constants';
 import { runElevatedInstaller } from './addonsElevation';
 import {
-  cancelAddon, getAddons, installAddon, markerPath, readAddonCatalog,
+  CATALOG_URL, cancelAddon, forgetLatestCatalog, getAddons, installAddon, markerPath, readAddonCatalog,
 } from './addons';
 
 vi.mock('./addonsElevation', () => ({ runElevatedInstaller: vi.fn() }));
@@ -33,14 +33,18 @@ beforeEach(async () => {
   await fs.outputFile(path.join(root, 'configs/add_ons.py'), '# installer');
   child = Object.assign(new EventEmitter(), { stdout: new PassThrough(), stderr: new PassThrough() });
   vi.mocked(spawn).mockReturnValue(child as never);
+  vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('offline'); }));
 });
 afterEach(async () => {
   child.emit('close', 0);
   Object.defineProperty(process, 'platform', { value: originalPlatform });
+  forgetLatestCatalog();
+  vi.unstubAllGlobals();
   vi.restoreAllMocks();
   vi.clearAllMocks();
   await fs.remove(root);
 });
+const online = (body: string, ok = true) => vi.mocked(fetch).mockResolvedValue({ ok, text: async () => body } as Response);
 
 it('reads the shared CSV with quoted descriptions and dependency lists', async () => {
   const addons = await readAddonCatalog(root, 'linux');
@@ -48,6 +52,39 @@ it('reads the shared CSV with quoted descriptions and dependency lists', async (
   expect(addons[0]).toMatchObject({ description: 'Fish, model', requires: ['PYTORCH', 'ONNX'], status: 'not installed' });
   expect(addons[1].status).toBe('unknown');
   expect((await readAddonCatalog(root, 'win32')).map((a) => a.name)).toEqual(['FISH', 'OLD', 'WINDOWS']);
+});
+
+it('lists the latest catalog from GitHub and hands that copy to the installer', async () => {
+  online(`${csv}\nNEW, https://example.test/new.zip, Newest pack, pqr, ALL-PLATFORMS, ONNX, models/new.pt`);
+  const catalog = await getAddons(settings);
+  expect(fetch).toHaveBeenCalledWith(CATALOG_URL, expect.objectContaining({ cache: 'no-store' }));
+  expect(catalog).toMatchObject({ catalogSource: 'online', catalogNotice: undefined });
+  expect(catalog.addons.map((a) => a.name)).toContain('NEW');
+  await fs.outputFile(path.join(root, 'configs/pipelines/models/new.pt'), 'model');
+  expect((await getAddons(settings)).addons.find((a) => a.name === 'NEW')?.status).toBe('installed');
+  // The page polls while a job runs; GitHub is not asked again for a while.
+  expect(fetch).toHaveBeenCalledTimes(1);
+  await installAddon(settings, { name: 'NEW' });
+  const args = vi.mocked(spawn).mock.calls[0][1] as string[];
+  const csvPath = args[args.indexOf('--csv') + 1];
+  expect(csvPath).not.toBe(path.join(root, 'bin/download_viame_addons.csv'));
+  expect(await fs.readFile(csvPath, 'utf8')).toContain('NEW, https://example.test/new.zip');
+});
+
+it('falls back to the bundled catalog when GitHub is unreachable or does not return a catalog', async () => {
+  expect(await getAddons(settings)).toMatchObject({ catalogSource: 'bundled', catalogNotice: expect.stringContaining('bundled') });
+  online('<html>Not Found</html>', false);
+  expect((await getAddons(settings)).catalogSource).toBe('bundled');
+  online('<html>Service unavailable</html>');
+  expect((await getAddons(settings)).catalogSource).toBe('bundled');
+  expect((await getAddons(settings)).addons.map((a) => a.name)).toEqual(['FISH', 'OLD', 'LINUX']);
+});
+
+it('reports a missing catalog only when GitHub is unreachable and the installation has none', async () => {
+  await fs.remove(path.join(root, 'bin/download_viame_addons.csv'));
+  await expect(getAddons(settings)).rejects.toThrow('No add-on catalog is available');
+  online(csv);
+  expect((await getAddons(settings)).catalogSource).toBe('online');
 });
 
 it('notices externally installed and removed marker files on each refresh', async () => {
