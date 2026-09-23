@@ -1,0 +1,8 @@
+[
+  {"name":"flat", "files":["custom.pipe", "weights.pth", "labels.txt"], "expected":["custom.pipe", "weights.pth", "labels.txt"]},
+  {"name":"wrapped", "files":["fish/custom.pipe", "fish/models/weights.onnx", "fish/common.conf"], "expected":["custom.pipe", "models/weights.onnx", "common.conf"]},
+  {"name":"addon", "files":["configs/pipelines/custom.pipe", "configs/pipelines/models/weights.pth", "configs/pipelines/common.pipe", "README.md"], "expected":["custom.pipe", "models/weights.pth", "common.pipe"]},
+  {"name":"without configs", "files":["pipelines/custom.pipe", "pipelines/models/weights.zip"], "expected":["custom.pipe", "models/weights.zip"]},
+  {"name":"wrapped addon", "files":["pack/configs/pipelines/custom.pipe", "pack/configs/pipelines/models/weights.pt"], "expected":["custom.pipe", "models/weights.pt"]},
+  {"name":"macOS metadata", "files":["__MACOSX/._pack", "pack/.DS_Store", "pack/detector.pipe", "pack/model.pt"], "expected":["detector.pipe", "model.pt"]}
+]
