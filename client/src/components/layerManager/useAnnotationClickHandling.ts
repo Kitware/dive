@@ -114,6 +114,27 @@ export default function useAnnotationClickHandling(options: {
     }
   };
 
+  // A right-click on the detection being edited, from a camera that is not
+  // selected, moves the edit to that camera instead of finishing it. The
+  // editor there leaves edit mode on that same click (before or after this
+  // runs), so the edit is re-entered once every layer has handled it.
+  let editMovingHere = false;
+  const editedRightClicked = (trackId: number) => {
+    if (editMovingHere || selectedCamera.value === camera || trackId !== selectedTrackIdRef.value
+        || editAnnotationLayer.type === 'Polygon') {
+      return;
+    }
+    handler.selectCamera(camera, false);
+    if (selectedCamera.value !== camera) return;
+    editMovingHere = true;
+    window.setTimeout(() => {
+      editMovingHere = false;
+      if (selectedCamera.value !== camera || selectedTrackIdRef.value !== trackId) return;
+      if (!editingModeRef.value) handler.trackSelect(trackId, true);
+      refreshLayers();
+    }, 0);
+  };
+
   // GeoJS may finish the current edit later in the same mouse event. Apply
   // polygon navigation after all layers have processed that click.
   let polygonNavigationPending = false;
@@ -139,7 +160,7 @@ export default function useAnnotationClickHandling(options: {
     editAnnotationLayer.bus.$on('editing-annotation-sync', (editing: boolean, deselect?: boolean) => {
       if (deselect) {
         handler.trackSelect(null, false);
-      } else {
+      } else if (!(editMovingHere && !editing)) {
         handler.trackSelect(selectedTrackIdRef.value, editing);
       }
     });
@@ -148,11 +169,14 @@ export default function useAnnotationClickHandling(options: {
       if (trackId === null || editingModeRef.value !== 'Polygon') return;
       // The editor that took the click is live on every camera holding the
       // detection, so navigate its polygons here after selecting this camera.
-      if (selectedCamera.value !== camera) handler.selectCamera(camera, false);
+      // Moving to this camera keeps the edit going even on the same polygon;
+      // a gap or hole still finishes it.
+      const switching = selectedCamera.value !== camera;
+      if (switching) handler.selectCamera(camera, false);
       if (selectedCamera.value !== camera) return;
       const point = alignedView.mapNativePoint(geo.x, geo.y);
       const hit = pickPolygon(polyAnnotationLayer.formattedData, trackId as number, point);
-      finishPolygonClick(trackId, hit?.polygonKey);
+      finishPolygonClick(trackId, hit?.polygonKey, switching && hit != null);
     });
 
     editAnnotationLayer.bus.$on('confirm-annotation', () => {
@@ -165,11 +189,14 @@ export default function useAnnotationClickHandling(options: {
     rectAnnotationLayer.bus.$on('annotation-clicked', clicked);
     rectAnnotationLayer.bus.$on('annotation-right-clicked', clicked);
     rectAnnotationLayer.bus.$on('annotation-ctrl-clicked', clicked);
+    rectAnnotationLayer.bus.$on('edited-annotation-right-clicked', editedRightClicked);
     polyAnnotationLayer.bus.$on('annotation-clicked', clicked);
     polyAnnotationLayer.bus.$on('annotation-right-clicked', clicked);
     polyAnnotationLayer.bus.$on('annotation-ctrl-clicked', clicked);
+    polyAnnotationLayer.bus.$on('edited-annotation-right-clicked', editedRightClicked);
     lineLayer.bus.$on('annotation-clicked', clicked);
     lineLayer.bus.$on('annotation-right-clicked', clicked);
+    lineLayer.bus.$on('edited-annotation-right-clicked', editedRightClicked);
 
     polyAnnotationLayer.bus.$on('polygon-right-clicked', (trackId: number, polygonKey: string) => {
       // Visible masks must not replace the centerline's key when editing a line.
