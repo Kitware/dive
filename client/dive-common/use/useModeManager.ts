@@ -238,18 +238,29 @@ export default function useModeManager({
     return false;
   }
 
+  // The right mousedown that selects a detection for point segmentation is
+  // followed on Windows by its contextmenu only after mouseup, once edit mode
+  // has begun. That contextmenu must not finalize the fresh edit, while a
+  // later right-click with no points placed still does, so remember which
+  // press entered edit mode.
+  let mouseDownCount = 0;
+  let editEnteredOnMouseDown = -1;
+  const countMouseDown = () => { mouseDownCount += 1; };
+  if (typeof document !== 'undefined') document.addEventListener('mousedown', countMouseDown, true);
+
   function selectTrack(trackId: AnnotationId | null, edit = false) {
     // Reset segmentation recipe state when switching to a different track
     // so stale points/mask from the previous detection don't interfere. This
-    // is not a user reset: on Windows the contextmenu of the right-click that
-    // selected the detection arrives after it entered Point edit mode, and
-    // handleConfirmRecipe must not take it as a request to finalize.
+    // is not a user reset (see handleConfirmRecipe).
     if (trackId !== selectedTrackId.value) {
       recipes.forEach((r) => {
         if (r instanceof SegmentationPointClick && r.active.value) {
           r.resetPoints(false);
         }
       });
+    }
+    if (trackId !== null && edit && (trackId !== selectedTrackId.value || !editingTrack.value)) {
+      editEnteredOnMouseDown = mouseDownCount;
     }
     // Clean up empty tracks when leaving edit mode (e.g., created a detection
     // but never drew an annotation, then clicked away or right-clicked to deselect)
@@ -1296,12 +1307,10 @@ export default function useModeManager({
    * Called when right-click is used in Point mode to lock the annotation.
    */
   function handleConfirmRecipe() {
-    // First check if any active segmentation recipe has a pending prediction
-    // or was explicitly reset by the user (Escape key).
-    // If neither, there's nothing to confirm - this happens when the contextmenu
-    // event from a right-click that entered Point edit mode triggers
-    // confirm-annotation before any points are placed. In that case, don't
-    // confirm/deactivate recipes or deselect - let the edit mode continue.
+    // A pending prediction is committed; with nothing placed (or after an
+    // Escape reset) the right-click just finalizes the detection, leaving
+    // edit mode. Neither applies to the contextmenu of the very press that
+    // entered edit mode, which Windows delivers after mouseup.
     let hadPendingPredictionOrReset = false;
     recipes.forEach((r) => {
       if (r.active.value && r.confirm && r instanceof SegmentationPointClick) {
@@ -1311,7 +1320,10 @@ export default function useModeManager({
       }
     });
     if (!hadPendingPredictionOrReset) {
-      return;
+      if (selectedTrackId.value === null || !editingTrack.value
+          || mouseDownCount === editEnteredOnMouseDown) {
+        return;
+      }
     }
     const activeSegRecipes: SegmentationPointClick[] = [];
     recipes.forEach((r) => {
@@ -1847,6 +1859,7 @@ export default function useModeManager({
 
   /* Unsubscribe before unmount */
   onBeforeUnmount(() => {
+    if (typeof document !== 'undefined') document.removeEventListener('mousedown', countMouseDown, true);
     recipes.forEach((r) => r.bus.$off('activate', handleSetAnnotationState));
     recipes.forEach((r) => {
       if (r instanceof SegmentationPointClick) {

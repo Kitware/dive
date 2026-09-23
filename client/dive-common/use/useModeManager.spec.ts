@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Functional tests for the Align View cross-camera mirror: drawing/editing a
  * track on one camera while the aligned view is active re-projects the
@@ -491,7 +492,8 @@ describe('stereo copy of a point-segmented mask', () => {
 });
 
 describe('a right-click that enters point segmentation editing', () => {
-  it('is not finalized by the contextmenu that follows it, unlike a user reset', () => {
+  const press = () => document.dispatchEvent(new MouseEvent('mousedown', { button: 2 }));
+  it('is not finalized by the contextmenu that follows it, unlike a later right-click or a user reset', () => {
     const recipe = new SegmentationPointClick();
     const { modeManager: manager } = makeHarness(undefined, [recipe]);
     recipe.activate();
@@ -501,6 +503,7 @@ describe('a right-click that enters point segmentation editing', () => {
     manager.handler.updateRectBounds(0, 0, [20, 20, 30, 30]);
     expect(manager.selectedTrackId.value).toBe(second);
     // Selecting another detection clears the recipe, but not as a user reset.
+    press();
     manager.handler.trackEdit(first);
     expect(manager.selectedTrackId.value).toBe(first);
     expect(manager.editingTrack.value).toBe(true);
@@ -509,11 +512,21 @@ describe('a right-click that enters point segmentation editing', () => {
     manager.handler.confirmRecipe();
     expect(manager.selectedTrackId.value).toBe(first);
     expect(manager.editingTrack.value).toBe(true);
-    // A reset by the user still lets the next right-click finalize.
+    // A later right-click with no points placed finalizes the detection.
+    press();
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBeNull();
+    expect(manager.editingTrack.value).toBe(false);
+    // So does one after a reset by the user, even within the same press.
+    press();
+    manager.handler.trackEdit(second);
     recipe.resetPoints();
     expect(recipe.wasReset).toBe(true);
     manager.handler.confirmRecipe();
     expect(manager.selectedTrackId.value).toBeNull();
-    expect(manager.editingTrack.value).toBe(false);
+    // With nothing selected a right-click changes nothing.
+    press();
+    manager.handler.confirmRecipe();
+    expect(recipe.active.value).toBe(true);
   });
 });
