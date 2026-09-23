@@ -306,6 +306,18 @@ export default defineComponent({
       if (wasSaving && !saving && clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) autoSave();
     });
 
+    /** Drop a scheduled auto-save so leave/close prompts are not raced by a write. */
+    function cancelAutoSave() {
+      autoSave.cancel();
+    }
+
+    /** Re-arm auto-save after the user stays on the page with pending edits. */
+    function resumeAutoSave() {
+      if (clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) {
+        autoSave();
+      }
+    }
+
     function onBeforeUnload(event: BeforeUnloadEvent) {
       if (review.pendingCount.value > 0) {
         event.preventDefault();
@@ -330,12 +342,10 @@ export default defineComponent({
         return;
       }
       // Cancel any pending auto-save so it does not race the user's choice.
-      autoSave.cancel();
+      cancelAutoSave();
       const choice = await askLeaveUnsaved(pending);
       if (choice === 'cancel') {
-        if (clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) {
-          autoSave();
-        }
+        resumeAutoSave();
         next(false);
         return;
       }
@@ -383,7 +393,7 @@ export default defineComponent({
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      autoSave.cancel();
+      cancelAutoSave();
       grid.dispose();
       // Disposed here only when not handed over to the next visit.
       const parked = takeReviewSession();
@@ -427,6 +437,8 @@ export default defineComponent({
       leavePendingCount,
       resolveLeave,
       onLeaveDialogInput,
+      cancelAutoSave,
+      resumeAutoSave,
       clientSettings,
     };
   },
