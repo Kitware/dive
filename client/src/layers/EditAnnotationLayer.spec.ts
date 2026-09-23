@@ -170,6 +170,31 @@ it('does not carry a middle click on another Point layer into the next left clic
   [consumed, idle].forEach((h) => h.layer.destroy());
 });
 
+it('places a negative point on a middle click but not on a middle-button pan', () => {
+  const h = harness();
+  h.layer.bus.$off('update:geojson', h.update);
+  h.layer.setType('Point'); h.layer.setMode('Point');
+  const emitted = vi.fn();
+  h.layer.bus.$on('update:geojson', emitted);
+  const press = (x: number, y: number) => h.layer.setShapeInProgress({
+    mouse: {
+      buttons: { middle: true }, modifiers: {}, geo: { x, y }, page: { x: x * 10, y: y * 10 },
+    },
+  } as any);
+  const release = (x: number, y: number) => h.layer.handleActionUp({ mouse: { page: { x: x * 10, y: y * 10 } } } as any);
+
+  press(1, 5); release(1.3, 5);
+  expect(emitted).toHaveBeenCalledTimes(1);
+  expect(emitted.mock.calls[0][2]).toMatchObject({ geometry: { coordinates: [1, 5] }, properties: { background: true } });
+
+  press(2, 5); release(9, 5);
+  expect(emitted).toHaveBeenCalledTimes(1);
+
+  press(3, 5); h.layer.disable(); release(3, 5);
+  expect(emitted).toHaveBeenCalledTimes(1);
+  h.layer.destroy();
+});
+
 it('moves and commits only the annotation whose handle was grabbed when a peer layer is live', async () => {
   const h = harness(); await h.reopen();
   const annotation = h.featureLayer.annotations()[0];
