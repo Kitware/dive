@@ -1705,7 +1705,10 @@ export default defineComponent({
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
             applyMappedPoint(track, params.frameNum, params.key, point, params.camera, params.insert);
-            if (isHeadTailPoint(params.key) && updateLengths) await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            // Point is across by now: a measurement failure is its own error.
+            if (isHeadTailPoint(params.key) && updateLengths) {
+              await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
+            }
           }
         } else if (params.type === 'line') {
           const cameras = Object.keys(stereoImagePathGetters.value);
