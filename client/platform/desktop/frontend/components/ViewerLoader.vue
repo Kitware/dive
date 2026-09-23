@@ -1438,7 +1438,8 @@ export default defineComponent({
         rightImagePath: stereoImagePathGetters.value[rightCamera](frameNum),
         frameTime: fps ? frameNum / fps : undefined,
       };
-      if ((leftLine.length > 2 || rightLine.length > 2) && !(await ensureStereoFrame(frameNum))) {
+      // Paired vertices measure without disparity; only re-matching needs the frame.
+      if (leftLine.length !== rightLine.length && !(await ensureStereoFrame(frameNum))) {
         throw new Error('Could not prepare stereo images for multi-point measurement.');
       }
       const response = await stereoMeasureLine(request);
@@ -1777,8 +1778,9 @@ export default defineComponent({
               interpolate: false,
             }, lineGeometry);
 
+            // The line is across by now: a measurement failure is its own error.
             if ((params.line.length > 2 || fromRight) && updateLengths) {
-              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+              await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
             }
             // Report and store the full stereo measurement on both cameras
             // (length attributes are gated by the length-update feature).
