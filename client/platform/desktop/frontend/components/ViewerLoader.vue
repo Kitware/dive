@@ -695,6 +695,7 @@ export default defineComponent({
     const stereoEnabled = ref(false);
     // Transient notification reporting the latest computed stereo length
     const stereoLengthSnackbar = ref(false);
+    const stereoLengthWarning = ref('');
     const stereoLengthMessage = ref('');
 
     // Cache image path getters per camera for stereo frame setting
@@ -790,9 +791,9 @@ export default defineComponent({
     }
 
     // Push the stereo frame (left/right paths + frame time) to the backend and
-    // wait for it to land. Returns whether disparity/images are ready, so callers
-    // that need a correspondence (line/point transfer) can guarantee readiness
-    // instead of racing the proactive watcher. Updates lastStereoFrame on success.
+    // wait for acceptance. Dense disparity may still be computing; the backend
+    // defers correspondence and multi-point measurement requests until ready.
+    // Updates lastStereoFrame on successful acceptance.
     async function ensureStereoFrame(frameNum: number | undefined): Promise<boolean> {
       if (frameNum === undefined || !stereoEnabled.value) return false;
       const cameras = Object.keys(stereoImagePathGetters.value);
@@ -1097,7 +1098,7 @@ export default defineComponent({
     }
 
     /**
-     * Extract the two endpoints of a 2-point LineString from a track's feature
+     * Extract all vertices of a measurement LineString from a track's feature
      * at the given frame. Returns null if there is no such line.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1413,13 +1414,14 @@ export default defineComponent({
         parts.push(`range: ${round2(measurement.midpoint_range)}`);
       }
       stereoLengthMessage.value = parts.join('  •  ');
+      stereoLengthWarning.value = typeof measurement.warning === 'string' ? measurement.warning : '';
       stereoLengthSnackbar.value = true;
     }
 
     /**
      * Triangulate and store the stereo measurement for one frame of a track that
-     * has a 2-point line on both cameras. Returns the measurement, or null if
-     * either side lacks a line (or the service fails).
+     * has a line on both cameras. Returns null if either side lacks a line or
+     * the geometry changed while waiting; service failures are reported.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function measureStereoLineAtFrame(cameraStore: any, trackId: number, frameNum: number) {
@@ -1432,17 +1434,30 @@ export default defineComponent({
       const rightLine = getStereoLineEndpoints(rightTrack, frameNum);
       if (!leftLine || !rightLine) return null;
 
+      const fps = stereoCameraFps.value[leftCamera]
+        || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+      const request = {
+        leftLine,
+        rightLine,
+        leftImagePath: stereoImagePathGetters.value[leftCamera](frameNum),
+        rightImagePath: stereoImagePathGetters.value[rightCamera](frameNum),
+        frameTime: fps ? frameNum / fps : undefined,
+      };
+      // Multi-point lines refine on this frame's disparity when it is there
+      // and measure from the drawn lines alone when it is not.
       if (leftLine.length > 2 || rightLine.length > 2) await ensureStereoFrame(frameNum);
-      const response = await stereoMeasureLine({ leftLine, rightLine });
+      const response = await stereoMeasureLine(request);
       if (JSON.stringify(getStereoLineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
           || JSON.stringify(getStereoLineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
       if (response.success && response.measurement) {
         ensureMeasurementAttributes();
         applyStereoMeasurement(leftTrack, frameNum, response.measurement);
         applyStereoMeasurement(rightTrack, frameNum, response.measurement);
-        return response.measurement;
+        return { ...response.measurement, warning: response.warning };
       }
-      return null;
+      // A rejection for a frame the user has already left is expected, not an error.
+      if (getViewerFrame() !== frameNum) return null;
+      throw new Error(response.error || 'The stereo service could not measure these lines.');
     }
 
     /**
@@ -1459,9 +1474,27 @@ export default defineComponent({
     }
 
     /**
+     * Refresh the stereo length after a human edit, reporting service failures
+     * in the stereo dialog unless the caller owns it.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function refreshStereoLength(cameraStore: any, trackId: number, frameNum: number, quiet: boolean) {
+      try {
+        await autoUpdateStereoLength(cameraStore, trackId, frameNum);
+      } catch (err) {
+        console.warn('[Stereo] Measurement update failed:', err);
+        if (quiet) return;
+        stereoErrorTitle.value = 'Stereo Measurement Error';
+        stereoErrorSeverity.value = 'warning';
+        stereoLoadingError.value = `Could not update the stereo length. ${err instanceof Error ? err.message : String(err)}`;
+        stereoLoadingDialog.value = true;
+      }
+    }
+
+    /**
      * Handle two detections being linked across cameras (multicam link tool).
      * Recompute the stereo measurement for every frame where both the left and
-     * right tracks now have a 2-point line.
+     * right tracks now have a measurement line.
      */
     async function handleStereoTrackLinked(trackId: number) {
       // Wait out a still-starting service rather than dropping the recompute.
@@ -1608,11 +1641,7 @@ export default defineComponent({
           // user (never overwrite it) or cross-camera auto-compute is disabled.
           // If both cameras now have a line, just refresh the measurement.
           if (updateLengths && otherHasFeature) {
-            try {
-              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
-            } catch (err) {
-              console.warn('[Stereo] Measurement update failed:', err);
-            }
+            await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
           }
           return 'skipped';
         }
@@ -1622,7 +1651,7 @@ export default defineComponent({
       } else if (params.type === 'point') {
         if (!autoCompute || (!params.insert && !canMapPoint(otherTrack, params.frameNum, params.key, params.camera))) {
           if (isHeadTailPoint(params.key) && updateLengths && otherHasFeature) {
-            await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
           }
           return 'skipped';
         }
@@ -1697,7 +1726,10 @@ export default defineComponent({
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
             applyMappedPoint(track, params.frameNum, params.key, point, params.camera, params.insert);
-            if (isHeadTailPoint(params.key) && updateLengths) await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+            // Point is across by now: a measurement failure is its own error.
+            if (isHeadTailPoint(params.key) && updateLengths) {
+              await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
+            }
           }
         } else if (params.type === 'line') {
           const cameras = Object.keys(stereoImagePathGetters.value);
@@ -1771,8 +1803,9 @@ export default defineComponent({
               interpolate: false,
             }, lineGeometry);
 
+            // The line is across by now: a measurement failure is its own error.
             if ((params.line.length > 2 || fromRight) && updateLengths) {
-              await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
+              await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
             }
             // Report and store the full stereo measurement on both cameras
             // (length attributes are gated by the length-update feature).
@@ -2219,6 +2252,7 @@ export default defineComponent({
       stereoErrorTitle,
       stereoErrorSeverity,
       stereoLengthSnackbar,
+      stereoLengthWarning,
       stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
@@ -2391,11 +2425,15 @@ export default defineComponent({
     </v-dialog>
     <v-snackbar
       v-model="stereoLengthSnackbar"
-      :timeout="4000"
+      :timeout="stereoLengthWarning ? 10000 : 4000"
+      :color="stereoLengthWarning ? 'warning' : undefined"
       bottom
       right
     >
       {{ stereoLengthMessage }}
+      <div v-if="stereoLengthWarning">
+        {{ stereoLengthWarning }}
+      </div>
     </v-snackbar>
   </div>
 </template>

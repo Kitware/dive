@@ -686,9 +686,17 @@ export class InteractiveServiceManager extends EventEmitter {
       command: 'measure_line',
       left_line: request.leftLine,
       right_line: request.rightLine,
+      left_image_path: request.leftImagePath,
+      right_image_path: request.rightImagePath,
+      frame_time: request.frameTime,
     }, 'measure_line');
     return {
-      id: r.id, success: r.success ?? false, error: r.error, length: r.length, measurement: r.measurement,
+      id: r.id,
+      success: r.success ?? false,
+      error: r.error,
+      warning: r.warning,
+      length: r.length,
+      measurement: r.measurement,
     };
   }
 
