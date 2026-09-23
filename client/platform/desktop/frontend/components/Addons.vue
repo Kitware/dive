@@ -123,8 +123,12 @@ onBeforeUnmount(() => {
       </v-alert>
       <template v-else>
         <p v-if="catalog" class="text-caption">
-          Target Location: {{ catalog.installDir }}
+          Target Location: {{ catalog.installDir }}<br>
+          Catalog: {{ catalog.catalogSource === 'online' ? 'latest from GitHub' : 'bundled with this VIAME installation' }}
         </p>
+        <v-alert v-if="catalog && catalog.catalogNotice" type="info">
+          {{ catalog.catalogNotice }}
+        </v-alert>
         <v-alert v-if="error && !showProgress" type="error">
           {{ error }} <router-link :to="{ name: 'settings' }">
             Open Settings
