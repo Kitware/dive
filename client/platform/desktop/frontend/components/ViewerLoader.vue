@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState,
+  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState, detectionTransferJob, unmappedPoints,
 } from 'dive-common/use/stereo/keypointTransfer';
 import { headTailFeatures, isHeadTailPoint } from 'vue-media-annotator/headTail';
 import {
@@ -1140,6 +1140,9 @@ export default defineComponent({
       if (!track) return;
       const [feature] = track.getFeature(frameNum);
       if (!feature || !feature.keyframe || !feature.geometry) return;
+      // The service answers well after the click; a line the user has moved
+      // in the meantime is theirs to keep.
+      if (feature.attributes?.[STEREO_USER_LINE_ATTR] === true) return;
       const [p1, p2] = line;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const preserved = (feature.geometry.features || []).filter((f: any) => {
@@ -1623,6 +1626,24 @@ export default defineComponent({
           }
           return 'skipped';
         }
+        if (!otherHasFeature) {
+          // One keypoint alone would make a detection of just that point on
+          // the other camera; map the detection it belongs to instead.
+          const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          const job = detectionTransferJob(sourceTrack, params.frameNum, params.camera);
+          if (!job) return 'skipped';
+          const result = await handleStereoAnnotationComplete(job, forceAutoCompute, quiet);
+          if (result !== 'transferred') return result;
+          const mapped = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          const remaining = unmappedPoints(sourceTrack, mapped, params.frameNum);
+          for (let i = 0; i < remaining.length; i += 1) {
+            // eslint-disable-next-line no-await-in-loop
+            await handleStereoAnnotationComplete({
+              type: 'point', camera: params.camera, trackId: params.trackId, frameNum: params.frameNum, ...remaining[i],
+            }, forceAutoCompute, true);
+          }
+          return 'transferred';
+        }
       } else if (otherHasFeature) {
         // Box / polygon / segmentation: warp only once; leave existing untouched.
         return 'skipped';
@@ -1990,34 +2011,8 @@ export default defineComponent({
             const otherTrack = cameraStore.getPossibleTrack(track.id, otherCamera);
             const [otherFeature] = otherTrack ? otherTrack.getFeature(frameNum) : [null];
             if (otherFeature) return;
-            const geoFeatures = feature.geometry?.features || [];
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const line = geoFeatures.find((g: any) => g.geometry?.type === 'LineString'
-              && g.geometry.coordinates?.length >= 2);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const poly = geoFeatures.find((g: any) => g.geometry?.type === 'Polygon');
-            const base = { camera: sourceCamera, trackId: track.id, frameNum };
-            if (line) {
-              jobs.push({
-                ...base,
-                type: 'line',
-                line: line.geometry.coordinates as [[number, number], [number, number]],
-                key: line.properties?.key ?? '',
-              });
-            } else if (poly) {
-              jobs.push({
-                ...base,
-                type: 'polygon',
-                polygon: poly.geometry.coordinates[0] as [number, number][],
-                key: poly.properties?.key ?? '',
-              });
-            } else {
-              jobs.push({
-                ...base,
-                type: 'box',
-                bounds: feature.bounds as [number, number, number, number],
-              });
-            }
+            const job = detectionTransferJob(track, frameNum, sourceCamera);
+            if (job) jobs.push(job);
           });
         });
 
