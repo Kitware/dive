@@ -10,6 +10,15 @@ import { useRouter } from 'vue-router/composables';
 import { getUri, importModelPack } from 'platform/web-girder/api';
 import { useConfig } from 'platform/web-girder/store/useConfig';
 
+const DELETE_POLL_MS = 500;
+const DELETE_POLL_ATTEMPTS = 20;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  });
+}
+
 export default defineComponent({
   name: 'TrainedModels',
   setup() {
@@ -26,6 +35,8 @@ export default defineComponent({
     const archive = ref<File | null>(null);
     const busy = ref(false);
     const error = ref('');
+    const toast = ref(false);
+    const toastMessage = ref('');
 
     async function importModel() {
       if (!archive.value) return;
@@ -62,6 +73,25 @@ export default defineComponent({
       return [];
     });
 
+    function packStillListed(pipelines: Pipelines, folderId: string | undefined) {
+      return !!pipelines.trained?.pipes?.some((pipe) => pipe.folderId === folderId);
+    }
+
+    async function waitUntilPackGone(folderId: string | undefined, name: string) {
+      for (let attempt = 0; attempt < DELETE_POLL_ATTEMPTS; attempt += 1) {
+        const pipelines = await getPipelineList();
+        unsortedPipelines.value = pipelines;
+        if (!packStillListed(pipelines, folderId)) {
+          toastMessage.value = `Deleted "${name}"`;
+          toast.value = true;
+          return;
+        }
+        await sleep(DELETE_POLL_MS);
+      }
+      toastMessage.value = `"${name}" is still deleting; refresh if it remains.`;
+      toast.value = true;
+    }
+
     async function deleteModel(item: Pipe) {
       const confirmDelete = await prompt({
         title: `Delete "${item.name}" model`,
@@ -72,9 +102,11 @@ export default defineComponent({
       });
 
       if (confirmDelete) {
+        busy.value = true;
         try {
+          // Girder 5 queues folder deletion; poll until the pack leaves the list.
           await deleteTrainedPipeline(item);
-          unsortedPipelines.value = await getPipelineList();
+          await waitUntilPackGone(item.folderId, item.name);
         } catch (err) {
           let text = 'Unable to delete model';
           if (isAxiosError(err) && err.response?.status === 403) text = 'You do not have permission to delete the selected model pack.';
@@ -83,6 +115,8 @@ export default defineComponent({
             text,
             positiveButton: 'OK',
           });
+        } finally {
+          busy.value = false;
         }
       }
     }
@@ -145,6 +179,8 @@ export default defineComponent({
       archive,
       busy,
       error,
+      toast,
+      toastMessage,
       importModel,
       exportZip,
       deleteModel,
@@ -220,6 +256,7 @@ export default defineComponent({
             :key="item.name"
             color="info"
             small
+            :disabled="busy"
             @click="browseModel(item)"
           >
             <v-icon>mdi-folder</v-icon>
@@ -227,7 +264,7 @@ export default defineComponent({
         </template>
 
         <template #[`item.zip`]="{ item }">
-          <v-btn color="info" small title="Export to ZIP" aria-label="Export to ZIP" @click="exportZip(item)">
+          <v-btn color="info" small :disabled="busy" title="Export to ZIP" aria-label="Export to ZIP" @click="exportZip(item)">
             <v-icon>mdi-folder-zip</v-icon>
           </v-btn>
         </template>
@@ -237,6 +274,7 @@ export default defineComponent({
             :key="item.name"
             color="info"
             small
+            :disabled="busy"
             title="Convert to ONNX"
             aria-label="Convert to ONNX"
             @click="exportModel(item)"
@@ -250,6 +288,7 @@ export default defineComponent({
             :key="item.name"
             color="error"
             small
+            :disabled="busy"
             @click="deleteModel(item)"
           >
             <v-icon>mdi-trash-can</v-icon>
@@ -257,6 +296,9 @@ export default defineComponent({
         </template>
       </v-data-table>
     </v-card>
+    <v-snackbar v-model="toast" :timeout="4000" bottom right>
+      {{ toastMessage }}
+    </v-snackbar>
   </v-container>
 </template>
 

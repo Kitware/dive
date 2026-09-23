@@ -24,6 +24,7 @@ const model = {
 };
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.useRealTimers();
   mocks.getPipelineList.mockResolvedValue({ trained: { pipes: [model] } });
 });
 
@@ -33,7 +34,10 @@ interface ModelsVm extends Vue {
   importDialog: boolean;
   busy: boolean;
   error: string;
+  toast: boolean;
+  toastMessage: string;
   importModel(): Promise<void>;
+  deleteModel(item: typeof model): Promise<void>;
   exportModel(item: typeof model): Promise<void>;
 }
 
@@ -82,5 +86,21 @@ it('keeps ONNX conversion separate from ZIP export', async () => {
   expect(mocks.exportTrainedPipeline).toHaveBeenCalledWith('model-id', model);
   expect(mocks.push).toHaveBeenCalledWith('/jobs');
   expect(mocks.importModelPack).not.toHaveBeenCalled();
+  wrapper.destroy();
+});
+
+it('polls until the pack is gone, then toasts and stops', async () => {
+  mocks.prompt.mockResolvedValue(true);
+  mocks.deleteTrainedPipeline.mockImplementation(async () => {
+    // Async folder delete finishes after the request returns.
+    mocks.getPipelineList.mockResolvedValue({ trained: { pipes: [] } });
+  });
+  const wrapper = mountModels();
+  await wrapper.vm.deleteModel(model);
+  expect(mocks.deleteTrainedPipeline).toHaveBeenCalledWith(model);
+  expect(mocks.getPipelineList.mock.calls.length).toBeGreaterThanOrEqual(2);
+  expect(wrapper.vm.toast).toBe(true);
+  expect(wrapper.vm.toastMessage).toContain('Deleted "Fish"');
+  expect(wrapper.vm.busy).toBe(false);
   wrapper.destroy();
 });
