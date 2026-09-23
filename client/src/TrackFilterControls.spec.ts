@@ -609,11 +609,11 @@ describe('useAnnotationFilters', () => {
     const cascadeFixture = makePairFixture([
       [['top', 0.5], ['fallback', 0.8]],
     ]).filters;
-    cascadeFixture.setConfidenceFilters({ top: 0.5, fallback: 0.8, default: 0.1 });
+    cascadeFixture.setConfidenceFilters({ top: 0.51, fallback: 0.8, default: 0.1 });
     cascadeFixture.checkedTypes.value = ['top', 'fallback'];
     clientSettings.typeSettings.preventCascadeTypes = true;
     expect(cascadeFixture.filteredAnnotations.value).toHaveLength(0);
-    cascadeFixture.setConfidenceFilters({ top: 0.49, fallback: 0.8, default: 0.1 });
+    cascadeFixture.setConfidenceFilters({ top: 0.5, fallback: 0.8, default: 0.1 });
     expect(cascadeFixture.filteredAnnotations.value.map(({ context }) => context.confidencePairIndex))
       .toEqual([0]);
 
