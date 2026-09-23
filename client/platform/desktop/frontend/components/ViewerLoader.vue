@@ -703,6 +703,7 @@ export default defineComponent({
     const stereoEnabled = ref(false);
     // Transient notification reporting the latest computed stereo length
     const stereoLengthSnackbar = ref(false);
+    const stereoLengthWarning = ref('');
     const stereoLengthMessage = ref('');
 
     // Cache image path getters per camera for stereo frame setting
@@ -1415,6 +1416,7 @@ export default defineComponent({
         parts.push(`range: ${round2(measurement.midpoint_range)}`);
       }
       stereoLengthMessage.value = parts.join('  •  ');
+      stereoLengthWarning.value = typeof measurement.warning === 'string' ? measurement.warning : '';
       stereoLengthSnackbar.value = true;
     }
 
@@ -1443,10 +1445,9 @@ export default defineComponent({
         rightImagePath: stereoImagePathGetters.value[rightCamera](frameNum),
         frameTime: fps ? frameNum / fps : undefined,
       };
-      // Paired vertices measure without disparity; only re-matching needs the frame.
-      if (leftLine.length !== rightLine.length && !(await ensureStereoFrame(frameNum))) {
-        throw new Error('Could not prepare stereo images for multi-point measurement.');
-      }
+      // Multi-point lines refine on this frame's disparity when it is there
+      // and measure from the drawn lines alone when it is not.
+      if (leftLine.length > 2 || rightLine.length > 2) await ensureStereoFrame(frameNum);
       const response = await stereoMeasureLine(request);
       if (JSON.stringify(getStereoLineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
           || JSON.stringify(getStereoLineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
@@ -1454,7 +1455,7 @@ export default defineComponent({
         ensureMeasurementAttributes();
         applyStereoMeasurement(leftTrack, frameNum, response.measurement);
         applyStereoMeasurement(rightTrack, frameNum, response.measurement);
-        return response.measurement;
+        return { ...response.measurement, warning: response.warning };
       }
       // A rejection for a frame the user has already left is expected, not an error.
       if (getViewerFrame() !== frameNum) return null;
@@ -2531,6 +2532,7 @@ export default defineComponent({
       stereoErrorTitle,
       stereoErrorSeverity,
       stereoLengthSnackbar,
+      stereoLengthWarning,
       stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
@@ -2728,11 +2730,15 @@ export default defineComponent({
     </v-snackbar>
     <v-snackbar
       v-model="stereoLengthSnackbar"
-      :timeout="4000"
+      :timeout="stereoLengthWarning ? 10000 : 4000"
+      :color="stereoLengthWarning ? 'warning' : undefined"
       bottom
       right
     >
       {{ stereoLengthMessage }}
+      <div v-if="stereoLengthWarning">
+        {{ stereoLengthWarning }}
+      </div>
     </v-snackbar>
   </div>
 </template>
