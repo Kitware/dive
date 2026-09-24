@@ -96,11 +96,17 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   private renameTrackPair: TrackFilterControlsParams['renameTrackPair'];
 
+  private lookupGroups: TrackFilterControlsParams['lookupGroups'];
+
+  private groupFilterControls: TrackFilterControlsParams['groupFilterControls'];
+
   constructor(params: TrackFilterControlsParams) {
     super(params);
 
     this.getTracks = params.getTracks;
     this.renameTrackPair = params.renameTrackPair;
+    this.lookupGroups = params.lookupGroups;
+    this.groupFilterControls = params.groupFilterControls;
 
     const flatAllTypes = this.allTypes;
     this.typeHierarchy = ref(undefined);
@@ -125,26 +131,13 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
      */
     this.filteredAnnotations = computed(() => {
       const checkedSet = this.checkedTypesSet.value;
-      const filteredGroupsSet = new Set(params.groupFilterControls.enabledAnnotations.value
-        .map((v) => v.annotation.id));
+      const enabledGroupIds = this.enabledGroupIds();
       const confidenceFiltersVal = cloneDeep(this.confidenceFilters.value);
       const resultsArr: AnnotationWithContext<Track>[] = [];
       const resultsIds: Set<AnnotationId> = new Set();
-      params.sorted.value.forEach((annotation) => {
-        if (this.timeFilters.value !== null && !this.disableAnnotationFilters.value) {
-          const [startTime, endTime] = this.timeFilters.value;
-          if (annotation.begin > endTime || annotation.end < startTime) {
-            return;
-          }
-        }
-        let enabledInGroupFilters = true;
-        const groups = params.lookupGroups(annotation.id);
-        if (groups.length) {
-          /**
-           * This track is a member of a group,
-           * so check that at least one of its groups is enabled
-           */
-          enabledInGroupFilters = groups.some((group) => filteredGroupsSet.has(group.id));
+      this.sorted.value.forEach((annotation) => {
+        if (!this.passesTimeAndGroupFilters(annotation, enabledGroupIds)) {
+          return;
         }
         let confidencePairIndex: number;
         if (this.hierarchyActive.value) {
@@ -165,38 +158,93 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
         if (
           (confidencePairIndex >= 0
             || (!this.hierarchyActive.value && annotation.confidencePairs.length === 0))
-          && enabledInGroupFilters && !resultsIds.has(annotation.id)
+          && !resultsIds.has(annotation.id)
+          && this.passesAttributeFilters(
+            annotation.id,
+            annotation.confidencePairs[confidencePairIndex]?.[0],
+          )
         ) {
-          let addValue = true;
-          if (!this.disableAnnotationFilters.value && this.attributeFilters.value.length > 0
-            && this.enabledFilters.value.length > 0) {
-            const [canonicalTrack] = params.getTracks(annotation.id);
-            if (canonicalTrack === undefined) {
-              addValue = false;
-            } else {
-              addValue = trackIdPassesFilter(
-                annotation.id,
-                () => canonicalTrack,
-                this.attributeFilters.value,
-                this.userDefinedValues.value,
-                this.enabledFilters.value,
-                annotation.confidencePairs[confidencePairIndex]?.[0],
-              );
-            }
-          }
-          if (addValue) {
-            resultsIds.add(annotation.id);
-            resultsArr.push({
-              annotation,
-              context: {
-                confidencePairIndex,
-              },
-            });
-          }
+          resultsIds.add(annotation.id);
+          resultsArr.push({
+            annotation,
+            context: {
+              confidencePairIndex,
+            },
+          });
         }
       });
       return resultsArr;
     });
+  }
+
+  private enabledGroupIds(): Set<AnnotationId> {
+    return new Set(this.groupFilterControls.enabledAnnotations.value
+      .map((v) => v.annotation.id));
+  }
+
+  /** Time range and group-membership checks shared by the list and below-threshold delete. */
+  private passesTimeAndGroupFilters(
+    annotation: { id: AnnotationId; begin: number; end: number },
+    enabledGroupIds: Set<AnnotationId>,
+  ): boolean {
+    if (this.timeFilters.value !== null && !this.disableAnnotationFilters.value) {
+      const [startTime, endTime] = this.timeFilters.value;
+      if (annotation.begin > endTime || annotation.end < startTime) {
+        return false;
+      }
+    }
+    const groups = this.lookupGroups(annotation.id);
+    if (groups.length) {
+      return groups.some((group) => enabledGroupIds.has(group.id));
+    }
+    return true;
+  }
+
+  private passesAttributeFilters(
+    annotationId: AnnotationId,
+    displayType: string | undefined,
+  ): boolean {
+    if (this.disableAnnotationFilters.value || this.attributeFilters.value.length === 0
+      || this.enabledFilters.value.length === 0) {
+      return true;
+    }
+    const [canonicalTrack] = this.getTracks(annotationId);
+    if (canonicalTrack === undefined) {
+      return false;
+    }
+    return trackIdPassesFilter(
+      annotationId,
+      () => canonicalTrack,
+      this.attributeFilters.value,
+      this.userDefinedValues.value,
+      this.enabledFilters.value,
+      displayType,
+    );
+  }
+
+  /**
+   * Tracks with enabled classes that fail their confidence thresholds, after the
+   * same time / group / attribute filters the track list applies.
+   */
+  annotationIdsBelowThreshold(types: string[]): AnnotationId[] {
+    const wanted = new Set(types);
+    const filters = this.confidenceFilters.value;
+    const enabledGroupIds = this.enabledGroupIds();
+    return this.sorted.value.filter((annotation) => {
+      if (!this.passesTimeAndGroupFilters(annotation, enabledGroupIds)) {
+        return false;
+      }
+      const matching = annotation.confidencePairs.filter(([type]) => wanted.has(type));
+      if (matching.length === 0 || matching.some(([type, confidence]) => (
+        confidence >= resolveConfidenceThreshold(filters, type)
+      ))) {
+        return false;
+      }
+      const displayType = matching.reduce((best, pair) => (
+        pair[1] > best[1] ? pair : best
+      ))[0];
+      return this.passesAttributeFilters(annotation.id, displayType);
+    }).map(({ id }) => id);
   }
 
   displayPairIndex(track: Readonly<Track>, flatFallbackIndex: number): number {

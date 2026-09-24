@@ -29,7 +29,7 @@ function harness() {
       if (edited) annotation = edited;
       return mode;
     },
-    _handleMouseClick: vi.fn(() => { mode = null; }),
+    _handleMouseClick: vi.fn((e: any) => { if (!e?.buttonsDown?.middle) mode = null; }),
     geoOn: (name: string, fn: (e: any) => void) => {
       if (!handlers.has(name)) handlers.set(name, new Set());
       handlers.get(name)!.add(fn);
@@ -82,12 +82,12 @@ function harness() {
     reopen();
   });
   layer.bus.$on('update:geojson', update);
+  const trigger = (name: string, event: any) => handlers.get(name)!.forEach((fn) => fn(event));
   const click = (x: number, y: number, right = false) => {
-    const event = { buttonsDown: { left: !right, right }, geo: { x, y }, handled: false };
-    handlers.get('mouseclick')!.forEach((fn) => fn(event));
+    trigger('mouseclick', { buttonsDown: { left: !right, right }, geo: { x, y }, handled: false });
   };
   return {
-    layer, track, reopen, update, click, featureLayer, annotator, mouseButtons, handles, interactor,
+    layer, track, reopen, update, click, trigger, featureLayer, annotator, mouseButtons, handles, interactor,
   };
 }
 
@@ -133,6 +133,72 @@ it('synchronizes right-click exits and reopens the saved line repeatedly', async
     h.layer.disable();
   }
   expect(h.track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toHaveLength(5);
+});
+
+it('does not carry a middle click on another Point layer into the next left click', () => {
+  const consumed = harness();
+  const idle = harness();
+  [consumed, idle].forEach((h) => { h.layer.setType('Point'); h.layer.setMode('Point'); });
+  const emitted = vi.fn();
+  idle.layer.bus.$on('update:geojson', emitted);
+  const finish = (h: ReturnType<typeof harness>, x: number) => h.layer.handleEditStateChange({
+    annotation: {
+      layer: () => h.featureLayer,
+      state: () => 'done',
+      geojson: () => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [x, 5] } }),
+      style: vi.fn(),
+      editHandleStyle: vi.fn(),
+      highlightStyle: vi.fn(),
+    },
+  } as any);
+
+  document.dispatchEvent(new MouseEvent('mousedown', { button: 1 }));
+  consumed.layer.setShapeInProgress({ mouse: { buttons: { middle: true }, modifiers: {}, geo: { x: 1, y: 5 } } } as any);
+  expect(consumed.layer.lastClickWasBackground).toBe(false);
+  expect(idle.layer.lastClickWasBackground).toBe(true);
+
+  document.dispatchEvent(new MouseEvent('mousedown', { button: 0 }));
+  idle.layer.setShapeInProgress({ mouse: { buttons: {}, modifiers: {}, geo: { x: 2, y: 5 } } } as any);
+  finish(idle, 2);
+  expect(emitted).toHaveBeenCalledTimes(1);
+  expect(emitted.mock.calls[0][2].properties.background).toBeUndefined();
+
+  document.dispatchEvent(new MouseEvent('mousedown', { button: 0, shiftKey: true }));
+  idle.layer.setShapeInProgress({ mouse: { buttons: {}, modifiers: { shift: true }, geo: { x: 3, y: 5 } } } as any);
+  finish(idle, 3);
+  expect(emitted.mock.calls[1][2].properties.background).toBe(true);
+  [consumed, idle].forEach((h) => h.layer.destroy());
+});
+
+it('places a negative point on a middle click but not on a middle-button pan', () => {
+  const h = harness();
+  h.layer.bus.$off('update:geojson', h.update);
+  h.layer.setType('Point'); h.layer.setMode('Point');
+  const emitted = vi.fn();
+  h.layer.bus.$on('update:geojson', emitted);
+  const press = (x: number, y: number) => h.layer.setShapeInProgress({
+    mouse: { buttons: { middle: true }, modifiers: {}, geo: { x, y } },
+  } as any);
+  // GeoJS reports a press released in place as mouseclick, and a drag as actionup.
+  const click = (x: number, y: number) => h.trigger('mouseclick', { buttonsDown: { middle: true }, geo: { x, y } });
+  const pan = () => h.trigger('actionup', {});
+
+  press(1, 5); click(1.3, 5);
+  expect(emitted).toHaveBeenCalledTimes(1);
+  expect(emitted.mock.calls[0][2]).toMatchObject({ geometry: { coordinates: [1, 5] }, properties: { background: true } });
+  expect(h.layer.getMode()).toBe('creation');
+
+  press(2, 5); pan();
+  expect(emitted).toHaveBeenCalledTimes(1);
+
+  // A quick click that GeoJS started as no action still places its point.
+  click(4, 6);
+  expect(emitted).toHaveBeenCalledTimes(2);
+  expect(emitted.mock.calls[1][2]).toMatchObject({ geometry: { coordinates: [4, 6] } });
+
+  press(3, 5); h.layer.disable(); click(3, 5);
+  expect(emitted).toHaveBeenCalledTimes(2);
+  h.layer.destroy();
 });
 
 it('moves and commits only the annotation whose handle was grabbed when a peer layer is live', async () => {
@@ -223,4 +289,60 @@ it('re-hovers the handle under a stationary cursor after the edit annotation is 
   vi.runAllTimers();
   expect(h.interactor.retriggerMouseMove).toHaveBeenCalledTimes(1);
   vi.useRealTimers();
+});
+
+it('persists line endpoints after point-click annotation on the same editor', async () => {
+  const h = harness();
+  // Segmentation clicks complete Point annotations before switching to the line.
+  h.layer.bus.$off('update:geojson', h.update);
+  h.layer.type = 'Point';
+  h.layer.setMode('Point');
+  h.layer.handleEditStateChange({
+    annotation: {
+      layer: () => h.featureLayer,
+      state: () => 'done',
+      geojson: () => ({ type: 'Feature', properties: {}, geometry: { type: 'Point', coordinates: [25, 10] } }),
+    },
+  } as any);
+  h.layer.type = 'LineString';
+  h.layer.bus.$on('update:geojson', h.update);
+  h.layer.skipNextExternalUpdate = false;
+  await h.reopen();
+  const annotation = h.featureLayer.annotations()[0];
+  annotation.options('vertices', [{ x: 5, y: 15 }, { x: 95, y: 20 }]);
+  h.layer.handleEditAction({
+    annotation: { ...annotation, layer: () => h.featureLayer }, action: 'actionup',
+  } as any);
+  expect(h.update).toHaveBeenCalledTimes(1);
+  expect(h.track.getFeatureGeometry(0, { key: 'head' })[0].geometry.coordinates).toEqual([5, 15]);
+  expect(h.track.getFeatureGeometry(0, { key: 'tail' })[0].geometry.coordinates).toEqual([95, 20]);
+  h.layer.disable();
+  await h.reopen();
+  expect(h.featureLayer.annotations()[0].geojson().geometry.coordinates).toEqual([[5, 15], [95, 20]]);
+});
+
+it('hands a point-mode right-click on another camera to the move instead of confirming', () => {
+  const h = harness();
+  h.layer.setType('Point'); h.layer.setMode('Point');
+  const own = document.createElement('div');
+  const other = document.createElement('div');
+  own.appendChild(document.createElement('canvas'));
+  document.body.append(own, other);
+  (h.annotator.geoViewerRef.value as any).node = () => [own];
+  const confirm = vi.fn();
+  const elsewhere = vi.fn();
+  h.layer.bus.$on('confirm-annotation', confirm);
+  h.layer.bus.$on('confirm-annotation-elsewhere', elsewhere);
+
+  own.firstChild!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(elsewhere).not.toHaveBeenCalled();
+
+  const held = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, buttons: 2 });
+  other.dispatchEvent(held);
+  other.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(elsewhere.mock.calls).toEqual([[true], [false]]);
+  expect(held.defaultPrevented).toBe(true);
+  h.layer.destroy(); own.remove(); other.remove();
 });

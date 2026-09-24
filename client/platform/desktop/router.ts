@@ -6,6 +6,7 @@ import Recent from './frontend/components/Recent.vue';
 import Settings from './frontend/components/Settings.vue';
 import Addons from './frontend/components/Addons.vue';
 import TrainingPage from './frontend/components/TrainingPage.vue';
+import ModelsPage from './frontend/components/ModelsPage.vue';
 import ViewerLoader from './frontend/components/ViewerLoader.vue';
 import PipelinePage from './frontend/components/PipelinePage.vue';
 import ScoringPage from './frontend/components/ScoringPage.vue';
@@ -32,6 +33,7 @@ export default new Router({
       name: 'training',
       component: TrainingPage,
     },
+    { path: '/models', name: 'models', component: ModelsPage },
     {
       path: '/query',
       name: 'query',

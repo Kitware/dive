@@ -35,6 +35,8 @@ export default class LineLayer extends BaseLayer<LineGeoJSData> {
         } else if (e.mouse.buttonsDown.right) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             this.bus.$emit('annotation-right-clicked', e.data.trackId, true);
+          } else {
+            this.bus.$emit('edited-annotation-right-clicked', e.data.trackId);
           }
         }
       });

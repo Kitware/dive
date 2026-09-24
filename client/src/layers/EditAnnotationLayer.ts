@@ -87,6 +87,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
   /* Track if the last click was a right-click or shift-click for Point mode */
   lastClickWasBackground: boolean;
 
+  /** A middle press in Point mode, placed as a negative point only if released in place. */
+  private pendingBackgroundPoint: { geo: { x: number; y: number } } | null = null;
+
   /* Track shift key state from native DOM events (more reliable than GeoJS events) */
   lastShiftKeyState: boolean;
 
@@ -170,9 +173,12 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
    */
   trackShiftKey(e: MouseEvent) {
     this.lastShiftKeyState = e.shiftKey;
-    // Also track middle-click (button 1) from native events for background points
-    if (e.button === 1 && this.type === 'Point' && this.getMode() === 'creation') {
-      this.lastClickWasBackground = true;
+    // Also track middle-click (button 1) from native events for background points.
+    // Every Point-mode layer hears this document-level event, but only the one
+    // under the cursor consumes it, so a left click must clear a flag left over
+    // from a middle click that landed on another camera or off the canvas.
+    if (this.type === 'Point' && this.getMode() === 'creation') {
+      this.lastClickWasBackground = e.button === 1;
     }
   }
 
@@ -188,7 +194,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
       // Native contextmenu is used because GeoJS mouseclick may not fire for
       // right-button on Windows/Electron.
-      this.bus.$emit('confirm-annotation');
+      const [mapNode] = this.annotator.geoViewerRef.value?.node?.() ?? [];
+      if (mapNode && e.target instanceof Node && !mapNode.contains(e.target)) {
+        // A right-click on another camera may move this edit there; deselecting
+        // here first would flash the detection unselected.
+        this.bus.$emit('confirm-annotation-elsewhere', e.buttons !== 0);
+        return;
+      }
+      this.bus.$emit('confirm-annotation', e.buttons !== 0);
     }
   }
 
@@ -238,6 +251,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       this.featureLayer.geoOn(geo.event.mouseclick, (e: GeoEvent) => {
         // The peer layer reports clicks that leave edit mode.
         if (this.companion) return;
+        if (e.buttonsDown.middle) {
+          this.handleMiddleClick(e);
+          return;
+        }
         if (this.type === 'LineString' && e.handled) return;
         // Right-click in creation mode (non-Point): cancel and fully deselect.
         // Point mode has its own right-click handler (handleContextMenu).
@@ -311,6 +328,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.ownsDrag = !!this.featureLayer.currentAnnotation?._editHandle?.handle?.selected;
         if (!this.companion) this.setShapeInProgress(e);
       });
+      this.featureLayer.geoOn(geo.event.actionup, () => this.handleActionUp());
 
       const arrowLayer = this.annotator.geoViewerRef.value.createLayer('feature', { features: ['line'] });
       this.arrowFeatureLayer = arrowLayer.createFeature('line');
@@ -328,6 +346,30 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
   skipNextFunc() {
     return () => { this.skipNextExternalUpdate = true; };
+  }
+
+  /**
+   * A quick middle click places the held negative point. GeoJS reports a
+   * press released within its click tolerance as mouseclick, and it unbinds
+   * its document mouseup handler while doing so, so actionup never follows.
+   */
+  handleMiddleClick(e: GeoEvent) {
+    const pending = this.pendingBackgroundPoint;
+    this.pendingBackgroundPoint = null;
+    if (this.type !== 'Point' || this.getMode() !== 'creation') return;
+    const geo = pending?.geo ?? e.geo;
+    if (!geo) return;
+    const pointGeojson: GeoJSON.Feature<GeoJSON.Point> = {
+      type: 'Feature',
+      geometry: { type: 'Point', coordinates: [Math.round(geo.x), Math.round(geo.y)] },
+      properties: { background: true },
+    };
+    this.bus.$emit('update:geojson', 'editing', true, pointGeojson, this.type, this.selectedKey, this.skipNextFunc());
+  }
+
+  /** Only a press that moved past the click tolerance reaches actionup: a pan. */
+  handleActionUp() {
+    this.pendingBackgroundPoint = null;
   }
 
   /**
@@ -355,32 +397,10 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         || this.lastShiftKeyState;
     }
 
-    // Handle middle-click in Point mode - GeoJS doesn't create points on middle-click,
-    // so we need to manually create the point and emit the event
+    // GeoJS doesn't create points on middle-click. The press may also be the
+    // start of a middle-button pan, so the negative point waits for release.
     if (this.type === 'Point' && this.getMode() === 'creation' && e.mouse.buttons.middle) {
-      const pointGeojson: GeoJSON.Feature<GeoJSON.Point> = {
-        type: 'Feature',
-        geometry: {
-          type: 'Point',
-          coordinates: [Math.round(e.mouse.geo.x), Math.round(e.mouse.geo.y)],
-        },
-        properties: {
-          background: true,
-        },
-      };
-
-      // Emit the point creation event directly
-      this.bus.$emit(
-        'update:geojson',
-        'editing',
-        true, // geometryCompleteEvent - point is complete
-        pointGeojson,
-        this.type,
-        this.selectedKey,
-        this.skipNextFunc(),
-      );
-
-      // Reset background flag for next point
+      this.pendingBackgroundPoint = { geo: { x: e.mouse.geo.x, y: e.mouse.geo.y } };
       this.lastClickWasBackground = false;
       return;
     }
@@ -738,18 +758,18 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
       clearTimeout(this.leftButtonCheckTimeout);
       this.leftButtonCheckTimeout = -1;
       this.skipNextExternalUpdate = false;
-      // Already off: skip mode(null). Calling it again strips peer-layer
-      // creation/edit actions from the shared map interactor (LayerManager
-      // often disables the companion box on every refresh during line draw).
-      if (this.getMode() === 'disabled') {
-        return;
+      // Skip redundant mode(null), which strips a peer's interactor actions,
+      // but always clear overlays: GeoJS can finish editing before DIVE
+      // disables the layer, leaving completed annotations in disabled mode.
+      if (this.getMode() !== 'disabled') {
+        this.setMode(null);
       }
-      this.setMode(null);
       this.featureLayer.removeAllAnnotations(false);
       if (this.arrowFeatureLayer) {
         this.arrowFeatureLayer.data([]).draw();
       }
       this.shapeInProgress = null;
+      this.pendingBackgroundPoint = null;
       if (this.selectedHandleIndex !== -1) {
         this.selectedHandleIndex = -1;
         this.hoverHandleIndex = -1;
@@ -991,7 +1011,8 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
           this.lastClickWasBackground = false; // Reset for next point
         }
 
-        this.unrotatedGeoJSONCoords = geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[];
+        this.unrotatedGeoJSONCoords = this.type === 'rectangle'
+          ? geoJSONData[0].geometry.coordinates[0] as GeoJSON.Position[] : null;
         this.formattedData = geoJSONData;
         // The new annotation is in a state without styling, so apply local stypes
         this.applyStylesToAnnotations();
@@ -1025,7 +1046,9 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
             e.annotation.geojson()
           );
           const newCoords = newGeojson.geometry.coordinates[0] as GeoJSON.Position[];
-          let rotationBetween: number;
+          // Rotation metadata belongs to rectangles. Point/line coordinates do
+          // not contain polygon rings and must not enter the rotation helpers.
+          let rotationBetween = 0;
           if (this.formattedData.length > 0 && this.type === 'rectangle') {
             const existingRotation = getRotationFromAttributes(this.formattedData[0].properties as Record<string, unknown>) ?? 0;
             const oldCoords = rotateGeoJSONCoordinates(
@@ -1040,7 +1063,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
                 newCoords,
               );
             }
-          } else {
+          } else if (this.type === 'rectangle') {
             rotationBetween = getRotationBetweenCoordinateArrays(
               this.unrotatedGeoJSONCoords || [],
               newCoords,

@@ -2,11 +2,12 @@
 import { defineComponent, computed } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import TrackItem from '../TrackItem.vue';
+import DeleteAllScopeDialog from '../../DeleteAllScopeDialog.vue';
 import { useReadOnlyMode, useTrackFilters, useTrackStyleManager } from '../../../provides';
 
 export default defineComponent({
   name: 'BottomBarTrackListView',
-  components: { TrackItem },
+  components: { TrackItem, DeleteAllScopeDialog },
   props: {
     data: { type: Object, required: true },
     filteredTracks: { type: Array, required: true },
@@ -14,6 +15,7 @@ export default defineComponent({
     newTrackType: { type: String, required: true },
     trackAdd: { type: Function, required: true },
     multiDelete: { type: Function, required: true },
+    confirmDeleteAll: { type: Function, required: true },
     virtualListItems: { type: Array, required: true },
     getItemProps: { type: Function, required: true },
     lockTypes: { type: Boolean, required: true },
@@ -73,13 +75,13 @@ export default defineComponent({
               <template #activator="{ on: tooltipOn }">
                 <v-btn
                   icon
-                  x-small
+                  small
                   class="mr-2"
                   v-bind="attrs"
                   v-on="{ ...menuOn, ...tooltipOn }"
                 >
                   <v-icon
-                    x-small
+                    small
                     :color="data.columnSettingsActive ? 'accent' : 'default'"
                   >
                     mdi-view-column
@@ -103,13 +105,13 @@ export default defineComponent({
           <template #activator="{ on, attrs }">
             <v-btn
               icon
-              x-small
+              small
               class="mr-2"
               v-bind="attrs"
               v-on="on"
             >
               <v-icon
-                x-small
+                small
                 :color="data.settingsActive ? 'accent' : 'default'"
               >
                 mdi-cog
@@ -126,12 +128,12 @@ export default defineComponent({
             <v-btn
               :disabled="filteredTracks.length === 0 || readOnlyMode"
               icon
-              x-small
+              small
               class="mr-2"
               v-on="on"
               @click="multiDelete()"
             >
-              <v-icon x-small color="error">
+              <v-icon small color="error">
                 mdi-delete
               </v-icon>
             </v-btn>
@@ -250,7 +252,7 @@ export default defineComponent({
           v-for="attrKey in trackAttributeColumns"
           :key="String(attrKey)"
           class="col-header col-attribute sortable"
-          :class="{ active: sortKey === attrKey }"
+          :class="{ active: sortKey === attrKey, 'col-length': attrKey.split('_').pop()?.toLowerCase() === 'length' }"
           @click="handleSort(attrKey)"
         >
           {{ attrKey.split('_').pop() }}
@@ -305,5 +307,11 @@ export default defineComponent({
         />
       </template>
     </v-virtual-scroll>
+    <DeleteAllScopeDialog
+      v-model="data.showDeleteAll"
+      :scope.sync="data.deleteAllScope"
+      lead="Every listed track is selected. Delete tracks that are:"
+      @confirm="confirmDeleteAll()"
+    />
   </div>
 </template>
