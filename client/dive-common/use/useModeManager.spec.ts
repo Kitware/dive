@@ -6,7 +6,7 @@
  */
 import { ref, shallowRef } from 'vue';
 import CameraStore from 'vue-media-annotator/CameraStore';
-import AnnotationHistory from 'vue-media-annotator/AnnotationHistory';
+import AnnotationHistory from 'dive-common/use/annotationUndo';
 import AlignedViewStore from 'vue-media-annotator/alignedView/AlignedViewStore';
 import TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';

@@ -1,9 +1,9 @@
 import { computed, ref } from 'vue';
 import { cloneDeep, isEqual } from 'lodash';
-import type CameraStore from './CameraStore';
-import type { MarkChangesPending } from './BaseAnnotationStore';
-import Track, { Feature, TrackData } from './track';
-import Group, { GroupData } from './Group';
+import type CameraStore from 'vue-media-annotator/CameraStore';
+import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore';
+import Track, { Feature, TrackData } from 'vue-media-annotator/track';
+import Group, { GroupData } from 'vue-media-annotator/Group';
 
 type Location = { camera: string; kind: 'track' | 'group'; id: number };
 type Snapshot = { index: number } & (

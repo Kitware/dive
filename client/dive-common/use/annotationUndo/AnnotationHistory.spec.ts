@@ -1,8 +1,8 @@
 import { cloneDeep } from 'lodash';
+import CameraStore from 'vue-media-annotator/CameraStore';
+import Track from 'vue-media-annotator/track';
+import Group from 'vue-media-annotator/Group';
 import AnnotationHistory from './AnnotationHistory';
-import CameraStore from './CameraStore';
-import Track from './track';
-import Group from './Group';
 
 function harness(limit?: number) {
   let history: AnnotationHistory;

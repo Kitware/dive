@@ -1,8 +1,8 @@
 import { ref } from 'vue';
-import AnnotationHistory from 'vue-media-annotator/AnnotationHistory';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import Track from 'vue-media-annotator/track';
-import useSave from './useSave';
+import useSave from '../useSave';
+import AnnotationHistory from './AnnotationHistory';
 
 const api = vi.hoisted(() => ({
   saveDetections: vi.fn(async () => undefined),
