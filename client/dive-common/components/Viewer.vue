@@ -192,6 +192,10 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    checkTextQueryAvailable: {
+      type: Function as PropType<() => Promise<boolean>>,
+      default: undefined,
+    },
     /** Deep link: frame to seek to once the media is ready (e.g. from the review grid). */
     initialFrame: {
       type: Number as PropType<number | undefined>,
@@ -2726,6 +2730,7 @@ export default defineComponent({
             lassoDrawing: !readonlyState && lassoDrawing,
             textQueryEnabled,
             textQueryAvailable,
+            checkTextQueryAvailable,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
