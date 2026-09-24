@@ -18,25 +18,25 @@ export default defineComponent({
       text: entry.description,
       value,
     })));
-    const sidebarStyle = computed(() => {
+    function sidebarStyle(top: number) {
       if (props.sidebarMode === 'bottom') {
         // In bottom mode, use fixed positioning to overlay on the right side
-        // Position above the bottom bar (260px) and below the top bar + visibility controls (~112px)
+        // Match the toolbar offset used by v-main and stop above the 260px bottom panel.
         return {
           position: 'fixed',
-          top: '112px',
+          top: `${top}px`,
           right: '0',
-          height: 'calc(100vh - 112px - 260px)',
+          height: `calc(100vh - ${top}px - 260px)`,
           overflowY: 'hidden',
           zIndex: 10,
         };
       }
       return {
-        height: 'calc(100vh - 112px)',
+        height: `calc(100vh - ${top}px)`,
         overflowY: 'hidden',
         zIndex: 1,
       };
-    });
+    }
     return { context, options, sidebarStyle };
   },
 });
@@ -50,7 +50,7 @@ export default defineComponent({
       tile
       outlined
       class="d-flex flex-column context-sidebar-panel"
-      :style="sidebarStyle"
+      :style="sidebarStyle($vuetify.application.top + $vuetify.application.bar)"
     >
       <div class="d-flex align-center mx-1">
         <v-select

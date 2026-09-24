@@ -251,6 +251,7 @@ export default defineComponent({
                 <span
                   class="text-caption"
                   :class="dataset.index === 'error' ? 'error--text' : 'grey--text'"
+                  :title="dataset.index === 'not-indexed' ? dataset.error : undefined"
                 >{{ dataset.index === 'error' && dataset.error ? dataset.error : indexBadge(dataset.index).text }}</span>
               </span>
             </td>

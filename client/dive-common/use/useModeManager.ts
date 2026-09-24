@@ -31,6 +31,7 @@ import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
+import type { SegmentationPolygon } from 'dive-common/apispec';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
@@ -40,6 +41,9 @@ import SegmentationPointClick, {
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
 import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import {
+  componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
+} from 'dive-common/recipes/segmentationPolygons';
 import { linePointEdit } from './stereo/keypointTransfer';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
@@ -75,6 +79,17 @@ interface SetAnnotationStateArgs {
   key?: string;
   recipeName?: string;
 }
+
+export type NewAnnotationGeometryParams = {
+  camera: string;
+  trackId: number;
+  frameNum: number;
+} & (
+  | { source: 'box'; bounds: [number, number, number, number] }
+  | { source: 'line'; line: [number, number][] }
+  | { source: 'points'; points: [number, number][] }
+  | { source: 'mask'; polygons: SegmentationPolygon[] }
+);
 
 export type StereoAnnotationCompleteParams =
   | { type: 'point'; camera: string; trackId: number; frameNum: number; point: [number, number]; key: string; insert?: boolean; }
@@ -116,6 +131,7 @@ export default function useModeManager({
   isStereoscopicDataset,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
+  onNewAnnotationGeometry,
   onStereoSegmentationFinalize,
 }: {
     cameraStore: CameraStore;
@@ -134,6 +150,8 @@ export default function useModeManager({
     isStereoscopicDataset?: Ref<boolean>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
+    /** A brand-new detection just got its first shape (a box or a line). */
+    onNewAnnotationGeometry?: (params: NewAnnotationGeometryParams) => void;
     onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
   let creating = false;
@@ -812,8 +830,19 @@ export default function useModeManager({
         // create a new track in continuous detection mode and change
         // selectedTrackId
         const completedTrackId = selectedTrackId.value as number;
+        const wasCreating = creating;
 
         newTrackSettingsAfterLogic(track);
+
+        if (onNewAnnotationGeometry && wasCreating && !isEditingExisting) {
+          onNewAnnotationGeometry({
+            camera: selectedCamera.value,
+            trackId: completedTrackId,
+            frameNum,
+            source: 'box',
+            bounds: bounds as [number, number, number, number],
+          });
+        }
 
         // Stereo: emit box annotation complete
         if (onStereoAnnotationComplete && stereoInteractiveActive()) {
@@ -986,9 +1015,11 @@ export default function useModeManager({
 
           mirrorFeatureToAlignedCameras(track.id, frameNum);
 
-          // Emit persisted named points, including a head placed before its tail.
-          // Completed lines use their existing whole-line transfer event instead.
+          // Emit persisted named points. Completed lines use their existing
+          // whole-line transfer event instead, and the first end of a line still
+          // being drawn waits for it: mapping it mid-draw interrupts the draw.
           if (onStereoAnnotationComplete && stereoInteractiveActive()
+              && update.done.every((v) => v !== false)
               && !(data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2)) {
             Object.entries(update.geoJsonFeatureRecord).forEach(([pointKey, geoms]) => {
               geoms.forEach((geom) => {
@@ -1013,8 +1044,20 @@ export default function useModeManager({
             // Capture track ID before newTrackSettingsAfterLogic which may
             // change selectedTrackId in continuous detection mode
             const completedTrackId = selectedTrackId.value;
+            const wasCreating = creating;
 
             newTrackSettingsAfterLogic(track);
+
+            if (onNewAnnotationGeometry && wasCreating && completedTrackId !== null
+                && data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2) {
+              onNewAnnotationGeometry({
+                camera: selectedCamera.value,
+                trackId: completedTrackId as number,
+                frameNum,
+                source: 'line',
+                line: data.geometry.coordinates as [number, number][],
+              });
+            }
 
             // Stereo: emit line or polygon annotation complete
             if (onStereoAnnotationComplete && stereoInteractiveActive()
@@ -1284,6 +1327,19 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Entering polygon editing without naming a polygon: land on one the
+   * detection already has (masks are often keyed, e.g. SegmentationPolygon)
+   * so its vertices are editable at once rather than starting a new polygon.
+   */
+  function existingPolygonKey(): string {
+    if (selectedTrackId.value === null) return '';
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    const keys = track?.getPolygonFeatures(selectedCameraFrame()).map((p) => p.key) ?? [];
+    if (!keys.length || keys.includes('')) return '';
+    return keys.includes(selectedKey.value) ? selectedKey.value : keys[0];
+  }
+
   function handleSetAnnotationState({
     visible, editing, key, recipeName,
   }: SetAnnotationStateArgs) {
@@ -1292,7 +1348,7 @@ export default function useModeManager({
     }
     if (editing) {
       annotationModes.editing = editing;
-      _selectKey(key);
+      _selectKey(editing === 'Polygon' && !key ? existingPolygonKey() : key);
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
         if (recipeName !== r.name) {
@@ -1511,6 +1567,51 @@ export default function useModeManager({
   }
 
   /**
+   * A point-segmented mask is the first shape of a brand-new detection, so it
+   * gets the same auto-populate pass (head/tail from the mask) as a drawn box,
+   * again after every click that reshapes it. Refining an existing detection's
+   * mask does not.
+   */
+  function emitMaskGeometry(trackId: number, frameNum: number, polygons: SegmentationPolygon[]) {
+    if (!onNewAnnotationGeometry || polygons.length === 0
+      || preSegmentationFeatures.get(frameNum)?.hadFeature === true) return;
+    onNewAnnotationGeometry({
+      camera: selectedCamera.value,
+      trackId,
+      frameNum,
+      source: 'mask',
+      polygons,
+    });
+  }
+
+  /**
+   * Store a mask's components as keyed polygons on the detection, dropping the
+   * components of the previous prediction that this one no longer has.
+   */
+  function applySegmentationPolygons(
+    track: Track,
+    frameNum: number,
+    components: ReturnType<typeof segmentationComponents>,
+    bounds: RectBounds | null | undefined,
+  ) {
+    const polygons = segmentationPolygonFeatures(components, SegmentationPolygonKey);
+    const keys = new Set(polygons.map((polygon) => polygon.properties?.key));
+    track.getPolygonFeatures(frameNum).forEach((existing) => {
+      if (isSegmentationPolygonKey(existing.key, SegmentationPolygonKey) && !keys.has(existing.key)) {
+        track.removeFeatureGeometry(frameNum, { key: existing.key, type: 'Polygon' });
+      }
+    });
+    const { interpolate } = track.canInterpolate(frameNum);
+    track.setFeature({
+      frame: frameNum,
+      flick: 0,
+      bounds: bounds || componentsBounds(components),
+      keyframe: true,
+      interpolate,
+    }, polygons as GeoJSON.Feature<TrackSupportedFeature>[]);
+  }
+
+  /**
    * Handle segmentation prediction ready - update visual display with pending polygon/mask.
    * This is called when the segmentation model returns a prediction.
    * During editing, we show the polygon preview but don't commit it yet.
@@ -1526,35 +1627,11 @@ export default function useModeManager({
     }
 
     // Create polygon geometry from prediction result
-    if (result.polygon && result.polygon.length >= 3) {
-      const bounds = result.bounds || [
-        Math.min(...result.polygon.map((p) => p[0])),
-        Math.min(...result.polygon.map((p) => p[1])),
-        Math.max(...result.polygon.map((p) => p[0])),
-        Math.max(...result.polygon.map((p) => p[1])),
-      ] as [number, number, number, number];
-
-      // Close polygon if not already closed
-      const closedPolygon = [...result.polygon];
-      const first = closedPolygon[0];
-      const last = closedPolygon[closedPolygon.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        closedPolygon.push([...first] as [number, number]);
-      }
-
-      const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [closedPolygon],
-        },
-        properties: { key: SegmentationPolygonKey },
-      }];
-
+    const components = segmentationComponents(result);
+    if (components.length > 0) {
       // Update the track's feature with the preview polygon
       // Use frame number from the result if provided, otherwise current frame
       const targetFrame = result.frameNum ?? selectedCameraFrame();
-      const { interpolate } = track.canInterpolate(targetFrame);
 
       // Save original feature state before first prediction modifies the track
       if (!preSegmentationFeatures.has(targetFrame)) {
@@ -1589,17 +1666,13 @@ export default function useModeManager({
         }
       }
 
-      track.setFeature({
-        frame: targetFrame,
-        flick: 0,
-        bounds,
-        keyframe: true,
-        interpolate,
-      }, polygonGeometry);
+      applySegmentationPolygons(track, targetFrame, components, result.bounds);
 
       mirrorFeatureToAlignedCameras(track.id, targetFrame);
 
       _nudgeEditingCanary();
+
+      if (result.controlPoints) emitMaskGeometry(track.id, targetFrame, components);
 
       // Interactive stereo: as soon as the left polygon is predicted, generate
       // the other-camera polygon + head/tail lines + measurement automatically,
@@ -1667,40 +1740,9 @@ export default function useModeManager({
 
     // Apply each frame's prediction to the track
     result.frames.forEach((frameResult, frameNum) => {
-      if (frameResult.polygon && frameResult.polygon.length >= 3) {
-        const bounds = frameResult.bounds || [
-          Math.min(...frameResult.polygon.map((p) => p[0])),
-          Math.min(...frameResult.polygon.map((p) => p[1])),
-          Math.max(...frameResult.polygon.map((p) => p[0])),
-          Math.max(...frameResult.polygon.map((p) => p[1])),
-        ] as [number, number, number, number];
-
-        // Close polygon if not already closed
-        const closedPolygon = [...frameResult.polygon];
-        const first = closedPolygon[0];
-        const last = closedPolygon[closedPolygon.length - 1];
-        if (first[0] !== last[0] || first[1] !== last[1]) {
-          closedPolygon.push([...first] as [number, number]);
-        }
-
-        const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [closedPolygon],
-          },
-          properties: { key: SegmentationPolygonKey },
-        }];
-
-        const { interpolate } = track.canInterpolate(frameNum);
-
-        track.setFeature({
-          frame: frameNum,
-          flick: 0,
-          bounds,
-          keyframe: true,
-          interpolate,
-        }, polygonGeometry);
+      const components = segmentationComponents(frameResult);
+      if (components.length > 0) {
+        applySegmentationPolygons(track, frameNum, components, frameResult.bounds);
 
         mirrorFeatureToAlignedCameras(track.id, frameNum);
 

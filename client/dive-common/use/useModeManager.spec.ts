@@ -16,10 +16,13 @@ import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore';
 import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
-import useModeManager, { type StereoAnnotationCompleteParams } from './useModeManager';
+import { clientSettings } from 'dive-common/store/settings';
+import useModeManager, {
+  type NewAnnotationGeometryParams,
+  type StereoAnnotationCompleteParams,
+} from './useModeManager';
 import HeadTail from '../recipes/headtail';
 import SegmentationPointClick from '../recipes/segmentationpointclick';
-import { clientSettings } from '../store/settings';
 import { headTailFeatures } from '../../src/headTail';
 import type Recipe from '../../src/recipe';
 
@@ -76,19 +79,21 @@ function makeHarness(
     removeTypes: () => [],
   });
 
+  const newGeometryEvents: NewAnnotationGeometryParams[] = [];
   const modeManager = useModeManager({
     cameraStore,
     trackFilterControls,
     groupFilterControls,
     aggregateController,
     readonlyState: ref(false),
+    onNewAnnotationGeometry: (params) => newGeometryEvents.push(params),
     recipes,
     alignedView,
     onStereoAnnotationComplete,
   });
   modeManager.selectedCamera.value = 'left';
   return {
-    cameraStore, alignedView, modeManager, perCamera,
+    cameraStore, alignedView, modeManager, perCamera, newGeometryEvents,
   };
 }
 
@@ -214,12 +219,14 @@ function makeSingleCamHarness() {
     groupFilterControls,
     removeTypes: () => [],
   });
+  const newGeometryEvents: NewAnnotationGeometryParams[] = [];
   const modeManager = useModeManager({
     cameraStore,
     trackFilterControls,
     groupFilterControls,
     aggregateController,
     readonlyState: ref(false),
+    onNewAnnotationGeometry: (params) => newGeometryEvents.push(params),
     recipes: [],
   });
   return { cameraStore, modeManager, trackFilterControls };
@@ -462,6 +469,154 @@ describe('centerline editing continuity', () => {
     }, manager.selectedKey.value);
     expect(track.getFeatureGeometry(0, { key: 'HeadTails' })[0].geometry.coordinates).toEqual([[20, 20], [90, 10]]);
     expect(track.features[0].bounds).toEqual([0, 0, 100, 100]);
+  });
+});
+
+describe('successive auto-populate triggers', () => {
+  it('emits a new box for each track, but not again when that box is edited', () => {
+    const { modeManager: manager, newGeometryEvents } = makeHarness();
+    const first = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    manager.handler.updateRectBounds(0, 0, [1, 1, 11, 11]);
+    const second = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [20, 20, 30, 30]);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.source])).toEqual([
+      [first, 'box'], [second, 'box'],
+    ]);
+  });
+
+  it('emits both completed lines when annotations are drawn one after another', () => {
+    const recipe = new HeadTail();
+    const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
+    const draw = (coordinates: number[][]) => manager.handler.updateGeoJSON('in-progress', 0, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+    }, 'HeadTails');
+    const first = manager.handler.trackAdd();
+    recipe.activate();
+    draw([[0, 0]]);
+    draw([[0, 0], [10, 10]]);
+    const second = manager.handler.trackAdd();
+    recipe.activate();
+    draw([[20, 20]]);
+    draw([[20, 20], [30, 30]]);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.source])).toEqual([
+      [first, 'line'], [second, 'line'],
+    ]);
+  });
+});
+
+describe('auto-populate of point-segmented masks', () => {
+  const polygon: [number, number][] = [[0, 0], [10, 0], [10, 10]];
+  const confirm = (recipe: SegmentationPointClick) => recipe.bus.$emit('prediction-confirmed-multi', {
+    frames: new Map([[0, { polygon, bounds: null, frameNum: 0 }]]),
+  });
+
+  it('emits the mask of a brand-new detection on every click, but not on restore, confirm or a refinement of an existing one', () => {
+    const recipe = new SegmentationPointClick();
+    const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
+    const fresh = manager.handler.trackAdd();
+    const click = () => recipe.bus.$emit('prediction-ready', {
+      polygon, bounds: null, frameNum: 0, controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+    click();
+    click();
+    recipe.bus.$emit('prediction-ready', { polygon, bounds: null, frameNum: 0 });
+    confirm(recipe);
+    const event = {
+      camera: 'left', trackId: fresh, frameNum: 0, source: 'mask', polygons: [{ exterior: polygon, holes: [] }],
+    };
+    expect(newGeometryEvents).toEqual([event, event]);
+
+    manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    newGeometryEvents.length = 0;
+    click();
+    confirm(recipe);
+    expect(newGeometryEvents).toEqual([]);
+  });
+});
+
+describe('useModeManager point segmentation masks', () => {
+  const components = [
+    { exterior: [[0, 0], [10, 0], [10, 10]] as [number, number][], holes: [[[2, 2], [4, 2], [4, 4]] as [number, number][]] },
+    { exterior: [[20, 0], [30, 0], [30, 10]] as [number, number][], holes: [] },
+  ];
+
+  it('stores every component with its holes, then drops the ones a refinement loses', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    const predicted = (polygons: typeof components) => recipe.bus.$emit('prediction-ready', {
+      polygon: polygons[0].exterior,
+      polygons,
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+
+    predicted(components);
+    const track = cameraStore.getTrack(trackId, 'left');
+    expect(track.getPolygonFeatures(0).map((p) => [p.key, p.holeCount])).toEqual([
+      ['SegmentationPolygon', 1], ['SegmentationPolygon-1', 0],
+    ]);
+    expect(track.getFeature(0)[0]?.bounds).toEqual([0, 0, 30, 10]);
+
+    predicted([components[1]]);
+    expect(track.getPolygonFeatures(0).map((p) => p.key)).toEqual(['SegmentationPolygon']);
+    expect(track.getFeature(0)[0]?.bounds).toEqual([20, 0, 30, 10]);
+
+    recipe.bus.$emit('prediction-reset', { frameNum: 0 });
+    expect(track.getFeature(0)[0]).toBeNull();
+  });
+});
+
+describe('stereo mapping of a line being drawn', () => {
+  it('waits for both ends instead of mapping the first one alone', () => {
+    const wasAutoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+    clientSettings.stereoSettings.autoComputeOtherCamera = true;
+    try {
+      const recipe = new HeadTail();
+      const events: StereoAnnotationCompleteParams[] = [];
+      const { modeManager: manager } = makeHarness(undefined, [recipe], (params) => events.push(params));
+      manager.handler.trackAdd();
+      recipe.activate();
+      const draw = (coordinates: number[][]) => manager.handler.updateGeoJSON('in-progress', 0, 0, {
+        type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+      }, 'HeadTails');
+      draw([[10, 10]]);
+      expect(events).toEqual([]);
+      draw([[10, 10], [90, 10]]);
+      expect(events.map((e) => e.type)).toEqual(['line']);
+    } finally {
+      clientSettings.stereoSettings.autoComputeOtherCamera = wasAutoCompute;
+    }
+  });
+});
+
+describe('entering polygon editing', () => {
+  const polygon = (key: string): GeoJSON.Feature<GeoJSON.Polygon> => ({
+    type: 'Feature',
+    properties: { key },
+    geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 0]]] },
+  });
+
+  it('lands on the keyed mask a detection already has', () => {
+    const { cameraStore, modeManager: manager } = makeHarness();
+    const id = manager.handler.trackAdd();
+    cameraStore.getTrack(id, 'left').setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 10, 10] }, [polygon('SegmentationPolygon')]);
+    manager.handler.setAnnotationState({ editing: 'LineString', key: 'HeadTails' });
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '' });
+    expect(manager.selectedKey.value).toBe('SegmentationPolygon');
+  });
+
+  it('keeps the default polygon and an explicitly requested new key', () => {
+    const { cameraStore, modeManager: manager } = makeHarness();
+    const id = manager.handler.trackAdd();
+    cameraStore.getTrack(id, 'left').setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 10, 10] }, [polygon(''), polygon('1')]);
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '' });
+    expect(manager.selectedKey.value).toBe('');
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '2' });
+    expect(manager.selectedKey.value).toBe('2');
   });
 });
 

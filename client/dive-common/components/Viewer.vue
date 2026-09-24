@@ -68,6 +68,7 @@ import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
+  NewAnnotationGeometryParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
@@ -99,6 +100,14 @@ import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+import UnsavedChangesDialog from './UnsavedChangesDialog.vue';
+
+export interface StereoViewLinkParams {
+  camera: string;
+  frameNum: number;
+  point: [number, number];
+}
+export type StereoViewLinkFunc = (params: StereoViewLinkParams) => Promise<[number, number] | null>;
 
 export interface ImageDataItem {
   url: string;
@@ -120,6 +129,7 @@ export default defineComponent({
     ConfidenceFilter,
     UserGuideButton,
     UserSettingsDialog,
+    UnsavedChangesDialog,
     EditorMenu,
     MultiCamToolbar,
     AlignedViewToggle,
@@ -183,6 +193,15 @@ export default defineComponent({
     /** Deep link: track to select once annotations are loaded. */
     initialTrackId: {
       type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+    /**
+     * Where a point on one stereo camera lands on the other, using the loaded
+     * stereo matcher; null when it cannot be found. Lets synchronised panning
+     * follow the same object on both cameras.
+     */
+    stereoViewLink: {
+      type: Function as PropType<StereoViewLinkFunc | undefined>,
       default: undefined,
     },
   },
@@ -727,7 +746,7 @@ export default defineComponent({
       sorted: cameraStore.sortedTracks,
       remove: removeTracks,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
-      lookupGroups: cameraStore.lookupGroups,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
       getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
       renameTrackPair: (id, currentType, newType) => (
         cameraStore.renameTrackPair(id, currentType, newType)
@@ -801,6 +820,32 @@ export default defineComponent({
     provideAutoRegisterJob(autoRegisterJob);
     onBeforeUnmount(() => autoRegisterJob.dispose());
 
+    // Linked panning: with camera controls synchronised and auto-compute on,
+    // the other pane recentres on where this pane's centre is on its camera.
+    const stereoViewLinkResolver = async (camera: string, point: [number, number]) => {
+      if (!props.stereoViewLink) return null;
+      let frameNum: number;
+      try {
+        frameNum = aggregateController.value.getController(camera).frame.value;
+      } catch {
+        return null;
+      }
+      return props.stereoViewLink({ camera, frameNum, point });
+    };
+    watch(
+      [
+        () => clientSettings.stereoSettings.autoComputeOtherCamera,
+        () => props.stereoViewLink,
+        () => multiCamList.value.length,
+      ],
+      ([autoCompute, link, cameras]) => {
+        aggregateController.value.setViewLinkResolver(
+          autoCompute && link && cameras === 2 ? stereoViewLinkResolver : null,
+        );
+      },
+      { immediate: true },
+    );
+
     // Provides wrappers for actions to integrate with settings
     const {
       linkingTrack,
@@ -833,6 +878,9 @@ export default defineComponent({
       },
       onStereoAnnotationReset: (params: StereoAnnotationResetParams) => {
         emit('stereo-annotation-reset', params);
+      },
+      onNewAnnotationGeometry: (params: NewAnnotationGeometryParams) => {
+        emit('new-annotation-geometry', params);
       },
       onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
         emit('stereo-segmentation-finalize', params);
@@ -1415,18 +1463,17 @@ export default defineComponent({
       // eslint-disable-next-line no-param-reassign
       event.returnValue = '';
     }
+    const unsavedChangesDialog = ref<InstanceType<typeof UnsavedChangesDialog>>();
+
+    async function saveBeforeLeave() {
+      if (pendingSaveCount.value > 0) await save(props.currentSet);
+      await saveRegistration();
+      if (hasUnsavedChanges.value) throw new Error('There are still unsaved changes.');
+    }
+
     async function navigateAwayGuard(): Promise<boolean> {
-      let result = true;
-      if (hasUnsavedChanges.value) {
-        result = await prompt({
-          title: 'Save Items',
-          text: 'There is unsaved data, would you like to continue or cancel and save?',
-          positiveButton: 'Discard and Leave',
-          negativeButton: 'Don\'t Leave',
-          confirm: true,
-        });
-      }
-      return result;
+      if (!hasUnsavedChanges.value) return true;
+      return unsavedChangesDialog.value?.confirm() ?? false;
     }
 
     async function handleSetChange(set: string) {
@@ -1597,7 +1644,8 @@ export default defineComponent({
       // mouseup arrives -- leaving the detection selected -- so editingTrack
       // alone cannot tell; selectCamera(camera, true) would then put it
       // straight back into edit mode. Right-clicks ON an annotation never
-      // reach here: the annotation layers' right-click handoff switches the
+      // reach here: the annotation layers' right-click handoff (including the
+      // one that moves an edit in progress to this camera) switches the
       // selected camera synchronously first, so this handler returns at the
       // top (same camera).
       if (event?.button === 2 && (editingTrack.value || editingOnRightMouseDown)) {
@@ -2455,7 +2503,7 @@ export default defineComponent({
       cameraPercentileStretch,
       disableAnnotationFilters,
       trackStyleManager,
-      visible,
+      visible: () => visible() || unsavedChangesDialog.value?.show === true,
       selectedTrackForDetails,
       showConfidenceFirst,
       showTrackAttributesFirst,
@@ -2493,6 +2541,8 @@ export default defineComponent({
       changeCamera,
       noteRightMouseDown,
       // For Navigation Guarding
+      unsavedChangesDialog,
+      saveBeforeLeave,
       navigateAwayGuard,
       warnBrowserExit,
       hasUnsavedChanges,
@@ -2510,6 +2560,12 @@ export default defineComponent({
 
 <template>
   <v-main class="viewer">
+    <unsaved-changes-dialog
+      ref="unsavedChangesDialog"
+      :save="saveBeforeLeave"
+      :saving="saveInProgress"
+      :readonly="readonlyState"
+    />
     <v-app-bar
       app
       extension-height="56"
@@ -2681,14 +2737,8 @@ export default defineComponent({
             />
           </template>
           <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
-            slot="multicam-controls-left"
-          >
-            <multi-cam-toolbar />
-          </template>
-          <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls-right"
+            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar"
+            slot="multicam-controls"
           >
             <multi-cam-toolbar />
           </template>

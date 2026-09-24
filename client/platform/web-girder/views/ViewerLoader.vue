@@ -177,7 +177,7 @@ export default defineComponent({
 
     const {
       handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
-      invalidateCalibration,
+      invalidateCalibration, stereoViewLink,
     } = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
@@ -518,6 +518,7 @@ export default defineComponent({
       exportDatasetIds,
       handleStereoAnnotationComplete,
       handleStereoTrackLinked,
+      stereoViewLink,
       stereoBusyMessage,
       stereoDownloadProgress,
       stereoDownloadPercent,
@@ -550,6 +551,7 @@ export default defineComponent({
       :annotation-source-returnable="annotationSourceReturnable"
       :initial-frame="viewerFocus.frame"
       :initial-track-id="viewerFocus.trackId"
+      :stereo-view-link="stereoViewLink"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
       @update:set="routeSet"

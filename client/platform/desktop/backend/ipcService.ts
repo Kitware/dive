@@ -1,3 +1,4 @@
+import type { SegmentationPolygon, Pipe, GlobalStyleSettings } from 'dive-common/apispec';
 import OS from 'os';
 import http from 'http';
 import fs from 'fs';
@@ -6,7 +7,6 @@ import {
   app, ipcMain, dialog, BrowserWindow,
 } from 'electron';
 import { MultiCamImportArgs } from 'dive-common/apispec';
-import type { Pipe, GlobalStyleSettings } from 'dive-common/apispec';
 import {
   DesktopJobUpdate, RunPipeline, RunTraining, Settings, ExportDatasetArgs,
   ExportMulticamEverythingArgs,
@@ -25,6 +25,7 @@ import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import linux from './native/linux';
 import win32 from './native/windows';
 import * as common from './native/common';
+import { importModelPack, exportModelPack } from './native/modelPack';
 import beginMultiCamImport from './native/multiCamImport';
 import scanMultiCamBatch from './native/multiCollectImport';
 import scanStereoBatch from './native/stereoCollectImport';
@@ -107,6 +108,8 @@ export default function register() {
     const ret = await common.getPipelineList(settings.get());
     return ret;
   });
+  ipcMain.handle('import-model-pack', (_, filename: string) => importModelPack(settings.get(), filename));
+  ipcMain.handle('export-model-pack', (_, model: Pipe, destination: string) => exportModelPack(settings.get(), model, destination));
   ipcMain.handle('delete-trained-pipeline', async (event, args: Pipe) => {
     const ret = await common.deleteTrainedPipeline(args);
     return ret;
@@ -439,6 +442,10 @@ export default function register() {
     await segService.ensureStarted(settings.get());
     return { success: true };
   });
+
+  ipcMain.handle('segmentation-polygon-keypoints', async (_, args: { polygon: [number, number][]; polygons?: SegmentationPolygon[] }) => (
+    getInteractiveServiceManager().polygonKeypoints(args.polygon, args.polygons)
+  ));
 
   ipcMain.handle('segmentation-predict', async (_, args: SegmentationPredictRequest) => {
     const segService = getInteractiveServiceManager();
