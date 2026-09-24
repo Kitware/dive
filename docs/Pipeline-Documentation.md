@@ -73,7 +73,7 @@ Run model training on ground truth annotations.  Currently, training configurati
 
 ### Train, validation, and test splits
 
-Datasets can optionally be labeled **Train**, **Validation**, or **Test** with the ==Split== menu in the data browser (web) or the library (desktop) after selecting them.  Labeled datasets show a colored chip in the list.  When training runs on a mix of labeled datasets, validation datasets are held out to monitor training, test datasets are excluded entirely and recorded in the trained model folder for later scoring, and unlabeled datasets are used for training.  Without any labels, VIAME picks its own validation frames as before.
+Datasets can optionally be labeled **Train**, **Validation**, or **Test** with the ==Split== menu in the data browser (web) or the library (desktop) after selecting them.  Labeled datasets show a colored chip in the list.  When training runs on a mix of labeled datasets, validation datasets are held out to monitor training, test datasets are excluded entirely and, once training finishes, the new model is run on them and scored; the metrics, plots and per-sequence detections land in `test_results/` inside the trained model folder.  Unlabeled datasets are used for training.  Without any labels, VIAME picks its own validation frames as before.
 
 ### Overview
 
