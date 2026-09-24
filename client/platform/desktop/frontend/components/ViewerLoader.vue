@@ -1131,16 +1131,8 @@ export default defineComponent({
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function getOrCreateStereoTrack(cameraStore: any, trackId: number, sourceCamera: string, targetCamera: string, frameNum: number) {
-      let track = cameraStore.getPossibleTrack(trackId, targetCamera);
-      if (!track) {
-        const targetTrackStore = cameraStore.camMap.value.get(targetCamera)?.trackStore;
-        if (targetTrackStore) {
-          const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
-          const trackType = sourceTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-          track = targetTrackStore.add(frameNum, trackType, undefined, trackId);
-        }
-      }
-      return track;
+      return cameraStore.getPossibleTrack(trackId, targetCamera)
+        ?? cameraStore.addLinkedTrack(trackId, targetCamera, frameNum, sourceCamera);
     }
 
     /**
