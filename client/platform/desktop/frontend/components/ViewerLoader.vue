@@ -1527,6 +1527,11 @@ export default defineComponent({
      * right tracks now have a measurement line.
      */
     async function handleStereoTrackLinked(trackId: number) {
+      const operation = () => measureLinkedStereoTrack(trackId);
+      return viewerRef.value?.runAnnotationOperation(operation) ?? operation();
+    }
+
+    async function measureLinkedStereoTrack(trackId: number) {
       // Wait out a still-starting service rather than dropping the recompute.
       if (!stereoEnabled.value && !(await stereoServiceReady())) return;
       // Linking a pair across cameras only (re)computes their stereo lengths.
@@ -1638,6 +1643,15 @@ export default defineComponent({
     }
 
     async function handleStereoAnnotationComplete(
+      params: StereoAnnotationCompleteParams,
+      forceAutoCompute = false,
+      quiet = false,
+    ): Promise<'transferred' | 'skipped' | 'failed'> {
+      const operation = () => performStereoAnnotationComplete(params, forceAutoCompute, quiet);
+      return viewerRef.value?.runAnnotationOperation(operation) ?? operation();
+    }
+
+    async function performStereoAnnotationComplete(
       params: StereoAnnotationCompleteParams,
       forceAutoCompute = false,
       quiet = false,
