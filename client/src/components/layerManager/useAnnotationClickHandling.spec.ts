@@ -201,6 +201,18 @@ describe('a point-mode right-click that lands on another camera', () => {
     expect(h.handler.confirmRecipe).not.toHaveBeenCalled();
   });
 
+  it.each([true, false])('confirms on the selected camera once the button is released (held: %s)', (held) => {
+    const h = pointHarness();
+    h.edit.bus.$emit('confirm-annotation', held);
+    vi.runAllTimers();
+    if (held) {
+      expect(h.handler.confirmRecipe).not.toHaveBeenCalled();
+      document.dispatchEvent(new MouseEvent('mouseup'));
+      vi.runAllTimers();
+    }
+    expect(h.handler.confirmRecipe).toHaveBeenCalledOnce();
+  });
+
   it('ignores a confirm from a camera that is not selected', () => {
     const h = pointHarness();
     h.camera.value = 'right';

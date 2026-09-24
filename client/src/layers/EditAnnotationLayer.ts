@@ -201,7 +201,7 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
         this.bus.$emit('confirm-annotation-elsewhere', e.buttons !== 0);
         return;
       }
-      this.bus.$emit('confirm-annotation');
+      this.bus.$emit('confirm-annotation', e.buttons !== 0);
     }
   }
 
