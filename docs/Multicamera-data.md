@@ -228,7 +228,7 @@ Single camera pipelines can be used by selecting the camera and then running the
 When other cameras already have detections, DIVE prompts before launch:
 
 - **No** / **Continue** (separate) — remaps new TrackIds above every ID on the other cameras so IDs do not collide.
-- **Yes** (associate) — only offered for calibrated stereo with interactive stereo features enabled. Runs VIAME association and **replaces annotations on both cameras** with the paired result.
+- **Yes** (associate) — only offered for calibrated stereo with interactive stereo features enabled. Runs VIAME association and **replaces annotations on both cameras** with the paired result. Pairing works the way VIAME's stereo track-and-measure pipelines pair cameras: by head/tail keypoints where both cameras have them, and by box position against the stereo geometry otherwise; a track's classes are kept as its own camera's pipeline produced them.
 
 When association is unavailable (plain multicam, missing calibration, or stereo features off), the dialog explains why and only offers separate-ID remapping.
 
@@ -256,6 +256,6 @@ Open the ==:material-cog:== creation settings menu in the [Track List](UI-Track-
 
 Enabling either option loads the interactive stereo service (shared with [interactive segmentation](Interactive-Annotation.md)). Warped head/tail lines become normal editable line annotations; manual edits are preserved and not overwritten by later auto-warping.
 
-On stereo datasets, [interactive segmentation](Interactive-Annotation.md#interactive-segmentation) can also warp confirmed polygon masks to the paired camera when auto-compute is enabled.
+On stereo datasets, [interactive segmentation](Interactive-Annotation.md#interactive-segmentation) can also warp confirmed polygon masks to the paired camera when auto-compute is enabled. With [auto-populate](Interactive-Annotation.md#auto-populate-from-a-new-box-or-line) enabled, the stereo-mapped copy of a new box or line receives the same mask and/or head/tail pass after the transfer succeeds.
 
 Full details: [Interactive Annotation](Interactive-Annotation.md).

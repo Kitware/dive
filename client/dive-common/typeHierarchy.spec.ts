@@ -394,13 +394,19 @@ describe('flat pair selection', () => {
     })).toBe(1);
   });
 
-  it('keeps the strict Prevent Cascade threshold comparison', () => {
-    expect(selectFlatPairIndex(pairs, {
+  it('shows the top type at its threshold under Prevent Cascade, and nothing below it', () => {
+    const options = {
       checkedSet: new Set(['top', 'fallback']),
       confidenceFilters: { top: 0.5, default: 0.1 },
       filtersDisabled: false,
       preventCascade: true,
-    })).toBe(-1);
+    };
+    expect(selectFlatPairIndex(pairs, options)).toBe(0);
+    expect(selectFlatPairIndex(pairs, { ...options, confidenceFilters: { top: 0.51, default: 0.1 } })).toBe(-1);
+    // A fresh user detection (confidence 1) stays visible with the slider at 1.00.
+    expect(selectFlatPairIndex([['fish', 1]], {
+      ...options, checkedSet: new Set(['fish']), confidenceFilters: { default: 1 },
+    })).toBe(0);
   });
 
   it('honors an explicit type threshold of zero the same way export does', () => {

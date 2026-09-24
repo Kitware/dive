@@ -42,7 +42,7 @@ Shared viewer behavior (camera selection, linked tracks, MultiCamera Tools, and 
 
 DIVE Desktop can run VIAME-backed **interactive segmentation** and **interactive stereo** tools while you annotate. These require a local VIAME install with interactive service support and are not available in the web annotator.
 
-* **Interactive segmentation** — click foreground/background points to generate polygon masks (++s++ or the Segment button). See [Interactive Annotation](Interactive-Annotation.md).
+* **Interactive segmentation** — click foreground/background points to generate polygon masks (++s++ or the Segment button), or enable **Auto-populate mask** / **Auto-populate points** in creation settings to segment each new box or line automatically. See [Interactive Annotation](Interactive-Annotation.md).
 * **Interactive stereo** — on stereo datasets, auto-warp annotations between cameras and recompute head/tail length measurements. Configure from the **Stereo Settings** section in the track list creation settings menu.
 
 Both features share one lazy-loaded Python interactive service subprocess. GPU is recommended for model initialization.
@@ -224,12 +224,11 @@ DIVE Desktop looks for the these environment variables on launch.
 
 ## Import/Export of Models
 
-Trained models are kept in `${Project Data Storage Path}/DIVE_Pipelines` as described above.  Each model file consists of exactly 1 pipe file and some number of other model files.
-
-* The pipe file can be one of `detector.pipe`, `tracker.pipe`, or `generate.pipe`.
-* Other files can be `.zip`, `.svm`, `.lbl`, or `.cfg`.
-
-You can use externally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
+Open **Models**, immediately to the right of **Training**, to import model ZIPs,
+export complete packs to ZIP, convert models to ONNX, or delete packs. Models
+are stored under `${Project Data Storage Path}/DIVE_Pipelines`; a pack can contain
+multiple `.pipe` files and nested folders of model weights and supporting files.
+See [Pipeline Import and Export](Pipeline-Import-Export.md) for supported ZIP layouts.
 
 ## Troubleshooting
 

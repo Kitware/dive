@@ -34,6 +34,8 @@ beforeEach(async () => {
 });
 afterEach(async () => { await fs.remove(root); vi.clearAllMocks(); });
 const args = { type: JobType.BuildSearchIndex as const, datasetId: 'fish', method: 'detections' as const };
+/** What the index tool leaves behind after a successful build. */
+const builtIndex = () => fs.outputFile(path.join(root, 'DIVE_SearchIndex/database/ITQ/itq.model.b256_i100_r0.mean_vec.npy'), '');
 it('registers preparation immediately and keeps startup failures in history', async () => {
   vi.mocked(linux.validateViamePath).mockResolvedValue('Missing VIAME installation');
   const pending = videoSearch.buildIndex(settings, args, (update) => updates.push(update));
@@ -57,10 +59,40 @@ it('updates the same job with its process and finishes only after index metadata
   child.stderr.write('Example diagnostic');
   expect(updates.flatMap((update) => update.body || [])).toContain('Extracting descriptors');
   expect(updates.flatMap((update) => update.body || [])).toContain('Example diagnostic');
+  await builtIndex();
   child.emit('close', 0);
   await vi.waitFor(() => expect(job.endTime).toBeDefined());
   expect(updates.at(-1)?.exitCode).toBe(0);
   expect(await fs.pathExists(path.join(root, 'DIVE_SearchIndex/index_meta.json'))).toBe(true);
+});
+
+it('fails a build that exits successfully without leaving a queryable index behind', async () => {
+  const child = Object.assign(new EventEmitter(), {
+    pid: 125, exitCode: null, stdout: new PassThrough(), stderr: new PassThrough(),
+  });
+  vi.mocked(spawn).mockReturnValue(child as never);
+  const job = await videoSearch.buildIndex(settings, args, (update) => updates.push(update));
+  await fs.outputFile(path.join(root, 'DIVE_SearchIndex/database/fish_descriptors.csv'), '');
+  child.emit('close', 0);
+  await vi.waitFor(() => expect(job.endTime).toBeDefined());
+  expect(job.exitCode).toBe(1);
+  expect(updates.flatMap((update) => update.body || [])).toContainEqual(
+    expect.stringMatching(/^ERROR: The build finished without producing a search index\. No ITQ model .*Folder contents: fish_descriptors\.csv$/),
+  );
+  expect(await fs.pathExists(path.join(root, 'DIVE_SearchIndex/index_meta.json'))).toBe(false);
+  const status = await videoSearch.getIndexStatus(settings, 'fish');
+  expect(status).toMatchObject({ built: false, indexed: false, reason: expect.stringContaining('No ITQ model') });
+});
+
+it('explains a dataset the built index does not record', async () => {
+  await builtIndex();
+  await fs.writeJson(path.join(root, 'DIVE_SearchIndex/index_meta.json'), {
+    version: 1, backend: 'files', streams: { other: { datasetId: 'other', method: 'detections', createdAt: '2024-01-01' } },
+  });
+  const status = await videoSearch.getIndexStatus(settings, 'fish');
+  expect(status).toMatchObject({ built: true, indexed: false, reason: expect.stringContaining('fish is not recorded in') });
+  expect(status.reason).toContain('recorded: other');
+  expect((await videoSearch.getIndexStatus(settings, 'other')).reason).toBeUndefined();
 });
 
 it('indexes the first configured stereo camera and names it in the job log', async () => {
@@ -77,6 +109,7 @@ it('indexes the first configured stereo camera and names it in the job log', asy
   expect(common.getValidatedProjectDir).toHaveBeenLastCalledWith(settings, 'fish/left');
   expect(job.datasetIds).toEqual(['fish', 'fish/left']);
   expect(updates.flatMap((update) => update.body || [])).toContain('Indexing first camera: left (fish/left)');
+  await builtIndex();
   child.emit('close', 0);
   await vi.waitFor(() => expect(job.endTime).toBeDefined());
   const metadata = await fs.readJson(path.join(root, 'DIVE_SearchIndex/index_meta.json'));

@@ -62,6 +62,15 @@ export function polygonBounds(polygon: Point[]): RectBounds {
   return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
 }
 
+/** The box grown, without otherwise moving, until it holds every point. */
+export function boundsEnclosing(bounds: RectBounds, points: Point[]): RectBounds {
+  const [x0, y0, x1, y1] = polygonBounds(points);
+  return [
+    Math.min(bounds[0], Math.floor(x0)), Math.min(bounds[1], Math.floor(y0)),
+    Math.max(bounds[2], Math.ceil(x1)), Math.max(bounds[3], Math.ceil(y1)),
+  ];
+}
+
 /**
  * Below this overlap a stereo-mapped box is taken to have landed badly and is
  * refit to the mask segmented on its own camera.

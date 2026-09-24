@@ -1,6 +1,7 @@
 <script lang="ts">
 import { computed, defineComponent, PropType } from 'vue';
 import { Pipe } from 'dive-common/apispec';
+import { parsePipelineDataTypes } from 'dive-common/pipelineDataTypes';
 
 export default defineComponent({
   name: 'RunPipelineToast',
@@ -13,41 +14,12 @@ export default defineComponent({
   },
 
   setup(props) {
-    function getPipelineTypeIcon(type: string | undefined): string {
-      if (!type) {
-        return '';
-      }
-
-      switch (type.toUpperCase()) {
-        case 'IMAGE':
-          return 'mdi-image';
-        case 'VIDEO':
-          return 'mdi-video-vintage';
-        case 'TEXT':
-          return 'mdi-format-text';
-        case 'BBOX':
-          return 'mdi-vector-square';
-        case 'FULL-SIZE-BBOX':
-          return 'mdi-square-outline';
-        case 'HEAD-TAIL':
-          return 'mdi-vector-line';
-        case 'MASK':
-          return 'mdi-vector-polygon';
-        case 'TRACK':
-          return 'mdi-gesture';
-        case 'CALIBRATION':
-          return 'mdi-checkerboard';
-        default:
-          return type;
-      }
-    }
-
-    const inputIcon = computed(() => getPipelineTypeIcon(props.pipeline.metadata?.inputType));
-    const outputIcon = computed(() => getPipelineTypeIcon(props.pipeline.metadata?.outputType));
+    const inputTypes = computed(() => parsePipelineDataTypes(props.pipeline.metadata?.inputType));
+    const outputTypes = computed(() => parsePipelineDataTypes(props.pipeline.metadata?.outputType));
 
     return {
-      inputIcon,
-      outputIcon,
+      inputTypes,
+      outputTypes,
     };
   },
 });
@@ -56,18 +28,36 @@ export default defineComponent({
 <template>
   <div>
     <span>{{ pipeline.metadata?.description }}</span>
-    <div v-if="pipeline.metadata?.inputType && pipeline.metadata?.outputType" class="pipeline-type-indicators">
-      <v-icon>
-        {{ inputIcon }}
-      </v-icon>
+    <div v-if="inputTypes.length && outputTypes.length" class="pipeline-type-indicators">
+      <span
+        v-for="(item, index) in inputTypes"
+        :key="`in-${index}`"
+        class="pipeline-type"
+        :title="item.qualifier ? `${item.name} (${item.qualifier})` : item.name"
+      >
+        <v-icon v-if="item.icon">
+          {{ item.icon }}
+        </v-icon>
+        <span v-else>{{ item.name }}</span>
+        <small v-if="item.qualifier">{{ item.qualifier }}</small>
+      </span>
 
       <v-icon>
         mdi-arrow-right
       </v-icon>
 
-      <v-icon>
-        {{ outputIcon }}
-      </v-icon>
+      <span
+        v-for="(item, index) in outputTypes"
+        :key="`out-${index}`"
+        class="pipeline-type"
+        :title="item.qualifier ? `${item.name} (${item.qualifier})` : item.name"
+      >
+        <v-icon v-if="item.icon">
+          {{ item.icon }}
+        </v-icon>
+        <span v-else>{{ item.name }}</span>
+        <small v-if="item.qualifier">{{ item.qualifier }}</small>
+      </span>
     </div>
   </div>
 </template>
@@ -86,6 +76,13 @@ export default defineComponent({
   padding: 10px 0;
   display: flex;
   justify-content: left;
+  align-items: center;
   gap: 10px;
+}
+
+.pipeline-type {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
 }
 </style>

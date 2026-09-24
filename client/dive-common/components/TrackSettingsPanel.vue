@@ -35,7 +35,7 @@ export default defineComponent({
       autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc to exit.',
       interpolate: 'Whether new tracks should have interpolation enabled by default',
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc to exit.',
-      autoPopulateMask: 'After drawing a new box or head/tail line, run the interactive segmentation model on it (the box centre, or points along the line) and store the resulting polygon on the detection.',
+      autoPopulateMask: 'After drawing a new box or head/tail line, run the interactive segmentation model on it (the drawn box, or points along the line) and store the resulting polygon on the detection.',
       autoPopulatePoints: 'After drawing a new box, derive head/tail points from its segmentation the way the VIAME keypoint pipelines do. After drawing a new line, tighten the box to the segmentation.',
       prompt: 'Prompt user before deleting a track?',
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
@@ -517,17 +517,22 @@ export default defineComponent({
           </v-col>
         </v-row>
         <!-- Unlike the switches above, this control always has a value, so its
-        label sits floated at its top edge and needs room above the row. -->
+        label sits floated above the field: keep the field's own top padding
+        for it. The row never wraps; the selection text truncates instead so
+        the help icon stays beside it. -->
         <v-row
           align="end"
-          class="mt-3"
+          class="mt-3 flex-nowrap"
           dense
         >
-          <v-col class="py-1">
+          <v-col
+            class="py-1"
+            style="min-width: 0"
+          >
             <v-select
               v-model="clientSettings.stereoSettings.matchMethod"
               :items="stereoMatchMethods"
-              class="my-0 ml-1 pt-0"
+              class="my-0 ml-1"
               dense
               hide-details
               label="Stereo point matching"
@@ -535,7 +540,7 @@ export default defineComponent({
           </v-col>
           <v-col
             cols="2"
-            class="py-1"
+            class="py-1 flex-shrink-0"
             align="right"
           >
             <v-tooltip

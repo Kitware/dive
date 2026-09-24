@@ -268,7 +268,7 @@ interface DatasetMetaMutable {
 
 `imageEnhancements` stores viewer display settings (brightness, contrast, saturation,
 sharpen, and optional percentile stretch bounds). See
-[Image Enhancements](UI-Image-Enhancements.md) for platform support of high bit-depth stretch.
+[Image Adjustments](UI-Image-Enhancements.md) for platform support of high bit-depth stretch.
 
 ### Media frame metadata
 

@@ -15,7 +15,11 @@ import type { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type { MarkChangesPending } from 'vue-media-annotator/BaseAnnotationStore';
 import Track from 'vue-media-annotator/track';
 import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
-import useModeManager, { type NewAnnotationGeometryParams } from './useModeManager';
+import { clientSettings } from 'dive-common/store/settings';
+import useModeManager, {
+  type NewAnnotationGeometryParams,
+  type StereoAnnotationCompleteParams,
+} from './useModeManager';
 import HeadTail from '../recipes/headtail';
 import SegmentationPointClick from '../recipes/segmentationpointclick';
 import { headTailFeatures } from '../../src/headTail';
@@ -25,7 +29,11 @@ function translation(tx: number, ty: number): Matrix3 {
   return [[1, 0, tx], [0, 1, ty], [0, 0, 1]];
 }
 
-function makeHarness(markChangesPending: MarkChangesPending = () => undefined, recipes: Recipe[] = []) {
+function makeHarness(
+  markChangesPending: MarkChangesPending = () => undefined,
+  recipes: Recipe[] = [],
+  onStereoAnnotationComplete: ((params: StereoAnnotationCompleteParams) => void) | undefined = undefined,
+) {
   const cameraStore = new CameraStore({ markChangesPending });
   cameraStore.removeCamera('singleCam');
   cameraStore.addCamera('left');
@@ -80,6 +88,7 @@ function makeHarness(markChangesPending: MarkChangesPending = () => undefined, r
     onNewAnnotationGeometry: (params) => newGeometryEvents.push(params),
     recipes,
     alignedView,
+    onStereoAnnotationComplete,
   });
   modeManager.selectedCamera.value = 'left';
   return {
@@ -557,5 +566,55 @@ describe('useModeManager point segmentation masks', () => {
 
     recipe.bus.$emit('prediction-reset', { frameNum: 0 });
     expect(track.getFeature(0)[0]).toBeNull();
+  });
+});
+
+describe('stereo mapping of a line being drawn', () => {
+  it('waits for both ends instead of mapping the first one alone', () => {
+    const wasAutoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+    clientSettings.stereoSettings.autoComputeOtherCamera = true;
+    try {
+      const recipe = new HeadTail();
+      const events: StereoAnnotationCompleteParams[] = [];
+      const { modeManager: manager } = makeHarness(undefined, [recipe], (params) => events.push(params));
+      manager.handler.trackAdd();
+      recipe.activate();
+      const draw = (coordinates: number[][]) => manager.handler.updateGeoJSON('in-progress', 0, 0, {
+        type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+      }, 'HeadTails');
+      draw([[10, 10]]);
+      expect(events).toEqual([]);
+      draw([[10, 10], [90, 10]]);
+      expect(events.map((e) => e.type)).toEqual(['line']);
+    } finally {
+      clientSettings.stereoSettings.autoComputeOtherCamera = wasAutoCompute;
+    }
+  });
+});
+
+describe('entering polygon editing', () => {
+  const polygon = (key: string): GeoJSON.Feature<GeoJSON.Polygon> => ({
+    type: 'Feature',
+    properties: { key },
+    geometry: { type: 'Polygon', coordinates: [[[0, 0], [10, 0], [10, 10], [0, 0]]] },
+  });
+
+  it('lands on the keyed mask a detection already has', () => {
+    const { cameraStore, modeManager: manager } = makeHarness();
+    const id = manager.handler.trackAdd();
+    cameraStore.getTrack(id, 'left').setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 10, 10] }, [polygon('SegmentationPolygon')]);
+    manager.handler.setAnnotationState({ editing: 'LineString', key: 'HeadTails' });
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '' });
+    expect(manager.selectedKey.value).toBe('SegmentationPolygon');
+  });
+
+  it('keeps the default polygon and an explicitly requested new key', () => {
+    const { cameraStore, modeManager: manager } = makeHarness();
+    const id = manager.handler.trackAdd();
+    cameraStore.getTrack(id, 'left').setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 10, 10] }, [polygon(''), polygon('1')]);
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '' });
+    expect(manager.selectedKey.value).toBe('');
+    manager.handler.setAnnotationState({ editing: 'Polygon', key: '2' });
+    expect(manager.selectedKey.value).toBe('2');
   });
 });

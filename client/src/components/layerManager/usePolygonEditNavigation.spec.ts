@@ -38,6 +38,7 @@ function harness() {
     selectFeatureHandle: vi.fn((_index, selectedKey) => { key.value = selectedKey; }),
     registerFinalizeCreation: vi.fn(),
     cancelCreation: vi.fn(),
+    selectCamera: vi.fn(),
   };
   const rectangle = layer();
   const refresh = vi.fn();
@@ -122,7 +123,39 @@ it('allows switching to a polygon with the default empty key', () => {
   expect(h.mode.value).toBe('Polygon');
 });
 
-it('ignores another camera and non-polygon editing modes', () => {
+it('selects the clicked camera before navigating its polygons', () => {
+  const h = harness(); h.camera.value = 'right';
+  h.handler.selectCamera.mockImplementation((next: string) => { h.camera.value = next; });
+  h.click(21, 5); vi.runAllTimers();
+  expect(h.handler.selectCamera).toHaveBeenCalledExactlyOnceWith('left', false);
+  expect(h.key.value).toBe('second');
+  expect(h.mode.value).toBe('Polygon');
+});
+
+it('keeps editing the same polygon when the click moves the edit to this camera', () => {
+  const h = harness(); h.camera.value = 'right';
+  h.handler.selectCamera.mockImplementation((next: string) => { h.camera.value = next; });
+  h.click(5, 5);
+  h.mode.value = false;
+  vi.runAllTimers();
+  expect(h.key.value).toBe('first');
+  expect(h.mode.value).toBe('Polygon');
+  expect(h.selected.value).toBe(1);
+});
+
+it.each([[15, 5], [25, 5]])('finishes a gap or hole at %j even when moving the edit to this camera', (x, y) => {
+  const h = harness(); h.camera.value = 'right';
+  h.handler.selectCamera.mockImplementation((next: string) => { h.camera.value = next; });
+  h.click(x, y);
+  h.mode.value = false;
+  vi.runAllTimers();
+  expect(h.handler.selectCamera).toHaveBeenCalledExactlyOnceWith('left', false);
+  expect(h.mode.value).toBe(false);
+  expect(h.selected.value).toBe(1);
+  expect(h.key.value).toBe('first');
+});
+
+it('ignores a camera it cannot select and non-polygon editing modes', () => {
   const h = harness(); h.camera.value = 'right'; h.click(21, 5);
   h.camera.value = 'left'; h.mode.value = 'LineString'; h.click(21, 5);
   vi.runAllTimers();

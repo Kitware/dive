@@ -1001,9 +1001,11 @@ export default function useModeManager({
 
           mirrorFeatureToAlignedCameras(track.id, frameNum);
 
-          // Emit persisted named points, including a head placed before its tail.
-          // Completed lines use their existing whole-line transfer event instead.
+          // Emit persisted named points. Completed lines use their existing
+          // whole-line transfer event instead, and the first end of a line still
+          // being drawn waits for it: mapping it mid-draw interrupts the draw.
           if (onStereoAnnotationComplete && stereoInteractiveActive()
+              && update.done.every((v) => v !== false)
               && !(data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2)) {
             Object.entries(update.geoJsonFeatureRecord).forEach(([pointKey, geoms]) => {
               geoms.forEach((geom) => {
@@ -1311,6 +1313,19 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Entering polygon editing without naming a polygon: land on one the
+   * detection already has (masks are often keyed, e.g. SegmentationPolygon)
+   * so its vertices are editable at once rather than starting a new polygon.
+   */
+  function existingPolygonKey(): string {
+    if (selectedTrackId.value === null) return '';
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    const keys = track?.getPolygonFeatures(selectedCameraFrame()).map((p) => p.key) ?? [];
+    if (!keys.length || keys.includes('')) return '';
+    return keys.includes(selectedKey.value) ? selectedKey.value : keys[0];
+  }
+
   function handleSetAnnotationState({
     visible, editing, key, recipeName,
   }: SetAnnotationStateArgs) {
@@ -1319,7 +1334,7 @@ export default function useModeManager({
     }
     if (editing) {
       annotationModes.editing = editing;
-      _selectKey(key);
+      _selectKey(editing === 'Polygon' && !key ? existingPolygonKey() : key);
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
         if (recipeName !== r.name) {
