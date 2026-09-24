@@ -26,3 +26,22 @@ export function isTrainingSplit(value: unknown): value is TrainingSplit {
 export function trainingSplitOption(value: unknown) {
   return TrainingSplitOptions.find((option) => option.value === value) || null;
 }
+
+/** Counts per split for a training selection; unlabeled datasets train. */
+export function summarizeTrainingSplits(splits: readonly unknown[]) {
+  const counts: Record<TrainingSplit, number> = { train: 0, validation: 0, test: 0 };
+  splits.forEach((split) => {
+    counts[isTrainingSplit(split) ? split : 'train'] += 1;
+  });
+  const labeled = splits.some((split) => isTrainingSplit(split));
+  const text = TrainingSplitOptions
+    .filter((option) => counts[option.value] > 0)
+    .map((option) => `${counts[option.value]} ${option.text.toLowerCase()}`)
+    .join(' · ');
+  return {
+    counts,
+    labeled,
+    text,
+    trainable: counts.train > 0,
+  };
+}

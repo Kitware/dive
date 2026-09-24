@@ -18,6 +18,8 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
 import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
+import TrainingSplitChip from 'dive-common/components/TrainingSplitChip.vue';
+import { summarizeTrainingSplits } from 'dive-common/trainingSplit';
 
 import { useRoute, useRouter } from 'vue-router/composables';
 import { DesktopJob, RunTraining } from 'platform/desktop/constants';
@@ -27,7 +29,7 @@ import {
 import { datasets, JsonConfigCache } from '../store/dataset';
 
 export default defineComponent({
-  components: { DatasetPicker },
+  components: { DatasetPicker, TrainingSplitChip },
   setup() {
     const {
       runTraining, getPipelineList, getTrainingConfigurations,
@@ -196,8 +198,13 @@ export default defineComponent({
       });
     }
 
+    const splitSummary = computed(() => summarizeTrainingSplits(
+      stagedItems.value.map((item) => item.trainingSplit),
+    ));
+
     const isReadyToTrain = computed(() => (
       stagedItems.value.length > 0
+        && splitSummary.value.trainable
         && data.selectedTrainingConfig
         && data.trainingOutputName
     ));
@@ -295,9 +302,15 @@ export default defineComponent({
         items: availableItems,
         headers: headersTmpl,
       },
+      splitSummary,
       staged: {
         items: stagedItems,
         headers: headersTmpl.concat({
+          text: 'Split',
+          value: 'trainingSplit',
+          sortable: true,
+          width: 110,
+        }, {
           text: 'Exclude',
           value: 'action',
           sortable: false,
@@ -460,6 +473,21 @@ export default defineComponent({
         :hide-default-header="staged.items.value.length === 0"
         no-data-text="Add datasets from the list above."
       >
+        <template #[`item.trainingSplit`]="{ item }">
+          <TrainingSplitChip
+            v-if="item.trainingSplit"
+            :key="item.id"
+            :split="item.trainingSplit"
+            x-small
+          />
+          <span
+            v-else
+            :key="`${item.id}-unlabeled`"
+            class="grey--text text-caption"
+          >
+            unlabeled
+          </span>
+        </template>
         <template #[`item.action`]="{ item }">
           <v-btn
             :key="item.name"
@@ -471,6 +499,23 @@ export default defineComponent({
           </v-btn>
         </template>
       </v-data-table>
+      <div
+        v-if="splitSummary.labeled"
+        class="text-caption grey--text mt-2"
+      >
+        Split: {{ splitSummary.text }}. Unlabeled datasets train; validation datasets
+        are held out to monitor training; test datasets are scored once training finishes.
+      </div>
+      <v-alert
+        v-if="staged.items.value.length > 0 && !splitSummary.trainable"
+        dense
+        outlined
+        type="warning"
+        class="mt-2"
+      >
+        Every selected dataset is labeled validation or test; label at least one
+        as Train or clear its split.
+      </v-alert>
       <div class="d-flex flex-row mt-4">
         <v-spacer />
         <v-btn

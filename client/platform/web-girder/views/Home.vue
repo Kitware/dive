@@ -112,6 +112,10 @@ export default defineComponent({
       (item) => item.meta?.type ?? null,
     ));
 
+    const trainingSplits = computed(() => pipelineTargetFolders.value.map(
+      (item) => item.meta?.trainingSplit ?? null,
+    ));
+
     const selectedFileIds = computed(() => selected.value.filter(
       (element) => element._modelType === 'item',
     ).map(({ _id }) => _id));
@@ -159,6 +163,7 @@ export default defineComponent({
       subTypeList,
       cameraNumbers,
       datasetTypeList,
+      trainingSplits,
       selectedFileIds,
       includesLargeImage,
       includesMultiCamDataset,
@@ -266,6 +271,7 @@ export default defineComponent({
                     menuOptions,
                   }"
                   :selected-dataset-ids="locationInputs"
+                  :dataset-splits="trainingSplits"
                 />
                 <v-btn
                   v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
