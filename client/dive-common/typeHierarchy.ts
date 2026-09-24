@@ -54,11 +54,7 @@ export function selectFlatPairIndex(
     checkedSet.has(type)
     && confidence >= resolveConfidenceThreshold(confidenceFilters, type)
   );
-  if (preventCascade) {
-    const [type, confidence] = pairs[0];
-    return checkedSet.has(type)
-      && confidence > resolveConfidenceThreshold(confidenceFilters, type) ? 0 : -1;
-  }
+  if (preventCascade) return passes(pairs[0]) ? 0 : -1;
   return pairs.findIndex(passes);
 }
 

@@ -517,17 +517,22 @@ export default defineComponent({
           </v-col>
         </v-row>
         <!-- Unlike the switches above, this control always has a value, so its
-        label sits floated at its top edge and needs room above the row. -->
+        label sits floated above the field: keep the field's own top padding
+        for it. The row never wraps; the selection text truncates instead so
+        the help icon stays beside it. -->
         <v-row
           align="end"
-          class="mt-3"
+          class="mt-3 flex-nowrap"
           dense
         >
-          <v-col class="py-1">
+          <v-col
+            class="py-1"
+            style="min-width: 0"
+          >
             <v-select
               v-model="clientSettings.stereoSettings.matchMethod"
               :items="stereoMatchMethods"
-              class="my-0 ml-1 pt-0"
+              class="my-0 ml-1"
               dense
               hide-details
               label="Stereo point matching"
@@ -535,7 +540,7 @@ export default defineComponent({
           </v-col>
           <v-col
             cols="2"
-            class="py-1"
+            class="py-1 flex-shrink-0"
             align="right"
           >
             <v-tooltip

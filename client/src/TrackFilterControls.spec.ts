@@ -101,7 +101,7 @@ function makeTrackFilterControls(markPending: MarkChangesPendingFilter = markCha
     remove,
     markChangesPending: markPending,
     groupFilterControls,
-    lookupGroups: cameraStore.lookupGroups,
+    lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
@@ -126,7 +126,7 @@ function makePairFixture(
     remove: (id) => cameraStore.removeTracks(id),
     markChangesPending: markPending,
     groupFilterControls,
-    lookupGroups: cameraStore.lookupGroups,
+    lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTracks: (id) => cameraStore.getTrackAll(id),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
@@ -449,6 +449,132 @@ describe('useAnnotationFilters', () => {
     expect(cameraStore.getTrack(1).confidencePairs).toEqual([['baz', 0.7]]);
   });
 
+  it('selects whole hidden tracks without stripping their other class scores', () => {
+    const { cameraStore, filters } = makePairFixture([
+      [['fish', 0.9], ['shark', 0.1]],
+      [['fish', 0.2], ['shark', 0.1]],
+      [['shark', 0.1]],
+      [['fish', 0.5]],
+    ]);
+    filters.setConfidenceFilters({ default: 0.5 });
+    filters.updateCheckedTypes(['fish']);
+    const ids = filters.annotationIdsBelowThreshold(['fish']);
+    expect(ids).toEqual([1]);
+    expect(cameraStore.getTrack(1).confidencePairs).toEqual([['fish', 0.2], ['shark', 0.1]]);
+    ids.forEach((id) => cameraStore.removeTracks(id));
+    expect(cameraStore.getPossibleTrack(1)).toBeUndefined();
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['fish', 0.9], ['shark', 0.1]]);
+    expect(cameraStore.getPossibleTrack(2)).toBeDefined();
+    expect(cameraStore.getPossibleTrack(3)).toBeDefined();
+  });
+
+  it('does not classify a visible track by its low-scoring secondary class', () => {
+    const { filters } = makePairFixture([
+      [['fish', 0.9], ['shark', 0.1]],
+      [['fish', 0.2], ['shark', 0.7]],
+      [['fish', 0.2], ['shark', 0.1]],
+    ]);
+    filters.setConfidenceFilters({ default: 0.5 });
+    expect(filters.annotationIdsBelowThreshold(['fish', 'shark'])).toEqual([2]);
+    expect(filters.annotationIdsBelowThreshold([])).toEqual([]);
+  });
+
+  it('limits below-threshold delete to the active time filter', () => {
+    const cameraStore = new CameraStore({ markChangesPending });
+    const trackStore = cameraStore.camMap.value.get('singleCam')?.trackStore;
+    const lateFeatures: Feature[] = [];
+    lateFeatures[10] = { frame: 10, bounds: [0, 0, 1, 1], keyframe: true };
+    trackStore?.insert(new Track(0, {
+      begin: 0,
+      end: 0,
+      confidencePairs: [['fish', 0.2]],
+      features,
+    }));
+    trackStore?.insert(new Track(1, {
+      begin: 10,
+      end: 10,
+      confidencePairs: [['fish', 0.2]],
+      features: lateFeatures,
+    }));
+    trackStore?.setEnableSorting();
+    const groupFilterControls = makeGroupFilterControls(cameraStore);
+    const filters = new TrackFilterControls({
+      sorted: cameraStore.sortedTracks,
+      remove: (id) => cameraStore.removeTracks(id),
+      markChangesPending,
+      groupFilterControls,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
+      getTracks: (id) => cameraStore.getTrackAll(id),
+      renameTrackPair: (id, currentType, newType) => (
+        cameraStore.renameTrackPair(id, currentType, newType)
+      ),
+      removeTypes: (id, types) => cameraStore.removeTypes(id, types),
+    });
+    filters.setConfidenceFilters({ default: 0.5 });
+    filters.setTimeFilters([0, 5]);
+    expect(filters.annotationIdsBelowThreshold(['fish'])).toEqual([0]);
+    filters.setTimeFilters(null);
+    expect(filters.annotationIdsBelowThreshold(['fish'])).toEqual([0, 1]);
+  });
+
+  it('limits below-threshold delete to enabled groups', () => {
+    const cameraStore = new CameraStore({ markChangesPending });
+    const cam = cameraStore.camMap.value.get('singleCam');
+    cam?.trackStore.insert(new Track(0, {
+      confidencePairs: [['fish', 0.2]],
+      features,
+    }));
+    cam?.trackStore.insert(new Track(1, {
+      confidencePairs: [['fish', 0.2]],
+      features,
+    }));
+    cam?.trackStore.setEnableSorting();
+    cam?.groupStore.insert(new Group(10, {
+      confidencePairs: [['school', 1]],
+      members: { 0: { ranges: [[0, 0]] } },
+    }), { imported: true });
+    cam?.groupStore.insert(new Group(11, {
+      confidencePairs: [['pod', 1]],
+      members: { 1: { ranges: [[0, 0]] } },
+    }), { imported: true });
+    cam?.groupStore.setEnableSorting();
+    const groupFilterControls = makeGroupFilterControls(cameraStore);
+    groupFilterControls.checkedTypes.value = ['school'];
+    const filters = new TrackFilterControls({
+      sorted: cameraStore.sortedTracks,
+      remove: (id) => cameraStore.removeTracks(id),
+      markChangesPending,
+      groupFilterControls,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
+      getTracks: (id) => cameraStore.getTrackAll(id),
+      renameTrackPair: (id, currentType, newType) => (
+        cameraStore.renameTrackPair(id, currentType, newType)
+      ),
+      removeTypes: (id, types) => cameraStore.removeTypes(id, types),
+    });
+    filters.setConfidenceFilters({ default: 0.5 });
+    expect(filters.annotationIdsBelowThreshold(['fish'])).toEqual([0]);
+  });
+
+  it('limits below-threshold delete with attribute filters', () => {
+    const { cameraStore, filters } = makePairFixture([
+      [['fish', 0.2]],
+      [['fish', 0.2]],
+    ]);
+    cameraStore.getTrack(0).attributes.quality = 'good';
+    cameraStore.getTrack(1).attributes.quality = 'bad';
+    filters.setConfidenceFilters({ default: 0.5 });
+    filters.loadTrackAttributesFilter([{
+      name: 'fish quality',
+      type: 'track',
+      typeFilter: ['fish'],
+      attribute: 'quality',
+      filter: { op: '=', val: 'good' },
+      enabled: true,
+    }]);
+    expect(filters.annotationIdsBelowThreshold(['fish'])).toEqual([0]);
+  });
+
   it('returns the caller fallback without recomputing flat pair selection', () => {
     const { cameraStore, filters } = makePairFixture([
       [['root', 0.1], ['leaf', 0.9]],
@@ -483,11 +609,11 @@ describe('useAnnotationFilters', () => {
     const cascadeFixture = makePairFixture([
       [['top', 0.5], ['fallback', 0.8]],
     ]).filters;
-    cascadeFixture.setConfidenceFilters({ top: 0.5, fallback: 0.8, default: 0.1 });
+    cascadeFixture.setConfidenceFilters({ top: 0.51, fallback: 0.8, default: 0.1 });
     cascadeFixture.checkedTypes.value = ['top', 'fallback'];
     clientSettings.typeSettings.preventCascadeTypes = true;
     expect(cascadeFixture.filteredAnnotations.value).toHaveLength(0);
-    cascadeFixture.setConfidenceFilters({ top: 0.49, fallback: 0.8, default: 0.1 });
+    cascadeFixture.setConfidenceFilters({ top: 0.5, fallback: 0.8, default: 0.1 });
     expect(cascadeFixture.filteredAnnotations.value.map(({ context }) => context.confidencePairIndex))
       .toEqual([0]);
 
@@ -655,7 +781,7 @@ describe('useAnnotationFilters', () => {
       remove: (id) => cameraStore.removeTracks(id),
       markChangesPending,
       groupFilterControls: groupFilters,
-      lookupGroups: cameraStore.lookupGroups,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
       getTracks: (id) => cameraStore.getTrackAll(id),
       renameTrackPair: (id, currentType, newType) => (
         cameraStore.renameTrackPair(id, currentType, newType)

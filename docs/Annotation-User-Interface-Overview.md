@@ -16,7 +16,7 @@ This documentation section provides a reference guide to the annotation interfac
     * **[Dataset Info](UI-DatasetInfo.md)** - View dataset properties and attach custom dataset-level metadata that is shown while annotating and included in CSV export.
     * **[Revision History](Web-Version.md#revision-history)** (Web) - Inspect and check out past saved annotation states.
     * **Threshold Controls** - Advance thresholding of annotation confidence values per-type.
-    * **Image Enhancement** — Brightness, contrast, saturation, sharpness, and
+    * **Image Adjustments** — Brightness, contrast, saturation, sharpness, and
       [percentile stretch for high bit-depth TIFF](UI-Image-Enhancements.md) (Web
       large-image and Desktop image-sequence).
     * **[Group Manager](UI-Group-Manager.md)** - Controls for creating, managing, and filtering multi-annotation groups.
