@@ -386,3 +386,29 @@ it('does not carry a middle click on another Point layer into the next left clic
   expect(emitted.mock.calls[1][2].properties.background).toBe(true);
   [consumed, idle].forEach((h) => h.layer.destroy());
 });
+
+it('hands a point-mode right-click on another camera to the move instead of confirming', () => {
+  const h = harness();
+  h.layer.setType('Point'); h.layer.setMode('Point');
+  const own = document.createElement('div');
+  const other = document.createElement('div');
+  own.appendChild(document.createElement('canvas'));
+  document.body.append(own, other);
+  (h.annotator.geoViewerRef.value as any).node = () => [own];
+  const confirm = vi.fn();
+  const elsewhere = vi.fn();
+  h.layer.bus.$on('confirm-annotation', confirm);
+  h.layer.bus.$on('confirm-annotation-elsewhere', elsewhere);
+
+  own.firstChild!.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(elsewhere).not.toHaveBeenCalled();
+
+  const held = new MouseEvent('contextmenu', { bubbles: true, cancelable: true, buttons: 2 });
+  other.dispatchEvent(held);
+  other.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true }));
+  expect(confirm).toHaveBeenCalledTimes(1);
+  expect(elsewhere.mock.calls).toEqual([[true], [false]]);
+  expect(held.defaultPrevented).toBe(true);
+  h.layer.destroy(); own.remove(); other.remove();
+});
