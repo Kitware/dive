@@ -182,6 +182,18 @@ export default function useAnnotationClickHandling(options: {
     editAnnotationLayer.bus.$on('confirm-annotation', () => {
       handler.confirmRecipe();
     });
+
+    // Lock this camera's mask without deselecting, then finish the edit as a
+    // plain right-click would unless the other camera took it over. On Linux
+    // the contextmenu arrives before the button is released.
+    editAnnotationLayer.bus.$on('confirm-annotation-elsewhere', (buttonHeld: boolean) => {
+      handler.segmentationFinalizePending();
+      const finish = () => window.setTimeout(() => {
+        if (selectedCamera.value === camera) handler.confirmRecipe();
+      }, 0);
+      if (buttonHeld) document.addEventListener('mouseup', finish, { once: true });
+      else finish();
+    });
     handler.registerFinalizeCreation(() => {
       editAnnotationLayer.finalizeInProgress();
     });

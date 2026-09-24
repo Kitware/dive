@@ -150,3 +150,55 @@ describe('right-clicking the edited detection on another camera', () => {
     expect(h.handler.selectCamera).not.toHaveBeenCalled();
   });
 });
+
+describe('a point-mode right-click that lands on another camera', () => {
+  function pointHarness() {
+    const layer = () => ({ bus: new Vue() });
+    const camera = ref('left');
+    const edit = { ...layer(), type: 'Point', getMode: () => 'creation' };
+    const handler = {
+      confirmRecipe: vi.fn(),
+      segmentationFinalizePending: vi.fn(),
+      registerFinalizeCreation: vi.fn(),
+    };
+    useAnnotationClickHandling({
+      camera: 'left',
+      selectedCamera: camera,
+      selectedTrackIdRef: ref(1),
+      selectedKeyRef: ref(''),
+      frameNumberRef: ref(0),
+      flickNumberRef: ref(0),
+      editingModeRef: ref('Point'),
+      editAnnotationLayer: edit,
+      polyAnnotationLayer: layer(),
+      rectAnnotationLayer: layer(),
+      lineLayer: layer(),
+      handler,
+      refreshLayers: vi.fn(),
+    } as never).wireHandlers();
+    return { camera, edit, handler };
+  }
+
+  beforeEach(() => vi.useFakeTimers());
+  afterEach(() => { vi.clearAllTimers(); vi.useRealTimers(); });
+
+  it('locks the mask without deselecting when the other camera takes the edit', () => {
+    const h = pointHarness();
+    h.edit.bus.$emit('confirm-annotation-elsewhere', true);
+    expect(h.handler.segmentationFinalizePending).toHaveBeenCalledOnce();
+    vi.runAllTimers();
+    expect(h.handler.confirmRecipe).not.toHaveBeenCalled();
+    h.camera.value = 'right';
+    document.dispatchEvent(new MouseEvent('mouseup'));
+    vi.runAllTimers();
+    expect(h.handler.confirmRecipe).not.toHaveBeenCalled();
+  });
+
+  it.each([true, false])('finishes the edit as before when nothing takes it over (button held: %s)', (held) => {
+    const h = pointHarness();
+    h.edit.bus.$emit('confirm-annotation-elsewhere', held);
+    if (held) document.dispatchEvent(new MouseEvent('mouseup'));
+    vi.runAllTimers();
+    expect(h.handler.confirmRecipe).toHaveBeenCalledOnce();
+  });
+});
