@@ -9,13 +9,24 @@ Redo is not included.
 
 | File | Role |
 | --- | --- |
-| `AnnotationHistory.ts` | Bounded undo stack (default 20 edits). Snapshots only the tracks/groups that changed. |
+| `AnnotationHistory.ts` | Bounded undo stack. Snapshots only the tracks/groups that changed. |
 | `annotationUndoShortcut.ts` | Keyboard handler that runs annotation undo unless focus is in a text field or dialog. |
 
 Viewer wiring lives in `dive-common/components/Viewer.vue`. Stereo async work is
 grouped into the initiating edit via `runAnnotationOperation` (desktop
 `ViewerLoader`, web `useStereoOnnxWeb`). Before restore, `useModeManager`'s
 `prepareAnnotationUndo` clears tool previews so they cannot overwrite restored data.
+
+## History limit
+
+The default cap is `DEFAULT_ANNOTATION_UNDO_LIMIT` (20) at the top of
+`AnnotationHistory.ts`. Change that constant to raise or lower the default for
+all callers, or pass a second argument when constructing:
+
+```ts
+new AnnotationHistory(cameraStore); // uses DEFAULT_ANNOTATION_UNDO_LIMIT
+new AnnotationHistory(cameraStore, 50); // override for this instance
+```
 
 ## How it works
 
