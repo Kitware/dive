@@ -9,6 +9,7 @@ import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import TrainingSplitMenu from 'dive-common/components/TrainingSplitMenu.vue';
 import type { SubType } from 'dive-common/apispec';
 import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
@@ -54,6 +55,7 @@ export default defineComponent({
     RunPipelineMenu,
     RunTrainingMenu,
     ShareTab,
+    TrainingSplitMenu,
   },
   // everything below needs to be refactored to composition-api
   inject: ['girderRest'],
@@ -289,6 +291,12 @@ export default defineComponent({
                     Review
                   </span>
                 </v-btn>
+                <training-split-menu
+                  v-if="trainingEnabled && locationInputs.length > 0"
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :dataset-ids="locationInputs"
+                  @saved="eventBus.$emit('refresh-data-browser')"
+                />
                 <export
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-ids="locationInputs"

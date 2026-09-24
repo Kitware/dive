@@ -23,6 +23,7 @@ import {
   multiCamPipelineMarkers,
 } from 'dive-common/constants';
 import { parseCompositeDatasetId } from 'dive-common/compositeDatasetId';
+import { isTrainingSplit, TrainingSplit } from 'dive-common/trainingSplit';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   isDisparityImagePipeline,
@@ -904,7 +905,7 @@ async function train(
     // Working dir for training
     jobWorkDir = await createWorkingDirectory(settings, jsonConfigList, runTrainingArgs.pipelineName);
 
-    const groundtruthFilenames = await Promise.all(
+    const entries = await Promise.all(
       infoAndMeta.map(async ({ meta, projectInfo }) => {
         // Organize data for training
         const groundTruthFileName = `groundtruth_${meta.id}.csv`;
@@ -914,32 +915,42 @@ async function train(
         const inputData = await common.loadAnnotationFile(projectInfo.trackFileAbsPath);
         await serialize(groundTruthFileStream, inputData, meta);
         groundTruthFileStream.end();
-        return groundTruthFileName;
+        let mediaPath = '';
+        if (meta.type === 'video') {
+          /* If the video has been transcoded, use that video */
+          if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
+            mediaPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
+          } else {
+            mediaPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+          }
+        } else if (meta.type === 'image-sequence') {
+          mediaPath = npath.join(meta.originalBasePath);
+        }
+        const split: TrainingSplit = isTrainingSplit(meta.trainingSplit) ? meta.trainingSplit : 'train';
+        return { mediaPath, groundTruthFileName, split };
       }),
     );
 
-    // Write groundtruth filenames to list
-    const groundtruthFile = fs.createWriteStream(npath.join(jobWorkDir, 'input_truth_list.txt'));
-    groundtruthFilenames.forEach((name) => groundtruthFile.write(`${name}\n`));
-    groundtruthFile.end();
-
-    // Write input folder paths to list
-    const inputFile = fs.createWriteStream(npath.join(jobWorkDir, 'input_folder_list.txt'));
-    infoAndMeta.forEach(({ projectInfo, meta }) => {
-      if (meta.type === 'video') {
-        let videopath = '';
-        /* If the video has been transcoded, use that video */
-        if ((meta.transcodedVideoFile && forceTranscoding) || meta.transcodedMisalign) {
-          videopath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
-        } else {
-          videopath = npath.join(meta.originalBasePath, meta.originalVideoFile);
-        }
-        inputFile.write(`${videopath}\n`);
-      } else if (meta.type === 'image-sequence') {
-        inputFile.write(`${npath.join(meta.originalBasePath)}\n`);
-      }
-    });
-    inputFile.end();
+    const bySplit = (split: TrainingSplit) => entries.filter((entry) => entry.split === split);
+    if (bySplit('train').length === 0) {
+      throw new Error('Every selected dataset is labeled validation or test; at least one must be available for training');
+    }
+    // Truth names stay relative: the trainer runs with cwd set to jobWorkDir.
+    const writeLists = (prefix: string, split: TrainingSplit) => {
+      const selected = bySplit(split);
+      if (selected.length === 0) return;
+      fs.writeFileSync(
+        npath.join(jobWorkDir, `${prefix}_folder_list.txt`),
+        selected.filter((entry) => entry.mediaPath).map((entry) => `${entry.mediaPath}\n`).join(''),
+      );
+      fs.writeFileSync(
+        npath.join(jobWorkDir, `${prefix}_truth_list.txt`),
+        selected.map((entry) => `${entry.groundTruthFileName}\n`).join(''),
+      );
+    };
+    writeLists('input', 'train');
+    writeLists('validation', 'validation');
+    writeLists('test', 'test');
   }
 
   // Argument files for training
@@ -965,6 +976,16 @@ async function train(
   if (resumeDir) {
     command.push('--continue');
   }
+
+  // Held-out lists exist only when a selected dataset carried that split.
+  (['validation', 'test'] as const).forEach((split) => {
+    const dataList = npath.join(jobWorkDir, `${split}_folder_list.txt`);
+    const truthList = npath.join(jobWorkDir, `${split}_truth_list.txt`);
+    if (fs.existsSync(dataList) && fs.existsSync(truthList)) {
+      command.push(`--${split}-list "${dataList}"`);
+      command.push(`--${split}-truth "${truthList}"`);
+    }
+  });
 
   if (runTrainingArgs.annotatedFramesOnly) {
     command.push('--gt-frames-only');

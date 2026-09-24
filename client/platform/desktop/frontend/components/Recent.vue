@@ -15,6 +15,8 @@ import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { clientSettings } from 'dive-common/store/settings';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
+import TrainingSplitChip from 'dive-common/components/TrainingSplitChip.vue';
+import TrainingSplitMenu from 'dive-common/components/TrainingSplitMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
 import { getResponseError } from 'vue-media-annotator/utils';
@@ -23,7 +25,7 @@ import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
 import * as api from '../api';
 import {
-  JsonConfigCache, recents, removeRecents, setRecents,
+  JsonConfigCache, autoDiscover, recents, removeRecents, setRecents,
 } from '../store/dataset';
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
@@ -49,6 +51,8 @@ export default defineComponent({
     ImportMultiCamBatchDialog,
     ImportStereoBatchDialog,
     TooltipBtn,
+    TrainingSplitChip,
+    TrainingSplitMenu,
   },
 
   setup() {
@@ -326,7 +330,7 @@ export default defineComponent({
       return moment(normalized, [moment.ISO_8601, moment.RFC_2822, 'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ'], true);
     }
 
-    const headers: DataTableHeader[] = [
+    const baseHeaders: DataTableHeader[] = [
       {
         text: '',
         value: 'select',
@@ -352,6 +356,19 @@ export default defineComponent({
         width: 140,
       },
     ];
+    // The split column appears only once a dataset has been labeled.
+    const headers = computed(() => (
+      recents.value.some((item) => item.trainingSplit)
+        ? baseHeaders.concat({
+          text: 'Split', value: 'trainingSplit', sortable: true, width: 110,
+        })
+        : baseHeaders
+    ));
+    const selectedRecentIds = computed(() => selectedRecents.value.map((item) => item.id));
+    const splitButtonOptions = {
+      class: 'ml-2 align-self-center', color: 'primary', outlined: true, small: true,
+    };
+    const splitSaved = () => autoDiscover();
     const toDisplayString = (dateString: string) => {
       const parsed = parseRecentDate(dateString);
       return parsed.isValid() ? parsed.format('MM/DD/YY HH:mm') : dateString;
@@ -371,6 +388,9 @@ export default defineComponent({
       confirmDeleteSelected,
       runPipelineOnSelected,
       runTrainingOnSelected,
+      splitSaved,
+      splitButtonOptions,
+      selectedRecentIds,
       scoreSelected,
       reviewSelected,
       indexSelected,
@@ -706,6 +726,11 @@ export default defineComponent({
                   </template>
                   <span>Score the selected datasets against ground truth</span>
                 </v-tooltip>
+                <TrainingSplitMenu
+                  :dataset-ids="selectedRecentIds"
+                  :button-options="splitButtonOptions"
+                  @saved="splitSaved"
+                />
                 <v-tooltip bottom>
                   <template #activator="{ on }">
                     <v-btn
@@ -855,6 +880,13 @@ export default defineComponent({
                 >
                   {{ toDisplayString(item.accessedAt) }}
                 </span>
+              </template>
+              <template #[`item.trainingSplit`]="{ item }">
+                <TrainingSplitChip
+                  :key="item.id"
+                  :split="item.trainingSplit"
+                  x-small
+                />
               </template>
               <template #[`item.select`]="{ item }">
                 <v-simple-checkbox

@@ -71,6 +71,10 @@ Run model training on ground truth annotations.  Currently, training configurati
 * Full-frame classifiers can be trained on arbitrary multi-class labels.  It's helpful to start with `empty frame lbls` utility pipe and add type annotations to each generated frame.
 * Object classifiers and detectors are trained on bounding boxes with arbitrary multi-class labels.
 
+### Train, validation, and test splits
+
+Datasets can optionally be labeled **Train**, **Validation**, or **Test** with the ==Split== menu in the data browser (web) or the library (desktop) after selecting them.  Labeled datasets show a colored chip in the list.  When training runs on a mix of labeled datasets, validation datasets are held out to monitor training, test datasets are excluded entirely and recorded in the trained model folder for later scoring, and unlabeled datasets are used for training.  Without any labels, VIAME picks its own validation frames as before.
+
 ### Overview
 
 * SVM ([Support Vector Machine](https://en.wikipedia.org/wiki/Support-vector_machine)) configurations are usable with the smallest amount of ground-truth and train relatively quickly.

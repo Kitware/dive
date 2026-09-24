@@ -1311,6 +1311,19 @@ describe('native.common', () => {
     expect(dir.datasetFileAbsPath).toBe(preferred);
   });
 
+  it('sets and clears the training split through saveConfig', async () => {
+    await common.saveConfig(settings, 'projectid1', { trainingSplit: 'validation' });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBe('validation');
+    // An unrelated save leaves it alone.
+    await common.saveConfig(settings, 'projectid1', { confidenceFilters: { default: 0.5 } });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBe('validation');
+    await common.saveConfig(settings, 'projectid1', { trainingSplit: null });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBeUndefined();
+  });
+
   it('saveConfig works on legacy meta.json-only projects and migrates', async () => {
     // Regression: locking dataset.json before it exists caused ENOENT 500s on
     // POST /dataset/:id/meta for projects still on meta.json.

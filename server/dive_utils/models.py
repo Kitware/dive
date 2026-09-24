@@ -263,6 +263,8 @@ TypeHierarchy = Dict[StrictStr, StrictStr]
 # Sensor modality of a multicam camera; see dive_tasks.multicam_pipeline.CAMERA_ROLE_ALIASES.
 CameraRole = Literal['eo', 'ir', 'uv']
 
+TrainingSplit = Literal['train', 'validation', 'test']
+
 
 class MetadataMutable(BaseModel):
     version = (
@@ -298,6 +300,8 @@ class MetadataMutable(BaseModel):
     # and image names and editable afterwards; used to place cameras onto a
     # pipeline's declared camera slots. Cameras with no known role are absent.
     cameraRoles: Optional[Dict[str, CameraRole]]
+    # Role in training runs; null clears it, absent leaves it unchanged.
+    trainingSplit: Optional[TrainingSplit]
     fps: Optional[float]
 
     @staticmethod

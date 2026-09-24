@@ -12,6 +12,7 @@ import {
   getMultiCamTooltip,
 } from 'dive-common/multicamDisplay';
 import { clientSettings } from 'dive-common/store/settings';
+import TrainingSplitChip from 'dive-common/components/TrainingSplitChip.vue';
 import { LocationType } from '../store/types';
 import { useLocation } from '../store/useLocation';
 import { useJobs } from '../store/useJobs';
@@ -24,6 +25,7 @@ import DiveGirderBrowser from './DiveGirderBrowser.vue';
 export default defineComponent({
   components: {
     DiveGirderBrowser,
+    TrainingSplitChip,
     Upload,
   },
 
@@ -208,6 +210,12 @@ export default defineComponent({
         >
           published
         </v-chip>
+        <TrainingSplitChip
+          v-if="item.meta && item.meta.trainingSplit"
+          :split="item.meta.trainingSplit"
+          x-small
+          class="ml-auto mr-2"
+        />
       </div>
     </template>
   </DiveGirderBrowser>
@@ -215,7 +223,8 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .dataset-row {
-  display: inline-flex;
+  display: flex;
+  width: 100%;
   align-items: center;
   flex-wrap: wrap;
 }

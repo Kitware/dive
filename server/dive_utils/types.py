@@ -204,6 +204,7 @@ class TrainingJob(TypedDict):
 
     results_folder_id: str  # Where to upload the outputs
     dataset_input_list: List[Tuple[str, int]]  # Tuples of (dataset_id, revision_id)
+    dataset_splits: NotRequired[Dict[str, str]]  # dataset_id -> train/validation/test
     pipeline_name: str  # Name of the new pipeline to train
     config: str  # Name of the training configuration file to use.
     annotated_frames_only: bool  # Train on only the annotated frames
