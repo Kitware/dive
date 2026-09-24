@@ -81,10 +81,13 @@ export default defineComponent({
     provideReview(review);
     const { prompt } = usePrompt();
 
-    // Empty first visit opens Datasets; coming back with loaded data opens Results.
+    // Only an empty first visit opens Datasets; a library selection or
+    // loaded data opens Results.
     const hasReady = review.datasets.value.some((d) => d.status === 'ready');
-    const view = ref<ReviewView>(hasReady ? 'results' : 'datasets');
+    const view = ref<ReviewView>(hasReady || initialIds.length > 0 ? 'results' : 'datasets');
     const resuming = ref(!!resumed);
+    // Covers the gap before the initial selection starts loading.
+    const opening = ref(!hasReady && initialIds.length > 0);
     const pageTypeInput = ref('');
     const showSettings = ref(false);
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
@@ -366,10 +369,8 @@ export default defineComponent({
 
     async function applyInitial(ids: string[]) {
       if (ids.length === 0) return;
+      view.value = 'results';
       await review.addDatasets(ids);
-      if (review.datasets.value.some((d) => d.status === 'ready')) {
-        view.value = 'results';
-      }
     }
 
     onMounted(async () => {
@@ -388,6 +389,7 @@ export default defineComponent({
       if (!resumed || datasetKey !== sessionKey(initialIds) || review.datasets.value.length === 0) {
         await applyInitial(initialIds);
       }
+      opening.value = false;
     });
     watch(() => props.initialDatasetIds, (ids) => { applyInitial(ids); });
     onBeforeUnmount(() => {
@@ -408,6 +410,7 @@ export default defineComponent({
     return {
       review,
       view,
+      opening,
       typeField,
       toggleTypeMenu,
       grid,
@@ -745,7 +748,7 @@ export default defineComponent({
           >
             mdi-database-outline
           </v-icon>
-          <div v-if="review.loading.value">
+          <div v-if="opening || review.loading.value">
             Loading annotations…
           </div>
           <template v-else>

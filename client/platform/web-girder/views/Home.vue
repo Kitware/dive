@@ -266,18 +266,6 @@ export default defineComponent({
                   :selected-dataset-ids="locationInputs"
                 />
                 <v-btn
-                  v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
-                  v-bind="buttonOptions"
-                  @click="scoreSelection"
-                >
-                  <v-icon>
-                    mdi-chart-box-outline
-                  </v-icon>
-                  <span class="pl-1">
-                    Score
-                  </span>
-                </v-btn>
-                <v-btn
                   v-if="selectedViameFolderIds.length > 0"
                   v-bind="buttonOptions"
                   @click="reviewSelection"
@@ -287,6 +275,18 @@ export default defineComponent({
                   </v-icon>
                   <span class="pl-1">
                     Review
+                  </span>
+                </v-btn>
+                <v-btn
+                  v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="scoreSelection"
+                >
+                  <v-icon>
+                    mdi-chart-box-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Score
                   </span>
                 </v-btn>
                 <export
