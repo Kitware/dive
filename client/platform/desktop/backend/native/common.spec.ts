@@ -3062,6 +3062,22 @@ describe('extractPipeMetadata diveParams', () => {
     expect(metadata.diveParams).toEqual([]);
   });
 
+  it('exposes the options of a choice DIVE_PARAM', async () => {
+    mockPipes({
+      'tracker_switch.pipe': [
+        'process tracker',
+        '  :: track_objects',
+        '  :track_objects:type  bytetrack  # DIVE_PARAM ["Tracker", choice, bytetrack, srnn]',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'tracker_switch.pipe'));
+    expect(metadata.diveParams).toEqual([expect.objectContaining({
+      key: 'tracker:track_objects:type', label: 'Tracker', type: 'choice', type_props: ['bytetrack', 'srnn'], default: 'bytetrack',
+    })]);
+  });
+
   it('updates a same-file DIVE_PARAM default from a later bare assignment', async () => {
     mockPipes({
       'detector_thresh.pipe': [
