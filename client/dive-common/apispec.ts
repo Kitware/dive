@@ -30,7 +30,9 @@ type PipelineParamType = | 'bool'
   | 'int' | 'positive_int' | 'strictly_positive_int' | 'range_int'
   | 'float' | 'positive_float' | 'strictly_positive_float' | 'range_float'
   | 'folder' | 'path'
-  | 'file';
+  | 'file'
+  /** One of the values listed after the type, e.g. `choice, bytetrack, srnn`. */
+  | 'choice';
 
 interface AnnotationSchema {
   version: number;
