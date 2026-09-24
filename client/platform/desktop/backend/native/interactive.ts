@@ -415,6 +415,7 @@ export class InteractiveServiceManager extends EventEmitter {
       multimask_output: request.multimaskOutput ?? false,
       frame_time: request.frameTime,
       line: request.line,
+      box: request.box,
     }, 'Segmentation predict');
     return response as unknown as SegmentationPredictResponse;
   }

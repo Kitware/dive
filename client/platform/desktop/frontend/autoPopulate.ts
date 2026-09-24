@@ -44,12 +44,16 @@ async function predictMask(
 ): Promise<SegmentationPolygon[]> {
   const media = await services.getMedia();
   if (!media.imagePath) throw new Error('The image for this annotation could not be found.');
-  const prompt = autoPopulatePrompt(params);
+  // A drawn box is the prompt itself: the model segments what the box holds
+  // and the service confines the mask to it. A centre point instead lets the
+  // model pick whatever lies there, at whatever size. Lines prompt with points.
+  const prompt = params.source === 'box' ? { points: [], labels: [] } : autoPopulatePrompt(params);
   const response = await services.predict({
     ...media,
     points: prompt.points,
     pointLabels: prompt.labels,
-    multimaskOutput: params.source === 'box',
+    multimaskOutput: false,
+    box: params.source === 'box' ? params.bounds : undefined,
     line: params.source === 'line' ? params.line : undefined,
   });
   if (!response.success) throw new Error(response.error || 'Segmentation failed.');
