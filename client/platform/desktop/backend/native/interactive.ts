@@ -14,6 +14,7 @@
  * unnecessarily. Separate, unmodified VIAME config files drive each feature.
  */
 
+import fs from 'fs-extra';
 import OS from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
@@ -201,7 +202,12 @@ export class InteractiveServiceManager extends EventEmitter {
       const viameConstants = platform.getViameConstants(settings);
       const pythonExe = platform.getViamePythonExe(settings);
       const pipelines = npath.join(settings.viamePath, 'configs', 'pipelines');
-      const segConfig = npath.join(pipelines, 'interactive_segmenter_default.conf');
+      // SAM2 does the point segmentation when it is installed; the default is
+      // whichever add-on was installed last, and SAM3 may be there only for
+      // text queries (found through the text-query sibling config).
+      const sam2Config = npath.join(pipelines, 'interactive_segmenter_sam2.conf');
+      const segConfig = fs.existsSync(sam2Config)
+        ? sam2Config : npath.join(pipelines, 'interactive_segmenter_default.conf');
       const stereoConfig = npath.join(pipelines, 'interactive_stereo_default.conf');
 
       // -s: ignore the per-user site-packages dir so a stray package in
