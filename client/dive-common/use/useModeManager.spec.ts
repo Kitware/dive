@@ -18,6 +18,7 @@ import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import { clientSettings } from 'dive-common/store/settings';
 import useModeManager, { type StereoAnnotationCompleteParams } from './useModeManager';
 import HeadTail from '../recipes/headtail';
+import SegmentationPointClick from '../recipes/segmentationpointclick';
 import { headTailFeatures } from '../../src/headTail';
 import type Recipe from '../../src/recipe';
 
@@ -510,5 +511,28 @@ describe('entering polygon editing', () => {
     expect(manager.selectedKey.value).toBe('');
     manager.handler.setAnnotationState({ editing: 'Polygon', key: '2' });
     expect(manager.selectedKey.value).toBe('2');
+  });
+});
+
+describe('confirming a point segmentation', () => {
+  it('leaves edit mode with the detection still selected, and removes one with nothing drawn', () => {
+    const recipe = new SegmentationPointClick();
+    const { modeManager: manager, cameraStore } = makeHarness(undefined, [recipe]);
+    recipe.activate();
+    const drawn = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    manager.handler.trackEdit(drawn);
+    recipe.resetPoints();
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBe(drawn);
+    expect(manager.editingTrack.value).toBe(false);
+    expect(recipe.active.value).toBe(true);
+
+    const empty = manager.handler.trackAdd();
+    recipe.resetPoints();
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBeNull();
+    expect(cameraStore.getPossibleTrack(empty, 'left')).toBeUndefined();
+    expect(cameraStore.getPossibleTrack(drawn, 'left')).toBeDefined();
   });
 });
