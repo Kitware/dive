@@ -1,3 +1,4 @@
+// @vitest-environment jsdom
 /**
  * Functional tests for the Align View cross-camera mirror: drawing/editing a
  * track on one camera while the aligned view is active re-projects the
@@ -616,5 +617,71 @@ describe('entering polygon editing', () => {
     expect(manager.selectedKey.value).toBe('');
     manager.handler.setAnnotationState({ editing: 'Polygon', key: '2' });
     expect(manager.selectedKey.value).toBe('2');
+  });
+});
+
+describe('stereo copy of a point-segmented mask', () => {
+  it('runs once per click and not again when the mask is confirmed', () => {
+    const wasAutoCompute = clientSettings.stereoSettings.autoComputeOtherCamera;
+    clientSettings.stereoSettings.autoComputeOtherCamera = true;
+    try {
+      const recipe = new SegmentationPointClick();
+      const events: StereoAnnotationCompleteParams[] = [];
+      const { modeManager: manager } = makeHarness(undefined, [recipe], (params) => events.push(params));
+      manager.handler.trackAdd();
+      const result = {
+        polygon: [[0, 0], [10, 0], [10, 10]] as [number, number][],
+        bounds: null,
+        frameNum: 0,
+        controlPoints: { points: [[5, 5]] as [number, number][], labels: [1] },
+      };
+      recipe.bus.$emit('prediction-ready', result);
+      expect(events.map((e) => e.type)).toEqual(['segmentation']);
+      recipe.bus.$emit('prediction-confirmed', result);
+      recipe.bus.$emit('prediction-confirmed-multi', { frames: new Map([[0, result]]) });
+      expect(events.map((e) => e.type)).toEqual(['segmentation']);
+    } finally {
+      clientSettings.stereoSettings.autoComputeOtherCamera = wasAutoCompute;
+    }
+  });
+});
+
+describe('a right-click that enters point segmentation editing', () => {
+  const press = () => document.dispatchEvent(new MouseEvent('mousedown', { button: 2 }));
+  it('is not finalized by the contextmenu that follows it, unlike a later right-click or a user reset', () => {
+    const recipe = new SegmentationPointClick();
+    const { modeManager: manager } = makeHarness(undefined, [recipe]);
+    recipe.activate();
+    const first = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    const second = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [20, 20, 30, 30]);
+    expect(manager.selectedTrackId.value).toBe(second);
+    // Selecting another detection clears the recipe, but not as a user reset.
+    press();
+    manager.handler.trackEdit(first);
+    expect(manager.selectedTrackId.value).toBe(first);
+    expect(manager.editingTrack.value).toBe(true);
+    expect(recipe.wasReset).toBe(false);
+    // On Windows the contextmenu of that right-click arrives after edit mode began.
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBe(first);
+    expect(manager.editingTrack.value).toBe(true);
+    // A later right-click with no points placed finalizes the detection.
+    press();
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBeNull();
+    expect(manager.editingTrack.value).toBe(false);
+    // So does one after a reset by the user, even within the same press.
+    press();
+    manager.handler.trackEdit(second);
+    recipe.resetPoints();
+    expect(recipe.wasReset).toBe(true);
+    manager.handler.confirmRecipe();
+    expect(manager.selectedTrackId.value).toBeNull();
+    // With nothing selected a right-click changes nothing.
+    press();
+    manager.handler.confirmRecipe();
+    expect(recipe.active.value).toBe(true);
   });
 });
