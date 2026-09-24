@@ -133,6 +133,26 @@ export default class CameraStore {
     }
   }
 
+  /**
+   * Create the track on `cameraName` for an id that already exists on another
+   * camera, with that track's types and confidences: a detection extended to
+   * a second camera keeps its classification rather than starting at 1.0.
+   */
+  addLinkedTrack(
+    trackId: Readonly<AnnotationId>,
+    cameraName: string,
+    frame: number,
+    sourceCamera?: string,
+  ): Track | undefined {
+    const trackStore = this.camMap.value.get(cameraName)?.trackStore;
+    if (!trackStore) return undefined;
+    const source = (sourceCamera && this.getPossibleTrack(trackId, sourceCamera))
+      || this.getAnyPossibleTrack(trackId);
+    const track = trackStore.add(frame, source?.confidencePairs[0]?.[0] || 'unknown', undefined, trackId);
+    if (source) track.confidencePairs = cloneDeep(source.confidencePairs);
+    return track;
+  }
+
   getAnyPossibleTrack(trackId: Readonly<AnnotationId>) {
     // Map iteration order defines the canonical camera for logical-track reads.
     return Array.from(this.camMap.value.values())
