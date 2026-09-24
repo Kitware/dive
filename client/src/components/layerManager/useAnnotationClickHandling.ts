@@ -176,8 +176,32 @@ export default function useAnnotationClickHandling(options: {
       finishPolygonClick(trackId, hit?.polygonKey, switching && hit != null);
     });
 
-    editAnnotationLayer.bus.$on('confirm-annotation', () => {
-      handler.confirmRecipe();
+    // On Linux the contextmenu arrives before the button is released, and
+    // GeoJS reports the click on release: confirming (leaving edit mode)
+    // before then makes that click read as a right-click on an unedited
+    // detection, which re-enters editing. So confirm once the button is up.
+    const afterRelease = (buttonHeld: boolean, action: () => void) => {
+      const run = () => window.setTimeout(action, 0);
+      if (buttonHeld) document.addEventListener('mouseup', run, { once: true });
+      else run();
+    };
+
+    // Only the selected camera's editor may confirm: the other cameras keep a
+    // live creation editor too, and a right-click on one of them is a move of
+    // the edit, not a confirmation.
+    editAnnotationLayer.bus.$on('confirm-annotation', (buttonHeld: boolean) => {
+      if (selectedCamera.value !== camera) return;
+      afterRelease(buttonHeld, () => handler.confirmRecipe());
+    });
+
+    // Lock this camera's mask without deselecting, then finish the edit as a
+    // plain right-click would unless the other camera took it over.
+    editAnnotationLayer.bus.$on('confirm-annotation-elsewhere', (buttonHeld: boolean) => {
+      if (selectedCamera.value !== camera) return;
+      handler.segmentationFinalizePending();
+      afterRelease(buttonHeld, () => {
+        if (selectedCamera.value === camera) handler.confirmRecipe();
+      });
     });
     handler.registerFinalizeCreation(() => {
       editAnnotationLayer.finalizeInProgress();
