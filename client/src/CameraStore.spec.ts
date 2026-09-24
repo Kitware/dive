@@ -585,3 +585,34 @@ describe('CameraStore track editor commands', () => {
       .toEqual(['right']);
   });
 });
+
+describe('addLinkedTrack', () => {
+  it('gives the new camera the source track\'s types and confidences', () => {
+    const store = new CameraStore({ markChangesPending: vi.fn() });
+    store.removeCamera('singleCam');
+    store.addCamera('left');
+    store.addCamera('right');
+    const pairs = confidencePairs([['fish', 0.62], ['shark', 0.3]]);
+    store.camMap.value.get('left')!.trackStore.insert(new Track(3, {
+      begin: 0, end: 0, confidencePairs: pairs, features: features(),
+    }));
+    const linked = store.addLinkedTrack(3, 'right', 4, 'left')!;
+    expect(linked.confidencePairs).toEqual(pairs);
+    expect(linked.confidencePairs).not.toBe(store.getPossibleTrack(3, 'left')!.confidencePairs);
+    expect([linked.begin, linked.end]).toEqual([4, 4]);
+    expect(store.getPossibleTrack(3, 'right')).toBe(linked);
+  });
+
+  it('falls back to any camera holding the id, and to unknown', () => {
+    const store = new CameraStore({ markChangesPending: vi.fn() });
+    store.removeCamera('singleCam');
+    store.addCamera('left');
+    store.addCamera('right');
+    store.camMap.value.get('right')!.trackStore.insert(new Track(5, {
+      begin: 0, end: 0, confidencePairs: confidencePairs([['tern', 0.8]]), features: features(),
+    }));
+    expect(store.addLinkedTrack(5, 'left', 0)!.confidencePairs).toEqual([['tern', 0.8]]);
+    expect(store.addLinkedTrack(9, 'left', 0)!.confidencePairs).toEqual([['unknown', 1]]);
+    expect(store.addLinkedTrack(9, 'missing', 0)).toBeUndefined();
+  });
+});

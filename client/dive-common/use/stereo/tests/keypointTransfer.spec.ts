@@ -36,6 +36,9 @@ function harness(enabled = true) {
   const onError = vi.fn();
   const cameraStore = {
     getPossibleTrack: (_id: number, camera: string) => tracks.get(camera),
+    addLinkedTrack: (_id: number, camera: string) => {
+      const t = makeTrack(); tracks.set(camera, t); return t;
+    },
     camMap: ref(new Map(['left', 'right'].map((camera) => [camera, {
       trackStore: {
         add: () => {

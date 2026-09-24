@@ -759,7 +759,6 @@ export default defineComponent({
       flickNumberRef,
       editingModeRef,
       cameraStore,
-      trackStore,
       alignedView: alignedViewHelpers,
       editAnnotationLayer,
       boxEditLayer,
