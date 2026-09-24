@@ -1484,6 +1484,19 @@ export default function useModeManager({
     existingPolygonKeys?: Set<string>;
   }>();
 
+  /**
+   * A mask is the detection's whole shape on that frame, so polygons from
+   * elsewhere (a text query, an import, a drawn one) go with it; a reset
+   * restores them.
+   */
+  function dropOtherPolygons(track: Track, frameNum: number) {
+    track.getPolygonFeatures(frameNum).forEach((existing) => {
+      if (existing.key !== SegmentationPolygonKey) {
+        track.removeFeatureGeometry(frameNum, { key: existing.key, type: 'Polygon' });
+      }
+    });
+  }
+
   function removeStereoLineGeometry(track: Track, frameNum: number) {
     track.removeFeatureGeometry(frameNum, { type: 'LineString', key: '' });
     track.removeFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
@@ -1589,6 +1602,7 @@ export default function useModeManager({
         }
       }
 
+      dropOtherPolygons(track, targetFrame);
       track.setFeature({
         frame: targetFrame,
         flick: 0,
@@ -1692,6 +1706,7 @@ export default function useModeManager({
 
         const { interpolate } = track.canInterpolate(frameNum);
 
+        dropOtherPolygons(track, frameNum);
         track.setFeature({
           frame: frameNum,
           flick: 0,

@@ -18,6 +18,7 @@ import { ROTATION_ATTRIBUTE_NAME } from 'vue-media-annotator/utils';
 import { clientSettings } from 'dive-common/store/settings';
 import useModeManager, { type StereoAnnotationCompleteParams } from './useModeManager';
 import HeadTail from '../recipes/headtail';
+import SegmentationPointClick from '../recipes/segmentationpointclick';
 import { headTailFeatures } from '../../src/headTail';
 import type Recipe from '../../src/recipe';
 
@@ -483,6 +484,32 @@ describe('stereo mapping of a line being drawn', () => {
     } finally {
       clientSettings.stereoSettings.autoComputeOtherCamera = wasAutoCompute;
     }
+  });
+});
+
+describe('a point segmentation of a detection that already has a polygon', () => {
+  const existing: GeoJSON.Feature = {
+    type: 'Feature',
+    properties: { key: '' },
+    geometry: { type: 'Polygon', coordinates: [[[0, 0], [40, 0], [40, 40], [0, 0]]] },
+  };
+
+  it('replaces the polygon with the mask, and a reset brings it back', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager: manager } = makeHarness(undefined, [recipe]);
+    const trackId = manager.handler.trackAdd();
+    const track = cameraStore.getTrack(trackId, 'left');
+    track.setFeature({ frame: 0, keyframe: true, bounds: [0, 0, 40, 40] }, [existing as never]);
+    expect(track.getPolygonFeatures(0).map((p) => p.key)).toEqual(['']);
+
+    recipe.bus.$emit('prediction-ready', {
+      polygon: [[5, 5], [20, 5], [20, 20]], bounds: null, frameNum: 0, controlPoints: { points: [[10, 10]], labels: [1] },
+    });
+    expect(track.getPolygonFeatures(0).map((p) => p.key)).toEqual(['SegmentationPolygon']);
+
+    recipe.bus.$emit('prediction-reset', { frameNum: 0 });
+    expect(track.getPolygonFeatures(0).map((p) => p.key)).toEqual(['']);
+    expect(track.getFeature(0)[0]?.bounds).toEqual([0, 0, 40, 40]);
   });
 });
 
