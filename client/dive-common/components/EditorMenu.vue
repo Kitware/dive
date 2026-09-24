@@ -329,7 +329,7 @@ export default defineComponent({
       return segRecipe?.loading.value ?? false;
     });
 
-    const segmentationTooltip = 'Left click: positive point. Middle or shift+click: negative. Esc to cancel.';
+    const segmentationTooltip = 'Left click: positive point. Esc to cancel. Middle click or shift+click for negative.';
 
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
