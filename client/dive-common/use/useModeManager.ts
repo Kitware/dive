@@ -42,7 +42,7 @@ import SegmentationPointClick, {
 } from 'dive-common/recipes/segmentationpointclick';
 import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
 import {
-  componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
+  componentsBounds, segmentationComponents, segmentationPolygonFeatures,
 } from 'dive-common/recipes/segmentationPolygons';
 import { linePointEdit } from './stereo/keypointTransfer';
 
@@ -1574,8 +1574,10 @@ export default function useModeManager({
   }
 
   /**
-   * Store a mask's components as keyed polygons on the detection, dropping the
-   * components of the previous prediction that this one no longer has.
+   * Store a mask's components as keyed polygons on the detection. The mask is
+   * the detection's whole shape on that frame, so every other polygon goes:
+   * components of the previous prediction it no longer has, and polygons from
+   * elsewhere (a text query, an import, a drawn one), which reset restores.
    */
   function applySegmentationPolygons(
     track: Track,
@@ -1586,7 +1588,7 @@ export default function useModeManager({
     const polygons = segmentationPolygonFeatures(components, SegmentationPolygonKey);
     const keys = new Set(polygons.map((polygon) => polygon.properties?.key));
     track.getPolygonFeatures(frameNum).forEach((existing) => {
-      if (isSegmentationPolygonKey(existing.key, SegmentationPolygonKey) && !keys.has(existing.key)) {
+      if (!keys.has(existing.key)) {
         track.removeFeatureGeometry(frameNum, { key: existing.key, type: 'Polygon' });
       }
     });
