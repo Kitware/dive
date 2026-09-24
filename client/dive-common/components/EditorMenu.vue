@@ -100,6 +100,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** Re-checks whether the SAM3 add-on is installed at press time. */
+    checkTextQueryAvailable: {
+      type: Function as PropType<() => Promise<boolean>>,
+      default: undefined,
+    },
   },
   emits: [
     'set-annotation-state',
@@ -154,8 +159,11 @@ export default defineComponent({
       emit('open-external-link', SAM3_ADDON_WIKI_URL);
     };
 
-    const handleTextQueryClick = () => {
-      if (!props.textQueryAvailable) {
+    const handleTextQueryClick = async () => {
+      const available = props.checkTextQueryAvailable
+        ? await props.checkTextQueryAvailable()
+        : props.textQueryAvailable;
+      if (!available) {
         openSam3InfoDialog();
         return;
       }
