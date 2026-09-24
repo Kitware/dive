@@ -619,6 +619,8 @@ export interface SegmentationPredictRequest {
   frameTime?: number;
   /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
   line?: [number, number][];
+  /** Drawn box [x0, y0, x1, y1] to segment inside; the service confines the mask to it */
+  box?: [number, number, number, number];
 }
 
 export interface SegmentationPolygon {
