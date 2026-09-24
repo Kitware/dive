@@ -179,7 +179,11 @@ export default function useAnnotationClickHandling(options: {
       finishPolygonClick(trackId, hit?.polygonKey, switching && hit != null);
     });
 
+    // Only the selected camera's editor may confirm: the other cameras keep a
+    // live creation editor too, and a right-click on one of them is a move of
+    // the edit, not a confirmation.
     editAnnotationLayer.bus.$on('confirm-annotation', () => {
+      if (selectedCamera.value !== camera) return;
       handler.confirmRecipe();
     });
 
@@ -187,6 +191,7 @@ export default function useAnnotationClickHandling(options: {
     // plain right-click would unless the other camera took it over. On Linux
     // the contextmenu arrives before the button is released.
     editAnnotationLayer.bus.$on('confirm-annotation-elsewhere', (buttonHeld: boolean) => {
+      if (selectedCamera.value !== camera) return;
       handler.segmentationFinalizePending();
       const finish = () => window.setTimeout(() => {
         if (selectedCamera.value === camera) handler.confirmRecipe();
