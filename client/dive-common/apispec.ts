@@ -155,6 +155,8 @@ interface Pipe {
   folderId?: string;
   ownerId?: string;
   ownerLogin?: string;
+  /** True when the pack has a top-level .weights/.ckpt/.pth for ONNX conversion. */
+  onnxConvertible?: boolean;
 }
 
 interface Category {

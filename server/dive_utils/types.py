@@ -116,6 +116,8 @@ class PipelineDescription(TypedDict):
     # If the pipeline is stored in girder, this is
     # the ID of the folder containing the pipeline,
     folderId: Optional[str]
+    # Trained packs only: top-level .weights/.ckpt/.pth present for ONNX export.
+    onnxConvertible: NotRequired[Optional[bool]]
 
 
 class PipelineRuntimeParams(TypedDict, total=False):

@@ -12,9 +12,12 @@ const page = ref<InstanceType<typeof SharedReviewPage>>();
 
 // The window's close button asks about pending edits through the native
 // prompt, as the viewer does; the browser unload prompt is off since Electron
-// would only cancel the close silently.
+// would only cancel the close silently. Cancel a pending auto-save before the
+// prompt (same as in-app leave) so Exit Without Saving cannot race a write.
 useDesktopCloseGuard(unsavedChangesCloseGuard({
   unsaved: () => (page.value?.review.pendingCount.value ?? 0) > 0,
+  beforePrompt: () => page.value?.cancelAutoSave(),
+  onStay: () => page.value?.resumeAutoSave(),
   save: async () => {
     const review = page.value?.review;
     if (!review) return true;

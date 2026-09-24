@@ -21,15 +21,25 @@ export async function runCloseGuard(): Promise<boolean> {
  * when the edits could not be saved, which keeps the window open. A page's
  * `beforeunload` handler cannot do this: Electron cancels the close silently
  * when one sets returnValue, so nothing at all appears to happen.
+ *
+ * `beforePrompt` runs once unsaved work is detected (e.g. cancel a pending
+ * auto-save so it cannot race the user's choice). `onStay` runs when the user
+ * cancels the close (e.g. re-arm auto-save).
  */
 export function unsavedChangesCloseGuard(options: {
   unsaved: () => boolean;
   save: () => Promise<boolean>;
+  beforePrompt?: () => void;
+  onStay?: () => void;
 }): CloseGuard {
   return async () => {
     if (!options.unsaved()) return true;
+    options.beforePrompt?.();
     const choice = await window.diveDesktop.invoke('desktop:confirm-close-unsaved');
-    if (choice === 'cancel') return false;
+    if (choice === 'cancel') {
+      options.onStay?.();
+      return false;
+    }
     if (choice === 'save') {
       try {
         return await options.save();

@@ -169,13 +169,14 @@ export default function useAnnotationClickHandling(options: {
       if (trackId === null || editingModeRef.value !== 'Polygon') return;
       // The editor that took the click is live on every camera holding the
       // detection, so navigate its polygons here after selecting this camera.
-      // Moving to this camera keeps the edit going even on the same polygon.
+      // Moving to this camera keeps the edit going even on the same polygon;
+      // a gap or hole still finishes it.
       const switching = selectedCamera.value !== camera;
       if (switching) handler.selectCamera(camera, false);
       if (selectedCamera.value !== camera) return;
       const point = alignedView.mapNativePoint(geo.x, geo.y);
       const hit = pickPolygon(polyAnnotationLayer.formattedData, trackId as number, point);
-      finishPolygonClick(trackId, hit?.polygonKey, switching);
+      finishPolygonClick(trackId, hit?.polygonKey, switching && hit != null);
     });
 
     editAnnotationLayer.bus.$on('confirm-annotation', () => {

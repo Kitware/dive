@@ -95,4 +95,31 @@ def test_dynamic_models_disambiguate_arbitrary_pipeline_names(monkeypatch):
     ]
     monkeypatch.setattr(crud_rpc, 'Folder', lambda: folders)
     models = crud_rpc._load_dynamic_pipelines({'_id': 'user'})
-    assert [p['name'] for p in models['trained']['pipes']] == ['Fish custom', 'Fish another']
+    pipes = models['trained']['pipes']
+    assert [p['name'] for p in pipes] == ['Fish custom', 'Fish another']
+    # .pt is not accepted by the ONNX job (only .weights/.ckpt/.pth).
+    assert all(p['onnxConvertible'] is False for p in pipes)
+
+
+def test_dynamic_models_mark_onnx_convertible_when_weights_present(monkeypatch):
+    folders = MagicMock()
+    folder = {'_id': 'pack', 'name': 'Fish', 'ownerLogin': 'owner', 'creatorId': 'user'}
+    folders.collection.aggregate.return_value = iter([{'results': [folder]}])
+    folders.filter.side_effect = lambda doc, **kwargs: doc
+    folders.childItems.return_value = [
+        {'name': 'detector.pipe'},
+        {'name': 'model.pth'},
+    ]
+    monkeypatch.setattr(crud_rpc, 'Folder', lambda: folders)
+    models = crud_rpc._load_dynamic_pipelines({'_id': 'user'})
+    assert models['trained']['pipes'] == [
+        {
+            'name': 'Fish detector',
+            'type': 'trained',
+            'pipe': 'detector.pipe',
+            'folderId': 'pack',
+            'ownerLogin': 'owner',
+            'ownerId': 'user',
+            'onnxConvertible': True,
+        }
+    ]
