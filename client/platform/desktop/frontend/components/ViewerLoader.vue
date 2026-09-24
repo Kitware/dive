@@ -221,6 +221,15 @@ export default defineComponent({
       return textQueryAvailable.value;
     }
 
+    // Keep button chrome current if the add-on is installed while this
+    // viewer stays open (e.g. manual extract, or another desktop window).
+    onMounted(() => {
+      window.addEventListener('focus', refreshTextQueryAvailability);
+    });
+    onBeforeUnmount(() => {
+      window.removeEventListener('focus', refreshTextQueryAvailability);
+    });
+
     watch(() => settings.value?.viamePath, () => {
       refreshTextQueryAvailability();
     });
