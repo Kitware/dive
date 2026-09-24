@@ -35,6 +35,8 @@ export default defineComponent({
       autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc to exit.',
       interpolate: 'Whether new tracks should have interpolation enabled by default',
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc to exit.',
+      autoPopulateMask: 'After drawing a new box or head/tail line, run the interactive segmentation model on it (the drawn box, or points along the line) and store the resulting polygon on the detection.',
+      autoPopulatePoints: 'After drawing a new box, derive head/tail points from its segmentation the way the VIAME keypoint pipelines do. After drawing a new line, tighten the box to the segmentation.',
       prompt: 'Prompt user before deleting a track?',
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
       autoZoom: 'Automatically zoom to the track when selected',
@@ -258,6 +260,70 @@ export default defineComponent({
           </v-tooltip>
         </v-col>
       </v-row>
+      <template v-if="isDesktopRuntime">
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.trackSettings.newTrackSettings.autoPopulateMask"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Auto-populate mask"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            class="py-1 shrink"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.autoPopulateMask }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+        <v-row>
+          <v-col class="py-1">
+            <v-switch
+              v-model="clientSettings.trackSettings.newTrackSettings.autoPopulatePoints"
+              class="my-0 ml-1 pt-0"
+              dense
+              label="Auto-populate points"
+              hide-details
+            />
+          </v-col>
+          <v-col
+            class="py-1 shrink"
+            align="right"
+          >
+            <v-tooltip
+              open-delay="200"
+              max-width="200"
+              bottom
+            >
+              <template #activator="{ on }">
+                <v-icon
+                  small
+                  v-on="on"
+                >
+                  mdi-help
+                </v-icon>
+              </template>
+              <span>{{ help.autoPopulatePoints }}</span>
+            </v-tooltip>
+          </v-col>
+        </v-row>
+      </template>
       <v-divider class="my-2" />
       <div class="subheading">
         Deletion Settings

@@ -30,8 +30,6 @@ interface ButtonData {
   click: () => void;
 }
 
-const SAM3_ADDON_WIKI_URL = 'https://github.com/VIAME/VIAME/wiki/Model-Zoo-and-Add-Ons';
-
 export default defineComponent({
   name: 'EditorMenu',
   components: {
@@ -100,6 +98,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** Re-checks whether the SAM3 add-on is installed at press time. */
+    checkTextQueryAvailable: {
+      type: Function as PropType<() => Promise<boolean>>,
+      default: undefined,
+    },
   },
   emits: [
     'set-annotation-state',
@@ -150,12 +153,11 @@ export default defineComponent({
       sam3InfoDialogOpen.value = false;
     };
 
-    const openSam3AddonWiki = () => {
-      emit('open-external-link', SAM3_ADDON_WIKI_URL);
-    };
-
-    const handleTextQueryClick = () => {
-      if (!props.textQueryAvailable) {
+    const handleTextQueryClick = async () => {
+      const available = props.checkTextQueryAvailable
+        ? await props.checkTextQueryAvailable()
+        : props.textQueryAvailable;
+      if (!available) {
         openSam3InfoDialog();
         return;
       }
@@ -335,7 +337,7 @@ export default defineComponent({
       return segRecipe?.loading.value ?? false;
     });
 
-    const segmentationTooltip = 'Left click to add positive points. Middle click or Shift+click for negative points. Right click or Enter to confirm. Escape to cancel.';
+    const segmentationTooltip = 'Left click: positive point. Esc to cancel. Middle click or shift+click for negative.';
 
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
@@ -389,7 +391,6 @@ export default defineComponent({
       submitTextQuery,
       sam3InfoDialogOpen,
       closeSam3InfoDialog,
-      openSam3AddonWiki,
     };
   },
 });
@@ -414,7 +415,8 @@ export default defineComponent({
             {{ editingHeader.text }}
           </div>
           <div
-            style="line-height: 1.22em; font-size: 10px;"
+            style="line-height: 1.22em;"
+            :style="{ fontSize: activeSegmentationRecipe ? '12px' : '10px' }"
           >
             <span v-if="lassoDrawing">
               Release the mouse to select all tracks inside the lasso.
@@ -735,15 +737,7 @@ export default defineComponent({
             add-on to be installed in your VIAME directory.
           </p>
           <p class="text-body-2 mb-0">
-            You can download the add-on from the
-            <span
-              class="sam3-wiki-link"
-              @click="openSam3AddonWiki"
-            >
-              VIAME Model Zoo and Add-Ons
-            </span>
-            page. Extract the package and merge its folders into your existing VIAME
-            installation.
+            Download and install the add-on directly from the Add-Ons page.
           </p>
         </v-card-text>
         <v-card-actions>
@@ -756,9 +750,10 @@ export default defineComponent({
           </v-btn>
           <v-btn
             color="primary"
-            @click="openSam3AddonWiki"
+            :to="{ name: 'addons' }"
+            @click="closeSam3InfoDialog"
           >
-            Open Model Zoo
+            Open Add-Ons
           </v-btn>
         </v-card-actions>
       </v-card>
@@ -777,12 +772,6 @@ export default defineComponent({
 
 .edit-btn-unavailable {
   opacity: 0.45 !important;
-}
-
-.sam3-wiki-link {
-  color: var(--v-primary-base);
-  cursor: pointer;
-  text-decoration: underline;
 }
 
 .mode-button{

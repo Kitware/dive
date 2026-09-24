@@ -619,6 +619,15 @@ export interface SegmentationPredictRequest {
   multimaskOutput?: boolean;
   /** Time in seconds when imagePath is a video file */
   frameTime?: number;
+  /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
+  line?: [number, number][];
+  /** Drawn box [x0, y0, x1, y1] to segment inside; the service confines the mask to it */
+  box?: [number, number, number, number];
+}
+
+export interface SegmentationPolygon {
+  exterior: [number, number][];
+  holes: [number, number][][];
 }
 
 export interface SegmentationPredictResponse {
@@ -628,6 +637,8 @@ export interface SegmentationPredictResponse {
   error?: string;
   /** Polygon coordinates as [x, y] pairs */
   polygon?: [number, number][];
+  /** All components of one mask, including interior holes. */
+  polygons?: SegmentationPolygon[];
   /** Bounding box [x_min, y_min, x_max, y_max] */
   bounds?: [number, number, number, number];
   /** Quality score from segmentation model */
@@ -648,7 +659,11 @@ export interface SegmentationPredictResponse {
 export interface SegmentationStereoSegmentRequest {
   /** The already-segmented source-camera polygon (sampling + measurement). */
   polygon?: [number, number][];
-  /** Source-camera click points and labels. */
+  /** Every part of the source-camera mask, with holes. */
+  polygons?: SegmentationPolygon[];
+  /** Which stereo camera the source is; the service works it out when absent. */
+  sourceCamera?: 'left' | 'right';
+  /** Source-camera click points and labels; none when an existing mask is being mapped. */
   points: [number, number][];
   pointLabels: number[];
   /** Source (clicked) and other camera image/video paths. */
@@ -666,6 +681,8 @@ export interface SegmentationStereoSegmentResponse {
   error?: string;
   /** Other-camera polygon from SAM. */
   polygon?: [number, number][];
+  /** Every part of the other-camera mask, with holes. */
+  polygons?: SegmentationPolygon[];
   bounds?: [number, number, number, number];
   score?: number;
   /** Seed point(s) used on the other camera (median of warped samples). */
@@ -684,6 +701,13 @@ export interface SegmentationStereoSegmentResponse {
     midpoint_range: number;
     stereo_rms: number;
   };
+}
+
+export interface SegmentationPolygonKeypointsResponse {
+  success: boolean;
+  error?: string;
+  head?: [number, number];
+  tail?: [number, number];
 }
 
 export interface SegmentationStatusResponse {
