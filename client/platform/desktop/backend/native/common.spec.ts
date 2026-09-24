@@ -539,7 +539,7 @@ beforeEach(() => {
     '/home/user/viamedata': {
       DIVE_Jobs: {
         goodTrainingJob: {
-          category_models: {
+          trained_model: {
             'detector.pipe': '',
             'trained_detector.zip': '',
           },
@@ -548,12 +548,12 @@ beforeEach(() => {
           missingModelFolder: {},
         },
         missingPipeTrainingJob: {
-          category_models: {
+          trained_model: {
             'trained_detector.zip': '',
           },
         },
         detectorAndTrackerTrainingJob: {
-          category_models: {
+          trained_model: {
             'detector.pipe': '',
             'tracker.pipe': '',
             'trained_detector.zip': '',
@@ -2869,7 +2869,7 @@ describe('native.common', () => {
     const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
     expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
     //Data should be moved out of the current folder
-    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/trained_model');
     expect(sourceFolder.length).toBe(0);
     //Folders hould be created for new pipeline
     const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
@@ -2888,10 +2888,10 @@ describe('native.common', () => {
       annotatedFramesOnly: false,
     };
     await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
-      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/category_models does not exist',
+      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/trained_model does not exist',
     );
     await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
-      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/category_models',
+      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/trained_model',
     );
   });
 
@@ -2906,7 +2906,7 @@ describe('native.common', () => {
     const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
     expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
     //Data should be moved out of the current folder
-    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/trained_model');
     expect(sourceFolder.length).toBe(0);
     //Folders hould be created for new pipeline
     const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
@@ -3161,12 +3161,12 @@ describe('resumable training jobs', () => {
     expect(found.map((j) => j.workingDir)).toEqual([npath.join(jobsDir, 'interrupted')]);
   });
 
-  it('excludes legacy successful runs with an emptied category_models', async () => {
+  it('excludes legacy successful runs with an emptied trained_model', async () => {
     mockJobsFolder({
       legacySuccess: jobDirConfig(
         'legacySuccess',
         {},
-        ['deep_training', 'category_models', 'input_folder_list.txt', 'input_truth_list.txt'],
+        ['deep_training', 'trained_model', 'input_folder_list.txt', 'input_truth_list.txt'],
       ),
       legacyInterrupted: jobDirConfig('legacyInterrupted', {}),
     });
