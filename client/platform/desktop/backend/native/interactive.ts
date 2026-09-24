@@ -204,12 +204,14 @@ export class InteractiveServiceManager extends EventEmitter {
       const viameConstants = platform.getViameConstants(settings);
       const pythonExe = platform.getViamePythonExe(settings);
       const pipelines = npath.join(settings.viamePath, 'configs', 'pipelines');
-      // SAM2 does the point segmentation when it is installed; the default is
-      // whichever add-on was installed last, and SAM3 may be there only for
-      // text queries (found through the text-query sibling config).
-      const sam2Config = npath.join(pipelines, 'interactive_segmenter_sam2.conf');
-      const segConfig = fs.existsSync(sam2Config)
-        ? sam2Config : npath.join(pipelines, 'interactive_segmenter_default.conf');
+      // SAM2 does the point segmentation when it is installed, else SAM3; the
+      // default config is whichever add-on was installed last, and a VIAME
+      // install rewrites it with the core placeholder. SAM3 may be there only
+      // for text queries, found through the text-query sibling config.
+      const segConfig = ['interactive_segmenter_sam2.conf', 'interactive_segmenter_sam3.conf']
+        .map((name) => npath.join(pipelines, name))
+        .find((candidate) => fs.existsSync(candidate))
+        ?? npath.join(pipelines, 'interactive_segmenter_default.conf');
       const stereoConfig = npath.join(pipelines, 'interactive_stereo_default.conf');
 
       // -s: ignore the per-user site-packages dir so a stray package in
