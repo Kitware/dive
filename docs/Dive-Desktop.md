@@ -139,6 +139,8 @@ Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with
 1. Choose an appropriate training config file and any training parameters.  These are documented on the [training configuration page](Pipeline-Documentation.md).
 1. Click ==Train on (N) Datasets==.  Note that depending on what configuration and datasets you chose, training could take hours or days.
 
+To hold datasets out of training, select them in the library and pick **Validation** or **Test** from the ==Split== menu; see [training splits](Pipeline-Documentation.md#train-validation-and-test-splits).
+
 ## Add-Ons
 
 The **Add-Ons** tab, before **Settings** in the main desktop menu, manages model packs in the configured VIAME installation. It is omitted from the shorter annotation viewer menu.

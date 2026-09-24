@@ -12,6 +12,7 @@ import type {
   CameraHomographies, CameraObservations, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { CameraRole } from 'dive-common/pipelineCameraOrder';
+import type { TrainingSplit } from 'dive-common/trainingSplit';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 import type {
   ScoringDatasetSummary,
@@ -328,6 +329,8 @@ interface DatasetConfigMutable {
    * role are absent.
    */
   cameraRoles?: Record<string, CameraRole>;
+  /** Role in training runs; null clears it, absent leaves it unchanged. */
+  trainingSplit?: TrainingSplit | null;
   error?: string;
 }
 const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];

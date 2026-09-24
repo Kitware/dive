@@ -688,6 +688,7 @@ def run_training(
     force_transcoded=False,
 ) -> types.GirderModel:
     dataset_input_list: List[Tuple[str, int]] = []
+    dataset_splits: Dict[str, str] = {}
     if len(bodyParams.folderIds) == 0:
         raise RestException("No folderIds in param")
 
@@ -698,6 +699,17 @@ def run_training(
         crud.assert_training_allowed_folder(user, folder)
         crud.getCloneRoot(user, folder)
         dataset_input_list.append((folderId, crud_annotation.RevisionLogItem().latest(folder)))
+        split = fromMeta(folder, 'trainingSplit')
+        if split in constants.TrainingSplits:
+            dataset_splits[folderId] = split
+
+    if dataset_input_list and all(
+        dataset_splits.get(folderId, 'train') != 'train' for folderId, _ in dataset_input_list
+    ):
+        raise RestException(
+            'Every selected dataset is labeled validation or test; '
+            'at least one must be available for training'
+        )
 
     # Ensure the folder to upload results to exists
     results_folder = training_output_folder(user)
@@ -713,6 +725,7 @@ def run_training(
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],
         'dataset_input_list': dataset_input_list,
+        'dataset_splits': dataset_splits,
         'pipeline_name': pipelineName,
         'config': config,
         'annotated_frames_only': annotatedFramesOnly,

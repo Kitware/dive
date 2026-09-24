@@ -1,6 +1,7 @@
 import Vue, { ref, computed } from 'vue';
 import { JsonConfig } from 'platform/desktop/constants';
 import { DatasetType, SubType } from 'dive-common/apispec';
+import type { TrainingSplit } from 'dive-common/trainingSplit';
 import { initializedSettings } from './settings';
 
 const RecentsKey = 'desktop.recent';
@@ -26,6 +27,7 @@ export interface JsonConfigCache {
   subType: SubType;
   cameraNumber: number;
   calibration?: string | null;
+  trainingSplit?: TrainingSplit | null;
 }
 
 /**
@@ -74,6 +76,7 @@ function setRecents(meta: JsonConfig, accessTime?: string) {
     error: meta.error,
     cameraNumber: Object.keys(meta.multiCam?.cameras || {}).length,
     calibration: meta.multiCam?.calibration ?? null,
+    trainingSplit: meta.trainingSplit ?? null,
   } as JsonConfigCache);
   const values = Object.values(datasets.value);
   window.localStorage.setItem(RecentsKey, JSON.stringify(values));
