@@ -18,6 +18,7 @@ import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { SegmentationPredictRequest, SegmentationPolygon } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
+import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 import { isStereoscopicDatasetConfig } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
@@ -37,7 +38,7 @@ import {
   segmentationPolygonKeypoints,
   segmentationEnsureStarted,
   segmentationSam3Installed,
-  loadConfig, textQuery,
+  loadConfig, saveConfig, textQuery,
   runTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
@@ -585,9 +586,36 @@ export default defineComponent({
             }, geoJsonFeatures.length > 0 ? geoJsonFeatures : undefined);
           });
 
+          // Lower each returned type's threshold to its weakest result so every
+          // track the query just created is visible.
+          let lowered = false;
+          const trackFilters = viewerRef.value?.trackFilters;
+          if (trackFilters) {
+            const filters = { ...trackFilters.confidenceFilters.value };
+            detections.forEach((det) => {
+              if (typeof det.score === 'number'
+                && det.score < resolveConfidenceThreshold(filters, det.label)) {
+                filters[det.label] = det.score;
+                lowered = true;
+              }
+            });
+            if (lowered) {
+              trackFilters.setConfidenceFilters(filters);
+              saveConfig(props.id, { confidenceFilters: filters });
+            }
+          }
+
+          const resultText = [
+            `Created ${detections.length} tracks for objects matching "${text}".`,
+          ];
+          if (lowered) {
+            resultText.push(
+              'Confidence thresholds for the matching types were lowered so these results are visible.',
+            );
+          }
           await prompt({
             title: 'Text Query Results',
-            text: [`Created ${detections.length} tracks for objects matching "${text}".`],
+            text: resultText,
           });
         }
       } catch (error) {
