@@ -986,6 +986,14 @@ async function train(
     command.push(labelsPath);
   }
 
+  // VIAME starts its training monitor next to the run, which emails progress
+  // and completion reports. Mail delivery is configured on the machine
+  // through VIAME_SMTP_SERVER (and VIAME_SMTP_USER / VIAME_SMTP_PASSWORD).
+  if (runTrainingArgs.monitorEmail) {
+    command.push('--monitor-email');
+    command.push(`"${runTrainingArgs.monitorEmail}"`);
+  }
+
   const job = observeChild(spawn(command.join(' '), {
     shell: viameConstants.shell,
     cwd: jobWorkDir,

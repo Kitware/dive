@@ -38,8 +38,11 @@ function runTraining(
     path?: string;
     folderId?: string;
   },
+  monitorEmail?: string,
 ) {
-  return girderRest.post('dive_rpc/train', { folderIds, labelText, fineTuneModel }, {
+  return girderRest.post('dive_rpc/train', {
+    folderIds, labelText, fineTuneModel, monitorEmail,
+  }, {
     params: {
       pipelineName, config, annotatedFramesOnly,
     },

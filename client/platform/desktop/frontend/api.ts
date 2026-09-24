@@ -285,6 +285,7 @@ async function runTraining(
     path?: string;
     folderId?: string;
   },
+  monitorEmail?: string,
 ): Promise<void> {
   const args: RunTraining = {
     type: JobType.RunTraining,
@@ -294,6 +295,7 @@ async function runTraining(
     annotatedFramesOnly,
     labelText,
     fineTuneModel,
+    monitorEmail,
   };
   gpuJobQueue.enqueue(args);
 }

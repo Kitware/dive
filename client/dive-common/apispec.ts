@@ -460,6 +460,8 @@ interface Api {
       path?: string;
       folderId?: string;
     },
+    /** Address that receives progress and completion reports from the run. */
+    monitorEmail?: string,
   ): Promise<unknown>;
 
   /**

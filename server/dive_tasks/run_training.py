@@ -156,6 +156,13 @@ def train_pipeline(self: Task, params: TrainingJob):
         if annotated_frames_only:
             command.append("--gt-frames-only")
 
+        # VIAME starts its training monitor next to the run, which emails
+        # progress and completion reports. Mail delivery is configured on the
+        # worker through VIAME_SMTP_SERVER (and VIAME_SMTP_USER / _PASSWORD).
+        if params.get('monitor_email'):
+            command.append("--monitor-email")
+            command.append(shlex.quote(str(params['monitor_email'])))
+
         if label_text:
             labels_path = input_path / "labels.txt"
             with open(labels_path, "w+") as labels_file:
