@@ -717,6 +717,11 @@ export default function register() {
     return manager.refine(args.positiveIds, args.negativeIds);
   });
 
+  ipcMain.handle('video-search-layout', async (_, args: { refs: string[] }) => {
+    const manager = videoSearch.getQueryServiceManager();
+    return manager.layoutResults(args.refs);
+  });
+
   ipcMain.handle('video-search-export-model', async (_, args: { name: string }) => {
     const outputDir = await videoSearch.exportSearchModel(settings.get(), args.name);
     return { success: true, outputDir };

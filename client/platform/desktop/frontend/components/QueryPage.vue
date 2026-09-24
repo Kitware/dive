@@ -87,7 +87,9 @@ export default defineComponent({
       hidden: (result) => searchReview.isRemoved(result),
     });
     const textChips = resumed?.textChips ?? createItemChips(page.textItems);
-    const resultsMemory = resumed?.results ?? reactive({ page: 0, hideReviewed: false });
+    const resultsMemory = resumed?.results ?? reactive({
+      page: 0, hideReviewed: false, space: false, spaceCount: 25,
+    });
     const gridSettings = usePersistentGridSettings();
     const textGridActive = computed(() => view.value === 'query' && page.mode.value === 'text');
     const textGrid = useReviewGrid({
@@ -764,6 +766,7 @@ export default defineComponent({
                 :search-chips="searchChips"
                 :search-review="searchReview"
                 :memory="resultsMemory"
+                :exemplar-url="page.mode.value === 'video' ? videoFrameUrl : imageUrl"
                 @open-result="openViewer"
                 @save-model="openSaveModel"
               />

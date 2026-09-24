@@ -14,6 +14,10 @@ import type { SearchReview } from './useSearchReview';
 export interface ResultsGridMemory {
   page: number;
   hideReviewed: boolean;
+  /** Showing the 3D descriptor-space view instead of the grid. */
+  space: boolean;
+  /** How many top results the 3D view places. */
+  spaceCount: number;
 }
 
 export interface QuerySession {

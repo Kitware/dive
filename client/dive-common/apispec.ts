@@ -888,6 +888,24 @@ export interface VideoSearchQueryResponse {
   feedback_requests?: VideoSearchResult[];
 }
 
+/** One result placed in descriptor space around the query (at the origin). */
+export interface VideoSearchLayoutPoint {
+  ref: string;
+  /** Offset from the query along the three principal axes of the result set. */
+  position: [number, number, number];
+  /** Full-dimensional descriptor distance from the query. */
+  distance: number;
+}
+
+export interface VideoSearchLayoutResponse {
+  success: boolean;
+  error?: string;
+  dimensions?: number;
+  points?: VideoSearchLayoutPoint[];
+  /** Results with no stored descriptor vector, left out of the layout. */
+  missing?: string[];
+}
+
 export {
   provideApi,
   useApi,
