@@ -158,6 +158,20 @@ export default defineComponent({
       type: Object as PropType<ChipView | null>,
       default: null,
     },
+    /**
+     * Show the controls that act on the whole entry (accept, delete, open,
+     * the actions slot); the cell turns them off on all but one chip of a
+     * multi-camera entry.
+     */
+    entryActions: {
+      type: Boolean,
+      default: true,
+    },
+    /** Show the frame stepping controls; off on all but one chip of an entry. */
+    sequenceControls: {
+      type: Boolean,
+      default: true,
+    },
     /** Draw polygons and head/tail points over the chip. */
     showGeometry: {
       type: Boolean,
@@ -871,7 +885,7 @@ export default defineComponent({
       >no box</span>
     </div>
     <div
-      v-if="hasSequence && !editing"
+      v-if="hasSequence && !editing && sequenceControls"
       class="cell-badge cell-sequence cell-sequence-controls text-caption"
       :class="{ 'cell-sequence-bottom': label }"
       @click.stop
@@ -911,7 +925,7 @@ export default defineComponent({
       </button>
     </div>
     <div
-      v-else-if="frameCount > 1 && !editing"
+      v-else-if="frameCount > 1 && !editing && sequenceControls"
       class="cell-badge cell-sequence text-caption"
       title="Loading track frames"
     >
@@ -964,7 +978,7 @@ export default defineComponent({
       </v-btn>
     </div>
     <div
-      v-if="!editing"
+      v-if="!editing && (entryActions || !$scopedSlots.actions)"
       class="cell-actions"
       @click.stop
     >
@@ -974,6 +988,7 @@ export default defineComponent({
         :frame="currentFrame ? currentFrame.frame : undefined"
       >
         <v-tooltip
+          v-if="entryActions"
           bottom
           open-delay="600"
         >
@@ -996,7 +1011,7 @@ export default defineComponent({
           <span>Mark this type as correct (confidence 1)</span>
         </v-tooltip>
         <v-tooltip
-          v-if="deletable"
+          v-if="entryActions && deletable"
           bottom
           open-delay="600"
         >
@@ -1059,6 +1074,7 @@ export default defineComponent({
           <span>Edit this frame's box and geometry (or right click)</span>
         </v-tooltip>
         <v-tooltip
+          v-if="entryActions"
           bottom
           open-delay="600"
         >
@@ -1085,6 +1101,8 @@ export default defineComponent({
 <style lang="scss" scoped>
 .cell-image-wrap {
   position: relative;
+  // A zoomed image must not spill over the neighbouring camera's chip.
+  overflow: hidden;
   flex: 1 1 auto;
   min-height: 32px;
   background: #101010;
