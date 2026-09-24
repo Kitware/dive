@@ -14,6 +14,7 @@
  * unnecessarily. Separate, unmodified VIAME config files drive each feature.
  */
 
+import type { SegmentationPolygon } from 'dive-common/apispec';
 import OS from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
@@ -31,6 +32,7 @@ import {
   SegmentationStereoSegmentResponse,
   SegmentationPredictRequest,
   SegmentationPredictResponse,
+  SegmentationPolygonKeypointsResponse,
 } from './segmentation';
 import {
   StereoCalibration,
@@ -382,6 +384,16 @@ export class InteractiveServiceManager extends EventEmitter {
     }
   }
 
+  /** Head/tail of a polygon, derived as VIAME's keypoint pipelines derive them. */
+  async polygonKeypoints(polygon: [number, number][], polygons?: SegmentationPolygon[]): Promise<SegmentationPolygonKeypointsResponse> {
+    const response = await this.sendRequest({
+      command: 'polygon_keypoints',
+      ...(polygons && (polygons.length > 1 || polygons[0]?.holes.length)
+        ? { polygons } : { polygon }),
+    }, 'Polygon keypoints');
+    return response as unknown as SegmentationPolygonKeypointsResponse;
+  }
+
   async predict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
     if (!request.imagePath) {
       throw new Error('imagePath is required for segmentation prediction');
@@ -394,6 +406,8 @@ export class InteractiveServiceManager extends EventEmitter {
       mask_input: request.maskInput,
       multimask_output: request.multimaskOutput ?? false,
       frame_time: request.frameTime,
+      line: request.line,
+      box: request.box,
     }, 'Segmentation predict');
     return response as unknown as SegmentationPredictResponse;
   }
@@ -404,6 +418,8 @@ export class InteractiveServiceManager extends EventEmitter {
     const r = await this.sendRequest({
       command: 'stereo_segment',
       polygon: request.polygon,
+      polygons: request.polygons,
+      source_camera: request.sourceCamera,
       points: request.points,
       point_labels: request.pointLabels,
       source_image_path: request.sourceImagePath,
@@ -416,6 +432,7 @@ export class InteractiveServiceManager extends EventEmitter {
       success: r.success ?? false,
       error: r.error,
       polygon: r.polygon,
+      polygons: r.polygons as SegmentationPolygon[] | undefined,
       bounds: r.bounds,
       score: r.score,
       seedPoints: r.seed_points as [number, number][] | undefined,
