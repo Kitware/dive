@@ -25,7 +25,9 @@ export type ReviewCellGeometryEdit = ReviewChipGeometryEdit;
 
 /**
  * One grid entry: the track's chips (one per camera it appears in, side by
- * side) with the annotation's type editable underneath. Presentation-only;
+ * side) with the annotation's type editable underneath. Controls that act on
+ * the whole entry appear once: frame stepping on the first chip, accept,
+ * delete and open on the last; box editing stays on every camera's chip. Presentation-only;
  * the page supplies the images and applies edits, so other item sources
  * (e.g. search results) can reuse it with their own actions through the
  * `actions` slot. Single-chip users may pass the chip props directly
@@ -282,6 +284,8 @@ export default defineComponent({
         :controlled-slot="shared ? sharedSlot : null"
         :controlled-paused="sharedPaused"
         :controlled-view="shared ? sharedView : null"
+        :entry-actions="!shared || index === viewList.length - 1"
+        :sequence-controls="!shared || index === 0"
         @view-change="sharedView = $event"
         @step="stepShared"
         @toggle-paused="toggleSharedPaused"
@@ -361,6 +365,11 @@ export default defineComponent({
   min-width: 0;
   gap: 2px;
   background: #101010;
+
+  // The entry-wide actions sit on one chip; reveal them from any camera.
+  &:hover ::v-deep .cell-actions {
+    opacity: 1;
+  }
 }
 
 .cell-footer {
