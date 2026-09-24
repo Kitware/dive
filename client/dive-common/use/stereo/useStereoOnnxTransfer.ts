@@ -97,14 +97,8 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   const measureLengths = () => config.measureLengths?.() ?? false;
 
   function getOrCreateTrack(trackId: number, sourceCamera: string, targetCamera: string, frameNum: number): Track | undefined {
-    let track = cameraStore.getPossibleTrack(trackId, targetCamera);
-    if (!track) {
-      const targetStore = cameraStore.camMap.value.get(targetCamera)?.trackStore;
-      const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
-      const trackType = sourceTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-      track = targetStore?.add(frameNum, trackType, undefined, trackId);
-    }
-    return track;
+    return cameraStore.getPossibleTrack(trackId, targetCamera)
+      ?? cameraStore.addLinkedTrack(trackId, targetCamera, frameNum, sourceCamera);
   }
 
   /**

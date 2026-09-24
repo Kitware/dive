@@ -194,7 +194,14 @@ export default class EditAnnotationLayer extends BaseLayer<GeoJSON.Feature> {
 
       // Native contextmenu is used because GeoJS mouseclick may not fire for
       // right-button on Windows/Electron.
-      this.bus.$emit('confirm-annotation');
+      const [mapNode] = this.annotator.geoViewerRef.value?.node?.() ?? [];
+      if (mapNode && e.target instanceof Node && !mapNode.contains(e.target)) {
+        // A right-click on another camera may move this edit there; deselecting
+        // here first would flash the detection unselected.
+        this.bus.$emit('confirm-annotation-elsewhere', e.buttons !== 0);
+        return;
+      }
+      this.bus.$emit('confirm-annotation', e.buttons !== 0);
     }
   }
 

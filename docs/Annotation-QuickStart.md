@@ -154,4 +154,6 @@ While editing a polygon, right-click another polygon on the same detection to sw
 
 On stereo datasets, confirmed segmentations can be warped to the other camera when [interactive stereo auto-compute](Multicamera-data.md#interactive-stereo-desktop) is enabled.
 
+To segment every new box or head/tail line without entering Segment mode, enable **Auto-populate mask** and/or **Auto-populate points** in the [creation settings](UI-Track-List.md) menu. See [Auto-populate from a new box or line](Interactive-Annotation.md#auto-populate-from-a-new-box-or-line).
+
 See [Interactive Annotation](Interactive-Annotation.md) for multi-frame behavior, continuous detection mode, and troubleshooting.
