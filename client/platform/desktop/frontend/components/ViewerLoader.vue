@@ -580,10 +580,10 @@ export default defineComponent({
 
           // Lower each returned type's threshold to its weakest result so every
           // track the query just created is visible.
+          let lowered = false;
           const trackFilters = viewerRef.value?.trackFilters;
           if (trackFilters) {
             const filters = { ...trackFilters.confidenceFilters.value };
-            let lowered = false;
             detections.forEach((det) => {
               if (typeof det.score === 'number'
                 && det.score < resolveConfidenceThreshold(filters, det.label)) {
@@ -597,9 +597,17 @@ export default defineComponent({
             }
           }
 
+          const resultText = [
+            `Created ${detections.length} tracks for objects matching "${text}".`,
+          ];
+          if (lowered) {
+            resultText.push(
+              'Confidence thresholds for the matching types were lowered so these results are visible.',
+            );
+          }
           await prompt({
             title: 'Text Query Results',
-            text: [`Created ${detections.length} tracks for objects matching "${text}".`],
+            text: resultText,
           });
         }
       } catch (error) {
