@@ -690,10 +690,11 @@ describe('a right-click that enters point segmentation editing', () => {
     manager.handler.confirmRecipe();
     expect(manager.selectedTrackId.value).toBe(first);
     expect(manager.editingTrack.value).toBe(true);
-    // A later right-click with no points placed finalizes the detection.
+    // A later right-click with no points placed leaves edit mode with the
+    // detection still selected, as the other annotation types do.
     press();
     manager.handler.confirmRecipe();
-    expect(manager.selectedTrackId.value).toBeNull();
+    expect(manager.selectedTrackId.value).toBe(first);
     expect(manager.editingTrack.value).toBe(false);
     // So does one after a reset by the user, even within the same press.
     press();
@@ -701,8 +702,10 @@ describe('a right-click that enters point segmentation editing', () => {
     recipe.resetPoints();
     expect(recipe.wasReset).toBe(true);
     manager.handler.confirmRecipe();
-    expect(manager.selectedTrackId.value).toBeNull();
+    expect(manager.selectedTrackId.value).toBe(second);
+    expect(manager.editingTrack.value).toBe(false);
     // With nothing selected a right-click changes nothing.
+    manager.handler.trackSelect(null, false);
     press();
     manager.handler.confirmRecipe();
     expect(recipe.active.value).toBe(true);
