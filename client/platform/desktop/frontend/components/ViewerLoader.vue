@@ -218,7 +218,17 @@ export default defineComponent({
       } catch {
         textQueryAvailable.value = false;
       }
+      return textQueryAvailable.value;
     }
+
+    // Keep button chrome current if the add-on is installed while this
+    // viewer stays open (e.g. manual extract, or another desktop window).
+    onMounted(() => {
+      window.addEventListener('focus', refreshTextQueryAvailability);
+    });
+    onBeforeUnmount(() => {
+      window.removeEventListener('focus', refreshTextQueryAvailability);
+    });
 
     watch(() => settings.value?.viamePath, () => {
       refreshTextQueryAvailability();
@@ -2568,6 +2578,7 @@ export default defineComponent({
       handleTextQueryInit,
       handleTextQueryAllFrames,
       textQueryAvailable,
+      refreshTextQueryAvailability,
       openLink,
       /* Stereo */
       stereoLoadingDialog,
@@ -2612,6 +2623,7 @@ export default defineComponent({
       :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
+      :check-text-query-available="refreshTextQueryAvailability"
       :stereo-view-link="stereoViewLink"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"
