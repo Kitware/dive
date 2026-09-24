@@ -24,6 +24,7 @@ import {
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
+import { AnnotationHistory, annotationUndoShortcut } from 'dive-common/use/annotationUndo';
 import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
@@ -68,6 +69,7 @@ import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
+  NewAnnotationGeometryParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
@@ -428,12 +430,22 @@ export default defineComponent({
 
     const {
       save: saveToServer,
-      markChangesPending,
+      markChangesPending: markSaveChangesPending,
       discardChanges,
       pendingSaveCount,
       addCamera: addSaveCamera,
       removeCamera: removeSaveCamera,
     } = useSave(datasetId, readonlyState);
+
+    let annotationHistory: AnnotationHistory | undefined;
+    const markChangesPending: typeof markSaveChangesPending = (change) => {
+      markSaveChangesPending(change);
+      if (change && change.action !== 'meta' && (change.track || change.group)) {
+        annotationHistory?.record({
+          ...change, action: change.action, cameraName: change.cameraName ?? 'singleCam',
+        });
+      }
+    };
 
     const {
       imageEnhancements,
@@ -574,6 +586,11 @@ export default defineComponent({
     groupStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'group');
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const annotationUndo = new AnnotationHistory(cameraStore);
+    annotationHistory = annotationUndo;
+    function runAnnotationOperation<T>(operation: () => Promise<T>) {
+      return annotationUndo.run(operation);
+    }
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
 
     /**
@@ -882,9 +899,26 @@ export default defineComponent({
       onStereoAnnotationReset: (params: StereoAnnotationResetParams) => {
         emit('stereo-annotation-reset', params);
       },
+      onNewAnnotationGeometry: (params: NewAnnotationGeometryParams) => {
+        emit('new-annotation-geometry', params);
+      },
       onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
         emit('stereo-segmentation-finalize', params);
       },
+    });
+
+    const canUndoAnnotation = computed(() => annotationUndo.canUndo.value
+      && progress.loaded && !readonlyState.value && !saveInProgress.value
+      && !segmentationRecipe.predicting.value && !segmentationRecipe.loading.value
+      && !registrationActive.value);
+    function undoAnnotation() {
+      if (canUndoAnnotation.value) annotationUndo.undo(handler.prepareAnnotationUndo);
+    }
+    const onUndoKeydown = (event: KeyboardEvent) => annotationUndoShortcut(event, undoAnnotation, canUndoAnnotation.value);
+    window.addEventListener('keydown', onUndoKeydown);
+    onBeforeUnmount(() => {
+      window.removeEventListener('keydown', onUndoKeydown);
+      annotationUndo.reset();
     });
 
     // Register linked-viewer composables during setup (after selectedCamera exists)
@@ -1681,6 +1715,7 @@ export default defineComponent({
     };
     /** Trigger data load */
     const loadData = async () => {
+      annotationUndo.reset();
       try {
         // Flush any pending shared-style write before this load replaces the
         // in-memory global* refs / manager customStyles (see onStyleEdit).
@@ -2049,6 +2084,7 @@ export default defineComponent({
             }
           }
         }
+        annotationUndo.start();
         progress.loaded = true;
         fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
@@ -2482,6 +2518,9 @@ export default defineComponent({
       progress,
       progressValue,
       saveInProgress,
+      canUndoAnnotation,
+      undoAnnotation,
+      runAnnotationOperation,
       showUserSettingsDialog,
       onGlobalStylesChange,
       playbackComponent,
@@ -2787,6 +2826,21 @@ export default defineComponent({
 
       <slot name="title-right" />
       <user-guide-button annotating />
+      <v-tooltip bottom>
+        <template #activator="{ on }">
+          <span v-on="on">
+            <v-btn
+              icon
+              aria-label="Undo last annotation change"
+              :disabled="!canUndoAnnotation"
+              @click="undoAnnotation"
+            >
+              <v-icon>mdi-undo</v-icon>
+            </v-btn>
+          </span>
+        </template>
+        <span>Undo last annotation change (Ctrl+Z / ⌘Z)</span>
+      </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ on }">
           <div v-on="on">
