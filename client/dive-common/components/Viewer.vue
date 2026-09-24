@@ -24,7 +24,7 @@ import {
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
-import AnnotationHistory, { annotationUndoShortcut } from 'dive-common/use/annotationUndo';
+import { AnnotationHistory, annotationUndoShortcut } from 'dive-common/use/annotationUndo';
 import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';

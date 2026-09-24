@@ -1,4 +1,3 @@
-export { default } from './AnnotationHistory';
 export {
   default as AnnotationHistory,
   DEFAULT_ANNOTATION_UNDO_LIMIT,
