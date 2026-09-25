@@ -80,6 +80,32 @@ describe('category import dialog shared by web and desktop', () => {
     wrapper.destroy();
   });
 
+  it('summarizes WoRMS synonym remaps and expands grouped details on demand', async () => {
+    const { vm, wrapper } = mountDialog();
+    vm.source = 'worms';
+    await nextTick();
+    vm.setWormsImport({
+      types: ['salmon', 'trout'],
+      warnings: ['"Seriola gigas" resolves to multiple accepted names: "Seriola dumerili", "Seriola hippos".'],
+      synonymRemaps: [
+        { original: 'old salmon', accepted: 'salmon' },
+        { original: 'Salmo old', accepted: 'salmon' },
+        { original: 'old trout', accepted: 'trout' },
+      ],
+    });
+    await nextTick();
+    expect(wrapper.text()).toContain('3 synonyms will be imported as 2 accepted names.');
+    expect(wrapper.text()).toContain('Show details');
+    expect(wrapper.text()).not.toContain('salmon ←');
+    expect(wrapper.text()).toContain('resolves to multiple accepted names');
+    vm.showSynonymDetails = true;
+    await nextTick();
+    expect(wrapper.text()).toContain('salmon ← old salmon, Salmo old');
+    expect(wrapper.text()).toContain('trout ← old trout');
+    expect(wrapper.text()).toContain('Hide details');
+    wrapper.destroy();
+  });
+
   it('merges staged WoRMS taxa with a pending file and survives tab changes', async () => {
     const { vm, wrapper } = mountDialog();
     await vm.selectFile(file('categories.json', '{"typeHierarchy":{"salmon":"fish"}}'));

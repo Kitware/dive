@@ -7,6 +7,21 @@ import { clientSettings } from 'dive-common/store/settings';
 import { CategoryImport, parseCategoryFile } from '../categoryImport';
 import WormsImport from './WormsImport.vue';
 import { resolveTypeHierarchy } from '../typeHierarchy';
+import {
+  groupSynonymRemaps, synonymRemapSummary, SynonymRemap,
+} from '../worms';
+
+function mergeSynonymRemaps(
+  current: SynonymRemap[] | undefined,
+  incoming: SynonymRemap[] | undefined,
+): SynonymRemap[] | undefined {
+  if (!current?.length && !incoming?.length) return undefined;
+  const merged = new Map<string, SynonymRemap>();
+  [...(current ?? []), ...(incoming ?? [])].forEach((remap) => {
+    merged.set(`${remap.original}\0${remap.accepted}`, remap);
+  });
+  return [...merged.values()];
+}
 
 export default defineComponent({
   name: 'CategoryImportDialog',
@@ -22,6 +37,7 @@ export default defineComponent({
     const loading = ref(false);
     const fileError = ref('');
     const applyError = ref('');
+    const showSynonymDetails = ref(false);
     watch(source, () => {
       applyError.value = '';
     });
@@ -30,10 +46,12 @@ export default defineComponent({
       try {
         const current = preview.value.incoming;
         const resolved = resolveTypeHierarchy(current?.typeHierarchy ?? null, true, incoming.typeHierarchy ?? {}, 'additive');
+        const synonymRemaps = mergeSynonymRemaps(current?.synonymRemaps, incoming.synonymRemaps);
         const staged: CategoryImport = {
           types: [...new Set([...(current?.types ?? []), ...incoming.types])],
           typeHierarchy: resolved.action === 'set' ? resolved.hierarchy : current?.typeHierarchy,
           taxonomySources: { ...current?.taxonomySources, ...incoming.taxonomySources },
+          synonymRemaps,
           warnings: [...new Set([...(current?.warnings ?? []), ...incoming.warnings])],
         };
         // Staging does not change the dataset. Only Add on the shared page does.
@@ -45,6 +63,7 @@ export default defineComponent({
         wormsImport.value = staged;
         pastedTypes.value = staged.types.join('\n');
         applyError.value = '';
+        showSynonymDetails.value = false;
         source.value = 'file';
       } catch (error) {
         applyError.value = error instanceof Error ? error.message : 'Unable to stage WoRMS types.';
@@ -62,6 +81,7 @@ export default defineComponent({
       parsedFile.value = null;
       fileError.value = '';
       applyError.value = '';
+      showSynonymDetails.value = false;
       loading.value = !!selected;
       if (!selected) return;
       try {
@@ -103,6 +123,14 @@ export default defineComponent({
         };
       }
     });
+    const synonymRemapGroups = computed(() => (
+      groupSynonymRemaps(preview.value.incoming?.synonymRemaps ?? [])
+    ));
+    const synonymRemapMessage = computed(() => (
+      synonymRemapGroups.value.length
+        ? synonymRemapSummary(preview.value.incoming?.synonymRemaps ?? [])
+        : ''
+    ));
     const errorMessage = computed(() => (source.value === 'file' ? fileError.value : '') || preview.value.error || applyError.value);
     const canImport = computed(() => source.value === 'file' && !readOnlyMode.value && !loading.value
       && !errorMessage.value && preview.value.names.length > 0);
@@ -129,6 +157,9 @@ export default defineComponent({
       loading,
       selectFile,
       preview,
+      synonymRemapGroups,
+      synonymRemapMessage,
+      showSynonymDetails,
       errorMessage,
       canImport,
       confirmImport,
@@ -176,7 +207,7 @@ export default defineComponent({
           outlined
           rows="6"
         />
-        <v-btn v-if="wormsImport" small text @click="wormsImport = null; pastedTypes = ''">
+        <v-btn v-if="wormsImport" small text @click="wormsImport = null; pastedTypes = ''; showSynonymDetails = false">
           Clear staged types
         </v-btn>
       </template>
@@ -199,6 +230,19 @@ export default defineComponent({
             Showing the first 100 relationships.
           </div>
         </div>
+        <v-alert v-if="synonymRemapGroups.length" type="info" dense class="mb-2">
+          <div class="d-flex align-center flex-wrap">
+            <span>{{ synonymRemapMessage }}</span>
+            <v-btn class="ml-2" small text @click="showSynonymDetails = !showSynonymDetails">
+              {{ showSynonymDetails ? 'Hide details' : 'Show details' }}
+            </v-btn>
+          </div>
+          <div v-if="showSynonymDetails" class="category-preview mt-2">
+            <div v-for="group in synonymRemapGroups" :key="group.accepted">
+              {{ group.accepted }} ← {{ group.originals.join(', ') }}
+            </div>
+          </div>
+        </v-alert>
         <v-alert v-for="warning in preview.incoming.warnings" :key="warning" type="warning" dense>
           {{ warning }}
         </v-alert>

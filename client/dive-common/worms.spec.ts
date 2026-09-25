@@ -1,4 +1,6 @@
-import { WormsClient, WormsRecord } from './worms';
+import {
+  groupSynonymRemaps, synonymRemapSummary, WormsClient, WormsRecord,
+} from './worms';
 
 const taxon = (id: number, name: string, extra = {}): WormsRecord => ({
   AphiaID: id,
@@ -13,6 +15,23 @@ const response = (value: unknown, status = 200) => ({
   ok: status < 400, status, json: async () => value,
 } as Response);
 const signal = () => new AbortController().signal;
+
+describe('synonym remap presentation', () => {
+  it('groups remaps by accepted name and summarizes counts', () => {
+    const remaps = [
+      { original: 'old salmon', accepted: 'salmon' },
+      { original: 'Salmo old', accepted: 'salmon' },
+      { original: 'old trout', accepted: 'trout' },
+    ];
+    expect(groupSynonymRemaps(remaps)).toEqual([
+      { accepted: 'salmon', originals: ['old salmon', 'Salmo old'] },
+      { accepted: 'trout', originals: ['old trout'] },
+    ]);
+    expect(synonymRemapSummary(remaps)).toBe('3 synonyms will be imported as 2 accepted names.');
+    expect(synonymRemapSummary([{ original: 'old', accepted: 'new' }]))
+      .toBe('1 synonym will be imported as 1 accepted name.');
+  });
+});
 
 describe('WoRMS client', () => {
   it('does not bind native browser fetch to the client instance', async () => {
@@ -68,11 +87,32 @@ describe('WoRMS client', () => {
     expect(imported.typeHierarchy).toEqual({ fish: 'animal', salmon: 'fish' });
     expect(imported.taxonomySources?.['3']).toEqual({ aphiaId: 3, scientificName: 'salmon', rank: 'Species' });
     expect(Object.keys(imported.taxonomySources!)).toEqual(['1', '2', '3']);
-    expect(imported.warnings[0]).toContain('old salmon');
+    expect(imported.synonymRemaps).toEqual([{ original: 'old salmon', accepted: 'salmon' }]);
+    expect(imported.warnings).toEqual([]);
     expect(fetcher).toHaveBeenCalledTimes(2);
     expect(progress).toHaveBeenLastCalledWith(2);
     await client.prepare([taxon(3, 'salmon')], true, signal());
     expect(fetcher).toHaveBeenCalledTimes(2);
+  });
+
+  it('warns when one synonym name resolves to multiple accepted taxa', async () => {
+    const fetcher = vi.fn().mockImplementation(async (url: string) => {
+      if (url.endsWith('/10')) return response(taxon(10, 'Seriola dumerili'));
+      if (url.endsWith('/20')) return response(taxon(20, 'Seriola hippos'));
+      throw new Error(`unexpected ${url}`);
+    });
+    const imported = await new WormsClient(fetcher).prepare([
+      taxon(1, 'Seriola gigas', { status: 'unaccepted', valid_AphiaID: 10 }),
+      taxon(2, 'Seriola gigas', { status: 'unaccepted', valid_AphiaID: 20 }),
+    ], false, signal());
+    expect(imported.types).toEqual(['Seriola dumerili', 'Seriola hippos']);
+    expect(imported.synonymRemaps).toEqual([
+      { original: 'Seriola gigas', accepted: 'Seriola dumerili' },
+      { original: 'Seriola gigas', accepted: 'Seriola hippos' },
+    ]);
+    expect(imported.warnings).toEqual([
+      '"Seriola gigas" resolves to multiple accepted names: "Seriola dumerili", "Seriola hippos".',
+    ]);
   });
 
   it('can import selected names without parent lookups', async () => {
@@ -81,6 +121,7 @@ describe('WoRMS client', () => {
     expect(imported.types).toEqual(['fish']);
     expect(imported.typeHierarchy).toBeUndefined();
     expect(imported.taxonomySources?.['1'].aphiaId).toBe(1);
+    expect(imported.synonymRemaps).toBeUndefined();
     expect(fetcher).not.toHaveBeenCalled();
   });
 

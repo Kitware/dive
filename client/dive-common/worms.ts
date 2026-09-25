@@ -1,4 +1,4 @@
-import { CategoryImport } from './categoryImport';
+import type { CategoryImport } from './categoryImport';
 import { normalizeTypeHierarchy } from './typeHierarchy';
 
 export interface TaxonomySource {
@@ -17,6 +17,42 @@ export interface WormsRecord {
   authority?: string;
   valid_AphiaID: number | null;
   valid_name: string | null;
+}
+
+/** A WoRMS synonym (or unaccepted name) resolved to its accepted scientific name. */
+export interface SynonymRemap {
+  original: string;
+  accepted: string;
+}
+
+export interface SynonymRemapGroup {
+  accepted: string;
+  originals: string[];
+}
+
+/** Group remaps by accepted name for a compact import preview. */
+export function groupSynonymRemaps(remaps: SynonymRemap[]): SynonymRemapGroup[] {
+  const groups = new Map<string, string[]>();
+  remaps.forEach(({ original, accepted }) => {
+    const list = groups.get(accepted) ?? [];
+    if (!list.includes(original)) list.push(original);
+    groups.set(accepted, list);
+  });
+  return [...groups.entries()]
+    .sort(([a], [b]) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+    .map(([accepted, originals]) => ({
+      accepted,
+      originals: [...originals].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' })),
+    }));
+}
+
+export function synonymRemapSummary(remaps: SynonymRemap[]): string {
+  const groups = groupSynonymRemaps(remaps);
+  const synonymCount = groups.reduce((n, group) => n + group.originals.length, 0);
+  const acceptedCount = groups.length;
+  const synonymLabel = synonymCount === 1 ? 'synonym' : 'synonyms';
+  const acceptedLabel = acceptedCount === 1 ? 'accepted name' : 'accepted names';
+  return `${synonymCount} ${synonymLabel} will be imported as ${acceptedCount} ${acceptedLabel}.`;
 }
 
 interface Classification {
@@ -111,6 +147,8 @@ export class WormsClient {
     const names = new Map<string, number>();
     const edges = new Map<string, string>();
     const warnings = new Set<string>();
+    const remaps = new Map<string, SynonymRemap>();
+    const acceptedByOriginal = new Map<string, Set<string>>();
     const addTaxon = (taxon: Classification | WormsRecord) => {
       const existing = names.get(taxon.scientificname);
       if (existing !== undefined && existing !== taxon.AphiaID) {
@@ -132,7 +170,13 @@ export class WormsClient {
         // eslint-disable-next-line no-await-in-loop
         accepted = record(await this.get(`AphiaRecordByAphiaID/${original.valid_AphiaID}`, signal));
         if (accepted.status !== 'accepted') throw new Error(`WoRMS could not resolve "${original.scientificname}" to an accepted name.`);
-        warnings.add(`"${original.scientificname}" will be imported as "${accepted.scientificname}".`);
+        remaps.set(`${original.scientificname}\0${accepted.scientificname}`, {
+          original: original.scientificname,
+          accepted: accepted.scientificname,
+        });
+        const targets = acceptedByOriginal.get(original.scientificname) ?? new Set();
+        targets.add(accepted.scientificname);
+        acceptedByOriginal.set(original.scientificname, targets);
       }
       addTaxon(accepted);
       if (!types.has(accepted.scientificname) && includeParents) {
@@ -160,10 +204,18 @@ export class WormsClient {
       types.add(accepted.scientificname);
       progress(i + 1);
     }
+    acceptedByOriginal.forEach((targets, originalName) => {
+      if (targets.size > 1) {
+        const listed = [...targets].sort((a, b) => a.localeCompare(b)).map((name) => `"${name}"`).join(', ');
+        warnings.add(`"${originalName}" resolves to multiple accepted names: ${listed}.`);
+      }
+    });
+    const synonymRemaps = [...remaps.values()];
     return {
       types: [...types],
       typeHierarchy: normalizeTypeHierarchy(Object.fromEntries(edges)),
       taxonomySources: sources,
+      synonymRemaps: synonymRemaps.length ? synonymRemaps : undefined,
       warnings: [...warnings],
     };
   }
