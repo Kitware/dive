@@ -12,6 +12,13 @@ import { runElevatedInstaller } from './addonsElevation';
 import addonRunner from './addonRunner';
 
 const CSV_NAME = 'download_viame_addons.csv';
+/** The catalog VIAME maintains; the copy in the installation's bin folder is the fallback. */
+export const CATALOG_URL = 'https://raw.githubusercontent.com/VIAME/VIAME/main/cmake/download_viame_addons.csv';
+const CATALOG_TIMEOUT_MS = 10000;
+/** The Add-Ons page polls while a job runs; do not ask GitHub on every poll. */
+const CATALOG_REFRESH_MS = 60000;
+let latest: { text: string; csvPath: string; fetched: number } | null = null;
+let catalogDirectory: string | undefined;
 let job: AddonJob | null = null;
 let starting = false;
 let cancelDuringStart = false;
@@ -39,15 +46,14 @@ export function markerPath(installDir: string, marker: string): string {
   return path.join(installDir, 'configs', 'pipelines', normalized);
 }
 
-export async function readAddonCatalog(installDir: string, platform = process.platform): Promise<ViameAddon[]> {
-  const text = await fs.readFile(path.join(installDir, 'bin', CSV_NAME), 'utf8');
+export async function parseAddonCatalog(text: string, platform = process.platform): Promise<ViameAddon[]> {
   const rows = await new Promise<string[][]>((resolve, reject) => {
     parse(text, { trim: true, skip_empty_lines: true, relax_column_count: true }, (error, records) => {
       if (error) reject(error); else resolve(records);
     });
   });
   const names = new Set<string>();
-  const addons = rows.filter((row) => row.length >= 6)
+  return rows.filter((row) => row.length >= 6)
     .filter((row) => row[4].trim() !== 'ALL-EXCEPT-DIVE'
       && !(row[4].trim() === 'LINUX-ONLY' && platform !== 'linux')
       && !(row[4].trim() === 'WINDOWS-ONLY' && platform !== 'win32'))
@@ -59,7 +65,10 @@ export async function readAddonCatalog(installDir: string, platform = process.pl
         name, url, description, marker, requires: dependencies.split(',').map((item) => item.trim()).filter(Boolean), status: 'unknown',
       };
     });
-  // Check on every request, including add-ons installed outside DIVE.
+}
+
+/** Check on every request, including add-ons installed outside DIVE. */
+async function withInstallStatus(addons: ViameAddon[], installDir: string): Promise<ViameAddon[]> {
   return Promise.all(addons.map(async (addon) => {
     if (addon.marker) {
       const status = (await fs.pathExists(markerPath(installDir, addon.marker))) ? 'installed' : 'not installed';
@@ -69,16 +78,100 @@ export async function readAddonCatalog(installDir: string, platform = process.pl
   }));
 }
 
-export async function getAddons(settings: Settings): Promise<AddonCatalog> {
+/** The catalog bundled with the installation. */
+export async function readAddonCatalog(installDir: string, platform = process.platform): Promise<ViameAddon[]> {
+  const text = await fs.readFile(path.join(installDir, 'bin', CSV_NAME), 'utf8');
+  return withInstallStatus(await parseAddonCatalog(text, platform), installDir);
+}
+
+async function downloadCatalog(): Promise<string | null> {
+  const abort = new AbortController();
+  const timer = setTimeout(() => abort.abort(), CATALOG_TIMEOUT_MS);
+  try {
+    const response = await fetch(CATALOG_URL, { signal: abort.signal, cache: 'no-store' });
+    if (!response.ok) return null;
+    const text = await response.text();
+    // An error page or a truncated download must not replace the bundled list.
+    return (await parseAddonCatalog(text, 'linux')).length > 0 ? text : null;
+  } catch {
+    return null;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The latest catalog from GitHub, kept on disk so the installer can read it.
+ * A copy fetched earlier in this session stands in when GitHub is unreachable.
+ */
+async function latestCatalog(): Promise<{ text: string; csvPath: string } | null> {
+  if (latest && Date.now() - latest.fetched < CATALOG_REFRESH_MS) return latest;
+  const text = await downloadCatalog();
+  if (text === null) return latest;
+  try {
+    if (!catalogDirectory) catalogDirectory = await fs.mkdtemp(path.join(os.tmpdir(), 'dive-addon-catalog-'));
+    const csvPath = path.join(catalogDirectory, CSV_NAME);
+    await fs.writeFile(csvPath, text);
+    latest = { text, csvPath, fetched: Date.now() };
+  } catch {
+    return latest;
+  }
+  return latest;
+}
+
+/** Drop the catalog fetched in this session (tests). */
+export function forgetLatestCatalog() {
+  latest = null;
+}
+
+interface LoadedCatalog {
+  csvPath: string;
+  addons: ViameAddon[];
+  source: AddonCatalog['catalogSource'];
+  notice?: string;
+}
+
+/** The latest catalog when GitHub answers, otherwise the one bundled with the installation. */
+async function loadCatalog(installDir: string, platform = process.platform): Promise<LoadedCatalog> {
+  const online = await latestCatalog();
+  if (online) {
+    return { csvPath: online.csvPath, addons: await withInstallStatus(await parseAddonCatalog(online.text, platform), installDir), source: 'online' };
+  }
+  const csvPath = path.join(installDir, 'bin', CSV_NAME);
+  let text: string;
+  try {
+    text = await fs.readFile(csvPath, 'utf8');
+  } catch {
+    throw new Error(`No add-on catalog is available: GitHub could not be reached and this VIAME installation has no ${path.join('bin', CSV_NAME)}.`);
+  }
+  return {
+    csvPath,
+    addons: await withInstallStatus(await parseAddonCatalog(text, platform), installDir),
+    source: 'bundled',
+    notice: 'The latest catalog on GitHub could not be reached, so this is the catalog bundled with the VIAME installation.',
+  };
+}
+
+async function getCatalog(settings: Settings): Promise<AddonCatalog & { csvPath: string }> {
   if (!settings.viamePath) throw new Error('Configure the VIAME installation in Settings first.');
   const installDir = path.resolve(settings.viamePath);
+  const loaded = await loadCatalog(installDir);
   return {
     installDir,
-    addons: await readAddonCatalog(installDir),
+    csvPath: loaded.csvPath,
+    addons: loaded.addons,
+    catalogSource: loaded.source,
+    catalogNotice: loaded.notice,
     installerAvailable: await fs.pathExists(path.join(installDir, 'configs', 'add_ons.py')),
     readOnly: settings.readonlyMode,
     job: job ? { ...job } : null,
   };
+}
+
+export async function getAddons(settings: Settings): Promise<AddonCatalog> {
+  const catalog: AddonCatalog & { csvPath?: string } = await getCatalog(settings);
+  delete catalog.csvPath;
+  return catalog;
 }
 
 const ELEVATION_REQUEST = 'Requesting administrator permission from Windows…\n';
@@ -141,23 +234,22 @@ export async function installAddon(settings: Settings, request: AddonInstallRequ
   if (starting || job?.running) throw new Error('An add-on installation is already running.');
   if (settings.readonlyMode) throw new Error('Add-on installation is disabled in read-only mode.');
   if (!request || typeof request.name !== 'string' || !request.name
-      || (request.archive !== undefined && typeof request.archive !== 'string')
-      || (request.force !== undefined && typeof request.force !== 'boolean')) throw new Error('Invalid add-on installation request.');
+      || (request.archive !== undefined && typeof request.archive !== 'string')) throw new Error('Invalid add-on installation request.');
   starting = true;
   cancelDuringStart = false;
   let cleanupJob = () => {};
   try {
-    const catalog = await getAddons(settings);
+    const catalog = await getCatalog(settings);
     const addon = catalog.addons.find((item) => item.name === request.name);
     if (!addon || addon.name.startsWith('-')) throw new Error('Unknown add-on. Refresh the catalog and try again.');
     if (!catalog.installerAvailable) throw new Error('Update VIAME to a version that includes configs/add_ons.py.');
-    if (addon.status === 'installed' && !request.force) throw new Error('This add-on is already installed. Use Reinstall to replace it.');
+    // Files already in place are simply replaced; the installer backs each
+    // one up and restores it if the install is interrupted.
     const args = [
       '-u', path.join(catalog.installDir, 'configs', 'add_ons.py'),
-      '--install-dir', catalog.installDir, '--csv', path.join(catalog.installDir, 'bin', CSV_NAME),
-      'install', addon.name,
+      '--install-dir', catalog.installDir, '--csv', catalog.csvPath,
+      'install', addon.name, '--force',
     ];
-    if (request.force) args.push('--force');
     if (request.archive) {
       const archive = path.resolve(request.archive);
       if (!(await fs.stat(archive)).isFile()) throw new Error('Choose a downloaded ZIP file.');

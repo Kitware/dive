@@ -123,6 +123,8 @@ export default class RectangleLayer extends BaseLayer<RectGeoJSData> {
         } else if (e.mouse.buttonsDown.right) {
           if (!e.data.editing || (e.data.editing && !e.data.selected)) {
             this.bus.$emit('annotation-right-clicked', e.data.trackId, true, undefined, e.mouse.geo);
+          } else {
+            this.bus.$emit('edited-annotation-right-clicked', e.data.trackId);
           }
         }
       });

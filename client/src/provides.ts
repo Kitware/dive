@@ -368,7 +368,7 @@ function dummyState(): State {
     remove: cameraStore.removeTracks,
     markChangesPending,
     groupFilterControls,
-    lookupGroups: cameraStore.lookupGroups,
+    lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)

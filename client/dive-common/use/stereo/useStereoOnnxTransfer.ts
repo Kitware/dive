@@ -23,7 +23,7 @@ import { RectBounds } from 'vue-media-annotator/utils';
 import { HeadTailLineKey } from 'dive-common/recipes/headtail';
 import type { StereoAnnotationCompleteParams } from '../useModeManager';
 import {
-  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState,
+  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState, detectionTransferJob, unmappedPoints,
 } from './keypointTransfer';
 import type { SearchRange } from './StereoOnnxMatcher';
 import type { StereoMatcher } from './stereoMatcher';
@@ -97,14 +97,8 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   const measureLengths = () => config.measureLengths?.() ?? false;
 
   function getOrCreateTrack(trackId: number, sourceCamera: string, targetCamera: string, frameNum: number): Track | undefined {
-    let track = cameraStore.getPossibleTrack(trackId, targetCamera);
-    if (!track) {
-      const targetStore = cameraStore.camMap.value.get(targetCamera)?.trackStore;
-      const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
-      const trackType = sourceTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-      track = targetStore?.add(frameNum, trackType, undefined, trackId);
-    }
-    return track;
+    return cameraStore.getPossibleTrack(trackId, targetCamera)
+      ?? cameraStore.addLinkedTrack(trackId, targetCamera, frameNum, sourceCamera);
   }
 
   /**
@@ -394,6 +388,24 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
           try { await measureAndReport(params.trackId, params.frameNum); } catch (err) { config.onError?.(`Stereo measurement failed. ${(err as Error).message}`); }
         }
         return 'skipped';
+      }
+      if (!otherHasFeature) {
+        // One keypoint alone would make a detection of just that point on
+        // the other camera; map the detection it belongs to instead.
+        const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
+        const job = detectionTransferJob(sourceTrack, params.frameNum, params.camera);
+        if (!job) return 'skipped';
+        const result = await handleStereoAnnotationComplete(job, forceAutoCompute, quiet);
+        if (result !== 'transferred') return result;
+        const mapped = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+        const remaining = unmappedPoints(sourceTrack, mapped, params.frameNum);
+        for (let i = 0; i < remaining.length; i += 1) {
+          // eslint-disable-next-line no-await-in-loop
+          await handleStereoAnnotationComplete({
+            type: 'point', camera: params.camera, trackId: params.trackId, frameNum: params.frameNum, ...remaining[i],
+          }, forceAutoCompute, true);
+        }
+        return 'transferred';
       }
     } else if (otherHasFeature || !shouldWarp) {
       return 'skipped';

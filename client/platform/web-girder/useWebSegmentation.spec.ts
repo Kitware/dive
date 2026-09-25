@@ -194,7 +194,8 @@ it.each(['box', 'line'] as const)('populates a new %s on both cameras before mea
     expect(track.getFeature(0)[0]?.attributes?.length).toBe(10);
   });
   if (sourceKind === 'line') expect(stereo.warpPoints).toHaveBeenCalledWith(line, 'left', 0, true);
-  if (sourceKind === 'box') expect(mocks.predict.mock.calls[0][2].pointLabels).toEqual([1, 2, 3]);
+  // The drawn box is the whole prompt: its two corners, no centre point
+  if (sourceKind === 'box') expect(mocks.predict.mock.calls[0][2].pointLabels).toEqual([2, 3]);
 });
 
 it('uses mask interior positives and retains consistent seeds when some matches fail', async () => {

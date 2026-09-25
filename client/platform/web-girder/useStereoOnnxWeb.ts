@@ -426,11 +426,13 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   async function handleStereoAnnotationComplete(
     params: Parameters<Transfer['handleStereoAnnotationComplete']>[0],
   ) {
-    return getTransfer()?.handleStereoAnnotationComplete(params) ?? 'skipped';
+    const operation = async () => getTransfer()?.handleStereoAnnotationComplete(params) ?? 'skipped';
+    return opts.getViewer()?.runAnnotationOperation?.(operation) ?? operation();
   }
 
   async function handleStereoTrackLinked(trackId: number) {
-    return getTransfer()?.handleStereoTrackLinked(trackId);
+    const operation = async () => getTransfer()?.handleStereoTrackLinked(trackId);
+    return opts.getViewer()?.runAnnotationOperation?.(operation) ?? operation();
   }
 
   async function warpAllFromCamera(cameraName: string) {

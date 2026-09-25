@@ -30,7 +30,9 @@ type PipelineParamType = | 'bool'
   | 'int' | 'positive_int' | 'strictly_positive_int' | 'range_int'
   | 'float' | 'positive_float' | 'strictly_positive_float' | 'range_float'
   | 'folder' | 'path'
-  | 'file';
+  | 'file'
+  /** One of the values listed after the type, e.g. `choice, bytetrack, srnn`. */
+  | 'choice';
 
 interface AnnotationSchema {
   version: number;
@@ -155,6 +157,8 @@ interface Pipe {
   folderId?: string;
   ownerId?: string;
   ownerLogin?: string;
+  /** True when the pack has a top-level .weights/.ckpt/.pth for ONNX conversion. */
+  onnxConvertible?: boolean;
 }
 
 interface Category {
@@ -619,6 +623,8 @@ export interface SegmentationPredictRequest {
   frameTime?: number;
   /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
   line?: [number, number][];
+  /** Drawn box [x0, y0, x1, y1] to segment inside; the service confines the mask to it */
+  box?: [number, number, number, number];
 }
 
 export interface SegmentationPolygon {
@@ -826,6 +832,8 @@ export interface VideoSearchIndexStatus {
   built: boolean;
   /** This dataset has been ingested into the index. */
   indexed: boolean;
+  /** Why it is not indexed: the missing model, or the unrecorded dataset. */
+  reason?: string;
   /** The stream entry for this dataset, when indexed. */
   stream?: VideoSearchStreamEntry & { streamName: string };
   /** Total datasets in the shared index. */

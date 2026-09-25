@@ -35,7 +35,7 @@ export default defineComponent({
       autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc to exit.',
       interpolate: 'Whether new tracks should have interpolation enabled by default',
       continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc to exit.',
-      autoPopulateMask: 'After drawing a new box or head/tail line, run the interactive segmentation model on it (the box centre, or points along the line) and store the resulting polygon on the detection.',
+      autoPopulateMask: 'After drawing a new box or head/tail line, run the interactive segmentation model on it (the drawn box, or points along the line) and store the resulting polygon on the detection.',
       autoPopulatePoints: 'After drawing a new box, derive head/tail points from its segmentation the way the VIAME keypoint pipelines do. After drawing a new line, tighten the box to the segmentation.',
       prompt: 'Prompt user before deleting a track?',
       filterTracksByFrame: 'Filter the track list by those with detections in the current frame',

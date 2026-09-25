@@ -2922,6 +2922,8 @@ describe('native.common', () => {
     expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
     expect(pipes.trained.pipes[0].name).toBe('trainedPipelineName detector');
+    // Training fixtures ship a .zip, not .weights/.ckpt/.pth — not ONNX-convertible.
+    expect(pipes.trained.pipes[0].onnxConvertible).toBe(false);
   });
 
   it('getPipelineList lists both detector and tracker from one trained model', async () => {
@@ -2942,6 +2944,32 @@ describe('native.common', () => {
     expect(pipes.trained.pipes.map((p) => npath.basename(p.pipe))).toEqual([
       'detector.pipe',
       'tracker.pipe',
+    ]);
+    expect(pipes.trained.pipes.every((p) => p.onnxConvertible === false)).toBe(true);
+  });
+
+  it('lists arbitrary imported pipelines with nested weights and skips incomplete imports', async () => {
+    const folder = '/home/user/viamedata/DIVE_Pipelines/imported';
+    await fs.outputFile(`${folder}/custom_local.pipe`, '# Custom pipeline');
+    await fs.outputFile(`${folder}/second.pipe`, '# Another pipeline');
+    await fs.outputFile(`${folder}/models/weights.onnx`, 'weights');
+    await fs.outputFile('/home/user/viamedata/DIVE_Pipelines/.import-incomplete/custom.pipe', '');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes.map((p) => p.name).sort()).toEqual(['imported custom_local', 'imported second']);
+    // Nested models/weights.onnx does not count; conversion only accepts top-level weight files.
+    expect(pipes.trained.pipes.every((p) => p.onnxConvertible === false)).toBe(true);
+  });
+
+  it('marks packs with top-level weight files as ONNX convertible', async () => {
+    const folder = '/home/user/viamedata/DIVE_Pipelines/withWeights';
+    await fs.outputFile(`${folder}/detector.pipe`, '# pipe');
+    await fs.outputFile(`${folder}/model.pth`, 'weights');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes).toEqual([
+      expect.objectContaining({
+        name: 'withWeights detector',
+        onnxConvertible: true,
+      }),
     ]);
   });
 
@@ -3022,6 +3050,22 @@ describe('extractPipeMetadata diveParams', () => {
 
     const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'detector_plain.pipe'));
     expect(metadata.diveParams).toEqual([]);
+  });
+
+  it('exposes the options of a choice DIVE_PARAM', async () => {
+    mockPipes({
+      'tracker_switch.pipe': [
+        'process tracker',
+        '  :: track_objects',
+        '  :track_objects:type  bytetrack  # DIVE_PARAM ["Tracker", choice, bytetrack, srnn]',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'tracker_switch.pipe'));
+    expect(metadata.diveParams).toEqual([expect.objectContaining({
+      key: 'tracker:track_objects:type', label: 'Tracker', type: 'choice', type_props: ['bytetrack', 'srnn'], default: 'bytetrack',
+    })]);
   });
 
   it('updates a same-file DIVE_PARAM default from a later bare assignment', async () => {

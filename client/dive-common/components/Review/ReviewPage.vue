@@ -58,6 +58,8 @@ export default defineComponent({
     /** Current viewer dataset, used whenever the Review selection is empty. */
     fallbackDatasetId: { type: String, default: '' },
     retainSession: { type: Boolean, default: true },
+    /** Ask the browser to confirm unloading with pending edits (off where the host prompts itself). */
+    unloadGuard: { type: Boolean, default: true },
     initialDatasetIds: {
       type: Array as PropType<string[]>,
       default: () => [],
@@ -79,10 +81,13 @@ export default defineComponent({
     provideReview(review);
     const { prompt } = usePrompt();
 
-    // Empty first visit opens Datasets; coming back with loaded data opens Results.
+    // Only an empty first visit opens Datasets; a library selection or
+    // loaded data opens Results.
     const hasReady = review.datasets.value.some((d) => d.status === 'ready');
-    const view = ref<ReviewView>(hasReady ? 'results' : 'datasets');
+    const view = ref<ReviewView>(hasReady || initialIds.length > 0 ? 'results' : 'datasets');
     const resuming = ref(!!resumed);
+    // Covers the gap before the initial selection starts loading.
+    const opening = ref(!hasReady && initialIds.length > 0);
     const pageTypeInput = ref('');
     const showSettings = ref(false);
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
@@ -110,7 +115,10 @@ export default defineComponent({
       footerPx,
       // The box is drawn over the chip (and follows edits), not into it.
       outline: '',
+      // Deleting or editing an entry keeps the page; only a new query resets it.
+      retainPage: true,
     });
+    watch(review.queryGeneration, () => grid.goToPage(0));
 
     const showDatasetNames = computed(() => review.datasets.value.length > 1);
     const readyDatasets = computed(() => review.datasets.value.filter((d) => d.status === 'ready').length);
@@ -301,6 +309,18 @@ export default defineComponent({
       if (wasSaving && !saving && clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) autoSave();
     });
 
+    /** Drop a scheduled auto-save so leave/close prompts are not raced by a write. */
+    function cancelAutoSave() {
+      autoSave.cancel();
+    }
+
+    /** Re-arm auto-save after the user stays on the page with pending edits. */
+    function resumeAutoSave() {
+      if (clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) {
+        autoSave();
+      }
+    }
+
     function onBeforeUnload(event: BeforeUnloadEvent) {
       if (review.pendingCount.value > 0) {
         event.preventDefault();
@@ -325,12 +345,10 @@ export default defineComponent({
         return;
       }
       // Cancel any pending auto-save so it does not race the user's choice.
-      autoSave.cancel();
+      cancelAutoSave();
       const choice = await askLeaveUnsaved(pending);
       if (choice === 'cancel') {
-        if (clientSettings.autoSaveSettings.enabled && review.pendingCount.value > 0) {
-          autoSave();
-        }
+        resumeAutoSave();
         next(false);
         return;
       }
@@ -351,15 +369,13 @@ export default defineComponent({
 
     async function applyInitial(ids: string[]) {
       if (ids.length === 0) return;
+      view.value = 'results';
       await review.addDatasets(ids);
-      if (review.datasets.value.some((d) => d.status === 'ready')) {
-        view.value = 'results';
-      }
     }
 
     onMounted(async () => {
       window.addEventListener('keydown', onKeydown);
-      window.addEventListener('beforeunload', onBeforeUnload);
+      if (props.unloadGuard) window.addEventListener('beforeunload', onBeforeUnload);
       if (resumed) {
         await review.refreshOnResume();
         await review.loadQueued();
@@ -373,12 +389,13 @@ export default defineComponent({
       if (!resumed || datasetKey !== sessionKey(initialIds) || review.datasets.value.length === 0) {
         await applyInitial(initialIds);
       }
+      opening.value = false;
     });
     watch(() => props.initialDatasetIds, (ids) => { applyInitial(ids); });
     onBeforeUnmount(() => {
       window.removeEventListener('keydown', onKeydown);
       window.removeEventListener('beforeunload', onBeforeUnload);
-      autoSave.cancel();
+      cancelAutoSave();
       grid.dispose();
       // Disposed here only when not handed over to the next visit.
       const parked = takeReviewSession();
@@ -393,6 +410,7 @@ export default defineComponent({
     return {
       review,
       view,
+      opening,
       typeField,
       toggleTypeMenu,
       grid,
@@ -422,6 +440,8 @@ export default defineComponent({
       leavePendingCount,
       resolveLeave,
       onLeaveDialogInput,
+      cancelAutoSave,
+      resumeAutoSave,
       clientSettings,
     };
   },
@@ -728,7 +748,7 @@ export default defineComponent({
           >
             mdi-database-outline
           </v-icon>
-          <div v-if="review.loading.value">
+          <div v-if="opening || review.loading.value">
             Loading annotations…
           </div>
           <template v-else>

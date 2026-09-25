@@ -98,6 +98,11 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
+    /** Re-checks whether the SAM3 add-on is installed at press time. */
+    checkTextQueryAvailable: {
+      type: Function as PropType<() => Promise<boolean>>,
+      default: undefined,
+    },
   },
   emits: [
     'set-annotation-state',
@@ -148,8 +153,11 @@ export default defineComponent({
       sam3InfoDialogOpen.value = false;
     };
 
-    const handleTextQueryClick = () => {
-      if (!props.textQueryAvailable) {
+    const handleTextQueryClick = async () => {
+      const available = props.checkTextQueryAvailable
+        ? await props.checkTextQueryAvailable()
+        : props.textQueryAvailable;
+      if (!available) {
         openSam3InfoDialog();
         return;
       }
@@ -585,10 +593,8 @@ export default defineComponent({
         v-if="!activeSegmentationRecipe"
         name="delete-controls"
       />
-      <slot name="multicam-controls-left" />
       <v-spacer />
-      <slot name="multicam-controls-right" />
-      <v-spacer />
+      <slot name="multicam-controls" />
       <annotation-visibility-menu
         :visible-modes="visibleModes"
         :tail-settings="tailSettings"

@@ -24,6 +24,7 @@ import {
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
+import { AnnotationHistory, annotationUndoShortcut } from 'dive-common/use/annotationUndo';
 import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
@@ -100,6 +101,7 @@ import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+import UnsavedChangesDialog from './UnsavedChangesDialog.vue';
 
 export interface StereoViewLinkParams {
   camera: string;
@@ -128,6 +130,7 @@ export default defineComponent({
     ConfidenceFilter,
     UserGuideButton,
     UserSettingsDialog,
+    UnsavedChangesDialog,
     EditorMenu,
     MultiCamToolbar,
     AlignedViewToggle,
@@ -182,6 +185,10 @@ export default defineComponent({
     textQueryAvailable: {
       type: Boolean,
       default: false,
+    },
+    checkTextQueryAvailable: {
+      type: Function as PropType<() => Promise<boolean>>,
+      default: undefined,
     },
     /** Deep link: frame to seek to once the media is ready (e.g. from the review grid). */
     initialFrame: {
@@ -423,12 +430,22 @@ export default defineComponent({
 
     const {
       save: saveToServer,
-      markChangesPending,
+      markChangesPending: markSaveChangesPending,
       discardChanges,
       pendingSaveCount,
       addCamera: addSaveCamera,
       removeCamera: removeSaveCamera,
     } = useSave(datasetId, readonlyState);
+
+    let annotationHistory: AnnotationHistory | undefined;
+    const markChangesPending: typeof markSaveChangesPending = (change) => {
+      markSaveChangesPending(change);
+      if (change && change.action !== 'meta' && (change.track || change.group)) {
+        annotationHistory?.record({
+          ...change, action: change.action, cameraName: change.cameraName ?? 'singleCam',
+        });
+      }
+    };
 
     const {
       imageEnhancements,
@@ -569,6 +586,11 @@ export default defineComponent({
     groupStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'group');
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const annotationUndo = new AnnotationHistory(cameraStore);
+    annotationHistory = annotationUndo;
+    function runAnnotationOperation<T>(operation: () => Promise<T>) {
+      return annotationUndo.run(operation);
+    }
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
 
     /**
@@ -744,7 +766,7 @@ export default defineComponent({
       sorted: cameraStore.sortedTracks,
       remove: removeTracks,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
-      lookupGroups: cameraStore.lookupGroups,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
       getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
       renameTrackPair: (id, currentType, newType) => (
         cameraStore.renameTrackPair(id, currentType, newType)
@@ -883,6 +905,20 @@ export default defineComponent({
       onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
         emit('stereo-segmentation-finalize', params);
       },
+    });
+
+    const canUndoAnnotation = computed(() => annotationUndo.canUndo.value
+      && progress.loaded && !readonlyState.value && !saveInProgress.value
+      && !segmentationRecipe.predicting.value && !segmentationRecipe.loading.value
+      && !registrationActive.value);
+    function undoAnnotation() {
+      if (canUndoAnnotation.value) annotationUndo.undo(handler.prepareAnnotationUndo);
+    }
+    const onUndoKeydown = (event: KeyboardEvent) => annotationUndoShortcut(event, undoAnnotation, canUndoAnnotation.value);
+    window.addEventListener('keydown', onUndoKeydown);
+    onBeforeUnmount(() => {
+      window.removeEventListener('keydown', onUndoKeydown);
+      annotationUndo.reset();
     });
 
     // Register linked-viewer composables during setup (after selectedCamera exists)
@@ -1461,18 +1497,17 @@ export default defineComponent({
       // eslint-disable-next-line no-param-reassign
       event.returnValue = '';
     }
+    const unsavedChangesDialog = ref<InstanceType<typeof UnsavedChangesDialog>>();
+
+    async function saveBeforeLeave() {
+      if (pendingSaveCount.value > 0) await save(props.currentSet);
+      await saveRegistration();
+      if (hasUnsavedChanges.value) throw new Error('There are still unsaved changes.');
+    }
+
     async function navigateAwayGuard(): Promise<boolean> {
-      let result = true;
-      if (hasUnsavedChanges.value) {
-        result = await prompt({
-          title: 'Save Items',
-          text: 'There is unsaved data, would you like to continue or cancel and save?',
-          positiveButton: 'Discard and Leave',
-          negativeButton: 'Don\'t Leave',
-          confirm: true,
-        });
-      }
-      return result;
+      if (!hasUnsavedChanges.value) return true;
+      return unsavedChangesDialog.value?.confirm() ?? false;
     }
 
     async function handleSetChange(set: string) {
@@ -1643,7 +1678,8 @@ export default defineComponent({
       // mouseup arrives -- leaving the detection selected -- so editingTrack
       // alone cannot tell; selectCamera(camera, true) would then put it
       // straight back into edit mode. Right-clicks ON an annotation never
-      // reach here: the annotation layers' right-click handoff switches the
+      // reach here: the annotation layers' right-click handoff (including the
+      // one that moves an edit in progress to this camera) switches the
       // selected camera synchronously first, so this handler returns at the
       // top (same camera).
       if (event?.button === 2 && (editingTrack.value || editingOnRightMouseDown)) {
@@ -1679,6 +1715,7 @@ export default defineComponent({
     };
     /** Trigger data load */
     const loadData = async () => {
+      annotationUndo.reset();
       try {
         // Flush any pending shared-style write before this load replaces the
         // in-memory global* refs / manager customStyles (see onStyleEdit).
@@ -2047,6 +2084,7 @@ export default defineComponent({
             }
           }
         }
+        annotationUndo.start();
         progress.loaded = true;
         fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
@@ -2480,6 +2518,9 @@ export default defineComponent({
       progress,
       progressValue,
       saveInProgress,
+      canUndoAnnotation,
+      undoAnnotation,
+      runAnnotationOperation,
       showUserSettingsDialog,
       onGlobalStylesChange,
       playbackComponent,
@@ -2501,7 +2542,7 @@ export default defineComponent({
       cameraPercentileStretch,
       disableAnnotationFilters,
       trackStyleManager,
-      visible,
+      visible: () => visible() || unsavedChangesDialog.value?.show === true,
       selectedTrackForDetails,
       showConfidenceFirst,
       showTrackAttributesFirst,
@@ -2539,6 +2580,8 @@ export default defineComponent({
       changeCamera,
       noteRightMouseDown,
       // For Navigation Guarding
+      unsavedChangesDialog,
+      saveBeforeLeave,
       navigateAwayGuard,
       warnBrowserExit,
       hasUnsavedChanges,
@@ -2556,6 +2599,12 @@ export default defineComponent({
 
 <template>
   <v-main class="viewer">
+    <unsaved-changes-dialog
+      ref="unsavedChangesDialog"
+      :save="saveBeforeLeave"
+      :saving="saveInProgress"
+      :readonly="readonlyState"
+    />
     <v-app-bar
       app
       extension-height="56"
@@ -2704,6 +2753,7 @@ export default defineComponent({
             lassoDrawing: !readonlyState && lassoDrawing,
             textQueryEnabled,
             textQueryAvailable,
+            checkTextQueryAvailable,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
@@ -2727,14 +2777,8 @@ export default defineComponent({
             />
           </template>
           <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
-            slot="multicam-controls-left"
-          >
-            <multi-cam-toolbar />
-          </template>
-          <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls-right"
+            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar"
+            slot="multicam-controls"
           >
             <multi-cam-toolbar />
           </template>
@@ -2782,6 +2826,21 @@ export default defineComponent({
 
       <slot name="title-right" />
       <user-guide-button annotating />
+      <v-tooltip bottom>
+        <template #activator="{ on }">
+          <span v-on="on">
+            <v-btn
+              icon
+              aria-label="Undo last annotation change"
+              :disabled="!canUndoAnnotation"
+              @click="undoAnnotation"
+            >
+              <v-icon>mdi-undo</v-icon>
+            </v-btn>
+          </span>
+        </template>
+        <span>Undo last annotation change (Ctrl+Z / ⌘Z)</span>
+      </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ on }">
           <div v-on="on">

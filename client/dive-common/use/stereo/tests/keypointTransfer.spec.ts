@@ -5,7 +5,7 @@ import { ref } from 'vue';
 import Track from 'vue-media-annotator/track';
 import { headTailFeatures } from 'vue-media-annotator/headTail';
 import {
-  applyMappedPoint, namedPoint, canMapPoint, linePointEdit,
+  applyMappedPoint, namedPoint, canMapPoint, linePointEdit, detectionTransferJob, unmappedPoints,
 } from '../keypointTransfer';
 import useStereoOnnxTransfer from '../useStereoOnnxTransfer';
 import { StereoRig } from '../calibration';
@@ -36,6 +36,9 @@ function harness(enabled = true) {
   const onError = vi.fn();
   const cameraStore = {
     getPossibleTrack: (_id: number, camera: string) => tracks.get(camera),
+    addLinkedTrack: (_id: number, camera: string) => {
+      const t = makeTrack(); tracks.set(camera, t); return t;
+    },
     camMap: ref(new Map(['left', 'right'].map((camera) => [camera, {
       trackStore: {
         add: () => {
@@ -81,11 +84,36 @@ it('obeys the auto-map option', async () => {
   expect(await h.transfer.handleStereoAnnotationComplete(request())).toBe('skipped');
   expect(h.warpPoints).not.toHaveBeenCalled();
 });
-it('creates a target detection when necessary', async () => {
+it('maps the whole detection, not a lone keypoint, when the other camera has none', async () => {
   const h = harness(); h.tracks.delete('right');
-  h.tracks.get('left')!.setFeature({ frame: 0 }, [pointFeature('eye', [50.5, 60.25])]);
+  h.tracks.get('left')!.setFeature({ frame: 0 }, [
+    pointFeature('eye', [50.5, 60.25]), pointFeature('fin', [70, 40]),
+  ]);
   expect(await h.transfer.handleStereoAnnotationComplete(request())).toBe('transferred');
-  expect(namedPoint(h.tracks.get('right'), 0, 'eye')).toBeDefined();
+  const right = h.tracks.get('right');
+  expect(right!.features[0].bounds).toEqual([0, 10, 90, 100]);
+  expect(namedPoint(right, 0, 'eye')?.geometry.coordinates).toEqual([40.5, 60.25]);
+  expect(namedPoint(right, 0, 'fin')?.geometry.coordinates).toEqual([60, 40]);
+});
+it('maps a moved head through its line when the other camera has no detection', async () => {
+  const h = harness(); h.tracks.delete('right');
+  h.tracks.get('left')!.setFeature({ frame: 0 }, headTailFeatures([[30, 50], [90, 60]]));
+  expect(await h.transfer.handleStereoAnnotationComplete(request('left', 'head', [30, 50]))).toBe('transferred');
+  const right = h.tracks.get('right');
+  expect(namedPoint(right, 0, 'head')?.geometry.coordinates).toEqual([20, 50]);
+  expect(namedPoint(right, 0, 'tail')?.geometry.coordinates).toEqual([80, 60]);
+});
+it('picks the line, then the polygon, then the box to carry a detection across', () => {
+  const track = makeTrack();
+  expect(detectionTransferJob(track, 0, 'left')).toMatchObject({ type: 'box', bounds: [10, 10, 100, 100] });
+  track.setFeature({ frame: 0 }, [{
+    type: 'Feature', properties: { key: '' }, geometry: { type: 'Polygon', coordinates: [[[10, 10], [50, 10], [50, 50], [10, 10]]] },
+  }]);
+  expect(detectionTransferJob(track, 0, 'left')).toMatchObject({ type: 'polygon' });
+  track.setFeature({ frame: 0 }, headTailFeatures([[30, 50], [90, 60]]));
+  expect(detectionTransferJob(track, 0, 'left')).toMatchObject({ type: 'line', line: [[30, 50], [90, 60]] });
+  expect(detectionTransferJob(track, 5, 'left')).toBeNull();
+  expect(unmappedPoints(track, makeTrack(), 0).map((p) => p.key)).toEqual(['head', 'tail']);
 });
 it('preserves a manually edited target point', async () => {
   const h = harness();

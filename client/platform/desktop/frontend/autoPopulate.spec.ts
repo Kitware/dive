@@ -20,6 +20,14 @@ function harness() {
   return { track, services, run };
 }
 
+it('prompts a drawn box with the box itself, not a point in it', async () => {
+  const h = harness();
+  await h.run();
+  expect(h.services.predict).toHaveBeenCalledWith(expect.objectContaining({
+    box: [0, 0, 10, 10], points: [], pointLabels: [], multimaskOutput: false,
+  }));
+});
+
 it('reports an empty mask instead of silently completing', async () => {
   const h = harness();
   h.services.predict.mockResolvedValue({ success: true, polygon: [] });

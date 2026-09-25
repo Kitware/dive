@@ -256,15 +256,29 @@ export default function useModeManager({
     return false;
   }
 
+  // The right mousedown that selects a detection for point segmentation is
+  // followed on Windows by its contextmenu only after mouseup, once edit mode
+  // has begun. That contextmenu must not finalize the fresh edit, while a
+  // later right-click with no points placed still does, so remember which
+  // press entered edit mode.
+  let mouseDownCount = 0;
+  let editEnteredOnMouseDown = -1;
+  const countMouseDown = () => { mouseDownCount += 1; };
+  if (typeof document !== 'undefined') document.addEventListener('mousedown', countMouseDown, true);
+
   function selectTrack(trackId: AnnotationId | null, edit = false) {
     // Reset segmentation recipe state when switching to a different track
-    // so stale points/mask from the previous detection don't interfere
+    // so stale points/mask from the previous detection don't interfere. This
+    // is not a user reset (see handleConfirmRecipe).
     if (trackId !== selectedTrackId.value) {
       recipes.forEach((r) => {
         if (r instanceof SegmentationPointClick && r.active.value) {
-          r.resetPoints();
+          r.resetPoints(false);
         }
       });
+    }
+    if (trackId !== null && edit && (trackId !== selectedTrackId.value || !editingTrack.value)) {
+      editEnteredOnMouseDown = mouseDownCount;
     }
     // Clean up empty tracks when leaving edit mode (e.g., created a detection
     // but never drew an annotation, then clicked away or right-clicked to deselect)
@@ -1001,9 +1015,11 @@ export default function useModeManager({
 
           mirrorFeatureToAlignedCameras(track.id, frameNum);
 
-          // Emit persisted named points, including a head placed before its tail.
-          // Completed lines use their existing whole-line transfer event instead.
+          // Emit persisted named points. Completed lines use their existing
+          // whole-line transfer event instead, and the first end of a line still
+          // being drawn waits for it: mapping it mid-draw interrupts the draw.
           if (onStereoAnnotationComplete && stereoInteractiveActive()
+              && update.done.every((v) => v !== false)
               && !(data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2)) {
             Object.entries(update.geoJsonFeatureRecord).forEach(([pointKey, geoms]) => {
               geoms.forEach((geom) => {
@@ -1311,6 +1327,19 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Entering polygon editing without naming a polygon: land on one the
+   * detection already has (masks are often keyed, e.g. SegmentationPolygon)
+   * so its vertices are editable at once rather than starting a new polygon.
+   */
+  function existingPolygonKey(): string {
+    if (selectedTrackId.value === null) return '';
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    const keys = track?.getPolygonFeatures(selectedCameraFrame()).map((p) => p.key) ?? [];
+    if (!keys.length || keys.includes('')) return '';
+    return keys.includes(selectedKey.value) ? selectedKey.value : keys[0];
+  }
+
   function handleSetAnnotationState({
     visible, editing, key, recipeName,
   }: SetAnnotationStateArgs) {
@@ -1319,7 +1348,7 @@ export default function useModeManager({
     }
     if (editing) {
       annotationModes.editing = editing;
-      _selectKey(key);
+      _selectKey(editing === 'Polygon' && !key ? existingPolygonKey() : key);
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
         if (recipeName !== r.name) {
@@ -1334,12 +1363,10 @@ export default function useModeManager({
    * Called when right-click is used in Point mode to lock the annotation.
    */
   function handleConfirmRecipe() {
-    // First check if any active segmentation recipe has a pending prediction
-    // or was explicitly reset by the user (Escape key).
-    // If neither, there's nothing to confirm - this happens when the contextmenu
-    // event from a right-click that entered Point edit mode triggers
-    // confirm-annotation before any points are placed. In that case, don't
-    // confirm/deactivate recipes or deselect - let the edit mode continue.
+    // A pending prediction is committed; with nothing placed (or after an
+    // Escape reset) the right-click just finalizes the detection, leaving
+    // edit mode. Neither applies to the contextmenu of the very press that
+    // entered edit mode, which Windows delivers after mouseup.
     let hadPendingPredictionOrReset = false;
     recipes.forEach((r) => {
       if (r.active.value && r.confirm && r instanceof SegmentationPointClick) {
@@ -1349,7 +1376,10 @@ export default function useModeManager({
       }
     });
     if (!hadPendingPredictionOrReset) {
-      return;
+      if (selectedTrackId.value === null || !editingTrack.value
+          || mouseDownCount === editEnteredOnMouseDown) {
+        return;
+      }
     }
     const activeSegRecipes: SegmentationPointClick[] = [];
     recipes.forEach((r) => {
@@ -1363,10 +1393,17 @@ export default function useModeManager({
     // Clear saved state - the confirmed polygons are now permanent
     preSegmentationFeatures.clear();
     onStereoSegmentationFinalize?.();
-    // Exit editing mode and deselect to unhighlight the track
-    selectTrack(null, false);
-    // Re-activate segmentation recipe so it's ready for the next detection
+    // Re-arm the recipe for the next detection first: activating it
+    // re-selects the current track in edit mode (handleSetAnnotationState).
     activeSegRecipes.forEach((r) => r.activate());
+    // Then leave edit mode with the detection still selected, as the other
+    // annotation types do; one with nothing drawn is removed instead.
+    const confirmedId = selectedTrackId.value;
+    if (confirmedId !== null && _removeIfEmpty(confirmedId)) {
+      selectTrack(null, false);
+    } else {
+      selectTrack(confirmedId, false);
+    }
   }
 
   /**
@@ -1510,6 +1547,19 @@ export default function useModeManager({
     existingPolygonKeys?: Set<string>;
   }>();
 
+  /**
+   * A mask is the detection's whole shape on that frame, so polygons from
+   * elsewhere (a text query, an import, a drawn one) go with it; a reset
+   * restores them.
+   */
+  function dropOtherPolygons(track: Track, frameNum: number) {
+    track.getPolygonFeatures(frameNum).forEach((existing) => {
+      if (existing.key !== SegmentationPolygonKey) {
+        track.removeFeatureGeometry(frameNum, { key: existing.key, type: 'Polygon' });
+      }
+    });
+  }
+
   function removeStereoLineGeometry(track: Track, frameNum: number) {
     track.removeFeatureGeometry(frameNum, { type: 'LineString', key: '' });
     track.removeFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
@@ -1636,6 +1686,7 @@ export default function useModeManager({
         }
       }
 
+      dropOtherPolygons(track, targetFrame);
       applySegmentationPolygons(track, targetFrame, components, result.bounds);
 
       mirrorFeatureToAlignedCameras(track.id, targetFrame);
@@ -1684,7 +1735,9 @@ export default function useModeManager({
    * This is called when the user confirms the segmentation (right-click or Enter).
    */
   function handleSegmentationPredictionConfirmed(result: SegmentationPredictionResult) {
-    handleSegmentationPredictionReady(result);
+    // Each click already ran the stereo copy and auto-populate for this mask;
+    // confirming only commits it.
+    handleSegmentationPredictionReady({ ...result, controlPoints: undefined });
   }
 
   /** Click-path variant: a fresh point click that should honor continuous mode. */
@@ -1710,6 +1763,7 @@ export default function useModeManager({
     result.frames.forEach((frameResult, frameNum) => {
       const components = segmentationComponents(frameResult);
       if (components.length > 0) {
+        dropOtherPolygons(track, frameNum);
         applySegmentationPolygons(track, frameNum, components, frameResult.bounds);
 
         mirrorFeatureToAlignedCameras(track.id, frameNum);
@@ -1844,6 +1898,19 @@ export default function useModeManager({
     }
   }
 
+  /** Drop tool previews without replaying segmentation reset over restored data. */
+  function prepareAnnotationUndo() {
+    preSegmentationFeatures.clear();
+    if (selectedTrackId.value !== null) _removeIfEmpty(selectedTrackId.value);
+    selectedTrackId.value = null;
+    recipes.forEach((recipe) => {
+      if (recipe instanceof SegmentationPointClick) recipe.resetPoints();
+    });
+    handleCancelCreation();
+    handleEscapeMode();
+    onStereoSegmentationFinalize?.();
+  }
+
   /**
    * Register a callback to finalize in-progress creation shapes.
    * Called by LayerManager to connect the edit layer's finalize method.
@@ -1869,6 +1936,7 @@ export default function useModeManager({
 
   /* Unsubscribe before unmount */
   onBeforeUnmount(() => {
+    if (typeof document !== 'undefined') document.removeEventListener('mousedown', countMouseDown, true);
     recipes.forEach((r) => r.bus.$off('activate', handleSetAnnotationState));
     recipes.forEach((r) => {
       if (r instanceof SegmentationPointClick) {
@@ -1910,6 +1978,7 @@ export default function useModeManager({
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,
+      prepareAnnotationUndo,
       trackEdit: handleTrackEdit,
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,

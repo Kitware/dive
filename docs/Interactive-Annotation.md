@@ -52,6 +52,19 @@ While in Point (segmentation) mode, click ==Reset Points :material-undo:== in th
 
 In **Detection** mode with **Continuous** enabled, each foreground click can start a new detection. Background clicks do not spawn new detections.
 
+### Auto-populate from a new box or line
+
+Instead of (or in addition to) point-click Segment mode, you can have DIVE segment each **newly drawn** box or head/tail line automatically. Open the ==:material-cog:== [creation settings](UI-Track-List.md) menu and enable either toggle (Desktop only; both need the interactive segmentation service):
+
+| Setting | Behavior |
+|---------|----------|
+| **Auto-populate mask** | After you draw a new box or head/tail line, DIVE runs the segmentation model and stores the resulting polygon(s) on the detection. A box is sent as the prompt and the mask is confined to it; a line is prompted with points along the line. |
+| **Auto-populate points** | After a new box (or a confirmed point-click mask on a brand-new detection), DIVE derives head/tail keypoints from the segmentation the way VIAME keypoint pipelines do. After a new line, it tightens the bounding box to the mask. |
+
+Manual edits made while auto-populate is still running are kept; DIVE does not overwrite geometry you changed. Failures are reported in the UI; a successful mask is kept even if head/tail extraction fails.
+
+With [interactive stereo](#interactive-stereo) **Auto-compute location on other camera** enabled, the stereo-mapped copy of a new box or line gets the same auto-populate pass once the transfer succeeds. When auto-populate mask is on, a new box is preferably mapped through its mask rather than by warping box corners alone.
+
 ### Stereo datasets
 
 On stereo datasets, confirming a segmentation on one camera can warp the resulting polygon to the paired camera when [interactive stereo](#interactive-stereo) auto-compute is enabled.
