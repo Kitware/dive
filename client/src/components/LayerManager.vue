@@ -636,9 +636,10 @@ export default defineComponent({
           ...trackFrame,
           features: featureToDisplay(trackFrame.features),
         })));
-      } else if (boxEditLayer.getMode() !== 'disabled') {
-        // Skip no-op disables: mode(null) on an already-idle companion clears
-        // the primary layer's creation actions from the shared interactor.
+      } else {
+        // GeoJS can end editing before this refresh and leave the completed
+        // box behind in disabled mode; disable() clears it without touching
+        // the shared interactor when the mode is already off.
         boxEditLayer.disable();
       }
       editAnnotationLayer.restoreHandleActions();
