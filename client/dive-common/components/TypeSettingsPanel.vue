@@ -67,6 +67,8 @@ export default defineComponent({
       v-model="active"
       :nudge-bottom="28"
       :close-on-content-click="false"
+      min-width="380"
+      max-width="calc(100vw - 24px)"
     >
       <template #activator="{ on, attrs }">
         <v-btn
@@ -102,7 +104,7 @@ export default defineComponent({
                 outlined
                 hide-details
                 :disabled="readOnlyMode"
-                @click="importDialog = true"
+                @click="active = false; importDialog = true"
               >
                 <v-icon small>
                   mdi-plus

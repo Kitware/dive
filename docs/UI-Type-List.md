@@ -145,3 +145,13 @@ Use **Type Settings → Types** to import COCO JSON or VIAME `.txt`, `.csv`, and
 `.json` category files, including parent relationships. The **WoRMS** tab searches
 marine scientific names and imports selected taxa with optional taxonomic parents. See
 [Importing object types](Import-Categories.md) for formats and examples.
+
+### Remembered hierarchy view
+
+The type list remembers **Expand Parents / Compact Parents** and each collapsed
+branch per sequence. Returning from Review or another page, changing between
+sidebar and bottom layouts, and reopening the application restores that view
+before the list renders. Reloading hierarchy metadata does not reset expansion.
+Other sequences keep their own view; category definitions, checked types, and
+confidence thresholds are unchanged. Preferences are saved locally for the most
+recent 100 sequences, with an in-memory fallback if browser storage is unavailable.

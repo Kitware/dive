@@ -2,6 +2,7 @@ import {
   defineComponent, h, ref, nextTick,
 } from 'vue';
 import { shallowMount } from '@vue/test-utils';
+import { clientSettings } from 'dive-common/store/settings';
 import CategoryImportDialog from './CategoryImportDialog.vue';
 
 const mocks = vi.hoisted(() => ({ apply: vi.fn(), readOnly: false }));
@@ -35,6 +36,8 @@ describe('category import dialog shared by web and desktop', () => {
   beforeEach(() => {
     mocks.apply.mockReset();
     mocks.readOnly = false;
+    clientSettings.typeSettings.showEmptyTypes = false;
+    clientSettings.typeSettings.filterTypesByFrame = true;
   });
 
   it('previews file hierarchy and applies it only on Add', async () => {
@@ -49,7 +52,7 @@ describe('category import dialog shared by web and desktop', () => {
     wrapper.destroy();
   });
 
-  it('switches to WoRMS imports and passes source records to the atomic import', async () => {
+  it('stages WoRMS on the file page without applying until the second Add', async () => {
     const { vm, wrapper } = mountDialog();
     vm.source = 'worms';
     await nextTick();
@@ -57,14 +60,56 @@ describe('category import dialog shared by web and desktop', () => {
     vm.setWormsImport({
       types: ['shark'], typeHierarchy: { shark: 'fish' }, taxonomySources, warnings: [],
     });
+    expect(vm.source).toBe('file');
+    expect(vm.pastedTypes).toBe('shark');
+    expect(mocks.apply).not.toHaveBeenCalled();
+    expect(clientSettings.typeSettings.showEmptyTypes).toBe(false);
+    await nextTick();
     expect(vm.canImport).toBe(true);
+    expect(wrapper.text()).toContain('fish → shark');
+    expect(wrapper.text()).not.toContain('shark → fish');
     vm.confirmImport();
     expect(mocks.apply).toHaveBeenCalledWith(['shark'], { shark: 'fish' }, taxonomySources);
+    expect(clientSettings.typeSettings.showEmptyTypes).toBe(true);
+    expect(clientSettings.typeSettings.filterTypesByFrame).toBe(false);
     vm.source = 'file';
     await nextTick();
     vm.source = 'worms';
     await nextTick();
     expect(vm.canImport).toBe(false);
+    wrapper.destroy();
+  });
+
+  it('merges staged WoRMS taxa with a pending file and survives tab changes', async () => {
+    const { vm, wrapper } = mountDialog();
+    await vm.selectFile(file('categories.json', '{"typeHierarchy":{"salmon":"fish"}}'));
+    vm.source = 'worms';
+    await nextTick();
+    vm.setWormsImport({ types: ['shark'], typeHierarchy: { shark: 'fish' }, warnings: [] });
+    await nextTick();
+    expect(vm.preview.incoming?.typeHierarchy).toEqual({ salmon: 'fish', shark: 'fish' });
+    expect(vm.preview.names).toEqual(expect.arrayContaining(['salmon', 'fish', 'shark']));
+    vm.source = 'worms';
+    await nextTick();
+    expect(vm.canImport).toBe(false);
+    vm.source = 'file';
+    await nextTick();
+    expect(vm.canImport).toBe(true);
+    expect(vm.preview.incoming?.typeHierarchy).toEqual({ salmon: 'fish', shark: 'fish' });
+    expect(mocks.apply).not.toHaveBeenCalled();
+    wrapper.destroy();
+  });
+
+  it('does not replace pending categories when a WoRMS hierarchy conflicts', async () => {
+    const { vm, wrapper } = mountDialog();
+    await vm.selectFile(file('categories.json', '{"typeHierarchy":{"shark":"fish"}}'));
+    vm.source = 'worms';
+    await nextTick();
+    vm.setWormsImport({ types: ['shark'], typeHierarchy: { shark: 'other' }, warnings: [] });
+    expect(vm.errorMessage).toContain('conflicting parents');
+    expect(vm.source).toBe('worms');
+    expect(vm.preview.incoming?.typeHierarchy).toEqual({ shark: 'fish' });
+    expect(mocks.apply).not.toHaveBeenCalled();
     wrapper.destroy();
   });
 

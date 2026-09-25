@@ -9,7 +9,9 @@ import {
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { compileHierarchy } from 'dive-common/typeHierarchy';
+import { typeListViewStore } from '../typeListViewState';
 import {
   useCameraStore, useDatasetId, useHandler, useReadOnlyMode, useTime,
   usePendingSaveCount,
@@ -143,20 +145,29 @@ export default defineComponent({
     const typeStylingRef = props.styleManager.typeStyling;
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const confidenceFiltersRef = trackFilters.confidenceFilters;
-    const collapsedTypes: Ref<Set<string>> = ref(new Set<string>());
-    const compactSharedLineage = ref(true);
+    const viewKey = computed(() => (datasetId.value
+      ? JSON.stringify([parentDatasetId(datasetId.value), props.group ? 'groups' : 'tracks']) : ''));
+    const initialView = typeListViewStore.read(viewKey.value);
+    const collapsedTypes: Ref<Set<string>> = ref(new Set(initialView.collapsed));
+    const compactSharedLineage = ref(initialView.compact);
+    function saveView() {
+      typeListViewStore.write(viewKey.value, {
+        compact: compactSharedLineage.value, collapsed: [...collapsedTypes.value],
+      });
+    }
+    // Restore before a render, including when the dataset ID arrives before its
+    // hierarchy. Metadata hydration must not reset the user's presentation.
+    watch(viewKey, (key) => {
+      const saved = typeListViewStore.read(key);
+      collapsedTypes.value = new Set(saved.collapsed);
+      compactSharedLineage.value = saved.compact;
+    }, { flush: 'sync' });
     const hierarchyIndexRef = computed(() => (
       !props.group && trackFilters instanceof TrackFilterControls
         ? trackFilters.hierarchyIndex.value
         : undefined
     ));
     const hierarchyActive = computed(() => hierarchyIndexRef.value !== undefined);
-    if (trackFilters instanceof TrackFilterControls) {
-      watch(trackFilters.typeHierarchy, () => {
-        collapsedTypes.value = new Set<string>();
-        compactSharedLineage.value = true;
-      });
-    }
     watch(datasetId, () => {
       data.showPicker = false;
       data.selectedType = '';
@@ -457,10 +468,12 @@ export default defineComponent({
         next.add(type);
       }
       collapsedTypes.value = next;
+      saveView();
     }
 
     function toggleSharedLineage() {
       compactSharedLineage.value = !compactSharedLineage.value;
+      saveView();
     }
 
     const showSharedLineageControl = computed(() => (
@@ -778,6 +791,12 @@ $row-height: 30px;
 .type-list-root {
   min-height: 0;
   overflow: hidden;
+}
+
+.type-list-root > .container,
+.type-list-root > .input-box,
+.type-list-root > .shared-lineage {
+  flex-shrink: 0;
 }
 
 .type-list-viewport {
