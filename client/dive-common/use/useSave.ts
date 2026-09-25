@@ -98,7 +98,7 @@ export default function useSave(
         const cameraMeta = saveId === datasetId.value
           ? datasetMeta
           : Object.fromEntries(
-            Object.entries(datasetMeta).filter(([key]) => key !== 'typeHierarchy'),
+            Object.entries(datasetMeta).filter(([key]) => key !== 'typeHierarchy' && key !== 'taxonomySources'),
           );
         if (saveId === datasetId.value) {
           canonicalConfigScheduled = true;

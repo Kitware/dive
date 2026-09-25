@@ -191,7 +191,6 @@ export default defineComponent({
               <TypeSettingsPanel
                 :all-types="trackFilters.allTypes.value"
                 :hierarchy-active="trackFilters.hierarchyActive.value"
-                @import-types="trackFilters.importTypes($event)"
               />
             </template>
           </FilterList>

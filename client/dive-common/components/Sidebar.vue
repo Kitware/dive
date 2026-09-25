@@ -196,7 +196,6 @@ export default defineComponent({
               <TypeSettingsPanel
                 :all-types="allTypesRef"
                 :hierarchy-active="hierarchyActive"
-                @import-types="$emit('import-types', $event)"
               />
             </template>
             <template #header-trailing>
@@ -399,7 +398,6 @@ export default defineComponent({
           <TypeSettingsPanel
             :all-types="allTypesRef"
             :hierarchy-active="hierarchyActive"
-            @import-types="$emit('import-types', $event)"
           />
         </template>
         <template #header-trailing>

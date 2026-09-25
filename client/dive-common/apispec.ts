@@ -21,6 +21,7 @@ import type {
   ScoringResultSummary,
   ScoringSourceOptions,
 } from 'dive-common/scoring/types';
+import type { TaxonomySources } from './worms';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -304,6 +305,7 @@ type DatasetInfoFields = Record<string, unknown>;
  * The parts of dataset config a user should be able to modify.
  */
 interface DatasetConfigMutable {
+  taxonomySources?: TaxonomySources;
   typeHierarchy?: Record<string, string> | null;
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
@@ -332,7 +334,7 @@ interface DatasetConfigMutable {
   cameraRoles?: Record<string, CameraRole>;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).

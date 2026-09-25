@@ -1083,3 +1083,19 @@ def test_get_multicam_camera_name_returns_matching_camera():
     assert crud.get_multicam_camera_name({'_id': 'left-id'}, parent) == 'left'
     assert crud.get_multicam_camera_name({'_id': 'right-id'}, parent) == 'right'
     assert crud.get_multicam_camera_name({'_id': 'other-id'}, parent) is None
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_preserves_worms_provenance(_verify, folder_cls, crud_folder_cls):
+    folder = {'_id': 'dataset-id', 'meta': {'annotate': True, 'type': 'video'}}
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+    sources = {'126175': {'aphiaId': 126175, 'scientificName': 'Sebastes', 'rank': 'Genus'}}
+    crud_dataset.update_metadata(folder, {'taxonomySources': sources})
+    assert folder['meta']['taxonomySources'] == sources
+    crud_dataset.update_metadata(folder, {'confidenceFilters': {'default': 0.5}})
+    assert folder['meta']['taxonomySources'] == sources
+    validated = models.MetadataMutable(**folder['meta'])
+    assert validated.dict(exclude_none=True)['taxonomySources'] == sources

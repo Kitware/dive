@@ -1,3 +1,4 @@
+import type { TaxonomySources } from 'dive-common/worms';
 import { computed, Ref, ref } from 'vue';
 import { cloneDeep, isEqual } from 'lodash';
 import { clientSettings } from 'dive-common/store/settings';
@@ -6,6 +7,7 @@ import {
   normalizeTypeHierarchy,
   removeHierarchyType,
   resolveConfidenceThreshold,
+  resolveTypeHierarchy,
   rewriteHierarchyType,
   selectFlatPairIndex,
   selectPairIndex,
@@ -75,6 +77,10 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
   attributeFilters: Ref<AttributeTrackFilter[]>;
 
   enabledFilters: Ref<boolean[]>;
+
+  taxonomySources = ref<TaxonomySources>({});
+
+  private taxonomyDirty = false;
 
   typeHierarchy: Ref<TypeHierarchy | undefined>;
 
@@ -304,6 +310,32 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     this.checkedTypes.value = checked;
 
     this.hierarchyDirty = dirty;
+  }
+
+  /** Validate the entire additive import before changing types or hierarchy. */
+  importCategoryDefinitions(types: string[], hierarchy?: TypeHierarchy, sources?: TaxonomySources) {
+    const resolved = resolveTypeHierarchy(this.typeHierarchy.value ?? null, true, hierarchy ?? {}, 'additive');
+    if (resolved.action === 'set' && !isEqual(resolved.hierarchy, this.typeHierarchy.value)) {
+      this.installTypeHierarchy(resolved.hierarchy, true);
+    }
+    if (sources && Object.keys(sources).length) {
+      this.taxonomySources.value = { ...this.taxonomySources.value, ...sources };
+      this.taxonomyDirty = true;
+    }
+    this.importTypes(types);
+  }
+
+  setTaxonomySources(sources?: TaxonomySources) {
+    this.taxonomySources.value = sources ?? {};
+    this.taxonomyDirty = false;
+  }
+
+  taxonomySavePatch(): { taxonomySources?: TaxonomySources } {
+    return this.taxonomyDirty ? { taxonomySources: { ...this.taxonomySources.value } } : {};
+  }
+
+  markTaxonomyPersisted(patch: { taxonomySources?: TaxonomySources }) {
+    if (isEqual(patch, this.taxonomySavePatch())) this.taxonomyDirty = false;
   }
 
   /** Install hierarchy state loaded from a dataset or a successful config replacement. */
