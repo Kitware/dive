@@ -77,6 +77,7 @@ import processTrackAttributes from './attributeProcessor';
 import { upgrade } from './migrations';
 // TODO:  Check to Refactor this
 import { getMultiCamUrls, transcodeMultiCam } from './multiCamUtils';
+import { extractModelPackTo } from './modelPack';
 import {
   loadRegistrationFiles, referenceCameraName, saveRegistrationToDatasetDir,
 } from './cameraRegistration';
@@ -1901,13 +1902,45 @@ async function ingestDataFiles(
     processedFiles, annotationsSaved, meta, warnings: outwarnings, speciesStyling,
   };
 }
+const TrainedModelPackName = 'trained_model.zip';
+// Newest first; the legacy name is what releases before the pack wrote
+const TrainedModelFolderNames = ['trained_model', 'category_models'];
+
+async function findTrainedModelDir(workingDir: string): Promise<string | undefined> {
+  const candidates = TrainedModelFolderNames.map((name) => npath.join(workingDir, name));
+  const present = await Promise.all(candidates.map((candidate) => fs.pathExists(candidate)));
+  return candidates.find((_, index) => present[index]);
+}
+
 /**
  * Need to take the trained pipeline if it exists and place it in the DIVE_Pipelines folder
  */
 async function processTrainedPipeline(settings: Settings, args: RunTraining, workingDir: string) {
-  //Look for trained_detector.zip and detector.pipe and move them to DIVE_Pipelines folder
   const allowedPatterns = /^detector.+|^tracker.+|^generate.+/;
-  const trainedDir = npath.join(workingDir, '/category_models');
+  const baseFolder = npath.join(settings.dataPath, PipelinesFolderName);
+  if (!fs.existsSync(baseFolder)) {
+    await fs.mkdir(baseFolder);
+  }
+  const folderName = npath.join(baseFolder, args.pipelineName);
+  if (!fs.existsSync(folderName)) {
+    await fs.mkdir(folderName);
+  }
+
+  // Current VIAME packs the whole output into one zip
+  const pack = npath.join(workingDir, TrainedModelPackName);
+  if (await fs.pathExists(pack)) {
+    await extractModelPackTo(pack, folderName);
+    const packContents = await fs.readdir(folderName);
+    if (!packContents.some((p) => p.match(allowedPatterns))) {
+      throw new Error(`Could not located trained pipe file inside of ${pack}`);
+    }
+    await fs.remove(pack);
+    return packContents;
+  }
+
+  // An unpacked folder: SVM trainers keep one, as did older VIAME releases
+  const trainedDir = await findTrainedModelDir(workingDir)
+    ?? npath.join(workingDir, TrainedModelFolderNames[0]);
   const exists = await fs.pathExists(trainedDir);
   if (!exists) {
     throw new Error(`Path: ${trainedDir} does not exist`);
@@ -1917,15 +1950,6 @@ async function processTrainedPipeline(settings: Settings, args: RunTraining, wor
 
   if (!pipes.length) {
     throw new Error(`Could not located trained pipe file inside of ${trainedDir}`);
-  }
-  const baseFolder = npath.join(settings.dataPath, PipelinesFolderName);
-  if (!fs.existsSync(baseFolder)) {
-    await fs.mkdir(baseFolder);
-  }
-
-  const folderName = npath.join(baseFolder, args.pipelineName);
-  if (!fs.existsSync(folderName)) {
-    await fs.mkdir(folderName);
   }
   //Move detector and model to the new folder
   await Promise.all(folderContents.map(async (item) => {
@@ -1974,10 +1998,10 @@ async function findResumableTrainingJobs(settings: Settings): Promise<DesktopJob
       const required = ['deep_training', 'input_folder_list.txt', 'input_truth_list.txt'];
       if (!required.every((f) => fs.existsSync(npath.join(workingDir, f)))) return;
       // Manifests predating final-status recording never carry an end time; a
-      // successful run's models were moved out of category_models, leaving it empty
+      // successful run's models were moved out of the model folder, leaving it empty
       if (manifest.endTime === undefined) {
-        const modelsDir = npath.join(workingDir, 'category_models');
-        if (fs.existsSync(modelsDir) && (await fs.readdir(modelsDir)).length === 0) return;
+        const modelsDir = await findTrainedModelDir(workingDir);
+        if (modelsDir && (await fs.readdir(modelsDir)).length === 0) return;
       }
       // The jobs folder may have been relocated since the manifest was written
       results.push({ ...manifest, workingDir });

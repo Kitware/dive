@@ -29,6 +29,8 @@ Results can be turned into annotations without leaving the page: accepted result
 
 **Text.** Type what to find. Sampled frames of every listed dataset (every N frames, up to a per-dataset cap) are searched with the SAM3 text model, which must be installed as a VIAME add-on. Hits show in the grid with their label and score. Each hit offers **Search the index for objects like this one**, which turns it into an image query, and **Open in the annotation viewer**.
 
+The results toolbar can switch from the grid to a **3D view** (the cube button; off by default) that places the top results around the query in descriptor space: the query exemplar sits at the center, each result hangs off it on a line, and results with similar descriptors cluster together, with the more similar ones closer to the center. Positions are the results' descriptor offsets from the query projected onto the three principal axes of the shown set. Choose how many top results to place, drag to orbit, use the wheel to zoom, click a result to mark it correct or incorrect, and double click to open it.
+
 Double clicking any result opens its dataset in the viewer at that frame. Coming back to Query afterwards resumes the page as it was left: the exemplar, the results and their marks, unsaved annotation edits, and the grid page, so adjudication carries on where it stopped.
 
 Index builds appear in **Jobs** while preparing and running, with their dataset, indexing method, live stdout/stderr, and final result. Expand the job's output to diagnose failures; the process log is also saved as `runlog.txt` in its working directory. Builds waiting for the GPU appear under **Queued Jobs** as indexing jobs. Startup failures remain in job history.

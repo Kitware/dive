@@ -11,12 +11,12 @@
 import { reactive, provide, inject } from 'vue';
 import type {
   VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchIndexInfo,
-  VideoSearchResult, VideoSearchQueryResponse,
+  VideoSearchResult, VideoSearchQueryResponse, VideoSearchLayoutResponse,
 } from 'dive-common/apispec';
 import {
   videoSearchInstalled, videoSearchIndexStatus, videoSearchBuildIndex,
   videoSearchRemoveIndex, videoSearchOpenIndex,
-  videoSearchFormulate, videoSearchQuery, videoSearchRefine,
+  videoSearchFormulate, videoSearchQuery, videoSearchRefine, videoSearchLayout,
   videoSearchExportModel, videoSearchClose, videoSearchExtractFrame,
   loadConfig,
 } from 'platform/desktop/frontend/api';
@@ -317,6 +317,15 @@ export function createVideoSearch(
     });
   }
 
+  /**
+   * Positions of the given results in descriptor space around the query.
+   * Read-only on the service, so it neither takes nor waits for the busy
+   * flag (the service answers requests in order anyway).
+   */
+  async function layoutResults(refs: string[]): Promise<VideoSearchLayoutResponse> {
+    return videoSearchLayout(refs);
+  }
+
   async function saveModel(name: string): Promise<string | undefined> {
     return guarded('Saving model...', async () => {
       const { outputDir } = await videoSearchExportModel(name);
@@ -354,6 +363,7 @@ export function createVideoSearch(
     resultDatasetName,
     mark,
     refine,
+    layoutResults,
     saveModel,
     closeSession,
   };
