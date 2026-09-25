@@ -8,6 +8,7 @@ import {
 
 export default defineComponent({
   name: 'WormsImport',
+  props: { disabled: { type: Boolean, default: false } },
   setup(props, { emit }) {
     const client = new WormsClient();
     const query = ref('');
@@ -87,7 +88,7 @@ export default defineComponent({
       selected.value = [];
     }
     async function prepare() {
-      if (!selected.value.length) return;
+      if (props.disabled || !selected.value.length) return;
       cancel();
       invalidate();
       const requestVersion = version;
@@ -224,8 +225,8 @@ export default defineComponent({
       <span v-if="selected.length > 100">Showing the first 100 selected taxa.</span>
     </div>
     <v-checkbox v-model="includeParents" :disabled="busy" label="Include taxonomic parent categories" @change="invalidate" />
-    <v-btn small color="primary" :disabled="busy || !selected.length" @click="prepare">
-      Prepare import preview
+    <v-btn small color="primary" :disabled="disabled || busy || !selected.length" @click="prepare">
+      Add
     </v-btn>
     <p class="mt-3 text-caption">
       Names and classifications supplied by <a href="https://www.marinespecies.org" target="_blank" rel="noopener noreferrer">WoRMS</a>. Internet access is required. Synonyms are imported using their accepted scientific names.

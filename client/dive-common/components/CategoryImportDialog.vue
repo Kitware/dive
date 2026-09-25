@@ -3,6 +3,7 @@ import {
   computed, defineComponent, onBeforeUnmount, ref, watch,
 } from 'vue';
 import { useReadOnlyMode, useTrackFilters } from 'vue-media-annotator/provides';
+import { clientSettings } from 'dive-common/store/settings';
 import { CategoryImport, parseCategoryFile } from '../categoryImport';
 import WormsImport from './WormsImport.vue';
 import { resolveTypeHierarchy } from '../typeHierarchy';
@@ -23,11 +24,31 @@ export default defineComponent({
     const applyError = ref('');
     watch(source, () => {
       applyError.value = '';
-      wormsImport.value = null;
     });
     function setWormsImport(incoming: CategoryImport | null) {
-      wormsImport.value = incoming;
-      applyError.value = '';
+      if (!incoming || readOnlyMode.value) return;
+      try {
+        const current = preview.value.incoming;
+        const resolved = resolveTypeHierarchy(current?.typeHierarchy ?? null, true, incoming.typeHierarchy ?? {}, 'additive');
+        const staged: CategoryImport = {
+          types: [...new Set([...(current?.types ?? []), ...incoming.types])],
+          typeHierarchy: resolved.action === 'set' ? resolved.hierarchy : current?.typeHierarchy,
+          taxonomySources: { ...current?.taxonomySources, ...incoming.taxonomySources },
+          warnings: [...new Set([...(current?.warnings ?? []), ...incoming.warnings])],
+        };
+        // Staging does not change the dataset. Only Add on the shared page does.
+        readVersion += 1;
+        loading.value = false;
+        file.value = null;
+        parsedFile.value = null;
+        fileError.value = '';
+        wormsImport.value = staged;
+        pastedTypes.value = staged.types.join('\n');
+        applyError.value = '';
+        source.value = 'file';
+      } catch (error) {
+        applyError.value = error instanceof Error ? error.message : 'Unable to stage WoRMS types.';
+      }
     }
     watch(pastedTypes, () => { applyError.value = ''; });
     let readVersion = 0;
@@ -36,6 +57,7 @@ export default defineComponent({
     async function selectFile(selected: File | null) {
       readVersion += 1;
       const version = readVersion;
+      wormsImport.value = null;
       file.value = selected;
       parsedFile.value = null;
       fileError.value = '';
@@ -60,7 +82,9 @@ export default defineComponent({
         types: [...new Set(pastedTypes.value.split(/\r?\n/).map((name) => name.trim()).filter(Boolean))],
         warnings: [],
       };
-      if (source.value === 'worms') incoming = wormsImport.value;
+      if (!file.value && wormsImport.value) {
+        incoming = { ...wormsImport.value, types: incoming?.types ?? [] };
+      }
       if (!incoming) {
         return {
           incoming: null, names: [], edges: [], error: '',
@@ -80,7 +104,7 @@ export default defineComponent({
       }
     });
     const errorMessage = computed(() => (source.value === 'file' ? fileError.value : '') || preview.value.error || applyError.value);
-    const canImport = computed(() => !readOnlyMode.value && !(source.value === 'file' && loading.value)
+    const canImport = computed(() => source.value === 'file' && !readOnlyMode.value && !loading.value
       && !errorMessage.value && preview.value.names.length > 0);
 
     function confirmImport() {
@@ -88,6 +112,8 @@ export default defineComponent({
       try {
         const { types, typeHierarchy, taxonomySources } = preview.value.incoming;
         filters.importCategoryDefinitions(types, typeHierarchy, taxonomySources);
+        clientSettings.typeSettings.showEmptyTypes = true;
+        clientSettings.typeSettings.filterTypesByFrame = false;
         emit('close');
       } catch (error) {
         applyError.value = error instanceof Error ? error.message : 'Unable to import categories.';
@@ -95,6 +121,7 @@ export default defineComponent({
     }
     return {
       source,
+      readOnlyMode,
       wormsImport,
       setWormsImport,
       pastedTypes,
@@ -130,7 +157,7 @@ export default defineComponent({
           WoRMS
         </v-tab>
       </v-tabs>
-      <WormsImport v-if="source === 'worms'" @prepared="setWormsImport" />
+      <WormsImport v-if="source === 'worms'" :disabled="readOnlyMode" @prepared="setWormsImport" />
       <template v-if="source === 'file'">
         <p>Choose a COCO JSON or VIAME category file, or paste one type per line.</p>
         <v-file-input
@@ -145,14 +172,18 @@ export default defineComponent({
           v-if="!file"
           v-model="pastedTypes"
           label="One type per line"
+          :readonly="!!wormsImport"
           outlined
           rows="6"
         />
+        <v-btn v-if="wormsImport" small text @click="wormsImport = null; pastedTypes = ''">
+          Clear staged types
+        </v-btn>
       </template>
       <v-alert v-if="errorMessage" type="error" dense>
         {{ errorMessage }} No type changes were applied.
       </v-alert>
-      <template v-if="preview.incoming && preview.names.length">
+      <template v-if="source === 'file' && preview.incoming && preview.names.length">
         <p>{{ preview.names.length }} types; {{ preview.edges.length }} parent relationships.</p>
         <div class="category-preview mb-3">
           <div v-for="name in preview.names.slice(0, 100)" :key="name">
@@ -162,7 +193,7 @@ export default defineComponent({
             Showing the first 100 types.
           </div>
           <div v-for="[child, parent] in preview.edges.slice(0, 100)" :key="`${child}:${parent}`">
-            {{ child }} → {{ parent }} (parent)
+            {{ parent }} → {{ child }}
           </div>
           <div v-if="preview.edges.length > 100">
             Showing the first 100 relationships.
@@ -173,14 +204,14 @@ export default defineComponent({
         </v-alert>
       </template>
       <p>Types are added to the current dataset. Existing types and parent relationships are retained.</p>
-      <p>Enable “View Unused” in Type Settings to see types without annotations.</p>
+      <p>Imported types are shown even when they have no annotations.</p>
     </v-card-text>
     <v-card-actions>
       <v-spacer />
       <v-btn text @click="$emit('close')">
         Cancel
       </v-btn>
-      <v-btn color="primary" :disabled="!canImport" @click="confirmImport">
+      <v-btn v-if="source === 'file'" color="primary" :disabled="!canImport" @click="confirmImport">
         Add
       </v-btn>
     </v-card-actions>

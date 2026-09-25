@@ -1,5 +1,7 @@
 import type { TaxonomySources } from 'dive-common/worms';
-import { computed, Ref, ref } from 'vue';
+import {
+  computed, markRaw, Ref, ref,
+} from 'vue';
 import { cloneDeep, isEqual } from 'lodash';
 import { clientSettings } from 'dive-common/store/settings';
 import {
@@ -108,6 +110,9 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
 
   constructor(params: TrackFilterControlsParams) {
     super(params);
+    // This class owns refs and computeds. Observing the instance unwraps those
+    // refs and breaks hierarchy updates when passed through reactive panel props.
+    markRaw(this);
 
     this.getTracks = params.getTracks;
     this.renameTrackPair = params.renameTrackPair;

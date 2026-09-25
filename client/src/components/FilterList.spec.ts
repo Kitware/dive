@@ -84,11 +84,13 @@ function makeFilterListFixture({
   hierarchy = null,
   checkedTypes,
   confidenceFilters,
+  mutable = false,
 }: {
   tracks: Track[];
   hierarchy?: Record<string, string> | null;
   checkedTypes: string[];
   confidenceFilters?: Record<string, number>;
+  mutable?: boolean;
 }) {
   const cameraStore = new CameraStore({ markChangesPending: vi.fn() });
   const trackStore = cameraStore.camMap.value.get('singleCam')?.trackStore;
@@ -108,7 +110,7 @@ function makeFilterListFixture({
   filterControls.setConfidenceFilters(confidenceFilters);
   filterControls.updateCheckedTypes(checkedTypes);
   const updateCheckedTypes = vi.spyOn(filterControls, 'updateCheckedTypes');
-  Object.freeze(filterControls);
+  if (!mutable) Object.freeze(filterControls);
   const styleManager = Object.freeze({
     customStyles: ref({}),
     typeStyling: ref({
@@ -1051,4 +1053,23 @@ describe('FilterList hierarchy members', () => {
       '0 / 1\u00A0 sibling',
     ]);
   });
+});
+
+it('keeps the bottom list mounted when an imported hierarchy adds a shared lineage', async () => {
+  clientSettings.typeSettings.filterTypesByFrame = false;
+  const { filterControls, styleManager } = makeFilterListFixture({
+    tracks: [], checkedTypes: [], mutable: true,
+  });
+  const { wrapper, vm } = mountFilterList({
+    filterControls, styleManager, showEmptyTypes: true, height: 130, headerHeight: 50,
+  });
+  filterControls.importCategoryDefinitions(['Gadus morhua'], {
+    'Gadus morhua': 'Gadus', Gadus: 'Gadidae', Gadidae: 'Animalia', Animalia: 'Biota',
+  });
+  await nextTick();
+  expect(wrapper.find('.type-list-root').exists()).toBe(true);
+  expect(vm.sharedLineage).toEqual(['Biota', 'Animalia', 'Gadidae', 'Gadus']);
+  expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['Gadus morhua']);
+  expect(vm.virtualHeight).toBeGreaterThan(0);
+  wrapper.destroy();
 });
