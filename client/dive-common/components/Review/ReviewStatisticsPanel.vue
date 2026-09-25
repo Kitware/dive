@@ -66,6 +66,7 @@ export default defineComponent({
         <v-text-field v-model="search" label="Filter counts" clearable dense hide-details class="ml-4" />
       </div>
       <v-data-table
+        class="statistics-counts"
         :headers="headers"
         :items="table === 'categories' ? statistics.categories : statistics.attributes"
         :search="search || ''"
@@ -95,7 +96,7 @@ export default defineComponent({
               <v-btn text small class="timeline-name" :title="item.name" @click="$emit('open-dataset', review.parentOf(item.id))">
                 {{ item.name }}
               </v-btn>
-              <span class="text-caption ml-2">{{ item.count }} tracks · {{ item.cameraCount }} cameras · {{ dateLabel(item) }}</span>
+              <span class="text-caption ml-2">{{ item.count }} tracks · {{ item.cameraCount }} camera{{ item.cameraCount === 1 ? '' : 's' }} · {{ dateLabel(item) }}</span>
             </div>
             <div class="timeline-legend text-caption">
               <span v-for="series in item.series" :key="series.name" :style="{ color: review.colorFor(series.name) }">
@@ -132,6 +133,7 @@ export default defineComponent({
 
 <style scoped>
 .review-statistics { height: 100%; min-height: 0; overflow: auto; padding: 8px; }
+.statistics-counts ::v-deep table { color: inherit; }
 .timeline-list { border: 1px solid #777; }
 .timeline-row { height: 180px; padding: 8px 16px; border-bottom: 1px solid #777; }
 .timeline-row svg { display: block; width: 100%; height: 84px; }

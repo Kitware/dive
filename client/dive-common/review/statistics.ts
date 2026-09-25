@@ -137,6 +137,7 @@ export function buildReviewStatistics(datasets: Iterable<StatisticsDataset>): Re
       let active = 0;
       return delta.slice(0, TIMELINE_BINS).map((change) => { active += change; return active; });
     }
+    timestamp ??= parseFrameTimestamp(cameras[0].sequenceName ?? '');
     timelines.push({
       id,
       name: cameras[0].sequenceName ?? cameras[0].config.name,

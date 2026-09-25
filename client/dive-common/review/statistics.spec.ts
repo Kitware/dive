@@ -152,3 +152,16 @@ it('draws horizontal step plateaus instead of diagonal spikes', () => {
     'M0,24 H25 V4 H75 V24 H100 V24 Z',
   );
 });
+
+it('uses the sequence name for capture order when camera names carry no date', () => {
+  const result = buildReviewStatistics([
+    { config: config('older_20241201_120000.mp4'), tracks: [] },
+    {
+      config: config('rig/left'), sequenceId: 'rig', sequenceName: 'newer_20250101_120000.mp4', tracks: [],
+    },
+    {
+      config: config('rig/right'), sequenceId: 'rig', sequenceName: 'newer_20250101_120000.mp4', tracks: [],
+    },
+  ]);
+  expect(result.timelines.map(({ id }) => id)).toEqual(['rig', 'older_20241201_120000.mp4']);
+});
