@@ -15,6 +15,20 @@ const response = (value: unknown, status = 200) => ({
 const signal = () => new AbortController().signal;
 
 describe('WoRMS client', () => {
+  it('does not bind native browser fetch to the client instance', async () => {
+    const browserFetch = vi.fn(function browserFetch(this: unknown) {
+      if (this !== undefined && this !== globalThis) throw new TypeError('Illegal invocation');
+      return Promise.resolve(response([taxon(1, 'fish')]));
+    });
+    vi.stubGlobal('fetch', browserFetch);
+    try {
+      expect(await new WormsClient().search('fish', 1, signal())).toHaveLength(1);
+      expect(browserFetch).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it('uses encoded, paginated marine searches with no credentials and handles empty pages', async () => {
     const fetcher = vi.fn().mockResolvedValueOnce(response([taxon(1, 'fish')]))
       .mockResolvedValueOnce(response(null, 204));
