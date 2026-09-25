@@ -1,5 +1,5 @@
 import {
-  groupSynonymRemaps, synonymRemapSummary, WormsClient, WormsRecord,
+  groupSynonymRemaps, multiAcceptedNameWarnings, synonymRemapSummary, WormsClient, WormsRecord,
 } from './worms';
 
 const taxon = (id: number, name: string, extra = {}): WormsRecord => ({
@@ -30,6 +30,19 @@ describe('synonym remap presentation', () => {
     expect(synonymRemapSummary(remaps)).toBe('3 synonyms will be imported as 2 accepted names.');
     expect(synonymRemapSummary([{ original: 'old', accepted: 'new' }]))
       .toBe('1 synonym will be imported as 1 accepted name.');
+  });
+
+  it('warns only when one original still maps to multiple accepted names', () => {
+    expect(multiAcceptedNameWarnings([
+      { original: 'Seriola gigas', accepted: 'Seriola dumerili' },
+      { original: 'Seriola gigas', accepted: 'Seriola hippos' },
+      { original: 'old trout', accepted: 'trout' },
+    ])).toEqual([
+      '"Seriola gigas" resolves to multiple accepted names: "Seriola dumerili", "Seriola hippos".',
+    ]);
+    expect(multiAcceptedNameWarnings([
+      { original: 'Seriola gigas', accepted: 'Seriola hippos' },
+    ])).toEqual([]);
   });
 });
 

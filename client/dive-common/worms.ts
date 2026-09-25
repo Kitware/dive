@@ -55,6 +55,24 @@ export function synonymRemapSummary(remaps: SynonymRemap[]): string {
   return `${synonymCount} ${synonymLabel} will be imported as ${acceptedCount} ${acceptedLabel}.`;
 }
 
+/** Warn when one original synonym name still maps to more than one accepted taxon. */
+export function multiAcceptedNameWarnings(remaps: SynonymRemap[]): string[] {
+  const byOriginal = new Map<string, Set<string>>();
+  remaps.forEach(({ original, accepted }) => {
+    const targets = byOriginal.get(original) ?? new Set();
+    targets.add(accepted);
+    byOriginal.set(original, targets);
+  });
+  const warnings: string[] = [];
+  byOriginal.forEach((targets, originalName) => {
+    if (targets.size > 1) {
+      const listed = [...targets].sort((a, b) => a.localeCompare(b)).map((name) => `"${name}"`).join(', ');
+      warnings.push(`"${originalName}" resolves to multiple accepted names: ${listed}.`);
+    }
+  });
+  return warnings;
+}
+
 interface Classification {
   AphiaID: number;
   scientificname: string;
@@ -146,9 +164,7 @@ export class WormsClient {
     const sources: TaxonomySources = {};
     const names = new Map<string, number>();
     const edges = new Map<string, string>();
-    const warnings = new Set<string>();
     const remaps = new Map<string, SynonymRemap>();
-    const acceptedByOriginal = new Map<string, Set<string>>();
     const addTaxon = (taxon: Classification | WormsRecord) => {
       const existing = names.get(taxon.scientificname);
       if (existing !== undefined && existing !== taxon.AphiaID) {
@@ -174,9 +190,6 @@ export class WormsClient {
           original: original.scientificname,
           accepted: accepted.scientificname,
         });
-        const targets = acceptedByOriginal.get(original.scientificname) ?? new Set();
-        targets.add(accepted.scientificname);
-        acceptedByOriginal.set(original.scientificname, targets);
       }
       addTaxon(accepted);
       if (!types.has(accepted.scientificname) && includeParents) {
@@ -204,19 +217,13 @@ export class WormsClient {
       types.add(accepted.scientificname);
       progress(i + 1);
     }
-    acceptedByOriginal.forEach((targets, originalName) => {
-      if (targets.size > 1) {
-        const listed = [...targets].sort((a, b) => a.localeCompare(b)).map((name) => `"${name}"`).join(', ');
-        warnings.add(`"${originalName}" resolves to multiple accepted names: ${listed}.`);
-      }
-    });
     const synonymRemaps = [...remaps.values()];
     return {
       types: [...types],
       typeHierarchy: normalizeTypeHierarchy(Object.fromEntries(edges)),
       taxonomySources: sources,
       synonymRemaps: synonymRemaps.length ? synonymRemaps : undefined,
-      warnings: [...warnings],
+      warnings: multiAcceptedNameWarnings(synonymRemaps),
     };
   }
 }

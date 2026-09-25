@@ -10,7 +10,7 @@ import {
   flattenHierarchyForest, pruneHierarchyUpward, resolveTypeHierarchy,
 } from '../typeHierarchy';
 import {
-  groupSynonymRemaps, synonymRemapSummary, SynonymRemap, TaxonomySources,
+  groupSynonymRemaps, multiAcceptedNameWarnings, synonymRemapSummary, SynonymRemap, TaxonomySources,
 } from '../worms';
 
 function mergeSynonymRemaps(
@@ -34,6 +34,32 @@ function withoutRemovedSources(
     Object.entries(sources).filter(([, record]) => !removed.has(record.scientificName)),
   );
   return Object.keys(next).length ? next : undefined;
+}
+
+function withoutRemovedRemaps(
+  remaps: SynonymRemap[] | undefined,
+  remaining: ReadonlySet<string>,
+): SynonymRemap[] | undefined {
+  if (!remaps?.length) return undefined;
+  const next = remaps.filter((remap) => remaining.has(remap.accepted));
+  return next.length ? next : undefined;
+}
+
+const MULTI_ACCEPTED_WARNING = 'resolves to multiple accepted names';
+
+function warningsForRemaining(
+  warnings: string[],
+  remaps: SynonymRemap[] | undefined,
+): string[] {
+  const kept = warnings.filter((warning) => !warning.includes(MULTI_ACCEPTED_WARNING));
+  return [...new Set([...kept, ...multiAcceptedNameWarnings(remaps ?? [])])];
+}
+
+function remainingStagedNames(
+  types: readonly string[],
+  hierarchy: Record<string, string> | undefined,
+): Set<string> {
+  return new Set([...types, ...Object.keys(hierarchy ?? {}), ...Object.values(hierarchy ?? {})]);
 }
 
 export default defineComponent({
@@ -189,11 +215,16 @@ export default defineComponent({
         applyError.value = '';
         return;
       }
+      const remaining = remainingStagedNames(types, hierarchy);
+      const synonymRemaps = withoutRemovedRemaps(current.synonymRemaps, remaining);
+      if (!synonymRemaps?.length) showSynonymDetails.value = false;
       applyStaged({
         ...current,
         types,
         typeHierarchy: hierarchy,
         taxonomySources: withoutRemovedSources(current.taxonomySources, removedSet),
+        synonymRemaps,
+        warnings: warningsForRemaining(current.warnings, synonymRemaps),
       });
     }
 

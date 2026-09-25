@@ -110,6 +110,60 @@ describe('category import dialog shared by web and desktop', () => {
     wrapper.destroy();
   });
 
+  it('drops synonym remaps and multi-accepted warnings for pruned accepted names', async () => {
+    const { vm, wrapper } = mountDialog();
+    vm.source = 'worms';
+    await nextTick();
+    vm.setWormsImport({
+      types: ['salmon', 'trout', 'Seriola dumerili', 'Seriola hippos'],
+      warnings: [
+        'Synonyms resolve parent references during import. DIVE stores canonical category names, not synonym aliases.',
+        '"Seriola gigas" resolves to multiple accepted names: "Seriola dumerili", "Seriola hippos".',
+      ],
+      synonymRemaps: [
+        { original: 'old salmon', accepted: 'salmon' },
+        { original: 'old trout', accepted: 'trout' },
+        { original: 'Seriola gigas', accepted: 'Seriola dumerili' },
+        { original: 'Seriola gigas', accepted: 'Seriola hippos' },
+      ],
+    });
+    await nextTick();
+    vm.showSynonymDetails = true;
+    vm.pruneStagedType('salmon');
+    await nextTick();
+    expect(vm.preview.incoming?.types).toEqual(['trout', 'Seriola dumerili', 'Seriola hippos']);
+    expect(vm.preview.incoming?.synonymRemaps).toEqual([
+      { original: 'old trout', accepted: 'trout' },
+      { original: 'Seriola gigas', accepted: 'Seriola dumerili' },
+      { original: 'Seriola gigas', accepted: 'Seriola hippos' },
+    ]);
+    expect(wrapper.text()).toContain('3 synonyms will be imported as 2 accepted names.');
+    expect(wrapper.text()).not.toContain('salmon ←');
+    expect(wrapper.text()).toContain('trout ← old trout');
+    expect(wrapper.text()).toContain('resolves to multiple accepted names');
+    expect(vm.preview.incoming?.warnings).toEqual([
+      'Synonyms resolve parent references during import. DIVE stores canonical category names, not synonym aliases.',
+      '"Seriola gigas" resolves to multiple accepted names: "Seriola dumerili", "Seriola hippos".',
+    ]);
+    vm.pruneStagedType('Seriola dumerili');
+    await nextTick();
+    expect(vm.preview.incoming?.synonymRemaps).toEqual([
+      { original: 'old trout', accepted: 'trout' },
+      { original: 'Seriola gigas', accepted: 'Seriola hippos' },
+    ]);
+    expect(vm.preview.incoming?.warnings).toEqual([
+      'Synonyms resolve parent references during import. DIVE stores canonical category names, not synonym aliases.',
+    ]);
+    expect(wrapper.text()).not.toContain('resolves to multiple accepted names');
+    expect(wrapper.text()).toContain('1 synonym will be imported as 1 accepted name.');
+    vm.pruneStagedType('trout');
+    await nextTick();
+    expect(vm.preview.incoming?.synonymRemaps).toBeUndefined();
+    expect(vm.showSynonymDetails).toBe(false);
+    expect(wrapper.text()).not.toContain('will be imported as');
+    wrapper.destroy();
+  });
+
   it('prunes a middle WoRMS rank so descendants become roots and unused ancestors drop', async () => {
     const { vm, wrapper } = mountDialog();
     vm.source = 'worms';
