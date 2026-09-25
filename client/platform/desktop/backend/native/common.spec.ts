@@ -1354,6 +1354,14 @@ describe('native.common', () => {
     expect(data.imageData[1].timestamp).toBeUndefined();
   });
 
+  it('persists WoRMS provenance across desktop save and reload', async () => {
+    const taxonomySources = { 126175: { aphiaId: 126175, scientificName: 'Sebastes', rank: 'Genus' } };
+    await common.saveConfig(settings, 'projectid1', { taxonomySources });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).taxonomySources).toEqual(taxonomySources);
+    await common.saveConfig(settings, 'projectid1', { confidenceFilters: { default: 0.5 } });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).taxonomySources).toEqual(taxonomySources);
+  });
+
   it('saveConfig sets, clears, and atomically rejects a type hierarchy', async () => {
     const legacyProject = common.getProjectDir(settings, 'projectid1');
     await common.saveProjectConfig(

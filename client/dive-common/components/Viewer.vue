@@ -1141,6 +1141,7 @@ export default defineComponent({
         }
       }
       const typeHierarchyPatch = trackFilters.typeHierarchySavePatch();
+      const taxonomyPatch = trackFilters.taxonomySavePatch();
       try {
         const { canonicalConfigPersisted } = await saveToServer({
           customTypeStyling: trackStyleManager.getTypeStyles(
@@ -1151,15 +1152,18 @@ export default defineComponent({
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
           ...typeHierarchyPatch,
+          ...taxonomyPatch,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
         if (canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
       } catch (err) {
         const saveResult = err as { canonicalConfigPersisted?: boolean };
         if (saveResult.canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
         let text = 'Unable to Save Data';
         const saveErr = err as { response?: { status?: number } };
@@ -1724,6 +1728,7 @@ export default defineComponent({
         context.resetActive();
         const meta = await loadConfig(datasetId.value);
         trackFilters.setTypeHierarchy(meta.typeHierarchy);
+        trackFilters.setTaxonomySources(meta.taxonomySources);
         const hierarchyWarning = trackFilters.consumeLoadWarning();
         if (hierarchyWarning) {
           await prompt({
@@ -2906,7 +2911,6 @@ export default defineComponent({
       <sidebar
         v-if="sidebarMode === 'left'"
         :is-stereo-dataset="subType === 'stereo'"
-        @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
         <template>

@@ -1395,6 +1395,9 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     if (args.error) {
       existing.error = args.error;
     }
+    if (args.taxonomySources) {
+      existing.taxonomySources = args.taxonomySources;
+    }
     if (args.datasetInfo) {
       existing.datasetInfo = args.datasetInfo;
     }
