@@ -751,15 +751,26 @@ export default class SegmentationPointClick implements Recipe {
 
   /**
    * Public method to reset (clear) all accumulated points and pending prediction.
-   * Called from UI Reset button. Clears all frames.
+   * Called from UI Reset button. Clears all frames and asks the mode manager
+   * to drop every in-progress mask for this detection (not only frames that
+   * still have prompt points in this recipe).
    *
    * @param byUser false when a selection change clears the points instead of
    *   the user, so a right-click that only entered edit mode cannot count as
    *   a reset to finalize.
    */
   resetPoints(byUser = true): void {
-    // Emit reset event for all frames with data
-    const framesToReset = [this.currentFrame, ...this.frameData.keys()];
+    // Invalidate in-flight predictions before restoring the track so a late
+    // result cannot re-apply the mask after this reset.
+    this.predictionVersion += 1;
+    this.clearPredictingState();
+    // Session-wide: restore/clear every frame the mode manager snapshotted
+    // before this segmentation edit, even if prompt points were already
+    // cleared or live only on another frame.
+    this.bus.$emit('prediction-reset-session');
+    // Per-frame (includes currentFrame when frameData is still empty) for
+    // listeners that only subscribe to prediction-reset.
+    const framesToReset = new Set<number>([this.currentFrame, ...this.frameData.keys()]);
     framesToReset.forEach((frameNum) => {
       this.bus.$emit('prediction-reset', { frameNum });
     });

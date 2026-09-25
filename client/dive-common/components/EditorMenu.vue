@@ -579,7 +579,9 @@ export default defineComponent({
           color="error"
           class="mx-1"
           small
-          :disabled="!activeSegmentationRecipe.hasPoints() || segmentationPredicting"
+          :disabled="(!activeSegmentationRecipe.hasPoints()
+            && !activeSegmentationRecipe.hasPendingPrediction())
+            || segmentationPredicting"
           @click="activeSegmentationRecipe.resetPoints()"
         >
           <v-icon left>

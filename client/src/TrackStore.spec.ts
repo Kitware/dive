@@ -97,4 +97,20 @@ describe('TrackStore pipeline reload', () => {
     expect(store.intervalTree.search([4, 4])).toEqual(['7']);
     expect(store.intervalTree.search([9, 9])).toEqual([]);
   });
+
+  it('can remove a track emptied to Infinity,0 by deleteFeature', () => {
+    const ts = new TrackStore({ markChangesPending: () => null, cameraName: 'singleCam' });
+    const t0 = ts.add(0, 'foo', undefined, ts.getNewId());
+    t0.setFeature({
+      frame: 0,
+      keyframe: true,
+      bounds: [0, 0, 10, 10],
+    });
+    t0.deleteFeature(0);
+    expect(t0.begin).toBe(Infinity);
+    expect(t0.end).toBe(0);
+    // Interval tree must track the emptied bounds or remove() throws.
+    expect(() => ts.remove(t0.id)).not.toThrow();
+    expect(ts.getPossible(t0.id)).toBeUndefined();
+  });
 });

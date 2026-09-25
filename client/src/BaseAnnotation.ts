@@ -102,8 +102,12 @@ export default abstract class BaseAnnotation {
   }
 
   protected notify(name: string, oldValue: unknown = undefined) {
-    /* Prevent broadcast until the first feature is initialized */
-    if (this.isInitialized()) {
+    /* Skip most broadcasts until the first feature exists. Bounds must still
+     * notify when the last feature is removed: deleteFeature clears
+     * featureIndex first, so isInitialized() is false while begin/end become
+     * Infinity,0 — without this the store's interval tree keeps the old range
+     * and later remove() throws. */
+    if (this.isInitialized() || name === 'bounds') {
       this.revision.value += 1;
       if (this.notifier) {
         this.notifier({

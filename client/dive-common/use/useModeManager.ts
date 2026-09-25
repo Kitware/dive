@@ -40,7 +40,6 @@ import SegmentationPointClick, {
   SegmentationPredictionResult,
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
-import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
 import {
   componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
 } from 'dive-common/recipes/segmentationPolygons';
@@ -243,14 +242,14 @@ export default function useModeManager({
    */
   function _removeIfEmpty(checkTrackId: AnnotationId): boolean {
     const track = cameraStore.getPossibleTrack(checkTrackId, selectedCamera.value);
-    if (track && track.begin === track.end) {
-      const features = track.getFeature(track.begin);
-      if (!features.filter((item) => item !== null).length) {
-        const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
-        if (trackStore) {
-          trackStore.remove(checkTrackId);
-          return true;
-        }
+    // featureIndex is empty for never-drawn detections and for tracks whose
+    // last keyframe was deleted (begin/end become Infinity,0 — begin === end
+    // is false there, so a bounds-only check would leave ghosts in the list).
+    if (track && track.featureIndex.length === 0) {
+      const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
+      if (trackStore) {
+        trackStore.remove(checkTrackId);
+        return true;
       }
     }
     return false;
@@ -669,8 +668,7 @@ export default function useModeManager({
         // and the mirrored track itself when that leaves it empty.
         if (targetTrack && targetTrack.features[targetFrame]?.keyframe) {
           targetTrack.deleteFeature(targetFrame);
-          if (targetTrack.begin === targetTrack.end
-            && !targetTrack.getFeature(targetTrack.begin).some((item) => item !== null)) {
+          if (targetTrack.featureIndex.length === 0) {
             trackStore.remove(trackId);
           }
         }
@@ -1560,12 +1558,6 @@ export default function useModeManager({
     });
   }
 
-  function removeStereoLineGeometry(track: Track, frameNum: number) {
-    track.removeFeatureGeometry(frameNum, { type: 'LineString', key: '' });
-    track.removeFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
-    track.removeFeatureGeometry(frameNum, { type: 'Point', key: TailPointKey });
-  }
-
   /**
    * Segmentation prompt points for visualization (green=foreground, red=background)
    */
@@ -1796,9 +1788,9 @@ export default function useModeManager({
   }
 
   /**
-   * Handle segmentation reset - restore detection to its pre-segmentation state.
-   * Called when the user presses the Reset button, which triggers resetPoints()
-   * on the recipe, which emits 'prediction-reset' for each frame.
+   * Restore one frame to its pre-segmentation snapshot (or delete the feature
+   * when the session created it). Full delete+setFeature avoids setFeature
+   * merge leftovers (head/tail, extra polygons) from looking "not reset".
    */
   function handleSegmentationReset(data: { frameNum: number }) {
     if (selectedTrackId.value === null) return;
@@ -1811,25 +1803,10 @@ export default function useModeManager({
     if (!saved.hadFeature) {
       track.deleteFeature(data.frameNum);
     } else {
-      // Remove polygons that segmentation added (any key not present before),
-      // plus the default-key polygon (segmentation overwrites it). Original
-      // polygons under pre-existing keys are then overwritten back to their
-      // saved geometry by setFeature below.
-      const currentPolygons = track.getPolygonFeatures(data.frameNum);
-      const preExistingKeys = saved.existingPolygonKeys || new Set<string>();
-      currentPolygons.forEach((pf) => {
-        if (!preExistingKeys.has(pf.key)) {
-          track.removeFeatureGeometry(data.frameNum, { key: pf.key, type: 'Polygon' });
-        }
-      });
-      track.removeFeatureGeometry(data.frameNum, { key: '', type: 'Polygon' });
-      removeStereoLineGeometry(track, data.frameNum);
-      // Restore all original polygon geometry (including segmentation-keyed
-      // polygons that already existed before this edit), not just the default key.
-      const origFeatures = saved.geometryFeatures?.filter(
-        (f) => f.geometry.type === 'Polygon',
-      ) || [];
-      // Restore original bounds and geometry
+      track.deleteFeature(data.frameNum);
+      const origFeatures = (saved.geometryFeatures
+        ? JSON.parse(JSON.stringify(saved.geometryFeatures))
+        : []) as GeoJSON.Feature<TrackSupportedFeature>[];
       track.setFeature({
         frame: data.frameNum,
         flick: 0,
@@ -1840,9 +1817,7 @@ export default function useModeManager({
         attributes: saved.attributes
           ? JSON.parse(JSON.stringify(saved.attributes))
           : undefined,
-      }, origFeatures.length > 0
-        ? origFeatures as GeoJSON.Feature<TrackSupportedFeature>[]
-        : []);
+      }, origFeatures);
     }
 
     mirrorFeatureToAlignedCameras(track.id, data.frameNum);
@@ -1857,6 +1832,17 @@ export default function useModeManager({
 
     preSegmentationFeatures.delete(data.frameNum);
     _nudgeEditingCanary();
+  }
+
+  /**
+   * Clear every in-progress segmentation frame for the current detection.
+   * Recipe resetPoints emits this so Reset always drops the pending mask(s),
+   * not only frames the recipe still has prompt points for.
+   */
+  function handleSegmentationResetSession() {
+    [...preSegmentationFeatures.keys()].forEach((frameNum) => {
+      handleSegmentationReset({ frameNum });
+    });
   }
 
   /**
@@ -1931,6 +1917,7 @@ export default function useModeManager({
       r.bus.$on('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
       r.bus.$on('prediction-error', handleSegmentationPredictionError);
       r.bus.$on('prediction-reset', handleSegmentationReset);
+      r.bus.$on('prediction-reset-session', handleSegmentationResetSession);
     }
   });
 
@@ -1946,6 +1933,7 @@ export default function useModeManager({
         r.bus.$off('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
         r.bus.$off('prediction-error', handleSegmentationPredictionError);
         r.bus.$off('prediction-reset', handleSegmentationReset);
+        r.bus.$off('prediction-reset-session', handleSegmentationResetSession);
       }
     });
   });

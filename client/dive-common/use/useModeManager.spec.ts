@@ -593,6 +593,51 @@ describe('useModeManager point segmentation masks', () => {
     recipe.bus.$emit('prediction-reset', { frameNum: 0 });
     expect(track.getFeature(0)[0]).toBeNull();
   });
+
+  it('lets the emptied detection be deleted after a reset (interval tree stays in sync)', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    recipe.bus.$emit('prediction-ready', {
+      polygon: [[0, 0], [10, 0], [10, 10]],
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+    recipe.bus.$emit('prediction-ready', {
+      polygon: [[0, 0], [20, 0], [20, 20]],
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5], [8, 8]], labels: [1, 1] },
+    });
+    recipe.bus.$emit('prediction-reset', { frameNum: 0 });
+    const track = cameraStore.getTrack(trackId, 'left');
+    expect(track.begin).toBe(Infinity);
+    expect(track.end).toBe(0);
+    expect(() => modeManager.handler.removeTrack([trackId], true)).not.toThrow();
+    expect(cameraStore.getPossibleTrack(trackId, 'left')).toBeUndefined();
+  });
+
+  it('clears the pending mask on every Reset, including a second segmentation pass', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    const predict = (polygon: [number, number][]) => recipe.bus.$emit('prediction-ready', {
+      polygon, bounds: null, frameNum: 0, controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+
+    predict([[0, 0], [10, 0], [10, 10]]);
+    expect(cameraStore.getTrack(trackId, 'left').getPolygonFeatures(0)).toHaveLength(1);
+    recipe.resetPoints();
+    expect(cameraStore.getTrack(trackId, 'left').getFeature(0)[0]).toBeNull();
+    expect(recipe.hasPoints()).toBe(false);
+    expect(recipe.hasPendingPrediction()).toBe(false);
+
+    predict([[0, 0], [20, 0], [20, 20]]);
+    expect(cameraStore.getTrack(trackId, 'left').getPolygonFeatures(0)).toHaveLength(1);
+    recipe.resetPoints();
+    expect(cameraStore.getTrack(trackId, 'left').getFeature(0)[0]).toBeNull();
+  });
 });
 
 describe('stereo mapping of a line being drawn', () => {
