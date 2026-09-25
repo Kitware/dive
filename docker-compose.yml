@@ -112,6 +112,8 @@ services:
       - "GIRDER_STATIC_ROOT_DIR=/opt/dive/clients/girder"
       - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
       - "DIVE_MODEL_CACHE_DIR=/tmp/dive_models"
+      # Server-side interactive segmentation and stereo (the `interactive` service)
+      - "DIVE_INTERACTIVE_URL=${DIVE_INTERACTIVE_URL:-http://interactive:8800}"
 
       # Rabbitmq management variables
       - "RABBITMQ_MANAGEMENT_USERNAME=${RABBITMQ_MANAGEMENT_USERNAME:-guest}"
@@ -185,6 +187,38 @@ services:
       start_period: 1m
     labels:
       - autoheal=true
+
+  # Interactive segmentation and stereo for the web client: keeps VIAME's
+  # interactive service resident on the GPU and answers girder's requests.
+  # Sessions are capped and retired when idle; girder pauses the tools while
+  # pipeline or training jobs hold the GPU.
+  interactive:
+    << : *base-worker
+    profiles:
+      - gpu
+    build:
+      context: .
+      dockerfile: docker/girder_worker_gpu.Dockerfile
+    image: kitware/viame-worker:gpu
+    restart: always
+    entrypoint: ["uv", "run", "--no-sync", "python", "-m", "dive_interactive"]
+    volumes:
+      - addons:/tmp/addons:ro
+      - girder_assetstore:/home/assetstore:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+          - driver: nvidia
+            device_ids: ['0']
+            capabilities: [gpu]
+    environment:
+      - "WORKER_GPU_UUID=${INTERACTIVE_GPU_UUID:-${PIPELINE_GPU_UUID}}"
+      - "DIVE_INTERACTIVE_PORT=8800"
+      - "DIVE_INTERACTIVE_MAX_SESSIONS=${DIVE_INTERACTIVE_MAX_SESSIONS:-2}"
+      - "DIVE_INTERACTIVE_IDLE_SECONDS=${DIVE_INTERACTIVE_IDLE_SECONDS:-600}"
+      - "DIVE_INTERACTIVE_QUEUE_TIMEOUT=${DIVE_INTERACTIVE_QUEUE_TIMEOUT:-30}"
+      - "DIVE_INTERACTIVE_MAX_INFLIGHT=${DIVE_INTERACTIVE_MAX_INFLIGHT:-1}"
 
   girder_worker_training:
     # Merge base-worker object with this config

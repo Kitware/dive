@@ -58,7 +58,7 @@ export default defineComponent({
       help,
       modes,
       typeList,
-      stereoMatchMethods: stereoMatchMethodsFor(isDesktopRuntime()),
+      stereoMatchMethods: computed(() => stereoMatchMethodsFor(isDesktopRuntime())),
     };
   },
 });

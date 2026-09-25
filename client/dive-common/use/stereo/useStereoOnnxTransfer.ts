@@ -603,6 +603,7 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     warpAllFromCamera,
     warpPoint,
     measureAtFrame,
+    measureAndReport,
     precomputeFrame,
   };
 }

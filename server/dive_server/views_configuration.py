@@ -17,7 +17,7 @@ from girder.utility import setting_utilities
 from girder_jobs.models.job import Job
 import requests
 
-from dive_server import crud, crud_rpc, worker_capabilities
+from dive_server import crud, crud_rpc, interactive_gate, worker_capabilities
 from dive_tasks import tasks
 from dive_utils import TRUTHY_META_VALUES, constants, models, stereo_models, types
 
@@ -92,6 +92,7 @@ class ConfigurationResource(Resource):
             **capabilities,
             'jobsDisabled': jobs_disabled['disabled'],
             'jobsDisabledMessage': jobs_disabled['message'],
+            **interactive_gate.get_interactive_capability(),
         }
 
     @access.public

@@ -24,3 +24,7 @@ services:
   localworker:
     volumes:
       - ./server:/opt/dive/src
+
+  interactive:
+    volumes:
+      - ./server:/opt/dive/src
