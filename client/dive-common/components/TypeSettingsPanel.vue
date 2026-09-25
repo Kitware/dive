@@ -6,10 +6,13 @@ import {
   ref,
   computed,
 } from 'vue';
+import { useReadOnlyMode } from 'vue-media-annotator/provides';
 import { clientSettings } from 'dive-common/store/settings';
+import CategoryImportDialog from './CategoryImportDialog.vue';
 
 export default defineComponent({
   name: 'TypeSettingsPanel',
+  components: { CategoryImportDialog },
 
   props: {
     allTypes: {
@@ -21,7 +24,8 @@ export default defineComponent({
       required: true,
     },
   },
-  setup(props, { emit }) {
+  setup(props) {
+    const readOnlyMode = useReadOnlyMode();
     const itemHeight = 45; // in pixels
     const help = reactive({
       import: 'Import multiple Types',
@@ -35,9 +39,7 @@ export default defineComponent({
       suppressionType: 'Detections lying at least the Suppression Overlap percent under an annotation of this type are hidden and excluded from counts. A detection carrying an attribute of this name set to true stays visible with its real type (optional dashed/fill styling and an eye-off tag) and is excluded from its own type\'s counts. Leave empty to disable.',
       suppressionThreshold: 'Minimum percent of a detection that must lie under suppression regions for it to be hidden (default 99).',
     });
-    const importInstructions = ref('Please provide a list of types (separated by a new line) that you would like to import');
     const importDialog = ref(false);
-    const importTypes = ref('');
     const active = ref(false);
     // Always offer the default suppression type even when no annotations use it yet.
     const suppressionTypeItems = computed(() => (
@@ -46,23 +48,13 @@ export default defineComponent({
         : ['Suppressed', ...props.allTypes]
     ));
 
-    const confirmImport = () => {
-      // Go through the importTypes and create types for importing
-      const types = importTypes.value.split('\n').filter((item) => item.length);
-      emit('import-types', types);
-      importDialog.value = false;
-      importTypes.value = '';
-    };
-
     return {
       active,
       clientSettings,
       itemHeight,
       help,
-      importInstructions,
       importDialog,
-      importTypes,
-      confirmImport,
+      readOnlyMode,
       suppressionTypeItems,
     };
   },
@@ -109,6 +101,7 @@ export default defineComponent({
                 small
                 outlined
                 hide-details
+                :disabled="readOnlyMode"
                 @click="importDialog = true"
               >
                 <v-icon small>
@@ -445,65 +438,9 @@ export default defineComponent({
 
     <v-dialog
       v-model="importDialog"
-      width="350"
+      width="550"
     >
-      <div>
-        <v-card>
-          <v-card-title>
-            Types
-            <v-spacer />
-            <v-btn
-              icon
-              small
-              @click="importDialog = false"
-            >
-              <v-icon
-                small
-              >
-                mdi-close
-              </v-icon>
-            </v-btn>
-          </v-card-title>
-          <v-card-text>
-            {{ importInstructions }}
-            <v-form>
-              <v-row class="align-center">
-                <v-col>
-                  <v-textarea
-                    v-model="importTypes"
-                    outlined
-                    no-resize
-                    rows="10"
-                  />
-                </v-col>
-              </v-row>
-            </v-form>
-            <v-alert
-              text
-              color="error"
-            >
-              Note:  You will have to check 'View Unused' in the settings to see new empty types
-            </v-alert>
-          </v-card-text>
-          <v-card-actions>
-            <v-spacer />
-            <v-btn
-              depressed=""
-              text
-              @click="importDialog = false"
-            >
-              Cancel
-            </v-btn>
-            <v-btn
-              color="primary"
-              depressed
-              @click="confirmImport"
-            >
-              Add
-            </v-btn>
-          </v-card-actions>
-        </v-card>
-      </div>
+      <CategoryImportDialog v-if="importDialog" @close="importDialog = false" />
     </v-dialog>
   </div>
 </template>

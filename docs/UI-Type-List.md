@@ -138,3 +138,10 @@ The active suppression type shows an ==:material-eye-off:== icon in the type lis
 **Show types from entire sequence** in Type Settings is enabled by default,
 including types with zero annotations on the current frame. Turn it off to show
 only current-frame types. The choice is saved and applies to future sequences.
+
+## Importing types from files
+
+Use **Type Settings → Types** to import COCO JSON or VIAME `.txt`, `.csv`, and
+`.json` category files, including parent relationships. The **WoRMS** tab searches
+marine scientific names and imports selected taxa with optional taxonomic parents. See
+[Importing object types](Import-Categories.md) for formats and examples.
