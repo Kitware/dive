@@ -144,10 +144,19 @@ describe('web stereo review through the real platform adapters', () => {
 
   it('expands a queued camera selection when review results are requested', async () => {
     await review.addDataset('leftFolder', undefined, { defer: true });
-    expect(vi.mocked(girderRest.get)).not.toHaveBeenCalled();
+    // Deferred camera picks resolve to the parent id, but skip config/tracks until loadQueued.
+    expect(review.datasets.value).toMatchObject([{ id: 'rig', status: 'queued' }]);
+    expect(vi.mocked(girderRest.get).mock.calls.every(([url]) => String(url).startsWith('folder/'))).toBe(true);
     await review.loadQueued();
     expect(review.entries.value).toHaveLength(1);
     expect(review.entries.value[0].labels).toEqual(['right', 'left']);
+  });
+
+  it('ignores a deferred camera pick when its stereo sequence is already selected', async () => {
+    await review.addDataset('rig');
+    await review.addDataset('leftFolder', { id: 'leftFolder', name: 'left' }, { defer: true });
+    expect(review.datasets.value).toMatchObject([{ id: 'rig', status: 'ready' }]);
+    expect(review.datasets.value).toHaveLength(1);
   });
 
   it('loads both cameras in display order, aligns sparse frames, and uses their own media', async () => {

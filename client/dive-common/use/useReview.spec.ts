@@ -101,6 +101,40 @@ describe('createReviewService', () => {
     expect(api.loadDetections).toHaveBeenCalledTimes(1);
   });
 
+  it('queues the resolved parent for a deferred camera pick and skips duplicates', async () => {
+    const resolveReviewDatasetId = vi.fn(async (id: string) => (id === 'leftFolder' ? 'rig' : id));
+    const api = makeApi({
+      'rig/left': [track(1, [['fish', 1]], [0])],
+      'rig/right': [track(1, [['fish', 1]], [0])],
+    }, {
+      resolveReviewDatasetId,
+      loadConfig: vi.fn(async (id: string) => (id === 'rig'
+        ? config('rig', {
+          type: 'multi',
+          name: 'Stereo',
+          multiCamMedia: {
+            defaultDisplay: 'left',
+            cameras: {
+              left: { type: 'image-sequence', imageData: [{ url: 'l.jpg', filename: 'l.jpg' }], videoUrl: '' },
+              right: { type: 'image-sequence', imageData: [{ url: 'r.jpg', filename: 'r.jpg' }], videoUrl: '' },
+            },
+          },
+        })
+        : config(id))),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('leftFolder', { id: 'leftFolder', name: 'left' }, { defer: true });
+    expect(resolveReviewDatasetId).toHaveBeenCalledWith('leftFolder');
+    expect(service.datasets.value).toMatchObject([{ id: 'rig', status: 'queued' }]);
+    expect(api.loadConfig).not.toHaveBeenCalled();
+    await service.loadQueued();
+    expect(service.datasets.value).toMatchObject([{ id: 'rig', status: 'ready' }]);
+    // Deferred browse of a camera folder must not sit beside the loaded rig.
+    await service.addDataset('leftFolder', { id: 'leftFolder', name: 'left' }, { defer: true });
+    expect(service.datasets.value).toEqual([expect.objectContaining({ id: 'rig', status: 'ready' })]);
+    service.dispose();
+  });
+
   it('loads datasets, prefers peekConfig, and builds items for a query', async () => {
     const peekConfig = vi.fn(async (id: string) => config(id));
     const api = makeApi({

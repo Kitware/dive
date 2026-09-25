@@ -446,20 +446,36 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   /**
    * Add a dataset; with `defer` it only joins the list and loads on the
    * next `loadQueued`, so picking many datasets costs nothing until the
-   * results are actually wanted.
+   * results are actually wanted. Deferred picks still resolve camera folders
+   * to their sequence so a browse pick cannot sit beside an already-loaded rig.
    */
   async function addDataset(id: string, summary?: ScoringDatasetSummary, options: { defer?: boolean } = {}) {
     if (disposed || !id || entry(id) || selectedDatasets.value.some((dataset) => dataset.id === id)) return;
+    let selectedId = id;
+    let selectedSummary = summary;
+    if (options.defer && api.resolveReviewDatasetId) {
+      try {
+        const resolvedId = await api.resolveReviewDatasetId(id);
+        if (resolvedId !== id) {
+          selectedId = resolvedId;
+          // Drop the camera-folder summary; the parent owns the sequence name.
+          selectedSummary = undefined;
+        }
+      } catch {
+        // Keep the original id; load() will surface the error.
+      }
+    }
+    if (entry(selectedId) || selectedDatasets.value.some((dataset) => dataset.id === selectedId)) return;
     datasets.value = [...datasets.value, {
-      id,
-      name: summary?.name || datasetName(id),
-      type: summary?.type,
+      id: selectedId,
+      name: selectedSummary?.name || datasetName(selectedId),
+      type: selectedSummary?.type,
       status: options.defer ? 'queued' : 'loading',
       trackCount: 0,
       croppable: false,
     }];
     if (options.defer) return;
-    await load(id);
+    await load(selectedId);
   }
 
   /** Load every queued dataset; annotations are read and the query rerun as each arrives. */
