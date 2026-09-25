@@ -1,4 +1,4 @@
-import { watch, onBeforeUnmount, ref } from 'vue';
+import { watch, onBeforeUnmount, ref, computed } from 'vue';
 import { cloneDeep } from 'lodash';
 import type Track from 'vue-media-annotator/track';
 import { headTailFeatures } from 'vue-media-annotator/headTail';
@@ -49,6 +49,8 @@ export default function useWebSegmentation(
     progress.value = message ? (next ?? null) : null;
   });
   const jobs = new Map<string, Promise<SegmentationPolygon[] | null>>();
+  /** Reactive count of in-flight auto-populate jobs (Maps are not reactive). */
+  const jobCount = ref(0);
   const versions = new Map<string, number>();
   const previews = new Map<string, Preview>();
   const ownLines = new Map<string, Point[]>();
@@ -58,6 +60,18 @@ export default function useWebSegmentation(
   let epoch = 0;
   const settings = () => clientSettings.trackSettings.newTrackSettings;
   const trackAt = (p: Identity): Track | undefined => getViewer()?.cameraStore?.getPossibleTrack(p.trackId, p.camera);
+  /** True while an auto-populate (mask/points) job is running. */
+  const busy = computed(() => jobCount.value > 0);
+
+  /** Drop in-flight auto-populate work; ignores results and stops the SAM session. */
+  function cancel() {
+    epoch += 1;
+    jobCount.value = 0;
+    jobs.clear();
+    status.value = null;
+    progress.value = null;
+    sam.dispose().catch(() => {});
+  }
 
   async function predict(camera: string, frame: number, request: SegmentationPredictRequest, captured?: Promise<RgbaImage | null>) {
     const viewer = getViewer();
@@ -113,10 +127,17 @@ export default function useWebSegmentation(
     if ((!settings().autoPopulateMask && !settings().autoPopulatePoints)
       || (params.source === 'mask' && !settings().autoPopulatePoints)) return;
     const key = keyOf(params);
+    jobCount.value += 1;
+    const generation = epoch;
     const job = populate(params).catch((err) => {
-      onError(`Auto-populate: ${(err as Error).message}`);
+      if (epoch !== generation) return null;
+      const message = (err as Error).message || '';
+      if (!/cancelled|model changed/i.test(message)) {
+        onError(`Auto-populate: ${message}`);
+      }
       return [];
     }).finally(() => {
+      if (epoch === generation) jobCount.value = Math.max(0, jobCount.value - 1);
       if (jobs.get(key) === job) jobs.delete(key);
     });
     jobs.set(key, job);
@@ -301,6 +322,7 @@ export default function useWebSegmentation(
     if (previous?.[0] === viewer.segmentationRecipe) viewer.handler?.segmentationFinalizePending?.();
     epoch += 1;
     jobs.clear(); versions.clear(); previews.clear(); ownLines.clear(); generated.clear(); finalized.clear();
+    jobCount.value = 0;
     sam.dispose().catch(() => {});
     Promise.all([
       sam.setModel(settings().segmentationModel),
@@ -315,6 +337,7 @@ export default function useWebSegmentation(
 
   onBeforeUnmount(() => {
     epoch += 1;
+    jobCount.value = 0;
     sam.dispose().catch(() => {});
     jobs.clear(); previews.clear();
   });
@@ -322,6 +345,8 @@ export default function useWebSegmentation(
   return {
     status,
     progress,
+    busy,
+    cancel,
     handleNewAnnotationGeometry,
     handleStereoAnnotationComplete,
     handleStereoAnnotationReset,

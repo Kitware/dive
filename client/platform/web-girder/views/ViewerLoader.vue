@@ -204,6 +204,7 @@ export default defineComponent({
     } = stereo;
     const {
       status: segmentationStatus, progress: segmentationProgress,
+      busy: autoPopulateBusy, cancel: cancelAutoPopulate,
       handleNewAnnotationGeometry, handleStereoAnnotationComplete,
       handleStereoAnnotationReset, handleStereoSegmentationFinalize,
     } = useWebSegmentation(() => viewerRef.value, stereo, (message) => { stereoError.value = String(message); });
@@ -549,6 +550,8 @@ export default defineComponent({
       segmentationEncoding,
       segmentationDownloadPercent,
       segmentationPreparing,
+      autoPopulateBusy,
+      cancelAutoPopulate,
       handleNewAnnotationGeometry,
       handleStereoAnnotationReset,
       handleStereoSegmentationFinalize,
@@ -585,6 +588,8 @@ export default defineComponent({
       :initial-frame="viewerFocus.frame"
       :initial-track-id="viewerFocus.trackId"
       :stereo-view-link="stereoViewLink"
+      :auto-populate-busy="autoPopulateBusy"
+      :auto-populate-status="segmentationStatus"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
       @update:set="routeSet"
@@ -594,6 +599,7 @@ export default defineComponent({
       @stereo-annotation-reset="handleStereoAnnotationReset"
       @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
+      @cancel-auto-populate="cancelAutoPopulate"
     >
       <template #title>
         <ViewerAlert />

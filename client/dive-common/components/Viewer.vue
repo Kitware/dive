@@ -209,6 +209,16 @@ export default defineComponent({
       type: Function as PropType<StereoViewLinkFunc | undefined>,
       default: undefined,
     },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live SAM status text during auto-populate. */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -2760,6 +2770,8 @@ export default defineComponent({
             textQueryEnabled,
             textQueryAvailable,
             checkTextQueryAvailable,
+            autoPopulateBusy,
+            autoPopulateStatus,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
@@ -2767,6 +2779,7 @@ export default defineComponent({
           :suppression-display.sync="clientSettings.annotatorPreferences.suppressionDisplay"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @cancel-auto-populate="$emit('cancel-auto-populate')"
           @text-query-init="$emit('text-query-init')"
           @text-query="onTextQuerySubmit"
           @text-query-all-frames="$emit('text-query-all-frames', $event)"

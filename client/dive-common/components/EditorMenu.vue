@@ -104,6 +104,16 @@ export default defineComponent({
       type: Function as PropType<() => Promise<boolean>>,
       default: undefined,
     },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live status from the SAM session during auto-populate (encode/predict). */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   emits: [
     'set-annotation-state',
@@ -115,6 +125,7 @@ export default defineComponent({
     'text-query',
     'text-query-all-frames',
     'open-external-link',
+    'cancel-auto-populate',
   ],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
@@ -280,6 +291,10 @@ export default defineComponent({
 
     const mousetrap = computed((): Mousetrap[] => [
       ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
+      ...(autoPopulateBusyVisible.value ? [{
+        bind: 'esc',
+        handler: () => { cancelAutoPopulate(); },
+      }] : []),
     ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
@@ -302,6 +317,13 @@ export default defineComponent({
       }
       if (props.multiSelectActive) {
         return { text: 'Multi-select Mode', icon: 'mdi-call-merge', color: 'error' };
+      }
+      if (props.autoPopulateBusy && !activeSegmentationRecipe.value) {
+        return {
+          text: 'Auto-populating',
+          icon: 'mdi-loading mdi-spin',
+          color: 'warning',
+        };
       }
       if (activeSegmentationRecipe.value) {
         return {
@@ -359,9 +381,36 @@ export default defineComponent({
         segmentationCancelWarning.value = false;
       }
     });
+
+    /** Same 3s promotion for auto-populate encode/predict (especially CPU). */
+    const autoPopulateCancelWarning = ref(false);
+    let autoPopulateCancelWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    const autoPopulateBusyVisible = computed(
+      () => props.autoPopulateBusy && !activeSegmentationRecipe.value,
+    );
+    watch(autoPopulateBusyVisible, (busy) => {
+      if (autoPopulateCancelWarningTimer !== null) {
+        clearTimeout(autoPopulateCancelWarningTimer);
+        autoPopulateCancelWarningTimer = null;
+      }
+      if (busy) {
+        autoPopulateCancelWarning.value = false;
+        autoPopulateCancelWarningTimer = setTimeout(() => {
+          autoPopulateCancelWarningTimer = null;
+          if (autoPopulateBusyVisible.value) {
+            autoPopulateCancelWarning.value = true;
+          }
+        }, SEGMENTATION_CANCEL_WARNING_MS);
+      } else {
+        autoPopulateCancelWarning.value = false;
+      }
+    });
     onBeforeUnmount(() => {
       if (segmentationCancelWarningTimer !== null) {
         clearTimeout(segmentationCancelWarningTimer);
+      }
+      if (autoPopulateCancelWarningTimer !== null) {
+        clearTimeout(autoPopulateCancelWarningTimer);
       }
     });
 
@@ -374,9 +423,19 @@ export default defineComponent({
       if (segmentationPredicting.value) {
         return 'Computing segmentation… Press Esc to cancel.';
       }
+      if (autoPopulateBusyVisible.value) {
+        if (autoPopulateCancelWarning.value) {
+          return 'Still auto-populating — click Cancel or press Esc to abort.';
+        }
+        return props.autoPopulateStatus
+          || 'Auto-populating mask/points… Press Esc to cancel.';
+      }
       return null;
     });
 
+    function cancelAutoPopulate() {
+      emit('cancel-auto-populate');
+    }
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
         return '';
@@ -416,6 +475,9 @@ export default defineComponent({
       segmentationCancelWarning,
       segmentationTooltip,
       segmentationStatusHint,
+      autoPopulateBusyVisible,
+      autoPopulateCancelWarning,
+      cancelAutoPopulate,
       // Text query
       textQueryDialogOpen,
       textQueryInput,
@@ -632,6 +694,27 @@ export default defineComponent({
           {{ segmentationCancelWarning ? 'Cancel' : 'Reset' }}
           <span
             v-if="segmentationPredicting && !segmentationCancelWarning"
+            class="text-caption ml-1"
+          >(Esc)</span>
+        </v-btn>
+      </template>
+      <!-- Auto-populate Cancel (promotes after 3s like magic wand) -->
+      <template v-else-if="autoPopulateBusyVisible">
+        <v-btn
+          :color="autoPopulateCancelWarning ? 'warning' : 'error'"
+          class="mx-1"
+          small
+          :title="autoPopulateCancelWarning
+            ? 'Cancel the in-progress auto-populate'
+            : 'Cancel (Esc)'"
+          @click="cancelAutoPopulate"
+        >
+          <v-icon left>
+            {{ autoPopulateCancelWarning ? 'mdi-cancel' : 'mdi-close' }}
+          </v-icon>
+          Cancel
+          <span
+            v-if="!autoPopulateCancelWarning"
             class="text-caption ml-1"
           >(Esc)</span>
         </v-btn>

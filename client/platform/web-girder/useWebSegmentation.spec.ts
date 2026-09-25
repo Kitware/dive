@@ -221,3 +221,20 @@ it('rejects a target mask with over 2.5 times the source area before writing geo
   expect(error).toHaveBeenCalledWith(expect.stringContaining('out of scale'));
   expect(tracks.has('right')).toBe(false);
 });
+
+it('exposes busy while auto-populate runs and cancel drops the in-flight job', async () => {
+  const { service, error } = harness();
+  let finish!: (response: SegmentationPredictResponse) => void;
+  mocks.predict.mockImplementation(() => new Promise((resolve) => { finish = resolve; }));
+  expect(service.busy.value).toBe(false);
+  service.handleNewAnnotationGeometry({
+    camera: 'left', trackId: 1, frameNum: 0, source: 'box', bounds: [20, 0, 30, 4],
+  });
+  expect(service.busy.value).toBe(true);
+  service.cancel();
+  expect(service.busy.value).toBe(false);
+  expect(mocks.dispose).toHaveBeenCalled();
+  finish(result());
+  await nextTick();
+  expect(error).not.toHaveBeenCalled();
+});
