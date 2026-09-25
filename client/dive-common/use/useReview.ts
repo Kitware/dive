@@ -1,3 +1,4 @@
+import { buildReviewStatistics, ReviewStatistics } from 'dive-common/review/statistics';
 import { orderedHeadTail } from 'vue-media-annotator/headTail';
 /**
  * State behind the Review page: the datasets under review (with their
@@ -68,6 +69,7 @@ export interface ReviewDataset {
 }
 
 export interface ReviewService {
+  statistics: Readonly<Ref<ReviewStatistics>>;
   datasets: Readonly<Ref<ReviewDataset[]>>;
   available: Readonly<Ref<ScoringDatasetSummary[]>>;
   query: ReviewQuery;
@@ -493,6 +495,18 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     return dataRevision.value;
   }
 
+  const statistics = computed(() => {
+    dependOnData();
+    return buildReviewStatistics([...loaded.entries()]
+      .filter(([id]) => entry(id)?.status === 'ready')
+      .map(([id, dataset]) => ({
+        config: dataset.config,
+        tracks: dataset.tracks.values(),
+        sequenceId: parentOf(id),
+        sequenceName: datasetName(parentOf(id)),
+      })));
+  });
+
   /** Types the query can ask for: present on the selected datasets at the current threshold. */
   const types = computed(() => {
     dependOnData();
@@ -858,6 +872,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     sort,
     items,
     entries,
+    statistics,
     dataRevision,
     stale,
     queryGeneration,

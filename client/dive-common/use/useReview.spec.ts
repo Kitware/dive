@@ -230,6 +230,8 @@ describe('createReviewService', () => {
     expect(service.entries.value).toHaveLength(1);
     const [entry] = service.entries.value;
     expect(entry.labels).toEqual(['left', 'right']);
+    expect(service.statistics.value.timelines).toHaveLength(1);
+    expect(service.statistics.value.timelines[0]).toMatchObject({ id: 'm', cameraCount: 2, count: 1 });
     expect(service.parentOf('m/right')).toBe('m');
     const right = entry.items[1];
     expect(right.frames.map((f) => f.missing ?? false)).toEqual([true, false]);

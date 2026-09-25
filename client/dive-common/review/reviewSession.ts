@@ -13,7 +13,7 @@ export interface ReviewSession {
   review: ReviewService;
   /** Platform account that owns this in-memory session. */
   owner?: string;
-  view: 'results' | 'datasets';
+  view: 'results' | 'datasets' | 'statistics';
   page: number;
   /** Key of the datasets the session was started with, see `sessionKey`. */
   datasetKey: string;
