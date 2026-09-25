@@ -47,8 +47,10 @@ function record(value: unknown): WormsRecord {
 export class WormsClient {
   private cache = new Map<string, unknown>();
 
-  constructor(private request: typeof fetch = fetch) {
-    // Allow tests to supply a transport without changing the public API URL.
+  constructor(private request: typeof fetch = (...args) => fetch(...args)) {
+    // Native browser fetch requires Window (or undefined) as its receiver.
+    // Calling a stored reference as this.request binds it to WormsClient instead.
+    // The wrapper preserves the browser receiver while allowing test transports.
   }
 
   private async get(path: string, signal: AbortSignal): Promise<unknown> {
