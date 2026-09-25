@@ -66,8 +66,12 @@ describe('category import dialog shared by web and desktop', () => {
     expect(clientSettings.typeSettings.showEmptyTypes).toBe(false);
     await nextTick();
     expect(vm.canImport).toBe(true);
-    expect(wrapper.text()).toContain('fish → shark');
-    expect(wrapper.text()).not.toContain('shark → fish');
+    expect(vm.preview.tree).toEqual([
+      { name: 'fish', depth: 0, rank: undefined },
+      { name: 'shark', depth: 1, rank: 'Species' },
+    ]);
+    expect(wrapper.text()).toContain('fish');
+    expect(wrapper.text()).toContain('shark');
     vm.confirmImport();
     expect(mocks.apply).toHaveBeenCalledWith(['shark'], { shark: 'fish' }, taxonomySources);
     expect(clientSettings.typeSettings.showEmptyTypes).toBe(true);
@@ -103,6 +107,55 @@ describe('category import dialog shared by web and desktop', () => {
     expect(wrapper.text()).toContain('salmon ← old salmon, Salmo old');
     expect(wrapper.text()).toContain('trout ← old trout');
     expect(wrapper.text()).toContain('Hide details');
+    wrapper.destroy();
+  });
+
+  it('prunes a middle WoRMS rank so descendants become roots and unused ancestors drop', async () => {
+    const { vm, wrapper } = mountDialog();
+    vm.source = 'worms';
+    await nextTick();
+    vm.setWormsImport({
+      types: ['something'],
+      typeHierarchy: { something: 'Animalia', Animalia: 'Biota' },
+      taxonomySources: {
+        1: { aphiaId: 1, scientificName: 'Biota', rank: 'Superdomain' },
+        2: { aphiaId: 2, scientificName: 'Animalia', rank: 'Kingdom' },
+        3: { aphiaId: 3, scientificName: 'something', rank: 'Species' },
+      },
+      warnings: [],
+    });
+    await nextTick();
+    vm.pruneStagedType('Animalia');
+    await nextTick();
+    expect(vm.preview.incoming?.typeHierarchy).toBeUndefined();
+    expect(vm.preview.incoming?.types).toEqual(['something']);
+    expect(vm.preview.tree).toEqual([
+      { name: 'something', depth: 0, rank: 'Species' },
+    ]);
+    expect(vm.preview.incoming?.taxonomySources).toEqual({
+      3: { aphiaId: 3, scientificName: 'something', rank: 'Species' },
+    });
+    expect(mocks.apply).not.toHaveBeenCalled();
+    wrapper.destroy();
+  });
+
+  it('keeps a shared ancestor when pruning one WoRMS branch', async () => {
+    const { vm, wrapper } = mountDialog();
+    vm.source = 'worms';
+    await nextTick();
+    vm.setWormsImport({
+      types: ['fish', 'oak'],
+      typeHierarchy: {
+        fish: 'Animalia', Animalia: 'Biota', oak: 'Plantae', Plantae: 'Biota',
+      },
+      warnings: [],
+    });
+    await nextTick();
+    vm.pruneStagedType('Animalia');
+    await nextTick();
+    expect(vm.preview.incoming?.typeHierarchy).toEqual({ oak: 'Plantae', Plantae: 'Biota' });
+    expect(vm.preview.incoming?.types).toEqual(['fish', 'oak']);
+    expect(vm.preview.tree.map((row) => row.name)).toEqual(['Biota', 'Plantae', 'oak', 'fish']);
     wrapper.destroy();
   });
 
