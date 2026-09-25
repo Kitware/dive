@@ -65,6 +65,11 @@ export interface DiveConfiguration {
   trainingEnabled?: boolean;
   jobsDisabled?: boolean;
   jobsDisabledMessage?: string;
+  /** Server-side interactive segmentation and stereo (the `interactive` service). */
+  interactiveEnabled?: boolean;
+  interactiveMessage?: string;
+  interactiveStereoMethods?: string[];
+  interactiveTextQuery?: boolean;
 }
 
 export interface JobsDisabledConfig {

@@ -72,6 +72,11 @@ export interface StereoOnnxWebOptions {
   foundationModelSpec?: FoundationModelSpec;
   /** Overrides the user's dropdown choice; mainly for tests. */
   getMatchMethod?: () => StereoMatchMethod;
+  /**
+   * A matcher run by the server's interactive service, used for every method
+   * while `enabled()` holds; the browser models are the fallback.
+   */
+  server?: { enabled: () => boolean; matcher: (method: StereoMatchMethod) => StereoMatcher };
   range?: SearchRange;
   /**
    * Progress message; null clears it. `progress` accompanies the messages whose
@@ -213,6 +218,11 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
 
   function getMatcher(imagery?: ImagerySize): Promise<StereoMatcher | null> {
     const method = currentMethod();
+    if (opts.server?.enabled()) {
+      const serverKey = `server:${method}`;
+      if (!matchers[serverKey]) matchers[serverKey] = Promise.resolve(opts.server.matcher(method));
+      return matchers[serverKey];
+    }
     const key = method === 'foundation' && imagery
       ? `${method}:${imagery.width}x${imagery.height}`
       : method;
@@ -438,5 +448,8 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     stereoViewLink,
     precomputeCurrentFrame,
     invalidateCalibration,
+    refreshMeasurement: async (trackId: number, frameNum: number) => (
+      getTransfer()?.measureAndReport(trackId, frameNum)
+    ),
   };
 }

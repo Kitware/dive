@@ -1,3 +1,4 @@
+import { ref } from 'vue';
 /**
  * The contract both correspondence methods satisfy, so the transfer composable
  * and its callers never branch on which one is selected.
@@ -45,8 +46,13 @@ export const STEREO_MATCH_METHODS: { value: StereoMatchMethod; text: string; des
   { value: 'ncc', text: 'Lower Quality, Faster' },
 ];
 
+/** Methods a server-side interactive service can run for the web client. */
+export const serverStereoMethods = ref<StereoMatchMethod[]>([]);
+
 export function stereoMatchMethodsFor(desktop: boolean) {
-  return STEREO_MATCH_METHODS.filter((m) => desktop || !m.desktopOnly);
+  return STEREO_MATCH_METHODS.filter(
+    (m) => desktop || !m.desktopOnly || serverStereoMethods.value.includes(m.value),
+  );
 }
 
 export function isStereoMatchMethod(value: unknown, desktop: boolean): value is StereoMatchMethod {

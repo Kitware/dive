@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, onMounted, ref, watch, Ref, PropType,
+  computed, defineComponent, nextTick, onBeforeUnmount, onMounted, ref, watch, Ref, PropType,
 } from 'vue';
 
 import Viewer from 'dive-common/components/Viewer.vue';
@@ -19,6 +19,7 @@ import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import type { DatasetCalibrationResult, DatasetType, SubType } from 'dive-common/apispec';
 import { useApi } from 'dive-common/apispec';
+import type { StereoAnnotationCompleteParams } from 'dive-common/use/useModeManager';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
@@ -27,6 +28,12 @@ import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
+import useServerSegmentation from 'platform/web-girder/useServerSegmentation';
+import StereoServerMatcher from 'dive-common/use/stereo/StereoServerMatcher';
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
+import {
+  interactiveStereoSetFrame, interactiveStereoTransferPoints,
+} from 'platform/web-girder/api/interactive.service';
 import type { StereoModelProgress } from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
@@ -176,11 +183,29 @@ export default defineComponent({
     }
 
     const {
-      handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
-      invalidateCalibration, stereoViewLink,
+      interactiveEnabled, interactiveMessage, refreshInteractive,
+    } = useConfig();
+
+    // Stereo matching runs in the server's interactive service when it is up;
+    // otherwise the browser models do the work as before.
+    const serverStereo = {
+      enabled: () => interactiveEnabled.value,
+      matcher: (method: StereoMatchMethod) => new StereoServerMatcher({
+        transferPoints: (request) => interactiveStereoTransferPoints({
+          datasetId: parentDatasetId(props.id), ...request, strict: true,
+        }),
+        setFrame: (frame, method2) => interactiveStereoSetFrame(parentDatasetId(props.id), frame, method2),
+      }, method),
+    };
+
+    const {
+      handleStereoAnnotationComplete: transferStereoAnnotation,
+      handleStereoTrackLinked, warpAllFromCamera,
+      invalidateCalibration, stereoViewLink, refreshMeasurement: refreshStereoMeasurement,
     } = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
+      server: serverStereo,
       ensureMeasurementAttributes,
       onStatus: (message, progress) => {
         stereoBusyMessage.value = message;
@@ -203,6 +228,27 @@ export default defineComponent({
 
     function closeStereoError() {
       stereoError.value = '';
+    }
+
+    const serverSegmentation = useServerSegmentation({
+      getViewer: () => viewerRef.value,
+      getDatasetId: () => parentDatasetId(props.id),
+      isEnabled: () => interactiveEnabled.value,
+      disabledMessage: () => interactiveMessage.value,
+      refreshMeasurement: refreshStereoMeasurement,
+      onError: (message) => { stereoError.value = message; },
+    });
+
+    /** Masks go through the service; boxes, lines and points through the transfer. */
+    async function handleStereoAnnotationComplete(params: StereoAnnotationCompleteParams) {
+      if (await serverSegmentation.handleStereoSegmentation(params)) return 'transferred';
+      return transferStereoAnnotation(params);
+    }
+
+    async function connectInteractive() {
+      await refreshInteractive();
+      if (interactiveEnabled.value) await nextTick();
+      serverSegmentation.initialize();
     }
 
     const stereoDownloadPercent = computed(() => {
@@ -294,6 +340,8 @@ export default defineComponent({
       loadDataset(datasetId).catch((reason) => {
         reportHandledPromiseRejection('ViewerLoader: loadDataset', reason);
       });
+      // <Viewer :key="id"> remounts with a fresh recipe to hook up.
+      nextTick().then(() => serverSegmentation.initialize());
     }, { immediate: true });
 
     // Seed as soon as parent meta arrives so pipeline menus don't wait on Viewer emit.
@@ -415,6 +463,7 @@ export default defineComponent({
     });
 
     onMounted(() => {
+      connectInteractive().catch(() => {});
       window.addEventListener('beforeunload', viewerRef.value.warnBrowserExit);
     });
 

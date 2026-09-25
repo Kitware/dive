@@ -92,6 +92,12 @@ When developing with `docker-compose.override.yml`, the same service mounts your
 
 ![Login Page](images/General/login.png)
 
+### `interactive`
+
+The `interactive` service (GPU profile) runs VIAME's interactive segmentation and stereo service on the GPU host so the web client's Segment tool, mask keypoints, text query and stereo point mapping run server-side. It mounts the assetstore read-only and answers girder over `DIVE_INTERACTIVE_URL`.
+
+It keeps at most `DIVE_INTERACTIVE_MAX_SESSIONS` service processes resident (one per user and dataset), retires a process idle for `DIVE_INTERACTIVE_IDLE_SECONDS`, runs `DIVE_INTERACTIVE_MAX_INFLIGHT` inferences at a time, and refuses a request that cannot get a turn within `DIVE_INTERACTIVE_QUEUE_TIMEOUT` seconds instead of queueing it. Girder pauses the tools entirely while any pipeline or training job is queued or running, since they share the GPU; `dive_configuration` reports this as `interactiveEnabled` with a message. Set `INTERACTIVE_GPU_UUID` to pin it to a different GPU than the job workers.
+
 ## Production deployment
 
 If you have a server with a **public-facing IP address** and a **domain name** that points to it, you should be able to use our production deployment configuration.  This is the way we deploy viame.kitware.com.
