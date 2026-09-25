@@ -95,12 +95,23 @@ export function samDownloadPercent(files: Iterable<FileBytes>): number {
  * Transformers.js forces `wasm.proxy = false` on import. Re-enable it for CPU
  * so encode/decode run in ORT's worker and the UI thread can keep painting
  * (spinner, Esc, Cancel). WebGPU cannot use the proxy worker.
+ *
+ * Once ORT has initialized WASM on the main thread (any WebGPU session), the
+ * proxy worker can never be created: ORT skips re-init and later calls throw
+ * "worker not ready". Pass allowProxy=false after that happens.
  */
 export function configureSamOrtProxy(
   device: SamDevice,
   onnxEnv: { wasm?: { proxy?: boolean } } | undefined,
+  allowProxy = true,
 ) {
-  if (onnxEnv?.wasm) onnxEnv.wasm.proxy = device === 'wasm';
+  if (onnxEnv?.wasm) onnxEnv.wasm.proxy = device === 'wasm' && allowProxy;
+}
+
+/** ORT surfaces this when wasm.proxy=true after WASM already init'd without a worker. */
+export function isOrtProxyWorkerError(err: unknown): boolean {
+  const text = String(err);
+  return text.includes('worker not ready') || text.includes('no available backend');
 }
 
 /** Let Vue paint status/spinner before a long sync stretch of work. */
@@ -128,6 +139,9 @@ export default class SamOnnx {
   private devicePreference: SamDevicePreference = 'auto';
 
   private loadedDevice: SamDevice | null = null;
+
+  /** False after any WebGPU attempt: ORT WASM is then stuck on the main thread. */
+  private allowOrtWasmProxy = true;
 
   private version = 0;
 
@@ -179,58 +193,18 @@ export default class SamOnnx {
     const id = SAM_MODELS[this.kind];
     const label = SAM_LABELS[this.kind];
     const devices = await samDevices(navigatorGpu(), this.devicePreference);
+    const onnxEnv = env.backends.onnx as { wasm?: { proxy?: boolean } };
     let lastError: unknown;
     try {
       // Providers must be tried sequentially; release a failed session first.
       // eslint-disable-next-line no-restricted-syntax
       for (const device of devices) {
+        // WebGPU initializes WASM on the main thread; proxy can never be enabled after that.
+        if (device === 'webgpu') this.allowOrtWasmProxy = false;
         const deviceLabel = device === 'webgpu' ? 'GPU' : 'CPU';
-        configureSamOrtProxy(device, env.backends.onnx as { wasm?: { proxy?: boolean } });
         try {
-          // Cache hits report 100% immediately; prepare covers the silent session compile.
-          this.onStatus(`Downloading ${label}…`, { phase: 'download', percent: 0 });
-          await yieldToUi();
-          const files = new Map<string, FileBytes>();
-          let sawTotal = false;
-          let prepared = false;
-          const prepare = () => {
-            if (prepared) return;
-            prepared = true;
-            this.onStatus(`Preparing ${label} (${deviceLabel})…`, { phase: 'prepare' });
-          };
-          const reportDownload = (percent: number) => {
-            if (prepared) return;
-            this.onStatus(`Downloading ${label}…`, {
-              phase: 'download',
-              percent: Math.min(100, Math.round(percent)),
-            });
-            if (percent >= 100) prepare();
-          };
-          // WASM compiles with little/no download progress once files are cached.
-          const prepareSoon = setTimeout(prepare, device === 'wasm' ? 300 : 5000);
-          try {
-            // eslint-disable-next-line no-await-in-loop
-            this.model = await Sam2.from_pretrained(id, {
-              device,
-              dtype: 'q4',
-              progress_callback: (info) => {
-                if (info.status === 'progress_total') {
-                  sawTotal = true;
-                  reportDownload(info.progress);
-                } else if (info.status === 'progress' && !sawTotal) {
-                  files.set(info.file, { loaded: info.loaded, total: info.total });
-                  reportDownload(samDownloadPercent(files.values()));
-                }
-              },
-            }) as Sam2Model;
-          } finally {
-            clearTimeout(prepareSoon);
-          }
-          // Session creation finished; processor files are tiny but still worth a prepare label.
-          prepare();
           // eslint-disable-next-line no-await-in-loop
-          this.processor = await AutoProcessor.from_pretrained(id) as Sam2Processor;
-          this.loadedDevice = device;
+          await this.loadOnDevice(Sam2, AutoProcessor, id, label, device, deviceLabel, onnxEnv);
           return;
         } catch (err) {
           // eslint-disable-next-line no-await-in-loop
@@ -239,10 +213,82 @@ export default class SamOnnx {
           this.processor = null;
           this.loadedDevice = null;
           lastError = err;
+          // GPU→CPU after a prior WebGPU session: ORT proxy worker was never created.
+          if (device === 'wasm' && this.allowOrtWasmProxy && isOrtProxyWorkerError(err)) {
+            this.allowOrtWasmProxy = false;
+            try {
+              // eslint-disable-next-line no-await-in-loop
+              await this.loadOnDevice(Sam2, AutoProcessor, id, label, device, deviceLabel, onnxEnv);
+              return;
+            } catch (retryErr) {
+              // eslint-disable-next-line no-await-in-loop
+              await this.model?.dispose();
+              this.model = null;
+              this.processor = null;
+              this.loadedDevice = null;
+              lastError = retryErr;
+            }
+          }
         }
       }
       throw new Error(`Could not load ${label}: ${String(lastError)}`);
     } finally { this.onStatus(null); }
+  }
+
+  private async loadOnDevice(
+    // Transformers exports classes; only from_pretrained is needed here.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    Sam2: { from_pretrained: (...args: any[]) => Promise<Sam2Model> },
+    AutoProcessor: { from_pretrained: (modelId: string) => Promise<Sam2Processor> },
+    id: string,
+    label: string,
+    device: SamDevice,
+    deviceLabel: string,
+    onnxEnv: { wasm?: { proxy?: boolean } },
+  ) {
+    configureSamOrtProxy(device, onnxEnv, this.allowOrtWasmProxy);
+    // Cache hits report 100% immediately; prepare covers the silent session compile.
+    this.onStatus(`Downloading ${label}…`, { phase: 'download', percent: 0 });
+    await yieldToUi();
+    const files = new Map<string, FileBytes>();
+    let sawTotal = false;
+    let prepared = false;
+    const prepare = () => {
+      if (prepared) return;
+      prepared = true;
+      this.onStatus(`Preparing ${label} (${deviceLabel})…`, { phase: 'prepare' });
+    };
+    const reportDownload = (percent: number) => {
+      if (prepared) return;
+      this.onStatus(`Downloading ${label}…`, {
+        phase: 'download',
+        percent: Math.min(100, Math.round(percent)),
+      });
+      if (percent >= 100) prepare();
+    };
+    // WASM compiles with little/no download progress once files are cached.
+    const prepareSoon = setTimeout(prepare, device === 'wasm' ? 300 : 5000);
+    try {
+      this.model = await Sam2.from_pretrained(id, {
+        device,
+        dtype: 'q4',
+        progress_callback: (info) => {
+          if (info.status === 'progress_total') {
+            sawTotal = true;
+            reportDownload(info.progress);
+          } else if (info.status === 'progress' && !sawTotal) {
+            files.set(info.file, { loaded: info.loaded, total: info.total });
+            reportDownload(samDownloadPercent(files.values()));
+          }
+        },
+      }) as Sam2Model;
+    } finally {
+      clearTimeout(prepareSoon);
+    }
+    // Session creation finished; processor files are tiny but still worth a prepare label.
+    prepare();
+    this.processor = await AutoProcessor.from_pretrained(id) as Sam2Processor;
+    this.loadedDevice = device;
   }
 
   ready(): Promise<void> { return this.run(() => this.load()); }
@@ -262,7 +308,7 @@ export default class SamOnnx {
       await this.load();
       const { RawImage, Tensor: TensorClass, env } = await import('@huggingface/transformers');
       if (this.loadedDevice) {
-        configureSamOrtProxy(this.loadedDevice, env.backends.onnx as { wasm?: { proxy?: boolean } });
+        configureSamOrtProxy(this.loadedDevice, env.backends.onnx as { wasm?: { proxy?: boolean } }, this.allowOrtWasmProxy);
       }
       const processor = this.processor!;
       const model = this.model!;

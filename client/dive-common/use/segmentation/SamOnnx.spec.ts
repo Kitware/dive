@@ -1,5 +1,5 @@
 import SamOnnx, {
-  SAM_MODELS, configureSamOrtProxy, samDevices, samDownloadPercent,
+  SAM_MODELS, configureSamOrtProxy, isOrtProxyWorkerError, samDevices, samDownloadPercent,
 } from './SamOnnx';
 import type { SamModelProgress } from './SamOnnx';
 
@@ -26,6 +26,7 @@ const mocks = vi.hoisted(() => {
   }), {
     reshape_input_points: () => new Tensor('float32', new Float32Array(2), [1, 1, 1, 2]),
   });
+  const onnx = { wasm: { proxy: false as boolean } };
   return {
     Tensor,
     load: vi.fn(),
@@ -37,6 +38,7 @@ const mocks = vi.hoisted(() => {
     fromPretrained: vi.fn(),
     makeModel,
     processor,
+    onnx,
   };
 });
 vi.mock('./SamMaskPostprocessor', () => ({
@@ -47,11 +49,12 @@ vi.mock('@huggingface/transformers', () => ({
   RawImage: vi.fn(),
   AutoProcessor: { from_pretrained: async () => mocks.processor },
   Sam2Model: { from_pretrained: (...args: unknown[]) => mocks.fromPretrained(...args) },
-  env: { backends: { onnx: { wasm: { proxy: false } } } },
+  env: { backends: { onnx: mocks.onnx } },
 }));
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mocks.onnx.wasm.proxy = false;
   mocks.encode.mockResolvedValue({ embedding: { dispose: vi.fn() } });
   mocks.postprocess.mockImplementation(async () => {
     const mask = new Uint8Array(64);
@@ -99,13 +102,72 @@ it('reloads when the preferred device changes', async () => {
   await sam.dispose();
 });
 
-it('enables the ORT wasm proxy only for CPU sessions', () => {
+it('enables the ORT wasm proxy only for CPU sessions when still allowed', () => {
   const onnx = { wasm: { proxy: false } };
   configureSamOrtProxy('wasm', onnx);
   expect(onnx.wasm.proxy).toBe(true);
   configureSamOrtProxy('webgpu', onnx);
   expect(onnx.wasm.proxy).toBe(false);
+  configureSamOrtProxy('wasm', onnx, false);
+  expect(onnx.wasm.proxy).toBe(false);
   configureSamOrtProxy('wasm', undefined);
+  expect(isOrtProxyWorkerError(new Error('no available backend found. ERR: [wasm] Error: worker not ready'))).toBe(true);
+  expect(isOrtProxyWorkerError(new Error('unrelated'))).toBe(false);
+});
+
+it('keeps the ORT wasm proxy off after a WebGPU session when switching to CPU', async () => {
+  const previous = globalThis.navigator;
+  Object.defineProperty(globalThis, 'navigator', {
+    value: {
+      gpu: {
+        requestAdapter: async () => ({ info: { isFallbackAdapter: false } }),
+      },
+    },
+    configurable: true,
+  });
+  try {
+    const sam = new SamOnnx();
+    await sam.setDevice('gpu');
+    await sam.ready();
+    expect(mocks.onnx.wasm.proxy).toBe(false);
+    expect(mocks.fromPretrained).toHaveBeenCalledWith(
+      SAM_MODELS.sam2,
+      expect.objectContaining({ device: 'webgpu' }),
+    );
+
+    await sam.setDevice('cpu');
+    await sam.ready();
+    // After a WebGPU session, proxy stays off so ORT does not demand a missing worker.
+    expect(mocks.onnx.wasm.proxy).toBe(false);
+    expect(mocks.fromPretrained).toHaveBeenCalledWith(
+      SAM_MODELS.sam2,
+      expect.objectContaining({ device: 'wasm' }),
+    );
+    await sam.dispose();
+  } finally {
+    Object.defineProperty(globalThis, 'navigator', {
+      value: previous,
+      configurable: true,
+    });
+  }
+});
+
+it('retries CPU load without the proxy when ORT reports worker not ready', async () => {
+  const sam = new SamOnnx();
+  await sam.setDevice('cpu');
+  mocks.fromPretrained
+    .mockImplementationOnce(async () => {
+      throw new Error('no available backend found. ERR: [wasm] Error: worker not ready');
+    })
+    .mockImplementationOnce(async (id: string) => {
+      mocks.load(id);
+      expect(mocks.onnx.wasm.proxy).toBe(false);
+      return mocks.makeModel();
+    });
+  await sam.ready();
+  expect(mocks.fromPretrained).toHaveBeenCalledTimes(2);
+  expect(mocks.onnx.wasm.proxy).toBe(false);
+  await sam.dispose();
 });
 
 it('aggregates per-file download bytes into a percent', () => {
