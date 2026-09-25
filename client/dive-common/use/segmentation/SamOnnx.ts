@@ -33,6 +33,8 @@ export interface SamModelProgress {
   phase: SamLoadPhase;
   /** Present only while aggregating Hugging Face file downloads. */
   percent?: number;
+  /** Runtime actually used for this status update (preference may differ under auto). */
+  device?: 'gpu' | 'cpu';
 }
 export type SamStatusCallback = (message: string | null, progress?: SamModelProgress) => void;
 
@@ -247,8 +249,9 @@ export default class SamOnnx {
     onnxEnv: { wasm?: { proxy?: boolean } },
   ) {
     configureSamOrtProxy(device, onnxEnv, this.allowOrtWasmProxy);
+    const runtime: 'gpu' | 'cpu' = device === 'webgpu' ? 'gpu' : 'cpu';
     // Cache hits report 100% immediately; prepare covers the silent session compile.
-    this.onStatus(`Downloading ${label}…`, { phase: 'download', percent: 0 });
+    this.onStatus(`Downloading ${label}…`, { phase: 'download', percent: 0, device: runtime });
     await yieldToUi();
     const files = new Map<string, FileBytes>();
     let sawTotal = false;
@@ -256,13 +259,14 @@ export default class SamOnnx {
     const prepare = () => {
       if (prepared) return;
       prepared = true;
-      this.onStatus(`Preparing ${label} (${deviceLabel})…`, { phase: 'prepare' });
+      this.onStatus(`Preparing ${label} (${deviceLabel})…`, { phase: 'prepare', device: runtime });
     };
     const reportDownload = (percent: number) => {
       if (prepared) return;
       this.onStatus(`Downloading ${label}…`, {
         phase: 'download',
         percent: Math.min(100, Math.round(percent)),
+        device: runtime,
       });
       if (percent >= 100) prepare();
     };
@@ -314,8 +318,14 @@ export default class SamOnnx {
       const model = this.model!;
       let frame = this.frames.get(key);
       try {
+        const runtime: 'gpu' | 'cpu' = this.loadedDevice === 'wasm' ? 'cpu' : 'gpu';
         if (!frame) {
-          this.onStatus('Encoding image…', { phase: 'encode' });
+          this.onStatus(
+            runtime === 'cpu'
+              ? 'Encoding image on CPU (this can take a while)…'
+              : 'Encoding image…',
+            { phase: 'encode', device: runtime },
+          );
           await yieldToUi();
           const inputs = await processor(new RawImage(image.data, image.width, image.height, 4));
           try {
@@ -334,10 +344,10 @@ export default class SamOnnx {
           this.frames.set(key, frame);
         }
         this.onStatus(
-          this.devicePreference === 'cpu'
+          runtime === 'cpu'
             ? 'Computing segmentation on CPU (this can take a while)…'
             : 'Computing segmentation…',
-          { phase: 'predict' },
+          { phase: 'predict', device: runtime },
         );
         await yieldToUi();
         const foreground = points.filter((_, i) => labels[i] < 2);

@@ -244,6 +244,51 @@ export default defineComponent({
     const segmentationPreparing = computed(() => (
       segmentationProgress.value?.phase === 'prepare'
     ));
+    const segmentationOnCpu = computed(() => (
+      segmentationProgress.value?.device === 'cpu'
+    ));
+    /**
+     * Once per browser session: warn that CPU SAM embedding/auto-populate is slow.
+     * Fires on the first download/prepare/encode/predict that actually runs on CPU
+     * (forced CPU, no GPU, or auto fallback).
+     */
+    const CPU_SEG_WARN_KEY = 'dive.sam.cpuModeWarned';
+    let cpuSegWarned = false;
+    let cpuSegWarnOpen = false;
+    watch(
+      () => ({
+        active: segmentationLoadActive.value || segmentationEncoding.value,
+        device: segmentationProgress.value?.device,
+      }),
+      async ({ active, device }) => {
+        if (!active || device !== 'cpu' || cpuSegWarned || cpuSegWarnOpen) return;
+        try {
+          if (typeof sessionStorage !== 'undefined'
+            && sessionStorage.getItem(CPU_SEG_WARN_KEY)) {
+            cpuSegWarned = true;
+            return;
+          }
+        } catch {
+          /* private mode / blocked storage: still warn once this page load */
+        }
+        cpuSegWarned = true;
+        cpuSegWarnOpen = true;
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(CPU_SEG_WARN_KEY, '1');
+          }
+        } catch { /* ignore */ }
+        await prompt({
+          title: 'CPU Segmentation Mode',
+          text: [
+            'Segmentation is running in CPU mode.',
+            'Embedding each new frame and auto-populating masks or points will take significantly longer than on a GPU—typically 5–15 seconds or more per frame (about 10–30× slower).',
+            'Later clicks on an already-embedded frame stay quick. You can switch devices under Track Settings if a hardware GPU is available.',
+          ],
+        });
+        cpuSegWarnOpen = false;
+      },
+    );
     /**
      * Import menu "Warp to All": push every detection the imported camera holds
      * onto the other camera, then save. `resolve` keeps the import spinner up
@@ -550,6 +595,7 @@ export default defineComponent({
       segmentationEncoding,
       segmentationDownloadPercent,
       segmentationPreparing,
+      segmentationOnCpu,
       autoPopulateBusy,
       cancelAutoPopulate,
       handleNewAnnotationGeometry,
@@ -745,6 +791,17 @@ export default defineComponent({
       <v-card>
         <v-card-title>Segmentation model</v-card-title>
         <v-card-text>
+          <v-alert
+            v-if="segmentationOnCpu"
+            type="warning"
+            dense
+            text
+            class="mb-3"
+          >
+            Running on CPU. Embedding each new frame and auto-populating
+            masks or points will take significantly longer (typically 5–15
+            seconds or more per frame).
+          </v-alert>
           <div>{{ segmentationStatus }}</div>
           <div class="mb-3 mt-3">
             <div>

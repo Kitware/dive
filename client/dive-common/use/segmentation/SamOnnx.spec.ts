@@ -212,6 +212,19 @@ it('discards a prediction when the model changes during encoding', async () => {
   await switched;
 });
 
+it('reports cpu or gpu on progress while loading and encoding', async () => {
+  const updates: SamModelProgress[] = [];
+  const sam = new SamOnnx((_message, progress) => {
+    if (progress) updates.push(progress);
+  });
+  await sam.setDevice('cpu');
+  await sam.predict('left:0', image, request);
+  expect(updates.some((p) => p.phase === 'download' && p.device === 'cpu')).toBe(true);
+  expect(updates.some((p) => p.phase === 'encode' && p.device === 'cpu')).toBe(true);
+  expect(updates.some((p) => p.phase === 'predict' && p.device === 'cpu')).toBe(true);
+  await sam.dispose();
+});
+
 it('moves from download at 100% to prepare while the session still loads (cached files)', async () => {
   const updates: { message: string | null; progress?: SamModelProgress }[] = [];
   let finishLoad!: (value: object) => void;
