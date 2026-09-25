@@ -286,7 +286,12 @@ export default function useWebSegmentation(
     });
   }
 
-  watch(() => [getViewer()?.segmentationRecipe, getViewer()?.progress?.loaded, settings().segmentationModel], (_current, previous) => {
+  watch(() => [
+    getViewer()?.segmentationRecipe,
+    getViewer()?.progress?.loaded,
+    settings().segmentationModel,
+    settings().segmentationDevice,
+  ], (_current, previous) => {
     const viewer = getViewer();
     if (!viewer?.segmentationRecipe || !viewer?.progress?.loaded) return;
     if (viewer.datasetType === 'large-image') {
@@ -297,7 +302,10 @@ export default function useWebSegmentation(
     epoch += 1;
     jobs.clear(); versions.clear(); previews.clear(); ownLines.clear(); generated.clear(); finalized.clear();
     sam.dispose().catch(() => {});
-    sam.setModel(settings().segmentationModel).catch(onError);
+    Promise.all([
+      sam.setModel(settings().segmentationModel),
+      sam.setDevice(settings().segmentationDevice),
+    ]).catch(onError);
     viewer.segmentationRecipe.initialize({
       initializeServiceFn: () => sam.ready(),
       getImagePath: () => viewer.selectedCamera,

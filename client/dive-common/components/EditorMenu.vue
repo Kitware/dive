@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  onBeforeUnmount,
   PropType,
   ref,
   watch,
@@ -248,8 +249,8 @@ export default defineComponent({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
-          loading: (r.loading?.value ?? false)
-            || (r instanceof SegmentationPointClick && r.predicting.value),
+          // Model download/init only — keep the tool usable while a mask runs.
+          loading: r.loading?.value ?? false,
           description: r.name,
           click: () => r.activate(),
           mousetrap: [
@@ -337,7 +338,44 @@ export default defineComponent({
       return segRecipe?.loading.value ?? false;
     });
 
+    /** After a long predict, promote Reset to an explicit Cancel control. */
+    const SEGMENTATION_CANCEL_WARNING_MS = 3000;
+    const segmentationCancelWarning = ref(false);
+    let segmentationCancelWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    watch(segmentationPredicting, (predicting) => {
+      if (segmentationCancelWarningTimer !== null) {
+        clearTimeout(segmentationCancelWarningTimer);
+        segmentationCancelWarningTimer = null;
+      }
+      if (predicting) {
+        segmentationCancelWarning.value = false;
+        segmentationCancelWarningTimer = setTimeout(() => {
+          segmentationCancelWarningTimer = null;
+          if (segmentationPredicting.value) {
+            segmentationCancelWarning.value = true;
+          }
+        }, SEGMENTATION_CANCEL_WARNING_MS);
+      } else {
+        segmentationCancelWarning.value = false;
+      }
+    });
+    onBeforeUnmount(() => {
+      if (segmentationCancelWarningTimer !== null) {
+        clearTimeout(segmentationCancelWarningTimer);
+      }
+    });
+
     const segmentationTooltip = 'Left click for positive, middle or shift+click for negative points. Right click to confirm or Esc to cancel.';
+    const segmentationStatusHint = computed(() => {
+      if (segmentationLoading.value) return 'Loading segmentation model…';
+      if (segmentationCancelWarning.value) {
+        return 'Still computing — click Cancel or press Esc to abort.';
+      }
+      if (segmentationPredicting.value) {
+        return 'Computing segmentation… Press Esc to cancel.';
+      }
+      return null;
+    });
 
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
@@ -375,7 +413,9 @@ export default defineComponent({
       activeSegmentationRecipe,
       segmentationPredicting,
       segmentationLoading,
+      segmentationCancelWarning,
       segmentationTooltip,
+      segmentationStatusHint,
       // Text query
       textQueryDialogOpen,
       textQueryInput,
@@ -432,11 +472,8 @@ export default defineComponent({
               Multi-select in progress.  Editing is disabled.
               Select additional tracks to merge or group.
             </span>
-            <span v-else-if="segmentationLoading">
-              Loading segmentation model...
-            </span>
-            <span v-else-if="segmentationPredicting">
-              Computing segmentation...
+            <span v-else-if="segmentationStatusHint">
+              {{ segmentationStatusHint }}
             </span>
             <span v-else-if="activeSegmentationRecipe">
               {{ segmentationTooltip }}
@@ -573,21 +610,30 @@ export default defineComponent({
           </v-tooltip>
         </outlined-labeled-group>
       </span>
-      <!-- Segmentation Reset button -->
+      <!-- Segmentation Reset / Cancel button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
         <v-btn
-          color="error"
+          :color="segmentationCancelWarning ? 'warning' : 'error'"
           class="mx-1"
           small
-          :disabled="(!activeSegmentationRecipe.hasPoints()
-            && !activeSegmentationRecipe.hasPendingPrediction())
-            || segmentationPredicting"
+          :disabled="!segmentationPredicting
+            && !activeSegmentationRecipe.hasPoints()
+            && !activeSegmentationRecipe.hasPendingPrediction()"
+          :title="segmentationPredicting
+            ? (segmentationCancelWarning
+              ? 'Cancel the in-progress segmentation'
+              : 'Cancel (Esc)')
+            : 'Clear points (Esc)'"
           @click="activeSegmentationRecipe.resetPoints()"
         >
           <v-icon left>
-            mdi-close
+            {{ segmentationCancelWarning ? 'mdi-cancel' : 'mdi-close' }}
           </v-icon>
-          Reset
+          {{ segmentationCancelWarning ? 'Cancel' : 'Reset' }}
+          <span
+            v-if="segmentationPredicting && !segmentationCancelWarning"
+            class="text-caption ml-1"
+          >(Esc)</span>
         </v-btn>
       </template>
       <!-- Hide delete controls when in segmentation mode -->

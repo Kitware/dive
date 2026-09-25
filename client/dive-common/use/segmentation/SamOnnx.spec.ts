@@ -1,5 +1,5 @@
 import SamOnnx, {
-  SAM_MODELS, samDevices, samDownloadPercent,
+  SAM_MODELS, configureSamOrtProxy, samDevices, samDownloadPercent,
 } from './SamOnnx';
 import type { SamModelProgress } from './SamOnnx';
 
@@ -47,6 +47,7 @@ vi.mock('@huggingface/transformers', () => ({
   RawImage: vi.fn(),
   AutoProcessor: { from_pretrained: async () => mocks.processor },
   Sam2Model: { from_pretrained: (...args: unknown[]) => mocks.fromPretrained(...args) },
+  env: { backends: { onnx: { wasm: { proxy: false } } } },
 }));
 
 beforeEach(() => {
@@ -70,6 +71,41 @@ it('uses CPU for unavailable/software GPUs, and keeps CPU as a hardware-GPU fall
   expect(await samDevices({ requestAdapter: async () => ({ info: { isFallbackAdapter: true } }) })).toEqual(['wasm']);
   expect(await samDevices({ requestAdapter: async () => ({ info: { isFallbackAdapter: false } }) })).toEqual(['webgpu', 'wasm']);
   expect(await samDevices({ requestAdapter: async () => { throw new Error('denied'); } })).toEqual(['wasm']);
+});
+
+it('honors an explicit CPU or GPU preference against hardware capability', async () => {
+  const hardware = { requestAdapter: async () => ({ info: { isFallbackAdapter: false } }) };
+  const software = { requestAdapter: async () => ({ info: { isFallbackAdapter: true } }) };
+  expect(await samDevices(hardware, 'cpu')).toEqual(['wasm']);
+  expect(await samDevices(hardware, 'gpu')).toEqual(['webgpu']);
+  expect(await samDevices(hardware, 'auto')).toEqual(['webgpu', 'wasm']);
+  // Forced GPU still cannot invent a hardware adapter.
+  expect(await samDevices(software, 'gpu')).toEqual(['wasm']);
+  expect(await samDevices(undefined, 'gpu')).toEqual(['wasm']);
+});
+
+it('reloads when the preferred device changes', async () => {
+  const sam = new SamOnnx();
+  await sam.ready();
+  expect(mocks.fromPretrained).toHaveBeenCalledWith(
+    SAM_MODELS.sam2,
+    expect.objectContaining({ device: 'wasm' }),
+  );
+  await sam.setDevice('cpu');
+  // Same preference is a no-op; switching to auto after a prior load still rebuilds.
+  await sam.setDevice('auto');
+  await sam.ready();
+  expect(mocks.fromPretrained).toHaveBeenCalledTimes(2);
+  await sam.dispose();
+});
+
+it('enables the ORT wasm proxy only for CPU sessions', () => {
+  const onnx = { wasm: { proxy: false } };
+  configureSamOrtProxy('wasm', onnx);
+  expect(onnx.wasm.proxy).toBe(true);
+  configureSamOrtProxy('webgpu', onnx);
+  expect(onnx.wasm.proxy).toBe(false);
+  configureSamOrtProxy('wasm', undefined);
 });
 
 it('aggregates per-file download bytes into a percent', () => {

@@ -5,9 +5,11 @@ import {
   PropType,
   ref,
   computed,
+  onMounted,
 } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import { stereoMatchMethodsFor } from 'dive-common/use/stereo/stereoMatcher';
+import { samHardwareGpuAvailable } from 'dive-common/use/segmentation/SamOnnx';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 
 export default defineComponent({
@@ -50,6 +52,27 @@ export default defineComponent({
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
     const typeList = computed(() => ['unknown'].concat(props.allTypes));
+    const samGpuAvailable = ref(false);
+    const segmentationDevices = computed(() => (samGpuAvailable.value
+      ? [
+        { text: 'Auto (GPU preferred)', value: 'auto' },
+        { text: 'GPU', value: 'gpu' },
+        { text: 'CPU (much slower)', value: 'cpu' },
+      ]
+      : [
+        { text: 'Auto (CPU)', value: 'auto' },
+        { text: 'CPU (much slower)', value: 'cpu' },
+      ]));
+
+    onMounted(async () => {
+      if (isDesktopRuntime()) return;
+      samGpuAvailable.value = await samHardwareGpuAvailable();
+      // A forced GPU preference is meaningless without a hardware adapter.
+      if (!samGpuAvailable.value
+        && clientSettings.trackSettings.newTrackSettings.segmentationDevice === 'gpu') {
+        clientSettings.trackSettings.newTrackSettings.segmentationDevice = 'auto';
+      }
+    });
 
     return {
       clientSettings,
@@ -59,6 +82,7 @@ export default defineComponent({
       modes,
       typeList,
       stereoMatchMethods: stereoMatchMethodsFor(isDesktopRuntime()),
+      segmentationDevices,
     };
   },
 });
@@ -267,6 +291,17 @@ export default defineComponent({
           :items="[{ text: 'SAM2.1 Tiny', value: 'sam2' }, { text: 'SAM2.1 Small', value: 'sam2-small' }]"
           label="Segmentation model"
           hint="Downloads on first use and runs in your browser. Small is more accurate but needs more GPU memory."
+          persistent-hint
+          outlined
+          dense
+          class="mt-3"
+        />
+        <v-select
+          v-if="!isDesktopRuntime"
+          v-model="clientSettings.trackSettings.newTrackSettings.segmentationDevice"
+          :items="segmentationDevices"
+          label="Segmentation device"
+          hint="GPU uses WebGPU when this browser has a hardware adapter. CPU runs on WASM and is significantly slower (often many seconds per click) but more compatible. Auto prefers GPU and falls back to CPU if loading fails."
           persistent-hint
           outlined
           dense

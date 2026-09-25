@@ -161,7 +161,7 @@ export default class SegmentationPointClick implements Recipe {
   /** Delayed timer before showing the predicting UI state */
   private predictionLoadingTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private static readonly PREDICTION_LOADING_DELAY_MS = 400;
+  private static readonly PREDICTION_LOADING_DELAY_MS = 0;
 
   /** Whether segmentation calculation is in progress (shown after a short delay) */
   predicting: Ref<boolean>;

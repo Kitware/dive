@@ -225,14 +225,15 @@ export default defineComponent({
       return `${mb(progress.loaded)} of ${mb(progress.total)} MB`;
     });
 
-    /** Model download/prepare uses a dialog; frame encoding stays a light snackbar. */
+    /** Model download/prepare uses a dialog; encode/predict stay a light snackbar. */
     const segmentationLoadActive = computed(() => {
       const phase = segmentationProgress.value?.phase;
       return !!segmentationStatus.value && (phase === 'download' || phase === 'prepare');
     });
-    const segmentationEncoding = computed(() => (
-      !!segmentationStatus.value && segmentationProgress.value?.phase === 'encode'
-    ));
+    const segmentationEncoding = computed(() => {
+      const phase = segmentationProgress.value?.phase;
+      return !!segmentationStatus.value && (phase === 'encode' || phase === 'predict');
+    });
     const segmentationDownloadPercent = computed(() => {
       const progress = segmentationProgress.value;
       if (progress?.phase === 'download' && progress.percent !== undefined) return progress.percent;

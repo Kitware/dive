@@ -224,13 +224,15 @@ export default defineComponent({
     const displayComparisons = ref(props.comparisonSets.length
       ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
     const selectedSet = ref('');
+    // Created before useMediaController / provideAnnotator so both share one flag.
+    const segmentationCursorLoading = ref(false);
     const {
       aggregateController,
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
       setResetZoomOverride,
-    } = useMediaController();
+    } = useMediaController({ segmentationCursorLoading });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -473,8 +475,12 @@ export default defineComponent({
     }
 
     const segmentationRecipe = new SegmentationPointClick();
-    const segmentationCursorLoading = computed(
+    // Spinner while loading or predicting; CPU work runs in ORT's wasm proxy
+    // worker so the main thread can keep painting and handling Esc/Cancel.
+    watch(
       () => segmentationRecipe.loading.value || segmentationRecipe.predicting.value,
+      (busy) => { segmentationCursorLoading.value = busy; },
+      { immediate: true },
     );
     const recipes = [
       new PolygonBase(),

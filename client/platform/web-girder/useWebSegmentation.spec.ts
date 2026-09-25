@@ -18,6 +18,8 @@ vi.mock('dive-common/use/segmentation/SamOnnx', () => ({
     dispose = mocks.dispose;
 
     setModel = vi.fn(async () => {});
+
+    setDevice = vi.fn(async () => {});
   },
 }));
 
