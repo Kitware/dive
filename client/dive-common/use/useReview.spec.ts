@@ -53,6 +53,16 @@ function makeApi(tracksById: Record<string, TrackData[]>, overrides: Partial<Rev
 }
 
 describe('createReviewService', () => {
+  it('uses the review-specific dataset list when a platform separates it from scoring', async () => {
+    const listReviewDatasets = vi.fn(async () => [{ id: 'rig', name: 'Stereo', type: 'multi' }]);
+    const api = makeApi({}, { listReviewDatasets });
+    const service = createReviewService({ api });
+    await service.refreshAvailable();
+    expect(service.available.value).toEqual([{ id: 'rig', name: 'Stereo', type: 'multi' }]);
+    expect(api.listScoringDatasets).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
   it('uses the web tracks-only reader without loading unused annotation data', async () => {
     const loadReviewTracks = vi.fn(async () => [track(1, [['fish', 0.9]], [0])]);
     const api = makeApi({}, { loadReviewTracks });

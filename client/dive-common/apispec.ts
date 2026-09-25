@@ -480,6 +480,9 @@ interface Api {
    * dataset list the review page offers.
    */
   listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
+  /** Review includes whole stereo/multicamera sequences, unlike scoring. */
+  listReviewDatasets?(): Promise<ScoringDatasetSummary[]>;
+  pickReviewDataset?(excludeIds: string[]): Promise<ScoringDatasetSummary | null>;
   /**
    * Open a platform dataset picker; returns null when the user cancels.
    * Shared by the scoring and review pages.
