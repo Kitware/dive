@@ -17,6 +17,7 @@ import {
 import { ReviewEntry, ReviewSortOrder } from 'dive-common/review/types';
 import type { ViewerFocus } from 'dive-common/review/viewerNavigation';
 import UserSettingsDialog from 'dive-common/components/UserSettingsDialog.vue';
+import ReviewStatisticsPanel from './ReviewStatisticsPanel.vue';
 import ReviewDatasetsPanel from './ReviewDatasetsPanel.vue';
 import ReviewGrid from './ReviewGrid.vue';
 import ReviewGridControls from './ReviewGridControls.vue';
@@ -27,7 +28,7 @@ const TYPE_LIST_ID = 'reviewTypeOptions';
 /** Base footer height of a cell at scale 1 (type field plus caption). */
 const CELL_FOOTER_BASE_PX = 48;
 
-type ReviewView = 'results' | 'datasets';
+type ReviewView = 'results' | 'datasets' | 'statistics';
 
 const SORT_OPTIONS: { value: ReviewSortOrder; text: string }[] = [
   { value: 'confidence-desc', text: 'Confidence, high first' },
@@ -51,7 +52,7 @@ const SCOPE_OPTIONS = [
 export default defineComponent({
   name: 'ReviewPage',
   components: {
-    ReviewDatasetsPanel, ReviewGrid, ReviewGridControls, ReviewCell, UserSettingsDialog,
+    ReviewStatisticsPanel, ReviewDatasetsPanel, ReviewGrid, ReviewGridControls, ReviewCell, UserSettingsDialog,
   },
   props: {
     sessionOwner: { type: String, default: '' },
@@ -84,6 +85,7 @@ export default defineComponent({
     // Empty first visit opens Datasets; coming back with loaded data opens Results.
     const hasReady = review.datasets.value.some((d) => d.status === 'ready');
     const view = ref<ReviewView>(hasReady ? 'results' : 'datasets');
+    if (resumed?.view === 'statistics') view.value = 'statistics';
     const resuming = ref(!!resumed);
     const pageTypeInput = ref('');
     const showSettings = ref(false);
@@ -178,7 +180,7 @@ export default defineComponent({
     function setView(next: ReviewView) {
       view.value = next;
       // Datasets picked on the Datasets view load only now, when results are wanted.
-      if (next === 'results') review.loadQueued();
+      if (next !== 'datasets') review.loadQueued();
     }
 
     /** Open the viewer on the frame the chip is showing (its first frame otherwise). */
@@ -480,6 +482,12 @@ export default defineComponent({
           Datasets
           <span class="ml-1 grey--text">({{ review.datasets.value.length }})</span>
         </v-btn>
+        <v-btn small value="statistics">
+          <v-icon small left>
+            mdi-chart-timeline-variant
+          </v-icon>
+          Statistics
+        </v-btn>
       </v-btn-toggle>
 
       <template v-if="view === 'results' && readyDatasets > 0">
@@ -731,6 +739,10 @@ export default defineComponent({
     <div class="review-body px-2 pb-2">
       <ReviewDatasetsPanel
         v-if="view === 'datasets'"
+        @open-dataset="openDataset"
+      />
+      <ReviewStatisticsPanel
+        v-else-if="view === 'statistics'"
         @open-dataset="openDataset"
       />
       <template v-else>

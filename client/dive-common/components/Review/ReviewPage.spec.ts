@@ -3,7 +3,7 @@ import Vue, { ComponentOptions, CreateElement, nextTick } from 'vue';
 import type { NavigationGuard } from 'vue-router';
 import type { DatasetConfig } from 'dive-common/apispec';
 import type { ReviewService } from 'dive-common/use/useReview';
-import { takeReviewSession } from 'dive-common/review/reviewSession';
+import { holdReviewSession, takeReviewSession } from 'dive-common/review/reviewSession';
 import ReviewPage from './ReviewPage.vue';
 
 const mocks = vi.hoisted(() => ({
@@ -46,7 +46,8 @@ interface PageState {
   review: ReviewService;
   grid: { page: { value: number }; goToPage(page: number): void };
   deleteEntry(entry: ReviewService['entries']['value'][number]): void;
-  view: 'results' | 'datasets';
+  view: 'results' | 'datasets' | 'statistics';
+  setView(view: 'statistics'): void;
   resolveLeave(choice: 'save' | 'discard' | 'cancel'): void;
   leaveDialog: boolean;
 }
@@ -235,5 +236,43 @@ it('repopulates a cleared list when returning from the same sequence that starte
   const page = second.vm as unknown as PageState;
   expect(page.review.datasets.value.map((dataset) => dataset.id)).toEqual(['current']);
   expect(page.view).toBe('results');
+  second.destroy();
+});
+
+it('loads queued datasets on Statistics and updates counts after edits, deletion, and removal', async () => {
+  const wrapper = mountPage({ retainSession: false });
+  const page = wrapper.vm as unknown as PageState;
+  await page.review.addDataset('stats', undefined, { defer: true });
+  expect(page.review.statistics.value.trackCount).toBe(0);
+  page.setView('statistics');
+  await page.review.ensureLoaded('stats');
+  expect(page.view).toBe('statistics');
+  expect(page.review.statistics.value.categories[0]).toMatchObject({ name: 'fish', count: 1 });
+  const item = page.review.items.value[0];
+  page.review.assignType(item, 'shark');
+  expect(page.review.statistics.value.categories[0]).toMatchObject({ name: 'shark', count: 1 });
+  page.review.query.threshold = 1;
+  page.review.query.type = 'absent';
+  page.review.runQuery();
+  expect(page.review.statistics.value.trackCount).toBe(1);
+  page.review.deleteTrack(item);
+  expect(page.review.statistics.value.trackCount).toBe(0);
+  page.review.removeDataset('stats');
+  expect(page.review.statistics.value.timelines).toHaveLength(0);
+  wrapper.destroy();
+});
+
+it('returns to Statistics after visiting a sequence viewer', async () => {
+  const first = mountPage();
+  const page = first.vm as unknown as PageState;
+  await page.review.addDataset('stats');
+  page.setView('statistics');
+  holdReviewSession({
+    review: page.review, view: 'statistics', page: 0, datasetKey: '',
+  });
+  first.destroy();
+  const second = mountPage({ retainSession: false });
+  expect((second.vm as unknown as PageState).view).toBe('statistics');
+  await nextTick();
   second.destroy();
 });
