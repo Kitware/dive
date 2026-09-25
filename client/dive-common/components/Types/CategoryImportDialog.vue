@@ -4,14 +4,14 @@ import {
 } from 'vue';
 import { useReadOnlyMode, useTrackFilters } from 'vue-media-annotator/provides';
 import { clientSettings } from 'dive-common/store/settings';
-import { CategoryImport, parseCategoryFile } from '../categoryImport';
+import { CategoryImport, parseCategoryFile } from '../../categoryImport';
 import WormsImport from './WormsImport.vue';
 import {
   flattenHierarchyForest, pruneHierarchyUpward, resolveTypeHierarchy,
-} from '../typeHierarchy';
+} from '../../typeHierarchy';
 import {
   groupSynonymRemaps, multiAcceptedNameWarnings, synonymRemapSummary, SynonymRemap, TaxonomySources,
-} from '../worms';
+} from '../../worms';
 
 function mergeSynonymRemaps(
   current: SynonymRemap[] | undefined,

@@ -6,12 +6,12 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { TypeHierarchyError } from 'dive-common/typeHierarchy';
 
-import TrackFilterControls from '../TrackFilterControls';
-import BaseFilterControls from '../BaseFilterControls';
-import type Group from '../Group';
-import type StyleManager from '../StyleManager';
-import type Track from '../track';
-import { useReadOnlyMode } from '../provides';
+import TrackFilterControls from '../../TrackFilterControls';
+import BaseFilterControls from '../../BaseFilterControls';
+import type Group from '../../Group';
+import type StyleManager from '../../StyleManager';
+import type Track from '../../track';
+import { useReadOnlyMode } from '../../provides';
 import ParentTypePicker from './ParentTypePicker.vue';
 
 export default defineComponent({

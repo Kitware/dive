@@ -2,12 +2,14 @@ import {
   defineComponent, h, nextTick, ref, reactive,
 } from 'vue';
 import { shallowMount } from '@vue/test-utils';
+import { compileHierarchy } from 'dive-common/typeHierarchy';
 import { clientSettings } from 'dive-common/store/settings';
-import TrackFilterControls from '../TrackFilterControls';
-import Track, { Feature } from '../track';
-import BaseFilterControls from '../BaseFilterControls';
-import Group from '../Group';
-import CameraStore from '../CameraStore';
+import { typeListViewStore } from './typeListViewState';
+import TrackFilterControls from '../../TrackFilterControls';
+import Track, { Feature } from '../../track';
+import BaseFilterControls from '../../BaseFilterControls';
+import Group from '../../Group';
+import CameraStore from '../../CameraStore';
 import FilterList from './FilterList.vue';
 import TypeEditor from './TypeEditor.vue';
 
@@ -56,7 +58,7 @@ function mountFilterList(props: Record<string, unknown>) {
   return { wrapper, vm: child, setProps };
 }
 
-vi.mock('../provides', () => ({
+vi.mock('../../provides', () => ({
   useCameraStore: () => {
     const camMap = ref(new Map([['singleCam', {
       trackStore: {
@@ -182,6 +184,7 @@ function makeCountHierarchyFixture({
 }
 
 describe('FilterList hierarchy members', () => {
+  beforeEach(() => typeListViewStore.clear());
   beforeEach(() => {
     provideMocks.seekFrame.mockReset();
     provideMocks.intervalSearch.mockReset().mockReturnValue([]);
@@ -191,6 +194,45 @@ describe('FilterList hierarchy members', () => {
     provideMocks.datasetIdRef = undefined;
     clientSettings.typeSettings.showTotalCount = true;
     clientSettings.typeSettings.showFrameCount = true;
+  });
+
+  it('restores expanded parents and collapsed branches before rendering a returning sequence', async () => {
+    const hierarchy = {
+      leaf: 'branch', sibling: 'branch', branch: 'parent', parent: 'root',
+    };
+    const firstFixture = makeHierarchyFixture(hierarchy);
+    const first = mountFilterList({ ...firstFixture, showEmptyTypes: true, height: 240 });
+    first.vm.toggleSharedLineage();
+    first.vm.toggleExpanded('branch');
+    first.wrapper.destroy();
+
+    const secondFixture = makeHierarchyFixture(hierarchy);
+    const second = mountFilterList({ ...secondFixture, showEmptyTypes: true, height: 240 });
+    // Assert immediately, before nextTick: no compact frame should be rendered.
+    expect(second.vm.compactSharedLineage).toBe(false);
+    expect(second.wrapper.text()).toContain('Compact Parents');
+    expect(second.wrapper.text()).not.toContain('Expand Parents');
+    expect(second.vm.virtualTypes.map(({ type }) => type)).toEqual(['root', 'parent', 'branch']);
+    secondFixture.filterControls.typeHierarchy.value = { ...hierarchy };
+    secondFixture.filterControls.hierarchyIndex.value = compileHierarchy(hierarchy);
+    await nextTick();
+    expect(second.vm.compactSharedLineage).toBe(false);
+    expect(second.vm.virtualTypes.map(({ type }) => type)).toEqual(['root', 'parent', 'branch']);
+    second.wrapper.destroy();
+  });
+
+  it('restores each dataset independently and does not overwrite its state during hydration', async () => {
+    const fixture = makeHierarchyFixture({ leaf: 'branch', branch: 'root' });
+    const { wrapper, vm } = mountFilterList({ ...fixture, showEmptyTypes: true, height: 240 });
+    vm.toggleSharedLineage();
+    if (!provideMocks.datasetIdRef) throw new Error('No dataset ID');
+    provideMocks.datasetIdRef.value = 'dataset-b';
+    expect(vm.compactSharedLineage).toBe(true);
+    provideMocks.datasetIdRef.value = 'dataset-a';
+    expect(vm.compactSharedLineage).toBe(false);
+    await nextTick();
+    expect(vm.compactSharedLineage).toBe(false);
+    wrapper.destroy();
   });
 
   it('discards an open Type Editor draft when the dataset changes', async () => {
@@ -506,7 +548,7 @@ describe('FilterList hierarchy members', () => {
     expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['root', 'branch', 'leaf']);
   });
 
-  it('resets collapsed branches when a dataset hierarchy is loaded', async () => {
+  it('preserves collapsed branches when the same dataset hierarchy reloads', async () => {
     clientSettings.typeSettings.trackSortDir = 'a-z';
     clientSettings.typeSettings.filterTypesByFrame = false;
     const { filterControls, styleManager } = makeHierarchyFixture();
@@ -527,7 +569,7 @@ describe('FilterList hierarchy members', () => {
     };
     await nextTick();
 
-    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['root', 'branch', 'leaf']);
+    expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['root']);
   });
 
   it('keeps the header query-scoped while a context parent owns its full subtree', async () => {

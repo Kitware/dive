@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import {
   WormsClient, WormsRecord, WORMS_PAGE_SIZE, wormsLink,
-} from '../worms';
+} from '../../worms';
 
 export default defineComponent({
   name: 'WormsImport',

@@ -1,11 +1,11 @@
 import { defineComponent, h, nextTick } from 'vue';
 import { shallowMount } from '@vue/test-utils';
-import { WormsRecord } from '../worms';
+import { WormsRecord } from '../../worms';
 import WormsImport from './WormsImport.vue';
 
 const api = vi.hoisted(() => ({ search: vi.fn(), children: vi.fn(), prepare: vi.fn() }));
-vi.mock('../worms', async (importOriginal) => ({
-  ...await importOriginal<typeof import('../worms')>(),
+vi.mock('../../worms', async (importOriginal) => ({
+  ...await importOriginal<typeof import('../../worms')>(),
   WormsClient: class {
     search = api.search;
 
