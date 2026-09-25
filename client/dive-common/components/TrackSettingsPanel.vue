@@ -27,22 +27,22 @@ export default defineComponent({
   },
 
   setup(props) {
-    const itemHeight = 45; // in pixels
     const help = reactive({
       mode: {
-        Track: 'Track Mode - advance a frame while drawing',
-        Detection: 'Detection Mode - Used to create multiple detections on a single frame.',
+        Track: 'Track mode: advance a frame while drawing to build a track across frames.',
+        Detection: 'Detection mode: create multiple detections on a single frame.',
       },
-      type: 'Choose a default type for the new Track/Detection to be or type in a new type to add it',
-      autoAdvanceFrame: 'After creating a track advance to the next frame.  Hit Esc to exit.',
-      interpolate: 'Whether new tracks should have interpolation enabled by default',
-      continuous: 'Immediately stay in detection creation mode after creating a new track.  Hit Esc to exit.',
-      autoPopulateMask: 'After drawing a new box or head/tail line, run the interactive segmentation model on it (the drawn box, or points along the line) and store the resulting polygon on the detection.',
+      type: 'Default type for new tracks/detections. Type a new name to add it.',
+      autoAdvanceFrame: 'After creating a track, advance to the next frame. Hit Esc to exit.',
+      interpolate: 'New tracks have interpolation enabled by default.',
+      continuous: 'Stay in detection creation mode after creating a detection. Hit Esc to exit.',
+      prompt: 'Ask for confirmation before deleting a track.',
+      segmentationModel: 'Downloads once on first use and runs in your browser. Tiny is the fastest. Small produces more accurate masks, but its image embedding takes roughly twice as long and needs more GPU memory.',
+      segmentationDevice: 'Each new frame is embedded once: under a second on GPU, typically 5–15 seconds on CPU (10–30× slower). Later clicks on the same frame are quick. Auto prefers the GPU and falls back to CPU.',
+      autoPopulateMask: 'After drawing a new box or head/tail line, run the segmentation model on it (the drawn box, or points along the line) and store the resulting polygon on the detection.',
       autoPopulatePoints: 'After drawing a new box, derive head/tail points from its segmentation the way the VIAME keypoint pipelines do. After drawing a new line, tighten the box to the segmentation.',
-      prompt: 'Prompt user before deleting a track?',
-      filterTracksByFrame: 'Filter the track list by those with detections in the current frame',
-      autoZoom: 'Automatically zoom to the track when selected',
-      showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected',
+      filterTracksByFrame: 'Only list tracks that have a detection on the current frame.',
+      showMultiCamToolbar: 'Show multi-camera tools in the top toolbar when a track is selected.',
       stereoUpdateLengths: 'When a line annotation is modified on a detection that is linked across both cameras, recompute its stereo measurement (length, midpoint, range, RMS) automatically.',
       stereoAutoCompute: 'When an annotation is drawn on one camera and the other camera has no detection for it yet, automatically warp it to the other camera using stereo disparity.',
       stereoMatchMethod: isDesktopRuntime()
@@ -52,21 +52,23 @@ export default defineComponent({
     const modes = ref(['Track', 'Detection']);
     // Add unknown as the default type to the typeList
     const typeList = computed(() => ['unknown'].concat(props.allTypes));
+    const samGpuChecked = ref(false);
     const samGpuAvailable = ref(false);
     const segmentationDevices = computed(() => (samGpuAvailable.value
       ? [
         { text: 'Auto (GPU preferred)', value: 'auto' },
         { text: 'GPU', value: 'gpu' },
-        { text: 'CPU (much slower)', value: 'cpu' },
+        { text: 'CPU (10–30× slower embedding)', value: 'cpu' },
       ]
       : [
         { text: 'Auto (CPU)', value: 'auto' },
-        { text: 'CPU (much slower)', value: 'cpu' },
+        { text: 'CPU (10–30× slower embedding)', value: 'cpu' },
       ]));
 
     onMounted(async () => {
       if (isDesktopRuntime()) return;
       samGpuAvailable.value = await samHardwareGpuAvailable();
+      samGpuChecked.value = true;
       // A forced GPU preference is meaningless without a hardware adapter.
       if (!samGpuAvailable.value
         && clientSettings.trackSettings.newTrackSettings.segmentationDevice === 'gpu') {
@@ -77,12 +79,13 @@ export default defineComponent({
     return {
       clientSettings,
       isDesktopRuntime: isDesktopRuntime(),
-      itemHeight,
       help,
       modes,
       typeList,
       stereoMatchMethods: stereoMatchMethodsFor(isDesktopRuntime()),
       segmentationDevices,
+      samGpuChecked,
+      samGpuAvailable,
     };
   },
 });
@@ -90,523 +93,195 @@ export default defineComponent({
 
 <template>
   <div class="TrackSettings">
-    <v-card
-      outlined
-      class="pa-2"
-      width="300"
-      color="blue-grey darken-3"
-    >
-      <div class="subheading">
-        New Annotation Settings
+    <section class="mb-6">
+      <div class="text-subtitle-1 font-weight-medium mb-3">
+        New Tracks &amp; Deletion
       </div>
-      <v-row
-        align="end"
-        dense
-      >
+      <v-row dense>
         <v-col
-          class="mx-2 px-0"
-          cols="2"
+          cols="12"
+          sm="6"
         >
-          Mode:
-        </v-col>
-        <v-col>
           <v-select
             v-model="clientSettings.trackSettings.newTrackSettings.mode"
-            class="ml-0 pa-0"
-            x-small
             :items="modes"
+            label="Mode"
+            :hint="help.mode[clientSettings.trackSettings.newTrackSettings.mode]"
+            persistent-hint
+            outlined
             dense
-            hide-details
           />
         </v-col>
         <v-col
-          cols="2"
-          align="right"
+          cols="12"
+          sm="6"
         >
-          <v-tooltip
-            open-delay="200"
-            bottom
-            max-width="200"
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>
-              {{ help.mode[clientSettings.trackSettings.newTrackSettings.mode] }}
-            </span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-      <v-row
-        align="end"
-        dense
-        class="mb-2"
-      >
-        <v-col
-          class="mx-2"
-          cols="2"
-        >
-          Type:
-        </v-col>
-        <v-col>
           <v-combobox
             v-model="clientSettings.trackSettings.newTrackSettings.type"
-            class="ml-0 pa-0"
-            x-small
             :items="typeList"
+            label="Default type"
+            :hint="help.type"
+            persistent-hint
+            outlined
             dense
-            hide-details
           />
-        </v-col>
-        <v-col
-          cols="2"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            max-width="200"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.type }}</span>
-          </v-tooltip>
         </v-col>
       </v-row>
       <template v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Track'">
-        <v-row>
-          <v-col class="py-1">
-            <v-switch
-              v-model="
-                clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
-              class="my-0 ml-1 pt-0"
-              dense
-              label="Advance Frame"
-              hide-details
-            />
-          </v-col>
-          <v-col
-            class="py-1 shrink"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.autoAdvanceFrame }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col class="py-1">
-            <v-switch
-              v-model="
-                clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate"
-              class="my-0 ml-1 pt-0"
-              dense
-              label="Interpolate"
-              hide-details
-            />
-          </v-col>
-          <v-col
-            class="py-1 shrink"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.interpolate }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
+        <v-switch
+          v-model="clientSettings.trackSettings.newTrackSettings.modeSettings.Track.autoAdvanceFrame"
+          label="Advance frame"
+          :hint="help.autoAdvanceFrame"
+          persistent-hint
+          dense
+          class="mt-3"
+        />
+        <v-switch
+          v-model="clientSettings.trackSettings.newTrackSettings.modeSettings.Track.interpolate"
+          label="Interpolate"
+          :hint="help.interpolate"
+          persistent-hint
+          dense
+          class="mt-3"
+        />
       </template>
-      <v-row
+      <v-switch
         v-if="clientSettings.trackSettings.newTrackSettings.mode === 'Detection'"
-      >
-        <v-col class="py-1">
-          <v-switch
-            v-model="
-              clientSettings.trackSettings.newTrackSettings.modeSettings.Detection.continuous"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Continuous"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          class="py-1 shrink"
-          align="right"
+        v-model="clientSettings.trackSettings.newTrackSettings.modeSettings.Detection.continuous"
+        label="Continuous"
+        :hint="help.continuous"
+        persistent-hint
+        dense
+        class="mt-3"
+      />
+      <v-switch
+        v-model="clientSettings.trackSettings.deletionSettings.promptUser"
+        label="Prompt before deleting"
+        :hint="help.prompt"
+        persistent-hint
+        dense
+        class="mt-3"
+      />
+    </section>
+
+    <v-divider class="mb-4" />
+    <section class="mb-6">
+      <div class="text-subtitle-1 font-weight-medium mb-3">
+        Segmentation
+      </div>
+      <template v-if="!isDesktopRuntime">
+        <v-alert
+          v-if="samGpuChecked && !samGpuAvailable"
+          type="warning"
+          dense
+          text
+          class="mb-4"
         >
-          <v-tooltip
-            open-delay="200"
-            max-width="200"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.continuous }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-      <template>
+          No hardware GPU adapter was detected in this browser, so segmentation
+          will run on the CPU. Expect roughly 5–15 seconds or more to embed each
+          new frame.
+        </v-alert>
         <v-select
-          v-if="!isDesktopRuntime"
           v-model="clientSettings.trackSettings.newTrackSettings.segmentationModel"
           :items="[{ text: 'SAM2.1 Tiny', value: 'sam2' }, { text: 'SAM2.1 Small', value: 'sam2-small' }]"
           label="Segmentation model"
-          hint="Downloads on first use and runs in your browser. Small is more accurate but needs more GPU memory."
+          :hint="help.segmentationModel"
           persistent-hint
           outlined
+          dense
+        />
+        <v-select
+          v-model="clientSettings.trackSettings.newTrackSettings.segmentationDevice"
+          :items="segmentationDevices"
+          label="Segmentation device"
+          :hint="help.segmentationDevice"
+          persistent-hint
+          outlined
+          dense
+          class="mt-4"
+        />
+      </template>
+      <v-switch
+        v-model="clientSettings.trackSettings.newTrackSettings.autoPopulateMask"
+        label="Auto-populate mask"
+        :hint="help.autoPopulateMask"
+        persistent-hint
+        dense
+        class="mt-3"
+      />
+      <v-switch
+        v-model="clientSettings.trackSettings.newTrackSettings.autoPopulatePoints"
+        label="Auto-populate points"
+        :hint="help.autoPopulatePoints"
+        persistent-hint
+        dense
+        class="mt-3"
+      />
+    </section>
+
+    <v-divider class="mb-4" />
+    <section class="mb-6">
+      <div class="text-subtitle-1 font-weight-medium mb-3">
+        Track List
+      </div>
+      <v-switch
+        v-model="clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame"
+        label="Filter detections by frame"
+        :hint="help.filterTracksByFrame"
+        persistent-hint
+        dense
+        class="mt-0"
+      />
+    </section>
+
+    <v-divider class="mb-4" />
+    <section :class="{ 'mb-6': isStereoDataset }">
+      <div class="text-subtitle-1 font-weight-medium mb-3">
+        Multi Camera
+      </div>
+      <v-switch
+        v-model="clientSettings.multiCamSettings.showToolbar"
+        label="Show toolbar"
+        :hint="help.showMultiCamToolbar"
+        persistent-hint
+        dense
+        class="mt-0"
+      />
+    </section>
+
+    <template v-if="isStereoDataset">
+      <v-divider class="mb-4" />
+      <section>
+        <div class="text-subtitle-1 font-weight-medium mb-3">
+          Stereo
+        </div>
+        <v-switch
+          v-model="clientSettings.stereoSettings.updateLengthsOnModify"
+          label="Update lengths when modified"
+          :hint="help.stereoUpdateLengths"
+          persistent-hint
+          dense
+          class="mt-0"
+        />
+        <v-switch
+          v-model="clientSettings.stereoSettings.autoComputeOtherCamera"
+          label="Auto-compute location on other camera"
+          :hint="help.stereoAutoCompute"
+          persistent-hint
           dense
           class="mt-3"
         />
         <v-select
-          v-if="!isDesktopRuntime"
-          v-model="clientSettings.trackSettings.newTrackSettings.segmentationDevice"
-          :items="segmentationDevices"
-          label="Segmentation device"
-          hint="GPU uses WebGPU when this browser has a hardware adapter. CPU runs on WASM and is significantly slower (often many seconds per click) but more compatible. Auto prefers GPU and falls back to CPU if loading fails."
+          v-model="clientSettings.stereoSettings.matchMethod"
+          :items="stereoMatchMethods"
+          label="Stereo point matching"
+          :hint="help.stereoMatchMethod"
           persistent-hint
           outlined
           dense
-          class="mt-3"
+          class="mt-6"
         />
-        <v-row>
-          <v-col class="py-1">
-            <v-switch
-              v-model="clientSettings.trackSettings.newTrackSettings.autoPopulateMask"
-              class="my-0 ml-1 pt-0"
-              dense
-              label="Auto-populate mask"
-              hide-details
-            />
-          </v-col>
-          <v-col
-            class="py-1 shrink"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.autoPopulateMask }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-        <v-row>
-          <v-col class="py-1">
-            <v-switch
-              v-model="clientSettings.trackSettings.newTrackSettings.autoPopulatePoints"
-              class="my-0 ml-1 pt-0"
-              dense
-              label="Auto-populate points"
-              hide-details
-            />
-          </v-col>
-          <v-col
-            class="py-1 shrink"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.autoPopulatePoints }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-      </template>
-      <v-divider class="my-2" />
-      <div class="subheading">
-        Deletion Settings
-      </div>
-      <v-row
-        align="end"
-        dense
-      >
-        <v-col class="py-1">
-          <v-switch
-            v-model="clientSettings.trackSettings.deletionSettings.promptUser"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Prompt User"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            max-width="200"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.prompt }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-      <v-divider class="my-2" />
-      <div class="subheading">
-        Track List Settings
-      </div>
-      <v-row
-        align="end"
-        dense
-      >
-        <v-col class="py-1">
-          <v-switch
-            v-model="clientSettings.trackSettings.trackListSettings.filterDetectionsByFrame"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Filter Detections By Frame"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            max-width="200"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.filterTracksByFrame }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-      <v-divider class="my-2" />
-      <div class="subheading">
-        Multi Camera Settings
-      </div>
-      <v-row
-        align="end"
-        dense
-      >
-        <v-col class="py-1">
-          <v-switch
-            v-model="clientSettings.multiCamSettings.showToolbar"
-            class="my-0 ml-1 pt-0"
-            dense
-            label="Show Toolbar"
-            hide-details
-          />
-        </v-col>
-        <v-col
-          cols="2"
-          class="py-1"
-          align="right"
-        >
-          <v-tooltip
-            open-delay="200"
-            max-width="200"
-            bottom
-          >
-            <template #activator="{ on }">
-              <v-icon
-                small
-                v-on="on"
-              >
-                mdi-help
-              </v-icon>
-            </template>
-            <span>{{ help.showMultiCamToolbar }}</span>
-          </v-tooltip>
-        </v-col>
-      </v-row>
-      <template v-if="isStereoDataset">
-        <v-divider class="my-2" />
-        <div class="subheading">
-          Stereo Settings
-        </div>
-        <v-row
-          align="end"
-          dense
-        >
-          <v-col class="py-1">
-            <v-switch
-              v-model="clientSettings.stereoSettings.updateLengthsOnModify"
-              class="my-0 ml-1 pt-0"
-              dense
-              label="Update lengths when modified"
-              hide-details
-            />
-          </v-col>
-          <v-col
-            cols="2"
-            class="py-1"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.stereoUpdateLengths }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-        <v-row
-          align="end"
-          dense
-        >
-          <v-col class="py-1">
-            <v-switch
-              v-model="clientSettings.stereoSettings.autoComputeOtherCamera"
-              class="my-0 ml-1 pt-0"
-              dense
-              label="Auto-compute location on other camera"
-              hide-details
-            />
-          </v-col>
-          <v-col
-            cols="2"
-            class="py-1"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.stereoAutoCompute }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-        <!-- Unlike the switches above, this control always has a value, so its
-        label sits floated above the field: keep the field's own top padding
-        for it. The row never wraps; the selection text truncates instead so
-        the help icon stays beside it. -->
-        <v-row
-          align="end"
-          class="mt-3 flex-nowrap"
-          dense
-        >
-          <v-col
-            class="py-1"
-            style="min-width: 0"
-          >
-            <v-select
-              v-model="clientSettings.stereoSettings.matchMethod"
-              :items="stereoMatchMethods"
-              class="my-0 ml-1"
-              dense
-              hide-details
-              label="Stereo point matching"
-            />
-          </v-col>
-          <v-col
-            cols="2"
-            class="py-1 flex-shrink-0"
-            align="right"
-          >
-            <v-tooltip
-              open-delay="200"
-              max-width="200"
-              bottom
-            >
-              <template #activator="{ on }">
-                <v-icon
-                  small
-                  v-on="on"
-                >
-                  mdi-help
-                </v-icon>
-              </template>
-              <span>{{ help.stereoMatchMethod }}</span>
-            </v-tooltip>
-          </v-col>
-        </v-row>
-      </template>
-    </v-card>
+      </section>
+    </template>
   </div>
 </template>
