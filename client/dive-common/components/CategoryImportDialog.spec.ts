@@ -137,7 +137,7 @@ describe('category import dialog shared by web and desktop', () => {
       { original: 'Seriola gigas', accepted: 'Seriola dumerili' },
       { original: 'Seriola gigas', accepted: 'Seriola hippos' },
     ]);
-    expect(wrapper.text()).toContain('3 synonyms will be imported as 2 accepted names.');
+    expect(wrapper.text()).toContain('3 synonyms will be imported as 3 accepted names.');
     expect(wrapper.text()).not.toContain('salmon ←');
     expect(wrapper.text()).toContain('trout ← old trout');
     expect(wrapper.text()).toContain('resolves to multiple accepted names');
@@ -155,10 +155,18 @@ describe('category import dialog shared by web and desktop', () => {
       'Synonyms resolve parent references during import. DIVE stores canonical category names, not synonym aliases.',
     ]);
     expect(wrapper.text()).not.toContain('resolves to multiple accepted names');
-    expect(wrapper.text()).toContain('1 synonym will be imported as 1 accepted name.');
+    expect(wrapper.text()).toContain('2 synonyms will be imported as 2 accepted names.');
     vm.pruneStagedType('trout');
     await nextTick();
+    expect(vm.preview.incoming?.synonymRemaps).toEqual([
+      { original: 'Seriola gigas', accepted: 'Seriola hippos' },
+    ]);
+    expect(wrapper.text()).toContain('1 synonym will be imported as 1 accepted name.');
+    vm.pruneStagedType('Seriola hippos');
+    await nextTick();
+    expect(vm.preview.incoming?.types).toEqual([]);
     expect(vm.preview.incoming?.synonymRemaps).toBeUndefined();
+    expect(vm.wormsImport).toBeNull();
     expect(vm.showSynonymDetails).toBe(false);
     expect(wrapper.text()).not.toContain('will be imported as');
     wrapper.destroy();
