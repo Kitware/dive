@@ -1,9 +1,11 @@
 import {
-  defineComponent, h, nextTick, reactive,
+  defineComponent, h, nextTick, reactive, ref,
 } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { clientSettings } from 'dive-common/store/settings';
 import TypeSettingsPanel from './TypeSettingsPanel.vue';
+
+vi.mock('vue-media-annotator/provides', () => ({ useReadOnlyMode: () => ref(false) }));
 
 interface PanelProps {
   allTypes: string[];
@@ -17,15 +19,25 @@ interface PanelProps {
  */
 function mountPanel(props: PanelProps) {
   const state = reactive(props);
+  let panel: InstanceType<typeof TypeSettingsPanel> | undefined;
   const Host = defineComponent({
-    setup: () => () => h(TypeSettingsPanel, { props: state }),
+    setup: () => () => h(TypeSettingsPanel, {
+      props: state,
+      ref: (instance) => { panel = instance as InstanceType<typeof TypeSettingsPanel>; },
+    }),
   });
-  const wrapper = shallowMount(Host, { stubs: { TypeSettingsPanel: false } });
+  const wrapper = shallowMount(Host, {
+    stubs: {
+      TypeSettingsPanel: false,
+      'v-btn': { template: '<button @click="$emit(\'click\')"><slot /></button>' },
+    },
+  });
+  if (!panel) throw new Error('Settings did not mount');
   const setProps = async (next: Partial<PanelProps>) => {
     Object.assign(state, next);
     await nextTick();
   };
-  return { wrapper, setProps };
+  return { wrapper, setProps, panel };
 }
 
 describe('TypeSettingsPanel hierarchy state', () => {
@@ -64,4 +76,15 @@ describe('TypeSettingsPanel hierarchy state', () => {
         ?.attributes('disabled')).toBeUndefined(),
     );
   });
+});
+
+it('closes the settings popup before opening the import dialog', async () => {
+  const { wrapper, panel } = mountPanel({ allTypes: [], hierarchyActive: false });
+  panel.active = true;
+  const add = wrapper.findAll('button').wrappers.find((button) => button.text().includes('Types'));
+  if (!add) throw new Error('Import button is missing');
+  await add.trigger('click');
+  expect(panel.active).toBe(false);
+  expect(panel.importDialog).toBe(true);
+  wrapper.destroy();
 });

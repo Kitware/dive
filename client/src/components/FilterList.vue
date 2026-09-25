@@ -780,6 +780,12 @@ $row-height: 30px;
   overflow: hidden;
 }
 
+.type-list-root > .container,
+.type-list-root > .input-box,
+.type-list-root > .shared-lineage {
+  flex-shrink: 0;
+}
+
 .type-list-viewport {
   flex: 1 1 0;
   min-height: 0;
