@@ -510,6 +510,17 @@ describe('successive auto-populate triggers', () => {
     ]);
   });
 
+  it('emits again when the same track gets a new box on a later frame', () => {
+    const { modeManager: manager, newGeometryEvents } = makeHarness();
+    const trackId = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    manager.handler.updateRectBounds(1, 0, [20, 20, 30, 30]);
+    manager.handler.updateRectBounds(1, 0, [21, 21, 31, 31]);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.frameNum, event.source])).toEqual([
+      [trackId, 0, 'box'], [trackId, 1, 'box'],
+    ]);
+  });
+
   it('emits both completed lines when annotations are drawn one after another', () => {
     const recipe = new HeadTail();
     const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
@@ -526,6 +537,27 @@ describe('successive auto-populate triggers', () => {
     draw([[20, 20], [30, 30]]);
     expect(newGeometryEvents.map((event) => [event.trackId, event.source])).toEqual([
       [first, 'line'], [second, 'line'],
+    ]);
+  });
+
+  it('emits again when the same track gets a new line on a later frame', () => {
+    const recipe = new HeadTail();
+    const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
+    const draw = (frame: number, coordinates: number[][]) => manager.handler.updateGeoJSON('in-progress', frame, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+    }, 'HeadTails');
+    const trackId = manager.handler.trackAdd();
+    recipe.activate();
+    draw(0, [[0, 0]]);
+    draw(0, [[0, 0], [10, 10]]);
+    draw(1, [[20, 20]]);
+    draw(1, [[20, 20], [30, 30]]);
+    // Endpoint edit on frame 1 must not re-emit.
+    manager.handler.updateGeoJSON('editing', 1, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[21, 21], [30, 30]] },
+    }, manager.selectedKey.value);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.frameNum, event.source])).toEqual([
+      [trackId, 0, 'line'], [trackId, 1, 'line'],
     ]);
   });
 });
@@ -592,6 +624,51 @@ describe('useModeManager point segmentation masks', () => {
 
     recipe.bus.$emit('prediction-reset', { frameNum: 0 });
     expect(track.getFeature(0)[0]).toBeNull();
+  });
+
+  it('lets the emptied detection be deleted after a reset (interval tree stays in sync)', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    recipe.bus.$emit('prediction-ready', {
+      polygon: [[0, 0], [10, 0], [10, 10]],
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+    recipe.bus.$emit('prediction-ready', {
+      polygon: [[0, 0], [20, 0], [20, 20]],
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5], [8, 8]], labels: [1, 1] },
+    });
+    recipe.bus.$emit('prediction-reset', { frameNum: 0 });
+    const track = cameraStore.getTrack(trackId, 'left');
+    expect(track.begin).toBe(Infinity);
+    expect(track.end).toBe(0);
+    expect(() => modeManager.handler.removeTrack([trackId], true)).not.toThrow();
+    expect(cameraStore.getPossibleTrack(trackId, 'left')).toBeUndefined();
+  });
+
+  it('clears the pending mask on every Reset, including a second segmentation pass', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    const predict = (polygon: [number, number][]) => recipe.bus.$emit('prediction-ready', {
+      polygon, bounds: null, frameNum: 0, controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+
+    predict([[0, 0], [10, 0], [10, 10]]);
+    expect(cameraStore.getTrack(trackId, 'left').getPolygonFeatures(0)).toHaveLength(1);
+    recipe.resetPoints();
+    expect(cameraStore.getTrack(trackId, 'left').getFeature(0)[0]).toBeNull();
+    expect(recipe.hasPoints()).toBe(false);
+    expect(recipe.hasPendingPrediction()).toBe(false);
+
+    predict([[0, 0], [20, 0], [20, 20]]);
+    expect(cameraStore.getTrack(trackId, 'left').getPolygonFeatures(0)).toHaveLength(1);
+    recipe.resetPoints();
+    expect(cameraStore.getTrack(trackId, 'left').getFeature(0)[0]).toBeNull();
   });
 });
 

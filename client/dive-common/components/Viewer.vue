@@ -209,6 +209,16 @@ export default defineComponent({
       type: Function as PropType<StereoViewLinkFunc | undefined>,
       default: undefined,
     },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live SAM status text during auto-populate. */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -224,13 +234,15 @@ export default defineComponent({
     const displayComparisons = ref(props.comparisonSets.length
       ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
     const selectedSet = ref('');
+    // Created before useMediaController / provideAnnotator so both share one flag.
+    const segmentationCursorLoading = ref(false);
     const {
       aggregateController,
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
       setResetZoomOverride,
-    } = useMediaController();
+    } = useMediaController({ segmentationCursorLoading });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -473,8 +485,12 @@ export default defineComponent({
     }
 
     const segmentationRecipe = new SegmentationPointClick();
-    const segmentationCursorLoading = computed(
+    // Spinner while loading or predicting; CPU work runs in ORT's wasm proxy
+    // worker so the main thread can keep painting and handling Esc/Cancel.
+    watch(
       () => segmentationRecipe.loading.value || segmentationRecipe.predicting.value,
+      (busy) => { segmentationCursorLoading.value = busy; },
+      { immediate: true },
     );
     const recipes = [
       new PolygonBase(),
@@ -2754,6 +2770,8 @@ export default defineComponent({
             textQueryEnabled,
             textQueryAvailable,
             checkTextQueryAvailable,
+            autoPopulateBusy,
+            autoPopulateStatus,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
@@ -2761,6 +2779,7 @@ export default defineComponent({
           :suppression-display.sync="clientSettings.annotatorPreferences.suppressionDisplay"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @cancel-auto-populate="$emit('cancel-auto-populate')"
           @text-query-init="$emit('text-query-init')"
           @text-query="onTextQuerySubmit"
           @text-query-all-frames="$emit('text-query-all-frames', $event)"
