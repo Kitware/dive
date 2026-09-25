@@ -134,3 +134,14 @@ Type settings also configure [suppression](UI-Suppression.md):
 * **Suppression Overlap (%)** — minimum percent of a detection that must lie under suppression regions for it to be hidden (default **99**). Shown only when a suppression type is set.
 
 The active suppression type shows an ==:material-eye-off:== icon in the type list. Detections may also be flagged with an attribute of the same name; see [Suppression](UI-Suppression.md) for region vs attribute behavior and display options.
+
+
+### Remembered hierarchy view
+
+The type list remembers **Expand Parents / Compact Parents** and each collapsed
+branch per sequence. Returning from Review or another page, changing between
+sidebar and bottom layouts, and reopening the application restores that view
+before the list renders. Reloading hierarchy metadata does not reset expansion.
+Other sequences keep their own view; category definitions, checked types, and
+confidence thresholds are unchanged. Preferences are saved locally for the most
+recent 100 sequences, with an in-memory fallback if browser storage is unavailable.
