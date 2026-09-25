@@ -4,12 +4,12 @@ import {
 import { shallowMount } from '@vue/test-utils';
 import { compileHierarchy } from 'dive-common/typeHierarchy';
 import { clientSettings } from 'dive-common/store/settings';
-import { typeListViewStore } from '../typeListViewState';
-import TrackFilterControls from '../TrackFilterControls';
-import Track, { Feature } from '../track';
-import BaseFilterControls from '../BaseFilterControls';
-import Group from '../Group';
-import CameraStore from '../CameraStore';
+import { typeListViewStore } from './typeListViewState';
+import TrackFilterControls from '../../TrackFilterControls';
+import Track, { Feature } from '../../track';
+import BaseFilterControls from '../../BaseFilterControls';
+import Group from '../../Group';
+import CameraStore from '../../CameraStore';
 import FilterList from './FilterList.vue';
 import TypeEditor from './TypeEditor.vue';
 
@@ -58,7 +58,7 @@ function mountFilterList(props: Record<string, unknown>) {
   return { wrapper, vm: child, setProps };
 }
 
-vi.mock('../provides', () => ({
+vi.mock('../../provides', () => ({
   useCameraStore: () => {
     const camMap = ref(new Map([['singleCam', {
       trackStore: {

@@ -3,8 +3,8 @@ import {
 } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { TypeHierarchyError } from 'dive-common/typeHierarchy';
-import BaseFilterControls from '../BaseFilterControls';
-import TrackFilterControls from '../TrackFilterControls';
+import BaseFilterControls from '../../BaseFilterControls';
+import TrackFilterControls from '../../TrackFilterControls';
 import ParentTypePicker from './ParentTypePicker.vue';
 import TypeEditor from './TypeEditor.vue';
 
@@ -15,7 +15,7 @@ vi.mock('dive-common/vue-utilities/prompt-service', () => ({
   usePrompt: () => ({ prompt: promptMock }),
 }));
 
-vi.mock('../provides', () => ({
+vi.mock('../../provides', () => ({
   useReadOnlyMode: () => ref(provideMocks.readOnly),
 }));
 

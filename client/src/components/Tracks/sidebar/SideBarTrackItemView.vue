@@ -5,7 +5,7 @@ import {
 import context from 'dive-common/store/context';
 import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 import TooltipBtn from '../../TooltipButton.vue';
-import TypePicker from '../../TypePicker.vue';
+import TypePicker from '../../Types/TypePicker.vue';
 import {
   useCameraStore,
   useHandler,

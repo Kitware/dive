@@ -9,7 +9,7 @@ import type { GlobalStyleSettings } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import StyleManager from 'vue-media-annotator/StyleManager';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
-import TypeEditor from 'vue-media-annotator/components/TypeEditor.vue';
+import TypeEditor from 'vue-media-annotator/components/Types/TypeEditor.vue';
 
 type StyleKind = 'type' | 'group';
 
