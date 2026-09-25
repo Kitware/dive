@@ -29,7 +29,7 @@ import { StereoOnnxMatcher } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import { StereoFoundationMatcher } from 'dive-common/use/stereo/StereoFoundationMatcher';
 import type { FoundationModelSpec } from 'dive-common/use/stereo/StereoFoundationMatcher';
 import type { ImagerySize, StereoFoundationModelSpec } from 'platform/web-girder/api/configuration.service';
-import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
+import { DEFAULT_STEREO_MATCH_METHOD, fallBackStereoMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { StereoMatcher, StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { SearchRange } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import {
@@ -189,6 +189,23 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return clientSettings.stereoSettings.matchMethod ?? DEFAULT_STEREO_MATCH_METHOD;
   }
 
+  /**
+   * The chosen model failed on this browser or GPU. Drop the setting to the
+   * faster method so it matches what actually runs, and say so in the
+   * message. Returns whether the setting changed.
+   */
+  function fallBack(message: string): boolean {
+    if (opts.getMatchMethod) {
+      opts.onError?.(message);
+      return false;
+    }
+    const before = currentMethod();
+    const next = fallBackStereoMethod(before, message);
+    clientSettings.stereoSettings.matchMethod = next.method;
+    opts.onError?.(next.message);
+    return next.method !== before;
+  }
+
   async function createFoundationMatcher(imagery?: ImagerySize): Promise<StereoMatcher> {
     if (opts.foundationModelUrl) {
       return StereoFoundationMatcher.create(opts.foundationModelUrl, opts.foundationModelSpec);
@@ -224,7 +241,13 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
       : StereoOnnxMatcher.create(modelUrl)
     ).catch((err) => {
       console.warn('[StereoOnnx] failed to load model', method, err);
-      opts.onError?.(`The stereo matching model could not be loaded. ${(err as Error).message ?? err}`);
+      const what = method === 'foundation' ? 'The higher quality stereo model' : 'The stereo matching model';
+      const message = `${what} could not be loaded. ${(err as Error).message ?? err}`;
+      if (fallBack(message)) {
+        // Retried if the user picks this method again later.
+        delete matchers[key];
+        return getMatcher(imagery);
+      }
       return null;
     });
     matchers[key] = created;
@@ -399,6 +422,7 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   // A precompute failure is the model failing on this browser/GPU, which the
   // user should hear about once rather than on every frame change.
   let precomputeErrorReported = false;
+  watch(currentMethod, () => { precomputeErrorReported = false; });
 
   /** Compute the current frame's disparity maps ahead of any warp there. */
   function precomputeCurrentFrame() {
@@ -409,7 +433,7 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
         console.warn('[StereoOnnx] disparity precompute failed', err);
         if (!precomputeErrorReported) {
           precomputeErrorReported = true;
-          opts.onError?.(`The higher-accuracy stereo model could not run in this browser. ${(err as Error).message ?? err}`);
+          fallBack(`The higher quality stereo model could not run in this browser. ${(err as Error).message ?? err}`);
         }
       });
   }

@@ -83,8 +83,8 @@ export interface FoundationMatcherOptions {
   cacheSize?: number;
 }
 
-export const WEBGPU_REQUIRED_MESSAGE = 'The higher-accuracy stereo model needs WebGPU, which this browser does not provide. '
-  + 'Use a current Chrome or Edge, or switch the point matching setting to the faster method.';
+export const WEBGPU_REQUIRED_MESSAGE = 'The higher quality stereo model needs WebGPU, which this browser does not provide. '
+  + 'Use a current Chrome or Edge to run it.';
 
 function defaultExecutionProviders(): string[] {
   const hasWebGpu = typeof navigator !== 'undefined' && 'gpu' in navigator && !!navigator.gpu;
