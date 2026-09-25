@@ -134,8 +134,11 @@ Statistics use the current loaded annotations, including unsaved edits, and do
 not inherit the Results tab's type, attribute, or confidence query. Changing the
 selected sequences, editing, deleting, or reloading annotations updates totals.
 
-Timeline rows show qualifying track spans in 200 bins on a common count scale.
-Each row uses its own elapsed seconds axis (frames when FPS is unknown). Image
+Timeline rows show qualifying track spans as colored, per-type steps in 200 bins
+on a common count scale. All cameras of a sequence share one plot; overlapping
+spans for the same track ID are counted once in each type series.
+Each row uses elapsed seconds, converting each camera by its own FPS (frames
+when any camera lacks FPS). Image
 sequences include their full frame range; video rows use the annotated extent
 because review metadata does not provide the full video duration. No media is
 decoded to construct these plots. Capture timestamps on images or parsed from

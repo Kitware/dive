@@ -1,6 +1,6 @@
 import type { DatasetConfig } from 'dive-common/apispec';
 import type { TrackData } from 'vue-media-annotator/track';
-import { buildReviewStatistics, TIMELINE_BINS } from './statistics';
+import { buildReviewStatistics, timelineStepPath, TIMELINE_BINS } from './statistics';
 
 const config = (id: string, extra: Partial<DatasetConfig> = {}): DatasetConfig => ({
   id,
@@ -78,11 +78,12 @@ it('bins inclusive track spans, preserves empty media and below-threshold frame 
     ],
   }, { config: config('empty', { imageData: Array.from({ length: 10 }, () => ({ filename: '', url: '' })) }), tracks: [] }]);
   const [row, empty] = result.timelines;
-  expect(row.frameCount).toBe(400);
+  expect(row.duration).toBe(40);
+  expect(row.unit).toBe('s');
   expect(row.bins.slice(0, 50)).toEqual(Array(50).fill(1));
   expect(row.bins.slice(50, 100)).toEqual(Array(50).fill(2));
   expect(row.bins.slice(100)).toEqual(Array(100).fill(0));
-  expect(empty.frameCount).toBe(10);
+  expect(empty.duration).toBe(1);
   expect(empty.bins.every((count) => count === 0)).toBe(true);
   expect(empty.annotatedExtent).toBe(false);
 });
@@ -101,4 +102,53 @@ it('bounds timeline size for large selections', () => {
   })));
   expect(result.trackCount).toBe(1000);
   expect(result.timelines.every((row) => row.bins.length === TIMELINE_BINS)).toBe(true);
+});
+
+it('combines camera timelines by parent, unions matching IDs, and keeps per-type steps', () => {
+  const result = buildReviewStatistics([
+    {
+      config: config('rig/left', { fps: 10 }),
+      sequenceId: 'rig',
+      sequenceName: 'Stereo',
+      tracks: [
+        track({ begin: 0, end: 9 }),
+      ],
+    },
+    {
+      config: config('rig/right', { fps: 20 }),
+      sequenceId: 'rig',
+      sequenceName: 'Stereo',
+      tracks: [
+        track({ begin: 10, end: 39 }),
+        track({
+          id: 2, begin: 20, end: 39, confidencePairs: [['shark', 1]],
+        }),
+      ],
+    },
+  ]);
+  expect(result.timelines).toHaveLength(1);
+  const [row] = result.timelines;
+  expect(row).toMatchObject({
+    id: 'rig', name: 'Stereo', cameraCount: 2, count: 2, duration: 2, unit: 's',
+  });
+  expect(row.series.map((series) => series.name)).toEqual(['fish', 'shark']);
+  expect(row.series[0].bins).toEqual(Array(TIMELINE_BINS).fill(1));
+  expect(row.series[1].bins.slice(0, 100)).toEqual(Array(100).fill(0));
+  expect(row.bins.slice(100)).toEqual(Array(100).fill(2));
+});
+
+it('keeps gaps between cameras and falls back to frames if any camera lacks FPS', () => {
+  const result = buildReviewStatistics([
+    { config: config('rig/a', { fps: 0 }), sequenceId: 'rig', tracks: [track({ end: 9 })] },
+    { config: config('rig/b'), sequenceId: 'rig', tracks: [track({ begin: 30, end: 39 })] },
+  ]);
+  expect(result.timelines[0].unit).toBe('frames');
+  expect(result.timelines[0].count).toBe(1);
+  expect(result.timelines[0].bins.slice(50, 150)).toEqual(Array(100).fill(0));
+});
+
+it('draws horizontal step plateaus instead of diagonal spikes', () => {
+  expect(timelineStepPath([0, 2, 2, 0], 2, 100, 24)).toBe(
+    'M0,24 H25 V4 H75 V24 H100 V24 Z',
+  );
 });
