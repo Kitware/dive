@@ -503,7 +503,12 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     dependOnData();
     return buildReviewStatistics([...loaded.entries()]
       .filter(([id]) => entry(id)?.status === 'ready')
-      .map(([, dataset]) => ({ config: dataset.config, tracks: dataset.tracks.values() })));
+      .map(([id, dataset]) => ({
+        config: dataset.config,
+        tracks: dataset.tracks.values(),
+        sequenceId: parentOf(id),
+        sequenceName: datasetName(parentOf(id)),
+      })));
   });
 
   /** Types the query can ask for: present on the selected datasets at the current threshold. */

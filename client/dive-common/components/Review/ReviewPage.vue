@@ -459,18 +459,6 @@ export default defineComponent({
       >
         <v-btn
           small
-          value="results"
-        >
-          <v-icon
-            small
-            left
-          >
-            mdi-view-grid
-          </v-icon>
-          Results
-        </v-btn>
-        <v-btn
-          small
           value="datasets"
         >
           <v-icon
@@ -487,6 +475,18 @@ export default defineComponent({
             mdi-chart-timeline-variant
           </v-icon>
           Statistics
+        </v-btn>
+        <v-btn
+          small
+          value="results"
+        >
+          <v-icon
+            small
+            left
+          >
+            mdi-view-grid
+          </v-icon>
+          Results
         </v-btn>
       </v-btn-toggle>
 
