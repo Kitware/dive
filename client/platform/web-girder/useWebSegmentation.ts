@@ -1,4 +1,6 @@
-import { watch, onBeforeUnmount, ref, computed } from 'vue';
+import {
+  watch, onBeforeUnmount, ref, computed,
+} from 'vue';
 import { cloneDeep } from 'lodash';
 import type Track from 'vue-media-annotator/track';
 import { headTailFeatures } from 'vue-media-annotator/headTail';

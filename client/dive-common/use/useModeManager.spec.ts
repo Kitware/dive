@@ -543,11 +543,9 @@ describe('successive auto-populate triggers', () => {
   it('emits again when the same track gets a new line on a later frame', () => {
     const recipe = new HeadTail();
     const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
-    const draw = (frame: number, coordinates: number[][]) => manager.handler.updateGeoJSON(
-      'in-progress', frame, 0, {
-        type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
-      }, 'HeadTails',
-    );
+    const draw = (frame: number, coordinates: number[][]) => manager.handler.updateGeoJSON('in-progress', frame, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+    }, 'HeadTails');
     const trackId = manager.handler.trackAdd();
     recipe.activate();
     draw(0, [[0, 0]]);

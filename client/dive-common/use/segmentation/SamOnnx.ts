@@ -107,7 +107,8 @@ export function configureSamOrtProxy(
   onnxEnv: { wasm?: { proxy?: boolean } } | undefined,
   allowProxy = true,
 ) {
-  if (onnxEnv?.wasm) onnxEnv.wasm.proxy = device === 'wasm' && allowProxy;
+  const wasm = onnxEnv?.wasm;
+  if (wasm) wasm.proxy = device === 'wasm' && allowProxy;
 }
 
 /** ORT surfaces this when wasm.proxy=true after WASM already init'd without a worker. */
@@ -197,6 +198,14 @@ export default class SamOnnx {
     const devices = await samDevices(navigatorGpu(), this.devicePreference);
     const onnxEnv = env.backends.onnx as { wasm?: { proxy?: boolean } };
     let lastError: unknown;
+    // Clear a half-loaded session. this.model is narrowed to null above, so re-read.
+    const release = async () => {
+      const failed = this.model as Sam2Model | null;
+      this.model = null;
+      this.processor = null;
+      this.loadedDevice = null;
+      await failed?.dispose();
+    };
     try {
       // Providers must be tried sequentially; release a failed session first.
       // eslint-disable-next-line no-restricted-syntax
@@ -210,10 +219,7 @@ export default class SamOnnx {
           return;
         } catch (err) {
           // eslint-disable-next-line no-await-in-loop
-          await this.model?.dispose();
-          this.model = null;
-          this.processor = null;
-          this.loadedDevice = null;
+          await release();
           lastError = err;
           // GPU→CPU after a prior WebGPU session: ORT proxy worker was never created.
           if (device === 'wasm' && this.allowOrtWasmProxy && isOrtProxyWorkerError(err)) {
@@ -224,10 +230,7 @@ export default class SamOnnx {
               return;
             } catch (retryErr) {
               // eslint-disable-next-line no-await-in-loop
-              await this.model?.dispose();
-              this.model = null;
-              this.processor = null;
-              this.loadedDevice = null;
+              await release();
               lastError = retryErr;
             }
           }
@@ -238,10 +241,11 @@ export default class SamOnnx {
   }
 
   private async loadOnDevice(
-    // Transformers exports classes; only from_pretrained is needed here.
+    // Transformers types from_pretrained as base Model/Processor; cast results below.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    Sam2: { from_pretrained: (...args: any[]) => Promise<Sam2Model> },
-    AutoProcessor: { from_pretrained: (modelId: string) => Promise<Sam2Processor> },
+    Sam2: { from_pretrained: (...args: any[]) => Promise<unknown> },
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    AutoProcessor: { from_pretrained: (...args: any[]) => Promise<unknown> },
     id: string,
     label: string,
     device: SamDevice,
@@ -276,11 +280,18 @@ export default class SamOnnx {
       this.model = await Sam2.from_pretrained(id, {
         device,
         dtype: 'q4',
-        progress_callback: (info) => {
+        progress_callback: (info: {
+          status: string;
+          progress?: number;
+          file?: string;
+          loaded?: number;
+          total?: number;
+        }) => {
           if (info.status === 'progress_total') {
             sawTotal = true;
-            reportDownload(info.progress);
-          } else if (info.status === 'progress' && !sawTotal) {
+            reportDownload(info.progress ?? 0);
+          } else if (info.status === 'progress' && !sawTotal && info.file != null
+            && info.loaded != null && info.total != null) {
             files.set(info.file, { loaded: info.loaded, total: info.total });
             reportDownload(samDownloadPercent(files.values()));
           }

@@ -231,6 +231,7 @@ it('exposes busy while auto-populate runs and cancel drops the in-flight job', a
     camera: 'left', trackId: 1, frameNum: 0, source: 'box', bounds: [20, 0, 30, 4],
   });
   expect(service.busy.value).toBe(true);
+  await vi.waitFor(() => expect(finish).toBeDefined());
   service.cancel();
   expect(service.busy.value).toBe(false);
   expect(mocks.dispose).toHaveBeenCalled();
