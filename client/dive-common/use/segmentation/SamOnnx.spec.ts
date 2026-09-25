@@ -34,7 +34,6 @@ vi.mock('@huggingface/transformers', () => {
     RawImage: vi.fn(),
     AutoProcessor: { from_pretrained: async () => processor },
     Sam2Model: { from_pretrained: fromPretrained },
-    Sam3TrackerModel: { from_pretrained: fromPretrained },
   };
 });
 
@@ -72,9 +71,9 @@ it('uses ONNX mask post-processing and reuses a frame embedding for negative cli
 it('releases the previous model and embeddings when switching SAM versions', async () => {
   const sam = new SamOnnx();
   await sam.predict('left:0', image, request);
-  await sam.setModel('sam3');
+  await sam.setModel('sam2-small');
   await sam.predict('left:0', image, request);
-  expect(mocks.load.mock.calls.map(([id]) => id)).toEqual([SAM_MODELS.sam2, SAM_MODELS.sam3]);
+  expect(mocks.load.mock.calls.map(([id]) => id)).toEqual([SAM_MODELS.sam2, SAM_MODELS['sam2-small']]);
   expect(mocks.dispose).toHaveBeenCalledTimes(1);
   expect(mocks.releasePostprocess).toHaveBeenCalledTimes(1);
   expect(mocks.encode).toHaveBeenCalledTimes(2);
@@ -88,7 +87,7 @@ it('discards a prediction when the model changes during encoding', async () => {
   const pending = sam.predict('left:0', image, request);
   const rejected = expect(pending).rejects.toThrow('Segmentation model changed');
   await vi.waitFor(() => expect(finish).toBeDefined());
-  const switched = sam.setModel('sam3');
+  const switched = sam.setModel('sam2-small');
   finish({ embedding: { dispose: vi.fn() } });
   await rejected;
   await switched;

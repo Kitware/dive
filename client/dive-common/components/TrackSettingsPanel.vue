@@ -264,9 +264,9 @@ export default defineComponent({
         <v-select
           v-if="!isDesktopRuntime"
           v-model="clientSettings.trackSettings.newTrackSettings.segmentationModel"
-          :items="[{ text: 'SAM2.1 Tiny', value: 'sam2' }, { text: 'SAM3', value: 'sam3' }]"
+          :items="[{ text: 'SAM2.1 Tiny', value: 'sam2' }, { text: 'SAM2.1 Small', value: 'sam2-small' }]"
           label="Segmentation model"
-          hint="Downloads on first use and runs in your browser. SAM3 requires more memory."
+          hint="Downloads on first use and runs in your browser. Small is more accurate but needs more GPU memory."
           persistent-hint
           outlined
           dense

@@ -292,7 +292,7 @@ export default function useWebSegmentation(
     epoch += 1;
     jobs.clear(); versions.clear(); previews.clear(); ownLines.clear(); generated.clear(); finalized.clear();
     sam.dispose().catch(() => {});
-    sam.setModel(settings().segmentationModel === 'sam3' ? 'sam3' : 'sam2').catch(onError);
+    sam.setModel(settings().segmentationModel).catch(onError);
     viewer.segmentationRecipe.initialize({
       initializeServiceFn: () => sam.ready(),
       getImagePath: () => viewer.selectedCamera,

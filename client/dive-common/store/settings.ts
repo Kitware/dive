@@ -48,7 +48,7 @@ interface AnnotationSettings {
       /** Segment a freshly drawn box or line and store the polygon. */
       autoPopulateMask: boolean;
       /** Browser point-prompt segmentation model (loaded lazily). */
-      segmentationModel: 'sam2' | 'sam3';
+      segmentationModel: 'sam2' | 'sam2-small';
       /** Derive head/tail from that polygon for a box; a tighter box from it for a line. */
       autoPopulatePoints: boolean;
       modeSettings: {
@@ -255,6 +255,11 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
   );
   if (!isStereoMatchMethod(hydrated.stereoSettings.matchMethod, isDesktopRuntime())) {
     hydrated.stereoSettings.matchMethod = DEFAULT_STEREO_MATCH_METHOD;
+  }
+  // Drop retired browser options (e.g. SAM3) that no longer fit typical GPUs.
+  if (hydrated.trackSettings.newTrackSettings.segmentationModel !== 'sam2'
+    && hydrated.trackSettings.newTrackSettings.segmentationModel !== 'sam2-small') {
+    hydrated.trackSettings.newTrackSettings.segmentationModel = 'sam2';
   }
   return hydrated;
 }

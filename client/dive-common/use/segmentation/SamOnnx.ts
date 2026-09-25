@@ -6,11 +6,19 @@ import type { RgbaImage } from '../stereo/image';
 import { maskGeometry } from './maskGeometry';
 import SamMaskPostprocessor from './SamMaskPostprocessor';
 
-export type SamModel = 'sam2' | 'sam3';
+export type SamModel = 'sam2' | 'sam2-small';
 export const SAM_MODELS = {
   sam2: 'onnx-community/sam2.1-hiera-tiny-ONNX',
-  sam3: 'onnx-community/sam3-tracker-ONNX',
+  'sam2-small': 'onnx-community/sam2.1-hiera-small-ONNX',
 } as const;
+export const SAM_LABELS: Record<SamModel, string> = {
+  sam2: 'SAM2.1 Tiny',
+  'sam2-small': 'SAM2.1 Small',
+};
+
+export function isSamModel(value: unknown): value is SamModel {
+  return value === 'sam2' || value === 'sam2-small';
+}
 
 type EncodedFrame = {
   embeddings: Record<string, Tensor>;
@@ -83,9 +91,9 @@ export default class SamOnnx {
 
   private async load() {
     if (this.model) return;
-    const { Sam2Model: Sam2, Sam3TrackerModel: Sam3, AutoProcessor } = await import('@huggingface/transformers');
+    const { Sam2Model: Sam2, AutoProcessor } = await import('@huggingface/transformers');
     const id = SAM_MODELS[this.kind];
-    const Model = this.kind === 'sam2' ? Sam2 : Sam3;
+    const label = SAM_LABELS[this.kind];
     const devices = await samDevices(typeof navigator === 'undefined' ? undefined : (navigator as Navigator & { gpu?: GpuAccess }).gpu);
     let lastError: unknown;
     try {
@@ -93,14 +101,14 @@ export default class SamOnnx {
       // eslint-disable-next-line no-restricted-syntax
       for (const device of devices) {
         try {
-          this.onStatus(`Loading ${this.kind.toUpperCase()} (${device === 'webgpu' ? 'GPU' : 'CPU'})…`);
+          this.onStatus(`Loading ${label} (${device === 'webgpu' ? 'GPU' : 'CPU'})…`);
           // eslint-disable-next-line no-await-in-loop
-          this.model = await Model.from_pretrained(id, {
+          this.model = await Sam2.from_pretrained(id, {
             device,
             dtype: 'q4',
             progress_callback: (progress) => {
               if (progress.status === 'progress') {
-                this.onStatus(`Downloading ${this.kind.toUpperCase()}: ${Math.round(progress.progress)}%`);
+                this.onStatus(`Downloading ${label}: ${Math.round(progress.progress)}%`);
               }
             },
           }) as Sam2Model;
@@ -115,7 +123,7 @@ export default class SamOnnx {
           lastError = err;
         }
       }
-      throw new Error(`Could not load ${this.kind.toUpperCase()}: ${String(lastError)}`);
+      throw new Error(`Could not load ${label}: ${String(lastError)}`);
     } finally { this.onStatus(null); }
   }
 

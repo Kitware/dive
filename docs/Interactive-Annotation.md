@@ -164,20 +164,20 @@ rematch image locations rather than pairing equally numbered intermediate points
 ## Web segmentation
 
 In **Track Settings → New Track/Detection Settings**, choose **SAM2.1 Tiny**
-(the default) or **SAM3** under **Segmentation model**. Activate **Segment** in
+(the default) or **SAM2.1 Small** under **Segmentation model**. Activate **Segment** in
 edit mode, or press **S**, and use the same positive/negative clicks and
 confirm/cancel controls described above. Both choices are point/box-prompt
-models; selecting SAM3 does not enable text-prompt object search.
+SAM2 models; Small is more accurate but needs more GPU memory.
 
 The first use downloads the selected model from Hugging Face. Browser caching
 avoids downloading it again when cached files remain available. Models run
 locally in the browser: image pixels are not uploaded to Hugging Face. WebGPU
 on HTTPS or localhost is preferred; the loader tries CPU/WASM if GPU model
-initialization fails, and uses CPU directly for software GPU adapters. SAM3 uses substantially more resources than SAM2.1 Tiny.
+initialization fails, and uses CPU directly for software GPU adapters.
 Initial encoding can be slow, especially on software graphics. Subsequent
 clicks reuse image embeddings; only two camera frames are retained in memory.
 
-SAM2 and SAM3 share a small bundled ONNX post-processing graph that selects the
+Both SAM2 sizes share a small bundled ONNX post-processing graph that selects the
 highest-scoring candidate, resizes and unpads its logits, and returns a binary
 mask at the original image size. Selecting first avoids upscaling all three
 alternatives. This graph runs through ONNX Runtime/WASM and can also be used by
