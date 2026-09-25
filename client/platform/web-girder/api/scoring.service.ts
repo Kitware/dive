@@ -70,6 +70,17 @@ async function listScoringDatasets(): Promise<ScoringDatasetSummary[]> {
     }));
 }
 
+/** Review operates on whole sequences; suppress their individual camera folders. */
+async function listReviewDatasets(): Promise<ScoringDatasetSummary[]> {
+  const { data } = await getDatasetList(SCORING_DATASET_LIMIT, 0, 'name', 1);
+  const parents = new Set(data.filter((folder) => folder.meta?.type === 'multi').map((folder) => folder._id));
+  return data.filter((folder) => !(folder.parentId && parents.has(folder.parentId))).map((folder) => ({
+    id: folder._id,
+    name: folder.name,
+    type: typeof folder.meta?.type === 'string' ? folder.meta.type : undefined,
+  }));
+}
+
 export {
   runScoring,
   listScoringResults,
@@ -77,6 +88,7 @@ export {
   deleteScoringResult,
   listScoringSources,
   listScoringDatasets,
+  listReviewDatasets,
 };
 
 /** Browser download; the user's download settings decide the destination. */

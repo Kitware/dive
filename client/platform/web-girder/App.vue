@@ -50,9 +50,12 @@ import {
   deleteScoringResult,
   listScoringSources,
   listScoringDatasets,
+  listReviewDatasets,
+  resolveReviewDatasetId,
   saveScoringExport,
   exportScoringPdf,
   pickScoringDataset,
+  pickReviewDataset,
 } from './api';
 import ScoringDatasetPickerDialog from './components/ScoringDatasetPickerDialog.vue';
 import {
@@ -127,7 +130,10 @@ export default defineComponent({
       deleteScoringResult,
       listScoringSources: unwrap(listScoringSources),
       listScoringDatasets,
+      listReviewDatasets,
+      resolveReviewDatasetId,
       pickScoringDataset,
+      pickReviewDataset,
       saveScoringExport,
       exportScoringPdf,
     });
