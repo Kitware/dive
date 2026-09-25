@@ -114,3 +114,31 @@ On DIVE Desktop, the Video Search panel launches searches on the Query page, whi
 Every result is also an annotation in waiting. Typing a type under a chip, or editing its box (the edit action or a right click), gives the result a track of its own in its dataset, built from the result's frames and boxes; the dataset's existing annotations are never edited in place. Such entries show their track id and can be deleted.
 
 **Save** on the results toolbar writes the results that count as annotations: every accepted result (with its type, or `unknown` when none was given), every result given a type, rejected results only when they were given a type, and unmarked results that were typed or box-edited. When any of them overlaps an annotation the dataset already has on the same frame, a dialog asks how to proceed: **Keep originals** saves the other results and leaves the overlapping ones out, **Replace overlapping** deletes just the overlapped annotations before saving, **Replace all annotations** deletes every annotation in those sequences and saves only the results, and **Discard results** saves nothing. **Discard** drops the unsaved results, and leaving the page with unsaved changes asks first. Opening a saved entry selects its track in the viewer. Grid shape, zoom and context settings are shared with Review.
+
+## Statistics
+
+Choose **Review → Statistics** to summarize every selected sequence. Queued
+sequences load when this tab opens; partial results are labelled while loading
+or if a sequence fails. Retry failed loads on Datasets.
+
+**Categories** counts each track once per category whose confidence meets that
+sequence's saved type-specific threshold (or its default threshold). Without
+saved filters, the viewer default of 0.1 applies. Unclassified tracks have their
+own row. A track with multiple qualifying labels can appear in multiple category
+counts. **Attributes** separates track and detection occurrences by name and
+value, including false and zero. Only attributes on qualifying tracks are counted.
+Stereo cameras contribute independently. Search, sorting, and pagination keep
+large category and attribute lists manageable.
+
+Statistics use the current loaded annotations, including unsaved edits, and do
+not inherit the Results tab's type, attribute, or confidence query. Changing the
+selected sequences, editing, deleting, or reloading annotations updates totals.
+
+Timeline rows show qualifying track spans in 200 bins on a common count scale.
+Each row uses its own elapsed seconds axis (frames when FPS is unknown). Image
+sequences include their full frame range; video rows use the annotated extent
+because review metadata does not provide the full video duration. No media is
+decoded to construct these plots. Capture timestamps on images or parsed from
+sequence names order rows newest first; undated sequences follow alphabetically.
+Import dates are not treated as capture dates. Scroll inside the timeline list
+to browse more rows, or click a sequence name to open its viewer.
