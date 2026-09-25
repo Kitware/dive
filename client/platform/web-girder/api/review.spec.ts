@@ -7,7 +7,7 @@ import girderRest from 'platform/web-girder/plugins/girder';
 import { loadDatasetConfig } from './dataset.service';
 import { loadReviewTracks, saveDetections } from './annotation.service';
 import { listReviewDatasets } from './scoring.service';
-import { clearMultiCamMetaCache } from './multicamResolve';
+import { clearMultiCamMetaCache, resolveReviewDatasetId } from './multicamResolve';
 
 vi.mock('platform/web-girder/plugins/girder', () => ({ default: { get: vi.fn(), patch: vi.fn() } }));
 vi.mock('dive-common/review/frameSource', () => ({
@@ -47,10 +47,14 @@ describe('web stereo review through the real platform adapters', () => {
       frameCount: 3, getFrame: vi.fn(), dispose: vi.fn(),
     }));
     vi.mocked(girderRest.get).mockImplementation(async (url, options) => {
+      if (url === 'folder/leftFolder' || url === 'folder/rightFolder') {
+        return { data: { parentId: 'rig', parentCollection: 'folder', meta: { type: 'image-sequence' } } } as never;
+      }
       if (url === 'folder/rig') {
         return {
           data: {
             meta: {
+              type: 'multi',
               multiCam: {
                 defaultDisplay: 'right', cameras: { left: { folderId: 'leftFolder' }, right: { folderId: 'rightFolder' } },
               },
@@ -117,11 +121,34 @@ describe('web stereo review through the real platform adapters', () => {
         peekConfig: loadDatasetConfig,
         loadDetections: vi.fn(),
         loadReviewTracks,
+        resolveReviewDatasetId,
         saveDetections,
       },
     }))!;
   });
   afterEach(() => { review.dispose(); scope.stop(); });
+
+  it.each(['leftFolder', 'rightFolder', 'rig/left', 'rig/right'])('pairs both cameras when review starts from %s', async (id) => {
+    await review.addDataset(id);
+    expect(review.datasets.value).toMatchObject([{ id: 'rig', status: 'ready' }]);
+    expect(review.entries.value).toHaveLength(1);
+    expect(review.entries.value[0].items.map((item) => item.datasetId)).toEqual(['rig/right', 'rig/left']);
+  });
+
+  it('deduplicates camera and parent selections into one stereo sequence', async () => {
+    await review.addDatasets(['leftFolder', 'rig', 'rightFolder']);
+    expect(review.datasets.value).toMatchObject([{ id: 'rig', status: 'ready' }]);
+    expect(review.entries.value).toHaveLength(1);
+    expect(vi.mocked(createFrameSource)).toHaveBeenCalledTimes(2);
+  });
+
+  it('expands a queued camera selection when review results are requested', async () => {
+    await review.addDataset('leftFolder', undefined, { defer: true });
+    expect(vi.mocked(girderRest.get)).not.toHaveBeenCalled();
+    await review.loadQueued();
+    expect(review.entries.value).toHaveLength(1);
+    expect(review.entries.value[0].labels).toEqual(['right', 'left']);
+  });
 
   it('loads both cameras in display order, aligns sparse frames, and uses their own media', async () => {
     await review.addDataset('rig');

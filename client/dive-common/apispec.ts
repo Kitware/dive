@@ -480,6 +480,8 @@ interface Api {
    * dataset list the review page offers.
    */
   listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
+  /** Resolve a selected camera to its whole sequence before loading review. */
+  resolveReviewDatasetId?(datasetId: string): Promise<string>;
   /** Review includes whole stereo/multicamera sequences, unlike scoring. */
   listReviewDatasets?(): Promise<ScoringDatasetSummary[]>;
   pickReviewDataset?(excludeIds: string[]): Promise<ScoringDatasetSummary | null>;

@@ -48,7 +48,8 @@ export interface ReviewGeometryEdit {
 
 export type ReviewApi = Pick<Api,
   'loadConfig' | 'peekConfig' | 'loadDetections' | 'loadReviewTracks' | 'saveDetections'
-  | 'listScoringDatasets' | 'pickScoringDataset' | 'listReviewDatasets' | 'pickReviewDataset'>;
+  | 'listScoringDatasets' | 'pickScoringDataset' | 'listReviewDatasets' | 'pickReviewDataset'
+  | 'resolveReviewDatasetId'>;
 
 export interface ReviewServiceDeps {
   api: ReviewApi;
@@ -367,6 +368,17 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     const isCurrent = () => loadTokens.get(id) === token && !!entry(id);
     loading.value = true;
     try {
+      // Normalize user selections, but keep expanded cameras separate internally
+      // so media, annotations, and writes continue using their own folders.
+      if (api.resolveReviewDatasetId && !memberships.has(id)) {
+        const resolvedId = await requests.run(() => api.resolveReviewDatasetId!(id));
+        if (!isCurrent()) return;
+        if (resolvedId !== id) {
+          datasets.value = datasets.value.filter((d) => d.id !== id);
+          await addDataset(resolvedId);
+          return;
+        }
+      }
       const config = await requests.run(() => {
         if (!isCurrent()) throw new Error('Dataset removed');
         return loadConfig(id);

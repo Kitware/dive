@@ -117,7 +117,9 @@ Every result is also an annotation in waiting. Typing a type under a chip, or ed
 
 ### Stereo review on the web
 
-Select the stereo parent sequence in the library or in Review → Datasets → Browse.
+Select the stereo sequence in the library or in Review → Datasets → Browse.
+Selecting an individual camera folder or entering review from a camera link also
+loads the whole sequence, so both sides appear together.
 The review picker accepts whole stereo/multicamera sequences; scoring still requires
 a single camera. Cameras appear together as one entry per track, in the sequence's
 configured camera order, with synchronized frame cycling and zoom/pan.

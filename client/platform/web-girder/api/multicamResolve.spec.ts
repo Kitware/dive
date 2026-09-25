@@ -11,6 +11,7 @@ import {
   clearMultiCamMetaCache,
   parseCompositeDatasetId,
   resolveDatasetFolderId,
+  resolveReviewDatasetId,
 } from './multicamResolve';
 
 describe('multicamResolve', () => {
@@ -74,5 +75,33 @@ describe('multicamResolve', () => {
     await expect(resolveDatasetFolderId('parent-id/missing')).rejects.toThrow(
       'Unknown camera "missing"',
     );
+  });
+
+  it('keeps a standalone dataset under an ordinary folder', async () => {
+    vi.spyOn(girderRest, 'get')
+      .mockResolvedValueOnce({ data: { parentId: 'ordinary', parentCollection: 'folder' } } as never)
+      .mockResolvedValueOnce({ data: { meta: {} } } as never);
+    expect(await resolveReviewDatasetId('standalone')).toBe('standalone');
+  });
+
+  it('does not include unrelated datasets nested beneath a stereo parent', async () => {
+    vi.spyOn(girderRest, 'get')
+      .mockResolvedValueOnce({ data: { parentId: 'rig', parentCollection: 'folder' } } as never)
+      .mockResolvedValueOnce({
+        data: {
+          meta: {
+            type: 'multi', multiCam: { cameras: { left: { folderId: 'left' } } },
+          },
+        },
+      } as never);
+    expect(await resolveReviewDatasetId('unrelated')).toBe('unrelated');
+  });
+
+  it('does not resolve a collection id as a folder', async () => {
+    const get = vi.spyOn(girderRest, 'get').mockResolvedValueOnce({
+      data: { parentId: 'collection', parentCollection: 'collection' },
+    } as never);
+    expect(await resolveReviewDatasetId('standalone')).toBe('standalone');
+    expect(get).toHaveBeenCalledTimes(1);
   });
 });
