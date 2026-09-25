@@ -176,7 +176,7 @@ export default defineComponent({
       </div>
 
       <template v-if="bottomRightPanelView === 'filters'">
-        <div class="flex-grow-1 bottom-filter-list" style="overflow-y: auto; overflow-x: hidden;">
+        <div class="bottom-filter-list">
           <FilterList
             :show-empty-types="clientSettings.typeSettings.showEmptyTypes"
             :height="130"
@@ -185,13 +185,12 @@ export default defineComponent({
             :style-manager="trackStyleManager"
             :filter-controls="trackFilters"
             :disabled="disableAnnotationFilters"
-            class="fill-height"
+            class="flex-grow-1"
           >
             <template #settings>
               <TypeSettingsPanel
                 :all-types="trackFilters.allTypes.value"
                 :hierarchy-active="trackFilters.hierarchyActive.value"
-                @import-types="trackFilters.importTypes($event)"
               />
             </template>
           </FilterList>
@@ -301,6 +300,11 @@ export default defineComponent({
 }
 
 .bottom-filter-list {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
   #type-header b {
     font-size: 14px;
     font-weight: 600;

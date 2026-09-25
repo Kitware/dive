@@ -335,6 +335,81 @@ export function removeHierarchyType(
   return normalizeTypeHierarchy(Object.fromEntries(updated));
 }
 
+export interface PruneHierarchyResult {
+  hierarchy: TypeHierarchy | undefined;
+  removed: readonly string[];
+}
+
+/**
+ * Remove `type` so its children become roots (not reparented to the grandparent),
+ * then walk ancestors upward and drop any that no longer have children.
+ */
+export function pruneHierarchyUpward(
+  hierarchy: TypeHierarchy | undefined,
+  type: string,
+): PruneHierarchyResult {
+  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
+  const updated = new Map<string, string>();
+  Object.keys(normalized).forEach((child) => {
+    if (child === type) return;
+    const parent = normalized[child];
+    if (parent === type) return;
+    updated.set(child, parent);
+  });
+
+  const removed = new Set<string>([type]);
+  let ancestor: string | undefined = hasOwn(normalized, type) ? normalized[type] : undefined;
+  while (ancestor !== undefined) {
+    const hasChild = [...updated.values()].includes(ancestor);
+    if (hasChild) break;
+    const parentOfAncestor = updated.get(ancestor) ?? (
+      hasOwn(normalized, ancestor) ? normalized[ancestor] : undefined
+    );
+    updated.delete(ancestor);
+    removed.add(ancestor);
+    ancestor = parentOfAncestor;
+  }
+
+  return {
+    hierarchy: normalizeTypeHierarchy(Object.fromEntries(updated)),
+    removed: [...removed],
+  };
+}
+
+export interface HierarchyForestRow {
+  name: string;
+  depth: number;
+}
+
+/** Depth-first forest of hierarchy members plus any extra names (roots first). */
+export function flattenHierarchyForest(
+  names: readonly string[],
+  hierarchy: TypeHierarchy | undefined,
+): HierarchyForestRow[] {
+  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
+  const children = new Map<string, string[]>();
+  const members = new Set<string>(names);
+  Object.entries(normalized).forEach(([child, parent]) => {
+    members.add(child);
+    members.add(parent);
+    const siblings = children.get(parent);
+    if (siblings) siblings.push(child);
+    else children.set(parent, [child]);
+  });
+  children.forEach((siblings, parent) => {
+    children.set(parent, sortedNames(siblings));
+  });
+
+  const roots = sortedNames([...members].filter((name) => !hasOwn(normalized, name)));
+  const rows: HierarchyForestRow[] = [];
+  const visit = (name: string, depth: number) => {
+    rows.push({ name, depth });
+    (children.get(name) || []).forEach((child) => visit(child, depth + 1));
+  };
+  roots.forEach((root) => visit(root, 0));
+  return rows;
+}
+
 /** Build the final hierarchy for an atomic type rename and parent edit. */
 export function updateHierarchyTypeDefinition(
   hierarchy: TypeHierarchy | undefined,

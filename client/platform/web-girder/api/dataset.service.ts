@@ -107,11 +107,23 @@ function mergeDatasetConfig(
  */
 async function loadDatasetConfig(datasetId: string): Promise<GirderConfig> {
   const { compositeId } = await resolveDatasetFolderId(datasetId);
-  const [metaStatic, media] = await Promise.all([
+  const [metaStatic, media, parentConfig] = await Promise.all([
     getDataset(datasetId),
     getDatasetMedia(datasetId),
+    compositeId
+      ? girderRest.get<DatasetConfigMutable>(`dive_dataset/${parentDatasetId(datasetId)}/configuration`)
+      : Promise.resolve(null),
   ]);
-  return mergeDatasetConfig(metaStatic.data, media.data, compositeId);
+  const config = mergeDatasetConfig(metaStatic.data, media.data, compositeId);
+  if (parentConfig) {
+    // The parent owns the shared hierarchy. In particular, an absent parent
+    // hierarchy must not revive obsolete edges stored on a camera folder.
+    config.typeHierarchy = parentConfig.data.typeHierarchy;
+    config.customTypeStyling = {
+      ...config.customTypeStyling, ...parentConfig.data.customTypeStyling,
+    };
+  }
+  return config;
 }
 
 function clone({

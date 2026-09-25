@@ -1,3 +1,4 @@
+import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { orderedHeadTail } from 'vue-media-annotator/headTail';
 /**
  * State behind the Review page: the datasets under review (with their
@@ -47,7 +48,8 @@ export interface ReviewGeometryEdit {
 
 export type ReviewApi = Pick<Api,
   'loadConfig' | 'peekConfig' | 'loadDetections' | 'loadReviewTracks' | 'saveDetections'
-  | 'listScoringDatasets' | 'pickScoringDataset'>;
+  | 'listScoringDatasets' | 'pickScoringDataset' | 'listReviewDatasets' | 'pickReviewDataset'
+  | 'resolveReviewDatasetId'>;
 
 export interface ReviewServiceDeps {
   api: ReviewApi;
@@ -322,9 +324,10 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   }
 
   async function refreshAvailable() {
-    if (!api.listScoringDatasets) return;
+    const listDatasets = api.listReviewDatasets ?? api.listScoringDatasets;
+    if (!listDatasets) return;
     try {
-      const result = await requests.run(() => api.listScoringDatasets!());
+      const result = await requests.run(() => listDatasets());
       if (!disposed) available.value = result;
     } catch (err) {
       fail(err, 'Could not list datasets');
@@ -365,6 +368,17 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     const isCurrent = () => loadTokens.get(id) === token && !!entry(id);
     loading.value = true;
     try {
+      // Normalize user selections, but keep expanded cameras separate internally
+      // so media, annotations, and writes continue using their own folders.
+      if (api.resolveReviewDatasetId && !memberships.has(id)) {
+        const resolvedId = await requests.run(() => api.resolveReviewDatasetId!(id));
+        if (!isCurrent()) return;
+        if (resolvedId !== id) {
+          datasets.value = datasets.value.filter((d) => d.id !== id);
+          await addDataset(resolvedId);
+          return;
+        }
+      }
       const config = await requests.run(() => {
         if (!isCurrent()) throw new Error('Dataset removed');
         return loadConfig(id);
@@ -372,7 +386,10 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
       if (!isCurrent()) return;
       if (config.type === 'multi') {
         // Load each camera separately while exposing the parent as one selected sequence.
-        const cameras = Object.keys(config.multiCamMedia?.cameras || {});
+        const cameras = [...new Set([
+          ...orderedMultiCamCameraNames(config.multiCamMedia),
+          ...Object.keys(config.multiCamMedia?.cameras || {}),
+        ])];
         const parentName = entry(id)?.name || config.name;
         if (!cameras.length) throw new Error('This sequence has no cameras');
         parentNames.set(id, parentName);
@@ -429,20 +446,36 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   /**
    * Add a dataset; with `defer` it only joins the list and loads on the
    * next `loadQueued`, so picking many datasets costs nothing until the
-   * results are actually wanted.
+   * results are actually wanted. Deferred picks still resolve camera folders
+   * to their sequence so a browse pick cannot sit beside an already-loaded rig.
    */
   async function addDataset(id: string, summary?: ScoringDatasetSummary, options: { defer?: boolean } = {}) {
     if (disposed || !id || entry(id) || selectedDatasets.value.some((dataset) => dataset.id === id)) return;
+    let selectedId = id;
+    let selectedSummary = summary;
+    if (options.defer && api.resolveReviewDatasetId) {
+      try {
+        const resolvedId = await api.resolveReviewDatasetId(id);
+        if (resolvedId !== id) {
+          selectedId = resolvedId;
+          // Drop the camera-folder summary; the parent owns the sequence name.
+          selectedSummary = undefined;
+        }
+      } catch {
+        // Keep the original id; load() will surface the error.
+      }
+    }
+    if (entry(selectedId) || selectedDatasets.value.some((dataset) => dataset.id === selectedId)) return;
     datasets.value = [...datasets.value, {
-      id,
-      name: summary?.name || datasetName(id),
-      type: summary?.type,
+      id: selectedId,
+      name: selectedSummary?.name || datasetName(selectedId),
+      type: selectedSummary?.type,
       status: options.defer ? 'queued' : 'loading',
       trackCount: 0,
       croppable: false,
     }];
     if (options.defer) return;
-    await load(id);
+    await load(selectedId);
   }
 
   /** Load every queued dataset; annotations are read and the query rerun as each arrives. */
