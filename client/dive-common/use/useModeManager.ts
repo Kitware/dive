@@ -149,7 +149,10 @@ export default function useModeManager({
     isStereoscopicDataset?: Ref<boolean>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
-    /** A brand-new detection just got its first shape (a box or a line). */
+    /**
+     * A detection just got its first shape on this frame (a newly drawn box,
+     * or a newly completed line). Fires per frame, not only for a brand-new track.
+     */
     onNewAnnotationGeometry?: (params: NewAnnotationGeometryParams) => void;
     onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
@@ -828,11 +831,15 @@ export default function useModeManager({
         // create a new track in continuous detection mode and change
         // selectedTrackId
         const completedTrackId = selectedTrackId.value as number;
-        const wasCreating = creating;
 
         newTrackSettingsAfterLogic(track);
 
-        if (onNewAnnotationGeometry && wasCreating && !isEditingExisting) {
+        // First box on this frame (no prior feature here). Do not require
+        // `creating`: that flag clears after the first shape, but Track-mode
+        // edits still draw new boxes on later frames of the same track.
+        // Interpolated frames have a non-null `real`, so resizing them does
+        // not re-trigger.
+        if (onNewAnnotationGeometry && real === null) {
           onNewAnnotationGeometry({
             camera: selectedCamera.value,
             trackId: completedTrackId,
@@ -1042,12 +1049,17 @@ export default function useModeManager({
             // Capture track ID before newTrackSettingsAfterLogic which may
             // change selectedTrackId in continuous detection mode
             const completedTrackId = selectedTrackId.value;
-            const wasCreating = creating;
+            // A line is "new" until it has been completed once on this frame.
+            // In-progress draws store a head/tail Point first; edits already
+            // have a 2+ point LineString. Do not require `creating` so a later
+            // frame of the same track still auto-populates.
+            const isNewCompletedLine = data.geometry.type === 'LineString'
+              && data.geometry.coordinates.length >= 2
+              && (!previousCoordinates || previousCoordinates.length < 2);
 
             newTrackSettingsAfterLogic(track);
 
-            if (onNewAnnotationGeometry && wasCreating && completedTrackId !== null
-                && data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2) {
+            if (onNewAnnotationGeometry && isNewCompletedLine && completedTrackId !== null) {
               onNewAnnotationGeometry({
                 camera: selectedCamera.value,
                 trackId: completedTrackId as number,

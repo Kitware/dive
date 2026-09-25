@@ -510,6 +510,17 @@ describe('successive auto-populate triggers', () => {
     ]);
   });
 
+  it('emits again when the same track gets a new box on a later frame', () => {
+    const { modeManager: manager, newGeometryEvents } = makeHarness();
+    const trackId = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    manager.handler.updateRectBounds(1, 0, [20, 20, 30, 30]);
+    manager.handler.updateRectBounds(1, 0, [21, 21, 31, 31]);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.frameNum, event.source])).toEqual([
+      [trackId, 0, 'box'], [trackId, 1, 'box'],
+    ]);
+  });
+
   it('emits both completed lines when annotations are drawn one after another', () => {
     const recipe = new HeadTail();
     const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
@@ -526,6 +537,29 @@ describe('successive auto-populate triggers', () => {
     draw([[20, 20], [30, 30]]);
     expect(newGeometryEvents.map((event) => [event.trackId, event.source])).toEqual([
       [first, 'line'], [second, 'line'],
+    ]);
+  });
+
+  it('emits again when the same track gets a new line on a later frame', () => {
+    const recipe = new HeadTail();
+    const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
+    const draw = (frame: number, coordinates: number[][]) => manager.handler.updateGeoJSON(
+      'in-progress', frame, 0, {
+        type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+      }, 'HeadTails',
+    );
+    const trackId = manager.handler.trackAdd();
+    recipe.activate();
+    draw(0, [[0, 0]]);
+    draw(0, [[0, 0], [10, 10]]);
+    draw(1, [[20, 20]]);
+    draw(1, [[20, 20], [30, 30]]);
+    // Endpoint edit on frame 1 must not re-emit.
+    manager.handler.updateGeoJSON('editing', 1, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[21, 21], [30, 30]] },
+    }, manager.selectedKey.value);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.frameNum, event.source])).toEqual([
+      [trackId, 0, 'line'], [trackId, 1, 'line'],
     ]);
   });
 });
