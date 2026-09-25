@@ -4,8 +4,8 @@ In the annotation viewer, open **Type Settings** (the gear in the types list),
 then **Types**. Choose a `.txt`, `.csv`, or `.json` file, review the type and parent
 relationship preview, and click **Add**. This works in both DIVE desktop and web,
 including the sidebar and bottom panel layouts. You can also paste one type per
-line. Enable **View Unused** to display types without annotations, and save the
-dataset to persist the imported definitions.
+line. Imported types are shown even without annotations. Save the dataset to persist
+the imported definitions.
 
 Imports add to the dataset's existing types and hierarchy. They do not import or
 modify annotations, delete existing types, or replace existing parents. Invalid
@@ -81,10 +81,13 @@ Select individual taxa or use **Select page**. Results are shown in pages of up 
 children** lists a taxon's immediate children, and **Back** returns to its parent
 or the original search. This does not automatically download all descendants.
 
-**Include taxonomic parent categories** is enabled by default. Click **Prepare
-import preview** to resolve selected synonyms to accepted scientific names and
-retrieve the parent chains. Review the resulting types and relationships, then
-click **Add**. Uncheck the parent option to import only the selected accepted
+**Include taxonomic parent categories** is enabled by default. Click **Add** to
+resolve selected synonyms to accepted scientific names and
+retrieve the parent chains. This returns to **File or pasted list**, combining the
+WoRMS selection with any pending categories there. Review the staged types and
+parent → child relationships, then click **Add** again to apply them to the dataset.
+The first Add never modifies the dataset. Uncheck the parent option to import
+only the selected accepted
 names. Existing annotations are unchanged; existing hierarchy conflicts must be
 resolved before adding the import.
 
