@@ -195,15 +195,13 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
    * message. Returns whether the setting changed.
    */
   function fallBack(message: string): boolean {
-    if (opts.getMatchMethod) {
-      opts.onError?.(message);
-      return false;
-    }
+    if (opts.getMatchMethod) return false;
     const before = currentMethod();
     const next = fallBackStereoMethod(before, message);
+    if (next.method === before) return false;
     clientSettings.stereoSettings.matchMethod = next.method;
     opts.onError?.(next.message);
-    return next.method !== before;
+    return true;
   }
 
   async function createFoundationMatcher(imagery?: ImagerySize): Promise<StereoMatcher> {
@@ -241,14 +239,13 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
       : StereoOnnxMatcher.create(modelUrl)
     ).catch((err) => {
       console.warn('[StereoOnnx] failed to load model', method, err);
+      // A failed load is never remembered: the next warp tries again.
+      delete matchers[key];
       const what = method === 'foundation' ? 'The higher quality stereo model' : 'The stereo matching model';
       const message = `${what} could not be loaded. ${(err as Error).message ?? err}`;
-      if (fallBack(message)) {
-        // Retried if the user picks this method again later.
-        delete matchers[key];
-        return getMatcher(imagery);
-      }
-      return null;
+      if (fallBack(message)) return getMatcher(imagery);
+      // Nothing simpler to drop to: the caller reports the reason once.
+      throw new Error(message);
     });
     matchers[key] = created;
     return created;
@@ -433,7 +430,8 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
         console.warn('[StereoOnnx] disparity precompute failed', err);
         if (!precomputeErrorReported) {
           precomputeErrorReported = true;
-          fallBack(`The higher quality stereo model could not run in this browser. ${(err as Error).message ?? err}`);
+          const message = `The higher quality stereo model could not run in this browser. ${(err as Error).message ?? err}`;
+          if (!fallBack(message)) opts.onError?.(message);
         }
       });
   }
