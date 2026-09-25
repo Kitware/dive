@@ -16,6 +16,7 @@ import { SegmentationPolygonKey } from 'dive-common/recipes/segmentationpointcli
 import populateAnnotation from 'dive-common/use/populateAnnotation';
 import { autoPopulateTarget } from 'dive-common/use/autoPopulate';
 import SamOnnx from 'dive-common/use/segmentation/SamOnnx';
+import type { SamModelProgress } from 'dive-common/use/segmentation/SamOnnx';
 import {
   maskSeeds, maskKeypoints, consistentMaskSeeds, maskArea,
 } from 'dive-common/use/segmentation/maskGeometry';
@@ -42,7 +43,11 @@ export default function useWebSegmentation(
   onError: (message: string) => void,
 ) {
   const status = ref<string | null>(null);
-  const sam = new SamOnnx((message) => { status.value = message; });
+  const progress = ref<SamModelProgress | null>(null);
+  const sam = new SamOnnx((message, next) => {
+    status.value = message;
+    progress.value = message ? (next ?? null) : null;
+  });
   const jobs = new Map<string, Promise<SegmentationPolygon[] | null>>();
   const versions = new Map<string, number>();
   const previews = new Map<string, Preview>();
@@ -308,6 +313,7 @@ export default function useWebSegmentation(
 
   return {
     status,
+    progress,
     handleNewAnnotationGeometry,
     handleStereoAnnotationComplete,
     handleStereoAnnotationReset,

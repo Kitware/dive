@@ -203,7 +203,8 @@ export default defineComponent({
       handleStereoTrackLinked, warpAllFromCamera, invalidateCalibration, stereoViewLink,
     } = stereo;
     const {
-      status: segmentationStatus, handleNewAnnotationGeometry, handleStereoAnnotationComplete,
+      status: segmentationStatus, progress: segmentationProgress,
+      handleNewAnnotationGeometry, handleStereoAnnotationComplete,
       handleStereoAnnotationReset, handleStereoSegmentationFinalize,
     } = useWebSegmentation(() => viewerRef.value, stereo, (message) => { stereoError.value = String(message); });
 
@@ -224,6 +225,23 @@ export default defineComponent({
       return `${mb(progress.loaded)} of ${mb(progress.total)} MB`;
     });
 
+    /** Model download/prepare uses a dialog; frame encoding stays a light snackbar. */
+    const segmentationLoadActive = computed(() => {
+      const phase = segmentationProgress.value?.phase;
+      return !!segmentationStatus.value && (phase === 'download' || phase === 'prepare');
+    });
+    const segmentationEncoding = computed(() => (
+      !!segmentationStatus.value && segmentationProgress.value?.phase === 'encode'
+    ));
+    const segmentationDownloadPercent = computed(() => {
+      const progress = segmentationProgress.value;
+      if (progress?.phase === 'download' && progress.percent !== undefined) return progress.percent;
+      if (progress?.phase === 'prepare') return 100;
+      return 0;
+    });
+    const segmentationPreparing = computed(() => (
+      segmentationProgress.value?.phase === 'prepare'
+    ));
     /**
      * Import menu "Warp to All": push every detection the imported camera holds
      * onto the other camera, then save. `resolve` keeps the import spinner up
@@ -526,6 +544,10 @@ export default defineComponent({
       handleStereoTrackLinked,
       stereoViewLink,
       segmentationStatus,
+      segmentationLoadActive,
+      segmentationEncoding,
+      segmentationDownloadPercent,
+      segmentationPreparing,
       handleNewAnnotationGeometry,
       handleStereoAnnotationReset,
       handleStereoSegmentationFinalize,
@@ -708,7 +730,45 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
-    <v-snackbar :value="!!segmentationStatus" :timeout="-1" bottom left>
+    <v-dialog
+      :value="segmentationLoadActive"
+      persistent
+      max-width="560"
+    >
+      <v-card>
+        <v-card-title>Segmentation model</v-card-title>
+        <v-card-text>
+          <div>{{ segmentationStatus }}</div>
+          <div class="mb-3 mt-3">
+            <div>
+              Download {{ Math.floor(segmentationDownloadPercent) }}%
+            </div>
+            <v-progress-linear
+              aria-label="Segmentation model download progress"
+              :value="segmentationDownloadPercent"
+              :indeterminate="false"
+              color="primary"
+              height="8"
+              rounded
+              class="mt-1"
+            />
+          </div>
+          <div>
+            <div>Prepare</div>
+            <v-progress-linear
+              aria-label="Segmentation model prepare progress"
+              :value="0"
+              :indeterminate="segmentationPreparing"
+              color="primary"
+              height="8"
+              rounded
+              class="mt-1"
+            />
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+    <v-snackbar :value="segmentationEncoding" :timeout="-1" bottom left>
       <v-progress-circular indeterminate size="18" width="2" class="mr-2" />
       {{ segmentationStatus }}
     </v-snackbar>

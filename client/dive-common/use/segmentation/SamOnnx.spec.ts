@@ -1,17 +1,24 @@
-import SamOnnx, { SAM_MODELS, samDevices } from './SamOnnx';
+import SamOnnx, {
+  SAM_MODELS, samDevices, samDownloadPercent,
+} from './SamOnnx';
+import type { SamModelProgress } from './SamOnnx';
 
-const mocks = vi.hoisted(() => ({
-  load: vi.fn(), encode: vi.fn(), decode: vi.fn(), dispose: vi.fn(), postprocess: vi.fn(), releasePostprocess: vi.fn(),
-}));
-vi.mock('./SamMaskPostprocessor', () => ({
-  default: { create: async () => ({ run: mocks.postprocess, dispose: mocks.releasePostprocess }) },
-}));
-vi.mock('@huggingface/transformers', () => {
+const mocks = vi.hoisted(() => {
   class Tensor {
     dispose = vi.fn();
 
     constructor(public type: string, public data: Uint8Array | Float32Array | BigInt64Array, public dims: number[]) { /* Test tensor. */ }
   }
+  const encode = vi.fn();
+  const decode = vi.fn();
+  const dispose = vi.fn();
+  const makeModel = () => Object.assign(async (inputs: unknown) => {
+    decode(inputs);
+    return {
+      pred_masks: new Tensor('float32', new Float32Array(1), [1]),
+      iou_scores: new Tensor('float32', new Float32Array([0.1, 0.9, 0.3]), [1, 1, 3]),
+    };
+  }, { get_image_embeddings: encode, dispose });
   const processor = Object.assign(async () => ({
     pixel_values: new Tensor('float32', new Float32Array(1), [1, 3, 1024, 1024]),
     original_sizes: [[8, 8]],
@@ -19,23 +26,28 @@ vi.mock('@huggingface/transformers', () => {
   }), {
     reshape_input_points: () => new Tensor('float32', new Float32Array(2), [1, 1, 1, 2]),
   });
-  const fromPretrained = async (id: string) => {
-    mocks.load(id);
-    return Object.assign(async (inputs: unknown) => {
-      mocks.decode(inputs);
-      return {
-        pred_masks: new Tensor('float32', new Float32Array(1), [1]),
-        iou_scores: new Tensor('float32', new Float32Array([0.1, 0.9, 0.3]), [1, 1, 3]),
-      };
-    }, { get_image_embeddings: mocks.encode, dispose: mocks.dispose });
-  };
   return {
     Tensor,
-    RawImage: vi.fn(),
-    AutoProcessor: { from_pretrained: async () => processor },
-    Sam2Model: { from_pretrained: fromPretrained },
+    load: vi.fn(),
+    encode,
+    decode,
+    dispose,
+    postprocess: vi.fn(),
+    releasePostprocess: vi.fn(),
+    fromPretrained: vi.fn(),
+    makeModel,
+    processor,
   };
 });
+vi.mock('./SamMaskPostprocessor', () => ({
+  default: { create: async () => ({ run: mocks.postprocess, dispose: mocks.releasePostprocess }) },
+}));
+vi.mock('@huggingface/transformers', () => ({
+  Tensor: mocks.Tensor,
+  RawImage: vi.fn(),
+  AutoProcessor: { from_pretrained: async () => mocks.processor },
+  Sam2Model: { from_pretrained: (...args: unknown[]) => mocks.fromPretrained(...args) },
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -44,6 +56,10 @@ beforeEach(() => {
     const mask = new Uint8Array(64);
     for (let y = 2; y < 6; y += 1) for (let x = 2; x < 6; x += 1) mask[y * 8 + x] = 1;
     return { mask, score: 0.9 };
+  });
+  mocks.fromPretrained.mockImplementation(async (id: string) => {
+    mocks.load(id);
+    return mocks.makeModel();
   });
 });
 const image = { data: new Uint8ClampedArray(8 * 8 * 4), width: 8, height: 8 };
@@ -54,6 +70,11 @@ it('uses CPU for unavailable/software GPUs, and keeps CPU as a hardware-GPU fall
   expect(await samDevices({ requestAdapter: async () => ({ info: { isFallbackAdapter: true } }) })).toEqual(['wasm']);
   expect(await samDevices({ requestAdapter: async () => ({ info: { isFallbackAdapter: false } }) })).toEqual(['webgpu', 'wasm']);
   expect(await samDevices({ requestAdapter: async () => { throw new Error('denied'); } })).toEqual(['wasm']);
+});
+
+it('aggregates per-file download bytes into a percent', () => {
+  expect(samDownloadPercent([{ loaded: 25, total: 100 }, { loaded: 50, total: 100 }])).toBe(37.5);
+  expect(samDownloadPercent([])).toBe(0);
 });
 
 it('uses ONNX mask post-processing and reuses a frame embedding for negative clicks', async () => {
@@ -91,4 +112,60 @@ it('discards a prediction when the model changes during encoding', async () => {
   finish({ embedding: { dispose: vi.fn() } });
   await rejected;
   await switched;
+});
+
+it('moves from download at 100% to prepare while the session still loads (cached files)', async () => {
+  const updates: { message: string | null; progress?: SamModelProgress }[] = [];
+  let finishLoad!: (value: object) => void;
+  mocks.fromPretrained.mockImplementationOnce((_id: string, options: {
+    progress_callback?: (info: {
+      status: string; progress?: number; file?: string; loaded?: number; total?: number;
+    }) => void;
+  }) => new Promise((resolve) => {
+    options.progress_callback?.({
+      status: 'progress_total', progress: 100, loaded: 10, total: 10,
+    });
+    finishLoad = resolve;
+  }));
+  const sam = new SamOnnx((message, progress) => {
+    updates.push({ message, progress });
+  });
+  const ready = sam.ready();
+  await vi.waitFor(() => expect(finishLoad).toBeDefined());
+  expect(updates.some((u) => u.progress?.phase === 'download' && u.progress.percent === 100)).toBe(true);
+  expect(updates.at(-1)).toMatchObject({
+    message: expect.stringContaining('Preparing'),
+    progress: { phase: 'prepare' },
+  });
+  finishLoad(mocks.makeModel());
+  await ready;
+  expect(updates.at(-1)).toEqual({ message: null, progress: undefined });
+  await sam.dispose();
+});
+
+it('prefers progress_total over per-file progress for the download bar', async () => {
+  const updates: SamModelProgress[] = [];
+  mocks.fromPretrained.mockImplementationOnce(async (_id: string, options: {
+    progress_callback?: (info: {
+      status: string; progress?: number; file?: string; loaded?: number; total?: number; name?: string;
+    }) => void;
+  }) => {
+    options.progress_callback?.({
+      status: 'progress_total', name: 'm', progress: 40, loaded: 40, total: 100,
+    });
+    options.progress_callback?.({
+      status: 'progress', name: 'm', file: 'a.onnx', progress: 100, loaded: 100, total: 100,
+    });
+    options.progress_callback?.({
+      status: 'progress_total', name: 'm', progress: 100, loaded: 100, total: 100,
+    });
+    return mocks.makeModel();
+  });
+  const sam = new SamOnnx((_message, progress) => {
+    if (progress) updates.push(progress);
+  });
+  await sam.ready();
+  expect(updates.filter((p) => p.phase === 'download').map((p) => p.percent)).toEqual([0, 40, 100]);
+  expect(updates.some((p) => p.phase === 'prepare')).toBe(true);
+  await sam.dispose();
 });
