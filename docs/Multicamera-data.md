@@ -256,6 +256,6 @@ Open the ==:material-cog:== creation settings menu in the [Track List](UI-Track-
 
 Enabling either option loads the interactive stereo service (shared with [interactive segmentation](Interactive-Annotation.md)). Warped head/tail lines become normal editable line annotations; manual edits are preserved and not overwritten by later auto-warping.
 
-On stereo datasets, [interactive segmentation](Interactive-Annotation.md#interactive-segmentation) can also warp confirmed polygon masks to the paired camera when auto-compute is enabled.
+On stereo datasets, [interactive segmentation](Interactive-Annotation.md#interactive-segmentation) can also warp confirmed polygon masks to the paired camera when auto-compute is enabled. With [auto-populate](Interactive-Annotation.md#auto-populate-from-a-new-box-or-line) enabled, the stereo-mapped copy of a new box or line receives the same mask and/or head/tail pass after the transfer succeeds.
 
 Full details: [Interactive Annotation](Interactive-Annotation.md).

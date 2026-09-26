@@ -27,6 +27,7 @@ import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
+import useWebSegmentation from 'platform/web-girder/useWebSegmentation';
 import type { StereoModelProgress } from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
@@ -175,10 +176,7 @@ export default defineComponent({
       }
     }
 
-    const {
-      handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
-      invalidateCalibration, stereoViewLink,
-    } = useStereoOnnxWeb({
+    const stereo = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
       ensureMeasurementAttributes,
@@ -201,6 +199,16 @@ export default defineComponent({
       },
     });
 
+    const {
+      handleStereoTrackLinked, warpAllFromCamera, invalidateCalibration, stereoViewLink,
+    } = stereo;
+    const {
+      status: segmentationStatus, progress: segmentationProgress,
+      busy: autoPopulateBusy, cancel: cancelAutoPopulate,
+      handleNewAnnotationGeometry, handleStereoAnnotationComplete,
+      handleStereoAnnotationReset, handleStereoSegmentationFinalize,
+    } = useWebSegmentation(() => viewerRef.value, stereo, (message) => { stereoError.value = String(message); });
+
     function closeStereoError() {
       stereoError.value = '';
     }
@@ -218,6 +226,69 @@ export default defineComponent({
       return `${mb(progress.loaded)} of ${mb(progress.total)} MB`;
     });
 
+    /** Model download/prepare uses a dialog; encode/predict stay a light snackbar. */
+    const segmentationLoadActive = computed(() => {
+      const phase = segmentationProgress.value?.phase;
+      return !!segmentationStatus.value && (phase === 'download' || phase === 'prepare');
+    });
+    const segmentationEncoding = computed(() => {
+      const phase = segmentationProgress.value?.phase;
+      return !!segmentationStatus.value && (phase === 'encode' || phase === 'predict');
+    });
+    const segmentationDownloadPercent = computed(() => {
+      const progress = segmentationProgress.value;
+      if (progress?.phase === 'download' && progress.percent !== undefined) return progress.percent;
+      if (progress?.phase === 'prepare') return 100;
+      return 0;
+    });
+    const segmentationPreparing = computed(() => (
+      segmentationProgress.value?.phase === 'prepare'
+    ));
+    const segmentationOnCpu = computed(() => (
+      segmentationProgress.value?.device === 'cpu'
+    ));
+    /**
+     * Once per browser session: warn that CPU SAM embedding/auto-populate is slow.
+     * Fires on the first download/prepare/encode/predict that actually runs on CPU
+     * (forced CPU, no GPU, or auto fallback).
+     */
+    const CPU_SEG_WARN_KEY = 'dive.sam.cpuModeWarned';
+    let cpuSegWarned = false;
+    let cpuSegWarnOpen = false;
+    watch(
+      () => ({
+        active: segmentationLoadActive.value || segmentationEncoding.value,
+        device: segmentationProgress.value?.device,
+      }),
+      async ({ active, device }) => {
+        if (!active || device !== 'cpu' || cpuSegWarned || cpuSegWarnOpen) return;
+        try {
+          if (typeof sessionStorage !== 'undefined'
+            && sessionStorage.getItem(CPU_SEG_WARN_KEY)) {
+            cpuSegWarned = true;
+            return;
+          }
+        } catch {
+          /* private mode / blocked storage: still warn once this page load */
+        }
+        cpuSegWarned = true;
+        cpuSegWarnOpen = true;
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(CPU_SEG_WARN_KEY, '1');
+          }
+        } catch { /* ignore */ }
+        await prompt({
+          title: 'CPU Segmentation Mode',
+          text: [
+            'Segmentation is running in CPU mode.',
+            'Embedding each new frame and auto-populating masks or points will take significantly longer than on a GPU—typically 5–15 seconds or more per frame (about 10–30× slower).',
+            'Later clicks on an already-embedded frame stay quick. You can switch devices under Track Settings if a hardware GPU is available.',
+          ],
+        });
+        cpuSegWarnOpen = false;
+      },
+    );
     /**
      * Import menu "Warp to All": push every detection the imported camera holds
      * onto the other camera, then save. `resolve` keeps the import spinner up
@@ -519,6 +590,17 @@ export default defineComponent({
       handleStereoAnnotationComplete,
       handleStereoTrackLinked,
       stereoViewLink,
+      segmentationStatus,
+      segmentationLoadActive,
+      segmentationEncoding,
+      segmentationDownloadPercent,
+      segmentationPreparing,
+      segmentationOnCpu,
+      autoPopulateBusy,
+      cancelAutoPopulate,
+      handleNewAnnotationGeometry,
+      handleStereoAnnotationReset,
+      handleStereoSegmentationFinalize,
       stereoBusyMessage,
       stereoDownloadProgress,
       stereoDownloadPercent,
@@ -552,12 +634,18 @@ export default defineComponent({
       :initial-frame="viewerFocus.frame"
       :initial-track-id="viewerFocus.trackId"
       :stereo-view-link="stereoViewLink"
+      :auto-populate-busy="autoPopulateBusy"
+      :auto-populate-status="segmentationStatus"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
       @update:set="routeSet"
       @change-camera="changeCamera"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
+      @new-annotation-geometry="handleNewAnnotationGeometry"
+      @stereo-annotation-reset="handleStereoAnnotationReset"
+      @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
+      @cancel-auto-populate="cancelAutoPopulate"
     >
       <template #title>
         <ViewerAlert />
@@ -650,7 +738,7 @@ export default defineComponent({
       max-width="560"
     >
       <v-card>
-        <v-card-title>{{ stereoError ? 'Stereo Transfer Error' : 'Interactive Stereo' }}</v-card-title>
+        <v-card-title>{{ stereoError ? 'Annotation Error' : 'Interactive Stereo' }}</v-card-title>
         <v-card-text>
           <div v-if="!stereoError">
             <div class="d-flex align-center">
@@ -695,6 +783,59 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-dialog
+      :value="segmentationLoadActive"
+      persistent
+      max-width="560"
+    >
+      <v-card>
+        <v-card-title>Segmentation model</v-card-title>
+        <v-card-text>
+          <v-alert
+            v-if="segmentationOnCpu"
+            type="warning"
+            dense
+            text
+            class="mb-3"
+          >
+            Running on CPU. Embedding each new frame and auto-populating
+            masks or points will take significantly longer (typically 5–15
+            seconds or more per frame).
+          </v-alert>
+          <div>{{ segmentationStatus }}</div>
+          <div class="mb-3 mt-3">
+            <div>
+              Download {{ Math.floor(segmentationDownloadPercent) }}%
+            </div>
+            <v-progress-linear
+              aria-label="Segmentation model download progress"
+              :value="segmentationDownloadPercent"
+              :indeterminate="false"
+              color="primary"
+              height="8"
+              rounded
+              class="mt-1"
+            />
+          </div>
+          <div>
+            <div>Prepare</div>
+            <v-progress-linear
+              aria-label="Segmentation model prepare progress"
+              :value="0"
+              :indeterminate="segmentationPreparing"
+              color="primary"
+              height="8"
+              rounded
+              class="mt-1"
+            />
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+    <v-snackbar :value="segmentationEncoding" :timeout="-1" bottom left>
+      <v-progress-circular indeterminate size="18" width="2" class="mr-2" />
+      {{ segmentationStatus }}
+    </v-snackbar>
     <v-snackbar
       v-model="stereoLengthSnackbar"
       :timeout="4000"

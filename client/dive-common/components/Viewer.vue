@@ -24,6 +24,7 @@ import {
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
+import { AnnotationHistory, annotationUndoShortcut } from 'dive-common/use/annotationUndo';
 import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
@@ -50,7 +51,7 @@ import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
-import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TypeSettingsPanel from 'dive-common/components/Types/TypeSettingsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TrackListColumnSettings from 'dive-common/components/TrackListColumnSettings.vue';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -215,6 +216,16 @@ export default defineComponent({
       type: Function as PropType<StereoViewLinkFunc | undefined>,
       default: undefined,
     },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live SAM status text during auto-populate. */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -230,13 +241,15 @@ export default defineComponent({
     const displayComparisons = ref(props.comparisonSets.length
       ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
     const selectedSet = ref('');
+    // Created before useMediaController / provideAnnotator so both share one flag.
+    const segmentationCursorLoading = ref(false);
     const {
       aggregateController,
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
       setResetZoomOverride,
-    } = useMediaController();
+    } = useMediaController({ segmentationCursorLoading });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -437,12 +450,22 @@ export default defineComponent({
 
     const {
       save: saveToServer,
-      markChangesPending,
+      markChangesPending: markSaveChangesPending,
       discardChanges,
       pendingSaveCount,
       addCamera: addSaveCamera,
       removeCamera: removeSaveCamera,
     } = useSave(datasetId, readonlyState);
+
+    let annotationHistory: AnnotationHistory | undefined;
+    const markChangesPending: typeof markSaveChangesPending = (change) => {
+      markSaveChangesPending(change);
+      if (change && change.action !== 'meta' && (change.track || change.group)) {
+        annotationHistory?.record({
+          ...change, action: change.action, cameraName: change.cameraName ?? 'singleCam',
+        });
+      }
+    };
 
     const {
       imageEnhancements,
@@ -470,8 +493,12 @@ export default defineComponent({
     }
 
     const segmentationRecipe = new SegmentationPointClick();
-    const segmentationCursorLoading = computed(
+    // Spinner while loading or predicting; CPU work runs in ORT's wasm proxy
+    // worker so the main thread can keep painting and handling Esc/Cancel.
+    watch(
       () => segmentationRecipe.loading.value || segmentationRecipe.predicting.value,
+      (busy) => { segmentationCursorLoading.value = busy; },
+      { immediate: true },
     );
     const recipes = [
       new PolygonBase(),
@@ -583,6 +610,11 @@ export default defineComponent({
     groupStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'group');
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const annotationUndo = new AnnotationHistory(cameraStore);
+    annotationHistory = annotationUndo;
+    function runAnnotationOperation<T>(operation: () => Promise<T>) {
+      return annotationUndo.run(operation);
+    }
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
 
     /**
@@ -897,6 +929,20 @@ export default defineComponent({
       onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
         emit('stereo-segmentation-finalize', params);
       },
+    });
+
+    const canUndoAnnotation = computed(() => annotationUndo.canUndo.value
+      && progress.loaded && !readonlyState.value && !saveInProgress.value
+      && !segmentationRecipe.predicting.value && !segmentationRecipe.loading.value
+      && !registrationActive.value);
+    function undoAnnotation() {
+      if (canUndoAnnotation.value) annotationUndo.undo(handler.prepareAnnotationUndo);
+    }
+    const onUndoKeydown = (event: KeyboardEvent) => annotationUndoShortcut(event, undoAnnotation, canUndoAnnotation.value);
+    window.addEventListener('keydown', onUndoKeydown);
+    onBeforeUnmount(() => {
+      window.removeEventListener('keydown', onUndoKeydown);
+      annotationUndo.reset();
     });
 
     // Register linked-viewer composables during setup (after selectedCamera exists)
@@ -1697,6 +1743,7 @@ export default defineComponent({
     };
     /** Trigger data load */
     const loadData = async () => {
+      annotationUndo.reset();
       try {
         // Flush any pending shared-style write before this load replaces the
         // in-memory global* refs / manager customStyles (see onStyleEdit).
@@ -2069,6 +2116,7 @@ export default defineComponent({
             }
           }
         }
+        annotationUndo.start();
         progress.loaded = true;
         fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
@@ -2502,6 +2550,9 @@ export default defineComponent({
       progress,
       progressValue,
       saveInProgress,
+      canUndoAnnotation,
+      undoAnnotation,
+      runAnnotationOperation,
       showUserSettingsDialog,
       onGlobalStylesChange,
       playbackComponent,
@@ -2736,6 +2787,8 @@ export default defineComponent({
             textQueryEnabled,
             textQueryAvailable,
             checkTextQueryAvailable,
+            autoPopulateBusy,
+            autoPopulateStatus,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
@@ -2743,6 +2796,7 @@ export default defineComponent({
           :suppression-display.sync="clientSettings.annotatorPreferences.suppressionDisplay"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @cancel-auto-populate="$emit('cancel-auto-populate')"
           @text-query-init="$emit('text-query-init')"
           @text-query="onTextQuerySubmit"
           @text-query-all-frames="$emit('text-query-all-frames', $event)"
@@ -2808,6 +2862,21 @@ export default defineComponent({
 
       <slot name="title-right" />
       <user-guide-button annotating />
+      <v-tooltip bottom>
+        <template #activator="{ on }">
+          <span v-on="on">
+            <v-btn
+              icon
+              aria-label="Undo last annotation change"
+              :disabled="!canUndoAnnotation"
+              @click="undoAnnotation"
+            >
+              <v-icon>mdi-undo</v-icon>
+            </v-btn>
+          </span>
+        </template>
+        <span>Undo last annotation change (Ctrl+Z / ⌘Z)</span>
+      </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ on }">
           <div v-on="on">

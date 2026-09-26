@@ -1,10 +1,12 @@
-import type { TaxonomySources } from './worms';
+import type { SynonymRemap, TaxonomySources } from './worms';
 import { normalizeTypeHierarchy, TypeHierarchy } from './typeHierarchy';
 
 export interface CategoryImport {
   types: string[];
   taxonomySources?: TaxonomySources;
   typeHierarchy?: TypeHierarchy;
+  /** Synonym → accepted remaps from WoRMS (shown grouped in the import preview). */
+  synonymRemaps?: SynonymRemap[];
   warnings: string[];
 }
 

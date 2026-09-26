@@ -1,6 +1,6 @@
 <script lang="ts">
 import { computed, defineComponent } from 'vue';
-import TooltipBtn from './TooltipButton.vue';
+import TooltipBtn from '../TooltipButton.vue';
 
 const INDENT_STEP_PX = 12;
 const TREE_PREFIX_PX = 20;

@@ -42,7 +42,7 @@ Shared viewer behavior (camera selection, linked tracks, MultiCamera Tools, and 
 
 DIVE Desktop can run VIAME-backed **interactive segmentation** and **interactive stereo** tools while you annotate. These require a local VIAME install with interactive service support and are not available in the web annotator.
 
-* **Interactive segmentation** — click foreground/background points to generate polygon masks (++s++ or the Segment button). See [Interactive Annotation](Interactive-Annotation.md).
+* **Interactive segmentation** — click foreground/background points to generate polygon masks (++s++ or the Segment button), or enable **Auto-populate mask** / **Auto-populate points** in creation settings to segment each new box or line automatically. See [Interactive Annotation](Interactive-Annotation.md).
 * **Interactive stereo** — on stereo datasets, auto-warp annotations between cameras and recompute head/tail length measurements. Configure from the **Stereo Settings** section in the track list creation settings menu.
 
 Both features share one lazy-loaded Python interactive service subprocess. GPU is recommended for model initialization.

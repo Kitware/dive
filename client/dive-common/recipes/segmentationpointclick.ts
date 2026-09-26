@@ -161,7 +161,7 @@ export default class SegmentationPointClick implements Recipe {
   /** Delayed timer before showing the predicting UI state */
   private predictionLoadingTimer: ReturnType<typeof setTimeout> | null = null;
 
-  private static readonly PREDICTION_LOADING_DELAY_MS = 400;
+  private static readonly PREDICTION_LOADING_DELAY_MS = 0;
 
   /** Whether segmentation calculation is in progress (shown after a short delay) */
   predicting: Ref<boolean>;
@@ -196,7 +196,10 @@ export default class SegmentationPointClick implements Recipe {
     }
   }
 
+  private predictionLoadingEpoch = 0;
+
   private clearPredictingState(): void {
+    this.predictionLoadingEpoch += 1;
     this.clearPredictionLoadingTimer();
     this.predicting.value = false;
     this.pendingPredictionCount = 0;
@@ -227,6 +230,8 @@ export default class SegmentationPointClick implements Recipe {
    * Must be called before using the recipe.
    */
   initialize(options: SegmentationRecipeOptions): void {
+    this.predictionVersion += 1;
+    this.toggleable.value = true;
     this.predictFn = options.predictFn;
     this.getImagePath = options.getImagePath;
     this.getFrameTime = options.getFrameTime || null;
@@ -239,6 +244,7 @@ export default class SegmentationPointClick implements Recipe {
    * Reset the recipe state (clear accumulated points for all frames)
    */
   private reset(): void {
+    this.predictionVersion += 1;
     this.points = [];
     this.pointLabels = [];
     this.lastLowResMask = null;
@@ -266,6 +272,7 @@ export default class SegmentationPointClick implements Recipe {
    * Reset only the current frame's points (used when clearing current frame)
    */
   private resetCurrentFrame(): void {
+    this.predictionVersion += 1;
     this.points = [];
     this.pointLabels = [];
     this.lastLowResMask = null;
@@ -330,6 +337,7 @@ export default class SegmentationPointClick implements Recipe {
     if (!this.active.value) return;
     if (newFrame === this.currentFrame) return;
 
+    this.predictionVersion += 1;
     // Save current frame's data
     this.saveCurrentFrameData();
 
@@ -365,6 +373,8 @@ export default class SegmentationPointClick implements Recipe {
    * @param frameNum - The frame number to predict on
    * @param isFirstPoint - Whether this is the first point (affects error handling)
    */
+  private predictionVersion = 0;
+
   private async makePrediction(frameNum: number, isFirstPoint: boolean = false): Promise<void> {
     if (!this.predictFn || !this.getImagePath) {
       return;
@@ -374,6 +384,11 @@ export default class SegmentationPointClick implements Recipe {
       return;
     }
 
+    this.predictionVersion += 1;
+    const version = this.predictionVersion;
+    const loadingEpoch = this.predictionLoadingEpoch;
+    const points = this.points.map((p) => [...p] as [number, number]);
+    const labels = [...this.pointLabels];
     this.beginPrediction();
 
     try {
@@ -385,14 +400,15 @@ export default class SegmentationPointClick implements Recipe {
 
       const request: SegmentationPredictRequest = {
         imagePath,
-        points: this.points,
-        pointLabels: this.pointLabels,
+        points,
+        pointLabels: labels,
         maskInput: this.lastLowResMask ?? undefined,
         multimaskOutput: this.points.length === 1, // Use multimask for single point
         frameTime: this.getFrameTime ? this.getFrameTime(frameNum) : undefined,
       };
 
       const response = await this.predictFn(request, frameNum);
+      if (version !== this.predictionVersion) return;
 
       if (response.success && response.polygon && response.polygon.length > 0) {
         this.pendingPolygon = response.polygon;
@@ -427,11 +443,12 @@ export default class SegmentationPointClick implements Recipe {
         this.handlePredictionError(response.error || 'Prediction failed', isFirstPoint, frameNum);
       }
     } catch (error) {
+      if (version !== this.predictionVersion) return;
       // Exception during prediction - handle point rejection
       const errorMessage = error instanceof Error ? error.message : 'Prediction failed';
       this.handlePredictionError(errorMessage, isFirstPoint, frameNum);
     } finally {
-      this.endPrediction();
+      if (loadingEpoch === this.predictionLoadingEpoch) this.endPrediction();
     }
   }
 
@@ -734,15 +751,26 @@ export default class SegmentationPointClick implements Recipe {
 
   /**
    * Public method to reset (clear) all accumulated points and pending prediction.
-   * Called from UI Reset button. Clears all frames.
+   * Called from UI Reset button. Clears all frames and asks the mode manager
+   * to drop every in-progress mask for this detection (not only frames that
+   * still have prompt points in this recipe).
    *
    * @param byUser false when a selection change clears the points instead of
    *   the user, so a right-click that only entered edit mode cannot count as
    *   a reset to finalize.
    */
   resetPoints(byUser = true): void {
-    // Emit reset event for all frames with data
-    const framesToReset = [this.currentFrame, ...this.frameData.keys()];
+    // Invalidate in-flight predictions before restoring the track so a late
+    // result cannot re-apply the mask after this reset.
+    this.predictionVersion += 1;
+    this.clearPredictingState();
+    // Session-wide: restore/clear every frame the mode manager snapshotted
+    // before this segmentation edit, even if prompt points were already
+    // cleared or live only on another frame.
+    this.bus.$emit('prediction-reset-session');
+    // Per-frame (includes currentFrame when frameData is still empty) for
+    // listeners that only subscribe to prediction-reset.
+    const framesToReset = new Set<number>([this.currentFrame, ...this.frameData.keys()]);
     framesToReset.forEach((frameNum) => {
       this.bus.$emit('prediction-reset', { frameNum });
     });

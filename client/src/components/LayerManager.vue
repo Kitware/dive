@@ -639,6 +639,9 @@ export default defineComponent({
           features: featureToDisplay(trackFrame.features),
         })));
       } else {
+        // GeoJS can end editing before this refresh and leave the completed
+        // box behind in disabled mode; disable() clears it without touching
+        // the shared interactor when the mode is already off.
         boxEditLayer.disable();
       }
       editAnnotationLayer.restoreHandleActions();

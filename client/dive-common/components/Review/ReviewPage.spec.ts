@@ -179,6 +179,28 @@ async function settlePage() {
   await nextTick();
 }
 
+it('opens straight on Results while a library selection loads', async () => {
+  let release: () => void = () => {};
+  mocks.loadDetections.mockReturnValueOnce(new Promise((resolve) => {
+    release = () => resolve({
+      tracks: [], groups: [], sets: [], version: 2,
+    });
+  }));
+  const wrapper = mountPage({ initialDatasetIds: ['a'] });
+  const page = wrapper.vm as unknown as PageState & { opening: boolean };
+  expect(page.view).toBe('results');
+  expect(page.opening).toBe(true);
+  await settlePage();
+  expect(page.view).toBe('results');
+  expect(page.opening || page.review.loading.value).toBe(true);
+  release();
+  await settlePage();
+  expect(page.opening).toBe(false);
+  expect(page.review.loading.value).toBe(false);
+  expect(page.view).toBe('results');
+  wrapper.destroy();
+});
+
 it('opens the current sequence alone in Results on the first Review visit', async () => {
   const wrapper = mountPage({ fallbackDatasetId: 'current' });
   const page = wrapper.vm as unknown as PageState;

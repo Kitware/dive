@@ -53,6 +53,16 @@ function makeApi(tracksById: Record<string, TrackData[]>, overrides: Partial<Rev
 }
 
 describe('createReviewService', () => {
+  it('uses the review-specific dataset list when a platform separates it from scoring', async () => {
+    const listReviewDatasets = vi.fn(async () => [{ id: 'rig', name: 'Stereo', type: 'multi' }]);
+    const api = makeApi({}, { listReviewDatasets });
+    const service = createReviewService({ api });
+    await service.refreshAvailable();
+    expect(service.available.value).toEqual([{ id: 'rig', name: 'Stereo', type: 'multi' }]);
+    expect(api.listScoringDatasets).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
   it('uses the web tracks-only reader without loading unused annotation data', async () => {
     const loadReviewTracks = vi.fn(async () => [track(1, [['fish', 0.9]], [0])]);
     const api = makeApi({}, { loadReviewTracks });
@@ -89,6 +99,40 @@ describe('createReviewService', () => {
     await service.loadQueued();
     expect(service.datasets.value.map((d) => [d.status, d.trackCount])).toEqual([['ready', 1]]);
     expect(api.loadDetections).toHaveBeenCalledTimes(1);
+  });
+
+  it('queues the resolved parent for a deferred camera pick and skips duplicates', async () => {
+    const resolveReviewDatasetId = vi.fn(async (id: string) => (id === 'leftFolder' ? 'rig' : id));
+    const api = makeApi({
+      'rig/left': [track(1, [['fish', 1]], [0])],
+      'rig/right': [track(1, [['fish', 1]], [0])],
+    }, {
+      resolveReviewDatasetId,
+      loadConfig: vi.fn(async (id: string) => (id === 'rig'
+        ? config('rig', {
+          type: 'multi',
+          name: 'Stereo',
+          multiCamMedia: {
+            defaultDisplay: 'left',
+            cameras: {
+              left: { type: 'image-sequence', imageData: [{ url: 'l.jpg', filename: 'l.jpg' }], videoUrl: '' },
+              right: { type: 'image-sequence', imageData: [{ url: 'r.jpg', filename: 'r.jpg' }], videoUrl: '' },
+            },
+          },
+        })
+        : config(id))),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('leftFolder', { id: 'leftFolder', name: 'left' }, { defer: true });
+    expect(resolveReviewDatasetId).toHaveBeenCalledWith('leftFolder');
+    expect(service.datasets.value).toMatchObject([{ id: 'rig', status: 'queued' }]);
+    expect(api.loadConfig).not.toHaveBeenCalled();
+    await service.loadQueued();
+    expect(service.datasets.value).toMatchObject([{ id: 'rig', status: 'ready' }]);
+    // Deferred browse of a camera folder must not sit beside the loaded rig.
+    await service.addDataset('leftFolder', { id: 'leftFolder', name: 'left' }, { defer: true });
+    expect(service.datasets.value).toEqual([expect.objectContaining({ id: 'rig', status: 'ready' })]);
+    service.dispose();
   });
 
   it('loads datasets, prefers peekConfig, and builds items for a query', async () => {

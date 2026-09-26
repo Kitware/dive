@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  onBeforeUnmount,
   PropType,
   ref,
   watch,
@@ -103,6 +104,16 @@ export default defineComponent({
       type: Function as PropType<() => Promise<boolean>>,
       default: undefined,
     },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live status from the SAM session during auto-populate (encode/predict). */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   emits: [
     'set-annotation-state',
@@ -114,6 +125,7 @@ export default defineComponent({
     'text-query',
     'text-query-all-frames',
     'open-external-link',
+    'cancel-auto-populate',
   ],
   setup(props, { emit }) {
     const toolTimeTimeout = ref<number | null>(null);
@@ -248,8 +260,8 @@ export default defineComponent({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
-          loading: (r.loading?.value ?? false)
-            || (r instanceof SegmentationPointClick && r.predicting.value),
+          // Model download/init only — keep the tool usable while a mask runs.
+          loading: r.loading?.value ?? false,
           description: r.name,
           click: () => r.activate(),
           mousetrap: [
@@ -279,6 +291,10 @@ export default defineComponent({
 
     const mousetrap = computed((): Mousetrap[] => [
       ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
+      ...(autoPopulateBusyVisible.value ? [{
+        bind: 'esc',
+        handler: () => { cancelAutoPopulate(); },
+      }] : []),
     ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
@@ -301,6 +317,13 @@ export default defineComponent({
       }
       if (props.multiSelectActive) {
         return { text: 'Multi-select Mode', icon: 'mdi-call-merge', color: 'error' };
+      }
+      if (props.autoPopulateBusy && !activeSegmentationRecipe.value) {
+        return {
+          text: 'Auto-populating',
+          icon: 'mdi-loading mdi-spin',
+          color: 'warning',
+        };
       }
       if (activeSegmentationRecipe.value) {
         return {
@@ -337,8 +360,82 @@ export default defineComponent({
       return segRecipe?.loading.value ?? false;
     });
 
-    const segmentationTooltip = 'Left click: positive point. Esc to cancel. Middle click or shift+click for negative.';
+    /** After a long predict, promote Reset to an explicit Cancel control. */
+    const SEGMENTATION_CANCEL_WARNING_MS = 3000;
+    const segmentationCancelWarning = ref(false);
+    let segmentationCancelWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    watch(segmentationPredicting, (predicting) => {
+      if (segmentationCancelWarningTimer !== null) {
+        clearTimeout(segmentationCancelWarningTimer);
+        segmentationCancelWarningTimer = null;
+      }
+      if (predicting) {
+        segmentationCancelWarning.value = false;
+        segmentationCancelWarningTimer = setTimeout(() => {
+          segmentationCancelWarningTimer = null;
+          if (segmentationPredicting.value) {
+            segmentationCancelWarning.value = true;
+          }
+        }, SEGMENTATION_CANCEL_WARNING_MS);
+      } else {
+        segmentationCancelWarning.value = false;
+      }
+    });
 
+    /** Same 3s promotion for auto-populate encode/predict (especially CPU). */
+    const autoPopulateCancelWarning = ref(false);
+    let autoPopulateCancelWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    const autoPopulateBusyVisible = computed(
+      () => props.autoPopulateBusy && !activeSegmentationRecipe.value,
+    );
+    watch(autoPopulateBusyVisible, (busy) => {
+      if (autoPopulateCancelWarningTimer !== null) {
+        clearTimeout(autoPopulateCancelWarningTimer);
+        autoPopulateCancelWarningTimer = null;
+      }
+      if (busy) {
+        autoPopulateCancelWarning.value = false;
+        autoPopulateCancelWarningTimer = setTimeout(() => {
+          autoPopulateCancelWarningTimer = null;
+          if (autoPopulateBusyVisible.value) {
+            autoPopulateCancelWarning.value = true;
+          }
+        }, SEGMENTATION_CANCEL_WARNING_MS);
+      } else {
+        autoPopulateCancelWarning.value = false;
+      }
+    });
+    onBeforeUnmount(() => {
+      if (segmentationCancelWarningTimer !== null) {
+        clearTimeout(segmentationCancelWarningTimer);
+      }
+      if (autoPopulateCancelWarningTimer !== null) {
+        clearTimeout(autoPopulateCancelWarningTimer);
+      }
+    });
+
+    const segmentationTooltip = 'Left click for positive, middle or shift+click for negative points. Right click to confirm or Esc to cancel.';
+    const segmentationStatusHint = computed(() => {
+      if (segmentationLoading.value) return 'Loading segmentation model…';
+      if (segmentationCancelWarning.value) {
+        return 'Still computing — click Cancel or press Esc to abort.';
+      }
+      if (segmentationPredicting.value) {
+        return 'Computing segmentation… Press Esc to cancel.';
+      }
+      if (autoPopulateBusyVisible.value) {
+        if (autoPopulateCancelWarning.value) {
+          return 'Still auto-populating — click Cancel or press Esc to abort.';
+        }
+        return props.autoPopulateStatus
+          || 'Auto-populating mask/points… Press Esc to cancel.';
+      }
+      return null;
+    });
+
+    function cancelAutoPopulate() {
+      emit('cancel-auto-populate');
+    }
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
         return '';
@@ -375,7 +472,12 @@ export default defineComponent({
       activeSegmentationRecipe,
       segmentationPredicting,
       segmentationLoading,
+      segmentationCancelWarning,
       segmentationTooltip,
+      segmentationStatusHint,
+      autoPopulateBusyVisible,
+      autoPopulateCancelWarning,
+      cancelAutoPopulate,
       // Text query
       textQueryDialogOpen,
       textQueryInput,
@@ -432,11 +534,8 @@ export default defineComponent({
               Multi-select in progress.  Editing is disabled.
               Select additional tracks to merge or group.
             </span>
-            <span v-else-if="segmentationLoading">
-              Loading segmentation model...
-            </span>
-            <span v-else-if="segmentationPredicting">
-              Computing segmentation...
+            <span v-else-if="segmentationStatusHint">
+              {{ segmentationStatusHint }}
             </span>
             <span v-else-if="activeSegmentationRecipe">
               {{ segmentationTooltip }}
@@ -573,19 +672,51 @@ export default defineComponent({
           </v-tooltip>
         </outlined-labeled-group>
       </span>
-      <!-- Segmentation Reset button -->
+      <!-- Segmentation Reset / Cancel button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
         <v-btn
-          color="error"
+          :color="segmentationCancelWarning ? 'warning' : 'error'"
           class="mx-1"
           small
-          :disabled="!activeSegmentationRecipe.hasPoints() || segmentationPredicting"
+          :disabled="!segmentationPredicting
+            && !activeSegmentationRecipe.hasPoints()
+            && !activeSegmentationRecipe.hasPendingPrediction()"
+          :title="segmentationPredicting
+            ? (segmentationCancelWarning
+              ? 'Cancel the in-progress segmentation'
+              : 'Cancel (Esc)')
+            : 'Clear points (Esc)'"
           @click="activeSegmentationRecipe.resetPoints()"
         >
           <v-icon left>
-            mdi-close
+            {{ segmentationCancelWarning ? 'mdi-cancel' : 'mdi-close' }}
           </v-icon>
-          Reset
+          {{ segmentationCancelWarning ? 'Cancel' : 'Reset' }}
+          <span
+            v-if="segmentationPredicting && !segmentationCancelWarning"
+            class="text-caption ml-1"
+          >(Esc)</span>
+        </v-btn>
+      </template>
+      <!-- Auto-populate Cancel (promotes after 3s like magic wand) -->
+      <template v-else-if="autoPopulateBusyVisible">
+        <v-btn
+          :color="autoPopulateCancelWarning ? 'warning' : 'error'"
+          class="mx-1"
+          small
+          :title="autoPopulateCancelWarning
+            ? 'Cancel the in-progress auto-populate'
+            : 'Cancel (Esc)'"
+          @click="cancelAutoPopulate"
+        >
+          <v-icon left>
+            {{ autoPopulateCancelWarning ? 'mdi-cancel' : 'mdi-close' }}
+          </v-icon>
+          Cancel
+          <span
+            v-if="!autoPopulateCancelWarning"
+            class="text-caption ml-1"
+          >(Esc)</span>
         </v-btn>
       </template>
       <!-- Hide delete controls when in segmentation mode -->

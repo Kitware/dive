@@ -221,6 +221,15 @@ export default defineComponent({
       return textQueryAvailable.value;
     }
 
+    // Keep button chrome current if the add-on is installed while this
+    // viewer stays open (e.g. manual extract, or another desktop window).
+    onMounted(() => {
+      window.addEventListener('focus', refreshTextQueryAvailability);
+    });
+    onBeforeUnmount(() => {
+      window.removeEventListener('focus', refreshTextQueryAvailability);
+    });
+
     watch(() => settings.value?.viamePath, () => {
       refreshTextQueryAvailability();
     });
@@ -589,10 +598,10 @@ export default defineComponent({
 
           // Lower each returned type's threshold to its weakest result so every
           // track the query just created is visible.
+          let lowered = false;
           const trackFilters = viewerRef.value?.trackFilters;
           if (trackFilters) {
             const filters = { ...trackFilters.confidenceFilters.value };
-            let lowered = false;
             detections.forEach((det) => {
               if (typeof det.score === 'number'
                 && det.score < resolveConfidenceThreshold(filters, det.label)) {
@@ -606,9 +615,17 @@ export default defineComponent({
             }
           }
 
+          const resultText = [
+            `Created ${detections.length} tracks for objects matching "${text}".`,
+          ];
+          if (lowered) {
+            resultText.push(
+              'Confidence thresholds for the matching types were lowered so these results are visible.',
+            );
+          }
           await prompt({
             title: 'Text Query Results',
-            text: [`Created ${detections.length} tracks for objects matching "${text}".`],
+            text: resultText,
           });
         }
       } catch (error) {
@@ -1512,6 +1529,11 @@ export default defineComponent({
      * right tracks now have a measurement line.
      */
     async function handleStereoTrackLinked(trackId: number) {
+      const operation = () => measureLinkedStereoTrack(trackId);
+      return viewerRef.value?.runAnnotationOperation(operation) ?? operation();
+    }
+
+    async function measureLinkedStereoTrack(trackId: number) {
       // Wait out a still-starting service rather than dropping the recompute.
       if (!stereoEnabled.value && !(await stereoServiceReady())) return;
       // Linking a pair across cameras only (re)computes their stereo lengths.
@@ -1623,6 +1645,15 @@ export default defineComponent({
     }
 
     async function handleStereoAnnotationComplete(
+      params: StereoAnnotationCompleteParams,
+      forceAutoCompute = false,
+      quiet = false,
+    ): Promise<'transferred' | 'skipped' | 'failed'> {
+      const operation = () => performStereoAnnotationComplete(params, forceAutoCompute, quiet);
+      return viewerRef.value?.runAnnotationOperation(operation) ?? operation();
+    }
+
+    async function performStereoAnnotationComplete(
       params: StereoAnnotationCompleteParams,
       forceAutoCompute = false,
       quiet = false,

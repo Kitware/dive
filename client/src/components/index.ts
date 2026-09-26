@@ -14,7 +14,7 @@ import FileNameTimeDisplay from './controls/FileNameTimeDisplay.vue';
 import LineChart from './controls/LineChart.vue';
 import Timeline from './controls/Timeline.vue';
 
-import FilterList from './FilterList.vue';
+import FilterList from './Types/FilterList.vue';
 import GroupEditor from './GroupEditor.vue';
 import GroupList from './GroupList.vue';
 import GroupItem from './GroupItem.vue';
@@ -23,9 +23,9 @@ import LayerManager from './LayerManager.vue';
 import TooltipButton from './TooltipButton.vue';
 import TrackItem from './Tracks/TrackItem.vue';
 import TrackList from './Tracks/TrackList.vue';
-import TypeEditor from './TypeEditor.vue';
-import TypeItem from './TypeItem.vue';
-import TypePicker from './TypePicker.vue';
+import TypeEditor from './Types/TypeEditor.vue';
+import TypeItem from './Types/TypeItem.vue';
+import TypePicker from './Types/TypePicker.vue';
 
 export * from './annotators/useMediaController';
 export { default as useAnnotatorImageCursor } from './annotators/useAnnotatorImageCursor';

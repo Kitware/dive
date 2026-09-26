@@ -11,27 +11,27 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings } from 'dive-common/store/settings';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { compileHierarchy } from 'dive-common/typeHierarchy';
-import { typeListViewStore } from '../typeListViewState';
+import { typeListViewStore } from './typeListViewState';
 import {
   useCameraStore, useDatasetId, useHandler, useReadOnlyMode, useTime,
   usePendingSaveCount,
-} from '../provides';
-import TooltipBtn from './TooltipButton.vue';
+} from '../../provides';
+import TooltipBtn from '../TooltipButton.vue';
 import TypeEditor from './TypeEditor.vue';
 import TypeItem from './TypeItem.vue';
-import BaseFilterControls, { AnnotationWithContext } from '../BaseFilterControls';
-import TrackFilterControls from '../TrackFilterControls';
-import Track from '../track';
-import Group from '../Group';
-import StyleManager from '../StyleManager';
+import BaseFilterControls, { AnnotationWithContext } from '../../BaseFilterControls';
+import TrackFilterControls from '../../TrackFilterControls';
+import Track from '../../track';
+import Group from '../../Group';
+import StyleManager from '../../StyleManager';
 import {
   createRegionSuppressionTester, getSuppressedTrackIds, hasSuppressionAttribute,
   suppressionTypeResolver,
-} from '../use/suppression';
+} from '../../use/suppression';
 import {
   buildTypeListModel, countResolvedTypes, TypeListModel, TypeListRow,
   updateHierarchyCheckedTypes,
-} from '../typeListHierarchy';
+} from './typeListHierarchy';
 
 /* Row height shared by the type rows, the shared-lineage breadcrumb, and the
    scroller's height accounting. Mirrored by `$row-height` in the style block. */

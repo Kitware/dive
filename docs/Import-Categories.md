@@ -84,10 +84,12 @@ or the original search. This does not automatically download all descendants.
 **Include taxonomic parent categories** is enabled by default. Click **Add** to
 resolve selected synonyms to accepted scientific names and
 retrieve the parent chains. This returns to **File or pasted list**, combining the
-WoRMS selection with any pending categories there. Review the staged types and
-parent → child relationships, then click **Add** again to apply them to the dataset.
-The first Add never modifies the dataset. Uncheck the parent option to import
-only the selected accepted
+WoRMS selection with any pending categories there. Review the staged types as an
+indented hierarchy tree, then click **Add** again to apply them to the dataset.
+Before the second Add, you can remove a type from the tree: that type and any
+unused parents above it are dropped, and its children become roots. Shared
+ancestors used by another remaining branch are kept. The first Add never modifies
+the dataset. Uncheck the parent option to import only the selected accepted
 names. Existing annotations are unchanged; existing hierarchy conflicts must be
 resolved before adding the import.
 

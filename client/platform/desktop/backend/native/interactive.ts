@@ -14,8 +14,8 @@
  * unnecessarily. Separate, unmodified VIAME config files drive each feature.
  */
 
-import type { SegmentationPolygon } from 'dive-common/apispec';
 import fs from 'fs-extra';
+import type { SegmentationPolygon } from 'dive-common/apispec';
 import OS from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';

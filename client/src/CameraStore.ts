@@ -149,7 +149,7 @@ export default class CameraStore {
     const source = (sourceCamera && this.getPossibleTrack(trackId, sourceCamera))
       || this.getAnyPossibleTrack(trackId);
     const track = trackStore.add(frame, source?.confidencePairs[0]?.[0] || 'unknown', undefined, trackId);
-    if (source) track.confidencePairs = cloneDeep(source.confidencePairs);
+    if (source) track.setConfidencePairs(source.confidencePairs);
     return track;
   }
 
