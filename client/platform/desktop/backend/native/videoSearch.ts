@@ -42,7 +42,7 @@ import {
 } from 'platform/desktop/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import type {
-  VideoSearchIndexStatus, VideoSearchIndexInfo, SearchIndexBackend,
+  VideoSearchIndexStatus, VideoSearchIndexInfo, SearchIndexBackend, VideoSearchExemplar,
 } from 'dive-common/apispec';
 import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { observeChild } from './processManager';
@@ -743,11 +743,19 @@ export class QueryServiceManager extends EventEmitter {
     this.currentIndexDirs = indexDirs;
   }
 
-  async formulateQuery(imagePath: string, boxes?: number[][]): Promise<ServiceResponse> {
+  async formulateQuery(
+    imagePath: string,
+    boxes?: number[][],
+    exemplars?: VideoSearchExemplar[],
+  ): Promise<ServiceResponse> {
     const response = await this.sendRequest({
       command: 'formulate_query',
       image_path: imagePath,
       boxes,
+      exemplars: exemplars?.map((e) => ({
+        image_path: e.imagePath,
+        boxes: e.box ? [e.box] : undefined,
+      })),
     }, 'Query formulation');
     return QueryServiceManager.check(response, 'Query formulation');
   }

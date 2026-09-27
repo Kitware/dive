@@ -9,9 +9,11 @@ import type {
   SegmentationPolygonKeypointsResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
+  VlmModelsResponse, VlmDetectRequest, VlmAskRequest, VlmAskResponse,
   PipelineJobResult,
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
   VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
+  VideoSearchExemplar,
 } from 'dive-common/apispec';
 import axios, { AxiosInstance } from 'axios';
 import { watch } from 'vue';
@@ -589,6 +591,18 @@ async function textQuery(request: TextQueryRequest): Promise<TextQueryResponse> 
   return invoke<TextQueryResponse>('segmentation-text-query', request);
 }
 
+async function vlmModels(): Promise<VlmModelsResponse> {
+  return invoke<VlmModelsResponse>('vlm-models');
+}
+
+async function vlmDetect(request: VlmDetectRequest): Promise<TextQueryResponse> {
+  return invoke<TextQueryResponse>('vlm-detect', request);
+}
+
+async function vlmAsk(request: VlmAskRequest): Promise<VlmAskResponse> {
+  return invoke<VlmAskResponse>('vlm-ask', request);
+}
+
 async function refineDetections(request: RefineDetectionsRequest): Promise<RefineDetectionsResponse> {
   return invoke<RefineDetectionsResponse>('segmentation-refine', request);
 }
@@ -600,11 +614,14 @@ async function runTextQueryPipeline(
   datasetId: string,
   queryText: string,
   threshold?: number,
-  replaceExisting = false,
+  replaceExisting?: boolean,
+  tracked?: boolean,
 ): Promise<void> {
   const pipeline: Pipe = {
     name: 'Text Query',
-    pipe: 'utility_text_query_default.pipe',
+    pipe: tracked === undefined
+      ? 'utility_text_query_default.pipe'
+      : `utility_text_query_sam3_${tracked ? 'tracking' : 'no_tracking'}.pipe`,
     type: 'utility',
   };
 
@@ -628,6 +645,38 @@ async function runTextQueryPipeline(
     pipelineParams: { kwiverParams },
   };
   gpuJobQueue.enqueue(args);
+}
+
+/**
+ * Run a vision-language model text query on all frames
+ */
+async function runVlmTextQueryPipeline(
+  datasetId: string,
+  queryText: string,
+  model: string,
+  replaceExisting = false,
+  tracked = false,
+): Promise<void> {
+  const pipeline: Pipe = {
+    name: 'Text Query (Vision Model)',
+    pipe: `utility_text_query_ollama_vlm_${tracked ? 'tracking' : 'no_tracking'}.pipe`,
+    type: 'utility',
+  };
+  // The tracking variant always replaces existing annotations.
+  const kwiverParams: Record<string, string> = tracked ? {
+    'detector:detector:ollama_vlm:text_query': queryText,
+    'detector:detector:ollama_vlm:model': model,
+  } : {
+    'track_refiner:refiner:ollama_vlm:text_query': queryText,
+    'track_refiner:refiner:ollama_vlm:model': model,
+    'track_refiner:refiner:ollama_vlm:replace_existing': replaceExisting ? 'true' : 'false',
+  };
+  gpuJobQueue.enqueue({
+    type: JobType.RunPipeline,
+    pipeline,
+    datasetId,
+    pipelineParams: { kwiverParams },
+  });
 }
 
 /**
@@ -668,8 +717,13 @@ async function videoSearchRemoveIndex(datasetId: string): Promise<{ success: boo
   return window.diveDesktop.invoke('video-search-remove-index', datasetId);
 }
 
-async function videoSearchFormulate(imagePath: string, boxes?: number[][]): Promise<VideoSearchQueryResponse> {
-  return window.diveDesktop.invoke('video-search-formulate', { imagePath, boxes });
+/** Exemplars, when given, replace imagePath/boxes and each join the query as a positive. */
+async function videoSearchFormulate(
+  imagePath: string,
+  boxes?: number[][],
+  exemplars?: VideoSearchExemplar[],
+): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-formulate', { imagePath, boxes, exemplars });
 }
 
 async function videoSearchQuery(
@@ -1143,8 +1197,12 @@ export {
   segmentationSam3Installed,
   /* Text Query APIs */
   textQuery,
+  vlmModels,
+  vlmDetect,
+  vlmAsk,
   refineDetections,
   runTextQueryPipeline,
+  runVlmTextQueryPipeline,
   /* Auto Register APIs */
   /* Video Search / IQR */
   videoSearchInstalled,
