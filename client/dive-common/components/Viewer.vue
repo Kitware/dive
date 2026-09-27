@@ -73,7 +73,7 @@ import type {
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
-  useApi, FrameImage, DatasetType, GlobalStyleSettings,
+  useApi, FrameImage, DatasetType, GlobalStyleSettings, TextQueryModelOptions,
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
@@ -186,8 +186,8 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    checkTextQueryAvailable: {
-      type: Function as PropType<() => Promise<boolean>>,
+    loadTextQueryModels: {
+      type: Function as PropType<() => Promise<TextQueryModelOptions>>,
       default: undefined,
     },
     /** Deep link: frame to seek to once the media is ready (e.g. from the review grid). */
@@ -323,9 +323,13 @@ export default defineComponent({
      * Forward text query service ready status to EditorMenu
      * Called by ViewerLoader when text query service initialization completes
      */
-    function onTextQueryServiceReady(success: boolean, error?: string) {
+    function onTextQueryServiceReady(
+      success: boolean,
+      error?: string,
+      options?: TextQueryModelOptions,
+    ) {
       if (editorMenuRef.value?.onTextQueryServiceReady) {
-        editorMenuRef.value.onTextQueryServiceReady(success, error);
+        editorMenuRef.value.onTextQueryServiceReady(success, error, options);
       }
     }
 
@@ -334,7 +338,9 @@ export default defineComponent({
      * injecting the current frame number the query should run against.
      */
     function onTextQuerySubmit(
-      payload: { text: string; boxThreshold: number; replaceExisting?: boolean },
+      payload: {
+        text: string; boxThreshold: number; replaceExisting?: boolean; vlmModel?: string;
+      },
     ) {
       emit('text-query-submit', {
         ...payload,
@@ -2774,7 +2780,7 @@ export default defineComponent({
             lassoDrawing: !readonlyState && lassoDrawing,
             textQueryEnabled,
             textQueryAvailable,
-            checkTextQueryAvailable,
+            loadTextQueryModels,
             autoPopulateBusy,
             autoPopulateStatus,
           }"

@@ -13,8 +13,10 @@ import { Mousetrap, SuppressionDisplaySettings } from 'vue-media-annotator/types
 import { EditAnnotationTypes, VisibleAnnotationTypes } from 'vue-media-annotator/layers';
 import Recipe from 'vue-media-annotator/recipe';
 import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
+import type { TextQueryModelOptions } from 'dive-common/apispec';
 
 import AnnotationVisibilityMenu from './AnnotationVisibilityMenu.vue';
+import VlmSetupHelp from './VlmSetupHelp.vue';
 import OutlinedLabeledGroup from './OutlinedLabeledGroup.vue';
 import ToolbarExpandToggle from './ToolbarExpandToggle.vue';
 
@@ -37,6 +39,7 @@ export default defineComponent({
     AnnotationVisibilityMenu,
     OutlinedLabeledGroup,
     ToolbarExpandToggle,
+    VlmSetupHelp,
   },
   props: {
     editingTrack: {
@@ -99,9 +102,9 @@ export default defineComponent({
       type: Boolean,
       default: false,
     },
-    /** Re-checks whether the SAM3 add-on is installed at press time. */
-    checkTextQueryAvailable: {
-      type: Function as PropType<() => Promise<boolean>>,
+    /** Re-lists the text query backends, e.g. after a model download. */
+    loadTextQueryModels: {
+      type: Function as PropType<() => Promise<TextQueryModelOptions>>,
       default: undefined,
     },
     /** True while browser auto-populate (mask/points) is embedding or predicting. */
@@ -155,24 +158,63 @@ export default defineComponent({
     // When on, existing annotations are removed before the query results are
     // applied. On by default so a query replaces rather than accumulates.
     const textQueryReplaceExisting = ref(true);
-    const sam3InfoDialogOpen = ref(false);
+    const SAM3_MODEL = 'sam3';
+    const TEXT_QUERY_MODEL_KEY = 'editorMenu.textQueryModel';
+    const textQueryModelOptions = ref<TextQueryModelOptions>({
+      sam3: true, vlm: { available: false, models: [] },
+    });
+    const textQueryModelsChecking = ref(false);
+    const preferredTextQueryModel = ref(localStorage.getItem(TEXT_QUERY_MODEL_KEY) || SAM3_MODEL);
+    const textQueryModelItems = computed(() => [
+      {
+        text: textQueryModelOptions.value.sam3 ? 'SAM3' : 'SAM3 (not installed)',
+        value: SAM3_MODEL,
+        installed: textQueryModelOptions.value.sam3,
+      },
+      ...textQueryModelOptions.value.vlm.models.map((m) => ({
+        text: m.installed ? m.name : `${m.name} (not installed)`,
+        value: m.name,
+        installed: m.installed,
+      })),
+    ]);
+    // The preference survives a model list that briefly lacks it (e.g. Ollama
+    // slow to answer); only the effective choice falls back.
+    const textQueryModel = computed({
+      get: () => {
+        const items = textQueryModelItems.value;
+        return items.some((item) => item.value === preferredTextQueryModel.value)
+          ? preferredTextQueryModel.value
+          : (items.find((item) => item.installed) ?? items[0]).value;
+      },
+      set: (value: string) => {
+        preferredTextQueryModel.value = value;
+        localStorage.setItem(TEXT_QUERY_MODEL_KEY, value);
+      },
+    });
+    const textQueryUsesVlm = computed(() => textQueryModel.value !== SAM3_MODEL);
+    const textQueryVlmMissing = computed(() => textQueryUsesVlm.value
+      && textQueryModelOptions.value.vlm.models.some(
+        (m) => m.name === textQueryModel.value && !m.installed,
+      ));
+    const textQuerySam3Missing = computed(() => !textQueryUsesVlm.value
+      && !textQueryModelOptions.value.sam3);
+    const textQueryModelMissing = computed(
+      () => textQueryVlmMissing.value || textQuerySam3Missing.value,
+    );
 
-    const openSam3InfoDialog = () => {
-      sam3InfoDialogOpen.value = true;
-    };
-
-    const closeSam3InfoDialog = () => {
-      sam3InfoDialogOpen.value = false;
-    };
-
-    const handleTextQueryClick = async () => {
-      const available = props.checkTextQueryAvailable
-        ? await props.checkTextQueryAvailable()
-        : props.textQueryAvailable;
-      if (!available) {
-        openSam3InfoDialog();
-        return;
+    const recheckTextQueryModels = async () => {
+      if (!props.loadTextQueryModels) return;
+      textQueryModelsChecking.value = true;
+      try {
+        textQueryModelOptions.value = await props.loadTextQueryModels();
+      } finally {
+        textQueryModelsChecking.value = false;
       }
+    };
+
+    // The dialog explains how to install whichever model is missing, so it
+    // opens even when nothing is installed yet.
+    const handleTextQueryClick = () => {
       openTextQueryDialog();
     };
 
@@ -195,15 +237,22 @@ export default defineComponent({
       textQueryReplaceExisting.value = true;
     };
 
-    const onTextQueryServiceReady = (success: boolean, error?: string) => {
+    const onTextQueryServiceReady = (
+      success: boolean,
+      error?: string,
+      options?: TextQueryModelOptions,
+    ) => {
       textQueryInitializing.value = false;
       if (!success) {
         textQueryServiceError.value = error || 'Text query service is not available';
       }
+      if (options) {
+        textQueryModelOptions.value = options;
+      }
     };
 
     const submitTextQuery = () => {
-      if (!textQueryInput.value.trim()) {
+      if (!textQueryInput.value.trim() || textQueryModelMissing.value) {
         return;
       }
       textQueryLoading.value = true;
@@ -212,12 +261,14 @@ export default defineComponent({
           text: textQueryInput.value.trim(),
           boxThreshold: textQueryThreshold.value,
           replaceExisting: textQueryReplaceExisting.value,
+          vlmModel: textQueryUsesVlm.value ? textQueryModel.value : undefined,
         });
       } else {
         emit('text-query', {
           text: textQueryInput.value.trim(),
           boxThreshold: textQueryThreshold.value,
           replaceExisting: textQueryReplaceExisting.value,
+          vlmModel: textQueryUsesVlm.value ? textQueryModel.value : undefined,
         });
       }
       closeTextQueryDialog();
@@ -278,7 +329,7 @@ export default defineComponent({
           icon: 'mdi-text-search',
           active: false,
           unavailable: !props.textQueryAvailable,
-          unavailableTooltip: 'SAM3 add-on not installed. Click for more information.',
+          unavailableTooltip: 'No text query model installed. Click for setup instructions.',
           description: 'Text Query',
           mousetrap: [{
             bind: 'q',
@@ -487,12 +538,19 @@ export default defineComponent({
       textQueryServiceError,
       textQueryAllFrames,
       textQueryReplaceExisting,
+      textQueryModel,
+      textQueryModelItems,
+      textQueryUsesVlm,
+      textQueryVlmMissing,
+      textQuerySam3Missing,
+      textQueryModelMissing,
+      textQueryModelOptions,
+      textQueryModelsChecking,
+      recheckTextQueryModels,
       openTextQueryDialog,
       closeTextQueryDialog,
       onTextQueryServiceReady,
       submitTextQuery,
-      sam3InfoDialogOpen,
-      closeSam3InfoDialog,
     };
   },
 });
@@ -789,6 +847,43 @@ export default defineComponent({
             <p class="text-body-2 mb-3">
               Enter a description of objects to find in the current frame.
             </p>
+            <v-select
+              v-if="textQueryModelItems.length > 1"
+              v-model="textQueryModel"
+              :items="textQueryModelItems"
+              label="Model"
+              outlined
+              dense
+              :disabled="textQueryLoading"
+            />
+            <v-alert
+              v-if="textQuerySam3Missing"
+              type="info"
+              dense
+              text
+              class="text-body-2 mb-2"
+            >
+              SAM3 text query needs the SAM3 Text Query Segmentation and Tracking
+              Models add-on. Install it from the Add-Ons page.
+              <v-btn
+                small
+                outlined
+                color="primary"
+                class="mt-2"
+                :to="{ name: 'addons' }"
+                @click="closeTextQueryDialog"
+              >
+                Open Add-Ons
+              </v-btn>
+            </v-alert>
+            <VlmSetupHelp
+              v-if="textQueryVlmMissing"
+              :model="textQueryModel"
+              :server-available="textQueryModelOptions.vlm.available"
+              :checking="textQueryModelsChecking"
+              @check="recheckTextQueryModels"
+              @open-link="$emit('open-external-link', $event)"
+            />
             <v-text-field
               v-model="textQueryInput"
               label="Object description"
@@ -800,6 +895,7 @@ export default defineComponent({
               @keyup.enter="submitTextQuery"
             />
             <v-slider
+              v-if="!textQueryUsesVlm"
               v-model="textQueryThreshold"
               :label="`Confidence threshold: ${Number(textQueryThreshold).toFixed(2)}`"
               min="0.1"
@@ -823,7 +919,16 @@ export default defineComponent({
               :disabled="textQueryLoading"
             />
           </template>
-          <p class="text-caption mt-3 mb-0 text--secondary">
+          <p
+            v-if="textQueryUsesVlm"
+            class="text-caption mt-3 mb-0 text--secondary"
+          >
+            Boxes come from a locally served vision-language model and carry no confidence score.
+          </p>
+          <p
+            v-else
+            class="text-caption mt-3 mb-0 text--secondary"
+          >
             Textual query support uses architectures derived from Meta's SAM3 project
           </p>
         </v-card-text>
@@ -840,51 +945,10 @@ export default defineComponent({
             v-if="!textQueryInitializing && !textQueryServiceError"
             color="primary"
             :loading="textQueryLoading"
-            :disabled="!textQueryInput.trim() || textQueryLoading"
+            :disabled="!textQueryInput.trim() || textQueryLoading || textQueryModelMissing"
             @click="submitTextQuery"
           >
             Search
-          </v-btn>
-        </v-card-actions>
-      </v-card>
-    </v-dialog>
-
-    <!-- SAM3 Add-On Info Dialog -->
-    <v-dialog
-      v-if="textQueryEnabled"
-      v-model="sam3InfoDialogOpen"
-      max-width="500"
-    >
-      <v-card>
-        <v-card-title class="text-h6">
-          <v-icon left>
-            mdi-package-down
-          </v-icon>
-          SAM3 Add-On Required
-        </v-card-title>
-        <v-card-text>
-          <p class="text-body-2 mb-3">
-            Text query requires the SAM3 Text Query Segmentation and Tracking Models
-            add-on to be installed in your VIAME directory.
-          </p>
-          <p class="text-body-2 mb-0">
-            Download and install the add-on directly from the Add-Ons page.
-          </p>
-        </v-card-text>
-        <v-card-actions>
-          <v-spacer />
-          <v-btn
-            text
-            @click="closeSam3InfoDialog"
-          >
-            Close
-          </v-btn>
-          <v-btn
-            color="primary"
-            :to="{ name: 'addons' }"
-            @click="closeSam3InfoDialog"
-          >
-            Open Add-Ons
           </v-btn>
         </v-card-actions>
       </v-card>
