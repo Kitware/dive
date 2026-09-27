@@ -67,3 +67,48 @@ of one frame: up to six frames sampled along the track each contribute a
 descriptor, and all of them join the query as separate positive examples.
 Query shows the current frame's crop; redrawing the box or choosing **Use this
 frame only** returns to a single-frame query.
+
+## Web image and video queries
+
+The web application's **Query** tab supports image similarity search and feedback
+refinement. A pipeline worker with VIAME's `configs/index.py`, file-backed search
+index support, and `viame.core.query_service` must be installed, including the
+query and descriptor models. Existing older workers need to be upgraded before
+using this page.
+
+1. Choose an indexing method and **Choose dataset and build index**. Select a
+   video or image sequence; for multicamera data, choose an individual camera.
+   Index builds appear in **Jobs**, with progress, logs and cancellation.
+2. Select one or more completed index snapshots. Rebuilding makes a new snapshot;
+   select the version you want to search. Snapshots are private to their creator
+   and do not change source media or annotations.
+3. Choose an image or video file. For a video, seek with its controls and click
+   **Use current video frame**. Alternatively, **Use a dataset frame** selects
+   media already in DIVE. Drag a crop on the exemplar or search the whole image.
+4. **Search** queues a job. Results include cropped thumbnails, scores and links
+   into the source sequence at the matching frame. Mark hits **Correct** or
+   **Incorrect**, then **Refine using feedback** to queue another iteration.
+
+All model execution, including index building, exemplar descriptors, similarity
+search and refinement, runs in the existing pipeline job queue with the worker's
+GPU environment. The browser decodes media and captures still frames; it does
+not run a query model. Users with private worker queues use those queues.
+
+Each job downloads selected index snapshots into a separate temporary directory
+and starts its own query process. No live process, GPU allocation, PostgreSQL
+server or writable index is shared between users or retained between jobs.
+Refinement replays the original search and previous feedback against the same
+snapshots, matching feedback by result identity rather than process-local IDs.
+This adds startup and replay work to each iteration, but lets other jobs run
+between iterations and allows later iterations to run on another worker.
+
+Source read permissions are checked on submission, when the job starts and before
+publishing results. Returning from a result's viewer restores the last query,
+exemplar, feedback marks and result page in the same browser tab. Input PNGs are
+limited to 10 MB, searches to 32 index snapshots, and refinement to 20 rounds.
+
+Saved SVM models, text queries and saving result annotations remain desktop
+features. Query artifacts are stored in private `Query …` folders under the
+user's account; delete unused folders through the Data browser to reclaim their
+storage. Deleting an index needed by a later refinement requires starting a new
+search with another snapshot.

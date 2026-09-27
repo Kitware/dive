@@ -3,13 +3,13 @@ import { reactive } from 'vue';
 
 export const scoringDatasetPickerState = reactive({
   open: false,
-  purpose: 'scoring' as 'scoring' | 'review',
+  purpose: 'scoring' as 'scoring' | 'review' | 'query',
   excludeIds: [] as string[],
 });
 
 let pendingResolve: ((value: ScoringDatasetSummary | null) => void) | null = null;
 
-function pickDataset(excludeIds: string[], purpose: 'scoring' | 'review'): Promise<ScoringDatasetSummary | null> {
+function pickDataset(excludeIds: string[], purpose: 'scoring' | 'review' | 'query'): Promise<ScoringDatasetSummary | null> {
   return new Promise((resolve) => {
     if (pendingResolve) {
       pendingResolve(null);
@@ -34,4 +34,8 @@ export function pickScoringDataset(excludeIds: string[]) {
 
 export function pickReviewDataset(excludeIds: string[]) {
   return pickDataset(excludeIds, 'review');
+}
+
+export function pickQueryDataset(excludeIds: string[]) {
+  return pickDataset(excludeIds, 'query');
 }
