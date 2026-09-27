@@ -138,7 +138,7 @@ def train_pipeline(self: Task, params: TrainingJob):
                     data_list.write(f"{folder_path}\n")
                     truth_list.write(f"{groundtruth_path}\n")
 
-        training_results_path = utils.make_directory(output_path / "category_models")
+        training_results_path = utils.make_directory(output_path / "trained_model")
 
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
