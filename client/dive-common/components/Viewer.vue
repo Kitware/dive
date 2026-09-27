@@ -2765,7 +2765,7 @@ export default defineComponent({
         <EditorMenu
           ref="editorMenuRef"
           :has-selected-track="selectedTrackId !== null"
-          :disabled="readonlyState || linkingState"
+          :disabled="readonlyState || linkingState || !progress.loaded"
           v-bind="{
             editingMode,
             visibleModes,
