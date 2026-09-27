@@ -1,5 +1,5 @@
 import {
-  defineComponent, h, nextTick, ref, reactive,
+  defineComponent, h, nextTick, ref, reactive, markRaw,
 } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { compileHierarchy } from 'dive-common/typeHierarchy';
@@ -13,8 +13,9 @@ import CameraStore from '../../CameraStore';
 import FilterList from './FilterList.vue';
 import TypeEditor from './TypeEditor.vue';
 
+const promptMock = vi.hoisted(() => vi.fn());
 vi.mock('dive-common/vue-utilities/prompt-service', () => ({
-  usePrompt: () => ({ prompt: vi.fn(), visible: () => false }),
+  usePrompt: () => ({ prompt: promptMock, visible: () => false }),
 }));
 
 const provideMocks = vi.hoisted(() => ({
@@ -94,7 +95,7 @@ function makeFilterListFixture({
   confidenceFilters?: Record<string, number>;
   mutable?: boolean;
 }) {
-  const cameraStore = new CameraStore({ markChangesPending: vi.fn() });
+  const cameraStore = markRaw(new CameraStore({ markChangesPending: vi.fn() }));
   const trackStore = cameraStore.camMap.value.get('singleCam')?.trackStore;
   tracks.forEach((track) => trackStore?.insert(track));
   trackStore?.setEnableSorting();
@@ -105,7 +106,7 @@ function makeFilterListFixture({
     removeTypes: vi.fn(() => []),
     lookupGroups: () => [],
     groupFilterControls: { enabledAnnotations: ref([]) } as unknown as BaseFilterControls<Group>,
-    getTracks: (id) => tracks.filter((track) => track.id === id),
+    getTracks: (id) => cameraStore.getTrackAll(id),
     renameTrackPair: vi.fn(() => []),
   });
   if (hierarchy) filterControls.setTypeHierarchy(hierarchy);
@@ -123,6 +124,7 @@ function makeFilterListFixture({
     }),
   });
   return {
+    cameraStore,
     checkedTypes: filterControls.checkedTypes,
     filterControls,
     styleManager,
@@ -1114,4 +1116,132 @@ it('keeps the bottom list mounted when an imported hierarchy adds a shared linea
   expect(vm.virtualTypes.map(({ type }) => type)).toEqual(['Gadus morhua']);
   expect(vm.virtualHeight).toBeGreaterThan(0);
   wrapper.destroy();
+});
+
+describe('Delete visible items type cleanup', () => {
+  function fixture(pairs: [string, number][][], hierarchy?: Record<string, string>) {
+    clientSettings.typeSettings.filterTypesByFrame = false;
+    clientSettings.typeSettings.preventCascadeTypes = false;
+    clientSettings.typeSettings.trackSortDir = 'a-z';
+    typeListViewStore.clear();
+    promptMock.mockReset().mockResolvedValue(true);
+    const result = makeFilterListFixture({
+      tracks: pairs.map((confidencePairs, id) => new Track(id, {
+        confidencePairs,
+        features: [{ frame: 0, bounds: [0, 0, 10, 10], keyframe: true }],
+      })),
+      hierarchy,
+      checkedTypes: ['remove'],
+      mutable: true,
+    });
+    const { filterControls, cameraStore } = result;
+    filterControls.remove = (id) => cameraStore.removeTracks(id);
+    filterControls.removeTypes = (id, types) => cameraStore.removeTypes(id, types);
+    filterControls.setConfiguredTypes(['remove', 'keep', 'empty']);
+    filterControls.setConfidenceFilters({ remove: 0.5, keep: 0.2 });
+    const mounted = mountFilterList({
+      filterControls, styleManager: result.styleManager, showEmptyTypes: true, height: 240,
+    });
+    return { ...result, ...mounted };
+  }
+
+  it('removes selected definitions and scores, retaining other classes on multi-type tracks', async () => {
+    const {
+      vm, wrapper, cameraStore, filterControls,
+    } = fixture([[['remove', 1]], [['remove', 0.9], ['keep', 0.8]]]);
+    await vm.clickDelete();
+    await nextTick();
+    expect(cameraStore.getPossibleTrack(0)).toBeUndefined();
+    expect(cameraStore.getTrack(1).confidencePairs).toEqual([['keep', 0.8]]);
+    expect(filterControls.allTypes.value).toEqual(['keep', 'empty']);
+    expect(filterControls.configuredTypes.value).not.toContain('remove');
+    expect(filterControls.checkedTypes.value).not.toContain('remove');
+    expect(filterControls.confidenceFilters.value).toEqual({ keep: 0.2 });
+    expect(vm.virtualTypes.map((item) => item.type)).not.toContain('remove');
+    expect(filterControls.markChangesPending).toHaveBeenCalledWith({ action: 'meta' });
+    wrapper.destroy();
+  });
+
+  it('removes checked empty definitions and leaves unchecked definitions alone', async () => {
+    const { vm, wrapper, filterControls } = fixture([]);
+    await vm.clickDelete();
+    expect(filterControls.configuredTypes.value).toEqual(['keep', 'empty']);
+    expect(filterControls.checkedTypes.value).not.toContain('remove');
+    wrapper.destroy();
+  });
+
+  it('keeps definitions and thresholds for types still used by hidden annotations', async () => {
+    const {
+      vm, wrapper, cameraStore, filterControls,
+    } = fixture([[['remove', 1]], [['remove', 0.1]]]);
+    await vm.clickDelete();
+    expect(cameraStore.getPossibleTrack(0)).toBeUndefined();
+    expect(cameraStore.getTrack(1).confidencePairs).toEqual([['remove', 0.1]]);
+    expect(filterControls.configuredTypes.value).toContain('remove');
+    expect(filterControls.confidenceFilters.value.remove).toBe(0.5);
+    wrapper.destroy();
+  });
+
+  it('preserves a type used only in another camera of a hidden track', async () => {
+    const {
+      vm, wrapper, cameraStore, filterControls,
+    } = fixture([[['keep', 1]]]);
+    cameraStore.addCamera('other');
+    cameraStore.camMap.value.get('other')!.trackStore.insert(new Track(0, {
+      confidencePairs: [['remove', 0.1]],
+      features: [{ frame: 0, bounds: [0, 0, 10, 10], keyframe: true }],
+    }));
+    await vm.clickDelete();
+    expect(cameraStore.getTrack(0, 'other').confidencePairs).toEqual([['remove', 0.1]]);
+    expect(filterControls.configuredTypes.value).toContain('remove');
+    expect(filterControls.confidenceFilters.value.remove).toBe(0.5);
+    wrapper.destroy();
+  });
+
+  it('removes a hierarchy type and reparents its surviving children', async () => {
+    const {
+      vm, wrapper, filterControls,
+    } = fixture([[['remove', 1]], [['keep', 1]]], { remove: 'root', keep: 'remove' });
+    await vm.clickDelete();
+    expect(filterControls.typeHierarchy.value).toEqual({ keep: 'root' });
+    expect(filterControls.allTypes.value).not.toContain('remove');
+    expect(filterControls.allTypes.value).toContain('keep');
+    expect(filterControls.typeHierarchySavePatch()).toEqual({ typeHierarchy: { keep: 'root' } });
+    wrapper.destroy();
+  });
+
+  it('does not delete checked types hidden by the type search', async () => {
+    const { vm, wrapper, filterControls } = fixture([]);
+    filterControls.updateCheckedTypes(['remove', 'keep']);
+    vm.data.filterText = 'remove';
+    await nextTick();
+    await vm.clickDelete();
+    expect(filterControls.configuredTypes.value).toEqual(['keep', 'empty']);
+    expect(filterControls.checkedTypes.value).toContain('keep');
+    wrapper.destroy();
+  });
+
+  it('uses the confirmed type list even if the checked types change while prompting', async () => {
+    const { vm, wrapper, filterControls } = fixture([]);
+    let confirm: (result: boolean) => void = () => {};
+    promptMock.mockImplementation(() => new Promise((resolve) => { confirm = resolve; }));
+    const deletion = vm.clickDelete();
+    filterControls.updateCheckedTypes(['keep']);
+    await nextTick();
+    confirm(true);
+    await deletion;
+    expect(filterControls.configuredTypes.value).toEqual(['keep', 'empty']);
+    wrapper.destroy();
+  });
+
+  it('leaves annotations and type definitions intact when canceled', async () => {
+    const {
+      vm, wrapper, cameraStore, filterControls,
+    } = fixture([[['remove', 1]]]);
+    promptMock.mockResolvedValue(false);
+    await vm.clickDelete();
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['remove', 1]]);
+    expect(filterControls.configuredTypes.value).toContain('remove');
+    wrapper.destroy();
+  });
 });
