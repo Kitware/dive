@@ -884,6 +884,7 @@ export default defineComponent({
 
     // Provides wrappers for actions to integrate with settings
     const {
+      linkingState,
       linkingTrack,
       linkingCamera,
       multiSelectList,
@@ -2558,6 +2559,7 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
+      linkingState,
       cameraEnhOutputs,
       isCameraDefault,
       cameraPercentileStretch,
@@ -2762,6 +2764,8 @@ export default defineComponent({
 
         <EditorMenu
           ref="editorMenuRef"
+          :has-selected-track="selectedTrackId !== null"
+          :disabled="readonlyState || linkingState"
           v-bind="{
             editingMode,
             visibleModes,
