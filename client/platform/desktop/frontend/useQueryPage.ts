@@ -10,7 +10,9 @@ import {
 import { JobType } from 'platform/desktop/constants';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import type { ScoringDatasetSummary } from 'dive-common/scoring/types';
-import type { VideoSearchIndexMethod, VideoSearchResult, VideoSearchIndexInfo } from 'dive-common/apispec';
+import type {
+  VideoSearchIndexMethod, VideoSearchResult, VideoSearchIndexInfo, VideoSearchExemplar,
+} from 'dive-common/apispec';
 import type { ReviewItem } from 'dive-common/review/types';
 import {
   listScoringDatasets, loadConfig, segmentationSam3Installed, textQuery,
@@ -69,6 +71,11 @@ export function createQueryPage() {
   const imagePath = ref('');
   /** Exemplar box on the image, in image pixels, or null for the whole image. */
   const imageBox = ref<[number, number, number, number] | null>(null);
+  /**
+   * Frames of a whole track launched from the viewer. They replace the image
+   * and box as the query until either is changed.
+   */
+  const imageExemplars = ref<VideoSearchExemplar[] | null>(null);
   const video = reactive<VideoQuerySource>({
     kind: 'dataset', datasetId: '', filePath: '', frame: 0,
   });
@@ -283,7 +290,12 @@ export function createQueryPage() {
     if (!imagePath.value) return;
     error.value = null;
     const boxes = imageBox.value ? [[...imageBox.value]] : undefined;
-    await search.queryFromImage(imagePath.value, boxes, warmStartModel.value || undefined);
+    await search.queryFromImage(
+      imagePath.value,
+      boxes,
+      warmStartModel.value || undefined,
+      imageExemplars.value ?? undefined,
+    );
   }
 
   /** Resolve the chosen video frame to an image on disk (extracting it for videos). */
@@ -432,6 +444,7 @@ export function createQueryPage() {
     mode,
     imagePath,
     imageBox,
+    imageExemplars,
     video,
     videoFramePath,
     videoFrameBox,

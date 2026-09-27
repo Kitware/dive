@@ -1,7 +1,11 @@
+import type { VideoSearchExemplar } from 'dive-common/apispec';
+
 /** One-shot handoff after the viewer's normal unsaved-change navigation guard. */
 export interface QueryLaunch {
   imagePath: string;
   box?: [number, number, number, number];
+  /** Frames of a whole track; each joins the query as a separate positive */
+  exemplars?: VideoSearchExemplar[];
   modelPath?: string;
   streamName: string | null;
 }
