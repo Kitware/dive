@@ -1357,7 +1357,12 @@ export default function useModeManager({
       annotationModes.visible = visible;
     }
     if (editing) {
+      if (readonlyState.value || multiSelectActive.value
+          || editingGroupId.value !== null || linkingState.value) return;
       annotationModes.editing = editing;
+      if (selectedTrackId.value === null) {
+        handleAddTrackOrDetection();
+      }
       _selectKey(editing === 'Polygon' && !key ? existingPolygonKey() : key);
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {

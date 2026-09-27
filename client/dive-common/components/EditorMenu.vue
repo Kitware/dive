@@ -39,6 +39,14 @@ export default defineComponent({
     ToolbarExpandToggle,
   },
   props: {
+    hasSelectedTrack: {
+      type: Boolean,
+      default: false,
+    },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
     editingTrack: {
       type: Boolean,
       required: true,
@@ -128,6 +136,14 @@ export default defineComponent({
     'cancel-auto-populate',
   ],
   setup(props, { emit }) {
+    const toolsDisabled = computed(() => props.disabled || props.multiSelectActive
+      || props.groupEditActive || props.lassoModeActive || props.lassoDrawing);
+    const creatingAnnotation = computed(() => !props.hasSelectedTrack);
+    const toolTitle = (button: ButtonData) => (creatingAnnotation.value
+      ? `Create annotation: ${button.description}` : button.description);
+    const activateTool = (action: () => void) => {
+      if (!toolsDisabled.value) action();
+    };
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
 
@@ -166,9 +182,11 @@ export default defineComponent({
     };
 
     const handleTextQueryClick = async () => {
+      if (toolsDisabled.value) return;
       const available = props.checkTextQueryAvailable
         ? await props.checkTextQueryAvailable()
         : props.textQueryAvailable;
+      if (toolsDisabled.value) return;
       if (!available) {
         openSam3InfoDialog();
         return;
@@ -248,11 +266,11 @@ export default defineComponent({
           mousetrap: [{
             bind: '1',
             handler: () => {
-              emit('set-annotation-state', { editing: 'rectangle' });
+              activateTool(() => emit('set-annotation-state', { editing: 'rectangle' }));
             },
           }],
           click: () => {
-            emit('set-annotation-state', { editing: 'rectangle' });
+            activateTool(() => emit('set-annotation-state', { editing: 'rectangle' }));
           },
         },
         /* Include recipes as editing modes if they're toggleable */
@@ -263,13 +281,15 @@ export default defineComponent({
           // Model download/init only — keep the tool usable while a mask runs.
           loading: r.loading?.value ?? false,
           description: r.name,
-          click: () => r.activate(),
+          click: () => activateTool(() => r.activate()),
           mousetrap: [
             {
               bind: (i + 2).toString(),
-              handler: () => r.activate(),
+              handler: () => activateTool(() => r.activate()),
             },
-            ...r.mousetrap(),
+            ...r.mousetrap().map((shortcut) => ({
+              ...shortcut, handler: () => activateTool(shortcut.handler),
+            })),
           ],
         })),
         /* Text Query button included alongside other annotation types (desktop only) */
@@ -460,6 +480,9 @@ export default defineComponent({
     });
 
     return {
+      toolsDisabled,
+      creatingAnnotation,
+      toolTitle,
       modeToolTips,
       editButtons,
       mousetrap,
@@ -543,7 +566,7 @@ export default defineComponent({
             <span v-else-if="editingDetails !== 'disabled' && editingMode && typeof editingMode === 'string'">
               {{ editingTooltip }}
             </span>
-            <span v-else>Right click on an annotation to edit</span>
+            <span v-else>Choose a tool to create an annotation, or right click an annotation to edit.</span>
           </div>
         </div>
       </div>
@@ -560,19 +583,22 @@ export default defineComponent({
           <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
-              :disabled="!!activeEditButton?.loading"
+              :disabled="toolsDisabled || !!activeEditButton?.loading"
               :loading="!!activeEditButton?.loading"
               :color="activeEditButton?.active ? editingHeader.color : ''"
               class="mx-1 mode-button toolbar-group-activator"
               small
-              v-on="editingMode ? on : {}"
+              v-on="on"
             >
               <pre
                 v-if="activeEditButton?.mousetrap"
-                :class="{ 'edit-btn-unavailable': !editingMode }"
+                :class="{ 'edit-btn-unavailable': toolsDisabled }"
               >{{ activeEditButton.mousetrap[0].bind }}:</pre>
-              <v-icon :class="{ 'edit-btn-unavailable': !editingMode }">
+              <v-icon :class="{ 'edit-btn-unavailable': toolsDisabled }">
                 {{ activeEditButton?.icon }}
+              </v-icon>
+              <v-icon v-if="creatingAnnotation" x-small class="ml-1 creation-indicator">
+                mdi-plus
               </v-icon>
               <toolbar-expand-toggle
                 :expanded="false"
@@ -596,7 +622,8 @@ export default defineComponent({
                       v-on="button.unavailable ? tooltipOn : {}"
                     >
                       <v-btn
-                        :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                        :disabled="toolsDisabled || !!button.loading"
+                        :title="toolTitle(button)"
                         :loading="!!button.loading"
                         :outlined="!button.active"
                         :color="button.active ? editingHeader.color : ''"
@@ -608,6 +635,9 @@ export default defineComponent({
                         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
                         <v-icon>
                           {{ button.icon }}
+                        </v-icon>
+                        <v-icon v-if="creatingAnnotation" x-small class="ml-1 creation-indicator">
+                          mdi-plus
                         </v-icon>
                       </v-btn>
                     </span>
@@ -632,7 +662,7 @@ export default defineComponent({
               >
                 mdi-pencil
               </v-icon>
-              <span>Edit Types</span>
+              <span>{{ creatingAnnotation ? 'Create Annotation' : 'Edit Types' }}</span>
               <toolbar-expand-toggle
                 :expanded="true"
                 @click="toggleEditButtonsExpanded"
@@ -652,7 +682,8 @@ export default defineComponent({
                 v-on="button.unavailable ? tooltipOn : {}"
               >
                 <v-btn
-                  :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                  :disabled="toolsDisabled || !!button.loading"
+                  :title="toolTitle(button)"
                   :loading="!!button.loading"
                   :outlined="!button.active"
                   :color="button.active ? editingHeader.color : ''"
@@ -664,6 +695,9 @@ export default defineComponent({
                   <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
                   <v-icon>
                     {{ button.icon }}
+                  </v-icon>
+                  <v-icon v-if="creatingAnnotation" x-small class="ml-1 creation-indicator">
+                    mdi-plus
                   </v-icon>
                 </v-btn>
               </span>
