@@ -383,19 +383,13 @@ export default defineComponent({
       if (readOnlyMode.value) return;
       const types = [...deletableTypes.value];
       if (!types.length) return;
-      const preamble = props.group
-        ? 'This will remove the group assignment from visible tracks and delete the matching groups.'
-        : 'This will remove the selected types from visible tracks, deleting a track if no types remain.';
+      const description = props.group
+        ? 'Remove these groups from visible tracks? Groups no longer used anywhere leave the list.'
+        : 'Remove these types from visible tracks? Tracks left without a type are deleted, and types no longer used anywhere leave the list.';
 
       const result = await prompt({
         title: 'Really delete types?',
-        text: [
-          preamble,
-          'Selected types that are no longer used will also be removed from the type list. Types still used by other annotations will remain.',
-          'Do you want to delete the following types?',
-          '-------',
-          ...types,
-        ],
+        text: [description, '-------', ...types],
         confirm: true,
       });
       if (result && !readOnlyMode.value) {
