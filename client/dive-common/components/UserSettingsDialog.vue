@@ -98,14 +98,6 @@ export default defineComponent({
           step="1"
           :disabled="!clientSettings.autoSaveSettings.enabled"
         />
-        <v-switch
-          v-model="clientSettings.annotatorPreferences.videoPaintSync"
-          color="primary"
-          class="my-0 mt-3"
-          label="Experimental: sync video annotations to the painted frame"
-          hint="While scrubbing a video, draw annotations with the frame on screen instead of ahead of it."
-          persistent-hint
-        />
       </v-card-text>
       <v-card-actions>
         <v-spacer />

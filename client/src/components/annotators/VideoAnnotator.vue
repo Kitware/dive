@@ -3,15 +3,11 @@ import {
   defineComponent, onBeforeUnmount, PropType, watch, toRef,
 } from 'vue';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
-import { clientSettings } from 'dive-common/store/settings';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
 import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
-import { kwiverSeek, OnePTSTick, videoTimeToFrame } from './videoSeek';
-
-// Experimental paint sync: a landed seek onto the frame already shown presents nothing new, so settle after this.
-const PRESENT_FALLBACK_MS = 250;
+import { kwiverSeek, OnePTSTick } from './videoSeek';
 
 export default defineComponent({
   name: 'VideoAnnotator',
@@ -137,7 +133,6 @@ export default defineComponent({
       pendingSeek = null;
       seekingFrame = requestedFrame;
       video.currentTime = data.currentTime;
-      watchPresented();
     }
     let pendingSeek: { time: number; frame: number } | null = null;
     // The frame the in-flight seek lands on; kwiverSeek times do not always round back to it.
@@ -269,27 +264,15 @@ export default defineComponent({
         pendingSeek = null;
         seekingFrame = next.frame;
         video.currentTime = next.time;
-        watchPresented();
         return;
       }
       if (pendingSeek !== null) {
         seekingFrame = pendingSeek.frame;
         pendingSeek = null;
       }
-      const landed = seekingFrame ?? Math.round(video.currentTime * props.frameRate);
-      seekingFrame = null;
-      if (paintSyncActive()) {
-        // The painted-frame callback reports it; this only covers a landing that paints nothing new.
-        window.clearTimeout(presentFallback);
-        presentFallback = window.setTimeout(() => {
-          if (!data.playing && !video.seeking && data.syncedFrame !== landed) {
-            markPresented(landed);
-          }
-        }, PRESENT_FALLBACK_MS);
-        return;
-      }
       // syncedFrame reports the frame on screen; it only advances once the seek has landed.
-      data.syncedFrame = landed;
+      data.syncedFrame = seekingFrame ?? Math.round(video.currentTime * props.frameRate);
+      seekingFrame = null;
       // The aligned-view warp is a canvas snapshot of this <video> element,
       // redrawn only on an imageRevision bump -- unlike the native pane,
       // which the browser keeps live on its own. loadedmetadata bumps it
@@ -297,29 +280,6 @@ export default defineComponent({
       // leaves the warp showing whatever the video displayed mid-seek
       // (often a black frame) instead of the frame the seek landed on.
       data.imageRevision += 1;
-    }
-    function paintSyncActive() {
-      return Boolean(clientSettings.annotatorPreferences.videoPaintSync)
-        && typeof video.requestVideoFrameCallback === 'function';
-    }
-    let presentWatching = false;
-    let presentFallback: number | undefined;
-    // Watch for the next painted frame while seeks are in flight, so annotations follow each frame the browser shows.
-    function watchPresented() {
-      if (!paintSyncActive() || presentWatching) return;
-      presentWatching = true;
-      video.requestVideoFrameCallback((_now, metadata) => {
-        presentWatching = false;
-        if (data.playing) return;
-        markPresented(videoTimeToFrame(metadata.mediaTime, props.frameRate, props.originalFps, data.frame));
-        if (video.seeking || pendingSeek !== null) watchPresented();
-      });
-    }
-    // Draw annotations for the painted frame and repaint the video quad in the same GeoJS animation frame.
-    function markPresented(frame: number) {
-      data.syncedFrame = frame;
-      data.imageRevision += 1;
-      quadFeatureLayer?.draw();
     }
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);

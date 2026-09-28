@@ -46,6 +46,4 @@ export interface AnnotatorPreferences {
   showSuppressedTags?: boolean;
   /** Canvas outline/fill styling for attribute-suppressed detections. */
   suppressionDisplay?: SuppressionDisplaySettings;
-  /** Experimental: draw video annotations with the frame the browser has painted, not the requested one. */
-  videoPaintSync?: boolean;
 }
