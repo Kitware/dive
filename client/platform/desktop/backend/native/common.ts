@@ -1910,7 +1910,7 @@ async function ingestDataFiles(
 async function processTrainedPipeline(settings: Settings, args: RunTraining, workingDir: string) {
   //Look for trained_detector.zip and detector.pipe and move them to DIVE_Pipelines folder
   const allowedPatterns = /^detector.+|^tracker.+|^generate.+/;
-  const trainedDir = npath.join(workingDir, '/category_models');
+  const trainedDir = npath.join(workingDir, '/trained_model');
   const exists = await fs.pathExists(trainedDir);
   if (!exists) {
     throw new Error(`Path: ${trainedDir} does not exist`);
