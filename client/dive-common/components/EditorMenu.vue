@@ -484,7 +484,7 @@ export default defineComponent({
       }
     });
 
-    const segmentationTooltip = 'Left click for positive, middle or shift+click for negative points. Right click to confirm or Esc to cancel.';
+    const segmentationTooltip = 'Left click: positive point. Esc to cancel. Middle click or shift+click for negative.';
     const segmentationStatusHint = computed(() => {
       if (segmentationLoading.value) return 'Loading segmentation model…';
       if (segmentationCancelWarning.value) {
