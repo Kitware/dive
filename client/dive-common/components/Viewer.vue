@@ -2425,6 +2425,10 @@ export default defineComponent({
         visibleModes,
         readOnlyMode: editLocked,
         offsetEditLock,
+        trackTimeline: {
+          range: onTimeline.timelineRange,
+          seekSlot: (slot: number) => aggregateController.value.seek(slot),
+        },
         imageEnhancements,
         percentileStretchSupported,
         percentileHistogram,

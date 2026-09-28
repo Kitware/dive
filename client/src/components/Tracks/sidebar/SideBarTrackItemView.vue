@@ -38,6 +38,8 @@ export default defineComponent({
     toggleAllInterpolation: { type: Function as PropType<() => void>, required: true },
     gotoPrevious: { type: Function as PropType<() => void>, required: true },
     gotoNext: { type: Function as PropType<() => void>, required: true },
+    seekBegin: { type: Function as PropType<() => void>, required: true },
+    seekEnd: { type: Function as PropType<() => void>, required: true },
     editing: { type: Boolean, required: true },
   },
   setup(props) {
@@ -221,8 +223,8 @@ export default defineComponent({
             { bind: 'k', handler: toggleKeyframe },
             { bind: 'i', handler: toggleInterpolation },
             { bind: 'ctrl+i', handler: toggleAllInterpolation },
-            { bind: 'home', handler: () => $emit('seek', track.begin) },
-            { bind: 'end', handler: () => $emit('seek', track.end) },
+            { bind: 'home', handler: seekBegin },
+            { bind: 'end', handler: seekEnd },
           ]"
         />
         <tooltip-btn
@@ -267,7 +269,7 @@ export default defineComponent({
         <tooltip-btn
           icon="mdi-chevron-double-left"
           tooltip-text="Seek to track beginning"
-          @click="$emit('seek', track.begin)"
+          @click="seekBegin"
         />
         <tooltip-btn
           icon="mdi-chevron-left"
@@ -282,14 +284,14 @@ export default defineComponent({
         <tooltip-btn
           icon="mdi-chevron-double-right"
           tooltip-text="Seek to track end"
-          @click="$emit('seek', track.end)"
+          @click="seekEnd"
         />
       </template>
       <tooltip-btn
         v-else
         icon="mdi-map-marker"
         tooltip-text="Seek to detection"
-        @click="$emit('seek', track.begin)"
+        @click="seekBegin"
       />
       <tooltip-btn
         v-if="!merging"

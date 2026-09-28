@@ -118,6 +118,13 @@ type ReadOnylModeType = Readonly<Ref<boolean>>;
 const OffsetEditLockSymbol = Symbol('offsetEditLock');
 type OffsetEditLockType = Readonly<Ref<boolean>>;
 
+// A track's span on the playback timeline, which differs from its stored frames under an aligned timeline.
+const TrackTimelineSymbol = Symbol('trackTimeline');
+interface TrackTimelineType {
+  range: (id: AnnotationId) => [number, number] | null;
+  seekSlot: (slot: number) => void;
+}
+
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
@@ -338,6 +345,7 @@ export interface State {
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
   offsetEditLock: OffsetEditLockType;
+  trackTimeline: TrackTimelineType;
   imageEnhancements: ImageEnhancementsType;
   percentileStretchSupported: Readonly<Ref<boolean>>;
   percentileHistogram: PercentileHistogramType;
@@ -420,6 +428,7 @@ function dummyState(): State {
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
     offsetEditLock: ref(false),
+    trackTimeline: { range: () => null, seekSlot: () => undefined },
     imageEnhancements: ref({
       brightness: 1,
       contrast: 1,
@@ -471,6 +480,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
   provide(OffsetEditLockSymbol, state.offsetEditLock);
+  provide(TrackTimelineSymbol, state.trackTimeline);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
   provide(PercentileStretchSupportedSymbol, state.percentileStretchSupported);
   provide(PercentileHistogramSymbol, state.percentileHistogram);
@@ -605,6 +615,9 @@ function useReadOnlyMode() {
 function useOffsetEditLock() {
   return use<OffsetEditLockType>(OffsetEditLockSymbol);
 }
+function useTrackTimeline() {
+  return use<TrackTimelineType>(TrackTimelineSymbol);
+}
 function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
@@ -664,6 +677,7 @@ export {
   useVisibleModes,
   useReadOnlyMode,
   useOffsetEditLock,
+  useTrackTimeline,
   useImageEnhancements,
   usePercentileStretchSupported,
   usePercentileHistogram,

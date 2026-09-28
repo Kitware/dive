@@ -27,6 +27,7 @@ const state = vi.hoisted(() => ({
   cameraStore: null as unknown as MockCameraStore,
   trackFilters: null as unknown as MockTrackFilters,
   removeTrack: vi.fn(),
+  timelineRanges: new Map<number, [number, number]>(),
 }));
 
 vi.mock('dive-common/vue-utilities/prompt-service', () => ({
@@ -56,6 +57,10 @@ vi.mock('../../provides', () => ({
   useMultiSelectList: () => ref([]),
   useCameraStore: () => state.cameraStore,
   usePendingSaveCount: () => ref(0),
+  useTrackTimeline: () => ({
+    range: (id: number) => state.timelineRanges.get(id) ?? null,
+    seekSlot: vi.fn(),
+  }),
 }));
 
 function sortedTrack(track: Track) {
@@ -116,6 +121,21 @@ function mountList(
   }
   return { wrapper, vm: child };
 }
+
+beforeEach(() => {
+  state.timelineRanges = new Map();
+});
+
+describe('TrackList on an aligned timeline', () => {
+  it('sorts by start at the timeline slots the list shows, not the stored frames', () => {
+    const storedLate = new Track(1, { begin: 9, end: 9, confidencePairs: [['root', 0.9]] });
+    const storedEarly = new Track(2, { begin: 0, end: 0, confidencePairs: [['root', 0.9]] });
+    state.timelineRanges = new Map([[1, [1, 2]], [2, [5, 6]]]);
+    const { vm } = mountList([storedLate, storedEarly], [0, 0], false);
+    vm.handleSort('start');
+    expect(vm.filteredTracks.map(({ annotation }) => annotation.id)).toEqual([2, 1]);
+  });
+});
 
 describe('TrackList hierarchy display', () => {
   it.each([

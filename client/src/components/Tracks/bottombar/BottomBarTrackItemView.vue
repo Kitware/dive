@@ -30,6 +30,10 @@ export default defineComponent({
     toggleKeyframe: { type: Function as PropType<() => void>, required: true },
     toggleInterpolation: { type: Function as PropType<() => void>, required: true },
     toggleAllInterpolation: { type: Function as PropType<() => void>, required: true },
+    displayBegin: { type: Number, required: true },
+    displayEnd: { type: Number, required: true },
+    seekBegin: { type: Function as PropType<() => void>, required: true },
+    seekEnd: { type: Function as PropType<() => void>, required: true },
   },
   setup(props) {
     const handler = useHandler();
@@ -91,8 +95,8 @@ export default defineComponent({
       return `${minutes}:${seconds.toString().padStart(2, '0')}.${ms.toString().padStart(3, '0').slice(0, 2)}`;
     };
 
-    const startTimestamp = computed(() => formatTimestamp(props.track.begin));
-    const endTimestamp = computed(() => formatTimestamp(props.track.end));
+    const startTimestamp = computed(() => formatTimestamp(props.displayBegin));
+    const endTimestamp = computed(() => formatTimestamp(props.displayEnd));
 
     const trackAttributeColumns = computed(
       () => (props.columnVisibility?.attributeColumns || []).filter((key: string) => key.startsWith('track_')),
@@ -404,22 +408,22 @@ export default defineComponent({
     <span
       v-if="!columnVisibility || columnVisibility.startFrame"
       class="track-frame-start clickable"
-      @click.stop="$emit('seek', track.begin)"
-    >{{ track.begin }}</span>
+      @click.stop="seekBegin"
+    >{{ displayBegin }}</span>
     <span
       v-if="!columnVisibility || columnVisibility.endFrame"
       class="track-frame-end clickable"
-      @click.stop="$emit('seek', track.end)"
-    >{{ track.end }}</span>
+      @click.stop="seekEnd"
+    >{{ displayEnd }}</span>
     <span
       v-if="columnVisibility?.startTimestamp"
       class="track-timestamp clickable"
-      @click.stop="$emit('seek', track.begin)"
+      @click.stop="seekBegin"
     >{{ startTimestamp }}</span>
     <span
       v-if="columnVisibility?.endTimestamp"
       class="track-timestamp clickable"
-      @click.stop="$emit('seek', track.end)"
+      @click.stop="seekEnd"
     >{{ endTimestamp }}</span>
     <template v-for="attrKey in trackAttributeColumns">
       <input
@@ -498,8 +502,8 @@ export default defineComponent({
         { bind: 'k', handler: toggleKeyframe },
         { bind: 'i', handler: toggleInterpolation },
         { bind: 'ctrl+i', handler: toggleAllInterpolation },
-        { bind: 'home', handler: () => $emit('seek', track.begin) },
-        { bind: 'end', handler: () => $emit('seek', track.end) },
+        { bind: 'home', handler: seekBegin },
+        { bind: 'end', handler: seekEnd },
       ]"
     />
   </div>
