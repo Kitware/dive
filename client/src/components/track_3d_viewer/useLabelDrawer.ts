@@ -46,27 +46,42 @@ export function useLabelDrawer({
       viewportDimensions.value.height,
     );
   };
-  const drawLabels = function drawLabels(positionToLabel: Map<[number, number, number], string>) {
+  /** Draws on top of what is already there; callers clear the canvas first. */
+  const drawLabels = function drawLabels(
+    positionToLabel: Map<[number, number, number], string>,
+    { color, font }: { color: string; font: string },
+  ) {
     if (!labelTextContext) {
       throw new Error('Please initialize the drawer first.');
     }
 
-    clearLabelContext();
+    const camera = renderer.value!.getActiveCamera();
+    const eye = camera.getPosition();
+    const direction = camera.getDirectionOfProjection();
 
     positionToLabel.forEach((label, position) => {
+      // Points behind the viewer would otherwise project mirrored onto the view
+      const ahead = position.reduce(
+        (sum, value, axis) => sum + (value - eye[axis]) * direction[axis],
+        0,
+      );
+      if (ahead <= 0) {
+        return;
+      }
       const displayCoordinates = openglRenderWindow.value!.worldToDisplay(
         ...position,
         renderer.value!,
       );
-      labelTextContext!.font = 'bold 14px serif';
+      const x = displayCoordinates[0];
+      const y = viewportDimensions.value.height - displayCoordinates[1];
+      labelTextContext!.font = font;
       labelTextContext!.textAlign = 'center';
       labelTextContext!.textBaseline = 'middle';
-
-      labelTextContext!.fillText(
-        label,
-        displayCoordinates[0],
-        viewportDimensions.value.height - displayCoordinates[1],
-      );
+      labelTextContext!.lineWidth = 3;
+      labelTextContext!.strokeStyle = 'black';
+      labelTextContext!.strokeText(label, x, y);
+      labelTextContext!.fillStyle = color;
+      labelTextContext!.fillText(label, x, y);
     });
   };
 

@@ -15,8 +15,10 @@ export default class TrackViewerSettingsStore {
 
   adjustCubeAxesBoundsManually: Ref<boolean>;
 
+  showAxesBox: Ref<boolean>;
+
   constructor() {
-    this.cameraParallelProjection = ref(true);
+    this.cameraParallelProjection = ref(false);
     this.onlyShowSelectedTrack = ref(false);
     this.detectionGlyphSize = ref(2);
 
@@ -26,5 +28,6 @@ export default class TrackViewerSettingsStore {
       zrange: [-1, 1],
     });
     this.adjustCubeAxesBoundsManually = ref(false);
+    this.showAxesBox = ref(false);
   }
 }

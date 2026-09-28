@@ -15,8 +15,10 @@ export default defineComponent({
       detectionGlyphSize,
       adjustCubeAxesBoundsManually,
       cubeAxesBounds,
+      showAxesBox,
     } = trackViewerSettingsStore;
     return {
+      showAxesBox,
       onlyShowSelectedTrack,
       cameraParallelProjection,
       detectionGlyphSize,
@@ -61,11 +63,18 @@ export default defineComponent({
       />
 
       <v-checkbox
+        v-model="showAxesBox"
+        label="Show axes box"
+        hide-details
+      />
+
+      <v-checkbox
+        v-if="showAxesBox"
         v-model="adjustCubeAxesBoundsManually"
         label="Adjust Axes Range manually"
       />
 
-      <div v-if="adjustCubeAxesBoundsManually">
+      <div v-if="showAxesBox && adjustCubeAxesBoundsManually">
         <div class="d-flex flex-grow-1">
           <v-text-field
             :value="cubeAxesBounds.xrange[0]"

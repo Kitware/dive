@@ -74,7 +74,9 @@ import type {
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
   useApi, FrameImage, DatasetType, GlobalStyleSettings, TextQueryModelOptions,
+  DatasetStereoCalibration,
 } from 'dive-common/apispec';
+import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
   buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
@@ -270,7 +272,7 @@ export default defineComponent({
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
-      getPipelineList, runPipeline, watchPipelineJob,
+      getPipelineList, runPipeline, watchPipelineJob, getDatasetCalibration,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -2337,6 +2339,18 @@ export default defineComponent({
       viewer3dMode.value === 'replace' && multiCamList.value.indexOf(selectedCamera.value) !== 0
         ? -1 : 1
     ));
+    const rigCalibration = ref(null as DatasetStereoCalibration | null);
+    watch(viewer3dActive, async (active) => {
+      if (!active) {
+        return;
+      }
+      try {
+        const result = await getDatasetCalibration(parentDatasetId(datasetId.value));
+        rigCalibration.value = result?.calibration ?? null;
+      } catch {
+        rigCalibration.value = null;
+      }
+    });
     watch([viewer3dMode, selectedCamera], async () => {
       await nextTick();
       handleResize();
@@ -2678,6 +2692,7 @@ export default defineComponent({
       isStereoPair,
       viewer3dActive,
       viewer3dPaneOrder,
+      rigCalibration,
       displayItems,
       selectedDisplay,
       changeDisplay,
@@ -3106,7 +3121,10 @@ export default defineComponent({
               class="d-flex flex-column grow viewer-3d-split"
               :style="{ height: `calc(100% - ${controlsHeight}px)`, order: viewer3dPaneOrder }"
             >
-              <track-viewer :controls-height="controlsHeight" />
+              <track-viewer
+                :controls-height="controlsHeight"
+                :calibration="rigCalibration"
+              />
             </div>
           </div>
           <ControlsContainer
@@ -3216,7 +3234,10 @@ export default defineComponent({
               class="d-flex flex-column grow viewer-3d-split"
               :style="{ order: viewer3dPaneOrder }"
             >
-              <track-viewer :controls-height="0" />
+              <track-viewer
+                :controls-height="0"
+                :calibration="rigCalibration"
+              />
             </div>
           </div>
           <BottomPanel
