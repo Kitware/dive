@@ -587,6 +587,7 @@ export default defineComponent({
               :loading="!!activeEditButton?.loading"
               :color="activeEditButton?.active ? editingHeader.color : ''"
               class="mx-1 mode-button toolbar-group-activator"
+              :class="{ 'creation-mode': creatingAnnotation }"
               small
               v-on="on"
             >
@@ -629,7 +630,10 @@ export default defineComponent({
                         :loading="!!button.loading"
                         :outlined="!button.active"
                         :color="button.active ? editingHeader.color : ''"
-                        :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
+                        :class="{
+                          'edit-btn-unavailable': button.unavailable && !button.loading,
+                          'creation-mode': creatingAnnotation,
+                        }"
                         class="mx-1"
                         small
                         @click="button.click"
@@ -691,7 +695,10 @@ export default defineComponent({
                   :loading="!!button.loading"
                   :outlined="!button.active"
                   :color="button.active ? editingHeader.color : ''"
-                  :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
+                  :class="{
+                    'edit-btn-unavailable': button.unavailable && !button.loading,
+                    'creation-mode': creatingAnnotation,
+                  }"
                   class="mx-1"
                   small
                   @click="button.click"
@@ -950,7 +957,12 @@ export default defineComponent({
   min-width: 36px;
 }
 
-/* The + overlays the icon's corner so creation mode never resizes the buttons */
+/* The + overlays the icon, so creation mode only trades left padding for room on the right */
+.v-btn.v-size--small.creation-mode {
+  padding-left: 6px;
+  padding-right: 10px;
+}
+
 .creation-anchor {
   position: relative;
   display: inline-flex;
