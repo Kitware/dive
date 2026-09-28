@@ -462,6 +462,24 @@ export default defineComponent({
       >
         <v-btn
           small
+          value="results"
+        >
+          <v-icon
+            small
+            left
+          >
+            mdi-view-grid
+          </v-icon>
+          Results
+        </v-btn>
+        <v-btn small value="statistics">
+          <v-icon small left>
+            mdi-chart-timeline-variant
+          </v-icon>
+          Statistics
+        </v-btn>
+        <v-btn
+          small
           value="datasets"
         >
           <v-icon
@@ -472,24 +490,6 @@ export default defineComponent({
           </v-icon>
           Datasets
           <span class="ml-1 grey--text">({{ review.datasets.value.length }})</span>
-        </v-btn>
-        <v-btn small value="statistics">
-          <v-icon small left>
-            mdi-chart-timeline-variant
-          </v-icon>
-          Statistics
-        </v-btn>
-        <v-btn
-          small
-          value="results"
-        >
-          <v-icon
-            small
-            left
-          >
-            mdi-view-grid
-          </v-icon>
-          Results
         </v-btn>
       </v-btn-toggle>
 
