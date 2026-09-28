@@ -1,31 +1,42 @@
 /**
- * Entries of the viewer's camera selector. A stereo pair offers, per camera,
- * both cameras side by side with that camera selected, or that camera beside
- * the 3D viewer, which takes the other camera's pane.
+ * Entries of the viewer's camera selector. A stereo pair offers, per selected
+ * camera: both cameras, that camera beside the 3D viewer (which takes the other
+ * camera's pane), or both cameras with the 3D viewer as a third pane.
  */
+export type Viewer3dMode = 'off' | 'replace' | 'beside';
+
 export interface DisplayOption {
   value: string;
   text: string;
   menuText: string;
 }
 
-const CAMERA_PREFIX = 'camera:';
-const VIEWER_3D_PREFIX = 'viewer3d:';
+const PREFIXES: Record<Viewer3dMode, string> = {
+  off: 'camera:',
+  replace: 'viewer3d:',
+  beside: 'stereo3d:',
+};
+const MODES = Object.keys(PREFIXES) as Viewer3dMode[];
 
-export function displayValue(camera: string, viewer3d: boolean) {
-  return `${viewer3d ? VIEWER_3D_PREFIX : CAMERA_PREFIX}${camera}`;
+export function displayValue(camera: string, mode: Viewer3dMode) {
+  return `${PREFIXES[mode]}${camera}`;
 }
 
-export function parseDisplayValue(value: string) {
-  const viewer3d = value.startsWith(VIEWER_3D_PREFIX);
-  return {
-    camera: value.slice((viewer3d ? VIEWER_3D_PREFIX : CAMERA_PREFIX).length),
-    viewer3d,
-  };
+export function parseDisplayValue(value: string): { camera: string; mode: Viewer3dMode } {
+  const mode = MODES.find((candidate) => value.startsWith(PREFIXES[candidate])) ?? 'off';
+  return { camera: value.slice(PREFIXES[mode].length), mode };
 }
 
 function capitalize(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1);
+}
+
+function stereoLabel(camera: string, mode: Viewer3dMode) {
+  const name = capitalize(camera);
+  if (mode === 'replace') {
+    return `${name} + 3D Viewer`;
+  }
+  return mode === 'beside' ? `Stereo (${name} Sel) + 3D` : `${name} (Selected)`;
 }
 
 export function displayOptions(
@@ -35,13 +46,13 @@ export function displayOptions(
 ): DisplayOption[] {
   if (!stereo) {
     return cameras.map((camera) => ({
-      value: displayValue(camera, false),
+      value: displayValue(camera, 'off'),
       text: camera,
       menuText: camera === defaultCamera ? `${camera} (Default)` : camera,
     }));
   }
-  return [false, true].flatMap((viewer3d) => cameras.map((camera) => {
-    const text = `${capitalize(camera)} ${viewer3d ? '+ 3D Viewer' : '(Selected)'}`;
-    return { value: displayValue(camera, viewer3d), text, menuText: text };
+  return MODES.flatMap((mode) => cameras.map((camera) => {
+    const text = stereoLabel(camera, mode);
+    return { value: displayValue(camera, mode), text, menuText: text };
   }));
 }

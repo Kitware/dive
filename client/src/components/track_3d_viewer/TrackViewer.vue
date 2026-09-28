@@ -284,8 +284,19 @@ export default defineComponent({
 </template>
 
 <style>
+/* Canvases are taken out of flow so the pane, not the render size, sets the layout. */
 .vtk-container {
   position: relative;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.vtk-container > canvas {
+  position: absolute;
+  top: 0;
+  left: 0;
   width: 100%;
   height: 100%;
 }
