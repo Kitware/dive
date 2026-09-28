@@ -127,13 +127,16 @@ export default defineComponent({
       props.updateTime(data);
       if (video.seeking) {
         // Let the in-flight seek land and paint; the newest request goes out on 'seeked'.
-        pendingSeekTime = data.currentTime;
+        pendingSeek = { time: data.currentTime, frame: requestedFrame };
         return;
       }
-      pendingSeekTime = null;
+      pendingSeek = null;
+      seekingFrame = requestedFrame;
       video.currentTime = data.currentTime;
     }
-    let pendingSeekTime: number | null = null;
+    let pendingSeek: { time: number; frame: number } | null = null;
+    // The frame the in-flight seek lands on; kwiverSeek times do not always round back to it.
+    let seekingFrame: number | null = null;
     function pause() {
       video.pause();
       seek(data.frame); // snap to frame boundary
@@ -256,14 +259,20 @@ export default defineComponent({
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
     function pendingUpdate() {
-      if (pendingSeekTime !== null && pendingSeekTime !== video.currentTime) {
-        const next = pendingSeekTime;
-        pendingSeekTime = null;
-        video.currentTime = next;
+      if (pendingSeek !== null && pendingSeek.time !== video.currentTime) {
+        const next = pendingSeek;
+        pendingSeek = null;
+        seekingFrame = next.frame;
+        video.currentTime = next.time;
         return;
       }
-      pendingSeekTime = null;
-      data.syncedFrame = Math.round(video.currentTime * props.frameRate);
+      if (pendingSeek !== null) {
+        seekingFrame = pendingSeek.frame;
+        pendingSeek = null;
+      }
+      // Annotations draw at syncedFrame, so it only advances once the picture has.
+      data.syncedFrame = seekingFrame ?? Math.round(video.currentTime * props.frameRate);
+      seekingFrame = null;
       // The aligned-view warp is a canvas snapshot of this <video> element,
       // redrawn only on an imageRevision bump -- unlike the native pane,
       // which the browser keeps live on its own. loadedmetadata bumps it

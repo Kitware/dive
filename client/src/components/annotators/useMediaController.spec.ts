@@ -364,14 +364,25 @@ describe('useMediaController', () => {
   it('annotationFrame trails the video frame by the camera\'s unapplied shift', () => {
     const { composable } = mountMediaController();
     const a = composable.aggregateController.value.getController('A');
-    (a.frame as Ref<number>).value = 12;
-    (composable.aggregateController.value.getController('B').frame as Ref<number>).value = 12;
+    const b = composable.aggregateController.value.getController('B');
+    (a.syncedFrame as Ref<number>).value = 12;
+    (b.syncedFrame as Ref<number>).value = 12;
     expect(a.annotationFrame.value).toBe(12);
     composable.setAnnotationFrameShifts({ A: 9 });
     expect(a.annotationFrame.value).toBe(3);
-    expect(composable.aggregateController.value.getController('B').annotationFrame.value).toBe(12);
+    expect(b.annotationFrame.value).toBe(12);
     composable.setAnnotationFrameShifts({});
     expect(a.annotationFrame.value).toBe(12);
+  });
+
+  it('annotationFrame follows the frame on screen, not a requested frame still seeking', () => {
+    const { composable } = mountMediaController('video');
+    const a = composable.aggregateController.value.getController('A');
+    (a.frame as Ref<number>).value = 5;
+    (a.syncedFrame as Ref<number>).value = 4;
+    expect(a.annotationFrame.value).toBe(4);
+    (a.syncedFrame as Ref<number>).value = 5;
+    expect(a.annotationFrame.value).toBe(5);
   });
 
   it('re-applies the current aligned slot when a camera registers after the resolver is installed', async () => {

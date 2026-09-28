@@ -136,7 +136,7 @@ export interface MediaController extends AggregateMediaController {
   flick: Readonly<Ref<number>>;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   geoViewerRef: Readonly<Ref<any>>;
-  /** @deprecated may be removed in a future release */
+  /** The frame actually on screen: for video it trails `frame` until the seek lands. */
   syncedFrame: Readonly<Ref<number>>;
   /**
    * False when an aligned-timeline slot has no frame for this camera (see
@@ -144,7 +144,7 @@ export interface MediaController extends AggregateMediaController {
    * draw annotations for the stale `frame` value left over from before.
    */
   hasFrame: Readonly<Ref<boolean>>;
-  /** Frame annotations are read at: `frame` minus this camera's unapplied time offset. */
+  /** Frame annotations are drawn at: `syncedFrame` minus this camera's unapplied time offset. */
   annotationFrame: Readonly<Ref<number>>;
   /**
    * Bumped whenever the annotator redraws its media quad: the async <img>

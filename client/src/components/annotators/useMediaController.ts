@@ -705,7 +705,7 @@ export function useMediaController(options?: {
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
       annotationFrame: computed(
-        () => state[camera].frame - (annotationFrameShifts.value[cameraName] ?? 0),
+        () => state[camera].syncedFrame - (annotationFrameShifts.value[cameraName] ?? 0),
       ),
       imageRevision: toRef(state[camera], 'imageRevision'),
       frameTexture: toRef(state[camera], 'frameTexture'),
