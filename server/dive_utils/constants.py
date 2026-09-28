@@ -19,6 +19,9 @@ MultiType = "multi"
 ImageListTypes = (ImageSequenceType, LargeImageType)
 DefaultVideoFPS = -1
 JsonMetaCurrentVersion = 1
+
+# Optional per-dataset role in a training run; unlabeled datasets train.
+TrainingSplits = ('train', 'validation', 'test')
 SettingsCurrentVersion = 1
 AnnotationsCurrentVersion = 2
 

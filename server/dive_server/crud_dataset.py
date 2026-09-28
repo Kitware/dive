@@ -643,7 +643,7 @@ def update_metadata(
     # must be popped by hand. timeFilters: null disables the filter;
     # cameraRegistrationSource: null drops a stale producer-provenance stamp when
     # the calibration is cleared or hand-refined.
-    for nullable in ('timeFilters', 'cameraRegistrationSource'):
+    for nullable in ('timeFilters', 'cameraRegistrationSource', 'trainingSplit'):
         if nullable in data and data[nullable] is None:
             dsFolder['meta'].pop(nullable, None)
     Folder().save(dsFolder)

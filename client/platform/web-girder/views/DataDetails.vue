@@ -70,6 +70,11 @@ export const DefaultInfoKeys = [
     value: 'published',
     name: 'Published: ',
   },
+  {
+    meta: true,
+    value: 'trainingSplit',
+    name: 'Training split: ',
+  },
 ];
 
 export default Vue.extend({

@@ -2,7 +2,7 @@ from contextlib import suppress
 from pathlib import Path
 import shlex
 import tempfile
-from typing import List, Tuple
+from typing import Dict, List, Tuple
 
 from girder_client import GirderClient
 from girder_worker.app import app
@@ -78,6 +78,19 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
         gc.uploadFileToFolder(output_folder_id, onnx_path)
 
 
+def write_training_lists(
+    input_path: Path, prefix: str, entries: List[Tuple[Path, Path]]
+) -> Tuple[Path, Path]:
+    """Write matching data and truth lists, one absolute path per line."""
+    data_list_path = input_path / f"{prefix}_folder_list.txt"
+    truth_list_path = input_path / f"{prefix}_truth_list.txt"
+    with open(data_list_path, "w+") as data_list, open(truth_list_path, "w+") as truth_list:
+        for folder_path, groundtruth_path in entries:
+            data_list.write(f"{folder_path}\n")
+            truth_list.write(f"{groundtruth_path}\n")
+    return data_list_path, truth_list_path
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def train_pipeline(self: Task, params: TrainingJob):
     """Train a pipeline by making a call to viame train"""
@@ -96,6 +109,7 @@ def train_pipeline(self: Task, params: TrainingJob):
     # Extract params
     results_folder_id = params['results_folder_id']
     dataset_input_list = params['dataset_input_list']
+    dataset_splits: Dict[str, str] = params.get('dataset_splits') or {}
     pipeline_name = params['pipeline_name']
     config = params['config']
     annotated_frames_only = params['annotated_frames_only']
@@ -108,8 +122,10 @@ def train_pipeline(self: Task, params: TrainingJob):
 
     pipeline_base_path = Path(conf.get_extracted_pipeline_path())
     config_file = pipeline_base_path / config
-    # List of (input folder, ground truth file) pairs for creating input lists
-    input_groundtruth_list: List[Tuple[Path, Path]] = []
+    # (input folder, ground truth file) pairs per training split
+    split_inputs: Dict[str, List[Tuple[Path, Path]]] = {
+        split: [] for split in constants.TrainingSplits
+    }
     # root_data_dir is the directory passed to `viame train`
     with tempfile.TemporaryDirectory() as _working_directory, suppress(utils.CanceledError):
         _working_directory_path = Path(_working_directory)
@@ -128,15 +144,19 @@ def train_pipeline(self: Task, params: TrainingJob):
             if input_type == constants.VideoType:
                 download_path = Path(input_media_list[0])
             # Set media source location
-            input_groundtruth_list.append((download_path, groundtruth_path))
+            split = dataset_splits.get(source_folder_id, 'train')
+            if split not in split_inputs:
+                split = 'train'
+            split_inputs[split].append((download_path, groundtruth_path))
 
-        input_folder_file_list = input_path / "input_folder_list.txt"
-        ground_truth_file_list = input_path / "input_truth_list.txt"
-        with open(input_folder_file_list, "w+") as data_list:
-            with open(ground_truth_file_list, "w+") as truth_list:
-                for folder_path, groundtruth_path in input_groundtruth_list:
-                    data_list.write(f"{folder_path}\n")
-                    truth_list.write(f"{groundtruth_path}\n")
+        if not split_inputs['train']:
+            raise RuntimeError(
+                'Every selected dataset is labeled validation or test; '
+                'at least one must be available for training'
+            )
+        input_folder_file_list, ground_truth_file_list = write_training_lists(
+            input_path, 'input', split_inputs['train']
+        )
 
         training_results_path = utils.make_directory(output_path / "category_models")
 
@@ -152,6 +172,16 @@ def train_pipeline(self: Task, params: TrainingJob):
             shlex.quote(str(config_file)),
             "--no-query",
         ]
+
+        for split in ('validation', 'test'):
+            if split_inputs[split]:
+                data_list_path, truth_list_path = write_training_lists(
+                    input_path, split, split_inputs[split]
+                )
+                command.append(f"--{split}-list")
+                command.append(shlex.quote(str(data_list_path)))
+                command.append(f"--{split}-truth")
+                command.append(shlex.quote(str(truth_list_path)))
 
         if annotated_frames_only:
             command.append("--gt-frames-only")

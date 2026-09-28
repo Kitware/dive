@@ -1099,3 +1099,33 @@ def test_update_metadata_preserves_worms_provenance(_verify, folder_cls, crud_fo
     assert folder['meta']['taxonomySources'] == sources
     validated = models.MetadataMutable(**folder['meta'])
     assert validated.dict(exclude_none=True)['taxonomySources'] == sources
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_sets_and_clears_training_split(_verify, folder_cls, crud_folder_cls):
+    folder = {'_id': 'dataset-id', 'meta': {'annotate': True, 'type': 'video'}}
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    crud_dataset.update_metadata(folder, {'trainingSplit': 'test'})
+    assert folder['meta']['trainingSplit'] == 'test'
+
+    crud_dataset.update_metadata(folder, {'fps': 10})
+    assert folder['meta']['trainingSplit'] == 'test'
+
+    crud_dataset.update_metadata(folder, {'trainingSplit': None})
+    assert 'trainingSplit' not in folder['meta']
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_rejects_unknown_training_split(_verify, folder_cls, crud_folder_cls):
+    folder = {'_id': 'dataset-id', 'meta': {'annotate': True, 'type': 'video'}}
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    with pytest.raises((RestException, ValidationException)):
+        crud_dataset.update_metadata(folder, {'trainingSplit': 'holdout'})

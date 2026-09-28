@@ -9,6 +9,7 @@ import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import TrainingSplitMenu from 'dive-common/components/TrainingSplitMenu.vue';
 import type { SubType } from 'dive-common/apispec';
 import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
@@ -55,6 +56,7 @@ export default defineComponent({
     RunPipelineMenu,
     RunTrainingMenu,
     ShareTab,
+    TrainingSplitMenu,
   },
   // everything below needs to be refactored to composition-api
   inject: ['girderRest'],
@@ -114,6 +116,10 @@ export default defineComponent({
       (item) => item.meta?.type ?? null,
     ));
 
+    const trainingSplits = computed(() => pipelineTargetFolders.value.map(
+      (item) => item.meta?.trainingSplit ?? null,
+    ));
+
     const selectedFileIds = computed(() => selected.value.filter(
       (element) => element._modelType === 'item',
     ).map(({ _id }) => _id));
@@ -152,6 +158,7 @@ export default defineComponent({
       subTypeList,
       cameraNumbers,
       datasetTypeList,
+      trainingSplits,
       selectedFileIds,
       includesLargeImage,
       includesMultiCamDataset,
@@ -273,6 +280,7 @@ export default defineComponent({
                     menuOptions,
                   }"
                   :selected-dataset-ids="locationInputs"
+                  :dataset-splits="trainingSplits"
                 />
                 <v-btn
                   v-if="selectedViameFolderIds.length > 0"
@@ -298,6 +306,12 @@ export default defineComponent({
                     Score
                   </span>
                 </v-btn>
+                <training-split-menu
+                  v-if="trainingEnabled && locationInputs.length > 0"
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :dataset-ids="locationInputs"
+                  @saved="eventBus.$emit('refresh-data-browser')"
+                />
                 <export
                   v-if="!resolvingFolders && !folderSelectionError"
                   v-bind="{ buttonOptions, menuOptions }"

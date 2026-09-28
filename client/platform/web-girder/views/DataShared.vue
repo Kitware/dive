@@ -11,11 +11,13 @@ import {
   getMultiCamSubType,
   getMultiCamTooltip,
 } from 'dive-common/multicamDisplay';
+import TrainingSplitChip from 'dive-common/components/TrainingSplitChip.vue';
 import { getSharedWithMeFolders } from '../api';
 import { useLocation } from '../store/useLocation';
 
 export default defineComponent({
   name: 'DataShared',
+  components: { TrainingSplitChip },
   setup() {
     const total = ref();
     const dataList = ref([] as GirderModel[]);
@@ -144,6 +146,12 @@ export default defineComponent({
         </v-icon>
         {{ item.name }}
       </div>
+      <TrainingSplitChip
+        v-if="item.meta && item.meta.trainingSplit"
+        :split="item.meta.trainingSplit"
+        x-small
+        class="ml-2"
+      />
     </template>
     <template #item.type="{ item }">
       {{ item.type }}
