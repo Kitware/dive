@@ -186,6 +186,7 @@ const defaultSettings: AnnotationSettings = {
     },
     showUserCreatedIcon: false,
     showSuppressedTags: true,
+    videoPaintSync: true,
     suppressionDisplay: {
       enabled: true,
       dashed: true,

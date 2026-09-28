@@ -7,6 +7,7 @@ import Vue, {
   ref, shallowRef, reactive, provide, toRef, Ref, UnwrapRef, computed, watch,
 } from 'vue';
 import { map, over } from 'lodash';
+import { clientSettings } from 'dive-common/store/settings';
 import createViewLink from './viewLink';
 
 import { use } from '../../provides';
@@ -714,10 +715,12 @@ export function useMediaController(options?: {
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
-      // Video draws at the requested frame, ahead of the picture while a seek lands, as main always has.
-      annotationFrame: computed(() => (mediaKind === 'video'
-        ? state[camera].frame - (annotationFrameShifts.value[cameraName] ?? 0)
-        : state[camera].syncedFrame - settledShift.value)),
+      // Video draws at the requested frame, ahead of the picture while a seek lands, as main always has,
+      // unless the experimental paint sync is on.
+      annotationFrame: computed(() => (
+        mediaKind === 'video' && !clientSettings.annotatorPreferences.videoPaintSync
+          ? state[camera].frame - (annotationFrameShifts.value[cameraName] ?? 0)
+          : state[camera].syncedFrame - settledShift.value)),
       imageRevision: toRef(state[camera], 'imageRevision'),
       frameTexture: toRef(state[camera], 'frameTexture'),
       originalBounds: toRef(state[camera], 'originalBounds'),

@@ -78,3 +78,32 @@ export function frameToVideoTime(
   }
   return frame / frameRate + OnePTSTick;
 }
+
+/**
+ * The DIVE frame a presented video frame belongs to, from its presentation
+ * timestamp (requestVideoFrameCallback's mediaTime). With the true video rate
+ * known, frames are compared by the video frame they land on, since kwiverSeek
+ * rounds onto frame boundaries; `preferred` wins when several DIVE frames land
+ * on the same video frame (a DIVE rate above the video's).
+ */
+export function videoTimeToFrame(
+  mediaTime: number,
+  frameRate: number,
+  originalFps?: number | null,
+  preferred?: number,
+): number {
+  if (!originalFps) {
+    return Math.max(0, Math.round((mediaTime - OnePTSTick) * frameRate));
+  }
+  const videoFrame = (time: number) => Math.floor(time * originalFps + 1e-6);
+  const shown = videoFrame(mediaTime);
+  const landsOnShown = (frame: number) => (
+    frame >= 0 && videoFrame(kwiverSeek(frame, frameRate, originalFps)) === shown
+  );
+  if (preferred !== undefined && landsOnShown(preferred)) {
+    return preferred;
+  }
+  const estimate = Math.floor((shown / originalFps) * frameRate + 1e-6);
+  const match = [estimate, estimate + 1, estimate - 1].find(landsOnShown);
+  return match ?? Math.max(0, estimate);
+}

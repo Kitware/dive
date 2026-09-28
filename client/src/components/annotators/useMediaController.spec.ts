@@ -2,6 +2,7 @@ import {
   defineComponent, nextTick, ref, type Ref,
 } from 'vue';
 import { mount } from '@vue/test-utils';
+import { clientSettings } from 'dive-common/store/settings';
 import { useMediaController } from './useMediaController';
 import type { AlignedFrameResolver } from './mediaControllerType';
 
@@ -408,14 +409,36 @@ describe('useMediaController', () => {
     expect(a.annotationFrame.value).toBe(5);
   });
 
-  it('annotationFrame follows a video pane\'s requested frame and shift at once', () => {
-    const { composable } = mountMediaController('video');
-    const a = composable.aggregateController.value.getController('A');
-    (a.frame as Ref<number>).value = 5;
-    (a.syncedFrame as Ref<number>).value = 4;
-    expect(a.annotationFrame.value).toBe(5);
-    composable.setAnnotationFrameShifts({ A: 2 });
-    expect(a.annotationFrame.value).toBe(3);
+  it('with the experimental paint sync, a video pane follows its painted frame', () => {
+    const previous = clientSettings.annotatorPreferences.videoPaintSync;
+    clientSettings.annotatorPreferences.videoPaintSync = true;
+    try {
+      const { composable } = mountMediaController('video');
+      const a = composable.aggregateController.value.getController('A');
+      (a.frame as Ref<number>).value = 5;
+      (a.syncedFrame as Ref<number>).value = 4;
+      expect(a.annotationFrame.value).toBe(4);
+      (a.syncedFrame as Ref<number>).value = 5;
+      expect(a.annotationFrame.value).toBe(5);
+    } finally {
+      clientSettings.annotatorPreferences.videoPaintSync = previous;
+    }
+  });
+
+  it('without the paint sync, a video pane follows its requested frame and shift at once', () => {
+    const previous = clientSettings.annotatorPreferences.videoPaintSync;
+    clientSettings.annotatorPreferences.videoPaintSync = false;
+    try {
+      const { composable } = mountMediaController('video');
+      const a = composable.aggregateController.value.getController('A');
+      (a.frame as Ref<number>).value = 5;
+      (a.syncedFrame as Ref<number>).value = 4;
+      expect(a.annotationFrame.value).toBe(5);
+      composable.setAnnotationFrameShifts({ A: 2 });
+      expect(a.annotationFrame.value).toBe(3);
+    } finally {
+      clientSettings.annotatorPreferences.videoPaintSync = previous;
+    }
   });
 
   it('re-applies the current aligned slot when a camera registers after the resolver is installed', async () => {
