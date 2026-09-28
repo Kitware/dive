@@ -377,14 +377,20 @@ export default defineComponent({
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
       imgInternal.onloadPromise.then(async (loaded) => {
-        if (failedToLoad(imgInternal, loaded)) {
+        if (imgInternal.frame !== data.frame || failedToLoad(imgInternal, loaded)) {
           return;
         }
         try {
           await imgInternal.image.decode();
         } catch (error) {
+          if (imgInternal.frame !== data.frame) {
+            return;
+          }
           loadingImage.value = false;
           emit('load-error', `Could not display ${imgInternal.filename}. Its resolution may be too large for this browser or hardware.`, true);
+          return;
+        }
+        if (imgInternal.frame !== data.frame) {
           return;
         }
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);

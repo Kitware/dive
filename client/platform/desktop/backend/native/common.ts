@@ -2062,9 +2062,11 @@ async function checkDataset(
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
   const sourcePaths = [
-    projectMetaData.originalBasePath,
-    ...Object.values(projectMetaData.multiCam?.cameras ?? {}).map((camera) => camera.originalBasePath),
-  ].filter((path) => path);
+    ...new Set([
+      projectMetaData.originalBasePath,
+      ...Object.values(projectMetaData.multiCam?.cameras ?? {}).map((camera) => camera.originalBasePath),
+    ].filter((path) => path)),
+  ];
   const exists = await Promise.all(sourcePaths.map((path) => fs.pathExists(path)));
   const missing = sourcePaths.filter((_, index) => !exists[index]);
   if (missing.length) {

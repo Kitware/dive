@@ -257,16 +257,20 @@ export default defineComponent({
     });
 
     let loadFailed = false;
-    async function handleLoadError(message: string) {
+    async function handleLoadError(message: string, largeImage?: boolean) {
       if (loadFailed) {
         return;
       }
       loadFailed = true;
-      await prompt({
-        title: 'Error Loading Data',
-        text: [message],
-        positiveButton: 'Okay',
-      });
+      if (largeImage) {
+        await largeImageWarning();
+      } else {
+        await prompt({
+          title: 'Error Loading Data',
+          text: [message],
+          positiveButton: 'Okay',
+        });
+      }
       router.push({ name: 'recent' });
     }
 
