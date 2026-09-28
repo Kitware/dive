@@ -214,7 +214,7 @@ export default defineComponent({
           v-if="item.meta && item.meta.trainingSplit"
           :split="item.meta.trainingSplit"
           x-small
-          class="ml-auto mr-2"
+          class="ml-2"
         />
       </div>
     </template>
@@ -223,8 +223,7 @@ export default defineComponent({
 
 <style lang="scss" scoped>
 .dataset-row {
-  display: flex;
-  width: 100%;
+  display: inline-flex;
   align-items: center;
   flex-wrap: wrap;
 }
