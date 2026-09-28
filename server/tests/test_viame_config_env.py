@@ -12,8 +12,9 @@ def test_gpu_environment_drops_dive_venv():
         "UV_PYTHON_INSTALL_DIR": "/opt/dive/local/uv-python",
         "KEEP_ME": "1",
     }
-    with mock.patch.dict("os.environ", worker_env, clear=True), mock.patch(
-        "dive_tasks.viame_config.getGPUs", return_value=[]
+    with (
+        mock.patch.dict("os.environ", worker_env, clear=True),
+        mock.patch("dive_tasks.viame_config.getGPUs", return_value=[]),
     ):
         env = get_gpu_environment()
 

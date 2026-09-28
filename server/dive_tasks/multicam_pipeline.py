@@ -497,9 +497,10 @@ def clip_viame_csv_to_frame(
     output_path = csv_path.replace('.csv', '_clipped.csv')
     clipped = 0
     dropped = 0
-    with open(csv_path, 'r', encoding='utf-8') as infile, open(
-        output_path, 'w', encoding='utf-8'
-    ) as outfile:
+    with (
+        open(csv_path, 'r', encoding='utf-8') as infile,
+        open(output_path, 'w', encoding='utf-8') as outfile,
+    ):
         for line in infile:
             parts = line.rstrip('\r\n').split(',')
             if line.startswith('#') or len(parts) < 7:
