@@ -97,7 +97,9 @@ import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls
 import TrackViewer from 'vue-media-annotator/components/track_3d_viewer/TrackViewer.vue';
 import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 import TrackViewerSettingsStore from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettingsStore';
-import { displayOptions, displayValue, parseDisplayValue } from 'dive-common/stereoDisplay';
+import {
+  displayOptions, displayValue, parseDisplayValue, Viewer3dMode,
+} from 'dive-common/stereoDisplay';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
@@ -2128,7 +2130,7 @@ export default defineComponent({
             }
           }
         }
-        viewer3dRequested.value = false;
+        viewer3dRequested.value = 'off';
         if (isStereoPair.value) {
           context.register({
             component: TrackViewerSettings,
@@ -2312,30 +2314,34 @@ export default defineComponent({
     };
 
     const trackViewerSettingsStore = new TrackViewerSettingsStore();
-    const viewer3dRequested = ref(false);
+    const viewer3dRequested = ref('off' as Viewer3dMode);
     const isStereoPair = computed(() => subType.value === 'stereo' && multiCamList.value.length === 2);
-    const viewer3dActive = computed(() => viewer3dRequested.value && isStereoPair.value);
+    const viewer3dMode = computed(() => (isStereoPair.value ? viewer3dRequested.value : 'off'));
+    const viewer3dActive = computed(() => viewer3dMode.value !== 'off');
     const displayItems = computed(() => displayOptions(
       multiCamList.value,
       isStereoPair.value,
       defaultCamera.value,
     ));
-    const selectedDisplay = computed(() => displayValue(selectedCamera.value, viewer3dActive.value));
+    const selectedDisplay = computed(() => displayValue(selectedCamera.value, viewer3dMode.value));
     function changeDisplay(value: string) {
-      const { camera, viewer3d } = parseDisplayValue(value);
-      viewer3dRequested.value = viewer3d;
+      const { camera, mode } = parseDisplayValue(value);
+      viewer3dRequested.value = mode;
       changeCamera(camera);
     }
-    /** The 3D viewer takes the pane of the camera that is not selected. */
+    /** In 'replace' mode the 3D viewer takes the pane of the camera that is not selected. */
     function isCameraReplacedBy3dViewer(camera: string) {
-      return viewer3dActive.value && camera !== selectedCamera.value;
+      return viewer3dMode.value === 'replace' && camera !== selectedCamera.value;
     }
     const viewer3dPaneOrder = computed(() => (
-      multiCamList.value.indexOf(selectedCamera.value) === 0 ? 1 : -1
+      viewer3dMode.value === 'replace' && multiCamList.value.indexOf(selectedCamera.value) !== 0
+        ? -1 : 1
     ));
-    watch([viewer3dActive, selectedCamera], async () => {
+    watch([viewer3dMode, selectedCamera], async () => {
       await nextTick();
       handleResize();
+      // The bottom layout has no controls container for handleResize to act on.
+      onResize();
     });
 
     provideAnnotator(
@@ -2893,7 +2899,7 @@ export default defineComponent({
           :label="isStereoPair ? 'Display' : 'Camera'"
           class="mx-1 shrink camera-select"
           :class="{ 'display-select': isStereoPair }"
-          :menu-props="{ minWidth: 140 }"
+          :menu-props="{ minWidth: isStereoPair ? 200 : 140 }"
           outlined
           hide-details
           dense
@@ -3375,8 +3381,28 @@ html {
 }
 
 .camera-select.display-select {
-  width: 200px;
-  max-width: 200px;
+  width: 148px;
+  max-width: 148px;
+  font-size: 0.8em;
+
+  .v-input__slot {
+    padding: 0 6px 0 8px !important;
+  }
+
+  .v-select__selection--comma {
+    max-width: 100%;
+    margin-right: 0;
+  }
+
+  .v-select__selections input {
+    flex: 0 0 0;
+    width: 0;
+    padding: 0;
+  }
+
+  .v-input__append-inner {
+    padding-left: 0;
+  }
 }
 
 .viewer-3d-split {

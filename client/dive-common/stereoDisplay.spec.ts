@@ -1,9 +1,11 @@
 import { displayOptions, displayValue, parseDisplayValue } from './stereoDisplay';
 
 describe('stereoDisplay', () => {
-  it('offers each stereo camera selected or beside the 3D viewer', () => {
+  it('offers each stereo camera selected, beside the 3D viewer, or with it as a third pane', () => {
     expect(displayOptions(['left', 'right'], true, 'left').map((option) => option.text)).toEqual([
-      'Left (Selected)', 'Right (Selected)', 'Left + 3D Viewer', 'Right + 3D Viewer',
+      'Left (Selected)', 'Right (Selected)',
+      'Left + 3D Viewer', 'Right + 3D Viewer',
+      'Stereo (Left Sel) + 3D', 'Stereo (Right Sel) + 3D',
     ]);
   });
 
@@ -15,8 +17,9 @@ describe('stereoDisplay', () => {
   });
 
   it('round-trips a display value', () => {
-    expect(parseDisplayValue(displayValue('right', true))).toEqual({ camera: 'right', viewer3d: true });
-    expect(parseDisplayValue(displayValue('viewer3d:odd', false)))
-      .toEqual({ camera: 'viewer3d:odd', viewer3d: false });
+    expect(parseDisplayValue(displayValue('right', 'replace'))).toEqual({ camera: 'right', mode: 'replace' });
+    expect(parseDisplayValue(displayValue('left', 'beside'))).toEqual({ camera: 'left', mode: 'beside' });
+    expect(parseDisplayValue(displayValue('viewer3d:odd', 'off')))
+      .toEqual({ camera: 'viewer3d:odd', mode: 'off' });
   });
 });
