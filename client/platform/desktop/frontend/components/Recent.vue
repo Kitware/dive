@@ -330,7 +330,7 @@ export default defineComponent({
       return moment(normalized, [moment.ISO_8601, moment.RFC_2822, 'ddd MMM DD YYYY HH:mm:ss [GMT]ZZ'], true);
     }
 
-    const baseHeaders: DataTableHeader[] = [
+    const headers: DataTableHeader[] = [
       {
         text: '',
         value: 'select',
@@ -349,6 +349,12 @@ export default defineComponent({
         sortable: true,
       },
       {
+        text: 'Split',
+        value: 'trainingSplit',
+        sortable: true,
+        width: 130,
+      },
+      {
         text: 'Accessed',
         value: 'accessedAt',
         sortable: true,
@@ -356,18 +362,11 @@ export default defineComponent({
         width: 140,
       },
     ];
-    // The split column appears only once a dataset has been labeled.
-    const headers = computed(() => (
-      recents.value.some((item) => item.trainingSplit)
-        ? baseHeaders.concat({
-          text: 'Split', value: 'trainingSplit', sortable: true, width: 110,
-        })
-        : baseHeaders
-    ));
-    const selectedRecentIds = computed(() => selectedRecents.value.map((item) => item.id));
-    const splitButtonOptions = {
-      class: 'ml-2 align-self-center', color: 'primary', outlined: true, small: true,
-    };
+    function splitTargetIds(item: JsonConfigCache) {
+      return selectedIds.value.size > 1 && selectedIds.value.has(item.id)
+        ? Array.from(selectedIds.value)
+        : [item.id];
+    }
     const splitSaved = () => autoDiscover();
     const toDisplayString = (dateString: string) => {
       const parsed = parseRecentDate(dateString);
@@ -389,8 +388,7 @@ export default defineComponent({
       runPipelineOnSelected,
       runTrainingOnSelected,
       splitSaved,
-      splitButtonOptions,
-      selectedRecentIds,
+      splitTargetIds,
       scoreSelected,
       reviewSelected,
       indexSelected,
@@ -726,11 +724,6 @@ export default defineComponent({
                   </template>
                   <span>Score the selected datasets against ground truth</span>
                 </v-tooltip>
-                <TrainingSplitMenu
-                  :dataset-ids="selectedRecentIds"
-                  :button-options="splitButtonOptions"
-                  @saved="splitSaved"
-                />
                 <v-tooltip bottom>
                   <template #activator="{ on }">
                     <v-btn
@@ -882,11 +875,36 @@ export default defineComponent({
                 </span>
               </template>
               <template #[`item.trainingSplit`]="{ item }">
-                <TrainingSplitChip
+                <TrainingSplitMenu
                   :key="item.id"
-                  :split="item.trainingSplit"
-                  x-small
-                />
+                  :dataset-ids="splitTargetIds(item)"
+                  @saved="splitSaved"
+                >
+                  <template #activator="{ on, saving }">
+                    <v-btn
+                      text
+                      x-small
+                      class="px-1"
+                      :loading="saving"
+                      v-on="on"
+                    >
+                      <TrainingSplitChip
+                        v-if="item.trainingSplit"
+                        :split="item.trainingSplit"
+                        x-small
+                      />
+                      <span
+                        v-else
+                        class="grey--text"
+                      >
+                        None
+                      </span>
+                      <v-icon small>
+                        mdi-menu-down
+                      </v-icon>
+                    </v-btn>
+                  </template>
+                </TrainingSplitMenu>
               </template>
               <template #[`item.select`]="{ item }">
                 <v-simple-checkbox
