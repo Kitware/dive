@@ -34,6 +34,7 @@ Most editing controls are available when a track or detection is selected.
 | ---------- | ------------|
 | ++delete++ | delete entire track or detection |
 | ++n++ | create new track or detection |
+| ++ctrl+z++ (Mac: ++cmd+z++) | undo the last annotation change |
 | ++home++ | go to first frame of selected track |
 | ++end++ | go to the last frame of selected track |
 | ++1++ | Enter **bounding-box** edit mode on selection |
@@ -48,6 +49,18 @@ Most editing controls are available when a track or detection is selected.
 | ++shift+m++ | commit (finalize) merge for selected tracks. |
 | ++g++ | create new group including the selected track |
 | ++shift+enter++ | focus class select/text box on selected track in track list.  Press ++arrow-down++ to open all options.  Pres ++enter++ twice to accept an option.  Press ++escape++ to unfocus. |
+
+The **Undo** button beside Save provides the same action in web and desktop.
+Undo restores annotation creation, deletion, geometry, types, attributes, and
+groups, including changes across cameras. Up to 20 edits are retained for the
+current session. Saving does not clear history: undoing a saved edit creates a
+new pending change to save. Loading another dataset or reloading annotations
+clears history. Text fields keep their normal text undo behavior.
+
+Stereo results are grouped with the edit that requested them. Undo is temporarily
+unavailable while saving, predicting a segmentation, or completing stereo work.
+Undo exits annotation editing so a pending tool preview cannot overwrite the
+restored annotation. Viewer settings and camera registration are outside this history.
 
 ## Interactive Segmentation (Desktop only)
 

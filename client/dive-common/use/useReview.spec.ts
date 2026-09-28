@@ -53,6 +53,16 @@ function makeApi(tracksById: Record<string, TrackData[]>, overrides: Partial<Rev
 }
 
 describe('createReviewService', () => {
+  it('uses the review-specific dataset list when a platform separates it from scoring', async () => {
+    const listReviewDatasets = vi.fn(async () => [{ id: 'rig', name: 'Stereo', type: 'multi' }]);
+    const api = makeApi({}, { listReviewDatasets });
+    const service = createReviewService({ api });
+    await service.refreshAvailable();
+    expect(service.available.value).toEqual([{ id: 'rig', name: 'Stereo', type: 'multi' }]);
+    expect(api.listScoringDatasets).not.toHaveBeenCalled();
+    service.dispose();
+  });
+
   it('uses the web tracks-only reader without loading unused annotation data', async () => {
     const loadReviewTracks = vi.fn(async () => [track(1, [['fish', 0.9]], [0])]);
     const api = makeApi({}, { loadReviewTracks });
@@ -89,6 +99,40 @@ describe('createReviewService', () => {
     await service.loadQueued();
     expect(service.datasets.value.map((d) => [d.status, d.trackCount])).toEqual([['ready', 1]]);
     expect(api.loadDetections).toHaveBeenCalledTimes(1);
+  });
+
+  it('queues the resolved parent for a deferred camera pick and skips duplicates', async () => {
+    const resolveReviewDatasetId = vi.fn(async (id: string) => (id === 'leftFolder' ? 'rig' : id));
+    const api = makeApi({
+      'rig/left': [track(1, [['fish', 1]], [0])],
+      'rig/right': [track(1, [['fish', 1]], [0])],
+    }, {
+      resolveReviewDatasetId,
+      loadConfig: vi.fn(async (id: string) => (id === 'rig'
+        ? config('rig', {
+          type: 'multi',
+          name: 'Stereo',
+          multiCamMedia: {
+            defaultDisplay: 'left',
+            cameras: {
+              left: { type: 'image-sequence', imageData: [{ url: 'l.jpg', filename: 'l.jpg' }], videoUrl: '' },
+              right: { type: 'image-sequence', imageData: [{ url: 'r.jpg', filename: 'r.jpg' }], videoUrl: '' },
+            },
+          },
+        })
+        : config(id))),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('leftFolder', { id: 'leftFolder', name: 'left' }, { defer: true });
+    expect(resolveReviewDatasetId).toHaveBeenCalledWith('leftFolder');
+    expect(service.datasets.value).toMatchObject([{ id: 'rig', status: 'queued' }]);
+    expect(api.loadConfig).not.toHaveBeenCalled();
+    await service.loadQueued();
+    expect(service.datasets.value).toMatchObject([{ id: 'rig', status: 'ready' }]);
+    // Deferred browse of a camera folder must not sit beside the loaded rig.
+    await service.addDataset('leftFolder', { id: 'leftFolder', name: 'left' }, { defer: true });
+    expect(service.datasets.value).toEqual([expect.objectContaining({ id: 'rig', status: 'ready' })]);
+    service.dispose();
   });
 
   it('loads datasets, prefers peekConfig, and builds items for a query', async () => {
@@ -234,7 +278,7 @@ describe('createReviewService', () => {
     const right = entry.items[1];
     expect(right.frames.map((f) => f.missing ?? false)).toEqual([true, false]);
 
-    service.addKeyframe(right, 0, right.frames[0].bounds);
+    service.addKeyframe(right, 0, right.frames[0].bounds!);
     expect(service.trackOf('m/right', 3)?.features.map((f) => f.frame)).toEqual([0, 4]);
     expect(service.trackOf('m/right', 3)?.begin).toBe(0);
     expect(service.entries.value[0].items[1].frames.every((f) => !f.missing)).toBe(true);
@@ -471,4 +515,72 @@ it('preserves dirty data instead of replacing it on resume', async () => {
   expect(service.pendingCount.value).toBe(1);
   expect(service.trackOf('a', 1)?.confidencePairs).toEqual([['shark', 1]]);
   service.dispose();
+});
+
+describe('adopting outside tracks', () => {
+  it('finds the overlapping track on a frame, inserts new ones under free ids, and builds items for them', async () => {
+    const service = createReviewService({ api: makeApi({ a: [track(4, [['fish', 0.9]], [0, 1])] }) });
+    expect(await service.ensureLoaded('a')).toBe(true);
+    expect(service.findTrackAt('a', 1, [1, 1, 9, 9])?.id).toBe(4);
+    expect(service.findTrackAt('a', 1, [50, 50, 60, 60])).toBeUndefined();
+    expect(service.findTrackAt('a', 2, [0, 0, 10, 10])).toBeUndefined();
+
+    const inserted = service.insertTrack('a', {
+      begin: 7, end: 7, confidencePairs: [['crab', 1]], attributes: {}, features: [{ frame: 7, keyframe: true, bounds: [2, 2, 8, 8] }],
+    });
+    expect(inserted?.id).toBe(5);
+    expect(service.pendingCount.value).toBe(1);
+    expect(service.itemFor('a', 5, 'result:1')).toMatchObject({
+      key: 'result:1', datasetId: 'a', trackId: 5, type: 'crab', primary: { frame: 7, bounds: [2, 2, 8, 8] },
+    });
+    expect(service.itemFor('a', 99)).toBeNull();
+    service.dispose();
+  });
+
+  it('waits for a load already in flight', async () => {
+    const service = createReviewService({ api: makeApi({ a: [track(1, [['fish', 0.9]], [0])] }) });
+    const adding = service.addDataset('a');
+    expect(await service.ensureLoaded('a')).toBe(true);
+    await adding;
+    expect(service.trackOf('a', 1)).toBeDefined();
+    service.dispose();
+  });
+
+  it('retries ensureLoaded after a previous load error', async () => {
+    const api = makeApi({}, {
+      loadDetections: vi.fn()
+        .mockRejectedValueOnce(new Error('offline'))
+        .mockResolvedValueOnce({ tracks: [track(1, [['fish', 0.9]], [0])], groups: [] }),
+    });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    expect(service.datasets.value[0].status).toBe('error');
+    expect(await service.ensureLoaded('a')).toBe(true);
+    expect(service.datasets.value[0].status).toBe('ready');
+    expect(service.trackOf('a', 1)).toBeDefined();
+    service.dispose();
+  });
+});
+
+describe('discarding and deleting tracks by id', () => {
+  it('forgets an unsaved insert without deleting anything, and deletes by id', async () => {
+    const api = makeApi({ a: [track(1, [['fish', 0.9]], [0])] });
+    const service = createReviewService({ api });
+    await service.addDataset('a');
+    const inserted = service.insertTrack('a', {
+      begin: 2, end: 2, confidencePairs: [['crab', 1]], attributes: {}, features: [{ frame: 2, keyframe: true, bounds: [0, 0, 5, 5] }],
+    })!;
+    expect(service.tracksOf('a').map((t) => t.id)).toEqual([1, inserted.id]);
+    service.discardTrack('a', inserted.id);
+    expect(service.tracksOf('a').map((t) => t.id)).toEqual([1]);
+    expect(service.pendingCount.value).toBe(0);
+
+    service.deleteTrackById('a', 1);
+    expect(service.tracksOf('a')).toEqual([]);
+    await service.save();
+    expect(api.saveDetections).toHaveBeenCalledWith('a', expect.objectContaining({
+      tracks: { upsert: [], delete: [1] },
+    }));
+    service.dispose();
+  });
 });

@@ -49,9 +49,13 @@ connect from clock.timestamp
 process pairing
   :: compute_measurements
   :matching_methods input_pairs_only
-  :detection_pairing_method calibration
-  :detection_pairing_threshold 10
   :calibration_file calibration.json
+  :min_track_states 0
+  :detection_pairing_method keypoint_projection,calibration
+  :detection_pairing_threshold 50.0
+  :detection_pairing_require_class_match false
+  :max_stereo_rms 20.0
+  :max_bbox_area_ratio 3.0
   :accumulate_track_pairings true
   :pairing_resolution_method most_likely
   :detection_split_threshold 1

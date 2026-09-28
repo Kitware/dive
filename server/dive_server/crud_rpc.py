@@ -190,26 +190,39 @@ def _load_dynamic_pipelines(user: types.GirderUserModel) -> Dict[str, types.Pipe
     response = next(Folder().collection.aggregate(models))
     folders = [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
 
+    onnx_weight_extensions = ('.weights', '.ckpt', '.pth')
     for folder in folders:
-        pipename = None
-        for item in Folder().childItems(folder):
-            if item['name'].endswith('.pipe') and not item['name'].startswith('embedded_'):
-                pipename = item['name']
-                append_text = ''
-                if pipename.endswith('tracker.pipe'):
-                    append_text = ' tracker'
-                elif pipename.endswith('detector.pipe'):
-                    append_text = ' detector'
-                pipelines[constants.TrainedPipelineCategory]["pipes"].append(
-                    {
-                        "name": f'{folder["name"]}{append_text}',
-                        "type": constants.TrainedPipelineCategory,
-                        "pipe": pipename,
-                        "folderId": str(folder["_id"]),
-                        "ownerLogin": folder["ownerLogin"],
-                        "ownerId": folder["creatorId"],
-                    }
-                )
+        folder_items = list(Folder().childItems(folder))
+        pipe_items = [
+            item
+            for item in folder_items
+            if item['name'].endswith('.pipe') and not item['name'].startswith('embedded_')
+        ]
+        onnx_convertible = any(
+            item['name'].lower().endswith(ext)
+            for item in folder_items
+            for ext in onnx_weight_extensions
+        )
+        for item in pipe_items:
+            pipename = item['name']
+            append_text = ''
+            if pipename.endswith('tracker.pipe'):
+                append_text = ' tracker'
+            elif pipename.endswith('detector.pipe'):
+                append_text = ' detector'
+            elif len(pipe_items) > 1:
+                append_text = f' {pipename[:-5]}'
+            pipelines[constants.TrainedPipelineCategory]["pipes"].append(
+                {
+                    "name": f'{folder["name"]}{append_text}',
+                    "type": constants.TrainedPipelineCategory,
+                    "pipe": pipename,
+                    "folderId": str(folder["_id"]),
+                    "ownerLogin": folder["ownerLogin"],
+                    "ownerId": folder["creatorId"],
+                    "onnxConvertible": onnx_convertible,
+                }
+            )
     return pipelines
 
 

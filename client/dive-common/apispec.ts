@@ -21,6 +21,7 @@ import type {
   ScoringResultSummary,
   ScoringSourceOptions,
 } from 'dive-common/scoring/types';
+import type { TaxonomySources } from './worms';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -30,7 +31,9 @@ type PipelineParamType = | 'bool'
   | 'int' | 'positive_int' | 'strictly_positive_int' | 'range_int'
   | 'float' | 'positive_float' | 'strictly_positive_float' | 'range_float'
   | 'folder' | 'path'
-  | 'file';
+  | 'file'
+  /** One of the values listed after the type, e.g. `choice, bytetrack, srnn`. */
+  | 'choice';
 
 interface AnnotationSchema {
   version: number;
@@ -155,6 +158,8 @@ interface Pipe {
   folderId?: string;
   ownerId?: string;
   ownerLogin?: string;
+  /** True when the pack has a top-level .weights/.ckpt/.pth for ONNX conversion. */
+  onnxConvertible?: boolean;
 }
 
 interface Category {
@@ -300,6 +305,7 @@ type DatasetInfoFields = Record<string, unknown>;
  * The parts of dataset config a user should be able to modify.
  */
 interface DatasetConfigMutable {
+  taxonomySources?: TaxonomySources;
   typeHierarchy?: Record<string, string> | null;
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
@@ -328,7 +334,7 @@ interface DatasetConfigMutable {
   cameraRoles?: Record<string, CameraRole>;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
@@ -476,6 +482,11 @@ interface Api {
    * dataset list the review page offers.
    */
   listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
+  /** Resolve a selected camera to its whole sequence before loading review. */
+  resolveReviewDatasetId?(datasetId: string): Promise<string>;
+  /** Review includes whole stereo/multicamera sequences, unlike scoring. */
+  listReviewDatasets?(): Promise<ScoringDatasetSummary[]>;
+  pickReviewDataset?(excludeIds: string[]): Promise<ScoringDatasetSummary | null>;
   /**
    * Open a platform dataset picker; returns null when the user cancels.
    * Shared by the scoring and review pages.
@@ -617,6 +628,15 @@ export interface SegmentationPredictRequest {
   multimaskOutput?: boolean;
   /** Time in seconds when imagePath is a video file */
   frameTime?: number;
+  /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
+  line?: [number, number][];
+  /** Drawn box [x0, y0, x1, y1] to segment inside; the service confines the mask to it */
+  box?: [number, number, number, number];
+}
+
+export interface SegmentationPolygon {
+  exterior: [number, number][];
+  holes: [number, number][][];
 }
 
 export interface SegmentationPredictResponse {
@@ -626,6 +646,8 @@ export interface SegmentationPredictResponse {
   error?: string;
   /** Polygon coordinates as [x, y] pairs */
   polygon?: [number, number][];
+  /** All components of one mask, including interior holes. */
+  polygons?: SegmentationPolygon[];
   /** Bounding box [x_min, y_min, x_max, y_max] */
   bounds?: [number, number, number, number];
   /** Quality score from segmentation model */
@@ -646,7 +668,11 @@ export interface SegmentationPredictResponse {
 export interface SegmentationStereoSegmentRequest {
   /** The already-segmented source-camera polygon (sampling + measurement). */
   polygon?: [number, number][];
-  /** Source-camera click points and labels. */
+  /** Every part of the source-camera mask, with holes. */
+  polygons?: SegmentationPolygon[];
+  /** Which stereo camera the source is; the service works it out when absent. */
+  sourceCamera?: 'left' | 'right';
+  /** Source-camera click points and labels; none when an existing mask is being mapped. */
   points: [number, number][];
   pointLabels: number[];
   /** Source (clicked) and other camera image/video paths. */
@@ -664,6 +690,8 @@ export interface SegmentationStereoSegmentResponse {
   error?: string;
   /** Other-camera polygon from SAM. */
   polygon?: [number, number][];
+  /** Every part of the other-camera mask, with holes. */
+  polygons?: SegmentationPolygon[];
   bounds?: [number, number, number, number];
   score?: number;
   /** Seed point(s) used on the other camera (median of warped samples). */
@@ -682,6 +710,13 @@ export interface SegmentationStereoSegmentResponse {
     midpoint_range: number;
     stereo_rms: number;
   };
+}
+
+export interface SegmentationPolygonKeypointsResponse {
+  success: boolean;
+  error?: string;
+  head?: [number, number];
+  tail?: [number, number];
 }
 
 export interface SegmentationStatusResponse {
@@ -766,6 +801,98 @@ export interface RefineDetectionsResponse {
   error?: string;
   /** Refined detections */
   detections?: TextQueryDetection[];
+}
+
+/**
+ * Video Search / IQR (rapid model generation) Types
+ */
+
+export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing' | 'frames';
+
+/**
+ * One indexed media stream (video/sequence identifier) in the shared search
+ * database. All database rows key on this identifier, so a dataset can be
+ * added, updated, or removed from the index independently.
+ */
+export interface VideoSearchStreamEntry {
+  datasetId: string;
+  method: VideoSearchIndexMethod;
+  // frame rate the media was indexed at (video only; must match dataset fps)
+  fps?: number;
+  createdAt: string;
+}
+
+/** How a search index stores descriptors: per-stream files or an embedded PostgreSQL database. */
+export type SearchIndexBackend = 'files' | 'postgres';
+
+/** Sidecar metadata describing the shared search index. */
+export interface VideoSearchIndexMeta {
+  version: number;
+  /** Storage backend the index was built with; absent on indexes from before it was recorded (postgres). */
+  backend?: SearchIndexBackend;
+  // stream identifier (as reported in query results) -> source dataset
+  streams: Record<string, VideoSearchStreamEntry>;
+}
+
+export interface VideoSearchIndexStatus {
+  /** The shared index exists and is queryable (ITQ files present). */
+  built: boolean;
+  /** This dataset has been ingested into the index. */
+  indexed: boolean;
+  /** Why it is not indexed: the missing model, or the unrecorded dataset. */
+  reason?: string;
+  /** The stream entry for this dataset, when indexed. */
+  stream?: VideoSearchStreamEntry & { streamName: string };
+  /** Total datasets in the shared index. */
+  datasetCount: number;
+  meta?: VideoSearchIndexMeta;
+}
+
+export interface VideoSearchTrackState {
+  frame: number;
+  bbox?: [number, number, number, number];
+}
+
+export interface VideoSearchResultTrack {
+  id: number;
+  states: VideoSearchTrackState[];
+}
+
+/** One ranked similarity result returned by the query service. */
+export interface VideoSearchResult {
+  /** Unique reference for adjudication: "<session>:<instance_id>" */
+  ref: string;
+  /** Federated session index this result came from */
+  session: number;
+  /** Index directory this result came from */
+  index_dir: string;
+  instance_id: number;
+  query_id: string;
+  stream_id: string;
+  relevancy_score: number;
+  start_frame: number | null;
+  end_frame: number | null;
+  tracks: VideoSearchResultTrack[];
+}
+
+/** One dataset present in the shared search index. */
+export interface VideoSearchIndexInfo {
+  /** Stream identifier query results report for this dataset */
+  streamName: string;
+  datasetId: string;
+  /** Dataset display name */
+  name: string;
+  /** How the entry was built. */
+  method: VideoSearchIndexMethod;
+}
+
+export interface VideoSearchQueryResponse {
+  success: boolean;
+  error?: string;
+  descriptor_count?: number;
+  model_available?: boolean;
+  results?: VideoSearchResult[];
+  feedback_requests?: VideoSearchResult[];
 }
 
 export {

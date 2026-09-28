@@ -539,7 +539,7 @@ beforeEach(() => {
     '/home/user/viamedata': {
       DIVE_Jobs: {
         goodTrainingJob: {
-          category_models: {
+          trained_model: {
             'detector.pipe': '',
             'trained_detector.zip': '',
           },
@@ -548,12 +548,12 @@ beforeEach(() => {
           missingModelFolder: {},
         },
         missingPipeTrainingJob: {
-          category_models: {
+          trained_model: {
             'trained_detector.zip': '',
           },
         },
         detectorAndTrackerTrainingJob: {
-          category_models: {
+          trained_model: {
             'detector.pipe': '',
             'tracker.pipe': '',
             'trained_detector.zip': '',
@@ -624,6 +624,30 @@ beforeEach(() => {
               'local.csv': 'frame,depth\n0,local\n',
             },
           },
+        },
+        projectidMulticamMovedSource: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidMulticamMovedSource',
+            name: 'movedStereo',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/movedStereo/left',
+                },
+                right: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/movedStereo/right',
+                },
+              },
+            },
+          }),
+          'result_whatever.json': JSON.stringify({}),
         },
         projectidFrameMetadata: {
           'meta.json': JSON.stringify({
@@ -1352,6 +1376,14 @@ describe('native.common', () => {
     ]);
     expect(data.imageData[0].timestamp).toBe(1686839422);
     expect(data.imageData[1].timestamp).toBeUndefined();
+  });
+
+  it('persists WoRMS provenance across desktop save and reload', async () => {
+    const taxonomySources = { 126175: { aphiaId: 126175, scientificName: 'Sebastes', rank: 'Genus' } };
+    await common.saveConfig(settings, 'projectid1', { taxonomySources });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).taxonomySources).toEqual(taxonomySources);
+    await common.saveConfig(settings, 'projectid1', { confidenceFilters: { default: 0.5 } });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).taxonomySources).toEqual(taxonomySources);
   });
 
   it('saveConfig sets, clears, and atomically rejects a type hierarchy', async () => {
@@ -2808,6 +2840,9 @@ describe('native.common', () => {
     await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing dataset json');
     await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
     await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing project directory');
+    await expect(common.checkDataset(settings, 'projectidMulticamMovedSource')).rejects.toThrow(
+      'Dataset movedStereo does not contain source files at /home/user/data/movedStereo/left, /home/user/data/movedStereo/right',
+    );
   });
 
   it('checkDataset does not create directories for missing datasets', async () => {
@@ -2869,7 +2904,7 @@ describe('native.common', () => {
     const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
     expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
     //Data should be moved out of the current folder
-    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/trained_model');
     expect(sourceFolder.length).toBe(0);
     //Folders hould be created for new pipeline
     const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
@@ -2888,10 +2923,10 @@ describe('native.common', () => {
       annotatedFramesOnly: false,
     };
     await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
-      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/category_models does not exist',
+      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/trained_model does not exist',
     );
     await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
-      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/category_models',
+      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/trained_model',
     );
   });
 
@@ -2906,7 +2941,7 @@ describe('native.common', () => {
     const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
     expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
     //Data should be moved out of the current folder
-    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/trained_model');
     expect(sourceFolder.length).toBe(0);
     //Folders hould be created for new pipeline
     const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
@@ -2922,6 +2957,8 @@ describe('native.common', () => {
     expect(pipes.utility.pipes).toHaveLength(4);
     expect(pipes.trained.pipes).toHaveLength(1);
     expect(pipes.trained.pipes[0].name).toBe('trainedPipelineName detector');
+    // Training fixtures ship a .zip, not .weights/.ckpt/.pth — not ONNX-convertible.
+    expect(pipes.trained.pipes[0].onnxConvertible).toBe(false);
   });
 
   it('getPipelineList lists both detector and tracker from one trained model', async () => {
@@ -2942,6 +2979,32 @@ describe('native.common', () => {
     expect(pipes.trained.pipes.map((p) => npath.basename(p.pipe))).toEqual([
       'detector.pipe',
       'tracker.pipe',
+    ]);
+    expect(pipes.trained.pipes.every((p) => p.onnxConvertible === false)).toBe(true);
+  });
+
+  it('lists arbitrary imported pipelines with nested weights and skips incomplete imports', async () => {
+    const folder = '/home/user/viamedata/DIVE_Pipelines/imported';
+    await fs.outputFile(`${folder}/custom_local.pipe`, '# Custom pipeline');
+    await fs.outputFile(`${folder}/second.pipe`, '# Another pipeline');
+    await fs.outputFile(`${folder}/models/weights.onnx`, 'weights');
+    await fs.outputFile('/home/user/viamedata/DIVE_Pipelines/.import-incomplete/custom.pipe', '');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes.map((p) => p.name).sort()).toEqual(['imported custom_local', 'imported second']);
+    // Nested models/weights.onnx does not count; conversion only accepts top-level weight files.
+    expect(pipes.trained.pipes.every((p) => p.onnxConvertible === false)).toBe(true);
+  });
+
+  it('marks packs with top-level weight files as ONNX convertible', async () => {
+    const folder = '/home/user/viamedata/DIVE_Pipelines/withWeights';
+    await fs.outputFile(`${folder}/detector.pipe`, '# pipe');
+    await fs.outputFile(`${folder}/model.pth`, 'weights');
+    const pipes = await common.getPipelineList(settings);
+    expect(pipes.trained.pipes).toEqual([
+      expect.objectContaining({
+        name: 'withWeights detector',
+        onnxConvertible: true,
+      }),
     ]);
   });
 
@@ -2975,6 +3038,86 @@ describe('native.common', () => {
       };
       expect(tracks).toEqual(modifiedSource);
     }
+  });
+});
+
+describe('extractPipeMetadata diveParams', () => {
+  const pipesDir = '/opt/viame/configs/pipelines';
+
+  function mockPipes(files: Record<string, string>) {
+    mockfs({
+      [pipesDir]: files,
+    });
+  }
+
+  it('updates an included DIVE_PARAM default from a bare wrapper assignment', async () => {
+    mockPipes({
+      'base.pipe': [
+        'process foo',
+        '  :: some_filter',
+        '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        '',
+      ].join('\n'),
+      'wrapper.pipe': [
+        'include base.pipe',
+        'process foo',
+        '  :threshold = 0.9',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'wrapper.pipe'));
+    const byKey = Object.fromEntries((metadata.diveParams ?? []).map((p) => [p.key, p]));
+
+    expect(byKey['foo:threshold'].default).toBe('0.9');
+    expect(byKey['foo:threshold'].label).toBe('Threshold');
+    expect(byKey['foo:threshold'].type).toBe('float');
+  });
+
+  it('does not create a UI param from a bare assignment alone', async () => {
+    mockPipes({
+      'detector_plain.pipe': [
+        'process foo',
+        '  :threshold = 0.9',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'detector_plain.pipe'));
+    expect(metadata.diveParams).toEqual([]);
+  });
+
+  it('exposes the options of a choice DIVE_PARAM', async () => {
+    mockPipes({
+      'tracker_switch.pipe': [
+        'process tracker',
+        '  :: track_objects',
+        '  :track_objects:type  bytetrack  # DIVE_PARAM ["Tracker", choice, bytetrack, srnn]',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(npath.join(pipesDir, 'tracker_switch.pipe'));
+    expect(metadata.diveParams).toEqual([expect.objectContaining({
+      key: 'tracker:track_objects:type', label: 'Tracker', type: 'choice', type_props: ['bytetrack', 'srnn'], default: 'bytetrack',
+    })]);
+  });
+
+  it('updates a same-file DIVE_PARAM default from a later bare assignment', async () => {
+    mockPipes({
+      'detector_thresh.pipe': [
+        'process foo',
+        '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        '  :threshold = 0.2',
+        '',
+      ].join('\n'),
+    });
+
+    const metadata = await common.extractPipeMetadata(
+      npath.join(pipesDir, 'detector_thresh.pipe'),
+    );
+    expect(metadata.diveParams).toHaveLength(1);
+    expect(metadata.diveParams?.[0].default).toBe('0.2');
   });
 });
 

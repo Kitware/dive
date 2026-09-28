@@ -42,7 +42,7 @@ export default defineComponent({
     }
 
     async function cancelInProgressJob(job: DesktopJob): Promise<void> {
-      if (job.exitCode === null && !job.cancelledJob) {
+      if (job.pid > 0 && job.exitCode === null && !job.cancelledJob) {
         await cancelJob(job);
       }
     }
@@ -203,6 +203,7 @@ export default defineComponent({
                     text
                     small
                     class="mb-2 error--text text--lighten-3 text-decoration-none"
+                    :disabled="job.job.pid <= 0"
                     @click="cancelInProgressJob(job.job)"
                   >
                     <v-icon

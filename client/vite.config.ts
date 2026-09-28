@@ -102,7 +102,7 @@ export default defineConfig(({ mode }) => {
       // answers with the SPA HTML fallback, so the runtime fails to instantiate.
       // Served unbundled, the .wasm sits next to the module and loads. The
       // production build already emits it as a hashed asset either way.
-      exclude: ['onnxruntime-web'],
+      exclude: ['onnxruntime-web', 'onnxruntime-web/webgpu'],
     },
     build: {
       sourcemap: true,

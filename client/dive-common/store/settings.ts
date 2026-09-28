@@ -2,6 +2,8 @@ import { Ref, watch, reactive } from 'vue';
 import { cloneDeep, merge } from 'lodash';
 import { AnnotatorPreferences } from 'vue-media-annotator/types';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
+import { DEFAULT_STEREO_MATCH_METHOD, isStereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 
 interface ColumnVisibilitySettings {
   type: boolean;
@@ -43,6 +45,17 @@ interface AnnotationSettings {
     newTrackSettings: {
       mode: 'Track' | 'Detection';
       type: string;
+      /** Segment a freshly drawn box or line and store the polygon. */
+      autoPopulateMask: boolean;
+      /** Browser point-prompt segmentation model (loaded lazily). */
+      segmentationModel: 'sam2' | 'sam2-small';
+      /**
+       * Where the browser SAM session runs: prefer hardware WebGPU, force GPU,
+       * or force WASM/CPU. Auto still falls back to CPU if GPU load fails.
+       */
+      segmentationDevice: 'auto' | 'gpu' | 'cpu';
+      /** Derive head/tail from that polygon for a box; a tighter box from it for a line. */
+      autoPopulatePoints: boolean;
       modeSettings: {
         Track: {
           autoAdvanceFrame: boolean;
@@ -95,6 +108,11 @@ interface AnnotationSettings {
     // Warp an annotation drawn on one camera to the other camera when that
     // camera has no detection for it yet.
     autoComputeOtherCamera: boolean;
+    // Which correspondence method warps points between the cameras: 'ncc'
+    // template matching, 'dino' (desktop only) NCC with DINO candidate
+    // selection, or 'foundation' dense disparity. Desktop maps each onto a
+    // VIAME interactive stereo config; web runs the model in the browser.
+    matchMethod: StereoMatchMethod;
     loading: boolean;
     loadingMessage: string;
   };
@@ -105,6 +123,10 @@ const defaultSettings: AnnotationSettings = {
     newTrackSettings: {
       mode: 'Track' as 'Track' | 'Detection',
       type: 'unknown',
+      autoPopulateMask: false,
+      segmentationModel: 'sam2',
+      segmentationDevice: 'auto',
+      autoPopulatePoints: false,
       modeSettings: {
         Track: {
           autoAdvanceFrame: false,
@@ -193,6 +215,7 @@ const defaultSettings: AnnotationSettings = {
     clearLengthOnCameraFileLoad: true,
     updateLengthsOnModify: true,
     autoComputeOtherCamera: false,
+    matchMethod: DEFAULT_STEREO_MATCH_METHOD,
     loading: false,
     loadingMessage: '',
   },
@@ -238,6 +261,18 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
     MIN_AUTO_SAVE_DELAY_SECONDS,
     Number(hydrated.autoSaveSettings.delaySeconds) || defaultSettings.autoSaveSettings.delaySeconds,
   );
+  if (!isStereoMatchMethod(hydrated.stereoSettings.matchMethod, isDesktopRuntime())) {
+    hydrated.stereoSettings.matchMethod = DEFAULT_STEREO_MATCH_METHOD;
+  }
+  // Drop retired browser options (e.g. SAM3) that no longer fit typical GPUs.
+  if (hydrated.trackSettings.newTrackSettings.segmentationModel !== 'sam2'
+    && hydrated.trackSettings.newTrackSettings.segmentationModel !== 'sam2-small') {
+    hydrated.trackSettings.newTrackSettings.segmentationModel = 'sam2';
+  }
+  const device = hydrated.trackSettings.newTrackSettings.segmentationDevice;
+  if (device !== 'auto' && device !== 'gpu' && device !== 'cpu') {
+    hydrated.trackSettings.newTrackSettings.segmentationDevice = 'auto';
+  }
   return hydrated;
 }
 

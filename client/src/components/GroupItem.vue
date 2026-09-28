@@ -5,7 +5,7 @@ import useVuetify from 'vue-media-annotator/use/useVuetify';
 import { useGroupFilterControls, useHandler, useReadOnlyMode } from '../provides';
 import Group from '../Group';
 
-import TypePicker from './TypePicker.vue';
+import TypePicker from './Types/TypePicker.vue';
 
 export default defineComponent({
   name: 'GroupItem',

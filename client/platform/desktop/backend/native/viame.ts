@@ -972,6 +972,7 @@ async function train(
     `--config "${configFilePath}"`,
     '--no-query',
     '--no-adv-prints',
+    '--skip-packaging',
   ];
 
   if (resumeDir) {

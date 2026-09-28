@@ -1,44 +1,46 @@
 # Pipeline Import and Export
 
-## Trained model downloads
+## Model packs
 
-You can download your trained models through the administrative interface.
+Open **Models** in DIVE Web or DIVE Desktop. On desktop, Models is immediately
+beside Training and contains the model management controls previously on Training.
 
-!!! warning
+- **Import** (top right of Trained Models) accepts a ZIP of `.pipe` files, model
+  weights, and supporting files. Imported packs appear in Trained Models and in
+  the Trained pipeline list. Web imports belong to the current user and are private.
+- **Export to ZIP** downloads or saves all files in the selected model pack,
+  including other pipelines and nested model folders. The ZIP can be imported
+  into either DIVE Web or Desktop.
+- **Convert to ONNX** starts the existing ONNX conversion job. This is separate
+  from exporting the complete pack.
+- **Delete** removes the whole pack, including its pipelines and weights. If a
+  pack has multiple pipelines listed, deleting any one of them removes the pack.
 
-    Use caution when modifying data through the admin interface
+### Accepted ZIP layouts
 
-* Open the admin interface at [https://viame.kitware.com/girder](https://viame.kitware.com/girder) (or `myserver.com/girder` if you host your own instance)
-* Navigate to your personal workspace by clicking ==:material-folder: My Folders== under your user dropdown in the top right corner.
+A ZIP must contain at least one `.pipe` file. These layouts are accepted:
 
-    ![My Folders](images/Girder/my_folders.png)
+```text
+configs/pipelines/example.pipe     pipelines/example.pipe     example.pipe
+configs/pipelines/models/...       pipelines/models/...       models/...
+```
 
-* Navigate to the `VIAME/VIAME Training Results` folder and into the folder you wish to download
-    
-    ![Select All](images/Girder/select_all.png)
+The third layout may put weights beside the `.pipe` files instead of in `models/`.
+Any layout may also be inside one enclosing folder. The importer removes the
+layout's outer folders and preserves paths beneath the pipeline directory, so
+references such as `models/weights.onnx` continue to point to the same files.
+Files outside the pipeline directory in a VIAME add-on are not installed.
+Dependencies on the base VIAME installation must be installed separately.
 
-* Select all items and download using the menu
+Pack names come from the ZIP filename. Importing the same name again creates a
+new name with a numeric suffix; it does not replace an existing model. Invalid
+archives are rejected, and a failed import does not leave a partial model pack.
 
-    ![Download](images/Girder/download_selected.png)
+On desktop, packs are stored under `${Project Data Storage Path}/DIVE_Pipelines`.
+On web, they are stored in your `VIAME/VIAME Training Results` folder, which can
+also be opened with **Browse** for managing files and sharing permissions.
 
-## Custom Pipeline Upload
-
-It's possible to upload custom pipes to DIVE Web through the girder interface.
-
-!!! warning
-
-    This feature is not yet standardized, and the instructions below may change.
-
-1. Open the girder interface at `/girder` and create a new private folder called `MyPipelines`
-    1. For our demo instance, open [https://viame.kitware.com/girder](https://viame.kitware.com/girder)
-1. Create a new folder in that private folder, and give it a name you'd like to associate with your new pipeline.
-1. Upload one or more files inside your new pipeline subfolder:
-    1. A pipeline file ending in the `.pipe` file extension
-    1. Whatever other model `.zip` files are required by the pipe, named exactly as they appear in your `.pipe` file above.
-1. Finally, set the **pipeline folder** metadata key `trained_pipeline` with value `true`.
-1. Your new pipeline will be available under the `Run Pipeline -> Trained` menu from the DIVE web app.
-
-![Upload Pipeline](images/Misc/UploadPipeline.png)
+## Advanced pipeline configuration
 
 ### Accepting input
 

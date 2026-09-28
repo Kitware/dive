@@ -25,7 +25,9 @@ export type ReviewCellGeometryEdit = ReviewChipGeometryEdit;
 
 /**
  * One grid entry: the track's chips (one per camera it appears in, side by
- * side) with the annotation's type editable underneath. Presentation-only;
+ * side) with the annotation's type editable underneath. Controls that act on
+ * the whole entry appear once: frame stepping on the first chip, accept,
+ * delete and open on the last; box editing stays on every camera's chip. Presentation-only;
  * the page supplies the images and applies edits, so other item sources
  * (e.g. search results) can reuse it with their own actions through the
  * `actions` slot. Single-chip users may pass the chip props directly
@@ -141,6 +143,11 @@ export default defineComponent({
       type: String,
       default: '#00e5ff',
     },
+    /** Outline the cell as accepted or rejected (e.g. search adjudication). */
+    highlight: {
+      type: String as PropType<'' | 'positive' | 'negative'>,
+      default: '',
+    },
   },
   setup(props, { emit }) {
     /** Chips currently in edit mode, to outline the whole entry. */
@@ -244,7 +251,12 @@ export default defineComponent({
 <template>
   <div
     class="review-cell"
-    :class="{ 'cell-pending': pending, 'cell-editing': editingCount > 0 }"
+    :class="{
+      'cell-pending': pending,
+      'cell-editing': editingCount > 0,
+      'cell-positive': highlight === 'positive',
+      'cell-negative': highlight === 'negative',
+    }"
     :style="{ '--cell-scale': scale }"
   >
     <div class="cell-views">
@@ -272,6 +284,8 @@ export default defineComponent({
         :controlled-slot="shared ? sharedSlot : null"
         :controlled-paused="sharedPaused"
         :controlled-view="shared ? sharedView : null"
+        :entry-actions="!shared || index === viewList.length - 1"
+        :sequence-controls="!shared || index === 0"
         @view-change="sharedView = $event"
         @step="stepShared"
         @toggle-paused="toggleSharedPaused"
@@ -286,9 +300,12 @@ export default defineComponent({
       >
         <template
           v-if="$scopedSlots.actions"
-          #actions
+          #actions="scope"
         >
-          <slot name="actions" />
+          <slot
+            name="actions"
+            v-bind="scope"
+          />
         </template>
       </ReviewChip>
     </div>
@@ -331,6 +348,14 @@ export default defineComponent({
   &.cell-editing {
     border-color: #90caf9;
   }
+
+  &.cell-positive {
+    border-color: #4caf50;
+  }
+
+  &.cell-negative {
+    border-color: #f44336;
+  }
 }
 
 .cell-views {
@@ -340,6 +365,11 @@ export default defineComponent({
   min-width: 0;
   gap: 2px;
   background: #101010;
+
+  // The entry-wide actions sit on one chip; reveal them from any camera.
+  &:hover ::v-deep .cell-actions {
+    opacity: 1;
+  }
 }
 
 .cell-footer {

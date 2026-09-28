@@ -8,7 +8,8 @@ import type { ReviewFrameRef, ReviewPolygon } from 'dive-common/review/types';
 
 /** Geometry of one frame while it is being edited, in image coordinates. */
 interface GeometryDraft {
-  bounds: RectBounds;
+  /** Null for entries without a box (whole-frame results). */
+  bounds: RectBounds | null;
   polygons: ReviewPolygon[];
   head: [number, number] | null;
   tail: [number, number] | null;
@@ -26,7 +27,7 @@ export interface ReviewChipGeometryEdit {
   /** Sequence slot edited (0 is the primary frame). */
   slot: number;
   frame: number;
-  bounds: RectBounds;
+  bounds: RectBounds | null;
   polygons: ReviewPolygon[];
   head: [number, number] | null;
   tail: [number, number] | null;
@@ -156,6 +157,20 @@ export default defineComponent({
     controlledView: {
       type: Object as PropType<ChipView | null>,
       default: null,
+    },
+    /**
+     * Show the controls that act on the whole entry (accept, delete, open,
+     * the actions slot); the cell turns them off on all but one chip of a
+     * multi-camera entry.
+     */
+    entryActions: {
+      type: Boolean,
+      default: true,
+    },
+    /** Show the frame stepping controls; off on all but one chip of an entry. */
+    sequenceControls: {
+      type: Boolean,
+      default: true,
     },
     /** Draw polygons and head/tail points over the chip. */
     showGeometry: {
@@ -339,7 +354,7 @@ export default defineComponent({
 
     const boxRect = computed(() => {
       const g = shownGeometry.value;
-      if (!g) return null;
+      if (!g || !g.bounds) return null;
       const [x1, y1, x2, y2] = g.bounds;
       const a = chip([Math.min(x1, x2), Math.min(y1, y2)]);
       const b = chip([Math.max(x1, x2), Math.max(y1, y2)]);
@@ -399,7 +414,7 @@ export default defineComponent({
 
     function cloneDraft(g: GeometryDraft): GeometryDraft {
       return {
-        bounds: [...g.bounds] as RectBounds,
+        bounds: g.bounds ? [...g.bounds] as RectBounds : null,
         polygons: g.polygons.map((polygon) => polygon.map((p) => [p[0], p[1]] as [number, number])),
         head: g.head ? [g.head[0], g.head[1]] : null,
         tail: g.tail ? [g.tail[0], g.tail[1]] : null,
@@ -409,7 +424,7 @@ export default defineComponent({
     /** Turn the interpolated position into a real box the user can then adjust. */
     function addBox() {
       const frame = currentFrame.value;
-      if (!props.editable || !frame || !frame.missing) return;
+      if (!props.editable || !frame || !frame.missing || !frame.bounds) return;
       emit('add-box', { frame: frame.frame, bounds: frame.bounds });
     }
 
@@ -605,7 +620,7 @@ export default defineComponent({
       const dy = current[1] - drag.startImage[1];
       const { target, startDraft } = drag;
       if (target.kind === 'box') {
-        draft.value.bounds = moveBox(target.handle, startDraft.bounds, dx, dy);
+        if (startDraft.bounds) draft.value.bounds = moveBox(target.handle, startDraft.bounds, dx, dy);
       } else if (target.kind === 'vertex') {
         const origin = startDraft.polygons[target.polygon]?.[target.vertex];
         if (origin) {
@@ -870,7 +885,7 @@ export default defineComponent({
       >no box</span>
     </div>
     <div
-      v-if="hasSequence && !editing"
+      v-if="hasSequence && !editing && sequenceControls"
       class="cell-badge cell-sequence cell-sequence-controls text-caption"
       :class="{ 'cell-sequence-bottom': label }"
       @click.stop
@@ -910,7 +925,7 @@ export default defineComponent({
       </button>
     </div>
     <div
-      v-else-if="frameCount > 1 && !editing"
+      v-else-if="frameCount > 1 && !editing && sequenceControls"
       class="cell-badge cell-sequence text-caption"
       title="Loading track frames"
     >
@@ -963,12 +978,17 @@ export default defineComponent({
       </v-btn>
     </div>
     <div
-      v-if="!editing"
+      v-if="!editing && (entryActions || !$scopedSlots.actions)"
       class="cell-actions"
       @click.stop
     >
-      <slot name="actions">
+      <slot
+        name="actions"
+        :begin-edit="beginEdit"
+        :frame="currentFrame ? currentFrame.frame : undefined"
+      >
         <v-tooltip
+          v-if="entryActions"
           bottom
           open-delay="600"
         >
@@ -991,7 +1011,7 @@ export default defineComponent({
           <span>Mark this type as correct (confidence 1)</span>
         </v-tooltip>
         <v-tooltip
-          v-if="deletable"
+          v-if="entryActions && deletable"
           bottom
           open-delay="600"
         >
@@ -1054,6 +1074,7 @@ export default defineComponent({
           <span>Edit this frame's box and geometry (or right click)</span>
         </v-tooltip>
         <v-tooltip
+          v-if="entryActions"
           bottom
           open-delay="600"
         >
@@ -1080,6 +1101,8 @@ export default defineComponent({
 <style lang="scss" scoped>
 .cell-image-wrap {
   position: relative;
+  // A zoomed image must not spill over the neighbouring camera's chip.
+  overflow: hidden;
   flex: 1 1 auto;
   min-height: 32px;
   background: #101010;

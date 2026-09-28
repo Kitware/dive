@@ -31,6 +31,7 @@ import type TrackFilterControls from 'vue-media-annotator/TrackFilterControls';
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
+import type { SegmentationPolygon } from 'dive-common/apispec';
 import GroupFilterControls from 'vue-media-annotator/GroupFilterControls';
 import CameraStore from 'vue-media-annotator/CameraStore';
 import { SortedAnnotation } from 'vue-media-annotator/BaseAnnotationStore';
@@ -39,7 +40,9 @@ import SegmentationPointClick, {
   SegmentationPredictionResult,
   MultiFrameSegmentationResult,
 } from 'dive-common/recipes/segmentationpointclick';
-import { HeadPointKey, TailPointKey } from 'dive-common/recipes/headtail';
+import {
+  componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
+} from 'dive-common/recipes/segmentationPolygons';
 import { linePointEdit } from './stereo/keypointTransfer';
 
 type SupportedFeature = GeoJSON.Feature<GeoJSON.Point | GeoJSON.Polygon | GeoJSON.LineString>;
@@ -75,6 +78,17 @@ interface SetAnnotationStateArgs {
   key?: string;
   recipeName?: string;
 }
+
+export type NewAnnotationGeometryParams = {
+  camera: string;
+  trackId: number;
+  frameNum: number;
+} & (
+  | { source: 'box'; bounds: [number, number, number, number] }
+  | { source: 'line'; line: [number, number][] }
+  | { source: 'points'; points: [number, number][] }
+  | { source: 'mask'; polygons: SegmentationPolygon[] }
+);
 
 export type StereoAnnotationCompleteParams =
   | { type: 'point'; camera: string; trackId: number; frameNum: number; point: [number, number]; key: string; insert?: boolean; }
@@ -114,8 +128,11 @@ export default function useModeManager({
   recipes,
   alignedView,
   isStereoscopicDataset,
+  lassoModeActive,
+  lassoDrawing,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
+  onNewAnnotationGeometry,
   onStereoSegmentationFinalize,
 }: {
     cameraStore: CameraStore;
@@ -132,8 +149,16 @@ export default function useModeManager({
     alignedView?: AlignedViewStore;
     /** When set, interactive stereo only runs on stereoscopic datasets. */
     isStereoscopicDataset?: Ref<boolean>;
+    /** Alt-held lasso mode — keep in sync with EditorMenu tool disabling. */
+    lassoModeActive?: Readonly<Ref<boolean>>;
+    lassoDrawing?: Readonly<Ref<boolean>>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
+    /**
+     * A detection just got its first shape on this frame (a newly drawn box,
+     * or a newly completed line). Fires per frame, not only for a brand-new track.
+     */
+    onNewAnnotationGeometry?: (params: NewAnnotationGeometryParams) => void;
     onStereoSegmentationFinalize?: (params?: StereoSegmentationFinalizeParams) => void;
 }) {
   let creating = false;
@@ -225,28 +250,42 @@ export default function useModeManager({
    */
   function _removeIfEmpty(checkTrackId: AnnotationId): boolean {
     const track = cameraStore.getPossibleTrack(checkTrackId, selectedCamera.value);
-    if (track && track.begin === track.end) {
-      const features = track.getFeature(track.begin);
-      if (!features.filter((item) => item !== null).length) {
-        const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
-        if (trackStore) {
-          trackStore.remove(checkTrackId);
-          return true;
-        }
+    // featureIndex is empty for never-drawn detections and for tracks whose
+    // last keyframe was deleted (begin/end become Infinity,0 — begin === end
+    // is false there, so a bounds-only check would leave ghosts in the list).
+    if (track && track.featureIndex.length === 0) {
+      const trackStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
+      if (trackStore) {
+        trackStore.remove(checkTrackId);
+        return true;
       }
     }
     return false;
   }
 
+  // The right mousedown that selects a detection for point segmentation is
+  // followed on Windows by its contextmenu only after mouseup, once edit mode
+  // has begun. That contextmenu must not finalize the fresh edit, while a
+  // later right-click with no points placed still does, so remember which
+  // press entered edit mode.
+  let mouseDownCount = 0;
+  let editEnteredOnMouseDown = -1;
+  const countMouseDown = () => { mouseDownCount += 1; };
+  if (typeof document !== 'undefined') document.addEventListener('mousedown', countMouseDown, true);
+
   function selectTrack(trackId: AnnotationId | null, edit = false) {
     // Reset segmentation recipe state when switching to a different track
-    // so stale points/mask from the previous detection don't interfere
+    // so stale points/mask from the previous detection don't interfere. This
+    // is not a user reset (see handleConfirmRecipe).
     if (trackId !== selectedTrackId.value) {
       recipes.forEach((r) => {
         if (r instanceof SegmentationPointClick && r.active.value) {
-          r.resetPoints();
+          r.resetPoints(false);
         }
       });
+    }
+    if (trackId !== null && edit && (trackId !== selectedTrackId.value || !editingTrack.value)) {
+      editEnteredOnMouseDown = mouseDownCount;
     }
     // Clean up empty tracks when leaving edit mode (e.g., created a detection
     // but never drew an annotation, then clicked away or right-clicked to deselect)
@@ -649,8 +688,7 @@ export default function useModeManager({
         // and the mirrored track itself when that leaves it empty.
         if (targetTrack && targetTrack.features[targetFrame]?.keyframe) {
           targetTrack.deleteFeature(targetFrame);
-          if (targetTrack.begin === targetTrack.end
-            && !targetTrack.getFeature(targetTrack.begin).some((item) => item !== null)) {
+          if (targetTrack.featureIndex.length === 0) {
             trackStore.remove(trackId);
           }
         }
@@ -812,6 +850,21 @@ export default function useModeManager({
         const completedTrackId = selectedTrackId.value as number;
 
         newTrackSettingsAfterLogic(track);
+
+        // First box on this frame (no prior feature here). Do not require
+        // `creating`: that flag clears after the first shape, but Track-mode
+        // edits still draw new boxes on later frames of the same track.
+        // Interpolated frames have a non-null `real`, so resizing them does
+        // not re-trigger.
+        if (onNewAnnotationGeometry && real === null) {
+          onNewAnnotationGeometry({
+            camera: selectedCamera.value,
+            trackId: completedTrackId,
+            frameNum,
+            source: 'box',
+            bounds: bounds as [number, number, number, number],
+          });
+        }
 
         // Stereo: emit box annotation complete
         if (onStereoAnnotationComplete && stereoInteractiveActive()) {
@@ -984,9 +1037,11 @@ export default function useModeManager({
 
           mirrorFeatureToAlignedCameras(track.id, frameNum);
 
-          // Emit persisted named points, including a head placed before its tail.
-          // Completed lines use their existing whole-line transfer event instead.
+          // Emit persisted named points. Completed lines use their existing
+          // whole-line transfer event instead, and the first end of a line still
+          // being drawn waits for it: mapping it mid-draw interrupts the draw.
           if (onStereoAnnotationComplete && stereoInteractiveActive()
+              && update.done.every((v) => v !== false)
               && !(data.geometry.type === 'LineString' && data.geometry.coordinates.length >= 2)) {
             Object.entries(update.geoJsonFeatureRecord).forEach(([pointKey, geoms]) => {
               geoms.forEach((geom) => {
@@ -1011,8 +1066,25 @@ export default function useModeManager({
             // Capture track ID before newTrackSettingsAfterLogic which may
             // change selectedTrackId in continuous detection mode
             const completedTrackId = selectedTrackId.value;
+            // A line is "new" until it has been completed once on this frame.
+            // In-progress draws store a head/tail Point first; edits already
+            // have a 2+ point LineString. Do not require `creating` so a later
+            // frame of the same track still auto-populates.
+            const isNewCompletedLine = data.geometry.type === 'LineString'
+              && data.geometry.coordinates.length >= 2
+              && (!previousCoordinates || previousCoordinates.length < 2);
 
             newTrackSettingsAfterLogic(track);
+
+            if (onNewAnnotationGeometry && isNewCompletedLine && completedTrackId !== null) {
+              onNewAnnotationGeometry({
+                camera: selectedCamera.value,
+                trackId: completedTrackId as number,
+                frameNum,
+                source: 'line',
+                line: data.geometry.coordinates as [number, number][],
+              });
+            }
 
             // Stereo: emit line or polygon annotation complete
             if (onStereoAnnotationComplete && stereoInteractiveActive()
@@ -1282,6 +1354,19 @@ export default function useModeManager({
     }
   }
 
+  /**
+   * Entering polygon editing without naming a polygon: land on one the
+   * detection already has (masks are often keyed, e.g. SegmentationPolygon)
+   * so its vertices are editable at once rather than starting a new polygon.
+   */
+  function existingPolygonKey(): string {
+    if (selectedTrackId.value === null) return '';
+    const track = cameraStore.getPossibleTrack(selectedTrackId.value, selectedCamera.value);
+    const keys = track?.getPolygonFeatures(selectedCameraFrame()).map((p) => p.key) ?? [];
+    if (!keys.length || keys.includes('')) return '';
+    return keys.includes(selectedKey.value) ? selectedKey.value : keys[0];
+  }
+
   function handleSetAnnotationState({
     visible, editing, key, recipeName,
   }: SetAnnotationStateArgs) {
@@ -1289,8 +1374,22 @@ export default function useModeManager({
       annotationModes.visible = visible;
     }
     if (editing) {
+      // Match EditorMenu toolsDisabled so async recipe activate (e.g. seg init)
+      // cannot create/edit while the toolbar is blocked.
+      if (readonlyState.value || multiSelectActive.value
+          || editingGroupId.value !== null || linkingState.value
+          || lassoModeActive?.value || lassoDrawing?.value) {
+        // completeActivation may already have set recipe.active before emitting.
+        if (recipeName) {
+          recipes.find((r) => r.name === recipeName)?.deactivate();
+        }
+        return;
+      }
       annotationModes.editing = editing;
-      _selectKey(key);
+      if (selectedTrackId.value === null) {
+        handleAddTrackOrDetection();
+      }
+      _selectKey(editing === 'Polygon' && !key ? existingPolygonKey() : key);
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
         if (recipeName !== r.name) {
@@ -1305,12 +1404,10 @@ export default function useModeManager({
    * Called when right-click is used in Point mode to lock the annotation.
    */
   function handleConfirmRecipe() {
-    // First check if any active segmentation recipe has a pending prediction
-    // or was explicitly reset by the user (Escape key).
-    // If neither, there's nothing to confirm - this happens when the contextmenu
-    // event from a right-click that entered Point edit mode triggers
-    // confirm-annotation before any points are placed. In that case, don't
-    // confirm/deactivate recipes or deselect - let the edit mode continue.
+    // A pending prediction is committed; with nothing placed (or after an
+    // Escape reset) the right-click just finalizes the detection, leaving
+    // edit mode. Neither applies to the contextmenu of the very press that
+    // entered edit mode, which Windows delivers after mouseup.
     let hadPendingPredictionOrReset = false;
     recipes.forEach((r) => {
       if (r.active.value && r.confirm && r instanceof SegmentationPointClick) {
@@ -1320,7 +1417,10 @@ export default function useModeManager({
       }
     });
     if (!hadPendingPredictionOrReset) {
-      return;
+      if (selectedTrackId.value === null || !editingTrack.value
+          || mouseDownCount === editEnteredOnMouseDown) {
+        return;
+      }
     }
     const activeSegRecipes: SegmentationPointClick[] = [];
     recipes.forEach((r) => {
@@ -1334,10 +1434,17 @@ export default function useModeManager({
     // Clear saved state - the confirmed polygons are now permanent
     preSegmentationFeatures.clear();
     onStereoSegmentationFinalize?.();
-    // Exit editing mode and deselect to unhighlight the track
-    selectTrack(null, false);
-    // Re-activate segmentation recipe so it's ready for the next detection
+    // Re-arm the recipe for the next detection first: activating it
+    // re-selects the current track in edit mode (handleSetAnnotationState).
     activeSegRecipes.forEach((r) => r.activate());
+    // Then leave edit mode with the detection still selected, as the other
+    // annotation types do; one with nothing drawn is removed instead.
+    const confirmedId = selectedTrackId.value;
+    if (confirmedId !== null && _removeIfEmpty(confirmedId)) {
+      selectTrack(null, false);
+    } else {
+      selectTrack(confirmedId, false);
+    }
   }
 
   /**
@@ -1481,10 +1588,17 @@ export default function useModeManager({
     existingPolygonKeys?: Set<string>;
   }>();
 
-  function removeStereoLineGeometry(track: Track, frameNum: number) {
-    track.removeFeatureGeometry(frameNum, { type: 'LineString', key: '' });
-    track.removeFeatureGeometry(frameNum, { type: 'Point', key: HeadPointKey });
-    track.removeFeatureGeometry(frameNum, { type: 'Point', key: TailPointKey });
+  /**
+   * A mask is the detection's whole shape on that frame, so polygons from
+   * elsewhere (a text query, an import, a drawn one) go with it; a reset
+   * restores them.
+   */
+  function dropOtherPolygons(track: Track, frameNum: number) {
+    track.getPolygonFeatures(frameNum).forEach((existing) => {
+      if (existing.key !== SegmentationPolygonKey) {
+        track.removeFeatureGeometry(frameNum, { key: existing.key, type: 'Polygon' });
+      }
+    });
   }
 
   /**
@@ -1508,6 +1622,51 @@ export default function useModeManager({
   }
 
   /**
+   * A point-segmented mask is the first shape of a brand-new detection, so it
+   * gets the same auto-populate pass (head/tail from the mask) as a drawn box,
+   * again after every click that reshapes it. Refining an existing detection's
+   * mask does not.
+   */
+  function emitMaskGeometry(trackId: number, frameNum: number, polygons: SegmentationPolygon[]) {
+    if (!onNewAnnotationGeometry || polygons.length === 0
+      || preSegmentationFeatures.get(frameNum)?.hadFeature === true) return;
+    onNewAnnotationGeometry({
+      camera: selectedCamera.value,
+      trackId,
+      frameNum,
+      source: 'mask',
+      polygons,
+    });
+  }
+
+  /**
+   * Store a mask's components as keyed polygons on the detection, dropping the
+   * components of the previous prediction that this one no longer has.
+   */
+  function applySegmentationPolygons(
+    track: Track,
+    frameNum: number,
+    components: ReturnType<typeof segmentationComponents>,
+    bounds: RectBounds | null | undefined,
+  ) {
+    const polygons = segmentationPolygonFeatures(components, SegmentationPolygonKey);
+    const keys = new Set(polygons.map((polygon) => polygon.properties?.key));
+    track.getPolygonFeatures(frameNum).forEach((existing) => {
+      if (isSegmentationPolygonKey(existing.key, SegmentationPolygonKey) && !keys.has(existing.key)) {
+        track.removeFeatureGeometry(frameNum, { key: existing.key, type: 'Polygon' });
+      }
+    });
+    const { interpolate } = track.canInterpolate(frameNum);
+    track.setFeature({
+      frame: frameNum,
+      flick: 0,
+      bounds: bounds || componentsBounds(components),
+      keyframe: true,
+      interpolate,
+    }, polygons as GeoJSON.Feature<TrackSupportedFeature>[]);
+  }
+
+  /**
    * Handle segmentation prediction ready - update visual display with pending polygon/mask.
    * This is called when the segmentation model returns a prediction.
    * During editing, we show the polygon preview but don't commit it yet.
@@ -1523,35 +1682,11 @@ export default function useModeManager({
     }
 
     // Create polygon geometry from prediction result
-    if (result.polygon && result.polygon.length >= 3) {
-      const bounds = result.bounds || [
-        Math.min(...result.polygon.map((p) => p[0])),
-        Math.min(...result.polygon.map((p) => p[1])),
-        Math.max(...result.polygon.map((p) => p[0])),
-        Math.max(...result.polygon.map((p) => p[1])),
-      ] as [number, number, number, number];
-
-      // Close polygon if not already closed
-      const closedPolygon = [...result.polygon];
-      const first = closedPolygon[0];
-      const last = closedPolygon[closedPolygon.length - 1];
-      if (first[0] !== last[0] || first[1] !== last[1]) {
-        closedPolygon.push([...first] as [number, number]);
-      }
-
-      const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-        type: 'Feature',
-        geometry: {
-          type: 'Polygon',
-          coordinates: [closedPolygon],
-        },
-        properties: { key: SegmentationPolygonKey },
-      }];
-
+    const components = segmentationComponents(result);
+    if (components.length > 0) {
       // Update the track's feature with the preview polygon
       // Use frame number from the result if provided, otherwise current frame
       const targetFrame = result.frameNum ?? selectedCameraFrame();
-      const { interpolate } = track.canInterpolate(targetFrame);
 
       // Save original feature state before first prediction modifies the track
       if (!preSegmentationFeatures.has(targetFrame)) {
@@ -1586,17 +1721,14 @@ export default function useModeManager({
         }
       }
 
-      track.setFeature({
-        frame: targetFrame,
-        flick: 0,
-        bounds,
-        keyframe: true,
-        interpolate,
-      }, polygonGeometry);
+      dropOtherPolygons(track, targetFrame);
+      applySegmentationPolygons(track, targetFrame, components, result.bounds);
 
       mirrorFeatureToAlignedCameras(track.id, targetFrame);
 
       _nudgeEditingCanary();
+
+      if (result.controlPoints) emitMaskGeometry(track.id, targetFrame, components);
 
       // Interactive stereo: as soon as the left polygon is predicted, generate
       // the other-camera polygon + head/tail lines + measurement automatically,
@@ -1638,7 +1770,9 @@ export default function useModeManager({
    * This is called when the user confirms the segmentation (right-click or Enter).
    */
   function handleSegmentationPredictionConfirmed(result: SegmentationPredictionResult) {
-    handleSegmentationPredictionReady(result);
+    // Each click already ran the stereo copy and auto-populate for this mask;
+    // confirming only commits it.
+    handleSegmentationPredictionReady({ ...result, controlPoints: undefined });
   }
 
   /** Click-path variant: a fresh point click that should honor continuous mode. */
@@ -1662,40 +1796,10 @@ export default function useModeManager({
 
     // Apply each frame's prediction to the track
     result.frames.forEach((frameResult, frameNum) => {
-      if (frameResult.polygon && frameResult.polygon.length >= 3) {
-        const bounds = frameResult.bounds || [
-          Math.min(...frameResult.polygon.map((p) => p[0])),
-          Math.min(...frameResult.polygon.map((p) => p[1])),
-          Math.max(...frameResult.polygon.map((p) => p[0])),
-          Math.max(...frameResult.polygon.map((p) => p[1])),
-        ] as [number, number, number, number];
-
-        // Close polygon if not already closed
-        const closedPolygon = [...frameResult.polygon];
-        const first = closedPolygon[0];
-        const last = closedPolygon[closedPolygon.length - 1];
-        if (first[0] !== last[0] || first[1] !== last[1]) {
-          closedPolygon.push([...first] as [number, number]);
-        }
-
-        const polygonGeometry: GeoJSON.Feature<TrackSupportedFeature>[] = [{
-          type: 'Feature',
-          geometry: {
-            type: 'Polygon',
-            coordinates: [closedPolygon],
-          },
-          properties: { key: SegmentationPolygonKey },
-        }];
-
-        const { interpolate } = track.canInterpolate(frameNum);
-
-        track.setFeature({
-          frame: frameNum,
-          flick: 0,
-          bounds,
-          keyframe: true,
-          interpolate,
-        }, polygonGeometry);
+      const components = segmentationComponents(frameResult);
+      if (components.length > 0) {
+        dropOtherPolygons(track, frameNum);
+        applySegmentationPolygons(track, frameNum, components, frameResult.bounds);
 
         mirrorFeatureToAlignedCameras(track.id, frameNum);
 
@@ -1727,9 +1831,9 @@ export default function useModeManager({
   }
 
   /**
-   * Handle segmentation reset - restore detection to its pre-segmentation state.
-   * Called when the user presses the Reset button, which triggers resetPoints()
-   * on the recipe, which emits 'prediction-reset' for each frame.
+   * Restore one frame to its pre-segmentation snapshot (or delete the feature
+   * when the session created it). Full delete+setFeature avoids setFeature
+   * merge leftovers (head/tail, extra polygons) from looking "not reset".
    */
   function handleSegmentationReset(data: { frameNum: number }) {
     if (selectedTrackId.value === null) return;
@@ -1742,25 +1846,10 @@ export default function useModeManager({
     if (!saved.hadFeature) {
       track.deleteFeature(data.frameNum);
     } else {
-      // Remove polygons that segmentation added (any key not present before),
-      // plus the default-key polygon (segmentation overwrites it). Original
-      // polygons under pre-existing keys are then overwritten back to their
-      // saved geometry by setFeature below.
-      const currentPolygons = track.getPolygonFeatures(data.frameNum);
-      const preExistingKeys = saved.existingPolygonKeys || new Set<string>();
-      currentPolygons.forEach((pf) => {
-        if (!preExistingKeys.has(pf.key)) {
-          track.removeFeatureGeometry(data.frameNum, { key: pf.key, type: 'Polygon' });
-        }
-      });
-      track.removeFeatureGeometry(data.frameNum, { key: '', type: 'Polygon' });
-      removeStereoLineGeometry(track, data.frameNum);
-      // Restore all original polygon geometry (including segmentation-keyed
-      // polygons that already existed before this edit), not just the default key.
-      const origFeatures = saved.geometryFeatures?.filter(
-        (f) => f.geometry.type === 'Polygon',
-      ) || [];
-      // Restore original bounds and geometry
+      track.deleteFeature(data.frameNum);
+      const origFeatures = (saved.geometryFeatures
+        ? JSON.parse(JSON.stringify(saved.geometryFeatures))
+        : []) as GeoJSON.Feature<TrackSupportedFeature>[];
       track.setFeature({
         frame: data.frameNum,
         flick: 0,
@@ -1771,9 +1860,7 @@ export default function useModeManager({
         attributes: saved.attributes
           ? JSON.parse(JSON.stringify(saved.attributes))
           : undefined,
-      }, origFeatures.length > 0
-        ? origFeatures as GeoJSON.Feature<TrackSupportedFeature>[]
-        : []);
+      }, origFeatures);
     }
 
     mirrorFeatureToAlignedCameras(track.id, data.frameNum);
@@ -1788,6 +1875,17 @@ export default function useModeManager({
 
     preSegmentationFeatures.delete(data.frameNum);
     _nudgeEditingCanary();
+  }
+
+  /**
+   * Clear every in-progress segmentation frame for the current detection.
+   * Recipe resetPoints emits this so Reset always drops the pending mask(s),
+   * not only frames the recipe still has prompt points for.
+   */
+  function handleSegmentationResetSession() {
+    [...preSegmentationFeatures.keys()].forEach((frameNum) => {
+      handleSegmentationReset({ frameNum });
+    });
   }
 
   /**
@@ -1829,6 +1927,19 @@ export default function useModeManager({
     }
   }
 
+  /** Drop tool previews without replaying segmentation reset over restored data. */
+  function prepareAnnotationUndo() {
+    preSegmentationFeatures.clear();
+    if (selectedTrackId.value !== null) _removeIfEmpty(selectedTrackId.value);
+    selectedTrackId.value = null;
+    recipes.forEach((recipe) => {
+      if (recipe instanceof SegmentationPointClick) recipe.resetPoints();
+    });
+    handleCancelCreation();
+    handleEscapeMode();
+    onStereoSegmentationFinalize?.();
+  }
+
   /**
    * Register a callback to finalize in-progress creation shapes.
    * Called by LayerManager to connect the edit layer's finalize method.
@@ -1849,11 +1960,13 @@ export default function useModeManager({
       r.bus.$on('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
       r.bus.$on('prediction-error', handleSegmentationPredictionError);
       r.bus.$on('prediction-reset', handleSegmentationReset);
+      r.bus.$on('prediction-reset-session', handleSegmentationResetSession);
     }
   });
 
   /* Unsubscribe before unmount */
   onBeforeUnmount(() => {
+    if (typeof document !== 'undefined') document.removeEventListener('mousedown', countMouseDown, true);
     recipes.forEach((r) => r.bus.$off('activate', handleSetAnnotationState));
     recipes.forEach((r) => {
       if (r instanceof SegmentationPointClick) {
@@ -1863,6 +1976,7 @@ export default function useModeManager({
         r.bus.$off('prediction-confirmed-multi', handleSegmentationConfirmedMulti);
         r.bus.$off('prediction-error', handleSegmentationPredictionError);
         r.bus.$off('prediction-reset', handleSegmentationReset);
+        r.bus.$off('prediction-reset-session', handleSegmentationResetSession);
       }
     });
   });
@@ -1895,6 +2009,7 @@ export default function useModeManager({
       toggleMerge: handleToggleMerge,
       trackAdd: handleAddTrackOrDetection,
       trackAbort: handleEscapeMode,
+      prepareAnnotationUndo,
       trackEdit: handleTrackEdit,
       trackSeek: handleTrackClick,
       trackSelect: handleSelectTrack,

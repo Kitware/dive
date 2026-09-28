@@ -11,6 +11,7 @@ export const desktopDestinations: DesktopDestination[] = [
   { name: 'pipeline', label: 'Pipelines', icon: 'mdi-pipe' },
   { name: 'jobs', label: 'Jobs', icon: 'mdi-format-list-checks' },
   { name: 'training', label: 'Training', icon: 'mdi-brain' },
+  { name: 'models', label: 'Models', icon: 'mdi-folder-zip' },
   { name: 'query', label: 'Query', icon: 'mdi-image-search-outline' },
   { name: 'review', label: 'Review', icon: 'mdi-view-grid-outline' },
   { name: 'scoring', label: 'Scoring', icon: 'mdi-chart-box-outline' },

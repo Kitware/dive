@@ -57,4 +57,15 @@ describe('desktop backend routes', () => {
     expect(res.status).toBe(200);
     expect(mocks.loadConfig).toHaveBeenLastCalledWith(expect.anything(), 'ds1/left', expect.any(Function));
   });
+
+  it('exposes video-info for probing exemplar files', async () => {
+    const { getVideoInfo } = await import('./native/frameExtraction');
+    vi.mocked(getVideoInfo).mockResolvedValue({
+      fps: 30, duration: 1, width: 640, height: 480, frameCount: 30,
+    });
+    const res = await fetch(`${baseUrl}/video-info?path=${encodeURIComponent('/tmp/clip.mp4')}`);
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ fps: 30, width: 640, height: 480 });
+    expect(getVideoInfo).toHaveBeenCalledWith('/tmp/clip.mp4');
+  });
 });

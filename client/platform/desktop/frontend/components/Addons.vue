@@ -65,7 +65,7 @@ async function install(addon: ViameAddon, fromFile = false) {
     if (catalog.value) catalog.value.job = null;
     showProgress.value = true;
     const job = await window.diveDesktop.invoke<AddonJob>('desktop:addons-install', {
-      name: addon.name, force: addon.status === 'installed', archive,
+      name: addon.name, archive,
     });
     if (catalog.value) catalog.value.job = job;
     await refresh(true);
@@ -123,8 +123,12 @@ onBeforeUnmount(() => {
       </v-alert>
       <template v-else>
         <p v-if="catalog" class="text-caption">
-          Target Location: {{ catalog.installDir }}
+          Target Location: {{ catalog.installDir }}<br>
+          Catalog: {{ catalog.catalogSource === 'online' ? 'latest from GitHub' : 'bundled with this VIAME installation' }}
         </p>
+        <v-alert v-if="catalog && catalog.catalogNotice" type="info">
+          {{ catalog.catalogNotice }}
+        </v-alert>
         <v-alert v-if="error && !showProgress" type="error">
           {{ error }} <router-link :to="{ name: 'settings' }">
             Open Settings

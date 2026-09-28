@@ -196,3 +196,62 @@ def test_extract_pipe_metadata_absent_metadata_file_key(tmp_path: Path):
 
     # A pipe that does not opt in leaves the key unset, so no file is injected.
     assert 'metadataFileKey' not in extract_pipe_metadata(pipe)
+
+
+def test_extract_pipe_metadata_include_override_default(tmp_path: Path):
+    """Wrapper assignment without DIVE_PARAM updates an included param default."""
+    _write(
+        tmp_path,
+        'base.pipe',
+        [
+            'process foo',
+            '  :: some_filter',
+            '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+        ],
+    )
+    wrapper = _write(
+        tmp_path,
+        'wrapper.pipe',
+        [
+            'include base.pipe',
+            'process foo',
+            '  :threshold = 0.9',
+        ],
+    )
+
+    params = {p['key']: p for p in extract_pipe_metadata(wrapper)['diveParams']}
+
+    assert params['foo:threshold']['default'] == '0.9'
+    assert params['foo:threshold']['label'] == 'Threshold'
+    assert params['foo:threshold']['type'] == 'float'
+
+
+def test_extract_pipe_metadata_bare_override_does_not_create_param(tmp_path: Path):
+    """A bare assignment alone is not enough to expose a DIVE_PARAM in the UI."""
+    pipe = _write(
+        tmp_path,
+        'detector_plain.pipe',
+        [
+            'process foo',
+            '  :threshold = 0.9',
+        ],
+    )
+
+    assert extract_pipe_metadata(pipe)['diveParams'] == []
+
+
+def test_extract_pipe_metadata_same_file_override_default(tmp_path: Path):
+    """Later bare assignment in the same file updates the declared default."""
+    pipe = _write(
+        tmp_path,
+        'detector_thresh.pipe',
+        [
+            'process foo',
+            '  :threshold = 0.5  # DIVE_PARAM ["Threshold", float]',
+            '  :threshold = 0.2',
+        ],
+    )
+
+    params = extract_pipe_metadata(pipe)['diveParams']
+    assert len(params) == 1
+    assert params[0]['default'] == '0.2'

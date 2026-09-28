@@ -79,6 +79,18 @@ export function chipSizeFor(cellPixels: number): number {
   return CHIP_SIZE_BUCKETS.find((size) => size >= wanted) ?? CHIP_SIZE_BUCKETS[CHIP_SIZE_BUCKETS.length - 1];
 }
 
+/** Crop region covering a whole frame at the requested aspect ratio, centred. */
+export function frameRegion(width: number, height: number, aspect = 1): ChipRegion {
+  const ratio = aspect > 0 && Number.isFinite(aspect) ? aspect : 1;
+  const w = Math.max(1, width);
+  const h = Math.max(1, height);
+  const regionWidth = w / h >= ratio ? w : h * ratio;
+  const regionHeight = w / h >= ratio ? w / ratio : h;
+  return {
+    x: (w - regionWidth) / 2, y: (h - regionHeight) / 2, width: regionWidth, height: regionHeight,
+  };
+}
+
 /**
  * Scale from frame pixels to chip pixels: the crop's longer side fills the
  * requested size. Small crops are upscaled so the chip is rendered once at
@@ -90,8 +102,15 @@ export function chipScale(region: ChipRegion, size: number): number {
   return Math.max(16, size) / longest;
 }
 
-export function renderChip(frame: DecodedFrame, bounds: RectBounds, options: ChipRenderOptions): RenderedChip {
-  const region = chipRegion(bounds, options.padding, options.aspect);
+/** Render a box crop, or the whole frame when no box is given. */
+export function renderChip(
+  frame: DecodedFrame,
+  bounds: RectBounds | null,
+  options: ChipRenderOptions,
+): RenderedChip {
+  const region = bounds
+    ? chipRegion(bounds, options.padding, options.aspect)
+    : frameRegion(frame.width, frame.height, options.aspect);
   const scale = chipScale(region, options.size);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(region.width * scale));
@@ -122,7 +141,7 @@ export function renderChip(frame: DecodedFrame, bounds: RectBounds, options: Chi
       sh * scale,
     );
   }
-  if (options.outline) {
+  if (options.outline && bounds) {
     const [x1, y1, x2, y2] = bounds;
     ctx.strokeStyle = options.outline;
     ctx.lineWidth = Math.max(1, Math.round(Math.max(canvas.width, canvas.height) / 160));

@@ -58,14 +58,25 @@ def parse_pipe_type_and_name(pipe_stem: str) -> tuple[str, str]:
     return pipe_type, ' '.join(parts[1:])
 
 
-def _parse_dive_param_lines(lines: List[str]) -> "tuple[List[DiveParam], List[str]]":
-    """Parse DIVE_PARAM declarations and include directives from pipe lines."""
+def _parse_dive_param_lines(
+    lines: List[str],
+) -> "tuple[List[DiveParam], List[str], Dict[str, str]]":
+    """Parse DIVE_PARAM declarations and include directives from pipe lines.
+
+    Every assignment is recorded in ``overrides`` so a wrapper pipe can change
+    the default of a param declared in an included file without re-emitting
+    the ``# DIVE_PARAM`` comment.
+    """
     params: List[DiveParam] = []
     includes: List[str] = []
+    overrides: Dict[str, str] = {}
     context_stack: List[str] = []
     for line_raw in lines:
         trimmed = line_raw.strip()
         if not trimmed:
+            continue
+        # Process type declarations (`:: filter_name`) are not assignments.
+        if trimmed.startswith('::'):
             continue
 
         include_match = re.match(r'^include\s+(\S+)', trimmed, re.IGNORECASE)
@@ -96,43 +107,44 @@ def _parse_dive_param_lines(lines: List[str]) -> "tuple[List[DiveParam], List[st
             context_stack = config_block_match.group(1).split(':')
             continue
 
-        dive_match = re.search(
-            r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE
-        )
-        if dive_match:
-            label, raw_args = dive_match.groups()
-            args = [arg.strip() for arg in raw_args.split(',')]
-            param_type = args[0]
-            rest_args = args[1:]
-            # `required` is a flag keyword — strip it from type_props,
-            # everything else stays positional for the type.
-            is_required = any(a.lower() == 'required' for a in rest_args)
-            pipeline_type_args = [a for a in rest_args if a.lower() != 'required']
-
-            # `config <key> = <value>` — absolute kwiver key, no
-            # process/block prefix. Used for global / cross-referenced
-            # settings.
-            config_match = re.match(r'^config\s+([\w:.-]+)\s*=\s*([^#]+)', trimmed, re.IGNORECASE)
-            # Otherwise a regular per-process/block parameter assignment.
-            param_line_match = (
-                re.match(
-                    r'^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)', trimmed, re.IGNORECASE
-                )
-                if not config_match
-                else None
+        # `config <key> = <value>` — absolute kwiver key, no
+        # process/block prefix. Used for global / cross-referenced
+        # settings.
+        config_match = re.match(r'^config\s+([\w:.-]+)\s*=\s*([^#]+)', trimmed, re.IGNORECASE)
+        # Otherwise a regular per-process/block parameter assignment.
+        param_line_match = (
+            re.match(
+                r'^(?:relativepath\s+)?(?::)?([\w:.-]+)\s*=?\s*([^#]+)', trimmed, re.IGNORECASE
             )
+            if not config_match
+            else None
+        )
 
-            full_key = None
-            default_val = None
-            if config_match:
-                full_key = config_match.group(1)
-                default_val = config_match.group(2).strip()
-            elif param_line_match:
-                local_key = param_line_match.group(1)
-                default_val = param_line_match.group(2).strip()
-                full_key = ":".join(context_stack + [local_key])
+        full_key = None
+        default_val = None
+        if config_match:
+            full_key = config_match.group(1)
+            default_val = config_match.group(2).strip()
+        elif param_line_match:
+            local_key = param_line_match.group(1)
+            default_val = param_line_match.group(2).strip()
+            full_key = ":".join(context_stack + [local_key])
 
-            if full_key is not None and default_val is not None:
+        if full_key is not None and default_val is not None:
+            overrides[full_key] = default_val
+            dive_match = re.search(
+                r'#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]', line_raw, re.IGNORECASE
+            )
+            if dive_match:
+                label, raw_args = dive_match.groups()
+                args = [arg.strip() for arg in raw_args.split(',')]
+                param_type = args[0]
+                rest_args = args[1:]
+                # `required` is a flag keyword — strip it from type_props,
+                # everything else stays positional for the type.
+                is_required = any(a.lower() == 'required' for a in rest_args)
+                pipeline_type_args = [a for a in rest_args if a.lower() != 'required']
+
                 param_dict: DiveParam = {
                     "label": label,
                     "type": param_type,
@@ -143,17 +155,17 @@ def _parse_dive_param_lines(lines: List[str]) -> "tuple[List[DiveParam], List[st
                 if is_required:
                     param_dict["required"] = True
                 params.append(param_dict)
-    return params, includes
+    return params, includes, overrides
 
 
 def _collect_dive_params(file_path: Path, collected: "Dict[str, DiveParam]", visited: set) -> None:
     """Collect DIVE_PARAMs from a pipe and, recursively, from its includes.
 
     Wrapper pipes inherit the params of the pipes they include; a file's own
-    declarations override inherited ones for the same key, matching kwiver's
-    config override order. Includes that cannot be read next to the including
-    file (e.g. $ENV{...} paths resolved by kwiver's own search path) simply
-    contribute no params.
+    declarations and bare assignments override inherited defaults for the same
+    key, matching kwiver's config override order. Includes that cannot be read
+    next to the including file (e.g. $ENV{...} paths resolved by kwiver's own
+    search path) simply contribute no params.
     """
     resolved = file_path.resolve()
     if resolved in visited:
@@ -164,12 +176,16 @@ def _collect_dive_params(file_path: Path, collected: "Dict[str, DiveParam]", vis
             lines = f.read().splitlines()
     except OSError:
         return
-    params, includes = _parse_dive_param_lines(lines)
+    params, includes, overrides = _parse_dive_param_lines(lines)
     for include in includes:
         if '$' not in include:
             _collect_dive_params(resolved.parent / include, collected, visited)
     for param in params:
         collected[param["key"]] = param
+    for key, val in overrides.items():
+        existing = collected.get(key)
+        if existing is not None:
+            collected[key] = {**existing, "default": val}
 
 
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:

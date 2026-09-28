@@ -3,8 +3,10 @@ import {
   acceptPairAsCorrect,
   compareTypeNames,
   compileHierarchy,
+  flattenHierarchyForest,
   mergePairs,
   normalizeTypeHierarchy,
+  pruneHierarchyUpward,
   reassignPairs,
   removeHierarchyType,
   removePair,
@@ -292,6 +294,66 @@ describe('hierarchy editing transformations', () => {
     });
   });
 
+  describe('pruneHierarchyUpward', () => {
+    it('makes children roots and drops unused ancestors', () => {
+      expect(pruneHierarchyUpward({
+        something: 'Animalia',
+        Animalia: 'Biota',
+      }, 'Animalia')).toEqual({
+        hierarchy: undefined,
+        removed: ['Animalia', 'Biota'],
+      });
+    });
+
+    it('keeps shared ancestors still used by another branch', () => {
+      expect(pruneHierarchyUpward({
+        fish: 'Animalia',
+        Animalia: 'Biota',
+        oak: 'Plantae',
+        Plantae: 'Biota',
+      }, 'Animalia')).toEqual({
+        hierarchy: { oak: 'Plantae', Plantae: 'Biota' },
+        removed: ['Animalia'],
+      });
+    });
+
+    it('preserves deeper structure under promoted children', () => {
+      expect(pruneHierarchyUpward({
+        shark: 'Chordata',
+        Chordata: 'Animalia',
+        Animalia: 'Biota',
+      }, 'Animalia')).toEqual({
+        hierarchy: { shark: 'Chordata' },
+        removed: ['Animalia', 'Biota'],
+      });
+    });
+
+    it('removes a leaf and unused ancestors above it', () => {
+      expect(pruneHierarchyUpward({
+        shark: 'fish',
+        fish: 'animal',
+      }, 'shark')).toEqual({
+        hierarchy: undefined,
+        removed: ['shark', 'fish', 'animal'],
+      });
+    });
+  });
+
+  describe('flattenHierarchyForest', () => {
+    it('orders roots and children by type name with depth', () => {
+      expect(flattenHierarchyForest(
+        ['shark', 'tern'],
+        { shark: 'fish', fish: 'animal', tern: 'bird' },
+      )).toEqual([
+        { name: 'animal', depth: 0 },
+        { name: 'fish', depth: 1 },
+        { name: 'shark', depth: 2 },
+        { name: 'bird', depth: 0 },
+        { name: 'tern', depth: 1 },
+      ]);
+    });
+  });
+
   describe('updateHierarchyTypeDefinition', () => {
     it('sets, reparents, and clears edges without mutating unrelated branches', () => {
       expect(updateHierarchyTypeDefinition(undefined, 'cod', 'cod', 'fish'))
@@ -394,13 +456,19 @@ describe('flat pair selection', () => {
     })).toBe(1);
   });
 
-  it('keeps the strict Prevent Cascade threshold comparison', () => {
-    expect(selectFlatPairIndex(pairs, {
+  it('shows the top type at its threshold under Prevent Cascade, and nothing below it', () => {
+    const options = {
       checkedSet: new Set(['top', 'fallback']),
       confidenceFilters: { top: 0.5, default: 0.1 },
       filtersDisabled: false,
       preventCascade: true,
-    })).toBe(-1);
+    };
+    expect(selectFlatPairIndex(pairs, options)).toBe(0);
+    expect(selectFlatPairIndex(pairs, { ...options, confidenceFilters: { top: 0.51, default: 0.1 } })).toBe(-1);
+    // A fresh user detection (confidence 1) stays visible with the slider at 1.00.
+    expect(selectFlatPairIndex([['fish', 1]], {
+      ...options, checkedSet: new Set(['fish']), confidenceFilters: { default: 1 },
+    })).toBe(0);
   });
 
   it('honors an explicit type threshold of zero the same way export does', () => {

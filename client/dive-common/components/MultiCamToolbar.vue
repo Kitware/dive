@@ -103,6 +103,21 @@ export default defineComponent({
       () => cameraTrackInfo.value[selectedCamera.value]?.hasDetection ?? false,
     );
 
+    const currentCameraIsDetection = computed(() => {
+      if (selectedTrackId.value === null) return false;
+      const track = cameraStore.camMap.value.get(selectedCamera.value)
+        ?.trackStore.getPossible(selectedTrackId.value);
+      // State edits must update the actions even without a camera/selection change.
+      if (!track?.revision.value) return false;
+      return track.featureIndex.length === 1;
+    });
+
+    const deleteTrackTooltip = computed(() => (
+      currentCameraIsDetection.value
+        ? 'Delete detection from current camera'
+        : 'Delete track from current camera'
+    ));
+
     // Other cameras that don't have this track (available for linking)
     const linkableCameras = computed(() => cameras.value.filter(
       (cam) => !cameraTrackInfo.value[cam]?.hasTrack,
@@ -239,23 +254,23 @@ export default defineComponent({
         });
       }
 
-      buttons.push(
-        {
+      if (!currentCameraIsDetection.value) {
+        buttons.push({
           id: 'delete-detection',
           icon: 'mdi-star-minus',
           tooltip: 'Delete detection from current camera',
           action: deleteDetection,
           disabled: !currentCameraHasDetection.value,
-        },
-        {
-          id: 'delete-track',
-          icon: 'mdi-delete',
-          tooltip: 'Delete track from current camera',
-          action: deleteTrackFromCamera,
-          disabled: !currentCameraHasTrack.value,
-          color: currentCameraHasTrack.value ? 'error' : undefined,
-        },
-      );
+        });
+      }
+      buttons.push({
+        id: 'delete-track',
+        icon: 'mdi-delete',
+        tooltip: deleteTrackTooltip.value,
+        action: deleteTrackFromCamera,
+        disabled: !currentCameraHasTrack.value,
+        color: currentCameraHasTrack.value ? 'error' : undefined,
+      });
 
       return buttons;
     });
@@ -279,6 +294,8 @@ export default defineComponent({
       camerasWithTrack,
       currentCameraHasTrack,
       currentCameraHasDetection,
+      currentCameraIsDetection,
+      deleteTrackTooltip,
       linkableCameras,
       singleLinkableCamera,
       useLinkMenu,
@@ -480,7 +497,10 @@ export default defineComponent({
       </v-tooltip>
 
       <!-- Delete detection from current camera -->
-      <v-tooltip bottom>
+      <v-tooltip
+        v-if="!currentCameraIsDetection"
+        bottom
+      >
         <template #activator="{ on }">
           <v-btn
             small
@@ -509,7 +529,7 @@ export default defineComponent({
             <v-icon>mdi-delete</v-icon>
           </v-btn>
         </template>
-        <span>Delete track from current camera</span>
+        <span>{{ deleteTrackTooltip }}</span>
       </v-tooltip>
     </outlined-labeled-group>
   </span>

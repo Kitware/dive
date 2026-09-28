@@ -15,6 +15,7 @@ import settings from './state/settings';
 import * as common from './native/common';
 import * as geotiffTiles from './tiles/geotiffTiles';
 import * as displayProcessing from './media/displayProcessing';
+import * as frameExtraction from './native/frameExtraction';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -292,6 +293,26 @@ apirouter.get('/media/histogram', async (req, res, next) => {
     }
     (err as { status?: number }).status = 500;
     return next(err);
+  }
+});
+
+/* Probe a video file for fps / size (Query page frame extraction). */
+apirouter.get('/video-info', async (req, res, next) => {
+  const { path } = req.query;
+  if (!path || Array.isArray(path)) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid path: ${path}`,
+    });
+  }
+  try {
+    const info = await frameExtraction.getVideoInfo(path.toString());
+    return res.json(info);
+  } catch (err) {
+    return next({
+      status: 500,
+      statusMessage: `Failed to get video info: ${err}`,
+    });
   }
 });
 

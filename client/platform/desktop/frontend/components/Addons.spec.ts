@@ -28,6 +28,7 @@ let showOpenDialog: ReturnType<typeof vi.fn>;
 beforeEach(() => {
   catalog = {
     installDir: '/opt/viame',
+    catalogSource: 'online',
     installerAvailable: true,
     readOnly: false,
     job: null,
@@ -66,18 +67,18 @@ it('refreshes filesystem status when the desktop regains focus', async () => {
 it('starts an install and disables further installs while the job runs', async () => {
   const wrapper = mount(); await flush();
   await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!.trigger('click'); await flush();
-  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: undefined, force: false });
+  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: undefined });
   expect(wrapper.text()).toContain('Installing');
   const installButton = wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!;
   expect(installButton.attributes('disabled')).toBeDefined();
   wrapper.destroy();
 });
 
-it('passes downloaded ZIPs and explicit reinstall intent to the installer', async () => {
+it('passes downloaded ZIPs to the installer', async () => {
   catalog.addons[0].status = 'installed';
   const wrapper = mount(); await flush();
   await wrapper.findAll('button').wrappers.find((b) => b.text() === 'Import Local ZIP')!.trigger('click'); await flush();
-  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: '/tmp/pack.zip', force: true });
+  expect(invoke).toHaveBeenCalledWith('desktop:addons-install', { name: 'FISH', archive: '/tmp/pack.zip' });
   wrapper.destroy();
 });
 
@@ -89,12 +90,16 @@ it('does not install when the ZIP picker is canceled', async () => {
   wrapper.destroy();
 });
 
-it('shows unavailable installer and unknown-status explanations', async () => {
+it('shows unavailable installer, unknown-status and bundled-catalog explanations', async () => {
   catalog.installerAvailable = false;
   catalog.addons[0].status = 'unknown';
+  catalog.catalogSource = 'bundled';
+  catalog.catalogNotice = 'GitHub could not be reached.';
   const wrapper = mount(); await flush();
   expect(wrapper.text()).toContain('Update VIAME');
   expect(wrapper.text()).toContain('status is unknown');
+  expect(wrapper.text()).toContain('Catalog: bundled with this VIAME installation');
+  expect(wrapper.text()).toContain('GitHub could not be reached.');
   expect(wrapper.findAll('button').wrappers.find((b) => b.text() === 'Download and Install')!.attributes('disabled')).toBeDefined();
   wrapper.destroy();
 });

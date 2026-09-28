@@ -6,7 +6,7 @@ import Vue, {
 
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
+import { TrackWithContext, ThresholdScope } from 'vue-media-annotator/BaseFilterControls';
 import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 
 import { clientSettings } from 'dive-common/store/settings';
@@ -20,7 +20,6 @@ import {
   useTrackStyleManager,
   useMultiSelectList,
   useCameraStore,
-  useSelectedCamera,
   usePendingSaveCount,
 } from '../../provides';
 import useVirtualScrollTo from '../../use/useVirtualScrollTo';
@@ -86,7 +85,6 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
-    const selectedCamera = useSelectedCamera();
     const pendingSaveCount = usePendingSaveCount();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
@@ -100,6 +98,8 @@ export default defineComponent({
       itemHeight: props.compact ? 50 : 70, // in pixels
       settingsActive: false,
       columnSettingsActive: false,
+      showDeleteAll: false,
+      deleteAllScope: 'all' as ThresholdScope,
     });
 
     const sortKey = ref<SortKey>('id');
@@ -122,6 +122,47 @@ export default defineComponent({
       },
     );
 
+    /** Same per-frame / suppression visibility the list uses when frame filtering is on. */
+    function isListedAtCurrentFrame(trackId: number): boolean {
+      const editRevision = pendingSaveCount.value;
+      const suppType = clientSettings.typeSettings.suppressionType;
+      const suppThreshold = clientSettings.typeSettings.suppressionThreshold;
+      const suppressionResolver = suppressionResolutionRef.value;
+      const suppressedByCamera = new Map<string, Set<number>>();
+      cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+        suppressedByCamera.set(
+          cameraName,
+          (editRevision >= 0)
+            ? getSuppressedTrackIds(
+              trackStore,
+              frameRef.value,
+              suppType,
+              suppThreshold,
+              { revision: editRevision, resolver: suppressionResolver },
+            )
+            : new Set<number>(),
+        );
+      });
+      let visible = false;
+      cameraStore.camMap.value.forEach(({ trackStore }, cameraName) => {
+        if (visible) {
+          return;
+        }
+        if (suppressedByCamera.get(cameraName)?.has(trackId)) {
+          return;
+        }
+        const possibleTrack = trackStore.getPossible(trackId);
+        if (!possibleTrack) {
+          return;
+        }
+        const [feature] = possibleTrack.getFeature(frameRef.value);
+        if (feature && feature.keyframe) {
+          visible = true;
+        }
+      });
+      return visible;
+    }
+
     const finalFilteredTracks = computed<TrackWithContext[]>(() => {
       let tracks = filteredTracksRef.value;
       if (trackFilters.hierarchyActive.value) {
@@ -132,31 +173,7 @@ export default defineComponent({
       if (filterDetectionsByFrame.value && !isPlaying.value) {
         // Depend on the edit counter so moving a suppression region re-runs the
         // filter (geometry mutations are not reactive track-set changes).
-        const editRevision = pendingSaveCount.value;
-        const suppressCamStore = cameraStore.camMap.value.get(selectedCamera.value)?.trackStore;
-        const suppType = clientSettings.typeSettings.suppressionType;
-        const suppressedIds = (suppressCamStore && editRevision >= 0)
-          ? getSuppressedTrackIds(
-            suppressCamStore,
-            frameRef.value,
-            suppType,
-            clientSettings.typeSettings.suppressionThreshold,
-            { revision: editRevision, resolver: suppressionResolutionRef.value },
-          )
-          : new Set<number>();
-        tracks = tracks.filter((track) => {
-          if (suppressedIds.has(track.annotation.id)) {
-            return false;
-          }
-          const possibleTrack = cameraStore.getAnyPossibleTrack(track.annotation.id);
-          if (possibleTrack) {
-            const [feature] = possibleTrack.getFeature(frameRef.value);
-            if (feature && feature.keyframe) {
-              return true;
-            }
-          }
-          return false;
-        });
+        tracks = tracks.filter((track) => isListedAtCurrentFrame(track.annotation.id));
       }
 
       // Helper to get notes from a track's first keyframe
@@ -349,7 +366,38 @@ export default defineComponent({
       };
     }
 
+    function checkedDisplayedTracks() {
+      return virtualListItems.value
+        .map((item) => item.filteredTrack.annotation.id)
+        .filter((id) => checkedTrackIdsRef.value.includes(id));
+    }
+
+    /* 'above' is the listed tracks themselves; 'below' reaches the tracks of
+       the enabled types that the confidence thresholds hide from the list. */
+    function confirmDeleteAll() {
+      data.showDeleteAll = false;
+      const scope = data.deleteAllScope;
+      const types = [...trackFilters.checkedTypes.value];
+      const ids = new Set(scope === 'below' ? [] : checkedDisplayedTracks());
+      if (scope !== 'above') {
+        let below = trackFilters.annotationIdsBelowThreshold(types);
+        // Match the list's frame / suppression visibility when that filter is on.
+        if (filterDetectionsByFrame.value && !isPlaying.value) {
+          below = below.filter((id) => isListedAtCurrentFrame(id));
+        }
+        below.forEach((id) => ids.add(id));
+      }
+      // Use the same track deletion path for every scope (including group and selection cleanup).
+      removeTrack([...ids], true);
+    }
+
     async function multiDelete() {
+      if (virtualListItems.value.length > 0
+        && checkedDisplayedTracks().length === virtualListItems.value.length) {
+        data.deleteAllScope = 'all';
+        data.showDeleteAll = true;
+        return;
+      }
       const tracksDisplayed: number[] = [];
       const text = ['Do you want to delete the following tracks:'];
       let count = 0;
@@ -446,6 +494,7 @@ export default defineComponent({
       virtualListItems,
       setVirtualListRef,
       multiDelete,
+      confirmDeleteAll,
       sortKey,
       sortDirection,
       handleSort,
@@ -464,6 +513,7 @@ export default defineComponent({
     :new-track-type="newTrackType"
     :track-add="trackAdd"
     :multi-delete="multiDelete"
+    :confirm-delete-all="confirmDeleteAll"
     :virtual-list-items="virtualListItems"
     :get-item-props="getItemProps"
     :lock-types="lockTypes"
@@ -495,6 +545,7 @@ export default defineComponent({
     :new-track-type="newTrackType"
     :track-add="trackAdd"
     :multi-delete="multiDelete"
+    :confirm-delete-all="confirmDeleteAll"
     :virtual-list-items="virtualListItems"
     :get-item-props="getItemProps"
     :lock-types="lockTypes"
@@ -566,8 +617,11 @@ export default defineComponent({
     min-width: 80px;
   }
   .col-conf {
-    /* Matches track-confidence-compact: 40px + 8px margin */
-    min-width: 48px;
+    /* Match the value's content width and keep its trailing gap separate. */
+    width: 40px;
+    min-width: 40px;
+    flex-shrink: 0;
+    margin-right: 8px;
     text-align: center;
   }
   .col-start {
@@ -587,10 +641,24 @@ export default defineComponent({
     margin-right: 8px;
   }
   .col-attribute {
-    min-width: 60px;
+    width: 100px;
+    min-width: 100px;
+    flex-shrink: 0;
     max-width: 100px;
     text-align: left;
     margin-right: 8px;
+  }
+  .col-conf,
+  .col-length {
+    position: relative;
+    text-align: center;
+
+    .v-icon {
+      position: absolute;
+      right: -8px;
+      top: 50%;
+      transform: translateY(-50%);
+    }
   }
   .col-notes {
     flex-grow: 1;

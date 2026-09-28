@@ -34,6 +34,7 @@
   "dependencies": {
     "@flatten-js/interval-tree": "^1.0.11",
     "@girder/components": "github:girder/girder_web_components#girder-5-axios-upgrade",
+    "@huggingface/transformers": "^4.2.0",
     "@kitware/vtk.js": "^25.6.0",
     "@mdi/font": "^6.2.95",
     "@sentry/browser": "^5.24.2",
@@ -54,7 +55,8 @@
     "vue": "^2.7.16",
     "vue-gtag": "^1.9.1",
     "vue-router": "^3.0.3",
-    "vuetify": "^2.7.1"
+    "vuetify": "^2.7.1",
+    "yauzl": "^3.4.0"
   },
   "devDependencies": {
     "@babel/preset-env": "^7.26.0",
@@ -77,6 +79,7 @@
     "@types/range-parser": "^1.2.3",
     "@types/resize-observer-browser": "^0.1.4",
     "@types/semver": "^7.3.8",
+    "@types/yauzl": "^3.4.0",
     "@typescript-eslint/eslint-plugin": "^6.13.2",
     "@typescript-eslint/parser": "^6.13.2",
     "@vitejs/plugin-vue2": "^2.3.3",

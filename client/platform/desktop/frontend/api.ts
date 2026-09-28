@@ -1,18 +1,20 @@
-import axios, { AxiosInstance } from 'axios';
-import { watch } from 'vue';
-
 import type {
+  SegmentationPolygon,
   AnnotationSchema,
   DatasetConfigMutable, DatasetType, MultiCamImportArgs,
   Pipe, Pipelines, PipelineParams, SaveAttributeArgs,
   SaveAttributeTrackFilterArgs, SaveDetectionsArgs, TrainingConfigs,
   DatasetCalibrationResult, GlobalStyleSettings, FrameMetadataSourcesResponse,
   SegmentationPredictRequest, SegmentationPredictResponse, SegmentationStatusResponse,
+  SegmentationPolygonKeypointsResponse,
   SegmentationStereoSegmentRequest, SegmentationStereoSegmentResponse,
   TextQueryRequest, TextQueryResponse, RefineDetectionsRequest, RefineDetectionsResponse,
   PipelineJobResult,
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
+  VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
 } from 'dive-common/apispec';
+import axios, { AxiosInstance } from 'axios';
+import { watch } from 'vue';
 
 import {
   fileVideoTypes, calibrationFileTypes,
@@ -28,8 +30,10 @@ import {
   DesktopJob,
   MultiCamBatchScanResult,
   RunScoring,
+  BuildSearchIndex,
 } from 'platform/desktop/constants';
 
+import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import { gpuJobQueue, cpuJobQueue, jobHistory } from './store/jobs';
 
 interface FileFilter {
@@ -540,6 +544,10 @@ async function segmentationEnsureStarted(): Promise<{ success: boolean }> {
   return invoke<{ success: boolean }>('segmentation-ensure-started');
 }
 
+async function segmentationPolygonKeypoints(polygon: [number, number][], polygons?: SegmentationPolygon[]): Promise<SegmentationPolygonKeypointsResponse> {
+  return invoke<SegmentationPolygonKeypointsResponse>('segmentation-polygon-keypoints', { polygon, polygons });
+}
+
 async function segmentationPredict(request: SegmentationPredictRequest): Promise<SegmentationPredictResponse> {
   return invoke<SegmentationPredictResponse>('segmentation-predict', request);
 }
@@ -621,6 +629,76 @@ async function runTextQueryPipeline(
 }
 
 /**
+ * Video Search / IQR API
+ */
+
+async function videoSearchInstalled(): Promise<boolean> {
+  return window.diveDesktop.invoke('video-search-installed');
+}
+
+async function videoSearchIndexStatus(datasetId: string): Promise<VideoSearchIndexStatus> {
+  return window.diveDesktop.invoke('video-search-index-status', datasetId);
+}
+
+/** Queue a search index build; progress arrives via job-update events. */
+function videoSearchBuildIndex(datasetId: string, method: VideoSearchIndexMethod): void {
+  const args: BuildSearchIndex = { type: JobType.BuildSearchIndex, datasetId, method };
+  gpuJobQueue.enqueue(args);
+}
+
+/** Delete the entire shared search index from disk. */
+async function videoSearchDeleteIndex(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-delete-index');
+}
+
+async function videoSearchListIndexes(): Promise<VideoSearchIndexInfo[]> {
+  return window.diveDesktop.invoke('video-search-list-indexes');
+}
+
+async function videoSearchOpenIndex(): Promise<{
+  success: boolean; streams: VideoSearchIndexInfo[];
+}> {
+  return window.diveDesktop.invoke('video-search-open-index');
+}
+
+/** Remove one dataset's rows from the shared search index. */
+async function videoSearchRemoveIndex(datasetId: string): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-remove-index', datasetId);
+}
+
+async function videoSearchFormulate(imagePath: string, boxes?: number[][]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-formulate', { imagePath, boxes });
+}
+
+async function videoSearchQuery(
+  options: { threshold?: number; iqrModelB64?: string; iqrModelPath?: string } = {},
+): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-query', options);
+}
+
+/** Build a local media-server URL for an arbitrary file (e.g. thumbnails). */
+async function getMediaUrl(filePath: string): Promise<string> {
+  await getClient();
+  return `${_baseURL}/media?path=${encodeURIComponent(filePath)}`;
+}
+
+async function videoSearchRefine(positiveIds: string[], negativeIds: string[]): Promise<VideoSearchQueryResponse> {
+  return window.diveDesktop.invoke('video-search-refine', { positiveIds, negativeIds });
+}
+
+async function videoSearchExportModel(name: string): Promise<{ success: boolean; outputDir: string }> {
+  return window.diveDesktop.invoke('video-search-export-model', { name });
+}
+
+async function videoSearchClose(): Promise<{ success: boolean }> {
+  return window.diveDesktop.invoke('video-search-close');
+}
+
+async function videoSearchExtractFrame(videoPath: string, frameNum: number, fps: number): Promise<string> {
+  return window.diveDesktop.invoke('video-search-extract-frame', { videoPath, frameNum, fps });
+}
+
+/**
  * Interactive Stereo API
  */
 
@@ -691,6 +769,10 @@ interface StereoTransferLineResponse {
 }
 
 interface StereoMeasureLineRequest {
+  /** Frame identity for deferred multi-point measurement. */
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   leftLine: [number, number][];
   rightLine: [number, number][];
 }
@@ -699,6 +781,7 @@ interface StereoMeasureLineResponse {
   id: string;
   success: boolean;
   error?: string;
+  warning?: string;
   length?: number;
   measurement?: StereoMeasurement;
 }
@@ -737,8 +820,18 @@ interface StereoTransferPointsResponse {
 async function stereoEnable(
   calibration?: StereoCalibration,
   calibrationFile?: string,
-): Promise<{ success: boolean; error?: string; launchFailed?: boolean }> {
-  return invoke<{ success: boolean; error?: string; launchFailed?: boolean }>('stereo-enable', { calibration, calibrationFile });
+  matchMethod?: StereoMatchMethod,
+  allowFallback = false,
+): Promise<{
+  success: boolean;
+  error?: string;
+  launchFailed?: boolean;
+  matchMethod?: StereoMatchMethod;
+  fellBack?: boolean;
+}> {
+  return invoke('stereo-enable', {
+    calibration, calibrationFile, matchMethod, allowFallback,
+  });
 }
 
 async function stereoDisable(): Promise<{ success: boolean }> {
@@ -827,6 +920,19 @@ function getTileURL(itemId: string, x: number, y: number, level: number, query: 
   const params = new URLSearchParams(query || {}).toString();
   const suffix = params ? `?${params}` : '';
   return `${_baseURL}/dataset/${itemId}/tiles/${level}/${x}/${y}${suffix}`;
+}
+
+/** Frame rate, size and length of a video file on disk, read by the backend. */
+async function videoInfo(videoPath: string) {
+  const client = await getClient();
+  const { data } = await client.get<{
+    fps: number;
+    duration: number;
+    width: number;
+    height: number;
+    frameCount: number;
+  }>('video-info', { params: { path: videoPath } });
+  return data;
 }
 
 async function loadConfig(id: string) {
@@ -954,6 +1060,7 @@ export {
   /* Standard Specification APIs */
   loadConfig,
   peekConfig,
+  videoInfo,
   loadDetections,
   loadFrameMetadata,
   getPipelineList,
@@ -1018,6 +1125,7 @@ export {
   segmentationInitialize,
   segmentationEnsureStarted,
   segmentationPredict,
+  segmentationPolygonKeypoints,
   segmentationStereoSegment,
   segmentationSetImage,
   segmentationClearImage,
@@ -1029,6 +1137,21 @@ export {
   refineDetections,
   runTextQueryPipeline,
   /* Auto Register APIs */
+  /* Video Search / IQR */
+  videoSearchInstalled,
+  videoSearchIndexStatus,
+  videoSearchBuildIndex,
+  videoSearchRemoveIndex,
+  videoSearchDeleteIndex,
+  videoSearchListIndexes,
+  videoSearchOpenIndex,
+  videoSearchFormulate,
+  videoSearchQuery,
+  videoSearchRefine,
+  videoSearchExportModel,
+  videoSearchClose,
+  videoSearchExtractFrame,
+  getMediaUrl,
   /* Stereo APIs */
   stereoEnable,
   stereoDisable,

@@ -169,10 +169,12 @@ type DiveParam = NonNullable<PipeMetadata['diveParams']>[number];
 function parseDiveParamLines(lines: string[]) {
   const params: DiveParam[] = [];
   const includes: string[] = [];
+  const overrides = new Map<string, string>();
   let contextStack: string[] = [];
   lines.forEach((line) => {
     const trimmed = line.trim();
     if (!trimmed) return;
+    if (trimmed.startsWith('::')) return;
 
     const includeMatch = trimmed.match(/^include\s+(\S+)/i);
     if (includeMatch) {
@@ -205,37 +207,35 @@ function parseDiveParamLines(lines: string[]) {
       return;
     }
 
-    const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
-    if (diveMatch) {
-      const [, label, rawArgs] = diveMatch;
-      const args = rawArgs.split(',').map((arg) => arg.trim());
-      const type: PipelineParamType = args[0] as PipelineParamType;
-      const restArgs = args.slice(1);
-      // `required` is a flag keyword — strip it from type_props,
-      // everything else stays positional for the type.
-      const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
-      const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
+    const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
+    const paramLineMatch = !configMatch
+      ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:.-]+)\s*=?\s*([^#]+)/i)
+      : null;
 
-      // `config <key> = <value>` — absolute kwiver key, no process/block prefix
-      // applied. Used for global / cross-referenced settings.
-      const configMatch = trimmed.match(/^config\s+([\w:.-]+)\s*=\s*([^#]+)/i);
-      // Otherwise a regular per-process/block parameter assignment.
-      const paramLineMatch = !configMatch
-        ? trimmed.match(/^(?:relativepath\s+)?(?::)?([\w:-]+)\s*=?\s*([^#]+)/i)
-        : null;
+    let fullKey: string | null = null;
+    let defaultValue: string | null = null;
 
-      let fullKey: string | null = null;
-      let defaultValue: string | null = null;
-      if (configMatch) {
-        const [, key, value] = configMatch;
-        fullKey = key;
-        defaultValue = value.trim();
-      } else if (paramLineMatch) {
-        fullKey = [...contextStack, paramLineMatch[1]].join(':');
-        defaultValue = paramLineMatch[2].trim();
-      }
+    if (configMatch) {
+      const [, keyMatch, valueMatch] = configMatch;
+      fullKey = keyMatch;
+      defaultValue = valueMatch.trim();
+    } else if (paramLineMatch) {
+      const [, keyMatch, valueMatch] = paramLineMatch;
+      fullKey = [...contextStack, keyMatch].join(':');
+      defaultValue = valueMatch.trim();
+    }
 
-      if (fullKey !== null && defaultValue !== null) {
+    if (fullKey !== null && defaultValue !== null) {
+      overrides.set(fullKey, defaultValue);
+      const diveMatch = line.match(/#\s*DIVE_PARAM\s*\[\s*"([^"]+)"\s*,\s*(.+)\s*\]/i);
+      if (diveMatch) {
+        const [, label, rawArgs] = diveMatch;
+        const args = rawArgs.split(',').map((arg) => arg.trim());
+        const type: PipelineParamType = args[0] as PipelineParamType;
+        const restArgs = args.slice(1);
+        const isRequired = restArgs.some((a) => a.toLowerCase() === 'required');
+        const pipelineTypeArgs = restArgs.filter((a) => a.toLowerCase() !== 'required');
+
         params.push({
           label,
           type,
@@ -247,17 +247,17 @@ function parseDiveParamLines(lines: string[]) {
       }
     }
   });
-  return { params, includes };
+  return { params, includes, overrides };
 }
 
 /**
  * Collect DIVE_PARAMs from a pipe and, recursively, from its includes.
  *
  * Wrapper pipes inherit the params of the pipes they include; a file's own
- * declarations override inherited ones for the same key, matching kwiver's
- * config override order. Includes that cannot be read next to the including
- * file (e.g. $ENV{...} paths resolved by kwiver's own search path) simply
- * contribute no params.
+ * declarations and bare assignments override inherited defaults for the same
+ * key, matching kwiver's config override order. Includes that cannot be read
+ * next to the including file (e.g. $ENV{...} paths resolved by kwiver's own
+ * search path) simply contribute no params.
  */
 async function collectDiveParams(
   filePath: string,
@@ -275,13 +275,19 @@ async function collectDiveParams(
   } catch {
     return;
   }
-  const { params, includes } = parseDiveParamLines(lines);
+  const { params, includes, overrides } = parseDiveParamLines(lines);
   // eslint-disable-next-line no-restricted-syntax
   for (const include of includes.filter((f) => !f.includes('$'))) {
     // eslint-disable-next-line no-await-in-loop
     await collectDiveParams(npath.join(npath.dirname(resolved), include), collected, visited);
   }
   params.forEach((p) => collected.set(p.key, p));
+  overrides.forEach((val, key) => {
+    const existingParam = collected.get(key);
+    if (existingParam) {
+      collected.set(key, { ...existingParam, default: val });
+    }
+  });
 }
 
 /**
@@ -1128,29 +1134,23 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
   }));
 
   // Now lets add to it the trained pipelines by recursively looking in the dir
-  const allowedTrainedPatterns = new RegExp([
-    '^detector.+',
-    '^tracker.+',
-    '^generate.+',
-    '^.*\\.zip',
-    '^.*\\.svm',
-    '^.*\\.lbl',
-    '^.*\\.cfg',
-    '^.*\\.yaml',
-  ].join('|'));
   const trainedPipelinePath = npath.join(settings.dataPath, PipelinesFolderName);
   const trainedExists = await fs.pathExists(trainedPipelinePath);
   if (!trainedExists) return ret;
   const trainedPipeFolders = await fs.readdir(trainedPipelinePath);
   await Promise.all(trainedPipeFolders.map(async (item) => {
     const pipeFolder = npath.join(trainedPipelinePath, item);
-    const pipeFolderExists = await fs.pathExists(pipeFolder);
-    if (!pipeFolderExists) return false;
-    let pipesInFolder = await fs.readdir(pipeFolder);
-    pipesInFolder = pipesInFolder.filter(
-      (p: string) => p.match(allowedTrainedPatterns) && !p.match(disallowedPatterns),
+    if (item.startsWith('.') || !(await fs.stat(pipeFolder)).isDirectory()) return false;
+    const entries = await fs.readdir(pipeFolder, { withFileTypes: true });
+    const onnxWeightExtensions = ['.weights', '.ckpt', '.pth'];
+    const pipesInFolder = entries
+      .filter((entry) => entry.isFile() && entry.name.endsWith('.pipe') && !entry.name.startsWith('embedded_'))
+      .map((entry) => entry.name);
+    const onnxConvertible = entries.some(
+      (entry) => entry.isFile()
+        && onnxWeightExtensions.some((ext) => entry.name.toLowerCase().endsWith(ext)),
     );
-    if (pipesInFolder.length >= 2) {
+    if (pipesInFolder.length > 0) {
       // A training run can emit both a detector and a tracker; list each one
       // separately and disambiguate them the way web does.
       const pipeNames = pipesInFolder.filter((p) => p.endsWith('.pipe')).sort();
@@ -1162,9 +1162,10 @@ async function getPipelineList(settings: Settings): Promise<Pipelines> {
           suffix = ' detector';
         }
         const pipeInfo = {
-          name: `${item}${suffix}`,
+          name: `${item}${suffix || (pipeNames.length > 1 ? ` ${npath.basename(pipeName, '.pipe')}` : '')}`,
           type: 'trained',
           pipe: npath.join(pipeFolder, pipeName),
+          onnxConvertible,
         };
         if ('trained' in ret) {
           ret.trained.pipes.push(pipeInfo);
@@ -1393,6 +1394,9 @@ async function saveConfig(settings: Settings, datasetId: string, args: DatasetCo
     }
     if (args.error) {
       existing.error = args.error;
+    }
+    if (args.taxonomySources) {
+      existing.taxonomySources = args.taxonomySources;
     }
     if (args.datasetInfo) {
       existing.datasetInfo = args.datasetInfo;
@@ -1906,7 +1910,7 @@ async function ingestDataFiles(
 async function processTrainedPipeline(settings: Settings, args: RunTraining, workingDir: string) {
   //Look for trained_detector.zip and detector.pipe and move them to DIVE_Pipelines folder
   const allowedPatterns = /^detector.+|^tracker.+|^generate.+/;
-  const trainedDir = npath.join(workingDir, '/category_models');
+  const trainedDir = npath.join(workingDir, '/trained_model');
   const exists = await fs.pathExists(trainedDir);
   if (!exists) {
     throw new Error(`Path: ${trainedDir} does not exist`);
@@ -1939,8 +1943,11 @@ function processIsRunning(pid: number): boolean {
   try {
     process.kill(pid, 0);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // ESRCH: no such process. EPERM/EACCES: process exists but we cannot signal it
+    // (other uid, or a restricted environment). Only absence means not running.
+    const { code } = err as NodeJS.ErrnoException;
+    return code === 'EPERM' || code === 'EACCES';
   }
 }
 
@@ -2054,11 +2061,16 @@ async function checkDataset(
 ): Promise<boolean> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
-  if (projectMetaData.originalBasePath !== '') {
-    const exists = await fs.pathExists(projectMetaData.originalBasePath);
-    if (!exists) {
-      throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
-    }
+  const sourcePaths = [
+    ...new Set([
+      projectMetaData.originalBasePath,
+      ...Object.values(projectMetaData.multiCam?.cameras ?? {}).map((camera) => camera.originalBasePath),
+    ].filter((path) => path)),
+  ];
+  const exists = await Promise.all(sourcePaths.map((path) => fs.pathExists(path)));
+  const missing = sourcePaths.filter((_, index) => !exists[index]);
+  if (missing.length) {
+    throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${missing.join(', ')}`);
   }
   if (projectMetaData.error && projectMetaData.error !== '') {
     throw new Error(`Dataset ${projectMetaData.name} contains error: ${projectMetaData.error}`);
@@ -3098,6 +3110,7 @@ export {
   deleteScoringResult,
   finalizeMediaImport,
   getPipelineList,
+  extractPipeMetadata,
   deleteTrainedPipeline,
   getTrainingConfigs,
   getProjectDir,

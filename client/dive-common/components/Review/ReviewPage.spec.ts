@@ -44,6 +44,8 @@ vi.mock('./ReviewCell.vue', () => ({ default: {} }));
 
 interface PageState {
   review: ReviewService;
+  grid: { page: { value: number }; goToPage(page: number): void };
+  deleteEntry(entry: ReviewService['entries']['value'][number]): void;
   view: 'results' | 'datasets';
   resolveLeave(choice: 'save' | 'discard' | 'cancel'): void;
   leaveDialog: boolean;
@@ -142,10 +144,61 @@ it('disposes the active review instead of parking it on logout', async () => {
   expect(takeReviewSession()).toBeNull();
 });
 
+it('keeps the current page when an entry is deleted and returns to the first on a new query', async () => {
+  const tracks = Array.from({ length: 25 }, (_, id) => ({
+    id,
+    begin: 0,
+    end: 0,
+    confidencePairs: [['fish', 0.9]],
+    attributes: {},
+    features: [{ frame: 0, keyframe: true, bounds: [0, 0, 10, 10] }],
+  }));
+  mocks.loadDetections.mockResolvedValue({
+    tracks, groups: [], sets: [], version: 2,
+  });
+  const wrapper = mountPage();
+  const page = wrapper.vm as unknown as PageState;
+  await page.review.addDataset('a');
+  await nextTick();
+  page.grid.goToPage(1);
+  await nextTick();
+  expect(page.grid.page.value).toBe(1);
+  page.deleteEntry(page.review.entries.value[20]);
+  await nextTick();
+  expect(page.review.entries.value).toHaveLength(24);
+  expect(page.grid.page.value).toBe(1);
+  page.review.runQuery();
+  await nextTick();
+  expect(page.grid.page.value).toBe(0);
+  wrapper.destroy();
+});
+
 async function settlePage() {
   await new Promise((resolve) => setTimeout(resolve, 0));
   await nextTick();
 }
+
+it('opens straight on Results while a library selection loads', async () => {
+  let release: () => void = () => {};
+  mocks.loadDetections.mockReturnValueOnce(new Promise((resolve) => {
+    release = () => resolve({
+      tracks: [], groups: [], sets: [], version: 2,
+    });
+  }));
+  const wrapper = mountPage({ initialDatasetIds: ['a'] });
+  const page = wrapper.vm as unknown as PageState & { opening: boolean };
+  expect(page.view).toBe('results');
+  expect(page.opening).toBe(true);
+  await settlePage();
+  expect(page.view).toBe('results');
+  expect(page.opening || page.review.loading.value).toBe(true);
+  release();
+  await settlePage();
+  expect(page.opening).toBe(false);
+  expect(page.review.loading.value).toBe(false);
+  expect(page.view).toBe('results');
+  wrapper.destroy();
+});
 
 it('opens the current sequence alone in Results on the first Review visit', async () => {
   const wrapper = mountPage({ fallbackDatasetId: 'current' });

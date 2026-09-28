@@ -1,7 +1,7 @@
 /* disabled this rule for Vue.prototype.FOO = */
 /* eslint-disable no-param-reassign,func-names */
 
-import { VueConstructor, watch } from 'vue';
+import { VueConstructor } from 'vue';
 import Vuetify from 'vuetify/lib';
 import Prompt from './Prompt.vue';
 
@@ -14,6 +14,8 @@ interface PromptParams {
 }
 
 class PromptService {
+  private pending: Promise<unknown> = Promise.resolve();
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private component: any;
 
@@ -47,16 +49,12 @@ class PromptService {
     negativeButton = 'Cancel',
     confirm = false,
   }: PromptParams): Promise<boolean> {
-    return new Promise<boolean>((resolve) => {
-      if (!this.component.show) {
-        this.set(title, text, positiveButton, negativeButton, confirm, resolve);
-      } else {
-        const unwatch = watch(this.component.show, () => {
-          unwatch();
-          this.set(title, text, positiveButton, negativeButton, confirm, resolve);
-        });
-      }
-    });
+    const next = this.pending.then(() => new Promise<boolean>((resolve) => {
+      this.set(title, text, positiveButton, negativeButton, confirm, resolve);
+    }));
+    // Job failures can arrive while another prompt is open. Show them in order.
+    this.pending = next.catch(() => undefined);
+    return next;
   }
 
   visible(): boolean {

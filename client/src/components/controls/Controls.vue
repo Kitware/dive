@@ -652,7 +652,7 @@ export default defineComponent({
             <v-btn
               icon
               small
-              :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+              :title="!isDefaultImage ? 'Image Adjustments (Modified)' : 'Image Adjustments'"
               @click="toggleEnhancements"
             >
               <v-icon>mdi-contrast-box</v-icon>
@@ -972,7 +972,7 @@ export default defineComponent({
                 <v-btn
                   icon
                   small
-                  :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+                  :title="!isDefaultImage ? 'Image Adjustments (Modified)' : 'Image Adjustments'"
                   @click="toggleEnhancements"
                 >
                   <v-icon>mdi-contrast-box</v-icon>
@@ -1261,7 +1261,7 @@ export default defineComponent({
               <v-btn
                 icon
                 small
-                :title="!isDefaultImage ? 'Image Enhancements (Modified)' : 'Image Enhancements'"
+                :title="!isDefaultImage ? 'Image Adjustments (Modified)' : 'Image Adjustments'"
                 @click="toggleEnhancements"
               >
                 <v-icon>mdi-contrast-box</v-icon>

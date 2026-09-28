@@ -40,6 +40,8 @@ const layerMocks = vi.hoisted(() => {
 
     getMode = vi.fn(() => 'disabled');
 
+    restoreHandleActions = vi.fn();
+
     clear = vi.fn();
 
     updatePoints = vi.fn();

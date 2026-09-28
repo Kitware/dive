@@ -1,5 +1,5 @@
 import {
-  chipRegion, chipScale, chipSizeFor, toChipPoint, toImagePoint,
+  chipRegion, chipScale, chipSizeFor, frameRegion, toChipPoint, toImagePoint,
 } from './chipRenderer';
 
 describe('chipRegion', () => {
@@ -36,6 +36,20 @@ describe('chipSizeFor', () => {
     expect(chipSizeFor(128)).toBe(128);
     expect(chipSizeFor(129)).toBe(192);
     expect(chipSizeFor(5000)).toBe(768);
+  });
+});
+
+describe('frameRegion', () => {
+  it('covers the whole frame, padding the shorter direction to the aspect', () => {
+    expect(frameRegion(100, 50, 2)).toEqual({
+      x: 0, y: 0, width: 100, height: 50,
+    });
+    expect(frameRegion(100, 50, 1)).toEqual({
+      x: 0, y: -25, width: 100, height: 100,
+    });
+    expect(frameRegion(100, 50, 4)).toEqual({
+      x: -50, y: 0, width: 200, height: 50,
+    });
   });
 });
 

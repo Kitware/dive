@@ -210,6 +210,19 @@ export default defineComponent({
               </div>
             </template>
 
+            <template v-else-if="param.type === 'choice'">
+              <v-select
+                :id="`input-${param.key}`"
+                v-model="localParams[param.key]"
+                :items="param.type_props || []"
+                outlined
+                dense
+                hide-details="auto"
+                class="mt-1"
+                :rules="getRules(param.type, param.required)"
+              />
+            </template>
+
             <v-text-field
               v-else
               :id="`input-${param.key}`"

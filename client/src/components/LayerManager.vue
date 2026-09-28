@@ -56,6 +56,7 @@ import useLayerRefresh from './layerManager/useLayerRefresh';
 import useSegmentationPointsLayer from './layerManager/useSegmentationPointsLayer';
 import useAnnotationClickHandling from './layerManager/useAnnotationClickHandling';
 import { cameraAwaitingGeometry, isCreatingNewDetection } from './layerManager/multicamCreation';
+import lineBoxCompanionTracks from './layerManager/lineBoxCompanion';
 
 /** LayerManager is a component intended to be used as a child of an Annotator.
  *  It provides logic for switching which layers are visible, but more importantly
@@ -214,6 +215,16 @@ export default defineComponent({
       typeStyling: typeStylingRef,
       type: 'rectangle',
     });
+
+    const boxEditLayer = new EditAnnotationLayer({
+      annotator,
+      stateStyling: trackStyleManager.stateStyles,
+      typeStyling: typeStylingRef,
+      type: 'rectangle',
+      companion: true,
+    });
+    editAnnotationLayer.peer = boxEditLayer;
+    boxEditLayer.peer = editAnnotationLayer;
 
     const lassoSelectionLayer = new LassoSelectionLayer(
       annotator,
@@ -613,6 +624,26 @@ export default defineComponent({
       } else {
         editAnnotationLayer.disable();
       }
+
+      const boxTracks = selectedTrackId === null ? [] : lineBoxCompanionTracks(
+        editingTrack,
+        visibleModes.includes('rectangle'),
+        selectedKey,
+        editingTracks,
+      );
+      if (boxTracks.length) {
+        boxEditLayer.changeData(boxTracks.map((trackFrame) => ({
+          ...trackFrame,
+          features: featureToDisplay(trackFrame.features),
+        })));
+      } else {
+        // GeoJS can end editing before this refresh and leave the completed
+        // box behind in disabled mode; disable() clears it without touching
+        // the shared interactor when the mode is already off.
+        boxEditLayer.disable();
+      }
+      editAnnotationLayer.restoreHandleActions();
+      boxEditLayer.restoreHandleActions();
     }
 
     const { refreshLayers } = useLayerRefresh({
@@ -636,6 +667,7 @@ export default defineComponent({
         attributeLayer,
         attributeBoxLayer,
         editAnnotationLayer,
+        boxEditLayer,
         segmentationPointsLayer,
         uiLayer,
       },
@@ -728,9 +760,9 @@ export default defineComponent({
       flickNumberRef,
       editingModeRef,
       cameraStore,
-      trackStore,
       alignedView: alignedViewHelpers,
       editAnnotationLayer,
+      boxEditLayer,
       rectAnnotationLayer,
       polyAnnotationLayer,
       lineLayer,

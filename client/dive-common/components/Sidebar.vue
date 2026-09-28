@@ -21,7 +21,7 @@ import { clientSettings } from 'dive-common/store/settings';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
-import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TypeSettingsPanel from 'dive-common/components/Types/TypeSettingsPanel.vue';
 import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 
@@ -196,7 +196,6 @@ export default defineComponent({
               <TypeSettingsPanel
                 :all-types="allTypesRef"
                 :hierarchy-active="hierarchyActive"
-                @import-types="$emit('import-types', $event)"
               />
             </template>
             <template #header-trailing>
@@ -401,7 +400,6 @@ export default defineComponent({
           <TypeSettingsPanel
             :all-types="allTypesRef"
             :hierarchy-active="hierarchyActive"
-            @import-types="$emit('import-types', $event)"
           />
         </template>
         <template #header-trailing>

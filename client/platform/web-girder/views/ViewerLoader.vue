@@ -17,16 +17,19 @@ import { reportHandledPromiseRejection } from 'platform/web-girder/reportHandled
 import { useLocation } from 'platform/web-girder/store/useLocation';
 import { useJobs } from 'platform/web-girder/store/useJobs';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import type { DatasetType, SubType } from 'dive-common/apispec';
+import type { DatasetCalibrationResult, DatasetType, SubType } from 'dive-common/apispec';
 import { useApi } from 'dive-common/apispec';
 import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
+import type { RawLocation } from 'vue-router';
 import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
 import useStereoOnnxWeb from 'platform/web-girder/useStereoOnnxWeb';
+import useWebSegmentation from 'platform/web-girder/useWebSegmentation';
+import type { StereoModelProgress } from 'platform/web-girder/useStereoOnnxWeb';
 import {
   STEREO_LENGTH_METHOD_ATTR, STEREO_MEASUREMENT_ATTRS,
 } from 'dive-common/use/stereo/useStereoOnnxTransfer';
@@ -118,10 +121,14 @@ export default defineComponent({
     const { getDatasetCalibration } = useApi();
     const viewerRef = ref();
     const calibrationFile = ref<string | null>(null);
+    /** Girder item id for the cached stereo rig; used to detect in-place replacements. */
+    const calibrationItemId = ref<string | null>(null);
     // Client-side stereo: warp a detection to the other camera via the VIAME
     // "match" ONNX model and triangulate its length, with no backend. No-ops
     // without a 2-camera dataset, a calibration file, and a served model asset.
     const stereoBusyMessage = ref<string | null>(null);
+    /** Set only while the ~100 MB model downloads, where the size is known. */
+    const stereoDownloadProgress = ref<StereoModelProgress | null>(null);
     const stereoError = ref('');
     const stereoLengthSnackbar = ref(false);
     const stereoLengthMessage = ref('');
@@ -170,15 +177,17 @@ export default defineComponent({
       }
     }
 
-    const {
-      handleStereoAnnotationComplete, handleStereoTrackLinked, warpAllFromCamera,
-    } = useStereoOnnxWeb({
+    const stereo = useStereoOnnxWeb({
       getViewer: () => viewerRef.value,
       getDatasetId: () => parentDatasetId(props.id),
       ensureMeasurementAttributes,
-      onStatus: (message) => { stereoBusyMessage.value = message; },
+      onStatus: (message, progress) => {
+        stereoBusyMessage.value = message;
+        stereoDownloadProgress.value = progress?.total ? progress : null;
+      },
       onError: (message) => {
         stereoBusyMessage.value = null;
+        stereoDownloadProgress.value = null;
         stereoError.value = message;
       },
       onMeasurement: (m: StereoMeasurement) => {
@@ -191,10 +200,96 @@ export default defineComponent({
       },
     });
 
+    const {
+      handleStereoTrackLinked, warpAllFromCamera, invalidateCalibration, stereoViewLink,
+    } = stereo;
+    const {
+      status: segmentationStatus, progress: segmentationProgress,
+      busy: autoPopulateBusy, cancel: cancelAutoPopulate,
+      handleNewAnnotationGeometry, handleStereoAnnotationComplete,
+      handleStereoAnnotationReset, handleStereoSegmentationFinalize,
+    } = useWebSegmentation(() => viewerRef.value, stereo, (message) => { stereoError.value = String(message); });
+
     function closeStereoError() {
       stereoError.value = '';
     }
 
+    const stereoDownloadPercent = computed(() => {
+      const progress = stereoDownloadProgress.value;
+      if (!progress) return 0;
+      return Math.min(100, (progress.loaded / progress.total) * 100);
+    });
+
+    const stereoDownloadLabel = computed(() => {
+      const progress = stereoDownloadProgress.value;
+      if (!progress) return '';
+      const mb = (bytes: number) => (bytes / 1024 / 1024).toFixed(1);
+      return `${mb(progress.loaded)} of ${mb(progress.total)} MB`;
+    });
+
+    /** Model download/prepare uses a dialog; encode/predict stay a light snackbar. */
+    const segmentationLoadActive = computed(() => {
+      const phase = segmentationProgress.value?.phase;
+      return !!segmentationStatus.value && (phase === 'download' || phase === 'prepare');
+    });
+    const segmentationEncoding = computed(() => {
+      const phase = segmentationProgress.value?.phase;
+      return !!segmentationStatus.value && (phase === 'encode' || phase === 'predict');
+    });
+    const segmentationDownloadPercent = computed(() => {
+      const progress = segmentationProgress.value;
+      if (progress?.phase === 'download' && progress.percent !== undefined) return progress.percent;
+      if (progress?.phase === 'prepare') return 100;
+      return 0;
+    });
+    const segmentationPreparing = computed(() => (
+      segmentationProgress.value?.phase === 'prepare'
+    ));
+    const segmentationOnCpu = computed(() => (
+      segmentationProgress.value?.device === 'cpu'
+    ));
+    /**
+     * Once per browser session: warn that CPU SAM embedding/auto-populate is slow.
+     * Fires on the first download/prepare/encode/predict that actually runs on CPU
+     * (forced CPU, no GPU, or auto fallback).
+     */
+    const CPU_SEG_WARN_KEY = 'dive.sam.cpuModeWarned';
+    let cpuSegWarned = false;
+    let cpuSegWarnOpen = false;
+    watch(
+      () => ({
+        active: segmentationLoadActive.value || segmentationEncoding.value,
+        device: segmentationProgress.value?.device,
+      }),
+      async ({ active, device }) => {
+        if (!active || device !== 'cpu' || cpuSegWarned || cpuSegWarnOpen) return;
+        try {
+          if (typeof sessionStorage !== 'undefined'
+            && sessionStorage.getItem(CPU_SEG_WARN_KEY)) {
+            cpuSegWarned = true;
+            return;
+          }
+        } catch {
+          /* private mode / blocked storage: still warn once this page load */
+        }
+        cpuSegWarned = true;
+        cpuSegWarnOpen = true;
+        try {
+          if (typeof sessionStorage !== 'undefined') {
+            sessionStorage.setItem(CPU_SEG_WARN_KEY, '1');
+          }
+        } catch { /* ignore */ }
+        await prompt({
+          title: 'CPU Segmentation Mode',
+          text: [
+            'Segmentation is running in CPU mode.',
+            'Embedding each new frame and auto-populating masks or points will take significantly longer than on a GPU—typically 5–15 seconds or more per frame (about 10–30× slower).',
+            'Later clicks on an already-embedded frame stay quick. You can switch devices under Track Settings if a hardware GPU is available.',
+          ],
+        });
+        cpuSegWarnOpen = false;
+      },
+    );
     /**
      * Import menu "Warp to All": push every detection the imported camera holds
      * onto the other camera, then save. `resolve` keeps the import spinner up
@@ -260,6 +355,12 @@ export default defineComponent({
       return props.id;
     });
 
+    // Held as computeds rather than inline `[modifiedId]` / `[id]` in the
+    // template: an inline array is a new value on every re-render, which makes
+    // the menus re-look-up the dataset's calibration on every click.
+    const pipelineDatasetIds = computed(() => [modifiedId.value]);
+    const exportDatasetIds = computed(() => [props.id]);
+
     watch(() => props.id, (datasetId) => {
       selectedCamera.value = '';
       loadDataset(datasetId).catch((reason) => {
@@ -278,16 +379,32 @@ export default defineComponent({
       }
     });
 
+    /**
+     * Keep the stereo ONNX cache in sync with whatever calibration the menus
+     * are showing. A same-name replacement still changes itemId, so both are
+     * compared; invalidate when either differs so the next warp re-downloads.
+     */
+    function applyCalibrationResult(result: DatasetCalibrationResult | null | undefined) {
+      const nextName = result?.originalName ?? result?.jsonPath ?? result?.path ?? null;
+      const nextItemId = result?.itemId ?? result?.jsonItemId ?? null;
+      if (nextName === calibrationFile.value && nextItemId === calibrationItemId.value) {
+        return;
+      }
+      invalidateCalibration();
+      calibrationFile.value = nextName;
+      calibrationItemId.value = nextItemId;
+    }
+
     async function refreshCalibrationFile() {
       if (!getDatasetCalibration || subTypeList.value[0] !== 'stereo') {
-        calibrationFile.value = null;
+        applyCalibrationResult(null);
         return;
       }
       try {
         const result = await getDatasetCalibration(parentDatasetId(props.id));
-        calibrationFile.value = result?.originalName ?? result?.jsonPath ?? result?.path ?? null;
+        applyCalibrationResult(result);
       } catch {
-        calibrationFile.value = null;
+        applyCalibrationResult(null);
       }
     }
 
@@ -302,11 +419,16 @@ export default defineComponent({
     );
 
     function onCalibrationImported(name: string) {
+      // Item id is unknown until the next server refresh / conversion poll.
       calibrationFile.value = name;
+      calibrationItemId.value = null;
+      invalidateCalibration();
     }
 
     function onCalibrationDeleted() {
       calibrationFile.value = null;
+      calibrationItemId.value = null;
+      invalidateCalibration();
     }
 
     watch(
@@ -423,6 +545,24 @@ export default defineComponent({
       }
     }
 
+    let loadFailed = false;
+    async function handleLoadError(message: string, largeImage?: boolean) {
+      if (loadFailed) {
+        return;
+      }
+      loadFailed = true;
+      if (largeImage) {
+        await largeImageWarning();
+      } else {
+        await prompt({
+          title: 'Error Loading Data',
+          text: [message],
+          positiveButton: 'Okay',
+        });
+      }
+      router.push(locationRoute.value as RawLocation);
+    }
+
     const annotationSourceLabel = computed(() => {
       const value = route.query[ANNOTATION_SOURCE_QUERY];
       return typeof value === 'string' ? value : '';
@@ -450,6 +590,7 @@ export default defineComponent({
       routeRevision,
       routeSet,
       largeImageWarning,
+      handleLoadError,
       typeList,
       subTypeList,
       cameraNumbers,
@@ -459,13 +600,31 @@ export default defineComponent({
       jobsDisabledMessage,
       webExcludedPipelineTerms,
       calibrationFile,
+      applyCalibrationResult,
       onCalibrationImported,
       onCalibrationDeleted,
       changeCamera,
       modifiedId,
+      pipelineDatasetIds,
+      exportDatasetIds,
       handleStereoAnnotationComplete,
       handleStereoTrackLinked,
+      stereoViewLink,
+      segmentationStatus,
+      segmentationLoadActive,
+      segmentationEncoding,
+      segmentationDownloadPercent,
+      segmentationPreparing,
+      segmentationOnCpu,
+      autoPopulateBusy,
+      cancelAutoPopulate,
+      handleNewAnnotationGeometry,
+      handleStereoAnnotationReset,
+      handleStereoSegmentationFinalize,
       stereoBusyMessage,
+      stereoDownloadProgress,
+      stereoDownloadPercent,
+      stereoDownloadLabel,
       stereoError,
       stereoLengthSnackbar,
       stereoLengthMessage,
@@ -494,12 +653,20 @@ export default defineComponent({
       :annotation-source-returnable="annotationSourceReturnable"
       :initial-frame="viewerFocus.frame"
       :initial-track-id="viewerFocus.trackId"
+      :stereo-view-link="stereoViewLink"
+      :auto-populate-busy="autoPopulateBusy"
+      :auto-populate-status="segmentationStatus"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
+      @load-error="handleLoadError"
       @update:set="routeSet"
       @change-camera="changeCamera"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
+      @new-annotation-geometry="handleNewAnnotationGeometry"
+      @stereo-annotation-reset="handleStereoAnnotationReset"
+      @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
+      @cancel-auto-populate="cancelAutoPopulate"
     >
       <template #title>
         <ViewerAlert />
@@ -534,7 +701,7 @@ export default defineComponent({
             subTypeList,
             cameraNumbers,
           }"
-          :selected-dataset-ids="[modifiedId]"
+          :selected-dataset-ids="pipelineDatasetIds"
           :running-pipelines="runningPipelines"
           :read-only-mode="revisionNum !== undefined"
           :time-filter="timeFilter"
@@ -555,7 +722,7 @@ export default defineComponent({
         />
         <Export
           v-bind="{ buttonOptions, menuOptions }"
-          :dataset-ids="[id]"
+          :dataset-ids="exportDatasetIds"
           block-on-unsaved
         />
         <Clone
@@ -570,6 +737,7 @@ export default defineComponent({
           v-if="subTypeList[0] === 'stereo'"
           :dataset-id="id"
           :calibration-file="calibrationFile"
+          @calibration-updated="applyCalibrationResult"
           @calibration-deleted="onCalibrationDeleted"
         />
       </template>
@@ -591,18 +759,30 @@ export default defineComponent({
       max-width="560"
     >
       <v-card>
-        <v-card-title>{{ stereoError ? 'Stereo Transfer Error' : 'Interactive Stereo' }}</v-card-title>
+        <v-card-title>{{ stereoError ? 'Annotation Error' : 'Interactive Stereo' }}</v-card-title>
         <v-card-text>
-          <div
-            v-if="!stereoError"
-            class="d-flex align-center"
-          >
-            <v-progress-circular
-              indeterminate
-              color="primary"
-              class="mr-3"
-            />
-            {{ stereoBusyMessage }}
+          <div v-if="!stereoError">
+            <div class="d-flex align-center">
+              <v-progress-circular
+                v-if="!stereoDownloadProgress"
+                indeterminate
+                color="primary"
+                class="mr-3"
+              />
+              {{ stereoBusyMessage }}
+            </div>
+            <template v-if="stereoDownloadProgress">
+              <v-progress-linear
+                :value="stereoDownloadPercent"
+                color="primary"
+                height="8"
+                rounded
+                class="mt-3"
+              />
+              <div class="text-caption mt-1">
+                {{ stereoDownloadLabel }}
+              </div>
+            </template>
           </div>
           <v-alert
             v-else
@@ -624,6 +804,59 @@ export default defineComponent({
         </v-card-actions>
       </v-card>
     </v-dialog>
+    <v-dialog
+      :value="segmentationLoadActive"
+      persistent
+      max-width="560"
+    >
+      <v-card>
+        <v-card-title>Segmentation model</v-card-title>
+        <v-card-text>
+          <v-alert
+            v-if="segmentationOnCpu"
+            type="warning"
+            dense
+            text
+            class="mb-3"
+          >
+            Running on CPU. Embedding each new frame and auto-populating
+            masks or points will take significantly longer (typically 5–15
+            seconds or more per frame).
+          </v-alert>
+          <div>{{ segmentationStatus }}</div>
+          <div class="mb-3 mt-3">
+            <div>
+              Download {{ Math.floor(segmentationDownloadPercent) }}%
+            </div>
+            <v-progress-linear
+              aria-label="Segmentation model download progress"
+              :value="segmentationDownloadPercent"
+              :indeterminate="false"
+              color="primary"
+              height="8"
+              rounded
+              class="mt-1"
+            />
+          </div>
+          <div>
+            <div>Prepare</div>
+            <v-progress-linear
+              aria-label="Segmentation model prepare progress"
+              :value="0"
+              :indeterminate="segmentationPreparing"
+              color="primary"
+              height="8"
+              rounded
+              class="mt-1"
+            />
+          </div>
+        </v-card-text>
+      </v-card>
+    </v-dialog>
+    <v-snackbar :value="segmentationEncoding" :timeout="-1" bottom left>
+      <v-progress-circular indeterminate size="18" width="2" class="mr-2" />
+      {{ segmentationStatus }}
+    </v-snackbar>
     <v-snackbar
       v-model="stereoLengthSnackbar"
       :timeout="4000"

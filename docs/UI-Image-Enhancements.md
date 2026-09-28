@@ -1,6 +1,6 @@
-# Image Enhancements
+# Image Adjustments
 
-The **Image Enhancements** panel adjusts how imagery looks in the annotation view. Open it
+The **Image Adjustments** panel adjusts how imagery looks in the annotation view. Open it
 from the [context sidebar](UI-Navigation-Editing-Bar.md#context-sidebar-web) (Web) or the
 viewer controls (Desktop).
 
