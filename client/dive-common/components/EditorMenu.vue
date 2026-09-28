@@ -1019,6 +1019,11 @@ export default defineComponent({
   padding-right: 11px;
 }
 
+/* An active tool drops its outline; the same-width border keeps its neighbors still */
+.v-btn.tool-button:not(.v-btn--outlined):not(.mode-button) {
+  border: thin solid transparent;
+}
+
 .creation-anchor {
   position: relative;
   display: inline-flex;
