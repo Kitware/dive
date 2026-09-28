@@ -114,6 +114,10 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 const ReadOnlyModeSymbol = Symbol('readOnlyMode');
 type ReadOnylModeType = Readonly<Ref<boolean>>;
 
+// True when editing is paused only because a camera's time offset is not yet applied to its annotations.
+const OffsetEditLockSymbol = Symbol('offsetEditLock');
+type OffsetEditLockType = Readonly<Ref<boolean>>;
+
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
@@ -333,6 +337,7 @@ export interface State {
   trackStyleManager: StyleManager;
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
+  offsetEditLock: OffsetEditLockType;
   imageEnhancements: ImageEnhancementsType;
   percentileStretchSupported: Readonly<Ref<boolean>>;
   percentileHistogram: PercentileHistogramType;
@@ -414,6 +419,7 @@ function dummyState(): State {
     trackStyleManager: new StyleManager({ markChangesPending }),
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
+    offsetEditLock: ref(false),
     imageEnhancements: ref({
       brightness: 1,
       contrast: 1,
@@ -464,6 +470,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
+  provide(OffsetEditLockSymbol, state.offsetEditLock);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
   provide(PercentileStretchSupportedSymbol, state.percentileStretchSupported);
   provide(PercentileHistogramSymbol, state.percentileHistogram);
@@ -595,6 +602,9 @@ function useVisibleModes() {
 function useReadOnlyMode() {
   return use<ReadOnylModeType>(ReadOnlyModeSymbol);
 }
+function useOffsetEditLock() {
+  return use<OffsetEditLockType>(OffsetEditLockSymbol);
+}
 function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
@@ -653,6 +663,7 @@ export {
   useTime,
   useVisibleModes,
   useReadOnlyMode,
+  useOffsetEditLock,
   useImageEnhancements,
   usePercentileStretchSupported,
   usePercentileHistogram,

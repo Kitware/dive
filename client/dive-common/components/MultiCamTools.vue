@@ -6,6 +6,7 @@ import {
   useDatasetId,
   useEditingMode,
   useHandler,
+  useOffsetEditLock,
   usePendingSaveCount,
   useReadOnlyMode,
   useSelectedCamera,
@@ -39,6 +40,7 @@ export default defineComponent({
     const datasetId = useDatasetId();
     const pendingSaveCount = usePendingSaveCount();
     const readOnlyMode = useReadOnlyMode();
+    const offsetEditLock = useOffsetEditLock();
     const { applyCameraFrameOffset } = useApi();
 
     // Time offset: the first camera is the reference; every other camera is shifted onto it.
@@ -205,6 +207,7 @@ export default defineComponent({
       savingOffsets,
       saveAnnotationOffsets,
       readOnlyMode,
+      offsetEditLock,
     };
   },
 });
@@ -253,7 +256,7 @@ export default defineComponent({
         block
         small
         color="primary"
-        :disabled="readOnlyMode || !Object.keys(pendingShifts).length"
+        :disabled="(readOnlyMode && !offsetEditLock) || !Object.keys(pendingShifts).length"
         :loading="savingOffsets"
         @click="saveAnnotationOffsets"
       >
@@ -261,6 +264,12 @@ export default defineComponent({
       </v-btn>
       <span class="text-caption grey--text d-block mt-1">
         Moves every stored annotation on a shifted camera by its offset.
+      </span>
+      <span
+        v-if="offsetEditLock"
+        class="text-caption warning--text d-block mt-1"
+      >
+        Annotation editing is paused until the offset is applied.
       </span>
     </div>
     <v-divider class="my-3" />

@@ -330,15 +330,17 @@ export default defineComponent({
       return buildAlignedTimeline(camerasFrames);
     });
     // Until an offset is applied to a camera's annotations, they stay put while its video shifts.
-    watch(
-      () => pendingFrameShifts(
-        cameraRegistration.frameOffsets.value,
-        cameraRegistration.appliedFrameOffsets.value,
-        multiCamList.value,
-      ),
-      (shifts) => setAnnotationFrameShifts(shifts),
-      { immediate: true },
-    );
+    const pendingAnnotationShifts = computed(() => pendingFrameShifts(
+      cameraRegistration.frameOffsets.value,
+      cameraRegistration.appliedFrameOffsets.value,
+      multiCamList.value,
+    ));
+    watch(pendingAnnotationShifts, (shifts) => setAnnotationFrameShifts(shifts), { immediate: true });
+    // Edits key by the video frame while the pane draws the shifted one, so pause editing until the offset is applied.
+    const offsetEditLock = computed(() => !readonlyState.value
+      && Object.keys(pendingAnnotationShifts.value).length > 0);
+    // Saving still follows readonlyState alone: applying an offset saves pending edits first.
+    const editLocked = computed(() => readonlyState.value || offsetEditLock.value);
     // Serialized shape of the currently installed timeline. The computed
     // re-evaluates whenever any camera's imageData array identity changes --
     // including pure display-URL swaps (e.g. the percentile-stretch remap)
@@ -947,7 +949,7 @@ export default defineComponent({
       groupFilterControls: groupFilters,
       cameraStore,
       aggregateController,
-      readonlyState,
+      readonlyState: editLocked,
       alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
       lassoModeActive: lassoMode.lassoModeActive,
@@ -2302,7 +2304,7 @@ export default defineComponent({
     };
 
     watch(datasetId, reloadAnnotations);
-    watch(readonlyState, () => handler.trackSelect(null, false));
+    watch(editLocked, () => handler.trackSelect(null, false));
     // Update segmentation recipe when frame changes to show only current frame's points
     watch(() => time.frame.value, (newFrame) => {
       segmentationRecipe.handleFrameChange(newFrame);
@@ -2399,7 +2401,8 @@ export default defineComponent({
         trackFilters,
         trackStyleManager,
         visibleModes,
-        readOnlyMode: readonlyState,
+        readOnlyMode: editLocked,
+        offsetEditLock,
         imageEnhancements,
         percentileStretchSupported,
         percentileHistogram,
@@ -2658,6 +2661,7 @@ export default defineComponent({
       context,
       readonlyState,
       linkingState,
+      editLocked,
       cameraEnhOutputs,
       isCameraDefault,
       cameraPercentileStretch,
@@ -2863,7 +2867,7 @@ export default defineComponent({
         <EditorMenu
           ref="editorMenuRef"
           :has-selected-track="selectedTrackId !== null"
-          :disabled="readonlyState || linkingState || !progress.loaded"
+          :disabled="editLocked || linkingState || !progress.loaded"
           v-bind="{
             editingMode,
             visibleModes,
@@ -2872,8 +2876,8 @@ export default defineComponent({
             multiSelectActive,
             editingDetails,
             groupEditActive: editingGroupId !== null,
-            lassoModeActive: !readonlyState && lassoModeActive,
-            lassoDrawing: !readonlyState && lassoDrawing,
+            lassoModeActive: !editLocked && lassoModeActive,
+            lassoDrawing: !editLocked && lassoDrawing,
             textQueryEnabled,
             textQueryAvailable,
             checkTextQueryAvailable,
@@ -3063,7 +3067,7 @@ export default defineComponent({
         <div
           v-if="progress.mediaLoaded"
           v-mousetrap="progress.loaded ? [
-            { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+            { bind: 'n', handler: () => !editLocked && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
@@ -3179,7 +3183,7 @@ export default defineComponent({
         <div
           v-if="progress.mediaLoaded"
           v-mousetrap="progress.loaded ? [
-            { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+            { bind: 'n', handler: () => !editLocked && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
@@ -3239,7 +3243,7 @@ export default defineComponent({
             :track-filters="trackFilters"
             :attributes="attributes"
             :frame-rate="frameRate"
-            :readonly-state="readonlyState"
+            :readonly-state="editLocked"
             :disable-annotation-filters="disableAnnotationFilters"
             :prompt-visible="visible"
             :confidence-filters="confidenceFilters"
