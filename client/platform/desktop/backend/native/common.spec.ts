@@ -625,6 +625,30 @@ beforeEach(() => {
             },
           },
         },
+        projectidMulticamMovedSource: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidMulticamMovedSource',
+            name: 'movedStereo',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/movedStereo/left',
+                },
+                right: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/movedStereo/right',
+                },
+              },
+            },
+          }),
+          'result_whatever.json': JSON.stringify({}),
+        },
         projectidFrameMetadata: {
           'meta.json': JSON.stringify({
             version: 1,
@@ -2829,6 +2853,9 @@ describe('native.common', () => {
     await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing dataset json');
     await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
     await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing project directory');
+    await expect(common.checkDataset(settings, 'projectidMulticamMovedSource')).rejects.toThrow(
+      'Dataset movedStereo does not contain source files at /home/user/data/movedStereo/left, /home/user/data/movedStereo/right',
+    );
   });
 
   it('checkDataset does not create directories for missing datasets', async () => {

@@ -2170,9 +2170,13 @@ export default defineComponent({
         errorEl.innerHTML = getResponseError(err);
         loadError.value = errorEl.innerText
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        emit('load-error', loadError.value);
         throw err;
       }
     };
+    function forwardLoadError(message: string, largeImage?: boolean) {
+      emit('load-error', message, largeImage);
+    }
     loadData();
 
     /**
@@ -2550,6 +2554,7 @@ export default defineComponent({
       imageData,
       lineChartData,
       loadError,
+      forwardLoadError,
       multiSelectActive,
       lassoModeActive: lassoMode.lassoModeActive,
       lassoDrawing: lassoMode.lassoDrawing,
@@ -3028,6 +3033,7 @@ export default defineComponent({
                   filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
+                @load-error="forwardLoadError"
               >
                 <LayerManager :camera="camera" />
               </component>
@@ -3127,6 +3133,7 @@ export default defineComponent({
                   filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
+                @load-error="forwardLoadError"
               >
                 <LayerManager :camera="camera" />
               </component>
