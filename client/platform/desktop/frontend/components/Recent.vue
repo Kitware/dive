@@ -366,12 +366,14 @@ export default defineComponent({
       {
         text: 'Split',
         value: 'trainingSplit',
+        align: 'center',
         sortable: true,
         width: 130,
       },
       {
         text: 'Accessed',
         value: 'accessedAt',
+        align: 'center',
         sortable: true,
         sort: (a: string, b: string) => parseRecentDate(b).valueOf() - parseRecentDate(a).valueOf(),
         width: 140,
