@@ -1,6 +1,6 @@
 <script lang="ts">
 import { defineComponent } from 'vue';
-import FilterList from 'vue-media-annotator/components/FilterList.vue';
+import FilterList from 'vue-media-annotator/components/Types/FilterList.vue';
 import GroupList from 'vue-media-annotator/components/GroupList.vue';
 
 import StackedVirtualSidebarContainer from 'dive-common/components/StackedVirtualSidebarContainer.vue';

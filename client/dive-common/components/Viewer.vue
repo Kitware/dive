@@ -51,7 +51,7 @@ import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
-import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TypeSettingsPanel from 'dive-common/components/Types/TypeSettingsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TrackListColumnSettings from 'dive-common/components/TrackListColumnSettings.vue';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -884,6 +884,7 @@ export default defineComponent({
 
     // Provides wrappers for actions to integrate with settings
     const {
+      linkingState,
       linkingTrack,
       linkingCamera,
       multiSelectList,
@@ -909,6 +910,8 @@ export default defineComponent({
       readonlyState,
       alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
+      lassoModeActive: lassoMode.lassoModeActive,
+      lassoDrawing: lassoMode.lassoDrawing,
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
       },
@@ -1157,6 +1160,7 @@ export default defineComponent({
         }
       }
       const typeHierarchyPatch = trackFilters.typeHierarchySavePatch();
+      const taxonomyPatch = trackFilters.taxonomySavePatch();
       try {
         const { canonicalConfigPersisted } = await saveToServer({
           customTypeStyling: trackStyleManager.getTypeStyles(
@@ -1167,15 +1171,18 @@ export default defineComponent({
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
           ...typeHierarchyPatch,
+          ...taxonomyPatch,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
         if (canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
       } catch (err) {
         const saveResult = err as { canonicalConfigPersisted?: boolean };
         if (saveResult.canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
         let text = 'Unable to Save Data';
         const saveErr = err as { response?: { status?: number } };
@@ -1740,6 +1747,7 @@ export default defineComponent({
         context.resetActive();
         const meta = await loadConfig(datasetId.value);
         trackFilters.setTypeHierarchy(meta.typeHierarchy);
+        trackFilters.setTaxonomySources(meta.taxonomySources);
         const hierarchyWarning = trackFilters.consumeLoadWarning();
         if (hierarchyWarning) {
           await prompt({
@@ -2553,6 +2561,7 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
+      linkingState,
       cameraEnhOutputs,
       isCameraDefault,
       cameraPercentileStretch,
@@ -2757,6 +2766,8 @@ export default defineComponent({
 
         <EditorMenu
           ref="editorMenuRef"
+          :has-selected-track="selectedTrackId !== null"
+          :disabled="readonlyState || linkingState || !progress.loaded"
           v-bind="{
             editingMode,
             visibleModes,
@@ -2925,7 +2936,6 @@ export default defineComponent({
       <sidebar
         v-if="sidebarMode === 'left'"
         :is-stereo-dataset="subType === 'stereo'"
-        @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
         <template>
