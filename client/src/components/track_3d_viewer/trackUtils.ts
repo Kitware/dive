@@ -1,15 +1,15 @@
 import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
 import StyleManager from 'vue-media-annotator/StyleManager';
 import * as vtkMath from '@kitware/vtk.js/Common/Core/Math';
+import { Bounds3, Position } from './positions';
 
 export interface ViewUtils {
   rerender: (resetCamera?: boolean) => void;
+  /** Extent of the plotted positions, ignoring outliers; null when there are none. */
+  sceneBounds: () => Bounds3 | null;
 }
 
-export interface Feature {
-  x: number;
-  y: number;
-  z: number;
+export interface Feature extends Position {
   frameNumber: number;
 }
 
