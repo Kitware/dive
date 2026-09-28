@@ -9,9 +9,6 @@ import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
 import { kwiverSeek, OnePTSTick } from './videoSeek';
 
-// Fallback for marking a landed seek as painted when no new video frame is presented.
-const PRESENT_TIMEOUT_MS = 250;
-
 export default defineComponent({
   name: 'VideoAnnotator',
   components: { AnnotatorImageCursor },
@@ -157,8 +154,6 @@ export default defineComponent({
         }
         data.frame = Math.floor(newFrame);
         data.flick = Math.round(video.currentTime * Flick);
-        // Playback owns syncedFrame now; drop any landed-seek update still waiting to paint.
-        presentToken += 1;
         data.syncedFrame = data.frame;
         // Keep shared time.frame in sync so Timeline playhead tracks playback
         props.updateTime(data);
@@ -275,34 +270,16 @@ export default defineComponent({
         seekingFrame = pendingSeek.frame;
         pendingSeek = null;
       }
-      const landed = seekingFrame ?? Math.round(video.currentTime * props.frameRate);
+      // Annotations draw at syncedFrame, so it only advances once the picture has.
+      data.syncedFrame = seekingFrame ?? Math.round(video.currentTime * props.frameRate);
       seekingFrame = null;
-      markPresented(landed);
-    }
-    let presentToken = 0;
-    // Annotations draw at syncedFrame, so it only advances once the landed frame is painted, not merely seeked.
-    function markPresented(frame: number) {
-      presentToken += 1;
-      const token = presentToken;
-      const apply = () => {
-        if (token !== presentToken) return;
-        presentToken += 1;
-        data.syncedFrame = frame;
-        // The aligned-view warp is a canvas snapshot of this <video> element,
-        // redrawn only on an imageRevision bump -- unlike the native pane,
-        // which the browser keeps live on its own. loadedmetadata bumps it
-        // once for the initial frame; without another bump here, a scrub
-        // leaves the warp showing whatever the video displayed mid-seek
-        // (often a black frame) instead of the frame the seek landed on.
-        data.imageRevision += 1;
-      };
-      if (frame === data.syncedFrame || typeof video.requestVideoFrameCallback !== 'function') {
-        apply();
-        return;
-      }
-      video.requestVideoFrameCallback(apply);
-      // A seek onto the frame already shown presents nothing new, so the callback may never fire.
-      window.setTimeout(apply, PRESENT_TIMEOUT_MS);
+      // The aligned-view warp is a canvas snapshot of this <video> element,
+      // redrawn only on an imageRevision bump -- unlike the native pane,
+      // which the browser keeps live on its own. loadedmetadata bumps it
+      // once for the initial frame; without another bump here, a scrub
+      // leaves the warp showing whatever the video displayed mid-seek
+      // (often a black frame) instead of the frame the seek landed on.
+      data.imageRevision += 1;
     }
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);
