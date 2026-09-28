@@ -192,6 +192,7 @@ export default defineComponent({
       const result = await prompt({
         title: `Delete ${items.length} dataset${items.length > 1 ? 's' : ''}`,
         text: ['Do you want to delete the selected datasets?',
+          '',
           '1.  Deleting datasets will not remove source media, such as images or video.',
           '2.  It will not remove annotations files that were imported when the datasets were created.',
           '3.  This will remove any annotations that have been created in DIVE for these datasets',
