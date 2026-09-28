@@ -74,3 +74,35 @@ describe('useLineChart display context', () => {
       .toEqual([[0, 0]]);
   });
 });
+
+describe('useLineChart on an aligned timeline', () => {
+  afterEach(() => {
+    clientSettings.timelineCountSettings.defaultView = 'tracks';
+  });
+
+  it.each(['tracks', 'detections'] as const)('counts %s at timeline slots when they are provided', (view) => {
+    clientSettings.timelineCountSettings.defaultView = view;
+    clientSettings.timelineCountSettings.totalCount = false;
+    const enabledTracks: Ref<TrackWithContext[]> = ref([{
+      annotation: makeSorted([['fish', 0.9]]),
+      context: { confidencePairIndex: 0 },
+    }]);
+    const getTrackProjection = vi.fn();
+    const { lineChartData } = useLineChart({
+      enabledTracks,
+      allTypes: ref(['fish']),
+      typeStyling,
+      getTrackProjection,
+      timelineRange: () => [4, 10],
+      timelineFeatures: () => [
+        { frame: 4, keyframe: true, interpolate: false },
+        { frame: 10, keyframe: true, interpolate: false },
+      ],
+    });
+
+    const fish = lineChartData.value.find(({ name }) => name === 'fish');
+    expect(fish?.values).toEqual(expect.arrayContaining([[4, 1]]));
+    expect(fish?.values).not.toEqual(expect.arrayContaining([[3, 1]]));
+    expect(getTrackProjection).not.toHaveBeenCalled();
+  });
+});

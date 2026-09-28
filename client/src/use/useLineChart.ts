@@ -4,13 +4,16 @@ import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
 import type { TrackProjection } from 'vue-media-annotator/TrackProjection';
 import type { TrackWithContext } from '../BaseFilterControls';
 import type { TypeStyling } from '../StyleManager';
+import type { TimelineFeature } from './useEventChart';
 
 interface UseLineChartParams {
   enabledTracks: Readonly<Ref<readonly TrackWithContext[]>>;
   typeStyling: Ref<TypeStyling>;
   allTypes: Readonly<Ref<readonly string[]>>;
   getTrackProjection: (id: AnnotationId) => TrackProjection;
-
+  /** Range and features on the playback timeline, when it differs from the stored frames. */
+  timelineRange?: (id: AnnotationId) => [number, number] | null;
+  timelineFeatures?: (id: AnnotationId) => TimelineFeature[] | null;
 }
 
 export interface LineChartData {
@@ -56,6 +59,8 @@ export default function useLineChart({
   typeStyling,
   allTypes,
   getTrackProjection,
+  timelineRange,
+  timelineFeatures,
 }: UseLineChartParams) {
   const lineChartData = computed(() => {
     /* Histogram map contains multiple histograms keyed
@@ -74,10 +79,12 @@ export default function useLineChart({
     enabledTracks.value.forEach((filtered) => {
       const { annotation: track } = filtered;
       if (clientSettings.timelineCountSettings.defaultView === 'detections') {
-        const trackObj = getTrackProjection(track.id);
-        const frames = trackObj.features
-          .filter((item) => item?.keyframe)
-          .map((item) => item?.frame as number);
+        const onTimeline = timelineFeatures?.(track.id);
+        const frames = onTimeline
+          ? onTimeline.filter((feature) => feature.keyframe).map((feature) => feature.frame)
+          : getTrackProjection(track.id).features
+            .filter((item) => item?.keyframe)
+            .map((item) => item?.frame as number);
         const segments = framesToSegments(frames);
         segments.forEach((segment) => {
           const ibegin = segment[0];
@@ -91,8 +98,9 @@ export default function useLineChart({
           [typeArr[ibegin], typeArr[iend]] = updateHistogram(ibegin, iend, typeArr);
         });
       } else {
-        const ibegin = track.begin;
-        const iend = track.end > track.begin ? track.end : track.begin + 1;
+        const [begin, end] = timelineRange?.(track.id) ?? [track.begin, track.end];
+        const ibegin = begin;
+        const iend = end > begin ? end : begin + 1;
 
         if (clientSettings.timelineCountSettings.totalCount) {
           const totalArr = histograms.get('total') as number[];

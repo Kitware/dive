@@ -96,6 +96,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
 import { pendingFrameShifts } from 'dive-common/frameOffsetAnnotations';
+import { timelineRange, timelineFeatures } from 'dive-common/timelineTrack';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
@@ -1044,11 +1045,31 @@ export default defineComponent({
       return multiSelectList.value;
     });
 
+    // Under an aligned timeline each camera's stored frames differ from the playhead's slots.
+    const trackReplicas = (id: AnnotationId): [string, Track][] => {
+      const replicas: [string, Track][] = [];
+      cameraStore.camMap.value.forEach(({ trackStore }, camera) => {
+        const track = trackStore.getPossible(id);
+        if (track) replicas.push([camera, track]);
+      });
+      return replicas;
+    };
+    const cameraFrameToSlot = (camera: string, frame: number) => (
+      aggregateController.value.cameraFrameToSlot(camera, frame)
+    );
+    const onTimeline = {
+      timelineRange: (id: AnnotationId) => (alignedTimeline.value.aligned
+        ? timelineRange(trackReplicas(id), cameraFrameToSlot) : null),
+      timelineFeatures: (id: AnnotationId) => (alignedTimeline.value.aligned
+        ? timelineFeatures(trackReplicas(id), cameraFrameToSlot) : null),
+    };
+
     const { lineChartData } = useLineChart({
       enabledTracks: trackFilters.enabledAnnotations,
       typeStyling: trackStyleManager.typeStyling,
       allTypes: trackFilters.allTypes,
       getTrackProjection,
+      ...onTimeline,
     });
 
     const { eventChartData } = useEventChart({
@@ -1056,6 +1077,7 @@ export default defineComponent({
       selectedTrackIds: allSelectedIds,
       typeStyling: trackStyleManager.typeStyling,
       getTrackProjection,
+      ...onTimeline,
     });
 
     const { eventChartData: groupChartData } = useEventChart({

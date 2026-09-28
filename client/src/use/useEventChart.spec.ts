@@ -65,3 +65,28 @@ describe('useEventChart display context', () => {
     })]);
   });
 });
+
+describe('useEventChart on an aligned timeline', () => {
+  it('draws the range and markers at timeline slots when they are provided', () => {
+    const annotation = makeSorted([['fish', 0.9]]);
+    const enabledTracks: Ref<AnnotationWithContext<Track>[]> = ref([{
+      annotation,
+      context: { confidencePairIndex: 0 },
+    }]);
+    const getTrackProjection = vi.fn();
+    const { eventChartData } = useEventChart({
+      enabledTracks,
+      selectedTrackIds: ref([7]),
+      typeStyling,
+      getTrackProjection,
+      timelineRange: () => [4, 10],
+      timelineFeatures: () => [{ frame: 4, keyframe: true, interpolate: false }],
+    });
+
+    expect(eventChartData.value.values[0]).toEqual(expect.objectContaining({
+      range: [4, 10],
+      markers: [[4, false]],
+    }));
+    expect(getTrackProjection).not.toHaveBeenCalled();
+  });
+});
