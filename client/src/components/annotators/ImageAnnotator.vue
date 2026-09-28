@@ -125,6 +125,14 @@ export default defineComponent({
       }
       return imgInternal;
     }
+    function failedToLoad(imgInternal: ImageDataItemInternal, loaded: boolean) {
+      if (loaded || local.imgs[imgInternal.frame] !== imgInternal) {
+        return false;
+      }
+      loadingImage.value = false;
+      emit('load-error', `Could not load ${imgInternal.filename}. The file may have been moved or deleted.`);
+      return true;
+    }
     /**
      * Draw image to the GeoJS map, and update the map dimensions if they have changed.
      */
@@ -277,8 +285,8 @@ export default defineComponent({
       if (!imgInternal.cached) {
         loadingImage.value = true;
         // else wait for it to load
-        await imgInternal.onloadPromise;
-        if (imgInternal.frame === data.frame) {
+        const loaded = await imgInternal.onloadPromise;
+        if (imgInternal.frame === data.frame && !failedToLoad(imgInternal, loaded)) {
           loadingImage.value = false;
           // if the seek hasn't changed since the image completed loading, draw it.
           drawImage(imgInternal.image);
@@ -368,11 +376,21 @@ export default defineComponent({
 
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
-      imgInternal.onloadPromise.then(async () => {
+      imgInternal.onloadPromise.then(async (loaded) => {
+        if (imgInternal.frame !== data.frame || failedToLoad(imgInternal, loaded)) {
+          return;
+        }
         try {
           await imgInternal.image.decode();
         } catch (error) {
-          emit('large-image-warning', true);
+          if (imgInternal.frame !== data.frame) {
+            return;
+          }
+          loadingImage.value = false;
+          emit('load-error', `Could not display ${imgInternal.filename}. Its resolution may be too large for this browser or hardware.`, true);
+          return;
+        }
+        if (imgInternal.frame !== data.frame) {
           return;
         }
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
@@ -428,8 +446,8 @@ export default defineComponent({
         drawImage(imgInternal.image);
         if (!imgInternal.cached) {
           loadingImage.value = true;
-          imgInternal.onloadPromise.then(() => {
-            if (imgInternal.frame === data.frame) {
+          imgInternal.onloadPromise.then((loaded) => {
+            if (imgInternal.frame === data.frame && !failedToLoad(imgInternal, loaded)) {
               loadingImage.value = false;
               drawImage(imgInternal.image);
             }
@@ -440,7 +458,10 @@ export default defineComponent({
         return;
       }
       const imgInternal = cacheFrame(0);
-      imgInternal.onloadPromise.then(() => {
+      imgInternal.onloadPromise.then((loaded) => {
+        if (failedToLoad(imgInternal, loaded)) {
+          return;
+        }
         initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
         const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],
