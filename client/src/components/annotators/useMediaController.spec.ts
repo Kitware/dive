@@ -361,18 +361,41 @@ describe('useMediaController', () => {
     expect(mocks.seekB).toHaveBeenLastCalledWith(7);
   });
 
-  it('annotationFrame trails the video frame by the camera\'s unapplied shift', () => {
+  it('annotationFrame trails the video frame by the camera\'s unapplied shift', async () => {
     const { composable } = mountMediaController();
     const a = composable.aggregateController.value.getController('A');
     const b = composable.aggregateController.value.getController('B');
+    (a.frame as Ref<number>).value = 12;
     (a.syncedFrame as Ref<number>).value = 12;
+    (b.frame as Ref<number>).value = 12;
     (b.syncedFrame as Ref<number>).value = 12;
+    await nextTick();
     expect(a.annotationFrame.value).toBe(12);
     composable.setAnnotationFrameShifts({ A: 9 });
+    await nextTick();
     expect(a.annotationFrame.value).toBe(3);
     expect(b.annotationFrame.value).toBe(12);
     composable.setAnnotationFrameShifts({});
+    await nextTick();
     expect(a.annotationFrame.value).toBe(12);
+  });
+
+  it('holds the old shift until the video lands on the frame the new shift pairs with', async () => {
+    const { composable } = mountMediaController('video');
+    const a = composable.aggregateController.value.getController('A');
+    (a.frame as Ref<number>).value = 10;
+    (a.syncedFrame as Ref<number>).value = 10;
+    composable.setAnnotationFrameShifts({ A: 2 });
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(8);
+    // A one-frame nudge seeks the video on and raises the shift in the same tick.
+    (a.frame as Ref<number>).value = 11;
+    composable.setAnnotationFrameShifts({ A: 3 });
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(8);
+    (a.syncedFrame as Ref<number>).value = 11;
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(8);
   });
 
   it('annotationFrame follows the frame on screen, not a requested frame still seeking', () => {

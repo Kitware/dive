@@ -686,6 +686,16 @@ export function useMediaController(options?: {
       }
     });
 
+    // Adopt a changed time-offset shift only once the video has landed on the frame that shift was paired with.
+    const settledShift = ref(annotationFrameShifts.value[cameraName] ?? 0);
+    watch(
+      [() => state[camera].syncedFrame, () => state[camera].frame,
+        () => annotationFrameShifts.value[cameraName] ?? 0],
+      ([synced, frame, shift]) => {
+        if (synced === frame) settledShift.value = shift;
+      },
+      { flush: 'post' },
+    );
     const mediaController: MediaController = {
       mediaKind,
       ready: toRef(state[camera], 'ready'),
@@ -704,9 +714,7 @@ export function useMediaController(options?: {
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
-      annotationFrame: computed(
-        () => state[camera].syncedFrame - (annotationFrameShifts.value[cameraName] ?? 0),
-      ),
+      annotationFrame: computed(() => state[camera].syncedFrame - settledShift.value),
       imageRevision: toRef(state[camera], 'imageRevision'),
       frameTexture: toRef(state[camera], 'frameTexture'),
       originalBounds: toRef(state[camera], 'originalBounds'),
