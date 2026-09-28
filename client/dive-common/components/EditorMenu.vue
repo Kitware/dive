@@ -586,8 +586,7 @@ export default defineComponent({
               :disabled="toolsDisabled || !!activeEditButton?.loading"
               :loading="!!activeEditButton?.loading"
               :color="activeEditButton?.active ? editingHeader.color : ''"
-              class="mx-1 mode-button toolbar-group-activator"
-              :class="{ 'creation-mode': creatingAnnotation }"
+              class="mx-1 mode-button toolbar-group-activator tool-button"
               small
               v-on="on"
             >
@@ -630,11 +629,8 @@ export default defineComponent({
                         :loading="!!button.loading"
                         :outlined="!button.active"
                         :color="button.active ? editingHeader.color : ''"
-                        :class="{
-                          'edit-btn-unavailable': button.unavailable && !button.loading,
-                          'creation-mode': creatingAnnotation,
-                        }"
-                        class="mx-1"
+                        :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
+                        class="mx-1 tool-button"
                         small
                         @click="button.click"
                       >
@@ -695,11 +691,8 @@ export default defineComponent({
                   :loading="!!button.loading"
                   :outlined="!button.active"
                   :color="button.active ? editingHeader.color : ''"
-                  :class="{
-                    'edit-btn-unavailable': button.unavailable && !button.loading,
-                    'creation-mode': creatingAnnotation,
-                  }"
-                  class="mx-1"
+                  :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
+                  class="mx-1 tool-button"
                   small
                   @click="button.click"
                 >
@@ -957,8 +950,8 @@ export default defineComponent({
   min-width: 36px;
 }
 
-/* The + overlays the icon, so creation mode only trades left padding for room on the right */
-.v-btn.v-size--small.creation-mode {
+/* Room on the right for the creation +, kept in every mode so the buttons never resize */
+.v-btn.v-size--small.tool-button {
   padding-left: 6px;
   padding-right: 10px;
 }
