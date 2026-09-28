@@ -958,8 +958,9 @@ export default defineComponent({
 
 .creation-indicator {
   position: absolute;
-  top: -5px;
+  top: 50%;
   right: -9px;
+  transform: translateY(-50%);
   pointer-events: none;
 }
 
