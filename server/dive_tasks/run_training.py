@@ -12,7 +12,7 @@ from girder_worker.utils import JobManager, JobStatus
 from dive_tasks import utils
 from dive_tasks.manager import patch_manager
 from dive_tasks.viame_config import Config
-from dive_utils import constants
+from dive_utils import constants, model_pack
 from dive_utils.types import ExportTrainedPipelineJob, TrainingJob
 
 
@@ -158,7 +158,7 @@ def train_pipeline(self: Task, params: TrainingJob):
             input_path, 'input', split_inputs['train']
         )
 
-        training_results_path = utils.make_directory(output_path / "category_models")
+        training_results_path = utils.make_directory(output_path / "trained_model")
 
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
@@ -223,6 +223,17 @@ def train_pipeline(self: Task, params: TrainingJob):
             'env': conf.gpu_process_env,
         }
         utils.stream_subprocess(self, context, manager, popen_kwargs)
+
+        # Current VIAME packs the whole output into one zip; older releases and
+        # SVM trainers leave a folder (category_models before the rename)
+        pack_path = output_path / "trained_model.zip"
+        if pack_path.exists():
+            training_results_path = utils.make_directory(output_path / "trained_model")
+            model_pack.extract_model_pack(pack_path, training_results_path)
+        elif len(list(training_results_path.glob("*"))) == 0:
+            legacy_path = output_path / "category_models"
+            if legacy_path.exists() and any(legacy_path.iterdir()):
+                training_results_path = legacy_path
 
         # Check that there are results in the output path
         if len(list(training_results_path.glob("*"))) == 0:

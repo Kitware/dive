@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  computed, defineComponent, onBeforeUnmount, PropType, ref, watch,
+  computed, defineComponent, onBeforeUnmount, PropType, ref, shallowRef, watch,
 } from 'vue';
 import { useHandler } from 'vue-media-annotator/provides';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
@@ -13,13 +13,18 @@ import type { ReviewService } from 'dive-common/use/useReview';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import type { ReviewItem } from 'dive-common/review/types';
-import type { VideoSearchResult } from 'dive-common/apispec';
+import type { VideoSearchLayoutResponse, VideoSearchResult } from 'dive-common/apispec';
+import type { SpacePoint } from 'platform/desktop/frontend/resultSpace';
 import ReviewGrid from 'dive-common/components/Review/ReviewGrid.vue';
 import ReviewGridControls from 'dive-common/components/Review/ReviewGridControls.vue';
 import ReviewCell, { ReviewCellGeometryEdit } from 'dive-common/components/Review/ReviewCell.vue';
+import VideoSearchResultsSpace, { SpaceCell } from './VideoSearchResultsSpace.vue';
 
 /** Footer height of a search cell (type field and caption), for the chip aspect ratio. */
 const SearchCellFooterPx = 48;
+/** How many top results the 3D view may place. */
+const SpaceCountChoices = [10, 25, 50, 100];
+const DefaultSpaceCount = 25;
 
 /**
  * Full-window review grid of ranked search results across every indexed
@@ -28,10 +33,14 @@ const SearchCellFooterPx = 48;
  * panel, and the grid shape, zoom, context and paging with the Review page.
  * With a search review attached, cells are also editable annotations:
  * typing a type or adjusting a box adopts the result into its dataset.
+ * An optional 3D view places the top results around the query in
+ * descriptor space instead of the grid.
  */
 export default defineComponent({
   name: 'VideoSearchResultsGrid',
-  components: { ReviewGrid, ReviewGridControls, ReviewCell },
+  components: {
+    ReviewGrid, ReviewGridControls, ReviewCell, VideoSearchResultsSpace,
+  },
   props: {
     value: {
       type: Boolean,
@@ -58,6 +67,11 @@ export default defineComponent({
     memory: {
       type: Object as PropType<ResultsGridMemory | null>,
       default: null,
+    },
+    /** Image of the query exemplar, shown at the center of the 3D view. */
+    exemplarUrl: {
+      type: String,
+      default: '',
     },
   },
   setup(props, { emit }) {
@@ -92,10 +106,73 @@ export default defineComponent({
       retainPage: true,
     });
     watch(() => state.value?.queryGeneration, () => grid.goToPage(0));
+
+    // ---- 3D descriptor-space view ----------------------------------------
+    const space = ref(props.memory?.space ?? false);
+    const spaceCount = ref(props.memory?.spaceCount ?? DefaultSpaceCount);
+    const spaceItems = computed(() => (space.value ? visibleItems.value.slice(0, spaceCount.value) : []));
+    const spaceLayout = shallowRef<VideoSearchLayoutResponse | null>(null);
+    const spaceLoading = ref(false);
+    const spaceError = ref('');
+    let spaceRequest = 0;
+    // Refs are only comparable within a query generation; refinement
+    // re-ranks, so the same refs in a new order still need a new layout.
+    watch([
+      () => state.value?.queryGeneration,
+      () => state.value?.iteration,
+      () => spaceItems.value.map((item) => item.key).join('\n'),
+    ], async ([, , keys]) => {
+      spaceRequest += 1;
+      const request = spaceRequest;
+      const refs = keys ? keys.split('\n') : [];
+      if (!search || !refs.length) {
+        spaceLayout.value = null;
+        spaceLoading.value = false;
+        return;
+      }
+      props.searchChips.store.ensurePrimary(spaceItems.value);
+      spaceLoading.value = true;
+      spaceError.value = '';
+      try {
+        const layout = await search.layoutResults(refs);
+        if (request === spaceRequest) spaceLayout.value = layout;
+      } catch (err) {
+        if (request === spaceRequest) {
+          spaceLayout.value = null;
+          spaceError.value = err instanceof Error ? err.message : String(err);
+        }
+      } finally {
+        if (request === spaceRequest) spaceLoading.value = false;
+      }
+    }, { immediate: true });
+
+    const spacePoints = computed<SpacePoint[]>(() => (spaceLayout.value?.points ?? [])
+      .map((point) => ({ key: point.ref, position: point.position })));
+    const spaceCells = computed<SpaceCell[]>(() => {
+      const distances = new Map((spaceLayout.value?.points ?? []).map((point) => [point.ref, point.distance]));
+      return spaceItems.value.map((item, index): SpaceCell => {
+        const result = resultsByRef.value.get(item.key);
+        const datasetName = search && result ? search.resultDatasetName(result) : null;
+        return {
+          key: item.key,
+          rank: index + 1,
+          chip: props.searchChips.chips.value[item.key] || null,
+          adjudication: (result && adjudications.value[result.ref]) || '',
+          title: `${datasetName || 'This dataset'} · frame ${item.primary.frame}`,
+          subtitle: [`Frame ${item.primary.frame}`, datasetName].filter(Boolean).join(' · '),
+          score: result?.relevancy_score ?? 0,
+          distance: distances.get(item.key) ?? 0,
+        };
+      });
+    });
+    const spaceMissingCount = computed(() => spaceLayout.value?.missing?.length ?? 0);
+
     if (props.memory) {
       grid.goToPage(props.memory.page);
-      watch([grid.page, hideReviewed], ([page, hide]) => {
-        Object.assign(props.memory as ResultsGridMemory, { page, hideReviewed: hide });
+      watch([grid.page, hideReviewed, space, spaceCount], ([page, hide, inSpace, count]) => {
+        Object.assign(props.memory as ResultsGridMemory, {
+          page, hideReviewed: hide, space: inSpace, spaceCount: count,
+        });
       });
     }
 
@@ -151,7 +228,7 @@ export default defineComponent({
       // Swallow paging keys before they bubble to document, where the
       // annotator's mousetrap left/right bindings would seek the (hidden)
       // playhead one frame per grid page turn.
-      if (grid.handleKeydown(event)) {
+      if (!space.value && grid.handleKeydown(event)) {
         event.stopPropagation();
       }
     }
@@ -185,6 +262,15 @@ export default defineComponent({
 
     function mark(item: ReviewItem, adjudication: 'positive' | 'negative') {
       search?.mark(item.key, adjudication);
+    }
+
+    function openSpaceItem(key: string) {
+      const item = props.searchChips.itemsByRef.value.get(key);
+      if (item) openItem(item);
+    }
+
+    function markSpaceItem(key: string, adjudication: 'positive' | 'negative') {
+      search?.mark(key, adjudication);
     }
 
     function assign(result: VideoSearchResult | undefined, type: string) {
@@ -234,6 +320,16 @@ export default defineComponent({
       reviewedCount,
       annotationHasChanges,
       annotationChangeCount,
+      space,
+      spaceCount,
+      spaceCountChoices: SpaceCountChoices,
+      spacePoints,
+      spaceCells,
+      spaceLoading,
+      spaceError,
+      spaceMissingCount,
+      openSpaceItem,
+      markSpaceItem,
       close,
       openItem,
       mark,
@@ -271,6 +367,32 @@ export default defineComponent({
         <v-toolbar-title class="text-subtitle-1">
           Search Results
         </v-toolbar-title>
+        <v-btn-toggle
+          :value="space ? 'space' : 'grid'"
+          mandatory
+          dense
+          class="ml-4"
+          @change="space = $event === 'space'"
+        >
+          <v-btn
+            small
+            value="grid"
+            title="Ranked chip grid"
+          >
+            <v-icon small>
+              mdi-view-grid-outline
+            </v-icon>
+          </v-btn>
+          <v-btn
+            small
+            value="space"
+            title="Top results around the query in 3D descriptor space"
+          >
+            <v-icon small>
+              mdi-cube-outline
+            </v-icon>
+          </v-btn>
+        </v-btn-toggle>
         <v-spacer />
         <span class="text-caption mr-3">
           <v-icon
@@ -355,7 +477,47 @@ export default defineComponent({
         </v-btn>
       </v-toolbar>
 
+      <div
+        v-if="space"
+        class="d-flex align-center px-2 py-1 flex-grow-0"
+      >
+        <span class="text-caption mr-3">{{ countLabel }}</span>
+        <v-select
+          :value="spaceCount"
+          :items="spaceCountChoices"
+          label="Results shown"
+          dense
+          outlined
+          hide-details
+          class="space-count"
+          @change="spaceCount = $event"
+        />
+        <v-btn
+          small
+          :text="!hideReviewed"
+          :outlined="hideReviewed"
+          :color="hideReviewed ? 'primary' : undefined"
+          class="ml-2"
+          title="Hide the results already marked correct or incorrect"
+          @click="hideReviewed = !hideReviewed"
+        >
+          <v-icon
+            small
+            left
+          >
+            {{ hideReviewed ? 'mdi-eye-off' : 'mdi-eye-off-outline' }}
+          </v-icon>
+          Hide reviewed
+          <span
+            v-if="reviewedCount"
+            class="ml-1 grey--text"
+          >({{ reviewedCount }})</span>
+        </v-btn>
+        <v-spacer />
+        <span class="text-caption grey--text">Drag to orbit · wheel to zoom · double click to open</span>
+      </div>
       <ReviewGridControls
+        v-else
         :grid="gridSettings"
         :page="grid.page.value"
         :page-count="grid.pageCount.value"
@@ -429,7 +591,22 @@ export default defineComponent({
       </v-alert>
 
       <div
-        v-if="!cells.length"
+        v-if="space"
+        class="results-grid-body flex-grow-1"
+      >
+        <VideoSearchResultsSpace
+          :points="spacePoints"
+          :cells="spaceCells"
+          :exemplar-url="exemplarUrl"
+          :loading="spaceLoading"
+          :error="spaceError"
+          :missing-count="spaceMissingCount"
+          @open="openSpaceItem"
+          @mark="markSpaceItem"
+        />
+      </div>
+      <div
+        v-else-if="!cells.length"
         class="d-flex align-center justify-center flex-grow-1 grey--text"
       >
         {{ results.length && hideReviewed ? 'Every result has been reviewed.' : 'No search results to review.' }}
@@ -549,5 +726,8 @@ export default defineComponent({
 .results-grid-body {
   min-height: 0;
   overflow: hidden;
+}
+.space-count {
+  max-width: 160px;
 }
 </style>

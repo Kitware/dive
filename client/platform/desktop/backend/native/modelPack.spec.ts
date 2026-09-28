@@ -4,7 +4,10 @@ import fs from 'fs-extra';
 import archiver from 'archiver';
 import type { Pipe } from 'dive-common/apispec';
 import { PipelinesFolderName, Settings } from 'platform/desktop/constants';
-import { exportModelPack, importModelPack, modelPackPaths } from './modelPack';
+import * as common from './common';
+import {
+  exportModelPack, extractModelPackTo, importModelPack, modelPackPaths,
+} from './modelPack';
 
 const layouts: { name: string; files: string[]; expected: string[] }[] = JSON.parse(
   fs.readFileSync(path.resolve(__dirname, '../../../../../testutils/model-pack-layouts.json'), 'utf8'),
@@ -30,6 +33,27 @@ async function makeZip(files: string[], destination: string) {
     archive.finalize().catch(reject);
   });
 }
+
+it('extracts a training pack as it is', async () => {
+  const source = path.join(temp, 'trained_model.zip');
+  await makeZip(['detector.pipe', 'trained_detector.pth', 'test_results/plots/pr.csv'], source);
+  const written = await extractModelPackTo(source, path.join(temp, 'out'));
+  expect(written.sort()).toEqual(['detector.pipe', 'test_results/plots/pr.csv', 'trained_detector.pth']);
+  expect(await fs.readFile(path.join(temp, 'out', 'test_results', 'plots', 'pr.csv'), 'utf8')).toBe('contents of test_results/plots/pr.csv');
+});
+
+it('moves a trained pack into the pipelines folder and drops the archive', async () => {
+  const jobDir = path.join(temp, 'DIVE_Jobs', 'job');
+  await fs.ensureDir(jobDir);
+  await makeZip(['detector.pipe', 'trained_detector.pth', 'MODEL_CARD.md'], path.join(jobDir, 'trained_model.zip'));
+  const contents = await common.processTrainedPipeline(settings, { pipelineName: 'fish' } as never, jobDir);
+  expect(contents.sort()).toEqual(['MODEL_CARD.md', 'detector.pipe', 'trained_detector.pth']);
+  expect(await fs.pathExists(path.join(jobDir, 'trained_model.zip'))).toBe(false);
+  expect(await fs.pathExists(path.join(temp, PipelinesFolderName, 'fish', 'detector.pipe'))).toBe(true);
+  await makeZip(['notes.txt'], path.join(jobDir, 'trained_model.zip'));
+  await expect(common.processTrainedPipeline(settings, { pipelineName: 'nopipe' } as never, jobDir))
+    .rejects.toThrow('Could not located trained pipe');
+});
 
 it.each(layouts)('imports $name layout with paths and contents intact', async ({ files, expected }) => {
   expect([...modelPackPaths(files).values()]).toEqual(expected);
