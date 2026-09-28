@@ -60,25 +60,31 @@ export default defineComponent({
     offset-y
   >
     <template #activator="{ on }">
-      <v-btn
-        v-bind="buttonOptions"
-        :loading="saving"
-        v-on="on"
+      <slot
+        name="activator"
+        :on="on"
+        :saving="saving"
       >
-        <v-icon>
-          mdi-label-multiple-outline
-        </v-icon>
-        <span class="pl-1">
-          Split
-        </span>
-        <v-spacer />
-        <v-icon
-          v-if="buttonOptions.block"
-          class="ml-2"
+        <v-btn
+          v-bind="buttonOptions"
+          :loading="saving"
+          v-on="on"
         >
-          mdi-chevron-right
-        </v-icon>
-      </v-btn>
+          <v-icon>
+            mdi-label-multiple-outline
+          </v-icon>
+          <span class="pl-1">
+            Split
+          </span>
+          <v-spacer />
+          <v-icon
+            v-if="buttonOptions.block"
+            class="ml-2"
+          >
+            mdi-chevron-right
+          </v-icon>
+        </v-btn>
+      </slot>
     </template>
     <v-list dense>
       <v-list-item
