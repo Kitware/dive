@@ -952,8 +952,8 @@ export default defineComponent({
 
 /* Room on the right for the creation +, kept in every mode so the buttons never resize */
 .v-btn.v-size--small.tool-button {
-  padding-left: 6px;
-  padding-right: 10px;
+  padding-left: 9px;
+  padding-right: 11px;
 }
 
 .creation-anchor {
