@@ -55,7 +55,7 @@ export default defineComponent({
       default: 'imageEnhancements',
     },
   },
-  setup(props) {
+  setup(props, { emit }) {
     const cameraInitializer = injectCameraInitializer();
     const {
       state: data,
@@ -168,6 +168,7 @@ export default defineComponent({
     }
     function logError(event: ErrorEvent) {
       console.error('Media failed to initialize', event);
+      emit('load-error', 'Could not load the video. The file may have been moved or deleted.');
     }
     function setVolume(level: number) {
       video.volume = level;

@@ -23,6 +23,7 @@ import { parentDatasetId } from 'dive-common/compositeDatasetId';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { convertLargeImage } from 'platform/web-girder/api/rpc.service';
+import type { RawLocation } from 'vue-router';
 import { useRouter, useRoute } from 'vue-router/composables';
 import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
 import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
@@ -544,6 +545,24 @@ export default defineComponent({
       }
     }
 
+    let loadFailed = false;
+    async function handleLoadError(message: string, largeImage?: boolean) {
+      if (loadFailed) {
+        return;
+      }
+      loadFailed = true;
+      if (largeImage) {
+        await largeImageWarning();
+      } else {
+        await prompt({
+          title: 'Error Loading Data',
+          text: [message],
+          positiveButton: 'Okay',
+        });
+      }
+      router.push(locationRoute.value as RawLocation);
+    }
+
     const annotationSourceLabel = computed(() => {
       const value = route.query[ANNOTATION_SOURCE_QUERY];
       return typeof value === 'string' ? value : '';
@@ -571,6 +590,7 @@ export default defineComponent({
       routeRevision,
       routeSet,
       largeImageWarning,
+      handleLoadError,
       typeList,
       subTypeList,
       cameraNumbers,
@@ -638,6 +658,7 @@ export default defineComponent({
       :auto-populate-status="segmentationStatus"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @large-image-warning="largeImageWarning()"
+      @load-error="handleLoadError"
       @update:set="routeSet"
       @change-camera="changeCamera"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
