@@ -26,6 +26,7 @@ import GroupFilterControls from './GroupFilterControls';
 import CameraStore from './CameraStore';
 import CameraRegistrationStore from './alignedView/CameraRegistrationStore';
 import AlignedViewStore from './alignedView/AlignedViewStore';
+import TrackViewerSettingsStore from './components/track_3d_viewer/TrackViewerSettingsStore';
 
 /**
  * Type definitions are read only because injectors may mutate internal state,
@@ -128,6 +129,7 @@ type PercentileHistogramLoadingType = Readonly<Ref<boolean>>;
 const CameraStoreSymbol = Symbol('cameraStore');
 const CameraRegistrationSymbol = Symbol('cameraRegistration');
 const AlignedViewSymbol = Symbol('alignedView');
+const TrackViewerSettingsStoreSymbol = Symbol('trackViewerSettingsStore');
 
 const TrackStyleManagerSymbol = Symbol('trackTypeStyling');
 const GroupStyleManagerSymbol = Symbol('groupTypeStyling');
@@ -307,6 +309,7 @@ export interface State {
   cameraStore: CameraStore;
   cameraRegistration: CameraRegistrationStore;
   alignedView: AlignedViewStore;
+  trackViewerSettingsStore: TrackViewerSettingsStore;
   datasetId: DatasetIdType;
   editingMode: EditingModeType;
   groupFilters: GroupFilterControls;
@@ -382,6 +385,7 @@ function dummyState(): State {
     cameraStore,
     cameraRegistration: new CameraRegistrationStore(),
     alignedView: new AlignedViewStore(),
+    trackViewerSettingsStore: new TrackViewerSettingsStore(),
     datasetId: ref(''),
     editingMode: ref(false),
     multiSelectList: ref([]),
@@ -438,6 +442,7 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(CameraStoreSymbol, state.cameraStore);
   provide(CameraRegistrationSymbol, state.cameraRegistration);
   provide(AlignedViewSymbol, state.alignedView);
+  provide(TrackViewerSettingsStoreSymbol, state.trackViewerSettingsStore);
   provide(DatasetIdSymbol, state.datasetId);
   provide(EditingModeSymbol, state.editingMode);
   provide(GroupFilterControlsSymbol, state.groupFilters);
@@ -501,6 +506,9 @@ function useCameraRegistration() {
 }
 function useAlignedView() {
   return use<AlignedViewStore>(AlignedViewSymbol);
+}
+function useTrackViewerSettingsStore() {
+  return use<TrackViewerSettingsStore>(TrackViewerSettingsStoreSymbol);
 }
 function useDatasetId() {
   return use<DatasetIdType>(DatasetIdSymbol);
@@ -627,6 +635,7 @@ export {
   useCameraStore,
   useCameraRegistration,
   useAlignedView,
+  useTrackViewerSettingsStore,
   useDatasetId,
   useEditingMode,
   useHandler,
