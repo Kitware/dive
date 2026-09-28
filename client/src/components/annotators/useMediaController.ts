@@ -686,7 +686,7 @@ export function useMediaController(options?: {
       }
     });
 
-    // Adopt a changed time-offset shift only once the video has landed on the frame that shift was paired with.
+    // Image panes adopt a changed time-offset shift only once the image paired with it is drawn.
     const settledShift = ref(annotationFrameShifts.value[cameraName] ?? 0);
     watch(
       [() => state[camera].syncedFrame, () => state[camera].frame,
@@ -714,7 +714,10 @@ export function useMediaController(options?: {
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
-      annotationFrame: computed(() => state[camera].syncedFrame - settledShift.value),
+      // Video draws at the requested frame, ahead of the picture while a seek lands, as main always has.
+      annotationFrame: computed(() => (mediaKind === 'video'
+        ? state[camera].frame - (annotationFrameShifts.value[cameraName] ?? 0)
+        : state[camera].syncedFrame - settledShift.value)),
       imageRevision: toRef(state[camera], 'imageRevision'),
       frameTexture: toRef(state[camera], 'frameTexture'),
       originalBounds: toRef(state[camera], 'originalBounds'),

@@ -380,15 +380,15 @@ describe('useMediaController', () => {
     expect(a.annotationFrame.value).toBe(12);
   });
 
-  it('holds the old shift until the video lands on the frame the new shift pairs with', async () => {
-    const { composable } = mountMediaController('video');
+  it('holds an image pane\'s old shift until the image the new shift pairs with is drawn', async () => {
+    const { composable } = mountMediaController('image-sequence');
     const a = composable.aggregateController.value.getController('A');
     (a.frame as Ref<number>).value = 10;
     (a.syncedFrame as Ref<number>).value = 10;
     composable.setAnnotationFrameShifts({ A: 2 });
     await nextTick();
     expect(a.annotationFrame.value).toBe(8);
-    // A one-frame nudge seeks the video on and raises the shift in the same tick.
+    // A one-frame nudge seeks the pane on and raises the shift in the same tick.
     (a.frame as Ref<number>).value = 11;
     composable.setAnnotationFrameShifts({ A: 3 });
     await nextTick();
@@ -398,14 +398,24 @@ describe('useMediaController', () => {
     expect(a.annotationFrame.value).toBe(8);
   });
 
-  it('annotationFrame follows the frame on screen, not a requested frame still seeking', () => {
-    const { composable } = mountMediaController('video');
+  it('annotationFrame follows an image pane\'s drawn frame, not one still loading', () => {
+    const { composable } = mountMediaController('image-sequence');
     const a = composable.aggregateController.value.getController('A');
     (a.frame as Ref<number>).value = 5;
     (a.syncedFrame as Ref<number>).value = 4;
     expect(a.annotationFrame.value).toBe(4);
     (a.syncedFrame as Ref<number>).value = 5;
     expect(a.annotationFrame.value).toBe(5);
+  });
+
+  it('annotationFrame follows a video pane\'s requested frame and shift at once', () => {
+    const { composable } = mountMediaController('video');
+    const a = composable.aggregateController.value.getController('A');
+    (a.frame as Ref<number>).value = 5;
+    (a.syncedFrame as Ref<number>).value = 4;
+    expect(a.annotationFrame.value).toBe(5);
+    composable.setAnnotationFrameShifts({ A: 2 });
+    expect(a.annotationFrame.value).toBe(3);
   });
 
   it('re-applies the current aligned slot when a camera registers after the resolver is installed', async () => {

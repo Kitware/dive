@@ -270,7 +270,7 @@ export default defineComponent({
         seekingFrame = pendingSeek.frame;
         pendingSeek = null;
       }
-      // Annotations draw at syncedFrame, so it only advances once the picture has.
+      // syncedFrame reports the frame on screen; it only advances once the seek has landed.
       data.syncedFrame = seekingFrame ?? Math.round(video.currentTime * props.frameRate);
       seekingFrame = null;
       // The aligned-view warp is a canvas snapshot of this <video> element,
