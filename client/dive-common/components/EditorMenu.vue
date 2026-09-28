@@ -651,12 +651,14 @@ export default defineComponent({
                 v-if="activeEditButton?.mousetrap"
                 :class="{ 'edit-btn-unavailable': toolsDisabled }"
               >{{ activeEditButton.mousetrap[0].bind }}:</pre>
-              <v-icon :class="{ 'edit-btn-unavailable': toolsDisabled }">
-                {{ activeEditButton?.icon }}
-              </v-icon>
-              <v-icon v-if="creatingAnnotation" x-small class="ml-1 creation-indicator">
-                mdi-plus
-              </v-icon>
+              <span class="creation-anchor">
+                <v-icon :class="{ 'edit-btn-unavailable': toolsDisabled }">
+                  {{ activeEditButton?.icon }}
+                </v-icon>
+                <v-icon v-if="creatingAnnotation" x-small class="creation-indicator">
+                  mdi-plus
+                </v-icon>
+              </span>
               <toolbar-expand-toggle
                 :expanded="false"
                 @click="toggleEditButtonsExpanded"
@@ -690,12 +692,14 @@ export default defineComponent({
                         @click="button.click"
                       >
                         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                        <v-icon>
-                          {{ button.icon }}
-                        </v-icon>
-                        <v-icon v-if="creatingAnnotation" x-small class="ml-1 creation-indicator">
-                          mdi-plus
-                        </v-icon>
+                        <span class="creation-anchor">
+                          <v-icon>
+                            {{ button.icon }}
+                          </v-icon>
+                          <v-icon v-if="creatingAnnotation" x-small class="creation-indicator">
+                            mdi-plus
+                          </v-icon>
+                        </span>
                       </v-btn>
                     </span>
                   </template>
@@ -750,12 +754,14 @@ export default defineComponent({
                   @click="button.click"
                 >
                   <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                  <v-icon>
-                    {{ button.icon }}
-                  </v-icon>
-                  <v-icon v-if="creatingAnnotation" x-small class="ml-1 creation-indicator">
-                    mdi-plus
-                  </v-icon>
+                  <span class="creation-anchor">
+                    <v-icon>
+                      {{ button.icon }}
+                    </v-icon>
+                    <v-icon v-if="creatingAnnotation" x-small class="creation-indicator">
+                      mdi-plus
+                    </v-icon>
+                  </span>
                 </v-btn>
               </span>
             </template>
@@ -1005,6 +1011,19 @@ export default defineComponent({
 .mode-button{
   border: 1px solid grey;
   min-width: 36px;
+}
+
+/* The + overlays the icon's corner so creation mode never resizes the buttons */
+.creation-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.creation-indicator {
+  position: absolute;
+  top: -5px;
+  right: -9px;
+  pointer-events: none;
 }
 
 /*
