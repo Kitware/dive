@@ -166,6 +166,27 @@ it('clears history and queued checkpoints when annotations are reloaded', async 
   expect(h.store.annotationIds.value).toEqual([20]);
 });
 
+it('undoes an edit made after a camera reload to the reloaded state, not the pre-reload one', async () => {
+  const h = harness(); const track = h.add(); h.history.start();
+  track.setType('shark', 1);
+  await Promise.resolve();
+  h.store.clearAll();
+  const features: ConstructorParameters<typeof Track>[1]['features'] = [];
+  features[5] = { frame: 5, keyframe: true, bounds: [0, 0, 10, 10] };
+  const shifted = new Track(1, {
+    begin: 5, end: 5, confidencePairs: [['shark', 1]], features,
+  });
+  h.store.insert(shifted, { imported: true });
+  h.history.start();
+  shifted.setType('ray', 1);
+  await Promise.resolve();
+  expect(h.history.undo()).toBe(true);
+  const restored = h.store.get(1);
+  expect(restored.begin).toBe(5);
+  expect(restored.getType()[0]).toBe('shark');
+  expect(h.history.undo()).toBe(false);
+});
+
 it('releases the async undo lock on failure and can undo any partial changes', async () => {
   const h = harness(); const track = h.add(); h.history.start();
   await expect(h.history.run(async () => {

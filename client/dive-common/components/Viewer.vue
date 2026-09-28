@@ -2297,6 +2297,8 @@ export default defineComponent({
       groups.forEach((group) => {
         stores.groupStore.insert(Group.fromJSON(group), { imported: true });
       });
+      // Undo snapshots predate the reload, so restoring one would write stale frames back.
+      annotationUndo.start();
     };
 
     watch(datasetId, reloadAnnotations);
