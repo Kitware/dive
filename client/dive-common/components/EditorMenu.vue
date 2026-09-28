@@ -382,23 +382,39 @@ export default defineComponent({
 
     /** After a long predict, promote Reset to an explicit Cancel control. */
     const SEGMENTATION_CANCEL_WARNING_MS = 3000;
+    /** A quick predict keeps the usage hint instead of flashing a busy message. */
+    const SEGMENTATION_BUSY_HINT_MS = 500;
     const segmentationCancelWarning = ref(false);
+    const segmentationBusyHint = ref(false);
     let segmentationCancelWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    let segmentationBusyHintTimer: ReturnType<typeof setTimeout> | null = null;
     watch(segmentationPredicting, (predicting) => {
       if (segmentationCancelWarningTimer !== null) {
         clearTimeout(segmentationCancelWarningTimer);
         segmentationCancelWarningTimer = null;
       }
+      if (segmentationBusyHintTimer !== null) {
+        clearTimeout(segmentationBusyHintTimer);
+        segmentationBusyHintTimer = null;
+      }
       if (predicting) {
         segmentationCancelWarning.value = false;
+        segmentationBusyHint.value = false;
         segmentationCancelWarningTimer = setTimeout(() => {
           segmentationCancelWarningTimer = null;
           if (segmentationPredicting.value) {
             segmentationCancelWarning.value = true;
           }
         }, SEGMENTATION_CANCEL_WARNING_MS);
+        segmentationBusyHintTimer = setTimeout(() => {
+          segmentationBusyHintTimer = null;
+          if (segmentationPredicting.value) {
+            segmentationBusyHint.value = true;
+          }
+        }, SEGMENTATION_BUSY_HINT_MS);
       } else {
         segmentationCancelWarning.value = false;
+        segmentationBusyHint.value = false;
       }
     });
 
@@ -429,18 +445,21 @@ export default defineComponent({
       if (segmentationCancelWarningTimer !== null) {
         clearTimeout(segmentationCancelWarningTimer);
       }
+      if (segmentationBusyHintTimer !== null) {
+        clearTimeout(segmentationBusyHintTimer);
+      }
       if (autoPopulateCancelWarningTimer !== null) {
         clearTimeout(autoPopulateCancelWarningTimer);
       }
     });
 
-    const segmentationTooltip = 'Left click for positive, middle or shift+click for negative points. Right click to confirm or Esc to cancel.';
+    const segmentationTooltip = 'Left click: positive point. Esc to cancel. Middle click or shift+click for negative.';
     const segmentationStatusHint = computed(() => {
       if (segmentationLoading.value) return 'Loading segmentation model…';
       if (segmentationCancelWarning.value) {
         return 'Still computing — click Cancel or press Esc to abort.';
       }
-      if (segmentationPredicting.value) {
+      if (segmentationBusyHint.value) {
         return 'Computing segmentation… Press Esc to cancel.';
       }
       if (autoPopulateBusyVisible.value) {
