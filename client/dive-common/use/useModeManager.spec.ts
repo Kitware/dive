@@ -105,6 +105,8 @@ function makeHarness(
   });
 
   const readonlyState = ref(false);
+  const lassoModeActive = ref(false);
+  const lassoDrawing = ref(false);
   const newGeometryEvents: NewAnnotationGeometryParams[] = [];
   const modeManager = useModeManager({
     cameraStore,
@@ -112,6 +114,8 @@ function makeHarness(
     groupFilterControls,
     aggregateController,
     readonlyState,
+    lassoModeActive,
+    lassoDrawing,
     onNewAnnotationGeometry: (params) => newGeometryEvents.push(params),
     recipes,
     alignedView,
@@ -119,7 +123,14 @@ function makeHarness(
   });
   modeManager.selectedCamera.value = 'left';
   return {
-    cameraStore, alignedView, modeManager, perCamera, newGeometryEvents, readonlyState,
+    cameraStore,
+    alignedView,
+    modeManager,
+    perCamera,
+    newGeometryEvents,
+    readonlyState,
+    lassoModeActive,
+    lassoDrawing,
   };
 }
 
@@ -886,6 +897,17 @@ describe('annotation toolbar creation', () => {
     expect(cameraStore.sortedTracks.value).toHaveLength(0);
     expect(modeManager.multiSelectList.value).toEqual([1, 2]);
   });
+
+  it.each(['lassoModeActive', 'lassoDrawing'] as const)(
+    'does not create annotations while %s',
+    (flag) => {
+      const harness = makeHarness();
+      harness[flag].value = true;
+      harness.modeManager.handler.setAnnotationState({ editing: 'rectangle' });
+      expect(harness.cameraStore.sortedTracks.value).toHaveLength(0);
+      expect(harness.modeManager.editingMode.value).toBe(false);
+    },
+  );
 });
 
 it.each(['Detection', 'Track'] as const)('toolbar creation uses the configured %s settings', (mode) => {
@@ -923,4 +945,24 @@ it('waits for segmentation initialization before creating an annotation', async 
   expect(modeManager.selectedTrackId.value).not.toBeNull();
   expect(modeManager.editingMode.value).toBe('Point');
   expect(recipe.active.value).toBe(true);
+});
+
+it('cancels async segmentation activation if lasso starts before init finishes', async () => {
+  const recipe = new SegmentationPointClick();
+  let initialize: () => void = () => {};
+  recipe.initialize({
+    predictFn: vi.fn(),
+    getImagePath: () => '',
+    initializeServiceFn: () => new Promise<void>((resolve) => { initialize = resolve; }),
+  });
+  const { cameraStore, modeManager, lassoModeActive } = makeHarness(undefined, [recipe]);
+  recipe.activate();
+  expect(modeManager.selectedTrackId.value).toBeNull();
+  lassoModeActive.value = true;
+  initialize();
+  await Promise.resolve();
+  expect(cameraStore.sortedTracks.value).toHaveLength(0);
+  expect(modeManager.selectedTrackId.value).toBeNull();
+  expect(modeManager.editingMode.value).toBe(false);
+  expect(recipe.active.value).toBe(false);
 });
