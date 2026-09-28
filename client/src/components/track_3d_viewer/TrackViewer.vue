@@ -1,6 +1,6 @@
 <script lang="ts">
 import {
-  ref, onMounted, onBeforeUnmount, defineComponent, watch,
+  ref, onMounted, onBeforeUnmount, defineComponent, watch, PropType,
 } from 'vue';
 
 import '@kitware/vtk.js/Rendering/Profiles/Glyph';
@@ -25,7 +25,13 @@ import useTrackDrawer from './useTrackDrawer';
 import { noOp, smoothBounds } from './utils';
 import { useOrientationMarkerWidget } from './useOrientationMarkerWidget';
 import { useLabelDrawer } from './useLabelDrawer';
+import useSceneGuides from './useSceneGuides';
+import { RigCalibration } from './sceneGuides';
+import { Vec3 } from './positions';
 import { injectAggregateController } from '../annotators/useMediaController';
+
+const TRACK_LABEL = { color: 'white', font: 'bold 14px sans-serif' };
+const GUIDE_LABEL = { color: '#bdbdbd', font: '12px sans-serif' };
 
 export default defineComponent({
   name: 'TrackViewer',
@@ -35,9 +41,14 @@ export default defineComponent({
       type: Number,
       required: true,
     },
+    /** The stereo rig, to draw its cameras; the left one alone shows without it. */
+    calibration: {
+      type: Object as PropType<RigCalibration | null>,
+      default: null,
+    },
   },
 
-  setup() {
+  setup(props) {
     const orientationMarkerWidget = useOrientationMarkerWidget();
     const trackViewerSettingsStore = useTrackViewerSettingsStore();
 
@@ -47,6 +58,7 @@ export default defineComponent({
       detectionGlyphSize,
       cubeAxesBounds,
       adjustCubeAxesBoundsManually,
+      showAxesBox,
     } = trackViewerSettingsStore;
 
     const renderer = ref<vtkRenderer>();
@@ -67,6 +79,12 @@ export default defineComponent({
     const viewUtils: ViewUtils = {
       rerender: noOp,
       sceneBounds: () => null,
+    };
+    const sceneGuides = useSceneGuides(renderer);
+    let frameView = noOp;
+    const resetView = () => {
+      frameView();
+      viewUtils.rerender();
     };
 
     const mediaController = injectAggregateController();
@@ -93,27 +111,28 @@ export default defineComponent({
 
     const drawCurrentFrameDetectionLabels = function drawCurrentFrameDetectionLabels() {
       clearLabelContext();
+      drawLabels(
+        new Map(sceneGuides.labels().map(({ position, text }) => [position, text])),
+        GUIDE_LABEL,
+      );
 
+      const positionToLabel = new Map<Vec3, string>();
       if (!onlyShowSelectedTrack.value) {
         const frameTracker = trackManager.getFrameTracker(frameRef.value);
-        if (frameTracker) {
-          const positionToLabel = new Map();
-          frameTracker.detectionActors.forEach((actor, idx) => {
-            positionToLabel.set(actor.getPosition(), frameTracker.trackIds[idx]);
-          });
-          drawLabels(positionToLabel);
-        }
-      } else if (selectedTrackIdRef.value) {
-        const trackTracker = trackManager.getTrack(selectedTrackIdRef.value);
-        if (trackTracker) {
-          const frameDetectionActor = trackTracker.detectionsMap.get(frameRef.value);
-          if (frameDetectionActor) {
-            const positionToLabel = new Map();
-            positionToLabel.set(frameDetectionActor.getPosition(), selectedTrackIdRef.value);
-            drawLabels(positionToLabel);
-          }
+        frameTracker?.detectionActors.forEach((actor, idx) => {
+          positionToLabel.set(actor.getPosition() as Vec3, String(frameTracker.trackIds[idx]));
+        });
+      } else if (selectedTrackIdRef.value !== null) {
+        const frameDetectionActor = trackManager.getTrack(selectedTrackIdRef.value)
+          ?.detectionsMap.get(frameRef.value);
+        if (frameDetectionActor) {
+          positionToLabel.set(
+            frameDetectionActor.getPosition() as Vec3,
+            String(selectedTrackIdRef.value),
+          );
         }
       }
+      drawLabels(positionToLabel, TRACK_LABEL);
     };
 
     onMounted(() => {
@@ -139,7 +158,7 @@ export default defineComponent({
       renderWindowInteractor.onAnimation(drawCurrentFrameDetectionLabels);
 
       renderer.value = vtkRenderer.newInstance({
-        background: [0.5, 0.5, 0.5],
+        background: [0, 0, 0],
       });
       const { labelTextCanvas } = initializeLabelDrawer();
       // Initialize the openglRenderWindow original size
@@ -148,12 +167,23 @@ export default defineComponent({
       renderWindow.addRenderer(renderer.value);
 
       const camera = renderer.value.getActiveCamera();
-      // Positions are in the left camera's frame (x right, y down, z forward):
-      // look on from behind the rig, slightly above and to the side, so the
-      // view reads like the image with depth receding into it.
-      camera.setFocalPoint(0, 0, 0);
-      camera.setPosition(-0.4, -0.4, -1);
-      camera.setViewUp(0, -1, 0);
+      /**
+       * Positions are in the left camera's frame (x right, y down, z forward).
+       * The view looks down the depth axis like the cameras do, from just
+       * behind and above the rig so the rig itself stays in sight.
+       */
+      frameView = () => {
+        if (!renderer.value) {
+          return;
+        }
+        camera.setFocalPoint(0, 0, 0);
+        camera.setPosition(0, -0.35, -1);
+        camera.setViewUp(0, -1, 0);
+        renderer.value.resetCamera(sceneGuides.extent());
+        // resetCamera fits the bounding sphere, which leaves a wide margin
+        camera.dolly(1.5);
+        renderer.value.resetCameraClippingRange();
+      };
 
       watch(cameraParallelProjection, (parProjection) => {
         if (!renderer.value) {
@@ -175,23 +205,53 @@ export default defineComponent({
 
       const cubeAxes = vtkCubeAxesActor.newInstance();
       cubeAxes.setCamera(camera);
+      cubeAxes.setVisibility(showAxesBox.value);
 
       const dataBounds = () => smoothBounds(viewUtils.sceneBounds() ?? [1, -1, 1, -1, 1, -1]);
+
+      let guidesKey = '';
+      let framedRig = '';
+      let framedData = false;
+      const updateGuides = function updateGuides() {
+        const sceneBounds = viewUtils.sceneBounds();
+        const rigKey = JSON.stringify(props.calibration);
+        const key = JSON.stringify(sceneBounds) + rigKey;
+        if (key === guidesKey) {
+          return;
+        }
+        // The first positions to appear, or a new rig, change what there is to frame
+        const reframe = guidesKey === '' || rigKey !== framedRig
+          || (sceneBounds !== null) !== framedData;
+        guidesKey = key;
+        framedRig = rigKey;
+        framedData = sceneBounds !== null;
+        sceneGuides.build(sceneBounds, props.calibration);
+        if (reframe) {
+          frameView();
+        }
+      };
 
       viewUtils.rerender = debounce((resetCamera = false) => {
         if (!renderWindow || renderWindow.isDeleted() || !renderer.value) {
           // pass
         } else {
+          updateGuides();
           if (!adjustCubeAxesBoundsManually.value) {
             cubeAxes.setDataBounds(dataBounds());
           }
-          drawCurrentFrameDetectionLabels();
           if (resetCamera) {
-            renderer.value.resetCamera(cubeAxes.getDataBounds());
+            renderer.value.resetCamera(sceneGuides.extent());
           }
+          drawCurrentFrameDetectionLabels();
           renderWindow.render();
         }
       }, 10);
+
+      watch(() => props.calibration, () => viewUtils.rerender());
+      watch(showAxesBox, (show) => {
+        cubeAxes.setVisibility(show);
+        viewUtils.rerender();
+      });
 
       orientationMarkerWidget.enable(
         renderWindow.getInteractor(),
@@ -241,12 +301,13 @@ export default defineComponent({
       // Observe the renderWindow container so we automatically resize the openglRenderWindow
 
       vtkContainerResizeObserver.observe(vtkContainer.value!);
-      renderer.value.resetCamera(smoothedBounds);
       viewUtils.rerender();
     });
 
     onBeforeUnmount(() => {
       viewUtils.rerender = noOp;
+      frameView = noOp;
+      sceneGuides.clear();
       // Stop observing for resize
       if (vtkContainerResizeObserver) vtkContainerResizeObserver.disconnect();
       orientationMarkerWidget.disable();
@@ -267,17 +328,34 @@ export default defineComponent({
     return {
       vtkContainer,
       positionedTrackCount,
+      resetView,
     };
   },
 });
 </script>
 
 <template>
-  <div
-    ref="vtkContainer"
-    class="vtk-container"
-    :style="`--controls-height: ${controlsHeight}px`"
-  >
+  <div class="track-viewer">
+    <div
+      ref="vtkContainer"
+      class="vtk-container"
+      :style="`--controls-height: ${controlsHeight}px`"
+    />
+    <v-tooltip left>
+      <template #activator="{ on }">
+        <v-btn
+          class="vtk-reset"
+          icon
+          small
+          dark
+          v-on="on"
+          @click="resetView"
+        >
+          <v-icon>mdi-restore</v-icon>
+        </v-btn>
+      </template>
+      <span>Reset view</span>
+    </v-tooltip>
     <div
       v-if="positionedTrackCount === 0"
       class="vtk-empty"
@@ -288,6 +366,14 @@ export default defineComponent({
 </template>
 
 <style>
+.track-viewer {
+  position: relative;
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+}
+
 /* Canvases are taken out of flow so the pane, not the render size, sets the layout. */
 .vtk-container {
   position: relative;
@@ -295,6 +381,13 @@ export default defineComponent({
   min-width: 0;
   min-height: 0;
   overflow: hidden;
+}
+
+.vtk-reset {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(0, 0, 0, 0.6);
 }
 
 .vtk-container > canvas {
