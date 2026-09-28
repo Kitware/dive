@@ -623,7 +623,7 @@ export default defineComponent({
             <span v-else-if="editingDetails !== 'disabled' && editingMode && typeof editingMode === 'string'">
               {{ editingTooltip }}
             </span>
-            <span v-else>Choose a tool to create an annotation, or right click an annotation to edit.</span>
+            <span v-else>Pick a tool, or right click to edit</span>
           </div>
         </div>
       </div>
