@@ -94,6 +94,10 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
+import TrackViewer from 'vue-media-annotator/components/track_3d_viewer/TrackViewer.vue';
+import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
+import TrackViewerSettingsStore from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettingsStore';
+import { displayOptions, displayValue, parseDisplayValue } from 'dive-common/stereoDisplay';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
@@ -133,6 +137,7 @@ export default defineComponent({
     UnsavedChangesDialog,
     EditorMenu,
     MultiCamToolbar,
+    TrackViewer,
     AlignedViewToggle,
     PrimaryAttributeTrackFilter,
     TrackList,
@@ -2105,6 +2110,18 @@ export default defineComponent({
             }
           }
         }
+        viewer3dRequested.value = false;
+        if (isStereoPair.value) {
+          context.register({
+            component: TrackViewerSettings,
+            description: '3D Viewer Settings',
+          });
+        } else {
+          context.unregister({
+            component: TrackViewerSettings,
+            description: '3D Viewer Settings',
+          });
+        }
         annotationUndo.start();
         progress.loaded = true;
         fetchSelectedCameraHistogram().catch(() => {});
@@ -2272,6 +2289,33 @@ export default defineComponent({
 
     };
 
+    const trackViewerSettingsStore = new TrackViewerSettingsStore();
+    const viewer3dRequested = ref(false);
+    const isStereoPair = computed(() => subType.value === 'stereo' && multiCamList.value.length === 2);
+    const viewer3dActive = computed(() => viewer3dRequested.value && isStereoPair.value);
+    const displayItems = computed(() => displayOptions(
+      multiCamList.value,
+      isStereoPair.value,
+      defaultCamera.value,
+    ));
+    const selectedDisplay = computed(() => displayValue(selectedCamera.value, viewer3dActive.value));
+    function changeDisplay(value: string) {
+      const { camera, viewer3d } = parseDisplayValue(value);
+      viewer3dRequested.value = viewer3d;
+      changeCamera(camera);
+    }
+    /** The 3D viewer takes the pane of the camera that is not selected. */
+    function isCameraReplacedBy3dViewer(camera: string) {
+      return viewer3dActive.value && camera !== selectedCamera.value;
+    }
+    const viewer3dPaneOrder = computed(() => (
+      multiCamList.value.indexOf(selectedCamera.value) === 0 ? 1 : -1
+    ));
+    watch([viewer3dActive, selectedCamera], async () => {
+      await nextTick();
+      handleResize();
+    });
+
     provideAnnotator(
       {
         annotatorPreferences: toRef(clientSettings, 'annotatorPreferences'),
@@ -2279,6 +2323,7 @@ export default defineComponent({
         cameraStore,
         cameraRegistration,
         alignedView,
+        trackViewerSettingsStore,
         datasetId,
         editingMode,
         groupFilters,
@@ -2599,6 +2644,13 @@ export default defineComponent({
       defaultCamera,
       selectedCamera,
       changeCamera,
+      isStereoPair,
+      viewer3dActive,
+      viewer3dPaneOrder,
+      displayItems,
+      selectedDisplay,
+      changeDisplay,
+      isCameraReplacedBy3dViewer,
       noteRightMouseDown,
       // For Navigation Guarding
       unsavedChangesDialog,
@@ -2809,19 +2861,20 @@ export default defineComponent({
         </EditorMenu>
         <v-select
           v-if="showMultiCamToolbar && multiCamList.length > 1"
-          :value="selectedCamera"
-          :items="multiCamList"
-          label="Camera"
+          :value="selectedDisplay"
+          :items="displayItems"
+          :label="isStereoPair ? 'Display' : 'Camera'"
           class="mx-1 shrink camera-select"
+          :class="{ 'display-select': isStereoPair }"
           :menu-props="{ minWidth: 140 }"
           outlined
           hide-details
           dense
           variant="default"
-          @change="changeCamera"
+          @change="changeDisplay"
         >
           <template #item="{ item }">
-            {{ item }} {{ item === defaultCamera ? '(Default)' : '' }}
+            {{ item.menuText }}
           </template>
         </v-select>
         <aligned-view-toggle v-if="multiCamList.length > 1 && subType !== 'stereo'" />
@@ -2978,7 +3031,11 @@ export default defineComponent({
             <div
               v-for="camera in multiCamList"
               :key="camera"
-              :class="displayedCameras.includes(camera) ? 'd-flex flex-column grow' : 'd-none'"
+              :class="[
+                displayedCameras.includes(camera) && !isCameraReplacedBy3dViewer(camera)
+                  ? 'd-flex flex-column grow' : 'd-none',
+                { 'viewer-3d-split': viewer3dActive },
+              ]"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
               @mousedown.right="noteRightMouseDown"
@@ -3008,6 +3065,13 @@ export default defineComponent({
               >
                 <LayerManager :camera="camera" />
               </component>
+            </div>
+            <div
+              v-if="viewer3dActive"
+              class="d-flex flex-column grow viewer-3d-split"
+              :style="{ height: `calc(100% - ${controlsHeight}px)`, order: viewer3dPaneOrder }"
+            >
+              <track-viewer :controls-height="controlsHeight" />
             </div>
           </div>
           <ControlsContainer
@@ -3077,7 +3141,10 @@ export default defineComponent({
             <div
               v-for="camera in multiCamList"
               :key="camera"
-              class="d-flex flex-column grow"
+              :class="[
+                isCameraReplacedBy3dViewer(camera) ? 'd-none' : 'd-flex flex-column grow',
+                { 'viewer-3d-split': viewer3dActive },
+              ]"
               @mousedown.left="changeCamera(camera, $event)"
               @mousedown.right="noteRightMouseDown"
               @mouseup.right="changeCamera(camera, $event)"
@@ -3106,6 +3173,13 @@ export default defineComponent({
               >
                 <LayerManager :camera="camera" />
               </component>
+            </div>
+            <div
+              v-if="viewer3dActive"
+              class="d-flex flex-column grow viewer-3d-split"
+              :style="{ order: viewer3dPaneOrder }"
+            >
+              <track-viewer :controls-height="0" />
             </div>
           </div>
           <BottomPanel
@@ -3267,6 +3341,17 @@ html {
   max-width: 100px;
   flex: 0 0 auto;
   font-size: 0.9em;
+}
+
+.camera-select.display-select {
+  width: 200px;
+  max-width: 200px;
+}
+
+.viewer-3d-split {
+  flex: 1 1 0 !important;
+  min-width: 0;
+  min-height: 0;
 }
 
 .camera-select .v-select__selections {

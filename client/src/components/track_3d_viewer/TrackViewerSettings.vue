@@ -55,8 +55,9 @@ export default defineComponent({
       <v-text-field
         v-model="detectionGlyphSize"
         type="number"
-        step="0.001"
-        label="Detection Glyph Size"
+        step="0.1"
+        min="0"
+        label="Detection glyph size (% of scene)"
       />
 
       <v-checkbox

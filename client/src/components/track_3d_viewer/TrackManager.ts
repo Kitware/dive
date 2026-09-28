@@ -65,6 +65,29 @@ export default class TrackManager {
     });
   }
 
+  unregisterTrack(trackId: AnnotationId) {
+    const trackTracker = this.tracksMap.get(trackId);
+    if (!trackTracker) {
+      return undefined;
+    }
+    trackTracker.detectionsMap.forEach((actor, frameNumber) => {
+      const frameTracker = this.framesMap.get(frameNumber);
+      if (!frameTracker) {
+        return;
+      }
+      const index = frameTracker.detectionActors.indexOf(actor);
+      if (index !== -1) {
+        frameTracker.trackIds.splice(index, 1);
+        frameTracker.detectionActors.splice(index, 1);
+      }
+      if (frameTracker.trackIds.length === 0) {
+        this.framesMap.delete(frameNumber);
+      }
+    });
+    this.tracksMap.delete(trackId);
+    return trackTracker;
+  }
+
   getFrameTracker(frameNumber: FrameNumber) {
     return this.framesMap.get(frameNumber);
   }

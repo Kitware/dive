@@ -9,8 +9,7 @@ import {
 } from 'vue-media-annotator/provides';
 import * as vtkMath from '@kitware/vtk.js/Common/Core/Math';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
-import { AnnotationWithContext, TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
-import Track from 'vue-media-annotator/track';
+import { TrackWithContext } from 'vue-media-annotator/BaseFilterControls';
 import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
 import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
 import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
@@ -31,14 +30,24 @@ export interface TrackDrawerParams {
   trackManager: TrackManager;
   onlyShowSelectedTrack: Ref<boolean>;
   detectionGlyphSize: Ref<number>;
+  positionedTrackCount: Ref<number>;
   viewUtils: ViewUtils;
   renderer: Ref<vtkRenderer | undefined>;
 }
+
+interface TrackEntry {
+  trackWithContext: TrackWithContext;
+  revision: string;
+}
+
+/** Stereo measurement attributes holding a detection's position in the rig's frame. */
+const POSITION_KEYS = ['midpoint_x', 'midpoint_y', 'midpoint_z'] as const;
 
 export default function useTrackDrawer({
   trackManager,
   onlyShowSelectedTrack,
   detectionGlyphSize,
+  positionedTrackCount,
   viewUtils,
   renderer,
 }: TrackDrawerParams) {
@@ -49,12 +58,38 @@ export default function useTrackDrawer({
   const cameraStore = useCameraStore();
   const { frame: frameRef } = mediaController.value;
   const trackTypes: string[] = [];
+  const trackKeys = new Map<AnnotationId, string>();
+  const trackPositions = new Map<AnnotationId, Feature[]>();
 
   // We uses a sphere to represents a detection in space
   const detectionGlyphSource = vtkSphereSource.newInstance();
 
-  watch(detectionGlyphSize, (newSize) => {
-    detectionGlyphSource.setRadius(newSize);
+  /**
+   * Positions are in the calibration's units, so the glyph is sized relative
+   * to the extent of the data rather than by an absolute radius.
+   */
+  const updateGlyphRadius = function updateGlyphRadius() {
+    const min = [Infinity, Infinity, Infinity];
+    const max = [-Infinity, -Infinity, -Infinity];
+    trackPositions.forEach((features) => features.forEach(({ x, y, z }) => {
+      [x, y, z].forEach((value, axis) => {
+        min[axis] = Math.min(min[axis], value);
+        max[axis] = Math.max(max[axis], value);
+      });
+    }));
+    const extent = Math.max(...max.map((value, axis) => value - min[axis]));
+    const distance = Math.max(...max.map(Math.abs), ...min.map(Math.abs));
+    let scale = 1;
+    if (Number.isFinite(extent) && extent > 0) {
+      scale = extent;
+    } else if (Number.isFinite(distance) && distance > 0) {
+      scale = distance;
+    }
+    detectionGlyphSource.setRadius((Number(detectionGlyphSize.value) / 100) * scale);
+  };
+
+  watch(detectionGlyphSize, () => {
+    updateGlyphRadius();
     viewUtils.rerender();
   }, {
     immediate: true,
@@ -246,33 +281,48 @@ export default function useTrackDrawer({
     });
   };
 
+  /**
+   * One position per frame, from whichever camera's replica holds the
+   * measurement, ordered by frame.
+   */
+  const trackFeatures = function trackFeatures(trackId: AnnotationId) {
+    const byFrame = new Map<number, Feature>();
+    cameraStore.getTrackAll(trackId).forEach((track) => {
+      track.features.forEach((feature) => {
+        if (!feature || byFrame.has(feature.frame)) {
+          return;
+        }
+        const [x, y, z] = POSITION_KEYS.map((key) => {
+          const value = feature.attributes?.[key];
+          return value === undefined || value === null || value === '' ? NaN : Number(value);
+        });
+        if ([x, y, z].every(Number.isFinite)) {
+          byFrame.set(feature.frame, {
+            x, y, z, frameNumber: feature.frame,
+          });
+        }
+      });
+    });
+    return Array.from(byFrame.values()).sort((a, b) => a.frameNumber - b.frameNumber);
+  };
+
+  const removeTrack = function removeTrack(trackId: AnnotationId) {
+    const trackTracker = trackManager.unregisterTrack(trackId);
+    trackPositions.delete(trackId);
+    if (!trackTracker) {
+      return;
+    }
+    [trackTracker.trackActor, ...trackTracker.detectionsMap.values()].forEach((actor) => {
+      if (renderer.value) {
+        renderer.value.removeActor(actor);
+      }
+      actor.delete();
+    });
+  };
+
   const initializeTrack = function initializeTrack(trackWithContext: TrackWithContext) {
-    const annotation = cameraStore.getTrackProjection(trackWithContext.annotation.id);
-
-    // pre-process features in order to represent them
-    const features: Feature[] = annotation.features
-      .filter((feature) => feature !== undefined)
-      .map((feature) => {
-        const { attributes } = feature;
-
-        if (!attributes) {
-          return;
-        }
-
-        const { stereo3d_x: x, stereo3d_y: y, stereo3d_z: z } = attributes;
-
-        if (x === undefined || y === undefined || z === undefined) {
-          return;
-        }
-
-        return {
-          x: Number(x),
-          y: Number(y),
-          z: Number(z),
-          frameNumber: feature.frame,
-        };
-      })
-      .filter((feature) => feature !== undefined) as Feature[];
+    const trackId = trackWithContext.annotation.id;
+    const features = trackFeatures(trackId);
 
     if (features.length > 0) {
       const trackColor = getTrackColor(trackWithContext, trackStyleManager);
@@ -288,7 +338,8 @@ export default function useTrackDrawer({
 
       const trackType = getTrackType(trackWithContext);
       trackTypes.push(trackType);
-      trackManager.registerTrack(annotation.id, trackActor, frameDetections, trackColor, trackType);
+      trackManager.registerTrack(trackId, trackActor, frameDetections, trackColor, trackType);
+      trackPositions.set(trackId, features);
     }
   };
 
@@ -392,50 +443,73 @@ export default function useTrackDrawer({
     viewUtils.rerender(true);
   };
 
-  const onFilteredAnnotationsChange = function onFilteredAnnotationsChange(
-    annotations: AnnotationWithContext<Track>[],
-  ) {
-    const trackIds: AnnotationId[] = [];
+  /** Reading each replica's revision re-runs the watcher when a track is edited. */
+  const trackEntries = function trackEntries(): TrackEntry[] {
+    return filteredTracksRef.filteredAnnotations.value.map((trackWithContext) => ({
+      trackWithContext,
+      revision: cameraStore.getTrackAll(trackWithContext.annotation.id)
+        .map((track) => track.revision.value).join(','),
+    }));
+  };
 
-    annotations.forEach((trackWithContext) => {
+  const onTracksChange = function onTracksChange(entries: TrackEntry[]) {
+    if (!renderer.value) {
+      return;
+    }
+    const trackIds = new Set<AnnotationId>();
+    let rebuilt = false;
+
+    entries.forEach(({ trackWithContext, revision }) => {
       const trackId = trackWithContext.annotation.id;
-      trackIds.push(trackId);
+      trackIds.add(trackId);
+
+      const key = `${revision}|${getTrackType(trackWithContext)}`;
+      if (trackKeys.get(trackId) !== key) {
+        removeTrack(trackId);
+        initializeTrack(trackWithContext);
+        trackKeys.set(trackId, key);
+        rebuilt = true;
+      }
 
       const trackTracker = trackManager.getTrack(trackId);
-
-      // New track, so initialize it
-      if (!trackTracker) {
-        initializeTrack(trackWithContext);
-      } else {
-        // The track exists, so just show it
+      if (trackTracker) {
         trackTracker.hidden = false;
-        trackTracker.trackActor.setVisibility(true);
+        trackTracker.trackActor.setVisibility(
+          !onlyShowSelectedTrack.value || selectedTrackIdRef.value === trackId,
+        );
       }
     });
 
-    // All tracks that we have should be hidden
-    trackManager.forEachTrack((track, trackId) => {
-      if (!trackIds.includes(trackId)) {
-        // eslint-disable-next-line no-param-reassign
-        track.hidden = true;
-        track.trackActor.setVisibility(false);
+    Array.from(trackKeys.keys()).forEach((trackId) => {
+      if (!trackIds.has(trackId)) {
+        removeTrack(trackId);
+        trackKeys.delete(trackId);
+        rebuilt = true;
       }
     });
+
+    if (rebuilt) {
+      updateGlyphRadius();
+      onFrameChange(frameRef.value, undefined);
+      if (selectedTrackIdRef.value !== null) {
+        emphasizeTrack(selectedTrackIdRef.value);
+      }
+    }
+    // eslint-disable-next-line no-param-reassign
+    positionedTrackCount.value = trackManager.getAllTracks().size;
 
     viewUtils.rerender();
   };
 
   const initializeTracks = function drawTracks() {
-    filteredTracksRef.filteredAnnotations.value.forEach(initializeTrack);
-
-    onFrameChange(frameRef.value, undefined);
+    onTracksChange(trackEntries());
     onSelectedTrackChange(selectedTrackIdRef.value, null);
   };
 
   watch(selectedTrackIdRef, onSelectedTrackChange);
   watch(frameRef, onFrameChange);
   watch(onlyShowSelectedTrack, onOnlyShowSelectedTrackChange);
-  watch(filteredTracksRef.filteredAnnotations, onFilteredAnnotationsChange);
+  watch(trackEntries, onTracksChange);
 
   return {
     onSelectedTrackChange,

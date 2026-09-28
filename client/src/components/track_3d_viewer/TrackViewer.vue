@@ -22,8 +22,7 @@ import {
 import { ViewUtils } from './trackUtils';
 import TrackManager from './TrackManager';
 import useTrackDrawer from './useTrackDrawer';
-import { smoothBounds } from './utils';
-import { noOp } from './misc';
+import { noOp, smoothBounds } from './utils';
 import { useOrientationMarkerWidget } from './useOrientationMarkerWidget';
 import { useLabelDrawer } from './useLabelDrawer';
 import { injectAggregateController } from '../annotators/useMediaController';
@@ -51,6 +50,7 @@ export default defineComponent({
     } = trackViewerSettingsStore;
 
     const renderer = ref<vtkRenderer>();
+    const positionedTrackCount = ref(0);
     const viewportDimensions = ref({
       height: 0,
       width: 0,
@@ -79,6 +79,7 @@ export default defineComponent({
       trackManager,
       onlyShowSelectedTrack,
       detectionGlyphSize,
+      positionedTrackCount,
       viewUtils,
       renderer,
     });
@@ -261,6 +262,7 @@ export default defineComponent({
 
     return {
       vtkContainer,
+      positionedTrackCount,
     };
   },
 });
@@ -271,12 +273,32 @@ export default defineComponent({
     ref="vtkContainer"
     class="vtk-container"
     :style="`--controls-height: ${controlsHeight}px`"
-  />
+  >
+    <div
+      v-if="positionedTrackCount === 0"
+      class="vtk-empty"
+    >
+      No detections have a 3D position yet. Stereo measurement adds one.
+    </div>
+  </div>
 </template>
 
 <style>
 .vtk-container {
+  position: relative;
   width: 100%;
   height: 100%;
+}
+
+.vtk-empty {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 8px 16px;
+  background: rgba(0, 0, 0, 0.6);
+  color: white;
+  border-radius: 4px;
+  pointer-events: none;
 }
 </style>

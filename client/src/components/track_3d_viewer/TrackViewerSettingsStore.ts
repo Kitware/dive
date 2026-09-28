@@ -18,7 +18,7 @@ export default class TrackViewerSettingsStore {
   constructor() {
     this.cameraParallelProjection = ref(true);
     this.onlyShowSelectedTrack = ref(false);
-    this.detectionGlyphSize = ref(0.003);
+    this.detectionGlyphSize = ref(2);
 
     this.cubeAxesBounds = ref({
       xrange: [-1, 1],
