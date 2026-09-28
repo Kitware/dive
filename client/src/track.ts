@@ -43,6 +43,11 @@ interface TrackParams extends BaseAnnotationParams {
   set?: string;
 }
 
+/** Head and tail 3D locations a measurement pipeline may record with the midpoint. */
+const STEREO_END_LOCATION_ATTRS = [
+  'head_x', 'head_y', 'head_z', 'tail_x', 'tail_y', 'tail_z',
+];
+
 /**
  * Track manages the state of a track, its
  * frame data, and all metadata.
@@ -345,7 +350,8 @@ export default class Track extends BaseAnnotation {
         if (current.attributes.length_method !== 'user_set') {
           current.fishLength = undefined;
           ['length', 'curved_length', 'straight_length', 'curvature_ratio', 'avg_length',
-            'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms']
+            'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+            ...STEREO_END_LOCATION_ATTRS]
             .forEach((key) => { delete current.attributes?.[key]; });
         }
       }
@@ -375,7 +381,8 @@ export default class Track extends BaseAnnotation {
     const attributes = { ...feature.attributes, measurement_stale: true } as StringKeyObject;
     const locked = attributes.length_method === 'user_set';
     ['curved_length', 'straight_length', 'curvature_ratio', 'avg_length',
-      'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms']
+      'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+      ...STEREO_END_LOCATION_ATTRS]
       .forEach((key) => { delete attributes[key]; });
     if (!locked) delete attributes.length;
     this.setFeature({ frame, attributes, fishLength: locked ? feature.fishLength : undefined });

@@ -66,6 +66,7 @@ export default defineComponent({
 
     const viewUtils: ViewUtils = {
       rerender: noOp,
+      sceneBounds: () => null,
     };
 
     const mediaController = injectAggregateController();
@@ -147,6 +148,12 @@ export default defineComponent({
       renderWindow.addRenderer(renderer.value);
 
       const camera = renderer.value.getActiveCamera();
+      // Positions are in the left camera's frame (x right, y down, z forward):
+      // look on from behind the rig, slightly above and to the side, so the
+      // view reads like the image with depth receding into it.
+      camera.setFocalPoint(0, 0, 0);
+      camera.setPosition(-0.4, -0.4, -1);
+      camera.setViewUp(0, -1, 0);
 
       watch(cameraParallelProjection, (parProjection) => {
         if (!renderer.value) {
@@ -169,20 +176,18 @@ export default defineComponent({
       const cubeAxes = vtkCubeAxesActor.newInstance();
       cubeAxes.setCamera(camera);
 
+      const dataBounds = () => smoothBounds(viewUtils.sceneBounds() ?? [1, -1, 1, -1, 1, -1]);
+
       viewUtils.rerender = debounce((resetCamera = false) => {
         if (!renderWindow || renderWindow.isDeleted() || !renderer.value) {
           // pass
         } else {
           if (!adjustCubeAxesBoundsManually.value) {
-            renderer.value.removeActor(cubeAxes);
-            const bounds = renderer.value.computeVisiblePropBounds();
-            const smoothedBounds = smoothBounds(bounds);
-            cubeAxes.setDataBounds(smoothedBounds);
-            renderer.value.addActor(cubeAxes);
+            cubeAxes.setDataBounds(dataBounds());
           }
           drawCurrentFrameDetectionLabels();
           if (resetCamera) {
-            renderer.value.resetCamera();
+            renderer.value.resetCamera(cubeAxes.getDataBounds());
           }
           renderWindow.render();
         }
@@ -197,9 +202,8 @@ export default defineComponent({
       // Initial track drawing
       initializeTrackDrawer();
 
-      const bounds = renderer.value.computeVisiblePropBounds();
       // Always override the default bounds value on initialize
-      const smoothedBounds = smoothBounds(bounds);
+      const smoothedBounds = dataBounds();
       cubeAxes.setDataBounds(smoothedBounds);
 
       cubeAxesBounds.value = {
@@ -237,7 +241,7 @@ export default defineComponent({
       // Observe the renderWindow container so we automatically resize the openglRenderWindow
 
       vtkContainerResizeObserver.observe(vtkContainer.value!);
-      renderer.value.resetCamera();
+      renderer.value.resetCamera(smoothedBounds);
       viewUtils.rerender();
     });
 

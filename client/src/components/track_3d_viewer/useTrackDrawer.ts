@@ -16,6 +16,9 @@ import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import vtkPoints from '@kitware/vtk.js/Common/Core/Points';
 import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
 import vtkSphereSource from '@kitware/vtk.js/Filters/Sources/SphereSource';
+import vtkConeSource from '@kitware/vtk.js/Filters/Sources/ConeSource';
+import vtkLineSource from '@kitware/vtk.js/Filters/Sources/LineSource';
+import vtkAppendPolyData from '@kitware/vtk.js/Filters/General/AppendPolyData';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import vtkCellArray from '@kitware/vtk.js/Common/Core/CellArray';
 import vtkLookupTable from '@kitware/vtk.js/Common/Core/LookupTable';
@@ -25,6 +28,9 @@ import {
   getTrackColor, getTrackType, getTrackTypeColor, ViewUtils, Feature,
 } from './trackUtils';
 import { buildLookupTable } from './lookupTable';
+import {
+  Bounds3, featurePosition, robustBounds, Vec3,
+} from './positions';
 
 export interface TrackDrawerParams {
   trackManager: TrackManager;
@@ -40,8 +46,12 @@ interface TrackEntry {
   revision: string;
 }
 
-/** Stereo measurement attributes holding a detection's position in the rig's frame. */
-const POSITION_KEYS = ['midpoint_x', 'midpoint_y', 'midpoint_z'] as const;
+interface HeadMarker {
+  cone: vtkConeSource;
+  // Relative to the detection's midpoint, where its actor is positioned.
+  head: Vec3;
+  direction: Vec3;
+}
 
 export default function useTrackDrawer({
   trackManager,
@@ -60,33 +70,48 @@ export default function useTrackDrawer({
   const trackTypes: string[] = [];
   const trackKeys = new Map<AnnotationId, string>();
   const trackPositions = new Map<AnnotationId, Feature[]>();
+  const headMarkers = new Map<vtkActor, HeadMarker>();
+  let sceneBounds: Bounds3 | null = null;
 
   // We uses a sphere to represents a detection in space
   const detectionGlyphSource = vtkSphereSource.newInstance();
+
+  /** The cone's tip sits on the head, pointing the way the animal faces. */
+  const sizeHeadMarker = function sizeHeadMarker({ cone, head, direction }: HeadMarker) {
+    const radius = detectionGlyphSource.getRadius();
+    const height = 3 * radius;
+    cone.setRadius(radius);
+    cone.setHeight(height);
+    cone.setCenter(...head.map((value, axis) => value - (direction[axis] * height) / 2) as Vec3);
+  };
 
   /**
    * Positions are in the calibration's units, so the glyph is sized relative
    * to the extent of the data rather than by an absolute radius.
    */
   const updateGlyphRadius = function updateGlyphRadius() {
-    const min = [Infinity, Infinity, Infinity];
-    const max = [-Infinity, -Infinity, -Infinity];
-    trackPositions.forEach((features) => features.forEach(({ x, y, z }) => {
-      [x, y, z].forEach((value, axis) => {
-        min[axis] = Math.min(min[axis], value);
-        max[axis] = Math.max(max[axis], value);
-      });
+    const points: Vec3[] = [];
+    trackPositions.forEach((features) => features.forEach(({
+      x, y, z, head, tail,
+    }) => {
+      points.push([x, y, z], ...(head && tail ? [head, tail] : []));
     }));
-    const extent = Math.max(...max.map((value, axis) => value - min[axis]));
-    const distance = Math.max(...max.map(Math.abs), ...min.map(Math.abs));
+    sceneBounds = robustBounds(points);
+    const extent = sceneBounds
+      ? Math.max(...[0, 2, 4].map((axis) => (sceneBounds as Bounds3)[axis + 1] - (sceneBounds as Bounds3)[axis]))
+      : 0;
+    const distance = sceneBounds ? Math.max(...sceneBounds.map(Math.abs)) : 0;
     let scale = 1;
-    if (Number.isFinite(extent) && extent > 0) {
+    if (extent > 0) {
       scale = extent;
-    } else if (Number.isFinite(distance) && distance > 0) {
+    } else if (distance > 0) {
       scale = distance;
     }
     detectionGlyphSource.setRadius((Number(detectionGlyphSize.value) / 100) * scale);
+    headMarkers.forEach(sizeHeadMarker);
   };
+  // eslint-disable-next-line no-param-reassign
+  viewUtils.sceneBounds = () => sceneBounds;
 
   watch(detectionGlyphSize, () => {
     updateGlyphRadius();
@@ -101,7 +126,9 @@ export default function useTrackDrawer({
     points: vtkPoints,
     lines: vtkCellArray,
     trackColor: [number, number, number],
-    { x, y, z }: { x: number; y: number; z: number},
+    {
+      x, y, z, head, tail,
+    }: Feature,
     idx: number,
     frameDataArray: vtkDataArray,
     frameNumber: number,
@@ -123,9 +150,33 @@ export default function useTrackDrawer({
     }
 
     const pointMapper = vtkMapper.newInstance();
-    pointMapper.setInputConnection(detectionGlyphSource.getOutputPort());
-
     const pointActor = vtkActor.newInstance();
+    const length = head && tail ? Math.hypot(...head.map((value, axis) => value - tail[axis])) : 0;
+
+    if (head && tail && length > 0) {
+      // Head and tail are known: draw the body as a segment through the midpoint
+      const middle = [x, y, z];
+      const localHead = head.map((value, axis) => value - middle[axis]) as Vec3;
+      const localTail = tail.map((value, axis) => value - middle[axis]) as Vec3;
+      const marker: HeadMarker = {
+        cone: vtkConeSource.newInstance({ resolution: 12 }),
+        head: localHead,
+        direction: head.map((value, axis) => (value - tail[axis]) / length) as Vec3,
+      };
+      marker.cone.setDirection(...marker.direction);
+      sizeHeadMarker(marker);
+      headMarkers.set(pointActor, marker);
+
+      const body = vtkLineSource.newInstance({ point1: localHead, point2: localTail });
+      const glyph = vtkAppendPolyData.newInstance();
+      glyph.setInputConnection(detectionGlyphSource.getOutputPort());
+      glyph.addInputConnection(body.getOutputPort());
+      glyph.addInputConnection(marker.cone.getOutputPort());
+      pointMapper.setInputConnection(glyph.getOutputPort());
+      pointActor.getProperty().setLineWidth(3);
+    } else {
+      pointMapper.setInputConnection(detectionGlyphSource.getOutputPort());
+    }
 
     pointActor.setPosition(Number(x), Number(y), Number(z));
     pointActor.setMapper(pointMapper);
@@ -292,14 +343,9 @@ export default function useTrackDrawer({
         if (!feature || byFrame.has(feature.frame)) {
           return;
         }
-        const [x, y, z] = POSITION_KEYS.map((key) => {
-          const value = feature.attributes?.[key];
-          return value === undefined || value === null || value === '' ? NaN : Number(value);
-        });
-        if ([x, y, z].every(Number.isFinite)) {
-          byFrame.set(feature.frame, {
-            x, y, z, frameNumber: feature.frame,
-          });
+        const position = featurePosition(feature.attributes);
+        if (position) {
+          byFrame.set(feature.frame, { ...position, frameNumber: feature.frame });
         }
       });
     });
@@ -313,6 +359,7 @@ export default function useTrackDrawer({
       return;
     }
     [trackTracker.trackActor, ...trackTracker.detectionsMap.values()].forEach((actor) => {
+      headMarkers.delete(actor);
       if (renderer.value) {
         renderer.value.removeActor(actor);
       }
