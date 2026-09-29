@@ -770,6 +770,14 @@ export class QueryServiceManager extends EventEmitter {
     return QueryServiceManager.check(response, 'Query refinement');
   }
 
+  async layoutResults(refs: string[]): Promise<ServiceResponse> {
+    const response = await this.sendRequest({
+      command: 'layout_results',
+      refs,
+    }, 'Result layout');
+    return QueryServiceManager.check(response, 'Result layout');
+  }
+
   async exportModel(outputPath?: string): Promise<ServiceResponse> {
     const response = await this.sendRequest({
       command: 'export_model',
