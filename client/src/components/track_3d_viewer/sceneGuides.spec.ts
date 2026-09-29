@@ -1,5 +1,5 @@
 import {
-  floorGrid, niceStep, rigBaseline, rigCameras,
+  depthGrid, niceStep, rigBaseline, rigCameras,
 } from './sceneGuides';
 
 const identity = [1, 0, 0, 0, 1, 0, 0, 0, 1];
@@ -66,7 +66,7 @@ describe('rigCameras', () => {
   });
 });
 
-describe('floorGrid', () => {
+describe('depthGrid', () => {
   it('uses round spacing', () => {
     expect(niceStep(6000)).toBe(1000);
     expect(niceStep(3100)).toBe(500);
@@ -74,18 +74,18 @@ describe('floorGrid', () => {
     expect(niceStep(0)).toBe(1);
   });
 
-  it('spans the rig and the data, below the lowest point', () => {
-    const grid = floorGrid([-400, 1100, -100, 260, 1500, 3100], [[0, 0, 0], [300, 170, -200]]);
+  it('spans the rig and the data, starting at the cameras', () => {
+    const grid = depthGrid([-400, 1100, -100, 260, 1500, 3100], [[0, 0, 0], [300, 170, -200]]);
     expect(grid.zs).toEqual([0, 500, 1000, 1500, 2000, 2500, 3000, 3500]);
     expect(grid.xs).toEqual([-500, 0, 500, 1000, 1500]);
     expect(grid.step).toBe(500);
-    // From above the highest point (y grows downward) to the last mark over the floor
-    expect(grid.ys).toEqual([-200, 0, 200]);
-    expect(grid.y).toBeCloseTo(260 + 0.02 * 3100);
+    // Heights run both ways from the grid at 0 (y grows downward)
+    expect(grid.ys).toEqual([-200, 0, 200, 400]);
   });
 
   it('marks at least three heights however flat the scene', () => {
-    expect(floorGrid([0, 5000, 10, 12, 1000, 9000], []).ys.length).toBeGreaterThanOrEqual(3);
-    expect(floorGrid([0, 5000, 40, 40, 1000, 9000], []).ys.length).toBeGreaterThanOrEqual(3);
+    expect(depthGrid([0, 5000, 10, 12, 1000, 9000], []).ys).toEqual([0, 5, 10, 15]);
+    expect(depthGrid([0, 5000, 40, 40, 1000, 9000], []).ys).toEqual([0, 20, 40]);
+    expect(depthGrid([0, 5000, 0, 0, 1000, 9000], []).ys).toEqual([-2000, 0, 2000]);
   });
 });

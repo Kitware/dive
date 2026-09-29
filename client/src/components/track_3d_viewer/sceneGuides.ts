@@ -1,6 +1,6 @@
 /**
  * Geometry of the 3D view's reference furniture: the stereo rig's cameras and
- * a floor grid receding along the depth axis. Everything is in the left
+ * a grid receding along the depth axis. Everything is in the left
  * camera's frame (x right, y down, z forward), like the plotted positions.
  */
 import { Bounds3, Vec3 } from './positions';
@@ -28,11 +28,11 @@ export interface CameraFrustum {
   corners: [Vec3, Vec3, Vec3, Vec3];
 }
 
-export interface FloorGrid {
-  y: number;
+export interface DepthGrid {
+  /** Spacing of the x and z lines. */
   step: number;
   xs: number[];
-  /** Heights marked on the vertical axis, from the top of the scene down to the floor. */
+  /** Heights marked on the vertical axis, above and below the grid. */
   ys: number[];
   zs: number[];
 }
@@ -116,30 +116,28 @@ function ticks(min: number, max: number, step: number) {
 }
 
 /**
- * A grid under the data, reaching from the rig to the farthest position.
- * y grows downward, so "under" is the largest y. Depth starts at the cameras:
- * the grid is widened and lowered to take in `include`, never pulled back.
+ * The grid lies in the plane y = 0, level with the left camera's optical
+ * center, so positions read as above or below the cameras. It reaches from the
+ * rig to the farthest position; depth starts at the cameras, and the grid is
+ * widened to take in `include`, never pulled back behind them.
  */
-export function floorGrid(bounds: Bounds3, include: readonly Vec3[]): FloorGrid {
+export function depthGrid(bounds: Bounds3, include: readonly Vec3[]): DepthGrid {
   const xs = [bounds[0], bounds[1], ...include.map((point) => point[0])];
-  const ys = [bounds[2], bounds[3], ...include.map((point) => point[1])];
+  const ys = [bounds[2], bounds[3], 0, ...include.map((point) => point[1])];
   const zs = [bounds[4], bounds[5], 0];
   const [xMin, xMax, zMin, zMax] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
-  const extent = Math.max(xMax - xMin, zMax - zMin);
-  const step = niceStep(extent);
-  const y = Math.max(...ys) + 0.02 * extent;
-  // Heights span far less than the floor, so they get a spacing of their own,
+  const step = niceStep(Math.max(xMax - xMin, zMax - zMin));
+  // Heights span far less than the grid, so they get a spacing of their own,
   // fine enough for the axis to carry at least three marks
-  const yMin = Math.min(...ys);
+  const [yMin, yMax] = [Math.min(...ys), Math.max(...ys)];
   let heights: number[] = [];
-  for (let count = 2; heights.length < 3 && count <= 20; count += 1) {
-    heights = ticks(yMin, y, niceStep(y - yMin, count)).filter((value) => value <= y);
+  for (let count = 2; heights.length < 3 && count <= 20 && yMax > yMin; count += 1) {
+    heights = ticks(yMin, yMax, niceStep(yMax - yMin, count));
   }
   return {
     step,
-    y,
     xs: ticks(xMin, xMax, step),
-    ys: heights,
+    ys: heights.length < 3 ? [-step, 0, step] : heights,
     zs: ticks(zMin, zMax, step),
   };
 }

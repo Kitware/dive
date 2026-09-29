@@ -1,5 +1,12 @@
 /* eslint-disable import/prefer-default-export */
-import vtkAxesActor from '@kitware/vtk.js/Rendering/Core/AxesActor';
+import vtkActor from '@kitware/vtk.js/Rendering/Core/Actor';
+import vtkAppendPolyData from '@kitware/vtk.js/Filters/General/AppendPolyData';
+import vtkArrowSource from '@kitware/vtk.js/Filters/Sources/ArrowSource';
+import type vtkAxesActor from '@kitware/vtk.js/Rendering/Core/AxesActor';
+import vtkCylinderSource from '@kitware/vtk.js/Filters/Sources/CylinderSource';
+import vtkDataArray from '@kitware/vtk.js/Common/Core/DataArray';
+import vtkMapper from '@kitware/vtk.js/Rendering/Core/Mapper';
+import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import vtkCamera from '@kitware/vtk.js/Rendering/Core/Camera';
 import vtkInteractiveOrientationWidget from '@kitware/vtk.js/Widgets/Widgets3D/InteractiveOrientationWidget';
 import vtkOrientationMarkerWidget from '@kitware/vtk.js/Interaction/Widgets/OrientationMarkerWidget';
@@ -21,13 +28,62 @@ const getMajorAxisFromViewUp = function getMajorAxisFromViewUp(
   return axis;
 };
 
+const AXIS_RADIUS = 0.03;
+
+function colored(polyData: vtkPolyData, color: [number, number, number]) {
+  const count = polyData.getPoints().getNumberOfPoints();
+  const values = new Uint8Array(3 * count);
+  for (let i = 0; i < count; i += 1) {
+    values.set(color, 3 * i);
+  }
+  polyData.getPointData().setScalars(vtkDataArray.newInstance({
+    name: 'color', numberOfComponents: 3, values,
+  }));
+  return polyData;
+}
+
+/**
+ * The three axes as plain bars through the center: which way x and z run says
+ * nothing about the scene. Only y carries an arrow, pointing up, because y
+ * grows downward in the cameras' frame and "up" is worth marking.
+ */
+function buildAxes() {
+  const bar = (direction: Vector3) => vtkCylinderSource.newInstance({
+    direction, height: 1, radius: AXIS_RADIUS, resolution: 60,
+  }).getOutputData();
+  const up = vtkArrowSource.newInstance({
+    direction: [0, -1, 0],
+    tipResolution: 60,
+    tipRadius: 0.1,
+    tipLength: 0.2,
+    shaftResolution: 60,
+    shaftRadius: AXIS_RADIUS,
+  }).getOutputData();
+  // The arrow starts at the origin; center it like the bars
+  const points = up.getPoints().getData();
+  for (let i = 1; i < points.length; i += 3) {
+    points[i] += 0.5;
+  }
+
+  const source = vtkAppendPolyData.newInstance();
+  source.setInputData(colored(bar([1, 0, 0]), [255, 0, 0]));
+  source.addInputData(colored(up, [255, 255, 0]));
+  source.addInputData(colored(bar([0, 0, 1]), [0, 128, 0]));
+  const mapper = vtkMapper.newInstance();
+  mapper.setInputConnection(source.getOutputPort());
+  const actor = vtkActor.newInstance();
+  actor.setMapper(mapper);
+  return actor;
+}
+
 export function useOrientationMarkerWidget() {
   const previousVisibility = ref(false);
 
   const widgetManager = vtkWidgetManager.newInstance();
-  const axes = vtkAxesActor.newInstance();
+  const axes = buildAxes();
   const orientationMarkerWidget = vtkOrientationMarkerWidget.newInstance({
-    actor: axes,
+    // The widget only needs something to draw; its typings name two actors
+    actor: axes as unknown as vtkAxesActor,
   });
 
   const interactiveOrientationWidget = vtkInteractiveOrientationWidget.newInstance();
