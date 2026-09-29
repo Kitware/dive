@@ -7,8 +7,9 @@ import type { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { compareTypeNames } from 'dive-common/typeHierarchy';
 import type { RectBounds } from 'vue-media-annotator/utils';
-import type {
-  ReviewEntry, ReviewFrameGeometry, ReviewFrameRef, ReviewItem, ReviewPolygon, ReviewQuery, ReviewSortOrder,
+import {
+  REVIEW_PLAYBACK_FPS_LIMITS,
+  type ReviewEntry, type ReviewFrameGeometry, type ReviewFrameRef, type ReviewItem, type ReviewPolygon, type ReviewQuery, type ReviewSortOrder,
 } from './types';
 
 function isPoint(value: unknown): value is [number, number] {
@@ -94,8 +95,13 @@ export function chipCycleIntervalMs(
   playbackFps: number,
   fallbackMs: number,
 ): number {
-  if (playbackFps > 0) {
-    return Math.min(2000, Math.max(33, Math.round(1000 / playbackFps)));
+  const [minFps, maxFps] = REVIEW_PLAYBACK_FPS_LIMITS.fps;
+  const rawFps = Number(playbackFps);
+  const fps = Number.isFinite(rawFps)
+    ? Math.min(maxFps, Math.max(minFps, Math.round(rawFps)))
+    : 0;
+  if (fps > 0) {
+    return Math.min(2000, Math.max(33, Math.round(1000 / fps)));
   }
   return cycleIntervalFor(frames, datasetFps, fallbackMs);
 }

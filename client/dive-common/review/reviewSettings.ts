@@ -8,6 +8,8 @@ import {
 
 const SETTINGS_STORAGE_KEY = 'dive.review.settings';
 
+let sharedSettings: ReviewSettings | null = null;
+
 export function loadReviewSettings(): ReviewSettings {
   try {
     const raw = window.localStorage.getItem(SETTINGS_STORAGE_KEY);
@@ -43,9 +45,20 @@ export function normalizeReviewSettings(settings: ReviewSettings): ReviewSetting
   };
 }
 
+function applyNormalizedReviewSettings(settings: ReviewSettings) {
+  const normalized = normalizeReviewSettings(settings);
+  if (normalized.playbackFps !== settings.playbackFps
+    || normalized.activateOnHover !== settings.activateOnHover) {
+    Object.assign(settings, normalized);
+  }
+  storeReviewSettings(normalized);
+}
+
 /** A reactive settings object seeded from storage and written back on change. */
 export function usePersistentReviewSettings(): ReviewSettings {
-  const settings = reactive<ReviewSettings>(normalizeReviewSettings(loadReviewSettings()));
-  watch(settings, () => storeReviewSettings({ ...settings }), { deep: true });
-  return settings;
+  if (!sharedSettings) {
+    sharedSettings = reactive<ReviewSettings>(normalizeReviewSettings(loadReviewSettings()));
+    watch(sharedSettings, () => applyNormalizedReviewSettings(sharedSettings!), { deep: true });
+  }
+  return sharedSettings;
 }

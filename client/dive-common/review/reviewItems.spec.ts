@@ -213,6 +213,11 @@ describe('chipCycleIntervalMs', () => {
   it('falls back to real-time when playback fps is zero', () => {
     expect(chipCycleIntervalMs(frames, 10, 0, 400)).toBe(100);
   });
+
+  it('clamps playback fps before computing the interval', () => {
+    expect(chipCycleIntervalMs(frames, 10, 120, 400)).toBe(33);
+    expect(chipCycleIntervalMs(frames, 10, -3, 400)).toBe(100);
+  });
 });
 
 describe('cycleIntervalFor', () => {
