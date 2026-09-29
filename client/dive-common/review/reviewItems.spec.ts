@@ -4,6 +4,7 @@ import {
   buildReviewItems,
   collectAttributeKeys,
   collectTypes,
+  chipCycleIntervalMs,
   cycleIntervalFor,
   frameGeometry,
   groupReviewItems,
@@ -198,6 +199,19 @@ describe('frameGeometry', () => {
   it('falls back to the feature head/tail fields and leaves plain boxes bare', () => {
     expect(frameGeometry({ frame: 0, bounds: [0, 0, 1, 1], head: [1, 2] })).toEqual({ head: [1, 2] });
     expect(frameGeometry({ frame: 0, bounds: [0, 0, 1, 1] })).toEqual({});
+  });
+});
+
+describe('chipCycleIntervalMs', () => {
+  const frames = [0, 1, 2, 3].map((frame) => ({ frame, bounds: [0, 0, 1, 1] as [number, number, number, number] }));
+
+  it('uses a fixed rate when playback fps is set', () => {
+    expect(chipCycleIntervalMs(frames, 10, 10, 400)).toBe(100);
+    expect(chipCycleIntervalMs(frames, 10, 4, 400)).toBe(250);
+  });
+
+  it('falls back to real-time when playback fps is zero', () => {
+    expect(chipCycleIntervalMs(frames, 10, 0, 400)).toBe(100);
   });
 });
 
