@@ -73,6 +73,11 @@ export default defineComponent({
       type: String,
       default: '',
     },
+    /** The box queried within that image; the 3D view shows just this part of it. */
+    exemplarBox: {
+      type: Array as unknown as PropType<[number, number, number, number] | null>,
+      default: null,
+    },
   },
   setup(props, { emit }) {
     const search = useVideoSearch();
@@ -625,6 +630,7 @@ export default defineComponent({
           :points="spacePoints"
           :cells="spaceCells"
           :exemplar-url="exemplarUrl"
+          :exemplar-box="exemplarBox"
           :loading="spaceLoading"
           :error="spaceError"
           :missing-count="spaceMissingCount"
