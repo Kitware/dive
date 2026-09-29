@@ -2,6 +2,7 @@
 import {
   computed, defineComponent, nextTick, PropType, ref, watch,
 } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
 import TooltipBtn from '../../TooltipButton.vue';
 import {
@@ -52,9 +53,12 @@ export default defineComponent({
     const notesInputRef = ref<HTMLInputElement | null>(null);
     const editingAttributeKey = ref<string | null>(null);
     const editAttributeValue = ref('');
-    // Rendered inside a v-for, where Vue collects the refs into an array
-    const attributeInputRef = ref<HTMLInputElement | HTMLInputElement[] | null>(null);
+    const attributeInputRef = ref<HTMLInputElement | null>(null);
     const localAttributeDisplay = ref<Record<string, string>>({});
+
+    function setAttributeInputRef(el: Element | ComponentPublicInstance | null) {
+      attributeInputRef.value = el instanceof HTMLInputElement ? el : null;
+    }
 
     watch(() => props.track.id, () => {
       localNotesDisplay.value = '';
@@ -213,9 +217,8 @@ export default defineComponent({
       editingAttributeKey.value = attrKey;
       nextTick(() => {
         // Without focus the field would never blur, and so never close
-        const input = [attributeInputRef.value].flat()[0];
-        input?.focus();
-        input?.select();
+        attributeInputRef.value?.focus();
+        attributeInputRef.value?.select();
       });
     }
 
@@ -263,7 +266,7 @@ export default defineComponent({
 
     return {
       allTypes,
-      attributeInputRef,
+      setAttributeInputRef,
       cancelEditAttribute,
       cancelEditConfidence,
       cancelEditNotes,
@@ -448,7 +451,7 @@ export default defineComponent({
       <input
         v-if="editingAttributeKey === attrKey"
         :key="attrKey + '-input'"
-        ref="attributeInputRef"
+        :ref="setAttributeInputRef"
         :value="editAttributeValue"
         type="text"
         class="compact-attribute-input"
@@ -640,6 +643,13 @@ export default defineComponent({
     padding: 1px 4px;
     margin-right: 8px;
     outline: none;
+
+    &.track-length {
+      width: 64px;
+      min-width: 64px;
+      max-width: 64px;
+      text-align: center;
+    }
   }
 
   .track-length {
