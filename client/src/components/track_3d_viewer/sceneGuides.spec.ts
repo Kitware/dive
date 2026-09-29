@@ -9,7 +9,8 @@ describe('rigCameras', () => {
     const cameras = rigCameras(null, 2);
     expect(cameras.map((camera) => camera.name)).toEqual(['left']);
     expect(cameras[0].center).toEqual([0, 0, 0]);
-    expect(cameras[0].corners.every((corner) => corner[2] === 2)).toBe(true);
+    // The diagram lies behind the optical center, ending at depth 0
+    expect(cameras[0].corners.every((corner) => corner[2] === -2)).toBe(true);
   });
 
   it('places the right camera at -Rt * T', () => {
@@ -32,7 +33,7 @@ describe('rigCameras', () => {
         },
       },
     }, 10);
-    expect(left.corners).toEqual([[-10, -5, 10], [10, -5, 10], [10, 5, 10], [-10, 5, 10]]);
+    expect(left.corners).toEqual([[10, 5, -10], [-10, 5, -10], [-10, -5, -10], [10, -5, -10]]);
   });
 
   it('matches VIAME for a measured rig', () => {
@@ -74,7 +75,7 @@ describe('floorGrid', () => {
   });
 
   it('spans the rig and the data, below the lowest point', () => {
-    const grid = floorGrid([-400, 1100, -100, 260, 1500, 3100], [[0, 0, 0], [300, 170, 20]]);
+    const grid = floorGrid([-400, 1100, -100, 260, 1500, 3100], [[0, 0, 0], [300, 170, -200]]);
     expect(grid.zs).toEqual([0, 500, 1000, 1500, 2000, 2500, 3000, 3500]);
     expect(grid.xs).toEqual([-500, 0, 500, 1000, 1500]);
     expect(grid.step).toBe(500);
