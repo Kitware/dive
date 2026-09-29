@@ -600,8 +600,8 @@ export default defineComponent({
     }
   }
   .col-spacer {
-    /* Matches color box: 10px + 6px margin */
-    min-width: 16px;
+    /* Matches track-lead-compact (checkbox or color box): 24px + 6px margin */
+    min-width: 30px;
   }
   .col-id {
     /* Matches trackNumber-compact: 30px + 8px margin */
@@ -642,6 +642,12 @@ export default defineComponent({
     max-width: 100px;
     text-align: left;
     margin-right: 8px;
+  }
+  .col-length {
+    /* Matches track-length: a number needs less room than free text */
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
   }
   .col-conf,
   .col-length {
