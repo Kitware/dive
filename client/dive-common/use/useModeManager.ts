@@ -1425,14 +1425,9 @@ export default function useModeManager({
     // Re-arm the recipe for the next detection first: activating it
     // re-selects the current track in edit mode (handleSetAnnotationState).
     activeSegRecipes.forEach((r) => r.activate());
-    // Then leave edit mode with the detection still selected, as the other
-    // annotation types do; one with nothing drawn is removed instead.
     const confirmedId = selectedTrackId.value;
-    if (confirmedId !== null && _removeIfEmpty(confirmedId)) {
-      selectTrack(null, false);
-    } else {
-      selectTrack(confirmedId, false);
-    }
+    if (confirmedId !== null) _removeIfEmpty(confirmedId);
+    selectTrack(null, false);
   }
 
   /**

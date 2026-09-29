@@ -761,7 +761,7 @@ describe('entering polygon editing', () => {
 });
 
 describe('confirming a point segmentation', () => {
-  it('leaves edit mode with the detection still selected, and removes one with nothing drawn', () => {
+  it('deselects the detection, and removes one with nothing drawn', () => {
     const recipe = new SegmentationPointClick();
     const { modeManager: manager, cameraStore } = makeHarness(undefined, [recipe]);
     recipe.activate();
@@ -770,9 +770,10 @@ describe('confirming a point segmentation', () => {
     manager.handler.trackEdit(drawn);
     recipe.resetPoints();
     manager.handler.confirmRecipe();
-    expect(manager.selectedTrackId.value).toBe(drawn);
+    expect(manager.selectedTrackId.value).toBeNull();
     expect(manager.editingTrack.value).toBe(false);
     expect(recipe.active.value).toBe(true);
+    expect(cameraStore.getPossibleTrack(drawn, 'left')).toBeDefined();
 
     const empty = manager.handler.trackAdd();
     recipe.resetPoints();
@@ -830,11 +831,10 @@ describe('a right-click that enters point segmentation editing', () => {
     manager.handler.confirmRecipe();
     expect(manager.selectedTrackId.value).toBe(first);
     expect(manager.editingTrack.value).toBe(true);
-    // A later right-click with no points placed leaves edit mode with the
-    // detection still selected, as the other annotation types do.
+    // A later right-click with no points placed finalizes and deselects it.
     press();
     manager.handler.confirmRecipe();
-    expect(manager.selectedTrackId.value).toBe(first);
+    expect(manager.selectedTrackId.value).toBeNull();
     expect(manager.editingTrack.value).toBe(false);
     // So does one after a reset by the user, even within the same press.
     press();
@@ -842,10 +842,9 @@ describe('a right-click that enters point segmentation editing', () => {
     recipe.resetPoints();
     expect(recipe.wasReset).toBe(true);
     manager.handler.confirmRecipe();
-    expect(manager.selectedTrackId.value).toBe(second);
+    expect(manager.selectedTrackId.value).toBeNull();
     expect(manager.editingTrack.value).toBe(false);
     // With nothing selected a right-click changes nothing.
-    manager.handler.trackSelect(null, false);
     press();
     manager.handler.confirmRecipe();
     expect(recipe.active.value).toBe(true);
