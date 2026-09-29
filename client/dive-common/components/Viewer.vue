@@ -1967,19 +1967,28 @@ export default defineComponent({
         imageData.value = Object.fromEntries(
           multiCamList.value.map((camera) => [camera, [] as FrameImage[]]),
         );
-        // Fetch every camera's config and annotations at once instead of one
-        // camera after another; the per-camera work below only applies them.
-        const cameraLoads = await Promise.all(multiCamList.value.map(async (camera) => {
-          const cameraId = multiCamList.value.length > 1
-            ? `${datasetId.value}/${camera}`
-            : datasetId.value;
-          const [subCameraMeta, detections] = await Promise.all([
-            loadConfig(cameraId),
-            loadDetections(cameraId, props.revision, props.currentSet),
-          ]);
-          return {
-            camera, cameraId, subCameraMeta, detections,
-          };
+        // Configs are small, so every camera's is fetched at once; annotations are the heavy
+        // server work, so they load one camera at a time to keep each open's peak load as on main.
+        const cameraIds = multiCamList.value.map((camera) => (multiCamList.value.length > 1
+          ? `${datasetId.value}/${camera}`
+          : datasetId.value));
+        const detectionsInOrder = (async () => {
+          const loaded: Awaited<ReturnType<typeof loadDetections>>[] = [];
+          for (let i = 0; i < cameraIds.length; i += 1) {
+            // eslint-disable-next-line no-await-in-loop
+            loaded.push(await loadDetections(cameraIds[i], props.revision, props.currentSet));
+          }
+          return loaded;
+        })();
+        const [configs, detectionsByCamera] = await Promise.all([
+          Promise.all(cameraIds.map((cameraId) => loadConfig(cameraId))),
+          detectionsInOrder,
+        ]);
+        const cameraLoads = multiCamList.value.map((camera, i) => ({
+          camera,
+          cameraId: cameraIds[i],
+          subCameraMeta: configs[i],
+          detections: detectionsByCamera[i],
         }));
         for (let i = 0; i < cameraLoads.length; i += 1) {
           const { camera, subCameraMeta } = cameraLoads[i];
