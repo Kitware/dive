@@ -7,6 +7,7 @@ import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideB
 import MultiCamTools from 'dive-common/components/MultiCamTools.vue';
 import RegistrationTools from 'dive-common/components/CameraRegistration/RegistrationTools.vue';
 import AttributeTrackFilters from 'vue-media-annotator/components/AttributeTrackFilters.vue';
+import TrackViewerSettings from 'vue-media-annotator/components/track_3d_viewer/TrackViewerSettings.vue';
 import DatasetInfo from 'dive-common/components/DatasetInfo/DatasetInfo.vue';
 
 interface ContextState {
@@ -61,6 +62,10 @@ const componentMapEntries: ComponentMapItem[] = [
   {
     description: 'Attribute Track Filters',
     component: AttributeTrackFilters,
+  },
+  {
+    description: '3D Viewer Settings',
+    component: TrackViewerSettings,
   },
 ];
 
