@@ -1,4 +1,6 @@
-import { defineComponent, h, ref } from 'vue';
+import {
+  defineComponent, h, nextTick, ref,
+} from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import Track from '../../../track';
 import BottomBarTrackItemView from './BottomBarTrackItemView.vue';
@@ -9,6 +11,7 @@ const providerState = vi.hoisted(() => ({
   setTrackNotes: vi.fn(),
   setTrackAttribute: vi.fn(),
   setTrackFirstFeatureAttribute: vi.fn(),
+  updateCheckedId: vi.fn(),
 }));
 
 vi.mock('../../../provides', () => ({
@@ -17,6 +20,7 @@ vi.mock('../../../provides', () => ({
   useTrackFilters: () => ({
     allTypes: ref(['root', 'leaf']),
     hierarchyIndex: ref(undefined),
+    updateCheckedId: providerState.updateCheckedId,
   }),
   useCameraStore: () => ({
     assignTrackType: providerState.assignTrackType,
@@ -27,7 +31,7 @@ vi.mock('../../../provides', () => ({
   }),
 }));
 
-function mountItem(displayPairIndex: number) {
+function mountItem(displayPairIndex: number, extra: Record<string, unknown> = {}, attach = false) {
   const track = new Track(1, {
     begin: 0,
     end: 0,
@@ -57,10 +61,14 @@ function mountItem(displayPairIndex: number) {
         toggleKeyframe: vi.fn(),
         toggleInterpolation: vi.fn(),
         toggleAllInterpolation: vi.fn(),
+        ...extra,
       },
     }),
   });
-  const wrapper = shallowMount(Host, { stubs: { BottomBarTrackItemView: false } });
+  const wrapper = shallowMount(Host, {
+    stubs: { BottomBarTrackItemView: false },
+    ...(attach ? { attachTo: document.body } : {}),
+  });
   if (!child) {
     throw new Error('BottomBarTrackItemView did not mount');
   }
@@ -129,5 +137,35 @@ describe('BottomBarTrackItemView hierarchy display', () => {
     expect(providerState.setTrackAttribute).toHaveBeenCalledWith(1, 'quality', 'high');
     expect(providerState.setTrackFirstFeatureAttribute)
       .toHaveBeenCalledWith(1, 'occluded', 'yes');
+  });
+
+  it('shows a checkbox for the track, as the side list does, and a color box when solo', () => {
+    const { wrapper } = mountItem(0);
+    expect(wrapper.find('.type-color-box-compact').exists()).toBe(false);
+    wrapper.find('.track-checkbox-compact').trigger('change');
+    expect(providerState.updateCheckedId.mock.calls[0][0]).toBe(1);
+
+    const solo = mountItem(0, { solo: true });
+    expect(solo.wrapper.find('.track-checkbox-compact').exists()).toBe(false);
+    expect(solo.wrapper.find('.type-color-box-compact').exists()).toBe(true);
+  });
+
+  it('focuses an attribute field when editing starts, so leaving it closes it', async () => {
+    const { wrapper, vm } = mountItem(
+      0,
+      { columnVisibility: { attributeColumns: ['track_length'] } },
+      true,
+    );
+    expect(wrapper.find('.compact-attribute-input').exists()).toBe(false);
+    vm.startEditAttribute('track_length', new MouseEvent('click'));
+    await nextTick();
+    await nextTick();
+    const input = wrapper.find('.compact-attribute-input');
+    expect(input.classes()).toContain('track-length');
+    expect(document.activeElement).toBe(input.element);
+
+    await input.trigger('blur');
+    expect(wrapper.find('.compact-attribute-input').exists()).toBe(false);
+    wrapper.destroy();
   });
 });
