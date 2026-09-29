@@ -1,6 +1,9 @@
 import type { DatasetConfig } from 'dive-common/apispec';
 import type { TrackData } from 'vue-media-annotator/track';
-import { buildReviewStatistics, timelineStepPath, TIMELINE_BINS } from './statistics';
+import {
+  buildReviewStatistics, timelineFrame, timelinePeak, timelineStepPath, timelineTicks, timelineY,
+  TIMELINE_BINS,
+} from './statistics';
 
 const config = (id: string, extra: Partial<DatasetConfig> = {}): DatasetConfig => ({
   id,
@@ -164,4 +167,50 @@ it('uses the sequence name for capture order when camera names carry no date', (
     },
   ]);
   expect(result.timelines.map(({ id }) => id)).toEqual(['rig', 'older_20241201_120000.mp4']);
+});
+
+it('scales each sequence to its own peak and labels whole counts on its axis', () => {
+  const result = buildReviewStatistics([
+    { config: config('busy'), tracks: [track({ id: 1 }), track({ id: 2 }), track({ id: 3 }), track({ id: 4 })] },
+    { config: config('quiet'), tracks: [track()] },
+  ]);
+  const peaks = Object.fromEntries(result.timelines.map((row) => [row.id, timelinePeak(row)]));
+  expect(peaks).toEqual({ busy: 4, quiet: 1 });
+  expect(timelinePeak({ bins: [] })).toBe(1);
+  expect(timelineTicks(4)).toEqual([0, 2, 4]);
+  expect(timelineTicks(7)).toEqual([0, 4, 7]);
+  expect(timelineTicks(2)).toEqual([0, 1, 2]);
+  expect(timelineTicks(1)).toEqual([0, 1]);
+  expect(timelineTicks(0)).toEqual([0, 1]);
+  // The axis marks sit where the step path draws the same counts
+  expect(timelineY(0, 4)).toBe(80);
+  expect(timelineY(4, 4)).toBe(4);
+  expect(timelineStepPath([4], 4)).toContain(`V${timelineY(4, 4)}`);
+});
+
+it('finds the frame at a point along a timeline, in the first camera\'s frames', () => {
+  const [row] = buildReviewStatistics([
+    {
+      config: config('left', { fps: 10 }), sequenceId: 'rig', sequenceName: 'Rig', tracks: [track({ begin: 0, end: 99 })],
+    },
+    {
+      config: config('right', { fps: 5 }), sequenceId: 'rig', sequenceName: 'Rig', tracks: [track({ begin: 0, end: 99 })],
+    },
+  ]).timelines;
+  // The slower camera runs 20 s; the first camera has frames for the first 10 s
+  expect(row).toMatchObject({
+    unit: 's', duration: 20, framesPerUnit: 10, lastFrame: 99,
+  });
+  expect(timelineFrame(row, 0)).toBe(0);
+  expect(timelineFrame(row, 0.25)).toBe(50);
+  expect(timelineFrame(row, 0.75)).toBe(99);
+  expect(timelineFrame(row, -1)).toBe(0);
+  expect(timelineFrame(row, Number.NaN)).toBe(0);
+
+  const [frames] = buildReviewStatistics([
+    { config: config('nofps', { fps: 0 }), tracks: [track({ begin: 0, end: 49 })] },
+  ]).timelines;
+  expect(frames).toMatchObject({ unit: 'frames', framesPerUnit: 1, lastFrame: 49 });
+  expect(timelineFrame(frames, 0.5)).toBe(25);
+  expect(timelineFrame(frames, 1)).toBe(49);
 });

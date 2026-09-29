@@ -148,8 +148,11 @@ Statistics use the current loaded annotations, including unsaved edits, and do
 not inherit the Results tab's type, attribute, or confidence query. Changing the
 selected sequences, editing, deleting, or reloading annotations updates totals.
 
-Timeline rows show qualifying track spans as colored, per-type steps in 200 bins
-on a common count scale. All cameras of a sequence share one plot; overlapping
+Timeline rows show qualifying track spans as colored, per-type steps in 200 bins,
+with the total number of tracks present as a grey outline. Each row has its own
+count axis, labelled in tracks and reaching that sequence's peak, so a quiet
+sequence is as readable as a busy one; compare rows by their axis labels, not by
+the height of their plots. All cameras of a sequence share one plot; overlapping
 spans for the same track ID are counted once in each type series.
 Each row uses elapsed seconds, converting each camera by its own FPS (frames
 when any camera lacks FPS). Image
@@ -158,4 +161,5 @@ because review metadata does not provide the full video duration. No media is
 decoded to construct these plots. Capture timestamps on images or parsed from
 sequence names order rows newest first; undated sequences follow alphabetically.
 Import dates are not treated as capture dates. Scroll inside the timeline list
-to browse more rows, or click a sequence name to open its viewer.
+to browse more rows. Click a sequence name to open its viewer, or click a point
+on its plot to open the viewer at that point in the sequence.
