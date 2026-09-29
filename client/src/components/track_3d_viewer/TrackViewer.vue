@@ -16,6 +16,7 @@ import vtkRenderWindowInteractor from '@kitware/vtk.js/Rendering/Core/RenderWind
 import vtkInteractorStyleTrackballCamera from '@kitware/vtk.js/Interaction/Style/InteractorStyleTrackballCamera';
 import { debounce } from '@kitware/vtk.js/macros';
 import {
+  useHandler,
   useTrackViewerSettingsStore,
   useSelectedTrackId,
   useTrackStyleManager,
@@ -29,11 +30,16 @@ import { useLabelDrawer } from './useLabelDrawer';
 import useSceneGuides from './useSceneGuides';
 import { RigCalibration } from './sceneGuides';
 import { Vec3 } from './positions';
+import { nearestOutline, Point2 } from './picking';
 import { injectAggregateController } from '../annotators/useMediaController';
 
 const TRACK_FONT = 'bold 14px sans-serif';
 const SELECTED_FONT = 'bold 18px sans-serif';
 const GUIDE_FONT = '12px sans-serif';
+// Screen pixels: how near a click must land, and how far a press may travel
+// before it counts as a drag of the view
+const PICK_TOLERANCE = 10;
+const CLICK_TRAVEL = 4;
 
 export default defineComponent({
   name: 'TrackViewer',
@@ -93,11 +99,12 @@ export default defineComponent({
 
     const selectedTrackIdRef = useSelectedTrackId();
     const trackStyleManager = useTrackStyleManager();
+    const handler = useHandler();
     const { frame: frameRef } = mediaController.value;
 
     let vtkContainerResizeObserver: ResizeObserver | null = null;
 
-    const { initialize: initializeTrackDrawer } = useTrackDrawer({
+    const { initialize: initializeTrackDrawer, visibleShapes } = useTrackDrawer({
       trackManager,
       onlyShowSelectedTrack,
       detectionGlyphSize,
@@ -141,6 +148,64 @@ export default defineComponent({
       }
     };
 
+    /** Where a point is drawn in the pane, or null when it is behind the viewer. */
+    const toScreen = function toScreen(position: Vec3): Point2 | null {
+      if (!renderer.value || !openglRenderWindow.value) {
+        return null;
+      }
+      const camera = renderer.value.getActiveCamera();
+      const eye = camera.getPosition();
+      const direction = camera.getDirectionOfProjection();
+      const ahead = position.reduce(
+        (sum, value, axis) => sum + (value - eye[axis]) * direction[axis],
+        0,
+      );
+      if (ahead <= 0) {
+        return null;
+      }
+      const display = openglRenderWindow.value.worldToDisplay(...position, renderer.value);
+      return [display[0], viewportDimensions.value.height - display[1]];
+    };
+
+    const trackAt = function trackAt(event: MouseEvent) {
+      const bounds = vtkContainer.value?.getBoundingClientRect();
+      if (!bounds) {
+        return null;
+      }
+      const outlines = visibleShapes().map(({ trackId, points }) => ({
+        id: trackId,
+        points: points.map(toScreen).filter((point): point is Point2 => point !== null),
+      }));
+      return nearestOutline(
+        outlines,
+        [event.clientX - bounds.left, event.clientY - bounds.top],
+        PICK_TOLERANCE,
+      );
+    };
+
+    let pressed: Point2 | null = null;
+    const onPointerDown = function onPointerDown(event: PointerEvent) {
+      pressed = event.button === 0 ? [event.clientX, event.clientY] : null;
+    };
+    // A press that does not move selects the track under it; one that moves turns the view
+    const onPointerUp = function onPointerUp(event: PointerEvent) {
+      const start = pressed;
+      pressed = null;
+      if (!start
+        || Math.hypot(event.clientX - start[0], event.clientY - start[1]) > CLICK_TRAVEL) {
+        return;
+      }
+      const trackId = trackAt(event);
+      if (trackId !== null) {
+        handler.trackSelect(trackId, false);
+      }
+    };
+    const onPointerMove = function onPointerMove(event: PointerEvent) {
+      if (vtkContainer.value && event.buttons === 0) {
+        vtkContainer.value.style.cursor = trackAt(event) === null ? '' : 'pointer';
+      }
+    };
+
     onMounted(() => {
       renderWindow = vtkRenderWindow.newInstance();
 
@@ -159,6 +224,9 @@ export default defineComponent({
       renderWindowInteractor.setView(openglRenderWindow.value);
       renderWindowInteractor.initialize();
       renderWindowInteractor.bindEvents(vtkContainer.value);
+      vtkContainer.value!.addEventListener('pointerdown', onPointerDown);
+      vtkContainer.value!.addEventListener('pointerup', onPointerUp);
+      vtkContainer.value!.addEventListener('pointermove', onPointerMove);
       renderWindowInteractor.setInteractorStyle(vtkInteractorStyleTrackballCamera.newInstance());
 
       renderWindowInteractor.onAnimation(drawCurrentFrameDetectionLabels);
@@ -315,6 +383,9 @@ export default defineComponent({
     onBeforeUnmount(() => {
       viewUtils.rerender = noOp;
       frameView = noOp;
+      vtkContainer.value?.removeEventListener('pointerdown', onPointerDown);
+      vtkContainer.value?.removeEventListener('pointerup', onPointerUp);
+      vtkContainer.value?.removeEventListener('pointermove', onPointerMove);
       sceneGuides.clear();
       // Stop observing for resize
       if (vtkContainerResizeObserver) vtkContainerResizeObserver.disconnect();
