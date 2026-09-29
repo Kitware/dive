@@ -933,6 +933,8 @@ export default defineComponent({
       readonlyState,
       alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
+      lassoModeActive: lassoMode.lassoModeActive,
+      lassoDrawing: lassoMode.lassoDrawing,
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
       },

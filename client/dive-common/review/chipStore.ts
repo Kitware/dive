@@ -19,6 +19,8 @@ export interface ChipStoreOptions {
   /** Chip width / height, matching the cells the chips are shown in. */
   aspect: number;
   outline: string;
+  /** Crop to the box itself, ignoring padding and aspect. */
+  tight?: boolean;
 }
 
 export interface ChipStoreDeps {
@@ -74,7 +76,8 @@ export function createChipStore(deps: ChipStoreDeps, initial: ChipStoreOptions) 
   /** Re-render everything when the crop or resolution changes. */
   function setOptions(next: ChipStoreOptions) {
     if (next.padding === options.padding && next.size === options.size
-      && next.aspect === options.aspect && next.outline === options.outline) {
+      && next.aspect === options.aspect && next.outline === options.outline
+      && !!next.tight === !!options.tight) {
       return;
     }
     options = { ...next };

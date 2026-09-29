@@ -3,7 +3,7 @@ import { shallowMount } from '@vue/test-utils';
 import {
   computed, markRaw, reactive, ref,
 } from 'vue';
-import type { ComponentOptions } from 'vue';
+import type { VueConstructor } from 'vue';
 import type { ReviewItem } from 'dive-common/review/types';
 import VideoSearchResultsGrid from './VideoSearchResultsGrid.vue';
 
@@ -15,7 +15,7 @@ vi.mock('vue-media-annotator/provides', () => ({ useHandler: () => null }));
 vi.mock('./VideoSearchResultsSpace.vue', () => ({
   default: {
     name: 'VideoSearchResultsSpace',
-    props: ['points', 'cells', 'exemplarUrl', 'loading', 'error', 'missingCount'],
+    props: ['points', 'cells', 'exemplarUrl', 'loading', 'error', 'missingCount', 'editable', 'typeOptions'],
     render: (h: (tag: string) => unknown) => h('div'),
   },
 }));
@@ -59,6 +59,12 @@ function mount(refs: string[]) {
     items,
     itemsByRef: computed(() => new Map(items.value.map((i) => [i.key, i]))),
     chips: ref<Record<string, string>>({ [refs[0]]: 'data:chip' }),
+    tightChips: ref<Record<string, string>>({ [refs[0]]: 'data:tight' }),
+    tightStore: {
+      chips: ref({}),
+      ensurePrimary: vi.fn(),
+      reset: vi.fn(),
+    },
     store: {
       chips: ref({}),
       sequences: ref({}),
@@ -75,7 +81,7 @@ function mount(refs: string[]) {
   const memory = reactive({
     page: 0, hideReviewed: false, space: false, spaceCount: 2,
   });
-  const wrapper = shallowMount(VideoSearchResultsGrid as unknown as ComponentOptions<Vue>, {
+  const wrapper = shallowMount(VideoSearchResultsGrid as unknown as VueConstructor, {
     propsData: {
       inline: true, searchChips, memory, exemplarUrl: 'file:///exemplar.jpg',
     },
@@ -97,7 +103,9 @@ it('only places results in descriptor space once the 3D view is chosen, remember
   (wrapper.vm as unknown as { space: boolean }).space = true;
   await flush();
   expect(search.layoutResults).toHaveBeenCalledWith(['0:1', '0:2']);
-  expect(searchChips.store.ensurePrimary).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ key: '0:1' })]));
+  // The 3D view asks for its own chips, cropped to the box alone
+  expect(searchChips.tightStore.ensurePrimary).toHaveBeenCalledWith(expect.arrayContaining([expect.objectContaining({ key: '0:1' })]));
+  expect(searchChips.store.ensurePrimary).not.toHaveBeenCalled();
   expect(memory).toMatchObject({ space: true, spaceCount: 2 });
   const space = wrapper.findComponent({ name: 'VideoSearchResultsSpace' });
   expect(space.exists()).toBe(true);
@@ -106,7 +114,7 @@ it('only places results in descriptor space once the 3D view is chosen, remember
   ]);
   expect(space.props('cells')).toMatchObject([
     {
-      key: '0:1', rank: 1, chip: 'data:chip', distance: 0, score: 1,
+      key: '0:1', rank: 1, chip: 'data:tight', distance: 0, score: 1,
     },
     {
       key: '0:2', rank: 2, chip: null, distance: 2,
@@ -132,9 +140,29 @@ it('marks and opens results from the 3D view through the shared session', async 
   (wrapper.vm as unknown as { space: boolean }).space = true;
   await flush();
   const space = wrapper.findComponent({ name: 'VideoSearchResultsSpace' });
-  space.vm.$emit('mark', '0:2', 'negative');
+  space.vm.$emit('mark', ['0:2'], 'negative');
   expect(search.mark).toHaveBeenCalledWith('0:2', 'negative');
   space.vm.$emit('open', '0:2');
   expect(wrapper.emitted('open-result')?.[0]).toEqual(['a', 1, undefined]);
+  wrapper.destroy();
+});
+
+it('sets a mark on every selected result, leaving alone those that already carry it', async () => {
+  const { wrapper, search } = mount(['0:1', '0:2', '0:3']);
+  (wrapper.vm as unknown as { space: boolean; spaceCount: number }).spaceCount = 3;
+  (wrapper.vm as unknown as { space: boolean }).space = true;
+  search.state.adjudications = { '0:2': 'positive' };
+  await flush();
+  const space = wrapper.findComponent({ name: 'VideoSearchResultsSpace' });
+  // A mark toggles, so marking '0:2' again would have cleared it
+  space.vm.$emit('mark', ['0:1', '0:2', '0:3'], 'positive');
+  expect(search.mark.mock.calls).toEqual([['0:1', 'positive'], ['0:3', 'positive']]);
+  wrapper.destroy();
+});
+
+it('offers up to a thousand results in the 3D view', () => {
+  const { wrapper } = mount(['0:1']);
+  expect((wrapper.vm as unknown as { spaceCountChoices: number[] }).spaceCountChoices)
+    .toEqual([10, 25, 50, 100, 250, 1000]);
   wrapper.destroy();
 });

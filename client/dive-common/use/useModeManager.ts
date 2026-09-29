@@ -128,6 +128,8 @@ export default function useModeManager({
   recipes,
   alignedView,
   isStereoscopicDataset,
+  lassoModeActive,
+  lassoDrawing,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
   onNewAnnotationGeometry,
@@ -147,6 +149,9 @@ export default function useModeManager({
     alignedView?: AlignedViewStore;
     /** When set, interactive stereo only runs on stereoscopic datasets. */
     isStereoscopicDataset?: Ref<boolean>;
+    /** Alt-held lasso mode — keep in sync with EditorMenu tool disabling. */
+    lassoModeActive?: Readonly<Ref<boolean>>;
+    lassoDrawing?: Readonly<Ref<boolean>>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
     /**
@@ -1357,8 +1362,17 @@ export default function useModeManager({
       annotationModes.visible = visible;
     }
     if (editing) {
+      // Match EditorMenu toolsDisabled so async recipe activate (e.g. seg init)
+      // cannot create/edit while the toolbar is blocked.
       if (readonlyState.value || multiSelectActive.value
-          || editingGroupId.value !== null || linkingState.value) return;
+          || editingGroupId.value !== null || linkingState.value
+          || lassoModeActive?.value || lassoDrawing?.value) {
+        // completeActivation may already have set recipe.active before emitting.
+        if (recipeName) {
+          recipes.find((r) => r.name === recipeName)?.deactivate();
+        }
+        return;
+      }
       annotationModes.editing = editing;
       if (selectedTrackId.value === null) {
         handleAddTrackOrDetection();
