@@ -567,6 +567,7 @@ export default defineComponent({
     font-weight: bold;
     margin-right: 8px;
     min-width: 30px;
+    text-align: center;
   }
 
   .track-frame-start,

@@ -575,6 +575,9 @@ export default defineComponent({
   font-weight: 600;
 }
 .compact-column-headers {
+  /* The header is padded 8px more than the rows; without this every label sits right of its column */
+  margin-left: -8px;
+
   .col-header {
     font-size: 10px;
     color: #888;
@@ -604,8 +607,11 @@ export default defineComponent({
     min-width: 30px;
   }
   .col-id {
-    /* Matches trackNumber-compact: 30px + 8px margin */
-    min-width: 38px;
+    /* Matches trackNumber-compact: 30px + 8px margin, centered like its values */
+    width: 30px;
+    min-width: 30px;
+    flex-shrink: 0;
+    margin-right: 8px;
   }
   .col-type {
     /* Matches track-type-compact: 80px */
@@ -649,6 +655,7 @@ export default defineComponent({
     min-width: 64px;
     max-width: 64px;
   }
+  .col-id,
   .col-conf,
   .col-length {
     position: relative;
