@@ -16,6 +16,11 @@ export interface ChipRenderOptions {
   aspect?: number;
   /** Box outline colour; omit to draw no outline. */
   outline?: string;
+  /**
+   * Crop to the box itself: no context and no squaring, so the chip takes the
+   * box's own shape. Overrides padding and aspect.
+   */
+  tight?: boolean;
   /** JPEG quality. */
   quality?: number;
 }
@@ -71,6 +76,17 @@ export function chipRegion(bounds: RectBounds, padding: number, aspect = 1): Chi
   };
 }
 
+/** Exactly the box, whatever its shape. */
+export function boxRegion(bounds: RectBounds): ChipRegion {
+  const [x1, y1, x2, y2] = bounds;
+  return {
+    x: Math.min(x1, x2),
+    y: Math.min(y1, y2),
+    width: Math.max(1, Math.abs(x2 - x1)),
+    height: Math.max(1, Math.abs(y2 - y1)),
+  };
+}
+
 /** Pixel sizes chips are rendered at; cells pick the smallest that covers them. */
 export const CHIP_SIZE_BUCKETS = [128, 192, 256, 384, 512, 768];
 
@@ -108,9 +124,11 @@ export function renderChip(
   bounds: RectBounds | null,
   options: ChipRenderOptions,
 ): RenderedChip {
-  const region = bounds
-    ? chipRegion(bounds, options.padding, options.aspect)
-    : frameRegion(frame.width, frame.height, options.aspect);
+  let region = frameRegion(frame.width, frame.height, options.aspect);
+  if (bounds) {
+    region = options.tight
+      ? boxRegion(bounds) : chipRegion(bounds, options.padding, options.aspect);
+  }
   const scale = chipScale(region, options.size);
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(region.width * scale));

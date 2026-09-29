@@ -1,5 +1,6 @@
 import {
-  DEFAULT_ORBIT, normalizePositions, orbitDrag, orbitZoom, paintOrder, pick, project, rotate,
+  billboardHalfSize, DEFAULT_ORBIT, normalizePositions, orbitDrag, orbitPan, orbitZoom,
+  paintOrder, pick, pickInBox, project, rotate,
 } from './resultSpace';
 
 const viewport = { width: 400, height: 300 };
@@ -69,4 +70,54 @@ it('picks the nearest billboard under the cursor', () => {
   expect(pick(projected, 101, 101, 20)?.key).toBe('front');
   expect(pick(projected, 100, 100, 1)?.key).toBe('behind');
   expect(pick(projected, 200, 200, 20)).toBeNull();
+});
+
+it('slides the view with a pan, and the default orbit undoes it', () => {
+  const panned = orbitPan(orbitPan(DEFAULT_ORBIT, 30, -10), 5, 5);
+  expect(panned).toMatchObject({ panX: 35, panY: -5, yaw: DEFAULT_ORBIT.yaw });
+  const [origin] = project([{ key: 'o', position: [0, 0, 0] }], panned, viewport);
+  expect(origin.x).toBe(235);
+  expect(origin.y).toBe(145);
+  const [reset] = project([{ key: 'o', position: [0, 0, 0] }], { ...DEFAULT_ORBIT }, viewport);
+  expect([reset.x, reset.y]).toEqual([200, 150]);
+});
+
+it('picks by each billboard\'s own shape', () => {
+  const projected = [{
+    key: 'thin', x: 100, y: 100, depth: 2, scale: 1,
+  }];
+  const shape = () => [1, 0.25] as [number, number];
+  expect(pick(projected, 115, 100, 20, shape)?.key).toBe('thin');
+  expect(pick(projected, 100, 110, 20, shape)).toBeNull();
+  expect(pick(projected, 100, 110, 20)?.key).toBe('thin');
+});
+
+it('gathers every billboard a drawn box touches, whichever way it was drawn', () => {
+  const projected = [
+    {
+      key: 'a', x: 100, y: 100, depth: 2, scale: 1,
+    },
+    {
+      key: 'b', x: 160, y: 120, depth: 3, scale: 1,
+    },
+    {
+      key: 'c', x: 300, y: 100, depth: 1, scale: 1,
+    },
+  ];
+  const box = {
+    x1: 170, y1: 130, x2: 90, y2: 90,
+  };
+  expect(pickInBox(projected, box, 10)).toEqual(['a', 'b']);
+  // 'c' only touches the box with its edge
+  expect(pickInBox(projected, { ...box, x1: 291 }, 10)).toEqual(['a', 'b', 'c']);
+  expect(pickInBox(projected, {
+    x1: 0, y1: 0, x2: 20, y2: 20,
+  }, 10)).toEqual([]);
+});
+
+it('shrinks billboards once more than a hundred results are shown', () => {
+  expect(billboardHalfSize(25, 26, 8)).toBe(26);
+  expect(billboardHalfSize(100, 26, 8)).toBe(26);
+  expect(billboardHalfSize(250, 26, 8)).toBe(16);
+  expect(billboardHalfSize(1000, 26, 8)).toBe(8);
 });

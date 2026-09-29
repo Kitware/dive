@@ -11,12 +11,30 @@ export interface SpacePoint {
   position: Vec3;
 }
 
-/** Camera orbit: yaw about the vertical axis, pitch above the horizon, zoom factor. */
+/**
+ * Camera orbit: yaw about the vertical axis, pitch above the horizon, zoom
+ * factor, and how far the query has been slid from the viewport's center.
+ */
 export interface Orbit {
   yaw: number;
   pitch: number;
   zoom: number;
+  /** Canvas pixels. */
+  panX?: number;
+  panY?: number;
 }
+
+/** A rectangle on the canvas, by two opposite corners in any order. */
+export interface CanvasBox {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+}
+
+/** A billboard's half width and half height, as fractions of the square half size. */
+export type Shape = (key: string) => [number, number];
+const SQUARE: Shape = () => [1, 1];
 
 export interface Viewport {
   width: number;
@@ -34,7 +52,9 @@ export interface Projected {
   scale: number;
 }
 
-export const DEFAULT_ORBIT: Orbit = { yaw: 0.6, pitch: 0.35, zoom: 1 };
+export const DEFAULT_ORBIT: Orbit = {
+  yaw: 0.6, pitch: 0.35, zoom: 1, panX: 0, panY: 0,
+};
 
 /** Camera distance from the origin at zoom 1; points are normalized inside radius 1. */
 const CAMERA_DISTANCE = 3.2;
@@ -72,12 +92,15 @@ export function cameraDistance(orbit: Orbit): number {
   return CAMERA_DISTANCE / orbit.zoom;
 }
 
-/** Perspective projection of every point; the origin projects to the viewport center. */
+/**
+ * Perspective projection of every point; the origin projects to the
+ * viewport center, moved by the orbit's pan.
+ */
 export function project(points: SpacePoint[], orbit: Orbit, viewport: Viewport): Projected[] {
   const distance = cameraDistance(orbit);
   const focal = FIT_FRACTION * Math.min(viewport.width, viewport.height) * CAMERA_DISTANCE;
-  const cx = viewport.width / 2;
-  const cy = viewport.height / 2;
+  const cx = viewport.width / 2 + (orbit.panX ?? 0);
+  const cy = viewport.height / 2 + (orbit.panY ?? 0);
   return points.map((point) => {
     const [x, y, z] = rotate(point.position, orbit);
     const depth = distance - z;
@@ -98,17 +121,48 @@ export function paintOrder(projected: Projected[]): Projected[] {
 }
 
 /**
- * The nearest billboard under a canvas position, given each billboard's
- * half size at scale 1 (they are squares centered on their point).
+ * The nearest billboard under a canvas position, given the billboards' half
+ * size at scale 1. They are centered on their point, square unless `shape`
+ * says otherwise.
  */
-export function pick(projected: Projected[], x: number, y: number, halfSize: number): Projected | null {
+export function pick(
+  projected: Projected[],
+  x: number,
+  y: number,
+  halfSize: number,
+  shape: Shape = SQUARE,
+): Projected | null {
   let best: Projected | null = null;
   projected.forEach((p) => {
+    const [wide, tall] = shape(p.key);
     const half = halfSize * p.scale;
-    if (Math.abs(p.x - x) > half || Math.abs(p.y - y) > half) return;
+    if (Math.abs(p.x - x) > half * wide || Math.abs(p.y - y) > half * tall) return;
     if (!best || p.depth < best.depth) best = p;
   });
   return best;
+}
+
+/** Every billboard a box drawn on the canvas touches. */
+export function pickInBox(
+  projected: Projected[],
+  box: CanvasBox,
+  halfSize: number,
+  shape: Shape = SQUARE,
+): string[] {
+  const [left, right] = [Math.min(box.x1, box.x2), Math.max(box.x1, box.x2)];
+  const [top, bottom] = [Math.min(box.y1, box.y2), Math.max(box.y1, box.y2)];
+  return projected.filter((p) => {
+    const [wide, tall] = shape(p.key);
+    const half = halfSize * p.scale;
+    return p.x + half * wide >= left && p.x - half * wide <= right
+      && p.y + half * tall >= top && p.y - half * tall <= bottom;
+  }).map((p) => p.key);
+}
+
+/** Billboards shrink as more results are shown, so a thousand still read as separate. */
+export function billboardHalfSize(count: number, halfSize: number, smallest: number): number {
+  const crowding = count > 100 ? Math.sqrt(100 / count) : 1;
+  return Math.max(smallest, Math.round(halfSize * crowding));
 }
 
 export function orbitDrag(orbit: Orbit, dx: number, dy: number): Orbit {
@@ -117,6 +171,11 @@ export function orbitDrag(orbit: Orbit, dx: number, dy: number): Orbit {
     yaw: orbit.yaw + dx * DRAG_RADIANS_PER_PX,
     pitch: Math.max(-MAX_PITCH, Math.min(MAX_PITCH, orbit.pitch + dy * DRAG_RADIANS_PER_PX)),
   };
+}
+
+/** Slide the whole view across the canvas. */
+export function orbitPan(orbit: Orbit, dx: number, dy: number): Orbit {
+  return { ...orbit, panX: (orbit.panX ?? 0) + dx, panY: (orbit.panY ?? 0) + dy };
 }
 
 /** Wheel zoom: each 100 units of deltaY scales by ~1.25x. */

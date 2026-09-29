@@ -23,7 +23,7 @@ import VideoSearchResultsSpace, { SpaceCell } from './VideoSearchResultsSpace.vu
 /** Footer height of a search cell (type field and caption), for the chip aspect ratio. */
 const SearchCellFooterPx = 48;
 /** How many top results the 3D view may place. */
-const SpaceCountChoices = [10, 25, 50, 100];
+const SpaceCountChoices = [10, 25, 50, 100, 250, 1000];
 const DefaultSpaceCount = 25;
 
 /**
@@ -130,7 +130,7 @@ export default defineComponent({
         spaceLoading.value = false;
         return;
       }
-      props.searchChips.store.ensurePrimary(spaceItems.value);
+      props.searchChips.tightStore.ensurePrimary(spaceItems.value);
       spaceLoading.value = true;
       spaceError.value = '';
       try {
@@ -149,14 +149,22 @@ export default defineComponent({
     const spacePoints = computed<SpacePoint[]>(() => (spaceLayout.value?.points ?? [])
       .map((point) => ({ key: point.ref, position: point.position })));
     const spaceCells = computed<SpaceCell[]>(() => {
+      // Read so type changes and deletions re-render, as in the grid's cells
+      const revision = review?.dataRevision.value ?? 0;
       const distances = new Map((spaceLayout.value?.points ?? []).map((point) => [point.ref, point.distance]));
       return spaceItems.value.map((item, index): SpaceCell => {
         const result = resultsByRef.value.get(item.key);
         const datasetName = search && result ? search.resultDatasetName(result) : null;
+        const adopted = result && props.searchReview
+          ? props.searchReview.itemOf(result) : undefined;
         return {
           key: item.key,
           rank: index + 1,
-          chip: props.searchChips.chips.value[item.key] || null,
+          // Cropped to the box alone; the grid's chips carry context around it
+          chip: props.searchChips.tightChips.value[item.key] || null,
+          revision,
+          type: (adopted && review ? review.currentType(adopted)?.type : '') ?? '',
+          adopted: adopted !== undefined,
           adjudication: (result && adjudications.value[result.ref]) || '',
           title: `${datasetName || 'This dataset'} · frame ${item.primary.frame}`,
           subtitle: [`Frame ${item.primary.frame}`, datasetName].filter(Boolean).join(' · '),
@@ -269,8 +277,23 @@ export default defineComponent({
       if (item) openItem(item);
     }
 
-    function markSpaceItem(key: string, adjudication: 'positive' | 'negative') {
-      search?.mark(key, adjudication);
+    /** One result toggles its mark, as in the grid; several are all set to it. */
+    function markSpaceItems(keys: string[], adjudication: 'positive' | 'negative') {
+      if (!search) return;
+      if (keys.length === 1) {
+        search.mark(keys[0], adjudication);
+        return;
+      }
+      keys.filter((key) => adjudications.value[key] !== adjudication)
+        .forEach((key) => search.mark(key, adjudication));
+    }
+
+    function assignSpaceItems(keys: string[], type: string) {
+      keys.forEach((key) => assign(resultsByRef.value.get(key), type));
+    }
+
+    function removeSpaceItems(keys: string[]) {
+      keys.forEach((key) => remove(resultsByRef.value.get(key)));
     }
 
     function assign(result: VideoSearchResult | undefined, type: string) {
@@ -329,7 +352,9 @@ export default defineComponent({
       spaceError,
       spaceMissingCount,
       openSpaceItem,
-      markSpaceItem,
+      markSpaceItems,
+      assignSpaceItems,
+      removeSpaceItems,
       close,
       openItem,
       mark,
@@ -514,7 +539,9 @@ export default defineComponent({
           >({{ reviewedCount }})</span>
         </v-btn>
         <v-spacer />
-        <span class="text-caption grey--text">Drag to orbit · wheel to zoom · double click to open</span>
+        <span class="text-caption grey--text">
+          Drag to orbit · middle drag to slide · wheel to zoom · shift drag to select
+        </span>
       </div>
       <ReviewGridControls
         v-else
@@ -601,8 +628,12 @@ export default defineComponent({
           :loading="spaceLoading"
           :error="spaceError"
           :missing-count="spaceMissingCount"
+          :editable="!!searchReview"
+          :type-options="review ? review.knownTypes.value : []"
           @open="openSpaceItem"
-          @mark="markSpaceItem"
+          @mark="markSpaceItems"
+          @assign="assignSpaceItems"
+          @remove="removeSpaceItems"
         />
       </div>
       <div
