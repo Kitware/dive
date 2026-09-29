@@ -87,6 +87,19 @@ export function cycleIntervalFor(frames: readonly ReviewFrameRef[], fps: number,
   return Math.min(2000, Math.max(33, Math.round((stride / fps) * 1000)));
 }
 
+/** Milliseconds between cycled chip frames from review playback settings. */
+export function chipCycleIntervalMs(
+  frames: readonly ReviewFrameRef[],
+  datasetFps: number,
+  playbackFps: number,
+  fallbackMs: number,
+): number {
+  if (playbackFps > 0) {
+    return Math.min(2000, Math.max(33, Math.round(1000 / playbackFps)));
+  }
+  return cycleIntervalFor(frames, datasetFps, fallbackMs);
+}
+
 /** The pair a type query matches on, or null when the track does not qualify. */
 export function matchTypePair(
   pairs: readonly (readonly [string, number])[],
