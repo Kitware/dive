@@ -59,10 +59,12 @@ function buildAxes() {
     shaftResolution: 60,
     shaftRadius: AXIS_RADIUS,
   }).getOutputData();
-  // The arrow starts at the origin; center it like the bars
+  // The tip makes the arrow lopsided; center its length on the origin so the
+  // three axes cross in the middle
   const points = up.getPoints().getData();
+  const [, , yMin, yMax] = up.getPoints().getBounds();
   for (let i = 1; i < points.length; i += 3) {
-    points[i] += 0.5;
+    points[i] -= (yMin + yMax) / 2;
   }
 
   const source = vtkAppendPolyData.newInstance();
