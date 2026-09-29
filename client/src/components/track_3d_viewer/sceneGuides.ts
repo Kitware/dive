@@ -18,8 +18,13 @@ export interface RigCalibration {
 
 export interface CameraFrustum {
   name: string;
+  /** The optical center, where depth is measured from. */
   center: Vec3;
-  /** Image corners at the frustum's depth: top-left, top-right, bottom-right, bottom-left. */
+  /**
+   * Corners of the image plane, drawn behind the optical center as in a
+   * pinhole camera, so the diagram ends at the camera's position rather than
+   * reaching into the scene.
+   */
   corners: [Vec3, Vec3, Vec3, Vec3];
 }
 
@@ -68,7 +73,7 @@ export function rigCameras(calibration: RigCalibration | null, depth: number): C
     name,
     center: toLeft([0, 0, 0]),
     corners: cornerRays(calibration, name)
-      .map(([x, y]) => toLeft([x * depth, y * depth, depth])) as CameraFrustum['corners'],
+      .map(([x, y]) => toLeft([-x * depth, -y * depth, -depth])) as CameraFrustum['corners'],
   });
   const cameras = [frustum('left', (point) => point)];
   const R = numbers(calibration?.R, 9);
@@ -112,12 +117,13 @@ function ticks(min: number, max: number, step: number) {
 
 /**
  * A grid under the data, reaching from the rig to the farthest position.
- * y grows downward, so "under" is the largest y.
+ * y grows downward, so "under" is the largest y. Depth starts at the cameras:
+ * the grid is widened and lowered to take in `include`, never pulled back.
  */
 export function floorGrid(bounds: Bounds3, include: readonly Vec3[]): FloorGrid {
   const xs = [bounds[0], bounds[1], ...include.map((point) => point[0])];
   const ys = [bounds[2], bounds[3], ...include.map((point) => point[1])];
-  const zs = [bounds[4], bounds[5], ...include.map((point) => point[2])];
+  const zs = [bounds[4], bounds[5], 0];
   const [xMin, xMax, zMin, zMax] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
   const extent = Math.max(xMax - xMin, zMax - zMin);
   const step = niceStep(extent);

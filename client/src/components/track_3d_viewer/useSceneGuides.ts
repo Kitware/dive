@@ -143,11 +143,11 @@ export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
     ];
 
     const ys = [bounds[2], yTop, grid.y, ...rigPoints.map((point) => point[1])];
-    // Room for the labels around the grid
+    // Room for the labels around the grid, and for the rig behind its near edge
     extent = [
       xFirst - 3 * gap, xLast + 3 * gap,
       Math.min(...ys) - gap, Math.max(...ys),
-      zFirst - 2 * gap, zLast + 3 * gap,
+      Math.min(zFirst - 2 * gap, ...rigPoints.map((point) => point[2])), zLast + 3 * gap,
     ];
   };
 
