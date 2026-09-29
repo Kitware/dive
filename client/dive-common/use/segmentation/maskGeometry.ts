@@ -1,6 +1,11 @@
 import { contours, polygonHull, polygonArea } from 'd3';
 import type { SegmentationPolygon, SegmentationPredictResponse } from 'dive-common/apispec';
 import { componentsBounds } from 'dive-common/recipes/segmentationPolygons';
+import {
+  SegmentationMaxPolygonAreaError,
+  SegmentationMaxPolygonPoints,
+  SegmentationMaxPolygonPointsLimit,
+} from './constants';
 
 type Point = [number, number];
 
@@ -9,12 +14,6 @@ function nearest(p: Point, a: Point, b: Point): Point {
   const t = Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / (dx * dx + dy * dy || 1)));
   return [a[0] + t * dx, a[1] + t * dy];
 }
-
-// The desktop segmentation service's max_polygon_points,
-// max_polygon_points_limit and area error bound.
-const MaxPolygonPoints = 25;
-const MaxPolygonPointsLimit = 100;
-const MaxAreaError = 0.05;
 
 /** Douglas-Peucker split vertices, most significant first. Past a closed
  * ring's first four points, only deviations over half a pixel count. */
@@ -45,17 +44,17 @@ function splitOrder(points: Point[], limit: number): number[] {
   return order;
 }
 
-/** Reduce a closed contour ring to MaxPolygonPoints. With grow, that budget
- * doubles, up to MaxPolygonPointsLimit, while the area cut off or added
- * exceeds MaxAreaError of the ring's area. */
+/** Reduce a closed contour ring to SegmentationMaxPolygonPoints. With grow, that budget
+ * doubles, up to SegmentationMaxPolygonPointsLimit, while the area cut off or added
+ * exceeds SegmentationMaxPolygonAreaError of the ring's area. */
 function simplify(points: Point[], grow: boolean): Point[] {
-  const order = splitOrder(points, (grow ? MaxPolygonPointsLimit : MaxPolygonPoints) - 2);
+  const order = splitOrder(points, (grow ? SegmentationMaxPolygonPointsLimit : SegmentationMaxPolygonPoints) - 2);
   const area = Math.abs(polygonArea(points));
   const ring = (budget: number) => [0, ...order.slice(0, budget - 2).sort((a, b) => a - b), points.length - 1];
   const error = (kept: number[]) => kept.slice(1).reduce((sum, index, i) => sum
     + Math.abs(polygonArea(points.slice(kept[i], index + 1))), 0);
-  let budget = MaxPolygonPoints;
-  while (budget - 2 < order.length && error(ring(budget)) > MaxAreaError * area) budget *= 2;
+  let budget = SegmentationMaxPolygonPoints;
+  while (budget - 2 < order.length && error(ring(budget)) > SegmentationMaxPolygonAreaError * area) budget *= 2;
   const kept = ring(budget);
   return kept.length >= 4 ? kept.map((i) => points[i]) : points;
 }

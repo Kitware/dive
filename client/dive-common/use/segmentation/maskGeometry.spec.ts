@@ -2,6 +2,11 @@ import { polygonContains } from 'd3';
 import type { SegmentationPolygon } from 'dive-common/apispec';
 import { readFileSync } from 'fs';
 import {
+  SegmentationMaxPolygonAreaError,
+  SegmentationMaxPolygonPoints,
+  SegmentationMaxPolygonPointsLimit,
+} from './constants';
+import {
   maskGeometry, maskKeypoints, maskSeeds, consistentMaskSeeds, maskArea,
 } from './maskGeometry';
 
@@ -49,7 +54,7 @@ describe('polygon vertex budget', () => {
     [disk, star, ring].forEach((mask) => {
       const { polygons } = maskGeometry(mask, size, size);
       polygons!.flatMap((p) => [p.exterior, ...p.holes]).forEach((points) => {
-        expect(points.length).toBeLessThanOrEqual(25);
+        expect(points.length).toBeLessThanOrEqual(SegmentationMaxPolygonPoints);
         expect(points.length).toBeGreaterThanOrEqual(4);
         expect(points[0]).toEqual(points[points.length - 1]);
       });
@@ -59,14 +64,18 @@ describe('polygon vertex budget', () => {
 
   it('keeps the area of a simple outline', () => {
     const area = maskArea(maskGeometry(disk, size, size).polygons!);
-    expect(Math.abs(area - Math.PI * 150 ** 2) / (Math.PI * 150 ** 2)).toBeLessThan(0.05);
+    expect(Math.abs(area - Math.PI * 150 ** 2) / (Math.PI * 150 ** 2)).toBeLessThan(
+      SegmentationMaxPolygonAreaError,
+    );
   });
 
   it('grows the budget for a point-click mask too complex for it, up to the limit', () => {
-    expect(maskGeometry(disk, size, size, true).polygons![0].exterior.length).toBeLessThanOrEqual(25);
+    expect(maskGeometry(disk, size, size, true).polygons![0].exterior.length).toBeLessThanOrEqual(
+      SegmentationMaxPolygonPoints,
+    );
     const points = maskGeometry(star, size, size, true).polygons![0].exterior;
-    expect(points.length).toBeGreaterThan(25);
-    expect(points.length).toBeLessThanOrEqual(100);
+    expect(points.length).toBeGreaterThan(SegmentationMaxPolygonPoints);
+    expect(points.length).toBeLessThanOrEqual(SegmentationMaxPolygonPointsLimit);
   });
 });
 
