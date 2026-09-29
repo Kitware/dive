@@ -90,6 +90,11 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /** When true with {@link animate}, cycling runs only while the pointer is over the chip. */
+    activateOnHover: {
+      type: Boolean,
+      default: false,
+    },
     cycleIntervalMs: {
       type: Number,
       default: 400,
@@ -196,6 +201,8 @@ export default defineComponent({
     const ownView = ref<ChipView>({ scale: 1, x: 0, y: 0 });
     const view = computed<ChipView>(() => props.controlledView ?? ownView.value);
     const wrap = ref<HTMLElement | null>(null);
+    const hovered = ref(false);
+    const cycling = computed(() => props.animate && (!props.activateOnHover || hovered.value));
     let pan: {
       startX: number; startY: number; originX: number; originY: number; pointerId: number; capture: Element | null;
     } | null = null;
@@ -210,10 +217,10 @@ export default defineComponent({
     }, { immediate: true });
 
     /** Sequence slot on screen; 0 while only the primary chip is available. */
-    const currentSlot = computed(() => (hasSequence.value && props.animate ? cycleIndex.value : 0));
+    const currentSlot = computed(() => (hasSequence.value && cycling.value ? cycleIndex.value : 0));
 
     const displaySrc = computed(() => {
-      if (hasSequence.value && props.animate) {
+      if (hasSequence.value && cycling.value) {
         return props.srcs?.[cycleIndex.value] ?? props.src;
       }
       return props.src;
@@ -221,7 +228,7 @@ export default defineComponent({
 
     /** Transform of the chip on screen (the primary's when a slot is still loading). */
     const displayTransform = computed<ChipTransform | null>(() => {
-      if (hasSequence.value && props.animate) {
+      if (hasSequence.value && cycling.value) {
         const slotSrc = props.srcs?.[cycleIndex.value];
         if (slotSrc) return props.transforms?.[cycleIndex.value] ?? null;
       }
@@ -253,7 +260,7 @@ export default defineComponent({
     }
 
     function syncTimer() {
-      const shouldRun = props.animate && hasSequence.value && !editing.value && !paused.value
+      const shouldRun = cycling.value && hasSequence.value && !editing.value && !paused.value
         && !controlled.value;
       if (shouldRun && timer === null) {
         timer = window.setInterval(advance, props.cycleIntervalMs);
@@ -263,7 +270,7 @@ export default defineComponent({
         if (!editing.value && !paused.value) cycleIndex.value = 0;
       }
     }
-    watch([() => props.animate, () => props.srcs, () => props.cycleIntervalMs, editing, paused], () => {
+    watch([cycling, () => props.srcs, () => props.cycleIntervalMs, editing, paused], () => {
       if (timer !== null) {
         window.clearInterval(timer);
         timer = null;
@@ -722,6 +729,7 @@ export default defineComponent({
       onWrapPointerUp,
       missing,
       addBox,
+      hovered,
     };
   },
 });
@@ -731,8 +739,10 @@ export default defineComponent({
   <div
     ref="wrap"
     class="cell-image-wrap"
-    :class="{ 'chip-editing': editing }"
+    :class="{ 'chip-editing': editing, 'chip-hovered': hovered }"
     :aria-label="title"
+    @mouseenter="hovered = true"
+    @mouseleave="hovered = false"
     @dblclick="onImageDoubleClick"
     @contextmenu="onContextMenu"
     @wheel="onWheel"
@@ -1109,6 +1119,10 @@ export default defineComponent({
   cursor: pointer;
   min-width: 0;
   flex: 1 1 0;
+
+  &.chip-hovered {
+    box-shadow: inset 0 0 0 2px #90caf9;
+  }
 }
 
 .cell-image-wrap.chip-editing {

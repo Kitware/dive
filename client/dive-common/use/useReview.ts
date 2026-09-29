@@ -26,6 +26,7 @@ import {
   frameRefFor, groupReviewItems, sortReviewItems,
 } from 'dive-common/review/reviewItems';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
+import { usePersistentReviewSettings } from 'dive-common/review/reviewSettings';
 import {
   DEFAULT_REVIEW_QUERY,
   ReviewEntry,
@@ -33,6 +34,7 @@ import {
   ReviewItem,
   ReviewPolygon,
   ReviewQuery,
+  ReviewSettings,
   ReviewSortOrder,
 } from 'dive-common/review/types';
 
@@ -74,6 +76,7 @@ export interface ReviewService {
   available: Readonly<Ref<ScoringDatasetSummary[]>>;
   query: ReviewQuery;
   grid: ReviewGridSettings;
+  settings: ReviewSettings;
   sort: Ref<ReviewSortOrder>;
   items: Readonly<Ref<ReviewItem[]>>;
   /** Items grouped into grid entries (one per track across its cameras). */
@@ -247,6 +250,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
   const available = ref<ScoringDatasetSummary[]>([]);
   const query = reactive<ReviewQuery>({ ...DEFAULT_REVIEW_QUERY });
   const grid = usePersistentGridSettings();
+  const settings = usePersistentReviewSettings();
   const sort = ref<ReviewSortOrder>('confidence-desc');
   const items = ref<ReviewItem[]>([]);
   const dataRevision = ref(0);
@@ -888,6 +892,7 @@ function createScopedReviewService(deps: ReviewServiceDeps): ReviewService {
     available,
     query,
     grid,
+    settings,
     sort,
     items,
     entries,

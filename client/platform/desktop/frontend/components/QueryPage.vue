@@ -13,6 +13,7 @@ import { createItemChips, createSearchChips } from 'platform/desktop/frontend/us
 import { createSearchReview, OverlapChoice, OverlapSummary } from 'platform/desktop/frontend/useSearchReview';
 import { holdQuerySession, takeQuerySession } from 'platform/desktop/frontend/querySession';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
+import { usePersistentReviewSettings } from 'dive-common/review/reviewSettings';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { reviewViewerLocation } from 'dive-common/review/viewerNavigation';
 import type { ReviewItem } from 'dive-common/review/types';
@@ -89,6 +90,8 @@ export default defineComponent({
     const textChips = resumed?.textChips ?? createItemChips(page.textItems);
     const resultsMemory = resumed?.results ?? reactive({ page: 0, hideReviewed: false });
     const gridSettings = usePersistentGridSettings();
+    const reviewSettings = usePersistentReviewSettings();
+    const hoveredTextEntryKeys = ref(new Set<string>());
     const textGridActive = computed(() => view.value === 'query' && page.mode.value === 'text');
     const textGrid = useReviewGrid({
       items: page.textItems,
@@ -97,7 +100,17 @@ export default defineComponent({
       active: textGridActive,
       footerPx: TextCellFooterPx,
       outline: '',
+      activateOnHover: computed(() => reviewSettings.activateOnHover),
+      hoverEntryKeys: hoveredTextEntryKeys,
     });
+
+    function setTextEntryHovered(key: string, hovered: boolean) {
+      const next = new Set(hoveredTextEntryKeys.value);
+      if (hovered) next.add(key);
+      else next.delete(key);
+      hoveredTextEntryKeys.value = next;
+      textGrid.ensureVisible();
+    }
 
     const imageUrl = ref('');
     watch(page.imagePath, async (path) => {
@@ -308,6 +321,8 @@ export default defineComponent({
       chooseOverlap,
       textChips,
       gridSettings,
+      reviewSettings,
+      setTextEntryHovered,
       textGrid,
       textCells,
       textCountLabel,
@@ -838,7 +853,9 @@ export default defineComponent({
                       :frames="cell.item.frames"
                       :failure="textChips.store.failures.value[cell.item.key] || null"
                       :animate="false"
+                      :activate-on-hover="reviewSettings.activateOnHover"
                       :type="cell.item.type"
+                      @hover-change="setTextEntryHovered(cell.item.key, $event)"
                       :confidence="cell.item.confidence"
                       :title="cell.title"
                       :subtitle="cell.subtitle"
