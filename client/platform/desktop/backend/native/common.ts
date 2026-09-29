@@ -2061,11 +2061,16 @@ async function checkDataset(
 ): Promise<boolean> {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   const projectMetaData = await loadJsonConfig(projectDirData.datasetFileAbsPath);
-  if (projectMetaData.originalBasePath !== '') {
-    const exists = await fs.pathExists(projectMetaData.originalBasePath);
-    if (!exists) {
-      throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${projectMetaData.originalBasePath}`);
-    }
+  const sourcePaths = [
+    ...new Set([
+      projectMetaData.originalBasePath,
+      ...Object.values(projectMetaData.multiCam?.cameras ?? {}).map((camera) => camera.originalBasePath),
+    ].filter((path) => path)),
+  ];
+  const exists = await Promise.all(sourcePaths.map((path) => fs.pathExists(path)));
+  const missing = sourcePaths.filter((_, index) => !exists[index]);
+  if (missing.length) {
+    throw new Error(`Dataset ${projectMetaData.name} does not contain source files at ${missing.join(', ')}`);
   }
   if (projectMetaData.error && projectMetaData.error !== '') {
     throw new Error(`Dataset ${projectMetaData.name} contains error: ${projectMetaData.error}`);
