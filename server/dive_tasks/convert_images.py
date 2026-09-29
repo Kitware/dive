@@ -215,6 +215,28 @@ def convert_images(self: Task, folderId, user_id: str, user_login: str):
         )
 
 
+def _ensure_large_image(gc: GirderClient, manager: JobManager, item: GirderModel) -> None:
+    """Create the item's large-image tile metadata unless it already has it."""
+    try:
+        gc.get(f'item/{item["_id"]}/tiles')
+        manager.write(f'Skipping {item["name"]}, already a large image\n')
+        return
+    except HttpError as e:
+        # Safely parse JSON if possible
+        message = ""
+        try:
+            message = e.response.json().get("message", "")
+        except Exception:
+            pass  # non-JSON response, leave message empty
+        # This is the Girder message when no large image exists
+        if e.status == 400 and message == "No large image file in this item.":
+            manager.write(f'Converting {item["name"]} to large image\n')
+            gc.post(f'item/{item["_id"]}/tiles')
+        else:
+            # Re-raise unexpected errors to fail the job
+            raise
+
+
 @app.task(bind=True, acks_late=True)
 def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
     """
@@ -236,29 +258,35 @@ def convert_large_images(self: Task, folderId, user_id: str, user_login: str):
     ]
     for item in items_to_convert:
         # Assumes 1 file per item
-        try:
-            # Does it already have tiles?
-            gc.get(f'item/{item["_id"]}/tiles')
-            manager.write(f'Skipping {item["name"]}, already a large image\n')
-            continue
-        except HttpError as e:
-            # Safely parse JSON if possible
-            message = ""
-            try:
-                message = e.response.json().get("message", "")
-            except Exception:
-                pass  # non-JSON response, leave message empty
-            # This is the Girder message when no large image exists
-            if e.status == 400 and message == "No large image file in this item.":
-                manager.write(f'Converting {item["name"]} to large image\n')
-                gc.post(f'item/{item["_id"]}/tiles')
-            else:
-                # Re-raise unexpected errors to fail the job
-                raise
+        _ensure_large_image(gc, manager, item)
     gc.addMetadataToFolder(
         str(folderId),
         {"type": constants.LargeImageType},  # mark the parent folder as able to annotate.
     )
+
+
+@app.task(bind=True, acks_late=True, ignore_result=True)
+def create_large_image_tiles(self: Task, folderId, user_id: str, user_login: str):
+    """Create tiles for every large-image file in the folder, then mark it a dataset."""
+    context: dict = {}
+    gc: GirderClient = self.girder_client
+    manager: JobManager = patch_manager(self.job_manager)
+    if utils.check_canceled(self, context):
+        manager.updateStatus(JobStatus.CANCELED)
+        return
+
+    items = [
+        item for item in gc.listItem(folderId) if constants.largeImageRegEx.search(item["name"])
+    ]
+    for index, item in enumerate(items):
+        if utils.check_canceled(self, context, force=False):
+            manager.updateStatus(JobStatus.CANCELED)
+            return
+        manager.updateProgress(total=len(items), current=index)
+        # Assumes 1 file per item
+        _ensure_large_image(gc, manager, item)
+    manager.updateProgress(total=len(items), current=len(items), forceFlush=True)
+    gc.addMetadataToFolder(str(folderId), {constants.DatasetMarker: True})
 
 
 @app.task(bind=True, acks_late=True, ignore_result=True)
