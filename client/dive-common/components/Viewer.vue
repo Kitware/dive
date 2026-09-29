@@ -3402,14 +3402,27 @@ html {
 }
 
 // Fixed, so choosing another display never moves the buttons beside it; a
-// label too long for the box is cut short
+// label too long for the box is cut short. Without a minimum the toolbar
+// squeezes the box to its label when space runs short, which is what let its
+// width follow the selection.
 .camera-select.display-select {
-  width: 120px;
-  max-width: 120px;
+  flex: 0 0 116px !important;
+  width: 116px !important;
+  min-width: 116px !important;
+  max-width: 116px !important;
   font-size: 0.8em;
 
+  .v-input__control,
+  .v-input__slot,
+  .v-select__slot,
+  .v-select__selections {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
   .v-input__slot {
-    padding: 0 6px 0 8px !important;
+    padding: 0 4px 0 6px !important;
   }
 
   .v-select__selection--comma {
