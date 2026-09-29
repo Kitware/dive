@@ -1,5 +1,3 @@
-/* eslint-disable consistent-return */
-
 import { Ref, watch } from 'vue';
 import {
   useTrackFilters,
