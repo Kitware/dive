@@ -27,7 +27,7 @@ import { injectAggregateController } from '../annotators/useMediaController';
 import {
   getTrackColor, getTrackType, getTrackTypeColor, ViewUtils, Feature,
 } from './trackUtils';
-import { buildLookupTable, TRAIL_FRAMES } from './lookupTable';
+import { buildLookupTable } from './lookupTable';
 import {
   Bounds3, featurePosition, robustBounds, Vec3,
 } from './positions';
@@ -571,32 +571,21 @@ export default function useTrackDrawer({
   watch(onlyShowSelectedTrack, onOnlyShowSelectedTrackChange);
   watch(trackEntries, onTracksChange);
 
-  /**
-   * What is drawn of each track on the current frame, for picking: the visible
-   * part of the trail, and the body of the detection when it has a head and tail.
-   */
-  const visibleShapes = function visibleShapes() {
+  /** The ball at each shown track's position on the current frame, for picking. */
+  const visibleBalls = function visibleBalls() {
     const frame = frameRef.value;
-    const shapes: { trackId: AnnotationId; points: Vec3[] }[] = [];
+    const radius = detectionGlyphSource.getRadius();
+    const balls: { trackId: AnnotationId; center: Vec3; radius: number }[] = [];
     trackPositions.forEach((features, trackId) => {
       const trackTracker = trackManager.getTrack(trackId);
       const shown = trackTracker && !trackTracker.hidden
         && (!onlyShowSelectedTrack.value || selectedTrackIdRef.value === trackId);
-      if (!shown) {
-        return;
-      }
-      const trail = features
-        .filter(({ frameNumber }) => frameNumber <= frame && frameNumber > frame - TRAIL_FRAMES)
-        .map(({ x, y, z }): Vec3 => [x, y, z]);
-      if (trail.length > 0) {
-        shapes.push({ trackId, points: trail });
-      }
-      const current = features.find(({ frameNumber }) => frameNumber === frame);
-      if (current?.head && current.tail) {
-        shapes.push({ trackId, points: [current.head, current.tail] });
+      const current = shown && features.find(({ frameNumber }) => frameNumber === frame);
+      if (current) {
+        balls.push({ trackId, center: [current.x, current.y, current.z], radius });
       }
     });
-    return shapes;
+    return balls;
   };
 
   return {
@@ -604,6 +593,6 @@ export default function useTrackDrawer({
     onFrameChange,
     initializeTracks,
     initialize: initializeTracks,
-    visibleShapes,
+    visibleBalls,
   };
 }
