@@ -46,8 +46,8 @@ export interface Correspondence extends CorrespondencePoint {
 /**
  * Free-form per-observation quality statistics, written by a producer (the
  * align_cameras pipeline reports numMatches / numInliers / inlierRatio /
- * rmsPx / coverage / textureScore, and `skipped` with a machine-readable
- * reason for rejected candidates). Never interpreted structurally by the
+ * rmsPx / coverage, and `skipped` with a machine-readable
+ * reason for rejected frames). Never interpreted structurally by the
  * store -- preserved verbatim through round trips and surfaced by the
  * review UI.
  */

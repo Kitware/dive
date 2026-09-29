@@ -104,16 +104,16 @@ describe('auto-register candidate selection', () => {
     expect(mispaired).toHaveLength(274);
   });
 
-  it('sends one capture per candidate when a timeline is available', async () => {
+  it('sends one capture per frame when a timeline is available', async () => {
     const { service, sent } = buildService(slots);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 12, candidatesPerBin: 2 });
+    await service.run({ frames: 12 });
 
     const pairs = sent.imagePairs as Record<string, string[]>;
     expect(Object.keys(pairs).sort()).toEqual(['ir', 'rgb', 'uv']);
     expect(pairs.rgb.length).toBeGreaterThan(0);
     pairs.rgb.forEach((name, i) => {
-      // Every camera in a candidate must be the same instant.
+      // Every camera in a frame must be the same instant.
       expect(timestampOf('ir', pairs.ir[i])).toBe(timestampOf('rgb', name));
       expect(timestampOf('uv', pairs.uv[i])).toBe(timestampOf('rgb', name));
     });
@@ -122,7 +122,7 @@ describe('auto-register candidate selection', () => {
   it('never proposes a capture that is missing on some camera', async () => {
     const { service, sent } = buildService(slots);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 24, candidatesPerBin: 4 });
+    await service.run({ frames: 24 });
 
     const pairs = sent.imagePairs as Record<string, string[]>;
     CAMERAS.forEach((camera) => {
@@ -137,25 +137,25 @@ describe('auto-register candidate selection', () => {
   });
 
   /**
-   * Without the timeline this dataset produces nothing at all: candidates are
-   * ranked by inter-camera skew read off raw local indices, every index is a
-   * full 1s cadence out, and the 0.5s gate drops all of them. That is the
-   * pre-fix behavior a user hit -- "No candidate frames could be proposed" on
-   * a flight whose captures are in fact 271-deep.
+   * Without the timeline this dataset produces nothing at all: skew is read
+   * off raw local indices, every index is a full 1s cadence out, and the 0.5s
+   * gate excludes all of them. That is the pre-fix behavior a user hit --
+   * "No frames could be proposed" on a flight whose captures are in fact
+   * 271-deep.
    */
   it('proposes nothing without a timeline, and never launches', async () => {
     const { service, sent } = buildService(null);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 12, candidatesPerBin: 2 });
+    await service.run({ frames: 12 });
 
     expect(sent.imagePairs).toBeUndefined();
-    expect(service.error.value).toMatch(/No candidate frames/);
+    expect(service.error.value).toMatch(/No frames could be proposed/);
   });
 });
 
 /**
- * Queued frames: the user has already chosen the captures, so the stratified
- * proposal (temporal bins, per-bin oversampling, skew ranking) does not apply.
+ * Queued frames: the user has already chosen the captures, so the even
+ * spread and its skew filter do not apply.
  * Every queued capture is matched; only captures a camera is missing get
  * dropped, because the pipeline reads image lists off disk and a gap has no
  * path to send.
@@ -168,7 +168,7 @@ describe('running an explicitly queued frame set', () => {
     const { service, sent } = buildService(slots);
     await service.refreshAvailability();
     await service.run({
-      maxFrames: 3, candidatesPerBin: 1, slots: [140, 141, 200],
+      frames: 3, slots: [140, 141, 200],
     });
 
     const pairs = sent.imagePairs as Record<string, string[]>;
@@ -182,15 +182,15 @@ describe('running an explicitly queued frame set', () => {
     });
   });
 
-  it('gives the pipeline one bin per queued frame so none are pruned', async () => {
+  it('matches every queued frame regardless of the frames setting', async () => {
     const { service, sent } = buildService(slots);
     await service.refreshAvailability();
     await service.run({
-      maxFrames: 99, candidatesPerBin: 7, slots: [140, 141, 200],
+      frames: 1, slots: [140, 141, 200],
     });
 
-    // maxFrames/candidatesPerBin are the proposal's knobs and must not leak in.
-    expect(sent.kwiverParams?.['register:max_frames']).toBe('3');
+    expect((sent.imagePairs as Record<string, string[]>).rgb).toHaveLength(3);
+    expect(sent.kwiverParams?.['register:max_frames']).toBeUndefined();
   });
 
   it('drops queued captures a camera is missing', async () => {
@@ -198,7 +198,7 @@ describe('running an explicitly queued frame set', () => {
     await service.refreshAvailability();
     // Slot 0 is RGB-only; 93 has no RGB. Only 140 is registerable.
     await service.run({
-      maxFrames: 3, candidatesPerBin: 1, slots: [0, 93, 140],
+      frames: 3, slots: [0, 93, 140],
     });
 
     const pairs = sent.imagePairs as Record<string, string[]>;
@@ -209,7 +209,7 @@ describe('running an explicitly queued frame set', () => {
   it('errors rather than launching when no queued capture is registerable', async () => {
     const { service, sent } = buildService(slots);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 2, candidatesPerBin: 1, slots: [0, 93] });
+    await service.run({ frames: 2, slots: [0, 93] });
 
     expect(sent.imagePairs).toBeUndefined();
     expect(service.error.value).toMatch(/None of the queued frames/);
@@ -270,7 +270,7 @@ describe('replaceExisting and the unsaved-edits baseline', () => {
   it('re-baselines a clean store so its own removals do not read as edits', async () => {
     const { service, removed, calls } = buildStoreService(false);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2, replaceExisting: true });
+    await service.run({ frames: 6, replaceExisting: true });
 
     // Only the matcher's own observations are dropped; hand picks survive.
     expect(removed).toEqual(['a.jpg:minima_loftr']);
@@ -280,7 +280,7 @@ describe('replaceExisting and the unsaved-edits baseline', () => {
   it('leaves a genuinely dirty store dirty', async () => {
     const { service, calls } = buildStoreService(true);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2, replaceExisting: true });
+    await service.run({ frames: 6, replaceExisting: true });
 
     expect(calls.markSaved).toBe(0);
   });
@@ -288,7 +288,7 @@ describe('replaceExisting and the unsaved-edits baseline', () => {
   it('does not touch the baseline when not replacing', async () => {
     const { service, removed, calls } = buildStoreService(false);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(removed).toEqual([]);
     expect(calls.markSaved).toBe(0);
@@ -341,7 +341,7 @@ describe('launching from saved state', () => {
     // them no way to save.
     const { service, order } = buildOrderedService();
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(order).toEqual(['save', 'baseline', 'launch']);
   });
@@ -351,7 +351,7 @@ describe('launching from saved state', () => {
     // register as the job's first result and end the run immediately.
     const { service, order } = buildOrderedService();
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(order.indexOf('save')).toBeLessThan(order.indexOf('baseline'));
   });
@@ -395,7 +395,7 @@ describe('status while the completion confirm is open', () => {
         },
       });
       await service.refreshAvailability();
-      const settled = service.run({ maxFrames: 6, candidatesPerBin: 2 });
+      const settled = service.run({ frames: 6 });
 
       // Launch settles, then the 5s poll tick fires.
       await vi.advanceTimersByTimeAsync(0);
@@ -468,7 +468,7 @@ describe('completion by job state', () => {
     // The dataset already holds exactly what this run produced.
     const { service, hydrated } = buildJobService({ ok: true }, {});
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(service.running.value).toBe(false);
     expect(service.error.value).toBeNull();
@@ -479,7 +479,7 @@ describe('completion by job state', () => {
   it('adopts results when the registration did change', async () => {
     const { service, hydrated } = buildJobService({ ok: true }, { 'rgb::ir': [1] });
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(service.status.value).toMatch(/complete: review the registration frames/);
     expect(hydrated).toHaveLength(1);
@@ -491,7 +491,7 @@ describe('completion by job state', () => {
       {},
     );
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(service.running.value).toBe(false);
     expect(service.status.value).toBeNull();
@@ -503,7 +503,7 @@ describe('completion by job state', () => {
  * What the run achieved, not merely that it ended.
  *
  * Fixture shape is a real 3-cam job over flat sea ice (ice_seals fl01): the
- * matcher prefiltered all 14 candidates as low_texture, so each pair carries 14
+ * matcher rejected all 14 frames as insufficient_matches, so each pair carries 14
  * disabled observations with a skip reason and no transform came out. Before
  * this, the panel reported that exactly like a clean fit.
  */
@@ -522,7 +522,7 @@ describe('reporting what a finished run produced', () => {
         source: 'minima_loftr',
         enabled: i >= skipped,
         points: [],
-        ...(i < skipped ? { stats: { skipped: 'low_texture', textureScore: 1.95 } } : {}),
+        ...(i < skipped ? { stats: { skipped: 'insufficient_matches' } } : {}),
       })),
     ]));
   }
@@ -565,11 +565,11 @@ describe('reporting what a finished run produced', () => {
       cameraHomographies: {},
     });
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(service.status.value).toBeNull();
     expect(service.error.value).toMatch(/fitted no camera pairs/);
-    expect(service.error.value).toMatch(/low_texture/);
+    expect(service.error.value).toMatch(/insufficient_matches/);
   });
 
   it('counts rejected frames per pair rather than summing across the rig', async () => {
@@ -580,9 +580,9 @@ describe('reporting what a finished run produced', () => {
       cameraHomographies: {},
     });
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
-    expect(service.error.value).toMatch(/14 low_texture/);
+    expect(service.error.value).toMatch(/14 insufficient_matches/);
     expect(service.error.value).not.toMatch(/42/);
   });
 
@@ -592,7 +592,7 @@ describe('reporting what a finished run produced', () => {
       cameraHomographies: {},
     }, true);
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(service.error.value).toMatch(/fitted no camera pairs/);
     // Not the "already up to date" line the unchanged-merge branch used to give.
@@ -605,11 +605,11 @@ describe('reporting what a finished run produced', () => {
       cameraHomographies: { 'rgb::ir': { AtoB: [], BtoA: [] } },
     });
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(service.error.value).toBeNull();
     expect(service.status.value).toMatch(/1 of 3 pair\(s\) fitted/);
-    expect(service.status.value).toMatch(/2 low_texture rejected/);
+    expect(service.status.value).toMatch(/2 insufficient_matches rejected/);
   });
 
   it('leaves a clean run reading exactly as it did before', async () => {
@@ -620,7 +620,7 @@ describe('reporting what a finished run produced', () => {
       ),
     });
     await service.refreshAvailability();
-    await service.run({ maxFrames: 6, candidatesPerBin: 2 });
+    await service.run({ frames: 6 });
 
     expect(service.error.value).toBeNull();
     expect(service.status.value).toBe(

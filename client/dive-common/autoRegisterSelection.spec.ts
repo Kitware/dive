@@ -3,86 +3,70 @@ import { describe, expect, it } from 'vitest';
 import proposeRegistrationFrames from './autoRegisterSelection';
 
 describe('proposeRegistrationFrames', () => {
-  it('spreads candidates across every temporal bin (no single-scene bias)', () => {
-    const frames = proposeRegistrationFrames({
-      counts: [1200, 1200],
-      bins: 12,
-      perBin: 2,
-    });
-    expect(frames.length).toBe(24);
-    // Every 100-frame bin contributes exactly its share: a scene-rich
-    // stretch can never supply all the candidates.
-    for (let bin = 0; bin < 12; bin += 1) {
-      const inBin = frames.filter((f) => f >= bin * 100 && f < (bin + 1) * 100);
-      expect(inBin.length).toBe(2);
-    }
-    expect(frames).toEqual([...frames].sort((a, b) => a - b));
+  it('spreads frames evenly across the whole dataset', () => {
+    const frames = proposeRegistrationFrames({ counts: [1200, 1200], count: 12 });
+    expect(frames).toEqual([50, 150, 250, 350, 450, 550, 650, 750, 850, 950, 1050, 1150]);
   });
 
   it('spans only the shortest camera', () => {
-    const frames = proposeRegistrationFrames({
-      counts: [1000, 300],
-      bins: 10,
-      perBin: 1,
-    });
+    const frames = proposeRegistrationFrames({ counts: [1000, 300], count: 10 });
     expect(Math.max(...frames)).toBeLessThan(300);
     expect(frames.length).toBe(10);
   });
 
-  it('ranks within a bin by inter-camera timestamp skew', () => {
-    // Two cameras, 10 frames, one bin: frame 6 is perfectly synced, frame 3
-    // is close, everything else is badly skewed.
+  it('spreads rather than clustering when every frame is perfectly synced', () => {
+    // Exact timestamps give every frame zero skew; the proposal must still
+    // spread across the dataset, not collapse onto the first frames.
+    const base = 1_700_000_000;
+    const stamps = Array.from({ length: 1200 }, (_, i) => base + i);
+    const frames = proposeRegistrationFrames({
+      counts: [1200, 1200],
+      timestamps: [stamps, [...stamps]],
+      count: 12,
+    });
+    expect(frames).toEqual([50, 150, 250, 350, 450, 550, 650, 750, 850, 950, 1050, 1150]);
+  });
+
+  it('excludes frames whose skew exceeds the threshold and spreads over the rest', () => {
+    // Frames 0-4 are hopelessly out of sync; 5-9 are synced.
     const base = 1_700_000_000;
     const camA = Array.from({ length: 10 }, (_, i) => base + i);
-    const camB = camA.map((t, i) => {
-      if (i === 6) return t;
-      if (i === 3) return t + 0.1;
-      return t + 5;
-    });
+    const camB = camA.map((t, i) => (i < 5 ? t + 5 : t));
     const frames = proposeRegistrationFrames({
       counts: [10, 10],
       timestamps: [camA, camB],
-      bins: 1,
-      perBin: 2,
+      count: 5,
       maxSkewSeconds: 0.5,
     });
-    expect(frames).toEqual([3, 6]);
+    expect(frames).toEqual([5, 6, 7, 8, 9]);
   });
 
-  it('drops candidates whose skew exceeds the threshold entirely', () => {
+  it('returns nothing when every frame is out of sync', () => {
     const base = 1_700_000_000;
     const camA = Array.from({ length: 4 }, (_, i) => base + i);
-    const camB = camA.map((t) => t + 10); // hopeless sync everywhere
-    const frames = proposeRegistrationFrames({
-      counts: [4, 4],
-      timestamps: [camA, camB],
-      bins: 1,
-      perBin: 2,
-      maxSkewSeconds: 0.5,
-    });
-    expect(frames).toEqual([]);
+    const camB = camA.map((t) => t + 10);
+    expect(proposeRegistrationFrames({
+      counts: [4, 4], timestamps: [camA, camB], count: 2, maxSkewSeconds: 0.5,
+    })).toEqual([]);
   });
 
-  it('falls back to even spread for frames without timestamps', () => {
+  it('keeps frames whose skew is unknowable', () => {
     const frames = proposeRegistrationFrames({
       counts: [100, 100],
       timestamps: [
         Array.from({ length: 100 }, () => undefined),
         Array.from({ length: 100 }, () => undefined),
       ],
-      bins: 2,
-      perBin: 2,
+      count: 4,
     });
-    expect(frames.length).toBe(4);
-    expect(frames.filter((f) => f < 50).length).toBe(2);
-    expect(frames.filter((f) => f >= 50).length).toBe(2);
+    expect(frames).toEqual([12, 37, 62, 87]);
   });
 
   it('handles degenerate inputs', () => {
-    expect(proposeRegistrationFrames({ counts: [0, 10], bins: 5, perBin: 2 })).toEqual([]);
-    expect(proposeRegistrationFrames({ counts: [], bins: 5, perBin: 2 })).toEqual([]);
-    // More bins than frames: every frame proposed once.
-    const tiny = proposeRegistrationFrames({ counts: [3, 3], bins: 12, perBin: 2 });
-    expect(tiny).toEqual([0, 1, 2]);
+    expect(proposeRegistrationFrames({ counts: [0, 10], count: 5 })).toEqual([]);
+    expect(proposeRegistrationFrames({ counts: [], count: 5 })).toEqual([]);
+    expect(proposeRegistrationFrames({ counts: [10, 10], count: 0 })).toEqual([]);
+    // More frames requested than exist: every frame proposed once.
+    expect(proposeRegistrationFrames({ counts: [3, 3], count: 12 })).toEqual([0, 1, 2]);
   });
 });

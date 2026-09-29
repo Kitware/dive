@@ -12,9 +12,9 @@ import type { AlignedSlot } from 'dive-common/alignedTimeline';
  * now computed from MANY image pairs by the `utility_align_cameras_{2,3}-cam`
  * pipeline (one job per rig; a triplet registers in one job). The panel
  * calls {@link AutoRegisterJobService.run} with the knobs worth changing;
- * the service proposes a stratified candidate spread (DIVE picks for
- * diversity and synchronization; the VIAME process picks for image quality
- * within each temporal bin), launches the pipeline with the frame subset,
+ * the service spreads frames evenly across the dataset (excluding captures
+ * whose cameras are out of sync), launches the pipeline to match every one of
+ * them, lets the matcher's per-frame gates decide which frames count,
  * and refreshes the registration store when the job's output lands in the
  * dataset. Availability is "is the align pipe in the pipeline list" -- the
  * add-on packaging makes pipe present <=> weights present by construction,
@@ -29,10 +29,8 @@ export interface AlignPipe {
 }
 
 export interface AutoRegisterRunOptions {
-  /** Candidate frames proposed per temporal bin (oversampling factor). */
-  candidatesPerBin: number;
-  /** Temporal bins == the pipeline's max_frames budget. */
-  maxFrames: number;
+  /** Frames to match, spread evenly across the dataset. */
+  frames: number;
   /**
    * Camera pairs for a triplet as 1-based input indices ("1-2,1-3,2-3").
    * Undefined = all pairs (the pipe default).
@@ -47,11 +45,10 @@ export interface AutoRegisterRunOptions {
    */
   replaceExisting?: boolean;
   /**
-   * Explicit global aligned-timeline slots to match, bypassing the stratified
-   * proposal. Used by "queue these frames and run": the user has already
-   * chosen the captures, so temporal spread and per-bin oversampling do not
-   * apply -- every queued capture is matched, and only captures missing a
-   * frame on some camera are dropped. maxFrames/candidatesPerBin are ignored.
+   * Explicit global aligned-timeline slots to match, bypassing the even
+   * spread. Used by "queue these frames and run": the user has already
+   * chosen the captures, so every queued capture is matched, and only
+   * captures missing a frame on some camera are dropped. `frames` is ignored.
    */
   slots?: number[];
 }
@@ -156,15 +153,15 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
   /**
    * Summarize the run from the merged registration.
    *
-   * The pipeline already records why it discarded a candidate -- stats.skipped,
-   * e.g. low_texture over flat ice or open water -- and DIVE persists that per
+   * The pipeline already records why it rejected a frame -- stats.skipped,
+   * e.g. insufficient_matches over flat ice or open water -- and DIVE persists that per
    * observation, but nothing read it back: a run that rejected every frame and
    * fitted nothing reported the same "complete" as one that fitted the whole
    * rig, leaving the reason visible only in the job log.
    *
    * Reason counts are per pair rather than summed. Every pair sees the same
-   * candidate spread, so summing would report a 14-frame run as 42 rejections
-   * on a triplet.
+   * frames, so summing would report a 14-frame run as 42 rejections on a
+   * triplet; the worst pair's count is reported instead.
    */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function summarizeRun(meta: any): RunSummary {
@@ -195,7 +192,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     return summary;
   }
 
-  /** "14 low_texture, 2 low_overlap", commonest first; empty when nothing was rejected. */
+  /** "14 insufficient_matches, 2 low_confidence", commonest first; empty when nothing was rejected. */
   function describeSkips(skipped: Record<string, number>): string {
     return Object.entries(skipped)
       .sort(([, a], [, b]) => b - a)
@@ -214,7 +211,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     if (summary.pairs > 0 && summary.fitted === 0) {
       status.value = null;
       error.value = skips
-        ? 'Auto Register fitted no camera pairs: every candidate frame was rejected '
+        ? 'Auto Register fitted no camera pairs: every frame was rejected '
           + `(${skips}). Try frames with more visible structure.`
         : 'Auto Register fitted no camera pairs; see the job log for details.';
       return;
@@ -400,17 +397,16 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
             ? cameras.map((camera, i) => slots.map((slot) => lists[i][slot[camera] as number]))
             : lists;
         })(),
-        bins: options.maxFrames,
-        perBin: options.candidatesPerBin,
+        count: options.frames,
       });
       if (frames.length === 0) {
         throw new Error(aligned
-          ? 'No candidate frames could be proposed: no capture has a frame on every camera.'
-          : 'No candidate frames could be proposed for this dataset.');
+          ? 'No frames could be proposed: no capture has a frame on every camera.'
+          : 'No frames could be proposed for this dataset.');
       }
       status.value = queued
         ? `Preparing ${frames.length} queued frame(s)…`
-        : `Proposing ${frames.length} candidate frames…`;
+        : `Preparing ${frames.length} frame(s)…`;
       const imagePairs: Record<string, string[]> = {};
       // eslint-disable-next-line no-restricted-syntax
       for (const camera of cameras) {
@@ -443,13 +439,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
           registration.markSaved();
         }
       }
-      const kwiverParams: Record<string, string> = {
-        // max_frames is the pipeline's bin budget: it keeps the best candidate
-        // per bin and prunes the rest. A queued run has already chosen its
-        // captures, so give it one bin per frame or it would prune them back
-        // down to the proposal's budget.
-        'register:max_frames': String(queued ? frames.length : options.maxFrames),
-      };
+      const kwiverParams: Record<string, string> = {};
       if (options.pairs) {
         kwiverParams['register:pairs'] = options.pairs;
       }

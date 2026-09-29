@@ -211,10 +211,9 @@ export default defineComponent({
       }));
     });
     /**
-     * Skipped rows are candidates a producer rejected -- overwhelmingly
-     * "pruned", the oversampling remainder from proposing candidatesPerBin per
-     * bin and keeping the best. They carry no points and support no action, so
-     * they are counted, not listed.
+     * Skipped rows are frames a producer rejected (e.g. the matcher found too
+     * few matches). They carry no points and support no action, so they are
+     * counted, not listed.
      */
     const skippedCount = computed(() => frameRows.value.filter((row) => row.skipped).length);
     const listedRows = computed(() => frameRows.value.filter((row) => !row.skipped));
@@ -308,8 +307,7 @@ export default defineComponent({
     }
     function runQueuedFrames() {
       autoRegisterJob?.run({
-        maxFrames: queuedSlots.value.length,
-        candidatesPerBin: 1,
+        frames: queuedSlots.value.length,
         slots: [...queuedSlots.value],
       });
       queuedSlots.value = [];
