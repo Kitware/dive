@@ -193,6 +193,23 @@ export default function useAlignedNavigation(
     });
   }
 
+  // The reference view the last snap produced, so a late re-snap can tell whether the user has zoomed since.
+  let snappedView: { zoom: number; x: number; y: number } | null = null;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function referenceView(map: any) {
+    const center = map.center();
+    return { zoom: map.zoom(), x: center.x, y: center.y };
+  }
+  function referenceUnchangedSinceSnap() {
+    const reference = alignedView.reference.value;
+    const source = reference ? viewer(reference) : null;
+    if (!source || !snappedView) return true;
+    const now = referenceView(source);
+    return Math.abs(now.zoom - snappedView.zoom) < 1e-6
+      && Math.abs(now.x - snappedView.x) < 1e-3
+      && Math.abs(now.y - snappedView.y) < 1e-3;
+  }
+
   function snapFromReference() {
     if (!alignedView.active.value) {
       return;
@@ -221,6 +238,7 @@ export default function useAlignedNavigation(
         // view the reference currently has.
       }
     });
+    snappedView = referenceView(source);
     link(reference)();
   }
 
@@ -260,14 +278,14 @@ export default function useAlignedNavigation(
     if (active && !wasActive) {
       snapFromReference();
       nextTick(() => {
-        if (!alignedView.active.value) {
+        if (!alignedView.active.value || !referenceUnchangedSinceSnap()) {
           return;
         }
         snapFromReference();
         if (typeof window !== 'undefined'
           && typeof window.requestAnimationFrame === 'function') {
           window.requestAnimationFrame(() => {
-            if (alignedView.active.value) {
+            if (alignedView.active.value && referenceUnchangedSinceSnap()) {
               snapFromReference();
             }
           });
@@ -278,7 +296,8 @@ export default function useAlignedNavigation(
           const { imageRevision } = aggregateController.value.getController(camera);
           const stop = watch(imageRevision, () => {
             stop();
-            if (alignedView.active.value) {
+            // Late imagery re-fits the Align-on view, but never over a zoom the user has since set.
+            if (alignedView.active.value && referenceUnchangedSinceSnap()) {
               snapFromReference();
             }
           });
