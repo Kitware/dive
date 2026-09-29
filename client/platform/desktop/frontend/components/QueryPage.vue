@@ -767,6 +767,8 @@ export default defineComponent({
                 :search-review="searchReview"
                 :memory="resultsMemory"
                 :exemplar-url="page.mode.value === 'video' ? videoFrameUrl : imageUrl"
+                :exemplar-box="page.mode.value === 'video'
+                  ? page.videoFrameBox.value : page.imageBox.value"
                 @open-result="openViewer"
                 @save-model="openSaveModel"
               />

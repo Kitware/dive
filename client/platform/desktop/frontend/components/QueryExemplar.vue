@@ -100,20 +100,23 @@ export default defineComponent({
 
 <template>
   <div class="query-exemplar">
-    <img
-      ref="image"
-      :src="src"
-      class="exemplar-image"
-      draggable="false"
-      @pointerdown="onDown"
-      @pointermove="onMove"
-      @pointerup="onUp"
-      @pointercancel="onUp"
-    >
-    <div
-      class="exemplar-box"
-      :style="boxStyle()"
-    />
+    <!-- The box is placed by percentages of this frame, so it must hold the image alone -->
+    <div class="exemplar-frame">
+      <img
+        ref="image"
+        :src="src"
+        class="exemplar-image"
+        draggable="false"
+        @pointerdown="onDown"
+        @pointermove="onMove"
+        @pointerup="onUp"
+        @pointercancel="onUp"
+      >
+      <div
+        class="exemplar-box"
+        :style="boxStyle()"
+      />
+    </div>
     <div class="text-caption grey--text mt-1">
       {{ draft ? `Box ${draft.map(Math.round).join(', ')} (click to clear)` : 'Whole image; drag to mark one object' }}
     </div>
@@ -122,9 +125,15 @@ export default defineComponent({
 
 <style scoped>
 .query-exemplar {
+  display: inline-block;
+  max-width: 100%;
+}
+
+.exemplar-frame {
   position: relative;
   display: inline-block;
   max-width: 100%;
+  vertical-align: top;
 }
 
 .exemplar-image {
@@ -138,6 +147,7 @@ export default defineComponent({
 
 .exemplar-box {
   position: absolute;
+  box-sizing: border-box;
   border: 2px solid #00e5ff;
   background: rgba(0, 229, 255, 0.12);
   pointer-events: none;

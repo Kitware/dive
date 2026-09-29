@@ -31,6 +31,13 @@ export interface SpaceCell {
 }
 
 type Adjudication = 'positive' | 'negative';
+/** How a billboard departs from a square showing its whole image. */
+interface Appearance {
+  /** Half width and half height, as fractions of the billboard's half size. */
+  shape?: [number, number];
+  /** The part of the image to show: x, y, width and height in its pixels. */
+  crop?: [number, number, number, number];
+}
 /** What a press of the mouse is doing until it is released. */
 type Gesture = 'orbit' | 'pan' | 'box' | null;
 
@@ -78,6 +85,11 @@ export default defineComponent({
     exemplarUrl: {
       type: String,
       default: '',
+    },
+    /** The box queried within that image, in its pixels; the whole image when absent. */
+    exemplarBox: {
+      type: Array as unknown as PropType<[number, number, number, number] | null>,
+      default: null,
     },
     loading: {
       type: Boolean,
@@ -170,6 +182,30 @@ export default defineComponent({
       return [image.naturalWidth / longest, image.naturalHeight / longest];
     }
 
+    /**
+     * What to show of the exemplar: the queried box when there is one, the
+     * whole image otherwise, at its own shape either way.
+     */
+    function exemplarView(): Appearance {
+      const image = props.exemplarUrl ? images.get(props.exemplarUrl) : undefined;
+      const box = props.exemplarBox;
+      let [width, height] = [image?.naturalWidth ?? 0, image?.naturalHeight ?? 0];
+      let crop: [number, number, number, number] | undefined;
+      if (box && width && height) {
+        const [x1, y1] = [Math.max(0, Math.min(box[0], box[2])), Math.max(0, Math.min(box[1], box[3]))];
+        const [x2, y2] = [
+          Math.min(width, Math.max(box[0], box[2])), Math.min(height, Math.max(box[1], box[3])),
+        ];
+        if (x2 > x1 && y2 > y1) {
+          crop = [x1, y1, x2 - x1, y2 - y1];
+          [width, height] = [x2 - x1, y2 - y1];
+        }
+      }
+      if (!width || !height) return { shape: [1, 1] };
+      const longest = Math.max(width, height);
+      return { crop, shape: [width / longest, height / longest] };
+    }
+
     function drawBillboard(
       ctx: CanvasRenderingContext2D,
       p: { x: number; y: number; scale: number },
@@ -177,14 +213,15 @@ export default defineComponent({
       src: string | null,
       stroke: string,
       lineWidth: number,
-      label?: string,
-      shape: [number, number] = [1, 1],
+      { label, shape = [1, 1], crop }: Appearance & { label?: string } = {},
     ) {
       const w = half * p.scale * shape[0];
       const h = half * p.scale * shape[1];
       const image = src ? imageFor(src) : null;
       ctx.save();
-      if (image) {
+      if (image && crop) {
+        ctx.drawImage(image, ...crop, p.x - w, p.y - h, 2 * w, 2 * h);
+      } else if (image) {
         ctx.drawImage(image, p.x - w, p.y - h, 2 * w, 2 * h);
       } else {
         ctx.fillStyle = 'rgba(255, 255, 255, 0.12)';
@@ -228,6 +265,17 @@ export default defineComponent({
         { key: 'z', position: [0, 0, 1] }, { key: '-z', position: [0, 0, -1] },
       ], orbit.value, viewport);
       const isFocused = (key: string) => key === hovered.value || selectedSet.value.has(key);
+      const drawExemplar = () => {
+        drawBillboard(
+          ctx,
+          center,
+          EXEMPLAR_HALF_SIZE,
+          props.exemplarUrl || null,
+          COLORS.exemplar,
+          2,
+          { label: 'Query', ...exemplarView() },
+        );
+      };
       ctx.strokeStyle = COLORS.axis;
       ctx.lineWidth = 1;
       for (let i = 0; i < axisEnds.length; i += 2) {
@@ -256,7 +304,7 @@ export default defineComponent({
       let exemplarDrawn = false;
       ordered.forEach((p) => {
         if (!exemplarDrawn && p.depth <= center.depth) {
-          drawBillboard(ctx, center, EXEMPLAR_HALF_SIZE, props.exemplarUrl || null, COLORS.exemplar, 2, 'Query');
+          drawExemplar();
           exemplarDrawn = true;
         }
         const cell = cellsByKey.value.get(p.key);
@@ -268,12 +316,11 @@ export default defineComponent({
           cell?.chip ?? null,
           strokeFor(cell, focused),
           focused ? 3 : 1.5,
-          cell ? `#${cell.rank}` : undefined,
-          shapeOf(p.key),
+          { label: cell ? `#${cell.rank}` : undefined, shape: shapeOf(p.key) },
         );
       });
       if (!exemplarDrawn) {
-        drawBillboard(ctx, center, EXEMPLAR_HALF_SIZE, props.exemplarUrl || null, COLORS.exemplar, 2, 'Query');
+        drawExemplar();
       }
 
       const box = drawnBox.value;
@@ -424,6 +471,7 @@ export default defineComponent({
 
     watch([
       orbit, hovered, selected, drawnBox, normalized, () => props.cells, () => props.exemplarUrl,
+      () => props.exemplarBox,
     ], () => requestDraw(), { deep: true });
     watch(spin, (on) => {
       lastTick = 0;

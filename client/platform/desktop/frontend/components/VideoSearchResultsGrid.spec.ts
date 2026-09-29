@@ -15,7 +15,7 @@ vi.mock('vue-media-annotator/provides', () => ({ useHandler: () => null }));
 vi.mock('./VideoSearchResultsSpace.vue', () => ({
   default: {
     name: 'VideoSearchResultsSpace',
-    props: ['points', 'cells', 'exemplarUrl', 'loading', 'error', 'missingCount', 'editable', 'typeOptions'],
+    props: ['points', 'cells', 'exemplarUrl', 'exemplarBox', 'loading', 'error', 'missingCount', 'editable', 'typeOptions'],
     render: (h: (tag: string) => unknown) => h('div'),
   },
 }));
@@ -83,7 +83,7 @@ function mount(refs: string[]) {
   });
   const wrapper = shallowMount(VideoSearchResultsGrid as unknown as VueConstructor, {
     propsData: {
-      inline: true, searchChips, memory, exemplarUrl: 'file:///exemplar.jpg',
+      inline: true, searchChips, memory, exemplarUrl: 'file:///exemplar.jpg', exemplarBox: [10, 20, 110, 80],
     },
     stubs: ['v-card', 'v-toolbar', 'v-toolbar-title', 'v-btn', 'v-btn-toggle', 'v-icon', 'v-spacer', 'v-select', 'v-progress-linear', 'v-alert'],
   });
@@ -121,6 +121,8 @@ it('only places results in descriptor space once the 3D view is chosen, remember
     },
   ]);
   expect(space.props('exemplarUrl')).toBe('file:///exemplar.jpg');
+  // The queried box goes along, so the center shows that part of the image alone
+  expect(space.props('exemplarBox')).toEqual([10, 20, 110, 80]);
 
   (wrapper.vm as unknown as { spaceCount: number }).spaceCount = 3;
   await flush();
