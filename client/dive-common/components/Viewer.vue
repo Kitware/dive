@@ -3408,23 +3408,31 @@ html {
 // squeezes the box to its label when space runs short, which is what let its
 // width follow the selection.
 .camera-select.display-select {
-  flex: 0 0 116px !important;
-  width: 116px !important;
-  min-width: 116px !important;
-  max-width: 116px !important;
+  flex: 0 0 120px !important;
+  width: 120px !important;
+  min-width: 120px !important;
+  max-width: 120px !important;
   font-size: 0.8em;
 
+  // Let the wrappers shrink to the box. Only the selected text is clipped:
+  // the label floats above the wrappers and clipping them would cut it off.
   .v-input__control,
   .v-input__slot,
-  .v-select__slot,
+  .v-select__slot {
+    min-width: 0;
+    max-width: 100%;
+  }
+
   .v-select__selections {
     min-width: 0;
     max-width: 100%;
     overflow: hidden;
   }
 
+  // The left padding stays as Vuetify sets it, so the label lines up with
+  // the gap left for it in the outline
   .v-input__slot {
-    padding: 0 4px 0 6px !important;
+    padding-right: 4px !important;
   }
 
   .v-select__selection--comma {
