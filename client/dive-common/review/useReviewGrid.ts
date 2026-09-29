@@ -6,7 +6,7 @@
  * visible page (plus a prefetch of the next one).
  */
 import {
-  computed, ref, Ref, unref, watch,
+  computed, ref, Ref, unref, watch, isRef,
 } from 'vue';
 import { debounce } from 'lodash';
 import type { ChipStore } from './chipStore';
@@ -45,6 +45,15 @@ export interface ReviewGridOptions<T> {
    * returning to the first one, for lists that shrink as entries are hidden.
    */
   retainPage?: boolean;
+  /**
+   * When true, only sequence frames wait for hover; primary chips still load
+   * for the visible page (and the next page when prefetching).
+   */
+  activateOnHover?: Ref<boolean> | boolean;
+  /** Keys of entries currently under the pointer (see {@link entryKeyOf}). */
+  hoverEntryKeys?: Ref<ReadonlySet<string>>;
+  /** Stable key for a grid entry; defaults to `entry.key`. */
+  entryKeyOf?: (entry: T) => string;
 }
 
 /** How long paging must be idle before chips load, so skipped pages never render. */
@@ -55,9 +64,26 @@ export function useReviewGrid<T = ReviewItem>(options: ReviewGridOptions<T>) {
     items, grid, chipStore, active,
   } = options;
   const chipItemsOf = options.chipItemsOf ?? ((entry: T) => [entry as unknown as ReviewItem]);
+  const entryKeyOf = options.entryKeyOf ?? ((entry: T) => (entry as { key: string }).key);
   const chipItems = (entries: readonly T[]) => entries.flatMap((entry) => chipItemsOf(entry));
   const page = ref(0);
   const cellSize = ref({ width: 0, height: 0 });
+
+  const activateOnHover = computed(() => (
+    isRef(options.activateOnHover) ? options.activateOnHover.value : options.activateOnHover ?? false
+  ));
+
+  function primaryItemsToLoad(includePrefetch: boolean): readonly ReviewItem[] {
+    const list = chipItems(pageItems.value);
+    if (activateOnHover.value || !includePrefetch) return list;
+    return [...list, ...chipItems(nextPageItems.value)];
+  }
+
+  function sequenceEntriesToLoad(): readonly T[] {
+    if (!activateOnHover.value || !options.hoverEntryKeys) return pageItems.value;
+    const hovered = options.hoverEntryKeys.value;
+    return pageItems.value.filter((entry) => hovered.has(entryKeyOf(entry)));
+  }
 
   const perPage = computed(() => grid.columns * grid.rows);
   const pageCount = computed(() => Math.max(1, Math.ceil(items.value.length / perPage.value)));
@@ -66,11 +92,12 @@ export function useReviewGrid<T = ReviewItem>(options: ReviewGridOptions<T>) {
 
   function ensureVisible() {
     if (!active.value) return;
-    const visible = chipItems(pageItems.value);
-    const prefetch = chipItems(nextPageItems.value);
-    chipStore.trimQueues(new Set([...visible, ...prefetch].map((i) => i.key)));
-    chipStore.ensurePrimary([...visible, ...prefetch]);
-    chipStore.ensureSequences(visible);
+    const primary = primaryItemsToLoad(!activateOnHover.value);
+    const sequences = chipItems(sequenceEntriesToLoad());
+    const protectedKeys = new Set([...primary, ...sequences].map((i) => i.key));
+    chipStore.trimQueues(protectedKeys);
+    chipStore.ensurePrimary(primary);
+    chipStore.ensureSequences(sequences);
   }
 
   const applyChipOptions = debounce(() => {
@@ -93,13 +120,17 @@ export function useReviewGrid<T = ReviewItem>(options: ReviewGridOptions<T>) {
   const ensureVisibleSettled = debounce(ensureVisible, PAGE_SETTLE_MS);
   function onPageChanged() {
     if (!active.value) return;
-    chipStore.trimQueues(new Set(chipItems(pageItems.value).map((i) => i.key)));
+    chipStore.trimQueues(new Set(primaryItemsToLoad(false).map((i) => i.key)));
     ensureVisibleSettled();
   }
 
   watch(() => [grid.padding, cellSize.value.width, cellSize.value.height, unref(options.footerPx)], applyChipOptions);
   watch(page, onPageChanged);
   watch(active, ensureVisible);
+  if (options.hoverEntryKeys) {
+    watch([options.hoverEntryKeys, activateOnHover], ensureVisible, { deep: true });
+  }
+  watch(activateOnHover, ensureVisible);
   watch(items, () => {
     page.value = options.retainPage ? Math.min(page.value, pageCount.value - 1) : 0;
     ensureVisible();
