@@ -40,6 +40,8 @@ const GUIDE_FONT = '12px sans-serif';
 // may travel before it counts as a drag of the view
 const MINIMUM_PICK_RADIUS = 6;
 const CLICK_TRAVEL = 4;
+// Degrees the view turns for each press of a rotate button
+const ROTATE_STEP = 15;
 
 export default defineComponent({
   name: 'TrackViewer',
@@ -91,6 +93,21 @@ export default defineComponent({
     let frameView = noOp;
     const resetView = () => {
       frameView();
+      viewUtils.rerender();
+    };
+    /**
+     * Turns the scene about the vertical through what the view looks at:
+     * -1 counter-clockwise as seen from above, 1 clockwise.
+     */
+    const rotateView = (direction: number) => {
+      if (!renderer.value) {
+        return;
+      }
+      const camera = renderer.value.getActiveCamera();
+      // The scene turning one way is the viewer circling it the other way
+      camera.azimuth(direction * ROTATE_STEP);
+      camera.orthogonalizeViewUp();
+      renderer.value.resetCameraClippingRange();
       viewUtils.rerender();
     };
 
@@ -416,6 +433,7 @@ export default defineComponent({
     return {
       vtkContainer,
       resetView,
+      rotateView,
     };
   },
 });
@@ -428,21 +446,36 @@ export default defineComponent({
       class="vtk-container"
       :style="`--controls-height: ${controlsHeight}px`"
     />
-    <v-tooltip left>
-      <template #activator="{ on }">
-        <v-btn
-          class="vtk-reset"
-          icon
-          small
-          dark
-          v-on="on"
-          @click="resetView"
-        >
-          <v-icon>mdi-restore</v-icon>
-        </v-btn>
-      </template>
-      <span>Reset view</span>
-    </v-tooltip>
+    <v-btn
+      class="vtk-button vtk-reset"
+      icon
+      small
+      dark
+      title="Reset view"
+      @click="resetView"
+    >
+      <v-icon>mdi-image-filter-center-focus</v-icon>
+    </v-btn>
+    <v-btn
+      class="vtk-button vtk-rotate-left"
+      icon
+      small
+      dark
+      title="Rotate left"
+      @click="rotateView(-1)"
+    >
+      <v-icon>mdi-rotate-left</v-icon>
+    </v-btn>
+    <v-btn
+      class="vtk-button vtk-rotate-right"
+      icon
+      small
+      dark
+      title="Rotate right"
+      @click="rotateView(1)"
+    >
+      <v-icon>mdi-rotate-right</v-icon>
+    </v-btn>
   </div>
 </template>
 
@@ -464,11 +497,24 @@ export default defineComponent({
   overflow: hidden;
 }
 
-.vtk-reset {
+.vtk-button {
   position: absolute;
+  background: rgba(0, 0, 0, 0.6);
+}
+
+.vtk-reset {
   top: 8px;
   right: 8px;
-  background: rgba(0, 0, 0, 0.6);
+}
+
+.vtk-rotate-left {
+  bottom: 8px;
+  left: 8px;
+}
+
+.vtk-rotate-right {
+  bottom: 8px;
+  right: 8px;
 }
 
 .vtk-container > canvas {
