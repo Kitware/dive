@@ -32,6 +32,44 @@ it('derives hull-extremes head/tail across all components and clips to their bou
   expect(maskKeypoints([a, b])).toEqual({ success: true, head: [20, 2], tail: [0, 2] });
 });
 
+describe('polygon vertex budget', () => {
+  const size = 400;
+  const draw = (inside: (x: number, y: number) => boolean) => {
+    const mask = new Uint8Array(size * size);
+    for (let y = 0; y < size; y += 1) {
+      for (let x = 0; x < size; x += 1) if (inside(x - size / 2, y - size / 2)) mask[y * size + x] = 1;
+    }
+    return mask;
+  };
+  const disk = draw((x, y) => Math.hypot(x, y) < 150);
+  const star = draw((x, y) => Math.hypot(x, y) < 110 + 70 * Math.cos(16 * Math.atan2(y, x)));
+  const ring = draw((x, y) => Math.hypot(x, y) < 150 && Math.hypot(x, y) > 60);
+
+  it('keeps every ring within the desktop maximum', () => {
+    [disk, star, ring].forEach((mask) => {
+      const { polygons } = maskGeometry(mask, size, size);
+      polygons!.flatMap((p) => [p.exterior, ...p.holes]).forEach((points) => {
+        expect(points.length).toBeLessThanOrEqual(25);
+        expect(points.length).toBeGreaterThanOrEqual(4);
+        expect(points[0]).toEqual(points[points.length - 1]);
+      });
+    });
+    expect(maskGeometry(ring, size, size).polygons![0].holes).toHaveLength(1);
+  });
+
+  it('keeps the area of a simple outline', () => {
+    const area = maskArea(maskGeometry(disk, size, size).polygons!);
+    expect(Math.abs(area - Math.PI * 150 ** 2) / (Math.PI * 150 ** 2)).toBeLessThan(0.05);
+  });
+
+  it('grows the budget for a point-click mask too complex for it, up to the limit', () => {
+    expect(maskGeometry(disk, size, size, true).polygons![0].exterior.length).toBeLessThanOrEqual(25);
+    const points = maskGeometry(star, size, size, true).polygons![0].exterior;
+    expect(points.length).toBeGreaterThan(25);
+    expect(points.length).toBeLessThanOrEqual(100);
+  });
+});
+
 it('returns a failure for an empty mask rather than an infinite bounding box', () => {
   expect(maskGeometry(new Uint8Array(100), 10, 10).success).toBe(false);
 });

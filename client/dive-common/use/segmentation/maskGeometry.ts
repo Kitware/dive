@@ -10,35 +10,64 @@ function nearest(p: Point, a: Point, b: Point): Point {
   return [a[0] + t * dx, a[1] + t * dy];
 }
 
-/** Remove redundant contour vertices with a sub-pixel error bound. */
-function simplify(points: Point[]): Point[] {
-  const keep = new Set([0, points.length - 1]);
-  const pending = [[0, points.length - 1]];
-  while (pending.length) {
-    const [start, end] = pending.pop()!;
-    let farthest = -1; let distance = 0.25;
+// The desktop segmentation service's max_polygon_points,
+// max_polygon_points_limit and area error bound.
+const MaxPolygonPoints = 25;
+const MaxPolygonPointsLimit = 100;
+const MaxAreaError = 0.05;
+
+/** Douglas-Peucker split vertices, most significant first. Past a closed
+ * ring's first four points, only deviations over half a pixel count. */
+function splitOrder(points: Point[], limit: number): number[] {
+  const farthest = (start: number, end: number) => {
+    let index = -1; let distance = 0;
     for (let i = start + 1; i < end; i += 1) {
       const q = nearest(points[i], points[start], points[end]);
       const d = (q[0] - points[i][0]) ** 2 + (q[1] - points[i][1]) ** 2;
-      if (d > distance) { distance = d; farthest = i; }
+      if (d > distance) { distance = d; index = i; }
     }
-    if (farthest >= 0) {
-      keep.add(farthest);
-      pending.push([start, farthest], [farthest, end]);
-    }
+    return {
+      start, end, index, distance,
+    };
+  };
+  const pending = [farthest(0, points.length - 1)];
+  const order: number[] = [];
+  while (order.length < limit) {
+    let next = -1;
+    pending.forEach((segment, i) => {
+      if (segment.index >= 0 && (next < 0 || segment.distance > pending[next].distance)) next = i;
+    });
+    if (next < 0 || (order.length >= 2 && pending[next].distance <= 0.25)) break;
+    const { start, end, index } = pending[next];
+    order.push(index);
+    pending.splice(next, 1, farthest(start, index), farthest(index, end));
   }
-  const result = [...keep].sort((a, b) => a - b).map((i) => points[i]);
-  return result.length >= 4 ? result : points;
+  return order;
+}
+
+/** Reduce a closed contour ring to MaxPolygonPoints. With grow, that budget
+ * doubles, up to MaxPolygonPointsLimit, while the area cut off or added
+ * exceeds MaxAreaError of the ring's area. */
+function simplify(points: Point[], grow: boolean): Point[] {
+  const order = splitOrder(points, (grow ? MaxPolygonPointsLimit : MaxPolygonPoints) - 2);
+  const area = Math.abs(polygonArea(points));
+  const ring = (budget: number) => [0, ...order.slice(0, budget - 2).sort((a, b) => a - b), points.length - 1];
+  const error = (kept: number[]) => kept.slice(1).reduce((sum, index, i) => sum
+    + Math.abs(polygonArea(points.slice(kept[i], index + 1))), 0);
+  let budget = MaxPolygonPoints;
+  while (budget - 2 < order.length && error(ring(budget)) > MaxAreaError * area) budget *= 2;
+  const kept = ring(budget);
+  return kept.length >= 4 ? kept.map((i) => points[i]) : points;
 }
 
 /** All mask components and holes, in original image coordinates. */
-export function maskGeometry(mask: Uint8Array, width: number, height: number): SegmentationPredictResponse {
+export function maskGeometry(mask: Uint8Array, width: number, height: number, grow = false): SegmentationPredictResponse {
   if (mask.length !== width * height) throw new Error('Invalid mask dimensions.');
   const geometry = contours().size([width, height]).thresholds([0.5])(mask as unknown as number[])[0];
   const polygons = geometry.coordinates.map((rings) => {
     const scaled = rings.map((ring) => simplify(ring.map(([x, y]): Point => [
       Math.max(0, Math.min(width, x)), Math.max(0, Math.min(height, y)),
-    ])));
+    ]), grow));
     return { exterior: scaled[0], holes: scaled.slice(1) };
   });
   if (!polygons.length) return { success: false, error: 'No object found for these prompts.' };
