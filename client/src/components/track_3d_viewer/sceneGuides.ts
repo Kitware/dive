@@ -7,8 +7,8 @@ import { Bounds3, Vec3 } from './positions';
 
 export interface RigCalibration {
   /** Left-to-right rotation, row-major, and translation: Xr = R * Xl + T. */
-  R: readonly number[];
-  T: readonly number[];
+  R: readonly number[] | readonly number[][];
+  T: readonly number[] | readonly number[][];
   imageWidth?: number;
   imageHeight?: number;
   calibrations?: Record<string, {
@@ -27,19 +27,24 @@ export interface FloorGrid {
   y: number;
   step: number;
   xs: number[];
+  /** Heights marked on the vertical axis, from the top of the scene down to the floor. */
+  ys: number[];
   zs: number[];
 }
 
 // Used when the calibration carries no intrinsics: about a 60 x 45 degree view.
 const DEFAULT_HALF_EXTENT = [0.58, 0.41];
 
-const isFiniteList = (values: readonly number[] | undefined, length: number) => (
-  Array.isArray(values) && values.length === length && values.every(Number.isFinite)
-);
+/** Calibration files store R flat or as three rows, and T flat or as a column. */
+function numbers(values: unknown, length: number): number[] | null {
+  const flat = Array.isArray(values) ? (values as unknown[]).flat(Infinity).map(Number) : [];
+  return flat.length === length && flat.every(Number.isFinite) ? flat : null;
+}
 
 /** Distance between the two camera centers, or 0 without a usable calibration. */
 export function rigBaseline(calibration: RigCalibration | null) {
-  return calibration && isFiniteList(calibration.T, 3) ? Math.hypot(...calibration.T) : 0;
+  const T = numbers(calibration?.T, 3);
+  return T ? Math.hypot(...T) : 0;
 }
 
 function cornerRays(calibration: RigCalibration | null, name: string): [number, number][] {
@@ -66,8 +71,9 @@ export function rigCameras(calibration: RigCalibration | null, depth: number): C
       .map(([x, y]) => toLeft([x * depth, y * depth, depth])) as CameraFrustum['corners'],
   });
   const cameras = [frustum('left', (point) => point)];
-  if (calibration && isFiniteList(calibration.R, 9) && isFiniteList(calibration.T, 3)) {
-    const { R, T } = calibration;
+  const R = numbers(calibration?.R, 9);
+  const T = numbers(calibration?.T, 3);
+  if (R && T) {
     // Xl = Rt * (Xr - T)
     cameras.push(frustum('right', (point) => {
       const shifted = point.map((value, axis) => value - T[axis]);
@@ -110,15 +116,17 @@ function ticks(min: number, max: number, step: number) {
  */
 export function floorGrid(bounds: Bounds3, include: readonly Vec3[]): FloorGrid {
   const xs = [bounds[0], bounds[1], ...include.map((point) => point[0])];
-  const ys = [bounds[3], ...include.map((point) => point[1])];
+  const ys = [bounds[2], bounds[3], ...include.map((point) => point[1])];
   const zs = [bounds[4], bounds[5], ...include.map((point) => point[2])];
   const [xMin, xMax, zMin, zMax] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
   const extent = Math.max(xMax - xMin, zMax - zMin);
   const step = niceStep(extent);
+  const y = Math.max(...ys) + 0.02 * extent;
   return {
     step,
-    y: Math.max(...ys) + 0.02 * extent,
+    y,
     xs: ticks(xMin, xMax, step),
+    ys: ticks(Math.min(...ys), y, step).filter((value) => value <= y),
     zs: ticks(zMin, zMax, step),
   };
 }

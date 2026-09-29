@@ -268,18 +268,27 @@ export default function useTrackDrawer({
     }
 
     trackActor.setVisibility(true);
-    trackActor.getProperty().setLineWidth(5);
+    trackActor.getProperty().setLineWidth(6);
 
     const selectedColor = vtkMath.hex2float(
       trackStyleManager.stateStyles.selected.color,
     ) as [number, number, number];
 
     trackActor.getProperty().setColor(...selectedColor);
+    trackManager.getTrack(trackId)?.detectionsMap.forEach((actor) => {
+      actor.getProperty().setColor(...selectedColor);
+      actor.getProperty().setLineWidth(5);
+    });
   };
 
   const deEmphasizeTrack = function deEmphasizeTrack(trackId: AnnotationId, trackActor: vtkActor) {
     // Restore line width
     trackActor.getProperty().setLineWidth(3);
+    const trackTracker = trackManager.getTrack(trackId);
+    trackTracker?.detectionsMap.forEach((actor) => {
+      actor.getProperty().setColor(...trackTracker.trackColor);
+      actor.getProperty().setLineWidth(3);
+    });
 
     const trackWithContext = filteredTracksRef
       .filteredAnnotations
@@ -403,9 +412,14 @@ export default function useTrackDrawer({
       }
     });
 
-    trackManager.forEachTrack((trackTracker) => {
+    // The trail is colored through its lookup table, not the actor's color
+    const selectedLut = buildLookupTable(
+      vtkMath.hex2float(trackStyleManager.stateStyles.selected.color) as [number, number, number],
+      currentFrame,
+    );
+    trackManager.forEachTrack((trackTracker, trackId) => {
       const { trackType } = trackTracker;
-      const lut = trackTypeToLut.get(trackType);
+      const lut = trackId === selectedTrackIdRef.value ? selectedLut : trackTypeToLut.get(trackType);
       const mapper = trackTracker.trackActor.getMapper();
       if (mapper) { mapper.setLookupTable(lut); }
     });
@@ -456,23 +470,22 @@ export default function useTrackDrawer({
     newTrackId: number|null,
     oldTrackId: number|null,
   ) {
-    if (newTrackId) {
-      emphasizeTrack(newTrackId);
-    }
-
-    if (oldTrackId) {
+    if (oldTrackId !== null && oldTrackId !== newTrackId) {
       const trackTracker = trackManager.getTrack(oldTrackId);
 
-      if (!trackTracker) {
-        return;
-      }
+      if (trackTracker) {
+        deEmphasizeTrack(oldTrackId, trackTracker.trackActor);
 
-      deEmphasizeTrack(oldTrackId, trackTracker.trackActor);
-
-      if (onlyShowSelectedTrack.value) {
-        hideTrack(trackTracker);
+        if (onlyShowSelectedTrack.value) {
+          hideTrack(trackTracker);
+        }
       }
     }
+
+    if (newTrackId !== null) {
+      emphasizeTrack(newTrackId);
+    }
+    updateLookupTables(frameRef.value);
 
     viewUtils.rerender();
   };
