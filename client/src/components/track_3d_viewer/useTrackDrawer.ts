@@ -36,7 +36,6 @@ export interface TrackDrawerParams {
   trackManager: TrackManager;
   onlyShowSelectedTrack: Ref<boolean>;
   detectionGlyphSize: Ref<number>;
-  positionedTrackCount: Ref<number>;
   viewUtils: ViewUtils;
   renderer: Ref<vtkRenderer | undefined>;
 }
@@ -57,7 +56,6 @@ export default function useTrackDrawer({
   trackManager,
   onlyShowSelectedTrack,
   detectionGlyphSize,
-  positionedTrackCount,
   viewUtils,
   renderer,
 }: TrackDrawerParams) {
@@ -555,9 +553,6 @@ export default function useTrackDrawer({
         emphasizeTrack(selectedTrackIdRef.value);
       }
     }
-    // eslint-disable-next-line no-param-reassign
-    positionedTrackCount.value = trackManager.getAllTracks().size;
-
     viewUtils.rerender();
   };
 

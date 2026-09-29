@@ -70,7 +70,6 @@ export default defineComponent({
     } = trackViewerSettingsStore;
 
     const renderer = ref<vtkRenderer>();
-    const positionedTrackCount = ref(0);
     const viewportDimensions = ref({
       height: 0,
       width: 0,
@@ -108,7 +107,6 @@ export default defineComponent({
       trackManager,
       onlyShowSelectedTrack,
       detectionGlyphSize,
-      positionedTrackCount,
       viewUtils,
       renderer,
     });
@@ -263,7 +261,7 @@ export default defineComponent({
         camera.setViewUp(0, -1, 0);
         renderer.value.resetCamera(sceneGuides.extent());
         // resetCamera fits the bounding sphere, which leaves a wide margin, and
-        // looking down on the floor leaves the top of the view empty. It fits
+        // looking down on the grid leaves the top of the view empty. It fits
         // the height only, so a narrow pane needs to stand further back.
         const { width, height } = viewportDimensions.value;
         const aspect = height > 0 ? width / height : 1;
@@ -417,7 +415,6 @@ export default defineComponent({
 
     return {
       vtkContainer,
-      positionedTrackCount,
       resetView,
     };
   },
@@ -446,12 +443,6 @@ export default defineComponent({
       </template>
       <span>Reset view</span>
     </v-tooltip>
-    <div
-      v-if="positionedTrackCount === 0"
-      class="vtk-empty"
-    >
-      No detections have a 3D position yet. Stereo measurement adds one.
-    </div>
   </div>
 </template>
 
@@ -486,17 +477,5 @@ export default defineComponent({
   left: 0;
   width: 100%;
   height: 100%;
-}
-
-.vtk-empty {
-  position: absolute;
-  top: 50%;
-  left: 50%;
-  transform: translate(-50%, -50%);
-  padding: 8px 16px;
-  background: rgba(0, 0, 0, 0.6);
-  color: white;
-  border-radius: 4px;
-  pointer-events: none;
 }
 </style>
