@@ -1,6 +1,6 @@
 /**
  * Geometry of the 3D view's reference furniture: the stereo rig's cameras and
- * a grid receding along the depth axis. Everything is in the left
+ * a floor grid receding along the depth axis. Everything is in the left
  * camera's frame (x right, y down, z forward), like the plotted positions.
  */
 import { Bounds3, Vec3 } from './positions';
@@ -21,18 +21,20 @@ export interface CameraFrustum {
   /** The optical center, where depth is measured from. */
   center: Vec3;
   /**
-   * Corners of the image plane, drawn behind the optical center as in a
-   * pinhole camera, so the diagram ends at the camera's position rather than
-   * reaching into the scene.
+   * The diagram opens toward the scene, and its square front rests at the
+   * camera's depth, around the optical center; the tip sits behind it. Drawn
+   * this way it ends at depth 0 instead of reaching into the scene.
    */
+  tip: Vec3;
+  /** Top-left, top-right, bottom-right, bottom-left, as seen from the camera. */
   corners: [Vec3, Vec3, Vec3, Vec3];
 }
 
-export interface DepthGrid {
-  /** Spacing of the x and z lines. */
+export interface FloorGrid {
+  y: number;
   step: number;
   xs: number[];
-  /** Heights marked on the vertical axis, above and below the grid. */
+  /** Heights marked on the vertical axis, from the top of the scene down to the floor. */
   ys: number[];
   zs: number[];
 }
@@ -72,8 +74,9 @@ export function rigCameras(calibration: RigCalibration | null, depth: number): C
   const frustum = (name: string, toLeft: (point: Vec3) => Vec3): CameraFrustum => ({
     name,
     center: toLeft([0, 0, 0]),
+    tip: toLeft([0, 0, -depth]),
     corners: cornerRays(calibration, name)
-      .map(([x, y]) => toLeft([-x * depth, -y * depth, -depth])) as CameraFrustum['corners'],
+      .map(([x, y]) => toLeft([x * depth, y * depth, 0])) as CameraFrustum['corners'],
   });
   const cameras = [frustum('left', (point) => point)];
   const R = numbers(calibration?.R, 9);
@@ -116,28 +119,30 @@ function ticks(min: number, max: number, step: number) {
 }
 
 /**
- * The grid lies in the plane y = 0, level with the left camera's optical
- * center, so positions read as above or below the cameras. It reaches from the
- * rig to the farthest position; depth starts at the cameras, and the grid is
- * widened to take in `include`, never pulled back behind them.
+ * A grid under the data, reaching from the rig to the farthest position.
+ * y grows downward, so "under" is the largest y. Depth starts at the cameras:
+ * the grid is widened and lowered to take in `include`, never pulled back.
  */
-export function depthGrid(bounds: Bounds3, include: readonly Vec3[]): DepthGrid {
+export function floorGrid(bounds: Bounds3, include: readonly Vec3[]): FloorGrid {
   const xs = [bounds[0], bounds[1], ...include.map((point) => point[0])];
-  const ys = [bounds[2], bounds[3], 0, ...include.map((point) => point[1])];
+  const ys = [bounds[2], bounds[3], ...include.map((point) => point[1])];
   const zs = [bounds[4], bounds[5], 0];
   const [xMin, xMax, zMin, zMax] = [Math.min(...xs), Math.max(...xs), Math.min(...zs), Math.max(...zs)];
-  const step = niceStep(Math.max(xMax - xMin, zMax - zMin));
-  // Heights span far less than the grid, so they get a spacing of their own,
+  const extent = Math.max(xMax - xMin, zMax - zMin);
+  const step = niceStep(extent);
+  const y = Math.max(...ys) + 0.02 * extent;
+  // Heights span far less than the floor, so they get a spacing of their own,
   // fine enough for the axis to carry at least three marks
-  const [yMin, yMax] = [Math.min(...ys), Math.max(...ys)];
+  const yMin = Math.min(...ys);
   let heights: number[] = [];
-  for (let count = 2; heights.length < 3 && count <= 20 && yMax > yMin; count += 1) {
-    heights = ticks(yMin, yMax, niceStep(yMax - yMin, count));
+  for (let count = 2; heights.length < 3 && count <= 20; count += 1) {
+    heights = ticks(yMin, y, niceStep(y - yMin, count)).filter((value) => value <= y);
   }
   return {
     step,
+    y,
     xs: ticks(xMin, xMax, step),
-    ys: heights.length < 3 ? [-step, 0, step] : heights,
+    ys: heights,
     zs: ticks(zMin, zMax, step),
   };
 }

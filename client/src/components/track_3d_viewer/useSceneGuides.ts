@@ -7,7 +7,7 @@ import vtkPolyData from '@kitware/vtk.js/Common/DataModel/PolyData';
 import vtkRenderer from '@kitware/vtk.js/Rendering/Core/Renderer';
 import { Bounds3, Vec3 } from './positions';
 import {
-  depthGrid, rigBaseline, rigCameras, RigCalibration,
+  floorGrid, rigBaseline, rigCameras, RigCalibration,
 } from './sceneGuides';
 
 export interface GuideLabel {
@@ -53,7 +53,7 @@ function lineActor(segments: Segment[], color: Vec3, width: number) {
   return actor;
 }
 
-/** Draws the stereo rig, a grid at camera height and the axes, and lists their labels. */
+/** Draws the stereo rig and a floor grid, and lists the labels that go with them. */
 export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
   let actors: vtkActor[] = [];
   let labels: GuideLabel[] = [];
@@ -76,31 +76,31 @@ export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
     ];
     const size = Math.max(bounds[1] - bounds[0], bounds[3] - bounds[2], bounds[5] - bounds[4]);
     const cameras = rigCameras(calibration, Math.max(0.6 * baseline, 0.04 * size));
-    const rigPoints = cameras.flatMap(({ center, corners }) => [center, ...corners]);
+    const rigPoints = cameras.flatMap(({ center, tip, corners }) => [center, tip, ...corners]);
 
-    const grid = depthGrid(bounds, rigPoints);
+    const grid = floorGrid(bounds, rigPoints);
     const [xFirst, xLast] = [grid.xs[0], grid.xs[grid.xs.length - 1]];
     const [zFirst, zLast] = [grid.zs[0], grid.zs[grid.zs.length - 1]];
-    const [yTop, yBottom] = [grid.ys[0], grid.ys[grid.ys.length - 1]];
+    const yTop = grid.ys[0] ?? grid.y;
     const gridSegments: Segment[] = [
-      ...grid.xs.map((x): Segment => [[x, 0, zFirst], [x, 0, zLast]]),
-      ...grid.zs.map((z): Segment => [[xFirst, 0, z], [xLast, 0, z]]),
+      ...grid.xs.map((x): Segment => [[x, grid.y, zFirst], [x, grid.y, zLast]]),
+      ...grid.zs.map((z): Segment => [[xFirst, grid.y, z], [xLast, grid.y, z]]),
     ];
-    // The left camera's optical axis, which lies in the grid
+    // The line on the floor under the left camera's optical axis
     const opticalAxis: Segment[] = xFirst < 0 && xLast > 0
-      ? [[[0, 0, zFirst], [0, 0, zLast]]] : [];
-    const rigSegments = cameras.flatMap(({ center, corners }) => corners.flatMap(
-      (corner, i): Segment[] => [[center, corner], [corner, corners[(i + 1) % corners.length]]],
+      ? [[[0, grid.y, zFirst], [0, grid.y, zLast]]] : [];
+    const rigSegments = cameras.flatMap(({ tip, corners }) => corners.flatMap(
+      (corner, i): Segment[] => [[tip, corner], [corner, corners[(i + 1) % corners.length]]],
     ));
     // The three axes meet at the grid's near left corner, out of the way of the data
     const tick = 0.15 * grid.step;
     const axes: Record<'x' | 'y' | 'z', Segment[]> = {
-      x: [[[xFirst, 0, zFirst], [xLast, 0, zFirst]]],
+      x: [[[xFirst, grid.y, zFirst], [xLast, grid.y, zFirst]]],
       y: [
-        [[xFirst, yBottom, zFirst], [xFirst, yTop, zFirst]],
+        [[xFirst, grid.y, zFirst], [xFirst, yTop, zFirst]],
         ...grid.ys.map((y): Segment => [[xFirst - tick, y, zFirst], [xFirst + tick, y, zFirst]]),
       ],
-      z: [[[xFirst, 0, zFirst], [xFirst, 0, zLast]]],
+      z: [[[xFirst, grid.y, zFirst], [xFirst, grid.y, zLast]]],
     };
 
     actors = [
@@ -118,9 +118,9 @@ export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
     const number = (value: number) => value.toLocaleString();
     labels = [
       ...grid.xs.map((x) => ({
-        position: [x, 0, zFirst - gap] as Vec3, text: number(x), color: css(AXIS_COLORS.x),
+        position: [x, grid.y, zFirst - gap] as Vec3, text: number(x), color: css(AXIS_COLORS.x),
       })),
-      { position: [xLast + 2 * gap, 0, zFirst] as Vec3, text: 'X', color: css(AXIS_COLORS.x) },
+      { position: [xLast + 2 * gap, grid.y, zFirst] as Vec3, text: 'X', color: css(AXIS_COLORS.x) },
       ...grid.ys.map((y) => ({
         position: [xFirst - gap, y, zFirst] as Vec3, text: number(y), color: css(AXIS_COLORS.y),
       })),
@@ -128,10 +128,10 @@ export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
         position: [xFirst, yTop - gap, zFirst] as Vec3, text: 'Y', color: css(AXIS_COLORS.y),
       },
       ...grid.zs.filter((z) => z !== zFirst).map((z) => ({
-        position: [xFirst - gap, 0, z] as Vec3, text: number(z), color: css(AXIS_COLORS.z),
+        position: [xFirst - gap, grid.y, z] as Vec3, text: number(z), color: css(AXIS_COLORS.z),
       })),
       {
-        position: [xFirst, 0, zLast + 2 * gap] as Vec3,
+        position: [xFirst, grid.y, zLast + 2 * gap] as Vec3,
         text: 'Z (depth)',
         color: css(AXIS_COLORS.z),
       },
@@ -142,11 +142,11 @@ export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
       })),
     ];
 
-    const ys = [bounds[2], bounds[3], yTop, yBottom, ...rigPoints.map((point) => point[1])];
+    const ys = [bounds[2], yTop, grid.y, ...rigPoints.map((point) => point[1])];
     // Room for the labels around the grid, and for the rig behind its near edge
     extent = [
       xFirst - 3 * gap, xLast + 3 * gap,
-      Math.min(...ys) - gap, Math.max(...ys) + gap,
+      Math.min(...ys) - gap, Math.max(...ys),
       Math.min(zFirst - 2 * gap, ...rigPoints.map((point) => point[2])), zLast + 3 * gap,
     ];
   };
@@ -155,7 +155,7 @@ export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
     build,
     clear,
     labels: () => labels,
-    /** Everything worth framing: the data, the grid through it and the rig. */
+    /** Everything worth framing: the data, the grid under it and the rig. */
     extent: () => extent,
   };
 }
