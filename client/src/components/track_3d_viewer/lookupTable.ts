@@ -6,7 +6,14 @@ import { float2rgb } from './utils';
 
 export type RGBColor = [number, number, number];
 
-export function buildLookupTable(color: RGBColor, currentFrame: number, frameCount = 10) {
+/** How many frames of a track's trail stay visible behind the current one. */
+export const TRAIL_FRAMES = 10;
+
+export function buildLookupTable(
+  color: RGBColor,
+  currentFrame: number,
+  frameCount = TRAIL_FRAMES,
+) {
   // if outside of range, opacity = 0
   const lookupTable = vtkLookupTable.newInstance();
 
