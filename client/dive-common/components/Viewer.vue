@@ -2303,6 +2303,27 @@ export default defineComponent({
       defaultCamera.value,
     ));
     const selectedDisplay = computed(() => displayValue(selectedCamera.value, viewer3dMode.value));
+    /**
+     * The stereo selector is as wide as its current label, leaving no dead
+     * space: estimated from the label's length, then measured once rendered.
+     */
+    const DISPLAY_SELECT_CHROME = 42; // padding, border and the dropdown arrow
+    const displaySelect = ref(null as Vue | null);
+    const displayWidth = ref(undefined as string | undefined);
+    watch([selectedDisplay, isStereoPair, () => progress.loaded], async () => {
+      if (!isStereoPair.value) {
+        displayWidth.value = undefined;
+        return;
+      }
+      const text = displayItems.value
+        .find((item) => item.value === selectedDisplay.value)?.text ?? '';
+      displayWidth.value = `${Math.ceil(6.3 * text.length) + DISPLAY_SELECT_CHROME}px`;
+      await nextTick();
+      const label = displaySelect.value?.$el.querySelector('.v-select__selection--comma');
+      if (label) {
+        displayWidth.value = `${label.scrollWidth + DISPLAY_SELECT_CHROME}px`;
+      }
+    }, { immediate: true });
     function changeDisplay(value: string) {
       const { camera, mode } = parseDisplayValue(value);
       viewer3dRequested.value = mode;
@@ -2668,6 +2689,8 @@ export default defineComponent({
       viewer3dPaneOrder,
       rigCalibration,
       displayItems,
+      displayWidth,
+      displaySelect,
       selectedDisplay,
       changeDisplay,
       isCameraReplacedBy3dViewer,
@@ -2881,11 +2904,13 @@ export default defineComponent({
         </EditorMenu>
         <v-select
           v-if="showMultiCamToolbar && multiCamList.length > 1"
+          ref="displaySelect"
           :value="selectedDisplay"
           :items="displayItems"
           :label="isStereoPair ? 'Display' : 'Camera'"
           class="mx-1 shrink camera-select"
           :class="{ 'display-select': isStereoPair }"
+          :style="displayWidth ? { width: displayWidth, maxWidth: displayWidth } : undefined"
           :menu-props="{ minWidth: isStereoPair ? 200 : 140 }"
           outlined
           hide-details
@@ -3370,8 +3395,6 @@ html {
 }
 
 .camera-select.display-select {
-  width: 148px;
-  max-width: 148px;
   font-size: 0.8em;
 
   .v-input__slot {

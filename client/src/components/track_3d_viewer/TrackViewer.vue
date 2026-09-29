@@ -187,7 +187,8 @@ export default defineComponent({
     const onPointerDown = function onPointerDown(event: PointerEvent) {
       pressed = event.button === 0 ? [event.clientX, event.clientY] : null;
     };
-    // A press that does not move selects the track under it; one that moves turns the view
+    // A press that does not move selects the track under it, or clears the
+    // selection over empty space; one that moves turns the view
     const onPointerUp = function onPointerUp(event: PointerEvent) {
       const start = pressed;
       pressed = null;
@@ -196,7 +197,7 @@ export default defineComponent({
         return;
       }
       const trackId = trackAt(event);
-      if (trackId !== null) {
+      if (trackId !== selectedTrackIdRef.value) {
         handler.trackSelect(trackId, false);
       }
     };
@@ -255,8 +256,11 @@ export default defineComponent({
         camera.setViewUp(0, -1, 0);
         renderer.value.resetCamera(sceneGuides.extent());
         // resetCamera fits the bounding sphere, which leaves a wide margin, and
-        // looking down on the floor leaves the top of the view empty
-        camera.dolly(1.9);
+        // looking down on the floor leaves the top of the view empty. It fits
+        // the height only, so a narrow pane needs to stand further back.
+        const { width, height } = viewportDimensions.value;
+        const aspect = height > 0 ? width / height : 1;
+        camera.dolly(1.9 * Math.min(1, aspect / 1.6));
         camera.setWindowCenter(0, -0.2);
         renderer.value.resetCameraClippingRange();
       };
