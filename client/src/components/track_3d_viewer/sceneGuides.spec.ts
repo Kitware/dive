@@ -79,7 +79,12 @@ describe('floorGrid', () => {
     expect(grid.xs).toEqual([-500, 0, 500, 1000, 1500]);
     expect(grid.step).toBe(500);
     // From above the highest point (y grows downward) to the last mark over the floor
-    expect(grid.ys).toEqual([-500, 0]);
+    expect(grid.ys).toEqual([-200, 0, 200]);
     expect(grid.y).toBeCloseTo(260 + 0.02 * 3100);
+  });
+
+  it('marks at least three heights however flat the scene', () => {
+    expect(floorGrid([0, 5000, 10, 12, 1000, 9000], []).ys.length).toBeGreaterThanOrEqual(3);
+    expect(floorGrid([0, 5000, 40, 40, 1000, 9000], []).ys.length).toBeGreaterThanOrEqual(3);
   });
 });

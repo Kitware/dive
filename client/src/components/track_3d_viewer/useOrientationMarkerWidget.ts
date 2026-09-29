@@ -39,7 +39,8 @@ export function useOrientationMarkerWidget() {
   ) {
     orientationMarkerWidget.setInteractor(interactor);
     orientationMarkerWidget.setEnabled(true);
-    orientationMarkerWidget.setViewportCorner(vtkOrientationMarkerWidget.Corners.BOTTOM_LEFT);
+    // Clear of the axes, which meet at the bottom left of the opening view
+    orientationMarkerWidget.setViewportCorner(vtkOrientationMarkerWidget.Corners.TOP_LEFT);
     orientationMarkerWidget.setViewportSize(0.15);
     orientationMarkerWidget.setMinPixelSize(100);
     orientationMarkerWidget.setMaxPixelSize(300);

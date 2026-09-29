@@ -122,7 +122,7 @@ export default function useSceneGuides(renderer: Ref<vtkRenderer | undefined>) {
       })),
       { position: [xLast + 2 * gap, grid.y, zFirst] as Vec3, text: 'X', color: css(AXIS_COLORS.x) },
       ...grid.ys.map((y) => ({
-        position: [xFirst - 2 * gap, y, zFirst] as Vec3, text: number(y), color: css(AXIS_COLORS.y),
+        position: [xFirst - gap, y, zFirst] as Vec3, text: number(y), color: css(AXIS_COLORS.y),
       })),
       {
         position: [xFirst, yTop - gap, zFirst] as Vec3, text: 'Y', color: css(AXIS_COLORS.y),

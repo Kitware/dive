@@ -122,11 +122,18 @@ export function floorGrid(bounds: Bounds3, include: readonly Vec3[]): FloorGrid 
   const extent = Math.max(xMax - xMin, zMax - zMin);
   const step = niceStep(extent);
   const y = Math.max(...ys) + 0.02 * extent;
+  // Heights span far less than the floor, so they get a spacing of their own,
+  // fine enough for the axis to carry at least three marks
+  const yMin = Math.min(...ys);
+  let heights: number[] = [];
+  for (let count = 2; heights.length < 3 && count <= 20; count += 1) {
+    heights = ticks(yMin, y, niceStep(y - yMin, count)).filter((value) => value <= y);
+  }
   return {
     step,
     y,
     xs: ticks(xMin, xMax, step),
-    ys: ticks(Math.min(...ys), y, step).filter((value) => value <= y),
+    ys: heights,
     zs: ticks(zMin, zMax, step),
   };
 }
