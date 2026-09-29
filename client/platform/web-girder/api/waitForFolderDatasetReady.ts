@@ -61,6 +61,10 @@ export async function waitForFolderDatasetReady(
   folderId: string,
   options?: {
     pollIntervalMs?: number;
+    /**
+     * Give up after this long without progress. A job reporting new progress
+     * restarts the clock, so a long job that keeps moving is not cut off.
+     */
     timeoutMs?: number;
     /** Called with average job completion fraction in [0, 1] when jobs report progress. */
     onProgress?: (fraction: number) => void;
@@ -73,7 +77,8 @@ export async function waitForFolderDatasetReady(
 ): Promise<void> {
   const pollIntervalMs = options?.pollIntervalMs ?? 1000;
   const timeoutMs = options?.timeoutMs ?? 10 * 60 * 1000;
-  const deadline = Date.now() + timeoutMs;
+  let deadline = Date.now() + timeoutMs;
+  let lastProgress = '';
 
   async function folderReady(): Promise<boolean> {
     const { data: folder } = await getFolder(folderId);
@@ -108,6 +113,11 @@ export async function waitForFolderDatasetReady(
           return job;
         }),
       );
+      const progress = JSON.stringify(jobs.map((job) => [job.status, job.progress?.current]));
+      if (progress !== lastProgress) {
+        lastProgress = progress;
+        deadline = Date.now() + timeoutMs;
+      }
       if (options?.onProgress) {
         const jobsWithProgress = jobs.filter((job) => job.progress?.total);
         if (jobsWithProgress.length) {

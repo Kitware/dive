@@ -1606,6 +1606,7 @@ def _postprocess(
     When skipJobs=False, the following may run as jobs:
         Transcoding of Video
         Transcoding of Images
+        Tile creation for large images (TIFF, NITF, ...)
         Conversion of KPF annotations into track JSON
         Extraction and upload of zip files
 
@@ -1737,6 +1738,13 @@ def _postprocess(
         largeImageItems = Folder().childItems(
             dsFolder, filters={"lowerName": {"$regex": constants.largeImageRegEx}}
         )
+        untiledLargeImageItems = Folder().childItems(
+            dsFolder,
+            filters={
+                "lowerName": {"$regex": constants.largeImageRegEx},
+                "largeImage": {"$exists": False},
+            },
+        )
 
         if imageItems.count() > safeImageItems.count():
             convert_params = {
@@ -1761,6 +1769,37 @@ def _postprocess(
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
                     constants.JOBCONST_DATASET_ID: dsFolder["_id"],
                     constants.JOBCONST_PARAMS: convert_params,
+                    constants.JOBCONST_CREATOR: str(user['_id']),
+                },
+            )
+            created_job_ids.append(job['_id'])
+
+        elif untiledLargeImageItems.count() > 0:
+            # Large-image files arrive without tiles (auto-set is off so uploads
+            # do not probe each file); create_large_image_tiles makes them
+            # viewable and sets annotate when it finishes.
+            tiles_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+            }
+            newjob = tasks.create_large_image_tiles.apply_async(
+                queue=_get_queue_name(user),
+                kwargs=dict(
+                    folderId=str(dsFolder["_id"]),
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
+                    girder_client_token=str(token["_id"]),
+                    girder_job_title=f"Preparing {dsFolder['name']} large images for viewing",
+                    girder_job_type="private" if job_is_private else "convert",
+                ),
+            )
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_PARAMS: tiles_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
             )

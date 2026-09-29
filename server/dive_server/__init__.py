@@ -6,9 +6,11 @@ from girder import events, plugin
 from girder.constants import AccessType
 from girder.models.user import User
 from girder.plugin import getPlugin
+from girder.settings import SettingDefault
 from girder.utility import mail_utils
 from girder.utility.model_importer import ModelImporter
 from girder_jobs.models.job import Job
+from girder_large_image.constants import PluginSettings as LargeImageSettings
 
 from dive_utils import constants
 
@@ -42,6 +44,13 @@ class GirderPlugin(plugin.GirderPlugin):
         info["apiRoot"].dive_scoring = ScoringResource("dive_scoring")
         # required because girder doesn't load plugins in order so we need to manually load first.
         getPlugin('jobs').load(info)
+        # girder_large_image's auto-set probes every saved image file for tiles
+        # inside the request that saved it, so a large upload or import queues
+        # behind per-file tile-source probing until requests time out -- even
+        # for JPG/PNG image sequences, which never use tiles. Large-image
+        # datasets get their tiles from the postprocess tiling job instead.
+        # Only the default changes: an explicit admin setting still wins.
+        SettingDefault.defaults[LargeImageSettings.LARGE_IMAGE_AUTO_SET] = False
         # Setup route additions for exsting resources
         info['apiRoot'].job.route("GET", ("queued",), countJobs)
         info["apiRoot"].user.route("PUT", (":id", "use_private_queue"), use_private_queue)
