@@ -3,9 +3,9 @@ import { displayOptions, displayValue, parseDisplayValue } from './stereoDisplay
 describe('stereoDisplay', () => {
   it('offers each stereo camera selected, beside the 3D viewer, or with it as a third pane', () => {
     expect(displayOptions(['left', 'right'], true, 'left').map((option) => option.text)).toEqual([
-      'Left (Selected)', 'Right (Selected)',
-      'Left + 3D Viewer', 'Right + 3D Viewer',
-      'Stereo (Left Sel) + 3D', 'Stereo (Right Sel) + 3D',
+      'Stereo (Left)', 'Stereo (Right)',
+      'Left + 3D', 'Right + 3D',
+      'Stereo (Left) + 3D', 'Stereo (Right) + 3D',
     ]);
   });
 

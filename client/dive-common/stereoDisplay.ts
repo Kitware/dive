@@ -34,9 +34,9 @@ function capitalize(name: string) {
 function stereoLabel(camera: string, mode: Viewer3dMode) {
   const name = capitalize(camera);
   if (mode === 'replace') {
-    return `${name} + 3D Viewer`;
+    return `${name} + 3D`;
   }
-  return mode === 'beside' ? `Stereo (${name} Sel) + 3D` : `${name} (Selected)`;
+  return mode === 'beside' ? `Stereo (${name}) + 3D` : `Stereo (${name})`;
 }
 
 export function displayOptions(
