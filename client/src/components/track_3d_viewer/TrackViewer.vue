@@ -30,15 +30,15 @@ import { useLabelDrawer } from './useLabelDrawer';
 import useSceneGuides from './useSceneGuides';
 import { RigCalibration } from './sceneGuides';
 import { Vec3 } from './positions';
-import { nearestOutline, Point2 } from './picking';
+import { ballAt, Point2 } from './picking';
 import { injectAggregateController } from '../annotators/useMediaController';
 
 const TRACK_FONT = 'bold 14px sans-serif';
 const SELECTED_FONT = 'bold 18px sans-serif';
 const GUIDE_FONT = '12px sans-serif';
-// Screen pixels: how near a click must land, and how far a press may travel
-// before it counts as a drag of the view
-const PICK_TOLERANCE = 10;
+// Screen pixels: the least a ball measures for picking, and how far a press
+// may travel before it counts as a drag of the view
+const MINIMUM_PICK_RADIUS = 6;
 const CLICK_TRAVEL = 4;
 
 export default defineComponent({
@@ -104,7 +104,7 @@ export default defineComponent({
 
     let vtkContainerResizeObserver: ResizeObserver | null = null;
 
-    const { initialize: initializeTrackDrawer, visibleShapes } = useTrackDrawer({
+    const { initialize: initializeTrackDrawer, visibleBalls } = useTrackDrawer({
       trackManager,
       onlyShowSelectedTrack,
       detectionGlyphSize,
@@ -172,14 +172,21 @@ export default defineComponent({
       if (!bounds) {
         return null;
       }
-      const outlines = visibleShapes().map(({ trackId, points }) => ({
-        id: trackId,
-        points: points.map(toScreen).filter((point): point is Point2 => point !== null),
-      }));
-      return nearestOutline(
-        outlines,
+      // A ball's size on screen is how far its edge lands from its center
+      const up = renderer.value?.getActiveCamera().getViewUp() ?? [0, 1, 0];
+      const balls = visibleBalls().flatMap(({ trackId, center, radius }) => {
+        const middle = toScreen(center);
+        const edge = toScreen(center.map((value, axis) => value + radius * up[axis]) as Vec3);
+        return middle && edge ? [{
+          id: trackId,
+          center: middle,
+          radius: Math.hypot(edge[0] - middle[0], edge[1] - middle[1]),
+        }] : [];
+      });
+      return ballAt(
+        balls,
         [event.clientX - bounds.left, event.clientY - bounds.top],
-        PICK_TOLERANCE,
+        MINIMUM_PICK_RADIUS,
       );
     };
 
