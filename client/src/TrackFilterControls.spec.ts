@@ -1368,3 +1368,78 @@ describe('useAnnotationFilters', () => {
     expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
   });
 });
+
+describe('category definition imports', () => {
+  it('merges types and hierarchy and marks metadata for persistence', () => {
+    const pending = vi.fn();
+    const filters = makeTrackFilterControls(pending);
+    filters.importTypes(['existing'], false);
+    filters.setTypeHierarchy({ fish: 'animal' });
+    filters.importCategoryDefinitions(['shark'], { shark: 'fish' });
+    expect(filters.configuredTypes.value).toEqual(['existing', 'shark']);
+    expect(filters.allTypes.value).toEqual(expect.arrayContaining(['animal', 'fish', 'shark']));
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { fish: 'animal', shark: 'fish' } });
+    expect(pending).toHaveBeenCalledWith({ action: 'meta' });
+    filters.importCategoryDefinitions(['other']);
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { fish: 'animal', shark: 'fish' } });
+  });
+
+  it.each<Record<string, string>>([{ fish: 'other' }, { animal: 'fish' }])('rejects conflicts atomically: %j', (hierarchy) => {
+    const pending = vi.fn();
+    const filters = makeTrackFilterControls(pending);
+    filters.setTypeHierarchy({ fish: 'animal' });
+    expect(() => filters.importCategoryDefinitions(['new'], hierarchy)).toThrow(TypeHierarchyError);
+    expect(filters.configuredTypes.value).not.toContain('new');
+    expect(filters.typeHierarchy.value).toEqual({ fish: 'animal' });
+    expect(filters.typeHierarchySavePatch()).toEqual({});
+    expect(pending).not.toHaveBeenCalled();
+  });
+
+  it('does not modify annotations when adding hierarchy relationships', () => {
+    const { filters, cameraStore } = makePairFixture([[['fish', 0.8], ['animal', 0.3]]]);
+    const before = cameraStore.sortedTracks.value.map((track) => track.confidencePairs);
+    filters.importCategoryDefinitions(['fish'], { fish: 'animal' });
+    expect(cameraStore.sortedTracks.value.map((track) => track.confidencePairs)).toEqual(before);
+  });
+});
+
+describe('WoRMS import provenance', () => {
+  const sources = { 3: { aphiaId: 3, scientificName: 'salmon', rank: 'Species' } };
+  it('stages provenance with types and preserves imports made while saving', () => {
+    const filters = makeTrackFilterControls();
+    filters.setTaxonomySources({ 2: { aphiaId: 2, scientificName: 'fish', rank: 'Class' } });
+    filters.importCategoryDefinitions(['salmon'], { salmon: 'fish' }, sources);
+    const patch = filters.taxonomySavePatch();
+    expect(patch.taxonomySources).toEqual({ ...filters.taxonomySources.value });
+    expect(Object.keys(patch.taxonomySources!)).toEqual(['2', '3']);
+    filters.importCategoryDefinitions(['shark'], undefined, { 4: { aphiaId: 4, scientificName: 'shark', rank: 'Species' } });
+    filters.markTaxonomyPersisted(patch);
+    expect(filters.taxonomySavePatch().taxonomySources?.['4']).toBeDefined();
+    filters.markTaxonomyPersisted(filters.taxonomySavePatch());
+    expect(filters.taxonomySavePatch()).toEqual({});
+  });
+
+  it('saves provenance once on the multicamera parent with the imported hierarchy', async () => {
+    apiMocks.saveConfig.mockReset().mockResolvedValue(undefined);
+    const saveControls = useSave(ref('multi'), ref(false));
+    saveControls.removeCamera('singleCam');
+    saveControls.addCamera('left');
+    saveControls.addCamera('right');
+    const filters = makeTrackFilterControls(saveControls.markChangesPending as MarkChangesPendingFilter);
+    filters.importCategoryDefinitions(['salmon'], { salmon: 'fish' }, sources);
+    const patch = { ...filters.typeHierarchySavePatch(), ...filters.taxonomySavePatch() };
+    const saved = await saveControls.save(patch);
+    expect(saved.canonicalConfigPersisted).toBe(true);
+    expect(apiMocks.saveConfig.mock.calls).toEqual([
+      ['multi/left', {}], ['multi/right', {}], ['multi', patch],
+    ]);
+  });
+
+  it('does not apply provenance when hierarchy validation fails', () => {
+    const filters = makeTrackFilterControls();
+    filters.setTypeHierarchy({ salmon: 'other' });
+    expect(() => filters.importCategoryDefinitions(['salmon'], { salmon: 'fish' }, sources)).toThrow();
+    expect(filters.taxonomySources.value).toEqual({});
+    expect(filters.taxonomySavePatch()).toEqual({});
+  });
+});

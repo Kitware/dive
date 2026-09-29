@@ -2,6 +2,7 @@
 import {
   computed,
   defineComponent,
+  onBeforeUnmount,
   PropType,
   ref,
   watch,
@@ -38,6 +39,14 @@ export default defineComponent({
     ToolbarExpandToggle,
   },
   props: {
+    hasSelectedTrack: {
+      type: Boolean,
+      default: false,
+    },
+    disabled: {
+      type: Boolean,
+      default: false,
+    },
     editingTrack: {
       type: Boolean,
       required: true,
@@ -103,6 +112,16 @@ export default defineComponent({
       type: Function as PropType<() => Promise<boolean>>,
       default: undefined,
     },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live status from the SAM session during auto-populate (encode/predict). */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   emits: [
     'set-annotation-state',
@@ -114,8 +133,17 @@ export default defineComponent({
     'text-query',
     'text-query-all-frames',
     'open-external-link',
+    'cancel-auto-populate',
   ],
   setup(props, { emit }) {
+    const toolsDisabled = computed(() => props.disabled || props.multiSelectActive
+      || props.groupEditActive || props.lassoModeActive || props.lassoDrawing);
+    const creatingAnnotation = computed(() => !props.hasSelectedTrack);
+    const toolTitle = (button: ButtonData) => (creatingAnnotation.value
+      ? `Create annotation: ${button.description}` : button.description);
+    const activateTool = (action: () => void) => {
+      if (!toolsDisabled.value) action();
+    };
     const toolTimeTimeout = ref<number | null>(null);
     const STORAGE_KEY = 'editorMenu.editButtonsExpanded';
 
@@ -154,9 +182,11 @@ export default defineComponent({
     };
 
     const handleTextQueryClick = async () => {
+      if (toolsDisabled.value) return;
       const available = props.checkTextQueryAvailable
         ? await props.checkTextQueryAvailable()
         : props.textQueryAvailable;
+      if (toolsDisabled.value) return;
       if (!available) {
         openSam3InfoDialog();
         return;
@@ -236,11 +266,11 @@ export default defineComponent({
           mousetrap: [{
             bind: '1',
             handler: () => {
-              emit('set-annotation-state', { editing: 'rectangle' });
+              activateTool(() => emit('set-annotation-state', { editing: 'rectangle' }));
             },
           }],
           click: () => {
-            emit('set-annotation-state', { editing: 'rectangle' });
+            activateTool(() => emit('set-annotation-state', { editing: 'rectangle' }));
           },
         },
         /* Include recipes as editing modes if they're toggleable */
@@ -248,16 +278,18 @@ export default defineComponent({
           id: r.name,
           icon: r.icon.value || 'mdi-pencil',
           active: props.editingTrack && r.active.value,
-          loading: (r.loading?.value ?? false)
-            || (r instanceof SegmentationPointClick && r.predicting.value),
+          // Model download/init only — keep the tool usable while a mask runs.
+          loading: r.loading?.value ?? false,
           description: r.name,
-          click: () => r.activate(),
+          click: () => activateTool(() => r.activate()),
           mousetrap: [
             {
               bind: (i + 2).toString(),
-              handler: () => r.activate(),
+              handler: () => activateTool(() => r.activate()),
             },
-            ...r.mousetrap(),
+            ...r.mousetrap().map((shortcut) => ({
+              ...shortcut, handler: () => activateTool(shortcut.handler),
+            })),
           ],
         })),
         /* Text Query button included alongside other annotation types (desktop only) */
@@ -279,6 +311,10 @@ export default defineComponent({
 
     const mousetrap = computed((): Mousetrap[] => [
       ...flatten(editButtons.value.map((b) => b.mousetrap || [])),
+      ...(autoPopulateBusyVisible.value ? [{
+        bind: 'esc',
+        handler: () => { cancelAutoPopulate(); },
+      }] : []),
     ]);
 
     const activeEditButton = computed(() => editButtons.value.find((b) => b.active) || editButtons.value[0]);
@@ -301,6 +337,13 @@ export default defineComponent({
       }
       if (props.multiSelectActive) {
         return { text: 'Multi-select Mode', icon: 'mdi-call-merge', color: 'error' };
+      }
+      if (props.autoPopulateBusy && !activeSegmentationRecipe.value) {
+        return {
+          text: 'Auto-populating',
+          icon: 'mdi-loading mdi-spin',
+          color: 'warning',
+        };
       }
       if (activeSegmentationRecipe.value) {
         return {
@@ -337,8 +380,101 @@ export default defineComponent({
       return segRecipe?.loading.value ?? false;
     });
 
-    const segmentationTooltip = 'Left click: positive point. Esc to cancel. Middle click or shift+click for negative.';
+    /** After a long predict, promote Reset to an explicit Cancel control. */
+    const SEGMENTATION_CANCEL_WARNING_MS = 3000;
+    /** A quick predict keeps the usage hint instead of flashing a busy message. */
+    const SEGMENTATION_BUSY_HINT_MS = 500;
+    const segmentationCancelWarning = ref(false);
+    const segmentationBusyHint = ref(false);
+    let segmentationCancelWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    let segmentationBusyHintTimer: ReturnType<typeof setTimeout> | null = null;
+    watch(segmentationPredicting, (predicting) => {
+      if (segmentationCancelWarningTimer !== null) {
+        clearTimeout(segmentationCancelWarningTimer);
+        segmentationCancelWarningTimer = null;
+      }
+      if (segmentationBusyHintTimer !== null) {
+        clearTimeout(segmentationBusyHintTimer);
+        segmentationBusyHintTimer = null;
+      }
+      if (predicting) {
+        segmentationCancelWarning.value = false;
+        segmentationBusyHint.value = false;
+        segmentationCancelWarningTimer = setTimeout(() => {
+          segmentationCancelWarningTimer = null;
+          if (segmentationPredicting.value) {
+            segmentationCancelWarning.value = true;
+          }
+        }, SEGMENTATION_CANCEL_WARNING_MS);
+        segmentationBusyHintTimer = setTimeout(() => {
+          segmentationBusyHintTimer = null;
+          if (segmentationPredicting.value) {
+            segmentationBusyHint.value = true;
+          }
+        }, SEGMENTATION_BUSY_HINT_MS);
+      } else {
+        segmentationCancelWarning.value = false;
+        segmentationBusyHint.value = false;
+      }
+    });
 
+    /** Same 3s promotion for auto-populate encode/predict (especially CPU). */
+    const autoPopulateCancelWarning = ref(false);
+    let autoPopulateCancelWarningTimer: ReturnType<typeof setTimeout> | null = null;
+    const autoPopulateBusyVisible = computed(
+      () => props.autoPopulateBusy && !activeSegmentationRecipe.value,
+    );
+    watch(autoPopulateBusyVisible, (busy) => {
+      if (autoPopulateCancelWarningTimer !== null) {
+        clearTimeout(autoPopulateCancelWarningTimer);
+        autoPopulateCancelWarningTimer = null;
+      }
+      if (busy) {
+        autoPopulateCancelWarning.value = false;
+        autoPopulateCancelWarningTimer = setTimeout(() => {
+          autoPopulateCancelWarningTimer = null;
+          if (autoPopulateBusyVisible.value) {
+            autoPopulateCancelWarning.value = true;
+          }
+        }, SEGMENTATION_CANCEL_WARNING_MS);
+      } else {
+        autoPopulateCancelWarning.value = false;
+      }
+    });
+    onBeforeUnmount(() => {
+      if (segmentationCancelWarningTimer !== null) {
+        clearTimeout(segmentationCancelWarningTimer);
+      }
+      if (segmentationBusyHintTimer !== null) {
+        clearTimeout(segmentationBusyHintTimer);
+      }
+      if (autoPopulateCancelWarningTimer !== null) {
+        clearTimeout(autoPopulateCancelWarningTimer);
+      }
+    });
+
+    const segmentationTooltip = 'Left click: positive point. Esc to cancel. Middle click or shift+click for negative.';
+    const segmentationStatusHint = computed(() => {
+      if (segmentationLoading.value) return 'Loading segmentation model…';
+      if (segmentationCancelWarning.value) {
+        return 'Still computing — click Cancel or press Esc to abort.';
+      }
+      if (segmentationBusyHint.value) {
+        return 'Computing segmentation… Press Esc to cancel.';
+      }
+      if (autoPopulateBusyVisible.value) {
+        if (autoPopulateCancelWarning.value) {
+          return 'Still auto-populating — click Cancel or press Esc to abort.';
+        }
+        return props.autoPopulateStatus
+          || 'Auto-populating mask/points… Press Esc to cancel.';
+      }
+      return null;
+    });
+
+    function cancelAutoPopulate() {
+      emit('cancel-auto-populate');
+    }
     const editingTooltip = computed(() => {
       if (props.editingDetails === 'disabled' || !props.editingMode || typeof props.editingMode !== 'string') {
         return '';
@@ -363,6 +499,9 @@ export default defineComponent({
     });
 
     return {
+      toolsDisabled,
+      creatingAnnotation,
+      toolTitle,
       modeToolTips,
       editButtons,
       mousetrap,
@@ -375,7 +514,12 @@ export default defineComponent({
       activeSegmentationRecipe,
       segmentationPredicting,
       segmentationLoading,
+      segmentationCancelWarning,
       segmentationTooltip,
+      segmentationStatusHint,
+      autoPopulateBusyVisible,
+      autoPopulateCancelWarning,
+      cancelAutoPopulate,
       // Text query
       textQueryDialogOpen,
       textQueryInput,
@@ -432,11 +576,8 @@ export default defineComponent({
               Multi-select in progress.  Editing is disabled.
               Select additional tracks to merge or group.
             </span>
-            <span v-else-if="segmentationLoading">
-              Loading segmentation model...
-            </span>
-            <span v-else-if="segmentationPredicting">
-              Computing segmentation...
+            <span v-else-if="segmentationStatusHint">
+              {{ segmentationStatusHint }}
             </span>
             <span v-else-if="activeSegmentationRecipe">
               {{ segmentationTooltip }}
@@ -444,7 +585,7 @@ export default defineComponent({
             <span v-else-if="editingDetails !== 'disabled' && editingMode && typeof editingMode === 'string'">
               {{ editingTooltip }}
             </span>
-            <span v-else>Right click on an annotation to edit</span>
+            <span v-else>Pick a tool, or right click to edit</span>
           </div>
         </div>
       </div>
@@ -461,20 +602,25 @@ export default defineComponent({
           <template #activator="{ on, attrs }">
             <v-btn
               v-bind="attrs"
-              :disabled="!!activeEditButton?.loading"
+              :disabled="toolsDisabled || !!activeEditButton?.loading"
               :loading="!!activeEditButton?.loading"
               :color="activeEditButton?.active ? editingHeader.color : ''"
-              class="mx-1 mode-button toolbar-group-activator"
+              class="mx-1 mode-button toolbar-group-activator tool-button"
               small
-              v-on="editingMode ? on : {}"
+              v-on="on"
             >
               <pre
                 v-if="activeEditButton?.mousetrap"
-                :class="{ 'edit-btn-unavailable': !editingMode }"
+                :class="{ 'edit-btn-unavailable': toolsDisabled }"
               >{{ activeEditButton.mousetrap[0].bind }}:</pre>
-              <v-icon :class="{ 'edit-btn-unavailable': !editingMode }">
-                {{ activeEditButton?.icon }}
-              </v-icon>
+              <span class="creation-anchor">
+                <v-icon :class="{ 'edit-btn-unavailable': toolsDisabled }">
+                  {{ activeEditButton?.icon }}
+                </v-icon>
+                <v-icon v-if="creatingAnnotation" x-small class="creation-indicator">
+                  mdi-plus
+                </v-icon>
+              </span>
               <toolbar-expand-toggle
                 :expanded="false"
                 @click="toggleEditButtonsExpanded"
@@ -497,19 +643,25 @@ export default defineComponent({
                       v-on="button.unavailable ? tooltipOn : {}"
                     >
                       <v-btn
-                        :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                        :disabled="toolsDisabled || !!button.loading"
+                        :title="toolTitle(button)"
                         :loading="!!button.loading"
                         :outlined="!button.active"
                         :color="button.active ? editingHeader.color : ''"
                         :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
-                        class="mx-1"
+                        class="mx-1 tool-button"
                         small
                         @click="button.click"
                       >
                         <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                        <v-icon>
-                          {{ button.icon }}
-                        </v-icon>
+                        <span class="creation-anchor">
+                          <v-icon>
+                            {{ button.icon }}
+                          </v-icon>
+                          <v-icon v-if="creatingAnnotation" x-small class="creation-indicator">
+                            mdi-plus
+                          </v-icon>
+                        </span>
                       </v-btn>
                     </span>
                   </template>
@@ -533,7 +685,7 @@ export default defineComponent({
               >
                 mdi-pencil
               </v-icon>
-              <span>Edit Types</span>
+              <span>{{ creatingAnnotation ? 'Create Annotation' : 'Edit Types' }}</span>
               <toolbar-expand-toggle
                 :expanded="true"
                 @click="toggleEditButtonsExpanded"
@@ -553,19 +705,25 @@ export default defineComponent({
                 v-on="button.unavailable ? tooltipOn : {}"
               >
                 <v-btn
-                  :disabled="button.unavailable ? !!button.loading : (!editingMode || !!button.loading)"
+                  :disabled="toolsDisabled || !!button.loading"
+                  :title="toolTitle(button)"
                   :loading="!!button.loading"
                   :outlined="!button.active"
                   :color="button.active ? editingHeader.color : ''"
                   :class="{ 'edit-btn-unavailable': button.unavailable && !button.loading }"
-                  class="mx-1"
+                  class="mx-1 tool-button"
                   small
                   @click="button.click"
                 >
                   <pre v-if="button.mousetrap">{{ button.mousetrap[0].bind }}:</pre>
-                  <v-icon>
-                    {{ button.icon }}
-                  </v-icon>
+                  <span class="creation-anchor">
+                    <v-icon>
+                      {{ button.icon }}
+                    </v-icon>
+                    <v-icon v-if="creatingAnnotation" x-small class="creation-indicator">
+                      mdi-plus
+                    </v-icon>
+                  </span>
                 </v-btn>
               </span>
             </template>
@@ -573,19 +731,51 @@ export default defineComponent({
           </v-tooltip>
         </outlined-labeled-group>
       </span>
-      <!-- Segmentation Reset button -->
+      <!-- Segmentation Reset / Cancel button -->
       <template v-if="activeSegmentationRecipe && editingMode === 'Point'">
         <v-btn
-          color="error"
+          :color="segmentationCancelWarning ? 'warning' : 'error'"
           class="mx-1"
           small
-          :disabled="!activeSegmentationRecipe.hasPoints() || segmentationPredicting"
+          :disabled="!segmentationPredicting
+            && !activeSegmentationRecipe.hasPoints()
+            && !activeSegmentationRecipe.hasPendingPrediction()"
+          :title="segmentationPredicting
+            ? (segmentationCancelWarning
+              ? 'Cancel the in-progress segmentation'
+              : 'Cancel (Esc)')
+            : 'Clear points (Esc)'"
           @click="activeSegmentationRecipe.resetPoints()"
         >
           <v-icon left>
-            mdi-close
+            {{ segmentationCancelWarning ? 'mdi-cancel' : 'mdi-close' }}
           </v-icon>
-          Reset
+          {{ segmentationCancelWarning ? 'Cancel' : 'Reset' }}
+          <span
+            v-if="segmentationPredicting && !segmentationCancelWarning"
+            class="text-caption ml-1"
+          >(Esc)</span>
+        </v-btn>
+      </template>
+      <!-- Auto-populate Cancel (promotes after 3s like magic wand) -->
+      <template v-else-if="autoPopulateBusyVisible">
+        <v-btn
+          :color="autoPopulateCancelWarning ? 'warning' : 'error'"
+          class="mx-1"
+          small
+          :title="autoPopulateCancelWarning
+            ? 'Cancel the in-progress auto-populate'
+            : 'Cancel (Esc)'"
+          @click="cancelAutoPopulate"
+        >
+          <v-icon left>
+            {{ autoPopulateCancelWarning ? 'mdi-cancel' : 'mdi-close' }}
+          </v-icon>
+          Cancel
+          <span
+            v-if="!autoPopulateCancelWarning"
+            class="text-caption ml-1"
+          >(Esc)</span>
         </v-btn>
       </template>
       <!-- Hide delete controls when in segmentation mode -->
@@ -777,6 +967,30 @@ export default defineComponent({
 .mode-button{
   border: 1px solid grey;
   min-width: 36px;
+}
+
+/* Room on the right for the creation +, kept in every mode so the buttons never resize */
+.v-btn.v-size--small.tool-button {
+  padding-left: 9px;
+  padding-right: 11px;
+}
+
+/* An active tool drops its outline; the same-width border keeps its neighbors still */
+.v-btn.tool-button:not(.v-btn--outlined):not(.mode-button) {
+  border: thin solid transparent;
+}
+
+.creation-anchor {
+  position: relative;
+  display: inline-flex;
+}
+
+.creation-indicator {
+  position: absolute;
+  top: 50%;
+  right: -9px;
+  transform: translateY(-50%);
+  pointer-events: none;
 }
 
 /*

@@ -4,7 +4,7 @@ import {
 } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import { clientSettings } from 'dive-common/store/settings';
-import FilterList from 'vue-media-annotator/components/FilterList.vue';
+import FilterList from 'vue-media-annotator/components/Types/FilterList.vue';
 import GroupSidebar from './GroupSidebar.vue';
 
 const provideMocks = vi.hoisted(() => ({

@@ -104,7 +104,10 @@ export function injectCameraInitializer() {
   return use<CameraInitializerFunc>(CameraInitializerSymbol);
 }
 
-export function useMediaController() {
+export function useMediaController(options?: {
+  /** Shared with Viewer provide so the spinning SAM cursor stays visible. */
+  segmentationCursorLoading?: Ref<boolean>;
+}) {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let geoViewers: Record<string, Ref<any>> = {};
   let containers: Record<string, Ref<HTMLElement | undefined>> = {};
@@ -114,6 +117,7 @@ export function useMediaController() {
   let state: Record<string, UnwrapRef<MediaControllerReactiveData>> = {};
   let cameraControllerSymbols: Record<string, symbol> = {};
   const synchronizeCameras: Ref<boolean> = ref(false);
+  const segmentationCursorLoading = options?.segmentationCursorLoading ?? ref(false);
 
   // Installed by the viewer while stereo auto-compute is on; otherwise
   // synchronised panes only copy each other's screen motion.
@@ -632,7 +636,9 @@ export function useMediaController() {
 
     const cursorHandler = {
       handleMouseLeave() {
-        if (imageCursorRef.value) {
+        // Keep the spinning SAM cursor visible even if the pointer leaves the
+        // pane (e.g. while a long CPU prepare/predict runs).
+        if (imageCursorRef.value && !segmentationCursorLoading.value) {
           imageCursorRef.value.style.display = 'none';
         }
       },
@@ -651,6 +657,12 @@ export function useMediaController() {
         });
       },
     };
+
+    watch(segmentationCursorLoading, (loading) => {
+      if (loading && imageCursorRef.value) {
+        imageCursorRef.value.style.display = 'block';
+      }
+    });
 
     const mediaController: MediaController = {
       mediaKind,

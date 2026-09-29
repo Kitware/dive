@@ -3,6 +3,7 @@ import { shallowMount } from '@vue/test-utils';
 import {
   computed, markRaw, reactive, ref,
 } from 'vue';
+import type { VueConstructor } from 'vue';
 import type { ReviewItem } from 'dive-common/review/types';
 import VideoSearchResultsGrid from './VideoSearchResultsGrid.vue';
 
@@ -74,7 +75,7 @@ function mount(refs: string[]) {
   const memory = reactive({
     page: 0, hideReviewed: false, space: false, spaceCount: 2,
   });
-  const wrapper = shallowMount(VideoSearchResultsGrid, {
+  const wrapper = shallowMount(VideoSearchResultsGrid as unknown as VueConstructor, {
     propsData: {
       inline: true, searchChips, memory, exemplarUrl: 'file:///exemplar.jpg',
     },

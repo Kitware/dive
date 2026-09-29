@@ -93,7 +93,7 @@ For multicamera queries, a match in any camera selects the logical track. Type c
 
 Review crops images and decodes playable videos in each user's browser. It uses the existing authenticated media endpoints; opening a grid does not launch a pipeline, worker job, or server-side frame extraction. Videos must already be playable in the browser, as in the annotation viewer.
 
-Each review session limits API operations to three at a time, including loading and saving across datasets. A config operation can make two HTTP requests. The web track reader skips groups and annotation-set listings, which the grid does not use. Chip rendering has a separate four-operation limit and prioritizes the visible page and the next page's primary chips. Queued work for skipped pages is dropped. Image loads and video metadata/seeks time out after 15 seconds, and disposing a session cancels pending media work and prevents queued API calls from starting.
+Each review session limits API operations to three at a time, including loading and saving across datasets. A web camera config also reads the parent configuration so hierarchy-aware type edits use the same taxonomy as the viewer. The web track reader skips groups and annotation-set listings, which the grid does not use. Chip rendering has a separate four-operation limit and prioritizes the visible page and the next page's primary chips. Queued work for skipped pages is dropped. Image loads and video metadata/seeks time out after 15 seconds, and disposing a session cancels pending media work and prevents queued API calls from starting.
 
 Review retains at most two decoded frames and 16 MiB of decoded pixels per dataset. Rendered chips are pruned when paging to retain 256 recent items, with the visible and prefetched pages protected. Selected annotations remain in browser memory, so the number and size of selected datasets still affect memory usage. These are per-browser limits, not a server-wide quota.
 
@@ -114,3 +114,17 @@ On DIVE Desktop, the Query page shows ranked similarity results across indexed d
 Every result is also an annotation in waiting. Typing a type under a chip, or editing its box (the edit action or a right click), gives the result a track of its own in its dataset, built from the result's frames and boxes; the dataset's existing annotations are never edited in place. Such entries show their track id and can be deleted.
 
 **Save** on the results toolbar writes the results that count as annotations: every accepted result (with its type, or `unknown` when none was given), every result given a type, rejected results only when they were given a type, and unmarked results that were typed or box-edited. When any of them overlaps an annotation the dataset already has on the same frame, a dialog asks how to proceed: **Keep originals** saves the other results and leaves the overlapping ones out, **Replace overlapping** deletes just the overlapped annotations before saving, **Replace all annotations** deletes every annotation in those sequences and saves only the results, and **Discard results** saves nothing. **Discard** drops the unsaved results, and leaving the page with unsaved changes asks first. Opening a saved entry selects its track in the viewer. Grid shape, zoom and context settings are shared with Review.
+
+### Stereo review on the web
+
+Select the stereo sequence in the library or in Review → Datasets → Browse.
+Selecting an individual camera folder or entering review from a camera link also
+loads the whole sequence, so both sides appear together.
+The review picker accepts whole stereo/multicamera sequences; scoring still requires
+a single camera. Cameras appear together as one entry per track, in the sequence's
+configured camera order, with synchronized frame cycling and zoom/pan.
+
+Type assignment, acceptance, and deletion apply across the entry's cameras. Geometry
+edits and adding a missing box affect only the chosen camera. Saves target the
+individual camera folders; if one save fails, its edits remain pending for retry.
+Opening an entry in the viewer opens the whole rig at the selected frame and track.

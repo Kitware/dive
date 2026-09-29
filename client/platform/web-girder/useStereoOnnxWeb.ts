@@ -29,13 +29,14 @@ import { StereoOnnxMatcher } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import { StereoFoundationMatcher } from 'dive-common/use/stereo/StereoFoundationMatcher';
 import type { FoundationModelSpec } from 'dive-common/use/stereo/StereoFoundationMatcher';
 import type { ImagerySize, StereoFoundationModelSpec } from 'platform/web-girder/api/configuration.service';
-import { DEFAULT_STEREO_MATCH_METHOD } from 'dive-common/use/stereo/stereoMatcher';
+import { DEFAULT_STEREO_MATCH_METHOD, fallBackStereoMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { StereoMatcher, StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
 import type { SearchRange } from 'dive-common/use/stereo/StereoOnnxMatcher';
 import {
   rigFromNpz, rigFromJson, StereoRig,
 } from 'dive-common/use/stereo/calibration';
-import { geoViewerToImageElement, imageElementToRgba } from 'dive-common/use/stereo/frameSource';
+import { imageElementToRgba } from 'dive-common/use/stereo/frameSource';
+import { findQuadMediaSource } from 'vue-media-annotator/components/layerManager/quadMediaSource';
 import type { RgbaImage } from 'dive-common/use/stereo/image';
 import type { StereoMeasurement } from 'dive-common/use/stereo/triangulate';
 import { getCalibrationFile, getLastCalibration } from './multicamFileRegistry';
@@ -188,6 +189,21 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     return clientSettings.stereoSettings.matchMethod ?? DEFAULT_STEREO_MATCH_METHOD;
   }
 
+  /**
+   * The chosen model failed on this browser or GPU. Drop the setting to the
+   * faster method so it matches what actually runs, and say so in the
+   * message. Returns whether the setting changed.
+   */
+  function fallBack(message: string): boolean {
+    if (opts.getMatchMethod) return false;
+    const before = currentMethod();
+    const next = fallBackStereoMethod(before, message);
+    if (next.method === before) return false;
+    clientSettings.stereoSettings.matchMethod = next.method;
+    opts.onError?.(next.message);
+    return true;
+  }
+
   async function createFoundationMatcher(imagery?: ImagerySize): Promise<StereoMatcher> {
     if (opts.foundationModelUrl) {
       return StereoFoundationMatcher.create(opts.foundationModelUrl, opts.foundationModelSpec);
@@ -223,8 +239,13 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
       : StereoOnnxMatcher.create(modelUrl)
     ).catch((err) => {
       console.warn('[StereoOnnx] failed to load model', method, err);
-      opts.onError?.(`The stereo matching model could not be loaded. ${(err as Error).message ?? err}`);
-      return null;
+      // A failed load is never remembered: the next warp tries again.
+      delete matchers[key];
+      const what = method === 'foundation' ? 'The higher quality stereo model' : 'The stereo matching model';
+      const message = `${what} could not be loaded. ${(err as Error).message ?? err}`;
+      if (fallBack(message)) return getMatcher(imagery);
+      // Nothing simpler to drop to: the caller reports the reason once.
+      throw new Error(message);
     });
     matchers[key] = created;
     return created;
@@ -310,23 +331,35 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
 
   async function getFrame(cameraName: string, frameNum: number): Promise<RgbaImage | null> {
     const viewer = opts.getViewer();
+    // URLs identify the requested frame even while the viewer is still
+    // displaying the previous image during an asynchronous seek.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const imageData = fromViewer<any>(viewer?.imageData);
+    const url = imageData?.[cameraName]?.[frameNum]?.url;
+    if (url) return urlToRgba(url);
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const aggregate = fromViewer<any>(viewer?.aggregateController);
       const controller = aggregate?.getController(cameraName);
-      // The viewer only holds pixels for the frame on screen.
-      if (controller?.frame?.value === frameNum) {
-        const geoViewer = controller?.geoViewerRef?.value;
-        const img = geoViewer ? geoViewerToImageElement(geoViewer) : null;
-        if (img) return imageElementToRgba(img);
+      // Read unscaled native pixels, including video, never an overlay screenshot.
+      if (controller?.frame?.value === frameNum && controller?.hasFrame?.value !== false) {
+        const media = findQuadMediaSource(controller?.geoViewerRef?.value);
+        if (media && media.width && media.height) {
+          if (media.kind === 'video' && ((media.source as HTMLVideoElement).seeking
+            || (media.source as HTMLVideoElement).readyState < 2)) return null;
+          const canvas = document.createElement('canvas');
+          canvas.width = media.width; canvas.height = media.height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(media.source, 0, 0, media.width, media.height);
+            return ctx.getImageData(0, 0, media.width, media.height);
+          }
+        }
       }
     } catch {
-      // Fall through to the URL path.
+      // Media is unavailable during teardown or while a frame is loading.
     }
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const imageData = fromViewer<any>(viewer?.imageData);
-    const url = imageData?.[cameraName]?.[frameNum]?.url;
-    return url ? urlToRgba(url) : null;
+    return null;
   }
 
   /** The frame the viewer is on, once its media has loaded. */
@@ -386,6 +419,7 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
   // A precompute failure is the model failing on this browser/GPU, which the
   // user should hear about once rather than on every frame change.
   let precomputeErrorReported = false;
+  watch(currentMethod, () => { precomputeErrorReported = false; });
 
   /** Compute the current frame's disparity maps ahead of any warp there. */
   function precomputeCurrentFrame() {
@@ -396,7 +430,8 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
         console.warn('[StereoOnnx] disparity precompute failed', err);
         if (!precomputeErrorReported) {
           precomputeErrorReported = true;
-          opts.onError?.(`The higher-accuracy stereo model could not run in this browser. ${(err as Error).message ?? err}`);
+          const message = `The higher quality stereo model could not run in this browser. ${(err as Error).message ?? err}`;
+          if (!fallBack(message)) opts.onError?.(message);
         }
       });
   }
@@ -435,6 +470,11 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
     handleStereoAnnotationComplete,
     handleStereoTrackLinked,
     warpAllFromCamera,
+    getFrame,
+    warpPoints: async (points: [number, number][], camera: string, frame: number, line = false) => (
+      getTransfer()?.warpPoints(points, camera, frame, line) ?? []
+    ),
+    refreshMeasurement: async (id: number, frame: number) => getTransfer()?.refreshMeasurement(id, frame),
     stereoViewLink,
     precomputeCurrentFrame,
     invalidateCalibration,

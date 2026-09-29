@@ -21,10 +21,10 @@ type BrowserLocation = {
   meta?: { annotate?: boolean | string; type?: string };
 };
 
-function isScoringDataset(loc: BrowserLocation): boolean {
+function isSelectableDataset(loc: BrowserLocation): boolean {
   return loc._modelType === 'folder'
     && !!loc.meta?.annotate
-    && loc.meta?.type !== 'multi';
+    && (scoringDatasetPickerState.purpose === 'review' || loc.meta?.type !== 'multi');
 }
 
 function toSummary(loc: BrowserLocation): ScoringDatasetSummary {
@@ -58,7 +58,7 @@ export default defineComponent({
       selected.value = null;
       const browseLocation = getLocation();
       location.value = browseLocation ?? defaultUserLocation();
-      if (browseLocation && isGirderModel(browseLocation) && isScoringDataset(browseLocation)) {
+      if (browseLocation && isGirderModel(browseLocation) && isSelectableDataset(browseLocation)) {
         selected.value = browseLocation;
       }
     }
@@ -70,7 +70,7 @@ export default defineComponent({
     });
 
     function setLocation(newLoc: BrowserLocation) {
-      if (isScoringDataset(newLoc)) {
+      if (isSelectableDataset(newLoc)) {
         selected.value = newLoc;
         return;
       }
@@ -86,7 +86,7 @@ export default defineComponent({
     const invalidSelection = computed(() => {
       if (!selected.value) return null;
       if (excluded.value) return 'This dataset is already in the list.';
-      if (selected.value.meta?.type === 'multi') {
+      if (scoringDatasetPickerState.purpose === 'scoring' && selected.value.meta?.type === 'multi') {
         return 'Multicamera parent folders cannot be scored; choose a camera dataset instead.';
       }
       if (!selected.value.meta?.annotate) {
@@ -96,7 +96,7 @@ export default defineComponent({
     });
 
     const canAdd = computed(
-      () => !!selected.value && isScoringDataset(selected.value) && !excluded.value,
+      () => !!selected.value && isSelectableDataset(selected.value) && !excluded.value,
     );
 
     function cancel() {
@@ -141,8 +141,13 @@ export default defineComponent({
         Choose a dataset
       </v-card-title>
       <v-card-text>
-        Browse to a DIVE dataset and select it to score. Multicamera parent folders
-        are not listed as scorable sequences.
+        <template v-if="scoringDatasetPickerState.purpose === 'review'">
+          Select a dataset to review. Stereo and multicamera sequences include every camera.
+        </template>
+        <template v-else>
+          Browse to a DIVE dataset and select it to score. Multicamera parent folders
+          are not listed as scorable sequences.
+        </template>
         <v-card
           outlined
           flat

@@ -104,13 +104,18 @@ function makeHarness(
     removeTypes: () => [],
   });
 
+  const readonlyState = ref(false);
+  const lassoModeActive = ref(false);
+  const lassoDrawing = ref(false);
   const newGeometryEvents: NewAnnotationGeometryParams[] = [];
   const modeManager = useModeManager({
     cameraStore,
     trackFilterControls,
     groupFilterControls,
     aggregateController,
-    readonlyState: ref(false),
+    readonlyState,
+    lassoModeActive,
+    lassoDrawing,
     onNewAnnotationGeometry: (params) => newGeometryEvents.push(params),
     recipes,
     alignedView,
@@ -118,7 +123,14 @@ function makeHarness(
   });
   modeManager.selectedCamera.value = 'left';
   return {
-    cameraStore, alignedView, modeManager, perCamera, newGeometryEvents,
+    cameraStore,
+    alignedView,
+    modeManager,
+    perCamera,
+    newGeometryEvents,
+    readonlyState,
+    lassoModeActive,
+    lassoDrawing,
   };
 }
 
@@ -510,6 +522,17 @@ describe('successive auto-populate triggers', () => {
     ]);
   });
 
+  it('emits again when the same track gets a new box on a later frame', () => {
+    const { modeManager: manager, newGeometryEvents } = makeHarness();
+    const trackId = manager.handler.trackAdd();
+    manager.handler.updateRectBounds(0, 0, [0, 0, 10, 10]);
+    manager.handler.updateRectBounds(1, 0, [20, 20, 30, 30]);
+    manager.handler.updateRectBounds(1, 0, [21, 21, 31, 31]);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.frameNum, event.source])).toEqual([
+      [trackId, 0, 'box'], [trackId, 1, 'box'],
+    ]);
+  });
+
   it('emits both completed lines when annotations are drawn one after another', () => {
     const recipe = new HeadTail();
     const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
@@ -526,6 +549,27 @@ describe('successive auto-populate triggers', () => {
     draw([[20, 20], [30, 30]]);
     expect(newGeometryEvents.map((event) => [event.trackId, event.source])).toEqual([
       [first, 'line'], [second, 'line'],
+    ]);
+  });
+
+  it('emits again when the same track gets a new line on a later frame', () => {
+    const recipe = new HeadTail();
+    const { modeManager: manager, newGeometryEvents } = makeHarness(undefined, [recipe]);
+    const draw = (frame: number, coordinates: number[][]) => manager.handler.updateGeoJSON('in-progress', frame, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates },
+    }, 'HeadTails');
+    const trackId = manager.handler.trackAdd();
+    recipe.activate();
+    draw(0, [[0, 0]]);
+    draw(0, [[0, 0], [10, 10]]);
+    draw(1, [[20, 20]]);
+    draw(1, [[20, 20], [30, 30]]);
+    // Endpoint edit on frame 1 must not re-emit.
+    manager.handler.updateGeoJSON('editing', 1, 0, {
+      type: 'Feature', properties: {}, geometry: { type: 'LineString', coordinates: [[21, 21], [30, 30]] },
+    }, manager.selectedKey.value);
+    expect(newGeometryEvents.map((event) => [event.trackId, event.frameNum, event.source])).toEqual([
+      [trackId, 0, 'line'], [trackId, 1, 'line'],
     ]);
   });
 });
@@ -592,6 +636,51 @@ describe('useModeManager point segmentation masks', () => {
 
     recipe.bus.$emit('prediction-reset', { frameNum: 0 });
     expect(track.getFeature(0)[0]).toBeNull();
+  });
+
+  it('lets the emptied detection be deleted after a reset (interval tree stays in sync)', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    recipe.bus.$emit('prediction-ready', {
+      polygon: [[0, 0], [10, 0], [10, 10]],
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+    recipe.bus.$emit('prediction-ready', {
+      polygon: [[0, 0], [20, 0], [20, 20]],
+      bounds: null,
+      frameNum: 0,
+      controlPoints: { points: [[5, 5], [8, 8]], labels: [1, 1] },
+    });
+    recipe.bus.$emit('prediction-reset', { frameNum: 0 });
+    const track = cameraStore.getTrack(trackId, 'left');
+    expect(track.begin).toBe(Infinity);
+    expect(track.end).toBe(0);
+    expect(() => modeManager.handler.removeTrack([trackId], true)).not.toThrow();
+    expect(cameraStore.getPossibleTrack(trackId, 'left')).toBeUndefined();
+  });
+
+  it('clears the pending mask on every Reset, including a second segmentation pass', () => {
+    const recipe = new SegmentationPointClick();
+    const { cameraStore, modeManager } = makeHarness(undefined, [recipe]);
+    const trackId = modeManager.handler.trackAdd();
+    const predict = (polygon: [number, number][]) => recipe.bus.$emit('prediction-ready', {
+      polygon, bounds: null, frameNum: 0, controlPoints: { points: [[5, 5]], labels: [1] },
+    });
+
+    predict([[0, 0], [10, 0], [10, 10]]);
+    expect(cameraStore.getTrack(trackId, 'left').getPolygonFeatures(0)).toHaveLength(1);
+    recipe.resetPoints();
+    expect(cameraStore.getTrack(trackId, 'left').getFeature(0)[0]).toBeNull();
+    expect(recipe.hasPoints()).toBe(false);
+    expect(recipe.hasPendingPrediction()).toBe(false);
+
+    predict([[0, 0], [20, 0], [20, 20]]);
+    expect(cameraStore.getTrack(trackId, 'left').getPolygonFeatures(0)).toHaveLength(1);
+    recipe.resetPoints();
+    expect(cameraStore.getTrack(trackId, 'left').getFeature(0)[0]).toBeNull();
   });
 });
 
@@ -761,4 +850,119 @@ describe('a right-click that enters point segmentation editing', () => {
     manager.handler.confirmRecipe();
     expect(recipe.active.value).toBe(true);
   });
+});
+
+describe('annotation toolbar creation', () => {
+  it.each(['rectangle', 'Polygon', 'LineString', 'Point'] as const)('starts a new annotation in %s mode without a selected track', (editing) => {
+    const { cameraStore, modeManager } = makeHarness();
+    modeManager.handler.setAnnotationState({ editing });
+    const id = modeManager.selectedTrackId.value!;
+    expect(cameraStore.getPossibleTrack(id, 'left')).toBeDefined();
+    expect(modeManager.editingMode.value).toBe(editing);
+    expect(modeManager.editingDetails.value).toBe('Creating');
+    modeManager.handler.trackAbort();
+    expect(cameraStore.getPossibleTrack(id, 'left')).toBeUndefined();
+  });
+
+  it('activates a line recipe and preserves its geometry key during creation', () => {
+    const recipe = new HeadTail();
+    const { modeManager } = makeHarness(undefined, [recipe]);
+    recipe.activate();
+    expect(modeManager.selectedTrackId.value).not.toBeNull();
+    expect(modeManager.editingMode.value).toBe('LineString');
+    expect(modeManager.selectedKey.value).toBe('HeadTails');
+    expect(recipe.active.value).toBe(true);
+  });
+
+  it('switches the selected annotation into editing without adding another track', () => {
+    const { cameraStore, modeManager } = makeHarness();
+    const id = modeManager.handler.trackAdd();
+    modeManager.handler.updateRectBounds(0, 0, [1, 2, 10, 20]);
+    modeManager.handler.trackSelect(id, false);
+    const count = cameraStore.sortedTracks.value.length;
+    modeManager.handler.setAnnotationState({ editing: 'Polygon' });
+    expect(modeManager.selectedTrackId.value).toBe(id);
+    expect(modeManager.editingMode.value).toBe('Polygon');
+    expect(cameraStore.sortedTracks.value).toHaveLength(count);
+  });
+
+  it('does not create annotations in read-only or multi-select mode', () => {
+    const { cameraStore, modeManager, readonlyState } = makeHarness();
+    readonlyState.value = true;
+    modeManager.handler.setAnnotationState({ editing: 'rectangle' });
+    expect(cameraStore.sortedTracks.value).toHaveLength(0);
+    readonlyState.value = false;
+    modeManager.multiSelectList.value = [1, 2];
+    modeManager.handler.setAnnotationState({ editing: 'Polygon' });
+    expect(cameraStore.sortedTracks.value).toHaveLength(0);
+    expect(modeManager.multiSelectList.value).toEqual([1, 2]);
+  });
+
+  it.each(['lassoModeActive', 'lassoDrawing'] as const)(
+    'does not create annotations while %s',
+    (flag) => {
+      const harness = makeHarness();
+      harness[flag].value = true;
+      harness.modeManager.handler.setAnnotationState({ editing: 'rectangle' });
+      expect(harness.cameraStore.sortedTracks.value).toHaveLength(0);
+      expect(harness.modeManager.editingMode.value).toBe(false);
+    },
+  );
+});
+
+it.each(['Detection', 'Track'] as const)('toolbar creation uses the configured %s settings', (mode) => {
+  const previous = JSON.parse(JSON.stringify(clientSettings.trackSettings.newTrackSettings));
+  try {
+    const settings = clientSettings.trackSettings.newTrackSettings;
+    settings.mode = mode;
+    settings.type = 'toolbar-type';
+    settings.modeSettings.Track.interpolate = true;
+    const { cameraStore, modeManager } = makeHarness();
+    modeManager.handler.setAnnotationState({ editing: 'rectangle' });
+    const id = modeManager.selectedTrackId.value!;
+    modeManager.handler.updateRectBounds(0, 0, [1, 2, 10, 20]);
+    const track = cameraStore.getTrack(id, 'left');
+    expect(track.confidencePairs[0][0]).toBe('toolbar-type');
+    expect(track.features[0].interpolate).toBe(mode === 'Track');
+  } finally {
+    clientSettings.trackSettings.newTrackSettings = previous;
+  }
+});
+
+it('waits for segmentation initialization before creating an annotation', async () => {
+  const recipe = new SegmentationPointClick();
+  let initialize: () => void = () => {};
+  recipe.initialize({
+    predictFn: vi.fn(),
+    getImagePath: () => '',
+    initializeServiceFn: () => new Promise<void>((resolve) => { initialize = resolve; }),
+  });
+  const { modeManager } = makeHarness(undefined, [recipe]);
+  recipe.activate();
+  expect(modeManager.selectedTrackId.value).toBeNull();
+  initialize();
+  await Promise.resolve();
+  expect(modeManager.selectedTrackId.value).not.toBeNull();
+  expect(modeManager.editingMode.value).toBe('Point');
+  expect(recipe.active.value).toBe(true);
+});
+
+it('cancels async segmentation activation if lasso starts before init finishes', async () => {
+  const recipe = new SegmentationPointClick();
+  let initialize: () => void = () => {};
+  recipe.initialize({
+    predictFn: vi.fn(),
+    getImagePath: () => '',
+    initializeServiceFn: () => new Promise<void>((resolve) => { initialize = resolve; }),
+  });
+  const { cameraStore, modeManager, lassoModeActive } = makeHarness(undefined, [recipe]);
+  recipe.activate();
+  expect(modeManager.selectedTrackId.value).toBeNull();
+  lassoModeActive.value = true;
+  initialize();
+  await Promise.resolve();
+  expect(cameraStore.sortedTracks.value).toHaveLength(0);
+  expect(modeManager.selectedTrackId.value).toBeNull();
+  expect(modeManager.editingMode.value).toBe(false);
+  expect(recipe.active.value).toBe(false);
 });

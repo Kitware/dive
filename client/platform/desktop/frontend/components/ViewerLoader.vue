@@ -256,6 +256,24 @@ export default defineComponent({
       return results;
     });
 
+    let loadFailed = false;
+    async function handleLoadError(message: string, largeImage?: boolean) {
+      if (loadFailed) {
+        return;
+      }
+      loadFailed = true;
+      if (largeImage) {
+        await largeImageWarning();
+      } else {
+        await prompt({
+          title: 'Error Loading Data',
+          text: [message],
+          positiveButton: 'Okay',
+        });
+      }
+      router.push({ name: 'recent' });
+    }
+
     async function largeImageWarning() {
       await prompt({
         title: 'Large Image Warning',
@@ -2565,6 +2583,7 @@ export default defineComponent({
       readOnlyMode,
       runningPipelines,
       largeImageWarning,
+      handleLoadError,
       timeFilter,
       handleTextQuerySubmit,
       handleTextQueryInit,
@@ -2620,6 +2639,7 @@ export default defineComponent({
       @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
+      @load-error="handleLoadError"
       @text-query-submit="handleTextQuerySubmit"
       @text-query-init="handleTextQueryInit"
       @text-query-all-frames="handleTextQueryAllFrames"

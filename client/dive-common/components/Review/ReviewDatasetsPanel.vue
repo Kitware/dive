@@ -16,7 +16,8 @@ export default defineComponent({
     const api = useApi();
     const review = useReview();
     const picking = ref(false);
-    const usePicker = computed(() => typeof api.pickScoringDataset === 'function');
+    const pickDataset = api.pickReviewDataset ?? api.pickScoringDataset;
+    const usePicker = computed(() => typeof pickDataset === 'function');
 
     const selectedIds = computed(() => review.datasets.value.map((d) => d.id));
 
@@ -35,10 +36,10 @@ export default defineComponent({
     }
 
     async function openPicker() {
-      if (!api.pickScoringDataset || picking.value) return;
+      if (!pickDataset || picking.value) return;
       picking.value = true;
       try {
-        const picked = await api.pickScoringDataset(selectedIds.value);
+        const picked = await pickDataset(selectedIds.value);
         if (picked) await review.addDataset(picked.id, picked, { defer: true });
       } finally {
         picking.value = false;

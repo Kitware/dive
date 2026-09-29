@@ -3,7 +3,7 @@ import { defineComponent } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import isDesktopRuntime from 'dive-common/isDesktopRuntime';
 import type { GlobalStyleSettings } from 'dive-common/apispec';
-import SavedStylesEditor from './SavedStylesEditor.vue';
+import SavedStylesEditor from './Types/SavedStylesEditor.vue';
 
 export default defineComponent({
   name: 'UserSettingsDialog',

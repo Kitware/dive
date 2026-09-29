@@ -264,6 +264,12 @@ TypeHierarchy = Dict[StrictStr, StrictStr]
 CameraRole = Literal['eo', 'ir', 'uv']
 
 
+class TaxonomySource(BaseModel):
+    aphiaId: int
+    scientificName: StrictStr
+    rank: StrictStr
+
+
 class MetadataMutable(BaseModel):
     version = (
         constants.JsonMetaCurrentVersion
@@ -277,6 +283,7 @@ class MetadataMutable(BaseModel):
     attributeTrackFilters: Optional[Dict[str, AttributeTrackFilter]]
     datasetInfo: Optional[types.DatasetInfo]
     typeHierarchy: Optional[TypeHierarchy] = None
+    taxonomySources: Optional[Dict[str, TaxonomySource]] = None
     # Per-camera-pair alignment homographies, keyed by directional "left::right".
     # Each value holds the 3x3 AtoB / BtoA matrices.
     cameraHomographies: Optional[Dict[str, PairHomography]]
