@@ -35,6 +35,29 @@ describe('rigCameras', () => {
     expect(left.corners).toEqual([[-10, -5, 10], [10, -5, 10], [10, 5, 10], [-10, 5, 10]]);
   });
 
+  it('matches VIAME for a measured rig', () => {
+    // A real calibration; VIAME places the right camera at -Rt * T
+    const [, right] = rigCameras({
+      R: [
+        0.999887, 0.007012, 0.013281,
+        -0.006903, 0.999942, -0.008226,
+        -0.013337, 0.008134, 0.999878,
+      ],
+      T: [-288.926, -176.928, -17.388],
+    }, 100);
+    expect(right.center[0]).toBeCloseTo(287.4, 0);
+    expect(right.center[1]).toBeCloseTo(179.1, 0);
+    expect(right.center[2]).toBeCloseTo(19.8, 0);
+  });
+
+  it('reads R given as three rows and T as a column', () => {
+    const [, right] = rigCameras({
+      R: [[1, 0, 0], [0, 1, 0], [0, 0, 1]],
+      T: [[-300], [0], [0]],
+    }, 100);
+    expect(right.center).toEqual([300, 0, 0]);
+  });
+
   it('ignores a malformed calibration', () => {
     expect(rigCameras({ R: [1, 0, 0], T: [1, 2, 3] }, 1)).toHaveLength(1);
     expect(rigBaseline({ R: identity, T: [3, 4, 0] })).toBe(5);
@@ -55,6 +78,8 @@ describe('floorGrid', () => {
     expect(grid.zs).toEqual([0, 500, 1000, 1500, 2000, 2500, 3000, 3500]);
     expect(grid.xs).toEqual([-500, 0, 500, 1000, 1500]);
     expect(grid.step).toBe(500);
+    // From above the highest point (y grows downward) to the last mark over the floor
+    expect(grid.ys).toEqual([-500, 0]);
     expect(grid.y).toBeCloseTo(260 + 0.02 * 3100);
   });
 });

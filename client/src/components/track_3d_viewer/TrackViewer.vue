@@ -18,6 +18,7 @@ import { debounce } from '@kitware/vtk.js/macros';
 import {
   useTrackViewerSettingsStore,
   useSelectedTrackId,
+  useTrackStyleManager,
 } from 'vue-media-annotator/provides';
 import { ViewUtils } from './trackUtils';
 import TrackManager from './TrackManager';
@@ -30,8 +31,9 @@ import { RigCalibration } from './sceneGuides';
 import { Vec3 } from './positions';
 import { injectAggregateController } from '../annotators/useMediaController';
 
-const TRACK_LABEL = { color: 'white', font: 'bold 14px sans-serif' };
-const GUIDE_LABEL = { color: '#bdbdbd', font: '12px sans-serif' };
+const TRACK_FONT = 'bold 14px sans-serif';
+const SELECTED_FONT = 'bold 18px sans-serif';
+const GUIDE_FONT = '12px sans-serif';
 
 export default defineComponent({
   name: 'TrackViewer',
@@ -90,6 +92,7 @@ export default defineComponent({
     const mediaController = injectAggregateController();
 
     const selectedTrackIdRef = useSelectedTrackId();
+    const trackStyleManager = useTrackStyleManager();
     const { frame: frameRef } = mediaController.value;
 
     let vtkContainerResizeObserver: ResizeObserver | null = null;
@@ -111,28 +114,31 @@ export default defineComponent({
 
     const drawCurrentFrameDetectionLabels = function drawCurrentFrameDetectionLabels() {
       clearLabelContext();
-      drawLabels(
-        new Map(sceneGuides.labels().map(({ position, text }) => [position, text])),
-        GUIDE_LABEL,
-      );
+      sceneGuides.labels().forEach(({ position, text, color }) => {
+        drawLabels(new Map([[position, text]]), { color, font: GUIDE_FONT });
+      });
 
+      const selectedId = selectedTrackIdRef.value;
       const positionToLabel = new Map<Vec3, string>();
       if (!onlyShowSelectedTrack.value) {
         const frameTracker = trackManager.getFrameTracker(frameRef.value);
         frameTracker?.detectionActors.forEach((actor, idx) => {
-          positionToLabel.set(actor.getPosition() as Vec3, String(frameTracker.trackIds[idx]));
+          if (frameTracker.trackIds[idx] !== selectedId) {
+            positionToLabel.set(actor.getPosition() as Vec3, String(frameTracker.trackIds[idx]));
+          }
         });
-      } else if (selectedTrackIdRef.value !== null) {
-        const frameDetectionActor = trackManager.getTrack(selectedTrackIdRef.value)
-          ?.detectionsMap.get(frameRef.value);
-        if (frameDetectionActor) {
-          positionToLabel.set(
-            frameDetectionActor.getPosition() as Vec3,
-            String(selectedTrackIdRef.value),
-          );
-        }
       }
-      drawLabels(positionToLabel, TRACK_LABEL);
+      drawLabels(positionToLabel, { color: 'white', font: TRACK_FONT });
+
+      // Drawn last so the selected track's label is never covered
+      const selectedActor = selectedId === null
+        ? undefined : trackManager.getTrack(selectedId)?.detectionsMap.get(frameRef.value);
+      if (selectedActor) {
+        drawLabels(new Map([[selectedActor.getPosition() as Vec3, String(selectedId)]]), {
+          color: trackStyleManager.stateStyles.selected.color,
+          font: SELECTED_FONT,
+        });
+      }
     };
 
     onMounted(() => {
@@ -180,8 +186,10 @@ export default defineComponent({
         camera.setPosition(0, -0.35, -1);
         camera.setViewUp(0, -1, 0);
         renderer.value.resetCamera(sceneGuides.extent());
-        // resetCamera fits the bounding sphere, which leaves a wide margin
-        camera.dolly(1.5);
+        // resetCamera fits the bounding sphere, which leaves a wide margin, and
+        // looking down on the floor leaves the top of the view empty
+        camera.dolly(1.9);
+        camera.setWindowCenter(0, -0.2);
         renderer.value.resetCameraClippingRange();
       };
 
