@@ -284,6 +284,17 @@ it('loads queued datasets on Statistics and updates counts after edits, deletion
   wrapper.destroy();
 });
 
+it('opens a sequence at the frame picked on its timeline, or at its start by name', async () => {
+  const wrapper = mountPage({ retainSession: false });
+  const page = wrapper.vm as unknown as PageState & {
+    openDataset(id: string, frame?: number): void;
+  };
+  page.openDataset('stats', 42);
+  page.openDataset('stats');
+  expect(wrapper.emitted('open-viewer')).toEqual([['stats', { frame: 42 }], ['stats', {}]]);
+  wrapper.destroy();
+});
+
 it('returns to Statistics after visiting a sequence viewer', async () => {
   const first = mountPage();
   const page = first.vm as unknown as PageState;

@@ -23,6 +23,10 @@ export interface TimelineRow {
   timestamp?: number;
   duration: number;
   unit: 's' | 'frames';
+  /** Frames per unit of duration in the sequence's first camera, which the viewer opens on. */
+  framesPerUnit: number;
+  /** Last frame of that camera. */
+  lastFrame: number;
   cameraCount: number;
   series: { name: string; bins: number[] }[];
   annotatedExtent: boolean;
@@ -70,7 +74,8 @@ export function buildReviewStatistics(datasets: Iterable<StatisticsDataset>): Re
     const intervals = new Map<string, Map<string, [number, number][]>>();
     let duration = 0;
     let timestamp: number | undefined;
-    cameras.forEach(({ config, tracks }) => {
+    let firstCameraLastFrame = 0;
+    cameras.forEach(({ config, tracks }, cameraIndex) => {
       const filters = config.confidenceFilters ?? { default: DefaultConfidence };
       let lastFrame = Math.max(0, config.imageData.length - 1);
       let count = 0;
@@ -97,6 +102,7 @@ export function buildReviewStatistics(datasets: Iterable<StatisticsDataset>): Re
         count += 1;
       });
       duration = Math.max(duration, (lastFrame + 1) / (seconds ? config.fps : 1));
+      if (cameraIndex === 0) firstCameraLastFrame = lastFrame;
       config.imageData.forEach((image) => {
         const time = image.timestamp ?? parseFrameTimestamp(image.filename);
         if (time !== undefined && Number.isFinite(time)) timestamp = Math.min(timestamp ?? time, time);
@@ -144,6 +150,8 @@ export function buildReviewStatistics(datasets: Iterable<StatisticsDataset>): Re
       timestamp,
       duration,
       unit: seconds ? 's' : 'frames',
+      framesPerUnit: seconds ? cameras[0].config.fps : 1,
+      lastFrame: firstCameraLastFrame,
       cameraCount: cameras.length,
       annotatedExtent: cameras.some(({ config }) => !config.imageData.length),
       count: intervals.size,
@@ -167,6 +175,32 @@ export function buildReviewStatistics(datasets: Iterable<StatisticsDataset>): Re
   };
 }
 
+/** The most tracks present at once in a sequence: the top of its own count axis. */
+export function timelinePeak(row: Pick<TimelineRow, 'bins'>): number {
+  return row.bins.reduce((max, count) => Math.max(max, count), 1);
+}
+
+/** Whole counts to label on a count axis: none, the peak, and the middle when there is one. */
+export function timelineTicks(peak: number): number[] {
+  const top = Math.max(1, Math.round(peak));
+  return [...new Set([0, Math.round(top / 2), top])];
+}
+
+/** Where a count sits in a plot of the given height, measured down from its top. */
+export function timelineY(count: number, peak: number, height = 80): number {
+  return height - (count / Math.max(1, peak)) * (height - 4);
+}
+
+/** The frame at a fraction of the way along a sequence's timeline. */
+export function timelineFrame(
+  row: Pick<TimelineRow, 'duration' | 'framesPerUnit' | 'lastFrame'>,
+  fraction: number,
+): number {
+  const along = Math.min(1, Math.max(0, Number.isFinite(fraction) ? fraction : 0));
+  const frame = Math.floor(along * row.duration * row.framesPerUnit);
+  return Math.min(Math.max(0, row.lastFrame), Math.max(0, frame));
+}
+
 /** Step-after area: horizontal plateaus with vertical transitions, never diagonal spikes. */
 export function timelineStepPath(bins: number[], peak: number, width = 1000, height = 80): string {
   if (!bins.length) return '';
@@ -175,7 +209,7 @@ export function timelineStepPath(bins: number[], peak: number, width = 1000, hei
   let previous = 0;
   bins.forEach((count, index) => {
     if (count !== previous) {
-      path += ` H${(index / bins.length) * width} V${height - (count / scale) * (height - 4)}`;
+      path += ` H${(index / bins.length) * width} V${timelineY(count, scale, height)}`;
       previous = count;
     }
   });

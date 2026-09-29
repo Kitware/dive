@@ -226,8 +226,8 @@ export default defineComponent({
       entry.items.forEach((item) => review.deleteTrack(item));
     }
 
-    function openDataset(datasetId: string) {
-      emit('open-viewer', datasetId, {});
+    function openDataset(datasetId: string, frame?: number) {
+      emit('open-viewer', datasetId, frame === undefined ? {} : { frame });
     }
 
     function applyTypeToPage() {
