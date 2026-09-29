@@ -273,6 +273,7 @@ export default defineComponent({
       if (f > data.maxFrame) newFrame = data.maxFrame;
       local.lastFrame = data.frame;
       data.frame = newFrame;
+      data.syncedFrame = newFrame;
       data.filename = props.imageData[data.frame].filename;
       if (data.frame !== 0 && local.lastFrame === data.frame) {
         return;
@@ -289,12 +290,9 @@ export default defineComponent({
           loadingImage.value = false;
           // if the seek hasn't changed since the image completed loading, draw it.
           drawImage(imgInternal.image);
-          // Annotations draw at syncedFrame, so it only advances once the image has.
-          data.syncedFrame = newFrame;
         }
       } else {
         loadingImage.value = false;
-        data.syncedFrame = newFrame;
       }
     }
     function pause() {

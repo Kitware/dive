@@ -122,21 +122,11 @@ export default defineComponent({
         /** Else fall back to a reasonable default */
         data.currentTime = frame / props.frameRate + OnePTSTick;
       }
+      video.currentTime = data.currentTime;
       data.frame = requestedFrame;
       data.flick = Math.round(data.currentTime * Flick);
       props.updateTime(data);
-      if (video.seeking) {
-        // Let the in-flight seek land and paint; the newest request goes out on 'seeked'.
-        pendingSeek = { time: data.currentTime, frame: requestedFrame };
-        return;
-      }
-      pendingSeek = null;
-      seekingFrame = requestedFrame;
-      video.currentTime = data.currentTime;
     }
-    let pendingSeek: { time: number; frame: number } | null = null;
-    // The frame the in-flight seek lands on; kwiverSeek times do not always round back to it.
-    let seekingFrame: number | null = null;
     function pause() {
       video.pause();
       seek(data.frame); // snap to frame boundary
@@ -259,20 +249,7 @@ export default defineComponent({
     // Watch brightness for change, only set filter if value
     // is switching from number -> undefined, or vice versa.
     function pendingUpdate() {
-      if (pendingSeek !== null && pendingSeek.time !== video.currentTime) {
-        const next = pendingSeek;
-        pendingSeek = null;
-        seekingFrame = next.frame;
-        video.currentTime = next.time;
-        return;
-      }
-      if (pendingSeek !== null) {
-        seekingFrame = pendingSeek.frame;
-        pendingSeek = null;
-      }
-      // syncedFrame reports the frame on screen; it only advances once the seek has landed.
-      data.syncedFrame = seekingFrame ?? Math.round(video.currentTime * props.frameRate);
-      seekingFrame = null;
+      data.syncedFrame = Math.round(video.currentTime * props.frameRate);
       // The aligned-view warp is a canvas snapshot of this <video> element,
       // redrawn only on an imageRevision bump -- unlike the native pane,
       // which the browser keeps live on its own. loadedmetadata bumps it

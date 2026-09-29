@@ -3091,7 +3091,7 @@ export default defineComponent({
         dense
       >
         <div
-          v-if="progress.mediaLoaded"
+          v-if="progress.loaded"
           v-mousetrap="progress.loaded ? [
             { bind: 'n', handler: () => !editLocked && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
@@ -3118,7 +3118,7 @@ export default defineComponent({
             >
               <component
                 :is="cameraAnnotatorComponent(camera)"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.mediaLoaded"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
@@ -3151,21 +3151,8 @@ export default defineComponent({
             }"
           />
         </div>
-        <v-progress-circular
-          v-if="progress.mediaLoaded && !progress.loaded"
-          :indeterminate="progressValue === 0"
-          :value="progressValue"
-          size="100"
-          width="15"
-          color="light-blue"
-          class="load-progress-overlay"
-          rotate="-90"
-        >
-          <span v-if="progressValue === 0">Loading</span>
-          <span v-else>{{ progressValue }}%</span>
-        </v-progress-circular>
         <div
-          v-if="!progress.mediaLoaded"
+          v-if="!progress.loaded"
           class="d-flex justify-center align-center fill-height"
         >
           <v-alert
@@ -3207,7 +3194,7 @@ export default defineComponent({
     >
       <div class="d-flex grow" style="min-height: 0;">
         <div
-          v-if="progress.mediaLoaded"
+          v-if="progress.loaded"
           v-mousetrap="progress.loaded ? [
             { bind: 'n', handler: () => !editLocked && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
@@ -3230,7 +3217,7 @@ export default defineComponent({
             >
               <component
                 :is="cameraAnnotatorComponent(camera)"
-                v-if="(imageData[camera].length || videoUrl[camera]) && progress.mediaLoaded"
+                v-if="(imageData[camera].length || videoUrl[camera]) && progress.loaded"
                 ref="subPlaybackComponent"
                 class="fill-height"
                 :class="{ 'selected-camera': selectedCamera === camera && camera !== 'singleCam' }"
@@ -3288,21 +3275,8 @@ export default defineComponent({
             :save-threshold="saveThreshold"
           />
         </div>
-        <v-progress-circular
-          v-if="progress.mediaLoaded && !progress.loaded"
-          :indeterminate="progressValue === 0"
-          :value="progressValue"
-          size="100"
-          width="15"
-          color="light-blue"
-          class="load-progress-overlay"
-          rotate="-90"
-        >
-          <span v-if="progressValue === 0">Loading</span>
-          <span v-else>{{ progressValue }}%</span>
-        </v-progress-circular>
         <div
-          v-if="!progress.mediaLoaded"
+          v-if="!progress.loaded"
           class="d-flex justify-center align-center fill-height grow"
           style="min-width: 0;"
         >
