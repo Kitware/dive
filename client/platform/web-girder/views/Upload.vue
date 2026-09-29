@@ -109,6 +109,8 @@ export interface PendingUpload {
 
 interface GirderUpload {
   formatSize: (a: number) => string;
+  /** The fileUploader mixin's current batch, one entry per file. */
+  files: { status: string }[];
   totalProgress: number;
   totalProgressPercent: number;
   totalSize: number;
@@ -134,6 +136,12 @@ const MULTICAM_CAMERA_UPLOAD_WEIGHT = 0.72;
 interface MulticamImportProgress {
   percent: number;
   message: string;
+  /** Concrete count for the current step, e.g. "812 / 2,955 files uploaded". */
+  detail?: string;
+}
+
+function countDetail(current: number, total: number, noun: string): string {
+  return `${current.toLocaleString()} / ${total.toLocaleString()} ${noun}`;
 }
 
 function multicamCameraSlotPercent(
@@ -237,10 +245,11 @@ export default defineComponent({
       }
     };
 
-    const setMulticamImportProgress = (percent: number, message: string) => {
+    const setMulticamImportProgress = (percent: number, message: string, detail?: string) => {
       multicamImportProgress.value = {
         percent: Math.max(0, Math.min(100, Math.round(percent))),
         message,
+        detail,
       };
     };
 
@@ -252,6 +261,8 @@ export default defineComponent({
       clearMulticamUploadProgressTimer();
       multicamUploadProgressTimer = setInterval(() => {
         const uploadPct = girderUpload.value?.totalProgressPercent ?? 0;
+        const files = girderUpload.value?.files ?? [];
+        const done = files.filter((file) => file.status === 'done').length;
         setMulticamImportProgress(
           multicamCameraSlotPercent(
             cameraIndex,
@@ -259,6 +270,9 @@ export default defineComponent({
             (uploadPct / 100) * MULTICAM_CAMERA_UPLOAD_WEIGHT,
           ),
           `Uploading ${cameraName} (${cameraIndex + 1} of ${totalCameras})`,
+          // The mixin clears its file list once the batch finishes and
+          // post-processing starts; the processing step takes over from there.
+          files.length ? countDetail(done, files.length, 'files uploaded') : undefined,
         );
       }, 250);
     };
@@ -583,7 +597,7 @@ export default defineComponent({
           );
           // eslint-disable-next-line no-await-in-loop -- finalize only after post-process marks folder as a dataset
           await waitForFolderDatasetReady(folder._id, {
-            onProgress: (fraction) => {
+            onProgress: (fraction, counts) => {
               const processShare = 1 - MULTICAM_CAMERA_UPLOAD_WEIGHT;
               setMulticamImportProgress(
                 multicamCameraSlotPercent(
@@ -592,6 +606,7 @@ export default defineComponent({
                   MULTICAM_CAMERA_UPLOAD_WEIGHT + fraction * processShare,
                 ),
                 `${labelPrefix}Processing ${cameraName} (${i + 1} of ${totalCameras})`,
+                counts ? countDetail(counts.current, counts.total, 'images processed') : undefined,
               );
             },
             requireViewableImages: uploadType === ImageSequenceType,
@@ -1000,9 +1015,12 @@ export default defineComponent({
           />
           <div
             v-if="multicamImportProgress"
-            class="text-caption mt-1 grey--text text--lighten-1"
+            class="text-body-2 mt-1 grey--text text--lighten-1"
           >
-            {{ multicamImportProgress.percent }}%
+            <template v-if="multicamImportProgress.detail">
+              {{ multicamImportProgress.detail }} &middot;
+            </template>
+            {{ multicamImportProgress.percent }}% overall
           </div>
         </v-card-title>
       </v-card>

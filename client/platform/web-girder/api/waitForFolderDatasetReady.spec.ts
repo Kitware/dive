@@ -54,6 +54,30 @@ describe('waitForFolderDatasetReady', () => {
     )).resolves.toBeUndefined();
   });
 
+  it('reports summed item counts across jobs, not just a fraction', async () => {
+    vi.mocked(girderRest.get).mockImplementation(async (url: string) => ({
+      data: url === 'job/a'
+        ? { status: SUCCESS, progress: { current: 900, total: 900 } }
+        : { status: RUNNING, progress: { current: 100, total: 300 } },
+    }));
+    let polls = 0;
+    vi.mocked(getFolder).mockImplementation(async () => {
+      polls += 1;
+      return { data: { meta: { annotate: polls > 1 } } } as never;
+    });
+    const onProgress = vi.fn();
+
+    await waitForFolderDatasetReady(
+      'folder',
+      { pollIntervalMs: 1, timeoutMs: 1000, onProgress },
+      ['a', 'b'],
+    );
+    expect(onProgress).toHaveBeenCalledWith(
+      expect.closeTo((1 + 1 / 3) / 2, 5),
+      { current: 1000, total: 1200 },
+    );
+  });
+
   it('times out when the job stops making progress', async () => {
     vi.mocked(girderRest.get).mockResolvedValue({
       data: { status: RUNNING, progress: { current: 3, total: 10 } },
