@@ -23,6 +23,7 @@ from .views_override import (
     list_shared_folders,
     use_private_queue,
 )
+from .views_query import QueryResource
 from .views_rpc import RpcResource
 from .views_scoring import ScoringResource
 
@@ -38,6 +39,7 @@ class GirderPlugin(plugin.GirderPlugin):
         info["apiRoot"].dive_annotation = AnnotationResource("dive_annotation")
         info["apiRoot"].dive_configuration = ConfigurationResource("dive_configuration")
         info["apiRoot"].dive_dataset = DatasetResource("dive_dataset")
+        info["apiRoot"].dive_query = QueryResource("dive_query")
         info["apiRoot"].dive_rpc = RpcResource("dive_rpc")
         info["apiRoot"].dive_scoring = ScoringResource("dive_scoring")
         # required because girder doesn't load plugins in order so we need to manually load first.
