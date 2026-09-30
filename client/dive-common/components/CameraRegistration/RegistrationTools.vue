@@ -596,26 +596,56 @@ export default defineComponent({
      * didn't touch are rewritten byte-identical, which isn't an overwrite
      * worth warning about.
      */
+    /** The rig reference the persistence layer groups per-camera files against. */
+    const fileReference = computed(
+      () => alignedView.reference.value ?? cameras.value[0] ?? null,
+    );
+    /** "rgb ↔ ir": the pair Save and Delete act on. */
+    const pairLabel = computed(() => `${camLeft.value ?? 'A'} ↔ ${camRight.value ?? 'B'}`);
+    /** The active pair differs from what is saved (other pairs don't count). */
+    const pairDirty = computed(
+      () => (activeKey.value ? registration.pairDirty(activeKey.value) : false),
+    );
+    /** Some other pair (or a frame offset) has unsaved changes Save won't write. */
+    const otherPairsDirty = computed(
+      () => (activeKey.value ? registration.dirtyOutsidePair(activeKey.value) : false),
+    );
+    /**
+     * The per-camera registration file that holds the active pair -- what
+     * Save rewrites and Delete removes it from. Looked up in the state a save
+     * would write, then in the saved baseline (a deleted pair is only there).
+     */
+    const pairFileName = computed(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return null;
+      }
+      const [left, right] = key.split('::');
+      const holdsPair = (file: ReturnType<typeof buildPerCameraRegistrationFiles>[number]) => (
+        file.body.pairs.some((pair) => pair.left === left && pair.right === right));
+      const reference = fileReference.value;
+      const next = buildPerCameraRegistrationFiles(registration.valuesSavingPair(key), reference);
+      const saved = buildPerCameraRegistrationFiles(registration.savedRegistrationValues(), reference);
+      return (next.find(holdsPair) ?? saved.find(holdsPair))?.name ?? null;
+    });
+
     async function save() {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
       // Fit before diffing so the comparison reflects what will be written.
       registration.maybeFitActivePair();
-      // Group the saved baseline and the current state into per-camera files
-      // exactly the way the persistence layer writes them, against the same
-      // reference camera the backend uses (the dataset's Reference Camera
-      // choice, published by the viewer).
-      const reference = alignedView.reference.value ?? cameras.value[0] ?? null;
+      // Group the saved baseline and the state this save writes into
+      // per-camera files exactly the way the persistence layer does. Only
+      // the active pair changes, so only its file can differ.
       const savedFiles = buildPerCameraRegistrationFiles(
         registration.savedRegistrationValues(),
-        reference,
+        fileReference.value,
       );
       const nextFiles = new Map(buildPerCameraRegistrationFiles(
-        {
-          homographies: registration.homographies.value,
-          observations: registration.observations.value,
-          transformTypes: registration.transformTypes.value,
-          source: registration.source.value,
-        },
-        reference,
+        registration.valuesSavingPair(key),
+        fileReference.value,
       ).map((file) => [file.name, file]));
       // Existing files this save replaces with different content (or removes,
       // for a cleared pair) -- the actual overwrites.
@@ -643,45 +673,65 @@ export default defineComponent({
           return;
         }
       }
-      await persist();
+      await persistPair(key);
     }
 
-    async function persist() {
+    /**
+     * Write the saved registration with only this pair changed. The backend
+     * rewrites the per-camera files from what it is sent, so sending the
+     * saved baseline for every other pair leaves their files as they were
+     * and keeps their unsaved edits pending in the store.
+     */
+    async function persistPair(key: string) {
+      const values = registration.valuesSavingPair(key);
       saving.value = true;
       try {
         await saveConfig(datasetId.value, {
-          cameraHomographies: registration.homographies.value,
-          cameraCorrespondences: registration.observations.value,
-          cameraTransformTypes: registration.transformTypes.value,
-          cameraRegistrationSource: registration.source.value,
-          cameraFrameOffsets: registration.frameOffsets.value,
-          cameraFrameOffsetsApplied: registration.appliedFrameOffsets.value,
+          cameraHomographies: values.homographies,
+          cameraCorrespondences: values.observations,
+          cameraTransformTypes: values.transformTypes,
+          cameraRegistrationSource: values.source,
+          cameraFrameOffsets: values.frameOffsets,
+          cameraFrameOffsetsApplied: values.appliedFrameOffsets,
         });
-        registration.markSaved();
+        registration.markPairSaved(key);
       } finally {
         saving.value = false;
       }
     }
 
-    /** Anything to delete: a saved registration, or unsaved pairs in the store. */
-    const canDeleteRegistration = computed(() => Boolean(
-      Object.keys(registration.homographies.value).length
-      || Object.values(registration.observations.value).some((list) => list.length)
-      || registration.hasSavedRegistration(),
-    ));
+    /** The active pair has something to delete, saved or not. */
+    const canDeletePair = computed(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return false;
+      }
+      const saved = registration.savedRegistrationValues();
+      return [
+        registration.homographies.value, registration.observations.value,
+        registration.transformTypes.value,
+        saved.homographies, saved.observations, saved.transformTypes,
+      ].some((map) => key in map);
+    });
 
     /**
-     * Delete the whole rig's registration, saved and unsaved, and persist the
-     * empty state right away so the per-camera registration files go too.
-     * With no transforms left the aligned view is unavailable; switch it off
-     * so it doesn't come back on by itself after a later registration.
+     * Delete the active pair's registration, saved and unsaved, and persist
+     * that right away so it leaves its per-camera file (and the file goes if
+     * nothing else is in it). Other pairs are untouched. When no transform is
+     * left anywhere the aligned view is unavailable; switch it off so it
+     * doesn't come back on by itself after a later registration.
      */
-    async function deleteRegistration() {
+    async function deletePair() {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      const file = pairFileName.value;
       const confirmed = await prompt({
-        title: 'Delete Registration?',
-        text: 'Remove every camera pair\'s points and transforms, and the saved '
-          + 'registration files? The aligned view is unavailable until the '
-          + 'cameras are registered again. This cannot be undone.',
+        title: `Delete ${pairLabel.value} Registration?`,
+        text: `Remove the ${pairLabel.value} points and transform`
+          + `${file ? `, and its entry in ${file}` : ''}? Other camera pairs are `
+          + 'not affected. This cannot be undone.',
         positiveButton: 'Delete',
         negativeButton: 'Cancel',
         confirm: true,
@@ -689,9 +739,11 @@ export default defineComponent({
       if (!confirmed) {
         return;
       }
-      registration.clearAll();
-      alignedView.setEnabled(false);
-      await persist();
+      registration.deletePair(key);
+      if (!Object.keys(registration.homographies.value).length) {
+        alignedView.setEnabled(false);
+      }
+      await persistPair(key);
     }
 
     /**
@@ -854,14 +906,17 @@ export default defineComponent({
       transformStatus,
       setLinkedNav,
       linkedNav: registration.linkedNav,
-      dirty: registration.dirty,
+      pairLabel,
+      pairDirty,
+      otherPairsDirty,
+      pairFileName,
       saving,
       sourceReadout,
       setTransformType,
       setAlignmentMode,
       save,
-      canDeleteRegistration,
-      deleteRegistration,
+      canDeletePair,
+      deletePair,
       autoRegisterAvailable,
       autoRegistering,
       autoRegisterError,
@@ -983,7 +1038,7 @@ export default defineComponent({
           Refined since the source registration
         </div>
       </template>
-      {{ dirty ? 'Save, then download' : 'Download' }} the camera's registration
+      {{ pairDirty ? 'Save, then download' : 'Download' }} the camera's registration
       from the Export menu to hand the refinement (and its points) back to the
       producer.
     </v-tooltip>
@@ -1402,27 +1457,45 @@ export default defineComponent({
       class="mt-2"
     />
 
-    <v-btn
-      block
-      :color="dirty ? 'success' : undefined"
-      :disabled="!dirty || saving"
-      small
-      :loading="saving"
-      class="mt-3 mb-2"
-      @click="save"
+    <v-tooltip
+      bottom
+      :disabled="!pairFileName"
     >
-      {{ dirty ? 'Save registration' : 'Registration saved' }}
-    </v-btn>
+      <template #activator="{ on }">
+        <div
+          class="mt-3 mb-2"
+          v-on="on"
+        >
+          <v-btn
+            block
+            :color="pairDirty ? 'success' : undefined"
+            :disabled="!pairDirty || saving"
+            small
+            :loading="saving"
+            @click="save"
+          >
+            {{ pairDirty ? `Save ${pairLabel}` : `${pairLabel} saved` }}
+          </v-btn>
+        </div>
+      </template>
+      Writes {{ pairFileName }}
+    </v-tooltip>
+    <span
+      v-if="otherPairsDirty"
+      class="text-caption warning--text d-block mb-2"
+    >
+      Other camera pairs have unsaved changes; select a pair to save it.
+    </span>
     <v-btn
       block
       outlined
       color="error"
-      :disabled="!canDeleteRegistration || saving"
+      :disabled="!canDeletePair || saving"
       small
       class="mb-2"
-      @click="deleteRegistration"
+      @click="deletePair"
     >
-      Delete registration
+      Delete {{ pairLabel }}
     </v-btn>
   </div>
 </template>

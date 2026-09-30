@@ -251,6 +251,19 @@ function pseudoImageName(frame: number): string {
  * blue->red pairing flow: the first click in one camera sets a pending
  * point; the next click in the *other* camera completes a pair.
  */
+/**
+ * JSON with object keys sorted, so two calibrations with the same content
+ * serialize identically however their maps were built. The dirty check
+ * compares snapshots as strings, and a pair written back into the saved
+ * baseline must not read as a change just because its key moved.
+ */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => (
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+      : item));
+}
+
 export default class CameraRegistrationStore {
   activePair: Ref<ActivePair | null>;
 
@@ -375,7 +388,7 @@ export default class CameraRegistrationStore {
 
   /** Serialize the saved-to-dataset calibration state (observations, transforms, provenance). */
   private registrationSnapshot(): string {
-    return JSON.stringify({
+    return canonicalJson({
       homographies: this.homographies.value,
       observations: this.observations.value,
       transformTypes: this.transformTypes.value,
@@ -398,7 +411,7 @@ export default class CameraRegistrationStore {
     const saved = JSON.parse(this.savedSnapshot.value);
     saved.frameOffsets = { ...saved.frameOffsets, [camera]: offset };
     saved.appliedFrameOffsets = { ...saved.appliedFrameOffsets, [camera]: offset };
-    this.savedSnapshot.value = JSON.stringify(saved);
+    this.savedSnapshot.value = canonicalJson(saved);
   }
 
   /**
@@ -427,6 +440,89 @@ export default class CameraRegistrationStore {
     const saved = this.savedRegistrationValues();
     return Object.keys(saved.homographies).length > 0
       || Object.values(saved.observations).some((list) => list.length > 0);
+  }
+
+  /** One pair's persisted state within a calibration, for pair-level dirty checks. */
+  private static pairState(
+    values: {
+      homographies: CameraHomographies;
+      observations: CameraObservations;
+      transformTypes: CameraTransformTypes;
+    },
+    key: string,
+  ): string {
+    return canonicalJson({
+      homography: values.homographies[key] ?? null,
+      // A cleared pair keeps an empty list; treat it the same as none.
+      observations: values.observations[key] ?? [],
+      transformType: values.transformTypes[key] ?? null,
+    });
+  }
+
+  /** True when this pair differs from what is saved, ignoring every other pair. */
+  pairDirty(key: string): boolean {
+    const current = {
+      homographies: this.homographies.value,
+      observations: this.observations.value,
+      transformTypes: this.transformTypes.value,
+    };
+    return CameraRegistrationStore.pairState(current, key)
+      !== CameraRegistrationStore.pairState(this.savedRegistrationValues(), key);
+  }
+
+  /**
+   * The calibration to persist when saving only this pair: the saved baseline
+   * with this pair replaced by its current state. Other pairs' unsaved edits
+   * are left out (and stay pending in the store), and so are unsaved frame
+   * offsets, which have their own save path. The provenance stamp is
+   * rig-level and goes as it currently stands.
+   */
+  valuesSavingPair(key: string): {
+    homographies: CameraHomographies;
+    observations: CameraObservations;
+    transformTypes: CameraTransformTypes;
+    source: RegistrationSource | null;
+    frameOffsets: Record<string, number>;
+    appliedFrameOffsets: Record<string, number>;
+    } {
+    const saved = JSON.parse(this.savedSnapshot.value);
+    const current = JSON.parse(canonicalJson({
+      homography: this.homographies.value[key],
+      observations: this.observations.value[key],
+      transformType: this.transformTypes.value[key],
+      source: this.source.value,
+    }));
+    function withPair<T>(map: Record<string, T>, value: T | undefined): Record<string, T> {
+      const next = { ...map };
+      if (value === undefined) {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+      return next;
+    }
+    return {
+      homographies: withPair(saved.homographies, current.homography),
+      observations: withPair(saved.observations, current.observations),
+      transformTypes: withPair(saved.transformTypes, current.transformType),
+      source: current.source ?? null,
+      frameOffsets: saved.frameOffsets ?? {},
+      appliedFrameOffsets: saved.appliedFrameOffsets ?? {},
+    };
+  }
+
+  /**
+   * Record that this pair was persisted (as {@link valuesSavingPair} built
+   * it), leaving the rest of the baseline untouched so other pairs' unsaved
+   * edits stay dirty.
+   */
+  markPairSaved(key: string) {
+    this.savedSnapshot.value = canonicalJson(this.valuesSavingPair(key));
+  }
+
+  /** True when anything other than this pair has unsaved changes. */
+  dirtyOutsidePair(key: string): boolean {
+    return canonicalJson(this.valuesSavingPair(key)) !== this.registrationSnapshot();
   }
 
   /**
@@ -903,20 +999,28 @@ export default class CameraRegistrationStore {
   }
 
   /**
-   * Drop the whole rig's registration: every pair's observations, transforms,
-   * transform type choices, and the provenance stamp. Frame offsets stay --
-   * applied ones are already baked into the annotations.
+   * Remove every trace of a pair -- points, transform (fitted or loaded), and
+   * transform type choice -- so that saving drops it from its per-camera
+   * registration file rather than writing an empty entry, as clearPair's
+   * leftover empty list would.
    */
-  clearAll() {
-    this.observations.value = {};
-    this.homographies.value = {};
-    this.transformTypes.value = {};
-    this.source.value = null;
-    this.homographySources = {};
+  deletePair(key: string) {
+    function without<T>(map: Record<string, T>): Record<string, T> {
+      const next = { ...map };
+      delete next[key];
+      return next;
+    }
+    this.observations.value = without(this.observations.value);
+    this.homographies.value = without(this.homographies.value);
+    this.transformTypes.value = without(this.transformTypes.value);
+    delete this.homographySources[key];
     this.pendingPoint.value = null;
     this.selectedCorrespondenceId.value = null;
     this.fitError.value = null;
-    this.alignment.value = { ...this.alignment.value, mode: 'original' };
+    // With its transform gone the pair can no longer be warped.
+    if (key === this.activePairKey()) {
+      this.alignment.value = { ...this.alignment.value, mode: 'original' };
+    }
   }
 
   /**

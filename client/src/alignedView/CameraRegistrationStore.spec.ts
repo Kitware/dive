@@ -251,6 +251,70 @@ describe('CameraRegistrationStore', () => {
     });
   }
 
+  /** left<->right and left<->third, each with four fitted translation pairs. */
+  function registerTwoPairs(store: CameraRegistrationStore) {
+    const pts: [number, number][] = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    [['right', 5], ['third', 7]].forEach(([camera, dx]) => {
+      store.setActivePair('left', camera as string);
+      pts.forEach((p) => {
+        store.addPoint('left', p);
+        store.addPoint(camera as string, [p[0] + (dx as number), p[1] - 3]);
+      });
+      store.fitTransform(store.pairKey('left', camera as string));
+    });
+  }
+
+  describe('pair-scoped save', () => {
+    it('saving one pair leaves the other pairs dirty', () => {
+      const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      const lt = store.pairKey('left', 'third');
+      registerTwoPairs(store);
+      expect(store.pairDirty(lr)).toBe(true);
+      expect(store.pairDirty(lt)).toBe(true);
+
+      // Save in the opposite order to creation, so the baseline's pair keys
+      // end up ordered differently from the live maps'.
+      store.markPairSaved(lt);
+      expect(store.pairDirty(lt)).toBe(false);
+      expect(store.pairDirty(lr)).toBe(true);
+      expect(store.dirtyOutsidePair(lt)).toBe(true);
+      expect(store.dirty.value).toBe(true);
+
+      // Same content in a different key order must not read as a change.
+      store.markPairSaved(lr);
+      expect(store.dirty.value).toBe(false);
+    });
+
+    it('writes the other pairs at their saved state, not their unsaved edits', () => {
+      const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      const lt = store.pairKey('left', 'third');
+      registerTwoPairs(store);
+      store.markSaved();
+      store.setActivePair('left', 'third');
+      store.addPoint('left', [20, 20]);
+      store.addPoint('third', [27, 17]);
+
+      const values = store.valuesSavingPair(lr);
+      expect(values.observations[lt]
+        .reduce((sum, obs) => sum + obs.points.length, 0)).toBe(4);
+      expect(store.pairDirty(lt)).toBe(true);
+      expect(store.pairDirty(lr)).toBe(false);
+    });
+
+    it('leaves unsaved frame offsets out of a pair save', () => {
+      const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      registerTwoPairs(store);
+      store.markSaved();
+      store.frameOffsets.value = { right: 2 };
+      expect(store.valuesSavingPair(lr).frameOffsets).toEqual({});
+      expect(store.pairDirty(lr)).toBe(false);
+      expect(store.dirtyOutsidePair(lr)).toBe(true);
+    });
+  });
+
   it('fits when enabling alignment mode with >= 4 pairs', () => {
     const store = new CameraRegistrationStore();
     store.setActivePair('left', 'right');
@@ -985,23 +1049,22 @@ describe('CameraRegistrationStore', () => {
       expect(store.homographies.value[key]).toBeUndefined();
     });
 
-    it('clearAll drops every pair, the provenance stamp, and the overlay warp', () => {
+    it('deletePair removes one pair entirely and leaves the others', () => {
       const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      const lt = store.pairKey('left', 'third');
+      registerTwoPairs(store);
       store.setActivePair('left', 'right');
-      loadMatrixOnlyPair(store, 'left', 'right', translate);
-      store.setActivePair('left', 'right');
-      addFourTranslationPairs(store);
-      store.source.value = { producer: 'kamera' };
-      store.frameOffsets.value = { right: 2 };
       store.setAlignmentMode('AtoB');
-      store.clearAll();
-      expect(store.homographies.value).toEqual({});
-      expect(store.observations.value).toEqual({});
-      expect(store.transformTypes.value).toEqual({});
-      expect(store.source.value).toBeNull();
+      store.deletePair(lr);
+      // Gone from every map, so a save drops it from its file instead of
+      // writing an empty entry.
+      expect(lr in store.observations.value).toBe(false);
+      expect(lr in store.homographies.value).toBe(false);
+      expect(lr in store.transformTypes.value).toBe(false);
       expect(store.alignment.value.mode).toBe('original');
-      // Frame offsets are the temporal half and may already be applied.
-      expect(store.frameOffsets.value).toEqual({ right: 2 });
+      expect(pointsFor(store, lt)).toHaveLength(4);
+      expect(store.homographies.value[lt]).toBeDefined();
     });
 
     it('rejects a singular loaded matrix', () => {
