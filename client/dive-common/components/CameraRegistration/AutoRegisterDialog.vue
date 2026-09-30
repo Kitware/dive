@@ -31,17 +31,9 @@ export default defineComponent({
   setup(props, { emit }) {
     const frames = ref(12);
     const minInliers = ref(30);
-    const pairMode = ref<'all' | 'star'>('all');
     const replaceExisting = ref(false);
 
     const isTriplet = computed(() => props.cameraCount >= 3);
-    const matcherRuns = computed(() => {
-      let pairCount = 1;
-      if (isTriplet.value) {
-        pairCount = pairMode.value === 'all' ? 3 : 2;
-      }
-      return frames.value * pairCount;
-    });
 
     function close() {
       emit('input', false);
@@ -51,10 +43,6 @@ export default defineComponent({
         frames: frames.value,
         minInliers: minInliers.value,
         replaceExisting: replaceExisting.value,
-        // A star to the reference (inputs 1-2, 1-3) is the minimum a
-        // spanning tree needs; all-pairs additionally buys the
-        // loop-closure consistency check.
-        ...(isTriplet.value && pairMode.value === 'star' ? { pairs: '1-2,1-3' } : {}),
       };
       emit('run', options);
       close();
@@ -62,10 +50,8 @@ export default defineComponent({
     return {
       frames,
       minInliers,
-      pairMode,
       replaceExisting,
       isTriplet,
-      matcherRuns,
       close,
       run,
     };
@@ -127,27 +113,6 @@ export default defineComponent({
           hide-details
           class="mb-3"
         />
-        <v-radio-group
-          v-if="isTriplet"
-          v-model="pairMode"
-          dense
-          hide-details
-          class="mt-0 mb-3"
-        >
-          <template #label>
-            <span class="text-caption">
-              Camera pairs ({{ matcherRuns }} matcher runs)
-            </span>
-          </template>
-          <v-radio
-            value="all"
-            label="All pairs (adds the triplet consistency check)"
-          />
-          <v-radio
-            value="star"
-            label="Star to the reference camera (faster; minimum spanning set)"
-          />
-        </v-radio-group>
         <v-checkbox
           v-model="replaceExisting"
           label="Replace previous auto-registered frames"

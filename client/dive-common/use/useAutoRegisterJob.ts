@@ -31,11 +31,6 @@ export interface AlignPipe {
 export interface AutoRegisterRunOptions {
   /** Frames to match, spread evenly across the dataset. */
   frames: number;
-  /**
-   * Camera pairs for a triplet as 1-based input indices ("1-2,1-3,2-3").
-   * Undefined = all pairs (the pipe default).
-   */
-  pairs?: string;
   /** Per-frame minimum-inlier gate override. */
   minInliers?: number;
   /**
@@ -442,9 +437,6 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
         }
       }
       const kwiverParams: Record<string, string> = {};
-      if (options.pairs) {
-        kwiverParams['register:pairs'] = options.pairs;
-      }
       if (options.minInliers !== undefined) {
         kwiverParams['register:min_inliers'] = String(options.minInliers);
       }
