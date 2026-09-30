@@ -64,6 +64,26 @@ const componentMapEntries: ComponentMapItem[] = [
   },
 ];
 
+/**
+ * Display order of the context panels, by component name. Panels register
+ * and unregister as datasets load (and a re-registered key moves to the end
+ * of componentMap), so the menu is sorted by this list rather than by
+ * registration order. Panels not listed follow, alphabetically.
+ */
+const CONTEXT_ORDER = [
+  'DatasetInfo',
+  'CameraRegistration',
+  'MultiCamTools',
+  'GroupSidebar',
+  'ImageEnhancements',
+  'TypeThreshold',
+  'AttributesSideBar',
+  'AttributeTrackFilters',
+  'AnnotationSets',
+  'RevisionHistory',
+  'VideoSearchContext',
+];
+
 const componentMap: Record<string, ComponentMapItem> = Object.fromEntries(
   componentMapEntries.map((item) => [item.component.name || 'default', item]),
 );
@@ -76,6 +96,17 @@ function unregister(item: ComponentMapItem) {
   if (componentMap[item.component.name || 'default']) {
     delete componentMap[item.component.name || 'default'];
   }
+}
+
+/** componentMap entries in menu order (see CONTEXT_ORDER). */
+function orderedEntries(): [string, ComponentMapItem][] {
+  const rank = (name: string) => {
+    const index = CONTEXT_ORDER.indexOf(name);
+    return index === -1 ? CONTEXT_ORDER.length : index;
+  };
+  return Object.entries(componentMap).sort(
+    ([a], [b]) => rank(a) - rank(b) || a.localeCompare(b),
+  );
 }
 
 function resetActive() {
@@ -135,6 +166,7 @@ export default {
   register,
   unregister,
   getComponents,
+  orderedEntries,
   resetActive,
   componentMap,
   state,

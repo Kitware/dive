@@ -14,7 +14,7 @@ export default defineComponent({
     },
   },
   setup(props) {
-    const options = computed(() => Object.entries(context.componentMap).map(([value, entry]) => ({
+    const options = computed(() => context.orderedEntries().map(([value, entry]) => ({
       text: entry.description,
       value,
     })));
