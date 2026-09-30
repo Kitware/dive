@@ -11,6 +11,7 @@ services:
       --entrypoints.web.address=:80
       --entrypoints.websecure.address=:443
       --entrypoints.websecure.http.tls.certresolver=myresolver
+      --entrypoints.websecure.transport.respondingTimeouts.readTimeout=${TRAEFIK_READ_TIMEOUT:-600s}
       --certificatesresolvers.myresolver.acme.email=${ACME_EMAIL}
       --certificatesresolvers.myresolver.acme.storage=/letsencrypt/acme.json
       --certificatesresolvers.myresolver.acme.httpchallenge=true
