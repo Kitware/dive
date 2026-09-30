@@ -643,6 +643,10 @@ export default defineComponent({
           return;
         }
       }
+      await persist();
+    }
+
+    async function persist() {
       saving.value = true;
       try {
         await saveConfig(datasetId.value, {
@@ -657,6 +661,37 @@ export default defineComponent({
       } finally {
         saving.value = false;
       }
+    }
+
+    /** Anything to delete: a saved registration, or unsaved pairs in the store. */
+    const canDeleteRegistration = computed(() => Boolean(
+      Object.keys(registration.homographies.value).length
+      || Object.values(registration.observations.value).some((list) => list.length)
+      || registration.hasSavedRegistration(),
+    ));
+
+    /**
+     * Delete the whole rig's registration, saved and unsaved, and persist the
+     * empty state right away so the per-camera registration files go too.
+     * With no transforms left the aligned view is unavailable; switch it off
+     * so it doesn't come back on by itself after a later registration.
+     */
+    async function deleteRegistration() {
+      const confirmed = await prompt({
+        title: 'Delete Registration?',
+        text: 'Remove every camera pair\'s points and transforms, and the saved '
+          + 'registration files? The aligned view is unavailable until the '
+          + 'cameras are registered again. This cannot be undone.',
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+      registration.clearAll();
+      alignedView.setEnabled(false);
+      await persist();
     }
 
     /**
@@ -825,6 +860,8 @@ export default defineComponent({
       setTransformType,
       setAlignmentMode,
       save,
+      canDeleteRegistration,
+      deleteRegistration,
       autoRegisterAvailable,
       autoRegistering,
       autoRegisterError,
@@ -1375,6 +1412,17 @@ export default defineComponent({
       @click="save"
     >
       {{ dirty ? 'Save registration' : 'Registration saved' }}
+    </v-btn>
+    <v-btn
+      block
+      outlined
+      color="error"
+      :disabled="!canDeleteRegistration || saving"
+      small
+      class="mb-2"
+      @click="deleteRegistration"
+    >
+      Delete registration
     </v-btn>
   </div>
 </template>

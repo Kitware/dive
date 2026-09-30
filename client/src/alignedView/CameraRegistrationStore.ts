@@ -903,6 +903,23 @@ export default class CameraRegistrationStore {
   }
 
   /**
+   * Drop the whole rig's registration: every pair's observations, transforms,
+   * transform type choices, and the provenance stamp. Frame offsets stay --
+   * applied ones are already baked into the annotations.
+   */
+  clearAll() {
+    this.observations.value = {};
+    this.homographies.value = {};
+    this.transformTypes.value = {};
+    this.source.value = null;
+    this.homographySources = {};
+    this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
+    this.fitError.value = null;
+    this.alignment.value = { ...this.alignment.value, mode: 'original' };
+  }
+
+  /**
    * Undo one step, mirroring keypointgui's Clear Last button: if there's a
    * pending (blue) point, drop it; otherwise remove the most recently
    * completed correspondence on the CURRENT frame (editing acts on the

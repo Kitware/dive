@@ -985,6 +985,25 @@ describe('CameraRegistrationStore', () => {
       expect(store.homographies.value[key]).toBeUndefined();
     });
 
+    it('clearAll drops every pair, the provenance stamp, and the overlay warp', () => {
+      const store = new CameraRegistrationStore();
+      store.setActivePair('left', 'right');
+      loadMatrixOnlyPair(store, 'left', 'right', translate);
+      store.setActivePair('left', 'right');
+      addFourTranslationPairs(store);
+      store.source.value = { producer: 'kamera' };
+      store.frameOffsets.value = { right: 2 };
+      store.setAlignmentMode('AtoB');
+      store.clearAll();
+      expect(store.homographies.value).toEqual({});
+      expect(store.observations.value).toEqual({});
+      expect(store.transformTypes.value).toEqual({});
+      expect(store.source.value).toBeNull();
+      expect(store.alignment.value.mode).toBe('original');
+      // Frame offsets are the temporal half and may already be applied.
+      expect(store.frameOffsets.value).toEqual({ right: 2 });
+    });
+
     it('rejects a singular loaded matrix', () => {
       const store = new CameraRegistrationStore();
       expect(() => loadMatrixOnlyPair(store, 'left', 'right', [[0, 0, 0], [0, 0, 0], [0, 0, 0]]))
