@@ -56,6 +56,8 @@ export interface AutoRegisterRunOptions {
 export interface AutoRegisterJobService {
   /** Whether the align pipeline is installed (reactive; resolves after mount). */
   available: Readonly<Ref<boolean>>;
+  /** The align pipe a run would launch for this rig, or null when not installed. */
+  pipe: Readonly<Ref<AlignPipe | null>>;
   running: Readonly<Ref<boolean>>;
   /** Progress/status line for the panel, or null when idle. */
   status: Readonly<Ref<string | null>>;
@@ -486,6 +488,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
 
   return {
     available: computed(() => alignPipe.value !== null),
+    pipe: computed(() => alignPipe.value),
     running,
     status,
     error,
