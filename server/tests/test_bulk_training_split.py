@@ -28,11 +28,8 @@ def test_bulk_training_split_updates_datasets_and_root(resolve, folder_cls):
     resolve.return_value = datasets
 
     folder_model = folder_cls.return_value
-    folder_model.load.side_effect = lambda folder_id, **_kwargs: {
-        'root': root,
-        'sequence-a': datasets[0],
-        'sequence-b': datasets[1],
-    }[str(folder_id)]
+    folder_model.load.return_value = root
+    folder_model.hasAccess.return_value = True
     folder_model.save.side_effect = lambda doc: doc
     bulk_write = MagicMock()
     folder_model.collection.bulk_write = bulk_write
@@ -43,6 +40,7 @@ def test_bulk_training_split_updates_datasets_and_root(resolve, folder_cls):
         'validation',
     )
 
+    resolve.assert_called_once_with({'_id': 'user'}, ['root'])
     assert result['updatedCount'] == 2
     assert result['datasetIds'] == ['sequence-a', 'sequence-b']
     bulk_write.assert_called_once()
@@ -63,10 +61,8 @@ def test_bulk_training_split_clears_split(resolve, folder_cls):
     resolve.return_value = [dataset]
 
     folder_model = folder_cls.return_value
-    folder_model.load.side_effect = lambda folder_id, **_kwargs: {
-        'root': root,
-        'sequence': dataset,
-    }[str(folder_id)]
+    folder_model.load.return_value = root
+    folder_model.hasAccess.return_value = True
     folder_model.save.side_effect = lambda doc: doc
     folder_model.collection.bulk_write = MagicMock()
 
@@ -75,6 +71,8 @@ def test_bulk_training_split_clears_split(resolve, folder_cls):
         ['root'],
         None,
     )
+
+    resolve.assert_called_once_with({'_id': 'user'}, ['root'])
 
     assert folder_model.collection.bulk_write.call_args.args[0]
     assert 'trainingSplit' not in root['meta']
@@ -89,6 +87,25 @@ def test_bulk_training_split_rejects_invalid_split(folder_cls):
             ['root'],
             'holdout',
         )
+
+
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.resolve_folder_datasets')
+def test_bulk_training_split_requires_write_on_dataset(resolve, folder_cls):
+    root = _folder('root')
+    dataset = _folder('sequence', True)
+    resolve.return_value = [dataset]
+    folder_model = folder_cls.return_value
+    folder_model.load.return_value = root
+    folder_model.hasAccess.return_value = False
+    with pytest.raises(RestException) as error:
+        crud_dataset.bulk_set_training_split_under_folders(
+            {'_id': 'user'},
+            ['root'],
+            'train',
+        )
+    assert error.value.code == 403
+    resolve.assert_called_once_with({'_id': 'user'}, ['root'])
 
 
 @patch('dive_server.crud_dataset.Folder')

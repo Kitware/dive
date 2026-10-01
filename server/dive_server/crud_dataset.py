@@ -340,21 +340,23 @@ def bulk_set_training_split_under_folders(
     if training_split is not None:
         validate_metadata_shape({'trainingSplit': training_split})
 
-    dataset_ids: Set[str] = set()
+    folder_model = Folder()
     roots: List[types.GirderModel] = []
     for folder_id in root_folder_ids:
-        root = Folder().load(folder_id, level=AccessType.WRITE, user=user)
+        root = folder_model.load(folder_id, level=AccessType.WRITE, user=user)
         if root is None:
             raise RestException(f'Cannot write to folder {folder_id}', code=403)
         roots.append(root)
-        for dataset in resolve_folder_datasets(user, [folder_id]):
-            loaded = Folder().load(dataset['_id'], level=AccessType.WRITE, user=user)
-            if loaded is None:
-                raise RestException(
-                    f'Cannot write to dataset {dataset["_id"]}',
-                    code=403,
-                )
-            dataset_ids.add(str(loaded['_id']))
+
+    dataset_ids: Set[str] = set()
+    for dataset in resolve_folder_datasets(user, root_folder_ids):
+        dataset_id = str(dataset['_id'])
+        if not folder_model.hasAccess(dataset, user, AccessType.WRITE):
+            raise RestException(
+                f'Cannot write to dataset {dataset["_id"]}',
+                code=403,
+            )
+        dataset_ids.add(dataset_id)
 
     bulk_update = _training_split_bulk_update(training_split)
     if dataset_ids:
@@ -362,14 +364,11 @@ def bulk_set_training_split_under_folders(
             pymongo.UpdateOne({'_id': _mongo_id(folder_id)}, bulk_update)
             for folder_id in sorted(dataset_ids)
         ]
-        Folder().collection.bulk_write(operations, ordered=False)
+        folder_model.collection.bulk_write(operations, ordered=False)
 
     for root in roots:
-        refreshed = Folder().load(root['_id'], level=AccessType.WRITE, user=user)
-        if refreshed is None:
-            raise RestException(f'Cannot write to folder {root["_id"]}', code=403)
-        _apply_training_split_to_folder_document(refreshed, training_split)
-        Folder().save(refreshed)
+        _apply_training_split_to_folder_document(root, training_split)
+        folder_model.save(root)
 
     return {
         'datasetIds': sorted(dataset_ids),
