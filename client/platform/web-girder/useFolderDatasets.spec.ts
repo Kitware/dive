@@ -3,8 +3,19 @@ import {
 } from 'vitest';
 import { effectScope, ref } from 'vue';
 import type { GirderModel } from '@girder/components/src';
+import type { AxiosResponse } from 'axios';
 import * as datasetService from './api/dataset.service';
 import { resolveFolderDatasets, useFolderDatasets } from './useFolderDatasets';
+
+function axiosResponse<T>(data: T): AxiosResponse<T> {
+  return {
+    data,
+    status: 200,
+    statusText: 'OK',
+    headers: {},
+    config: { headers: {} } as AxiosResponse<T>['config'],
+  };
+}
 
 function folder(id: string, annotate = false): GirderModel {
   return {
@@ -20,13 +31,8 @@ describe('folder job selection', () => {
   it('uses selected dive datasets locally and resolves only containers', async () => {
     const sequence = folder('sequence', true);
     const multi = { ...folder('multi', true), meta: { annotate: true, type: 'multi' } } as GirderModel;
-    const resolve = vi.spyOn(datasetService, 'resolveFolderSelection').mockResolvedValue({
-      data: [multi],
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {},
-    });
+    const resolve = vi.spyOn(datasetService, 'resolveFolderSelection')
+      .mockResolvedValue(axiosResponse([multi]));
     const result = await resolveFolderDatasets([
       folder('root'), folder('nested'), sequence,
       { ...folder('item'), _modelType: 'item' },
@@ -53,7 +59,7 @@ describe('folder job selection', () => {
   });
 
   it('discards a slow response after the selection changes', async () => {
-    let finish: (value: unknown) => void = () => {};
+    let finish: (value: AxiosResponse<GirderModel[]>) => void = () => {};
     let callCount = 0;
     vi.spyOn(datasetService, 'resolveFolderSelection').mockImplementation(
       () => {
@@ -63,13 +69,7 @@ describe('folder job selection', () => {
             finish = resolve;
           }) as ReturnType<typeof datasetService.resolveFolderSelection>;
         }
-        return Promise.resolve({
-          data: [folder('new-sequence', true)],
-          status: 200,
-          statusText: 'OK',
-          headers: {},
-          config: {},
-        });
+        return Promise.resolve(axiosResponse([folder('new-sequence', true)]));
       },
     );
     const scope = effectScope();
@@ -78,13 +78,7 @@ describe('folder job selection', () => {
     expect(state.loading.value).toBe(true);
     selection.value = [folder('new-sequence', true)];
     await flush();
-    finish({
-      data: [folder('old-sequence', true)],
-      status: 200,
-      statusText: 'OK',
-      headers: {},
-      config: {},
-    });
+    finish(axiosResponse([folder('old-sequence', true)]));
     await flush();
     expect(state.datasets.value.map((item) => item._id)).toEqual(['new-sequence']);
     expect(state.loading.value).toBe(false);

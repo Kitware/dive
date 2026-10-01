@@ -1,8 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 from girder.exceptions import RestException, ValidationException
-import pytest
 import pymongo
+import pytest
 
 from dive_server import crud_dataset
 

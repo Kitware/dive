@@ -5,7 +5,6 @@ from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set,
 
 from bson.objectid import InvalidId, ObjectId
 import cherrypy
-import pymongo
 from girder.constants import AccessType, SortDir
 from girder.exceptions import RestException
 from girder.models.file import File
@@ -14,6 +13,7 @@ from girder.models.item import Item
 from girder.models.token import Token
 from girder.utility import ziputil
 from pydantic.main import BaseModel
+import pymongo
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
