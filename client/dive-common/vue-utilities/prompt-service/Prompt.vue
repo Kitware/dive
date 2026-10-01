@@ -121,6 +121,7 @@ export default defineComponent({
         <div
           v-for="(item, key) in text"
           :key="key"
+          :class="{ 'prompt-blank-line': !item }"
         >
           {{ item }}
         </div>
@@ -150,3 +151,9 @@ export default defineComponent({
     </v-card>
   </v-dialog>
 </template>
+
+<style scoped>
+.prompt-blank-line {
+  height: 1em;
+}
+</style>

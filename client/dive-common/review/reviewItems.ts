@@ -7,8 +7,9 @@ import type { StringKeyObject } from 'vue-media-annotator/BaseAnnotation';
 import type { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { compareTypeNames } from 'dive-common/typeHierarchy';
 import type { RectBounds } from 'vue-media-annotator/utils';
-import type {
-  ReviewEntry, ReviewFrameGeometry, ReviewFrameRef, ReviewItem, ReviewPolygon, ReviewQuery, ReviewSortOrder,
+import {
+  REVIEW_PLAYBACK_FPS_LIMITS,
+  type ReviewEntry, type ReviewFrameGeometry, type ReviewFrameRef, type ReviewItem, type ReviewPolygon, type ReviewQuery, type ReviewSortOrder,
 } from './types';
 
 function isPoint(value: unknown): value is [number, number] {
@@ -85,6 +86,24 @@ export function cycleIntervalFor(frames: readonly ReviewFrameRef[], fps: number,
   const span = frames[frames.length - 1].frame - frames[0].frame;
   const stride = Math.max(1, span / (frames.length - 1));
   return Math.min(2000, Math.max(33, Math.round((stride / fps) * 1000)));
+}
+
+/** Milliseconds between cycled chip frames from review playback settings. */
+export function chipCycleIntervalMs(
+  frames: readonly ReviewFrameRef[],
+  datasetFps: number,
+  playbackFps: number,
+  fallbackMs: number,
+): number {
+  const [minFps, maxFps] = REVIEW_PLAYBACK_FPS_LIMITS.fps;
+  const rawFps = Number(playbackFps);
+  const fps = Number.isFinite(rawFps)
+    ? Math.min(maxFps, Math.max(minFps, Math.round(rawFps)))
+    : 0;
+  if (fps > 0) {
+    return Math.min(2000, Math.max(33, Math.round(1000 / fps)));
+  }
+  return cycleIntervalFor(frames, datasetFps, fallbackMs);
 }
 
 /** The pair a type query matches on, or null when the track does not qualify. */

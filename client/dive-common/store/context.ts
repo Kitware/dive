@@ -1,6 +1,6 @@
 import { reactive, Component } from 'vue';
 /* Components */
-import TypeThreshold from 'dive-common/components/TypeThreshold.vue';
+import TypeThreshold from 'dive-common/components/Types/TypeThreshold.vue';
 import ImageEnhancements from 'vue-media-annotator/components/ImageEnhancements.vue';
 import GroupSidebar from 'dive-common/components/GroupSidebar.vue';
 import AttributesSideBar from 'dive-common/components/Attributes/AttributesSideBar.vue';

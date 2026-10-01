@@ -2,6 +2,7 @@
 import {
   computed, defineComponent, nextTick, PropType, ref, watch,
 } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
 import TooltipBtn from '../../TooltipButton.vue';
 import {
@@ -26,6 +27,8 @@ export default defineComponent({
     fps: { type: Number, default: null },
     editing: { type: Boolean, required: true },
     inputValue: { type: Boolean, required: true },
+    solo: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },
     merging: { type: Boolean, default: false },
     toggleKeyframe: { type: Function as PropType<() => void>, required: true },
     toggleInterpolation: { type: Function as PropType<() => void>, required: true },
@@ -52,6 +55,10 @@ export default defineComponent({
     const editAttributeValue = ref('');
     const attributeInputRef = ref<HTMLInputElement | null>(null);
     const localAttributeDisplay = ref<Record<string, string>>({});
+
+    function setAttributeInputRef(el: Element | ComponentPublicInstance | null) {
+      attributeInputRef.value = el instanceof HTMLInputElement ? el : null;
+    }
 
     watch(() => props.track.id, () => {
       localNotesDisplay.value = '';
@@ -209,6 +216,7 @@ export default defineComponent({
       editAttributeValue.value = getAttributeValue(attrKey);
       editingAttributeKey.value = attrKey;
       nextTick(() => {
+        // Without focus the field would never blur, and so never close
         attributeInputRef.value?.focus();
         attributeInputRef.value?.select();
       });
@@ -258,7 +266,7 @@ export default defineComponent({
 
     return {
       allTypes,
-      attributeInputRef,
+      setAttributeInputRef,
       cancelEditAttribute,
       cancelEditConfidence,
       cancelEditNotes,
@@ -294,6 +302,7 @@ export default defineComponent({
       startTimestamp,
       topConfidence,
       trackAttributeColumns,
+      trackFilters,
       typeInputRef,
     };
   },
@@ -328,10 +337,27 @@ export default defineComponent({
     :style="itemStyle"
     @click="handleClicked"
   >
-    <div
-      class="type-color-box-compact"
-      :style="{ backgroundColor: color }"
-    />
+    <div class="track-lead-compact">
+      <div
+        v-if="solo"
+        class="type-color-box-compact"
+        :style="{ backgroundColor: color }"
+      />
+      <div
+        v-else
+        @click.stop
+      >
+        <v-checkbox
+          class="track-checkbox-compact my-0 pt-0"
+          dense
+          hide-details
+          :disabled="disabled"
+          :input-value="inputValue"
+          :color="color"
+          @change="trackFilters.updateCheckedId(track.trackId, $event)"
+        />
+      </div>
+    </div>
     <div class="trackNumber-compact">
       {{ track.trackId }}
     </div>
@@ -425,7 +451,7 @@ export default defineComponent({
       <input
         v-if="editingAttributeKey === attrKey"
         :key="attrKey + '-input'"
-        ref="attributeInputRef"
+        :ref="setAttributeInputRef"
         :value="editAttributeValue"
         type="text"
         class="compact-attribute-input"
@@ -516,13 +542,27 @@ export default defineComponent({
     background-color: #2a2a2a;
   }
 
+  .track-lead-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    margin-right: 6px;
+  }
+
   .type-color-box-compact {
     min-width: 10px;
     max-width: 10px;
     min-height: 10px;
     max-height: 10px;
-    margin-right: 6px;
     border-radius: 2px;
+  }
+
+  .track-checkbox-compact {
+    ::v-deep .v-input--selection-controls__input {
+      margin-right: 0;
+    }
   }
 
   .trackNumber-compact {
@@ -530,6 +570,7 @@ export default defineComponent({
     font-weight: bold;
     margin-right: 8px;
     min-width: 30px;
+    text-align: center;
   }
 
   .track-frame-start,
@@ -602,9 +643,19 @@ export default defineComponent({
     padding: 1px 4px;
     margin-right: 8px;
     outline: none;
+
+    &.track-length {
+      width: 64px;
+      min-width: 64px;
+      max-width: 64px;
+      text-align: center;
+    }
   }
 
   .track-length {
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
     text-align: center;
   }
 

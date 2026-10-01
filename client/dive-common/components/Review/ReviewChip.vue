@@ -90,6 +90,11 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    /** When true with {@link animate}, cycling runs only while the pointer is over the chip. */
+    activateOnHover: {
+      type: Boolean,
+      default: false,
+    },
     cycleIntervalMs: {
       type: Number,
       default: 400,
@@ -158,6 +163,20 @@ export default defineComponent({
       type: Object as PropType<ChipView | null>,
       default: null,
     },
+    /**
+     * Show the controls that act on the whole entry (accept, delete, open,
+     * the actions slot); the cell turns them off on all but one chip of a
+     * multi-camera entry.
+     */
+    entryActions: {
+      type: Boolean,
+      default: true,
+    },
+    /** Show the frame stepping controls; off on all but one chip of an entry. */
+    sequenceControls: {
+      type: Boolean,
+      default: true,
+    },
     /** Draw polygons and head/tail points over the chip. */
     showGeometry: {
       type: Boolean,
@@ -182,6 +201,8 @@ export default defineComponent({
     const ownView = ref<ChipView>({ scale: 1, x: 0, y: 0 });
     const view = computed<ChipView>(() => props.controlledView ?? ownView.value);
     const wrap = ref<HTMLElement | null>(null);
+    const hovered = ref(false);
+    const cycling = computed(() => props.animate && (!props.activateOnHover || hovered.value));
     let pan: {
       startX: number; startY: number; originX: number; originY: number; pointerId: number; capture: Element | null;
     } | null = null;
@@ -196,10 +217,10 @@ export default defineComponent({
     }, { immediate: true });
 
     /** Sequence slot on screen; 0 while only the primary chip is available. */
-    const currentSlot = computed(() => (hasSequence.value && props.animate ? cycleIndex.value : 0));
+    const currentSlot = computed(() => (hasSequence.value && cycling.value ? cycleIndex.value : 0));
 
     const displaySrc = computed(() => {
-      if (hasSequence.value && props.animate) {
+      if (hasSequence.value && cycling.value) {
         return props.srcs?.[cycleIndex.value] ?? props.src;
       }
       return props.src;
@@ -207,7 +228,7 @@ export default defineComponent({
 
     /** Transform of the chip on screen (the primary's when a slot is still loading). */
     const displayTransform = computed<ChipTransform | null>(() => {
-      if (hasSequence.value && props.animate) {
+      if (hasSequence.value && cycling.value) {
         const slotSrc = props.srcs?.[cycleIndex.value];
         if (slotSrc) return props.transforms?.[cycleIndex.value] ?? null;
       }
@@ -239,7 +260,7 @@ export default defineComponent({
     }
 
     function syncTimer() {
-      const shouldRun = props.animate && hasSequence.value && !editing.value && !paused.value
+      const shouldRun = cycling.value && hasSequence.value && !editing.value && !paused.value
         && !controlled.value;
       if (shouldRun && timer === null) {
         timer = window.setInterval(advance, props.cycleIntervalMs);
@@ -249,7 +270,7 @@ export default defineComponent({
         if (!editing.value && !paused.value) cycleIndex.value = 0;
       }
     }
-    watch([() => props.animate, () => props.srcs, () => props.cycleIntervalMs, editing, paused], () => {
+    watch([cycling, () => props.srcs, () => props.cycleIntervalMs, editing, paused], () => {
       if (timer !== null) {
         window.clearInterval(timer);
         timer = null;
@@ -708,6 +729,7 @@ export default defineComponent({
       onWrapPointerUp,
       missing,
       addBox,
+      hovered,
     };
   },
 });
@@ -717,8 +739,10 @@ export default defineComponent({
   <div
     ref="wrap"
     class="cell-image-wrap"
-    :class="{ 'chip-editing': editing }"
+    :class="{ 'chip-editing': editing, 'chip-hovered': hovered }"
     :aria-label="title"
+    @mouseenter="hovered = true"
+    @mouseleave="hovered = false"
     @dblclick="onImageDoubleClick"
     @contextmenu="onContextMenu"
     @wheel="onWheel"
@@ -871,7 +895,7 @@ export default defineComponent({
       >no box</span>
     </div>
     <div
-      v-if="hasSequence && !editing"
+      v-if="hasSequence && !editing && sequenceControls"
       class="cell-badge cell-sequence cell-sequence-controls text-caption"
       :class="{ 'cell-sequence-bottom': label }"
       @click.stop
@@ -911,7 +935,7 @@ export default defineComponent({
       </button>
     </div>
     <div
-      v-else-if="frameCount > 1 && !editing"
+      v-else-if="frameCount > 1 && !editing && sequenceControls"
       class="cell-badge cell-sequence text-caption"
       title="Loading track frames"
     >
@@ -964,7 +988,7 @@ export default defineComponent({
       </v-btn>
     </div>
     <div
-      v-if="!editing"
+      v-if="!editing && (entryActions || !$scopedSlots.actions)"
       class="cell-actions"
       @click.stop
     >
@@ -974,6 +998,7 @@ export default defineComponent({
         :frame="currentFrame ? currentFrame.frame : undefined"
       >
         <v-tooltip
+          v-if="entryActions"
           bottom
           open-delay="600"
         >
@@ -996,7 +1021,7 @@ export default defineComponent({
           <span>Mark this type as correct (confidence 1)</span>
         </v-tooltip>
         <v-tooltip
-          v-if="deletable"
+          v-if="entryActions && deletable"
           bottom
           open-delay="600"
         >
@@ -1059,6 +1084,7 @@ export default defineComponent({
           <span>Edit this frame's box and geometry (or right click)</span>
         </v-tooltip>
         <v-tooltip
+          v-if="entryActions"
           bottom
           open-delay="600"
         >
@@ -1085,12 +1111,18 @@ export default defineComponent({
 <style lang="scss" scoped>
 .cell-image-wrap {
   position: relative;
+  // A zoomed image must not spill over the neighbouring camera's chip.
+  overflow: hidden;
   flex: 1 1 auto;
   min-height: 32px;
   background: #101010;
   cursor: pointer;
   min-width: 0;
   flex: 1 1 0;
+
+  &.chip-hovered {
+    box-shadow: inset 0 0 0 2px #90caf9;
+  }
 }
 
 .cell-image-wrap.chip-editing {

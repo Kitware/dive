@@ -60,3 +60,33 @@ it('re-emits the saved components when returning to a frame', async () => {
   recipe.handleFrameChange(0);
   expect((await restored).polygons).toEqual(components);
 });
+
+it.each(['reset', 'frame', 'deactivate', 'model'])('discards an in-flight result after %s', async (action) => {
+  const { recipe, predict, track } = harness();
+  let finish!: (result: SegmentationPredictResponse) => void;
+  predict.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const ready = vi.fn();
+  recipe.bus.$on('prediction-ready', ready);
+  recipe.update('editing', 0, track, [click(5, 5)]);
+  if (action === 'reset') recipe.resetPoints();
+  if (action === 'frame') recipe.handleFrameChange(1);
+  if (action === 'deactivate') recipe.deactivate();
+  if (action === 'model') recipe.initialize({ predictFn: predict, getImagePath: () => 'other-model' });
+  finish({ success: true, polygon: components[0].exterior });
+  await Promise.resolve();
+  expect(ready).not.toHaveBeenCalled();
+});
+
+it('ignores an older prediction that finishes after a newer click', async () => {
+  const { recipe, predict, track } = harness();
+  let finish!: (result: SegmentationPredictResponse) => void;
+  predict.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+  const ready = vi.fn();
+  recipe.bus.$on('prediction-ready', ready);
+  recipe.update('editing', 0, track, [click(5, 5)]);
+  await predicted(recipe, track, 25);
+  finish({ success: true, polygon: components[0].exterior });
+  await Promise.resolve();
+  expect(ready).toHaveBeenCalledTimes(1);
+  expect(ready.mock.calls[0][0].controlPoints.points).toHaveLength(2);
+});

@@ -15,6 +15,7 @@ import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
 import { webExcludedPipelineTerms } from 'dive-common/constants';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
+import { useFolderDatasets } from '../useFolderDatasets';
 import { isGirderModel } from '../store/types';
 import { useConfig } from '../store/useConfig';
 import { useJobs } from '../store/useJobs';
@@ -77,28 +78,31 @@ export default defineComponent({
       setSelected([]);
     };
 
-    const runningPipelines = computed(() => {
-      const inputs = locationIsViameFolder.value && location.value
-        ? [(location.value as { _id: string })._id]
-        : selected.value.filter(
-          ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
-        ).map(({ _id }) => _id);
-      return inputs.filter((item) => jobs.getDatasetRunningState(item));
-    });
-
-    const selectedViameFolders = computed(() => selected.value.filter(
-      ({ _modelType, meta }) => _modelType === 'folder' && meta && meta.annotate,
+    const folderSelection = computed(() => (
+      locationIsViameFolder.value && location.value && isGirderModel(location.value)
+        ? [location.value]
+        : selected.value.filter((item) => item._modelType === 'folder')
     ));
+    const {
+      datasets: selectedViameFolders,
+      loading: resolvingFolders,
+      error: folderSelectionError,
+    } = useFolderDatasets(folderSelection);
+    const includesContainerFolders = computed(() => folderSelection.value.some(
+      (item) => !item.meta?.annotate,
+    ));
+    const cloneDatasetId = computed(() => (
+      folderSelection.value.length === 1 && folderSelection.value[0].meta?.annotate
+        ? folderSelection.value[0]._id : null
+    ));
+    const runningPipelines = computed(() => selectedViameFolders.value
+      .filter((item) => jobs.getDatasetRunningState(item._id)).map((item) => item._id));
 
     const selectedViameFolderIds = computed(() => selectedViameFolders.value.map(({ _id }) => _id));
 
     const selectedViameFolderNames = computed(() => selectedViameFolders.value.map(({ name }) => name));
 
-    const pipelineTargetFolders = computed(() => (
-      locationIsViameFolder.value && location.value && isGirderModel(location.value)
-        ? [location.value]
-        : selectedViameFolders.value
-    ));
+    const pipelineTargetFolders = selectedViameFolders;
 
     const subTypeList = computed((): SubType[] => pipelineTargetFolders.value.map(
       (item) => item.meta?.subType ?? null,
@@ -120,7 +124,7 @@ export default defineComponent({
       (element) => element._modelType === 'item',
     ).map(({ _id }) => _id));
 
-    const includesLargeImage = computed(() => (selected.value.filter(
+    const includesLargeImage = computed(() => (pipelineTargetFolders.value.filter(
       ({ meta }) => meta && meta.type === 'large-image',
     )).length > 0);
 
@@ -131,17 +135,8 @@ export default defineComponent({
         : null,
     ));
 
-    const locationInputs = computed(() => (
-      locationIsViameFolder.value && location.value
-        ? [(location.value as { _id: string })._id]
-        : selectedViameFolderIds.value
-    ));
-
-    const locationInputNames = computed(() => (
-      locationIsViameFolder.value && location.value
-        ? [(location.value as { name: string }).name]
-        : selectedViameFolderNames.value
-    ));
+    const locationInputs = selectedViameFolderIds;
+    const locationInputNames = selectedViameFolderNames;
 
     const selectedDescription = computed(() => (location.value as { description?: string } | null)?.description);
 
@@ -170,6 +165,10 @@ export default defineComponent({
       locationInputs,
       locationInputNames,
       selectedDescription,
+      resolvingFolders,
+      folderSelectionError,
+      includesContainerFolders,
+      cloneDatasetId,
       // methods
       prompt,
       clearSelected,
@@ -244,10 +243,20 @@ export default defineComponent({
               <div class="pa-2 folder-actions">
                 <Clone
                   v-bind="{ buttonOptions, menuOptions }"
-                  :dataset-id="locationInputs.length === 1 ? locationInputs[0] : null"
+                  :dataset-id="cloneDatasetId"
                 />
+                <div v-if="resolvingFolders" role="status">
+                  Loading sequences…
+                </div>
+                <v-alert v-else-if="folderSelectionError" type="error" dense>
+                  {{ folderSelectionError }}
+                </v-alert>
+                <div v-else-if="includesContainerFolders" role="status">
+                  {{ locationInputs.length }} sequence(s) in the selected folders
+                  (including subfolders).
+                </div>
                 <run-pipeline-menu
-                  v-if="pipelinesEnabled"
+                  v-if="pipelinesEnabled && !resolvingFolders && !folderSelectionError"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage },
@@ -264,7 +273,7 @@ export default defineComponent({
                   :jobs-disabled-message="jobsDisabledMessage"
                 />
                 <run-training-menu
-                  v-if="trainingEnabled"
+                  v-if="trainingEnabled && !resolvingFolders && !folderSelectionError"
                   v-bind="{
                     buttonOptions:
                       { ...buttonOptions, disabled: includesLargeImage || includesMultiCamDataset },
@@ -273,18 +282,6 @@ export default defineComponent({
                   :selected-dataset-ids="locationInputs"
                   :dataset-splits="trainingSplits"
                 />
-                <v-btn
-                  v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
-                  v-bind="buttonOptions"
-                  @click="scoreSelection"
-                >
-                  <v-icon>
-                    mdi-chart-box-outline
-                  </v-icon>
-                  <span class="pl-1">
-                    Score
-                  </span>
-                </v-btn>
                 <v-btn
                   v-if="selectedViameFolderIds.length > 0"
                   v-bind="buttonOptions"
@@ -297,6 +294,18 @@ export default defineComponent({
                     Review
                   </span>
                 </v-btn>
+                <v-btn
+                  v-if="pipelinesEnabled && selectedViameFolderIds.length > 0"
+                  v-bind="buttonOptions"
+                  @click="scoreSelection"
+                >
+                  <v-icon>
+                    mdi-chart-box-outline
+                  </v-icon>
+                  <span class="pl-1">
+                    Score
+                  </span>
+                </v-btn>
                 <training-split-menu
                   v-if="trainingEnabled && locationInputs.length > 0"
                   v-bind="{ buttonOptions, menuOptions }"
@@ -304,6 +313,7 @@ export default defineComponent({
                   @saved="eventBus.$emit('refresh-data-browser')"
                 />
                 <export
+                  v-if="!resolvingFolders && !folderSelectionError"
                   v-bind="{ buttonOptions, menuOptions }"
                   :dataset-ids="locationInputs"
                   :file-ids="selectedFileIds"

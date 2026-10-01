@@ -158,7 +158,7 @@ def train_pipeline(self: Task, params: TrainingJob):
             input_path, 'input', split_inputs['train']
         )
 
-        training_results_path = utils.make_directory(output_path / "category_models")
+        training_results_path = utils.make_directory(output_path / "trained_model")
 
         command = [
             f". {shlex.quote(str(conf.viame_setup_script))} &&",
@@ -171,6 +171,7 @@ def train_pipeline(self: Task, params: TrainingJob):
             "--config",
             shlex.quote(str(config_file)),
             "--no-query",
+            "--skip-packaging",
         ]
 
         for split in ('validation', 'test'):

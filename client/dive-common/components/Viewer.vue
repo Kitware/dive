@@ -51,7 +51,7 @@ import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
-import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TypeSettingsPanel from 'dive-common/components/Types/TypeSettingsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TrackListColumnSettings from 'dive-common/components/TrackListColumnSettings.vue';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -209,6 +209,16 @@ export default defineComponent({
       type: Function as PropType<StereoViewLinkFunc | undefined>,
       default: undefined,
     },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live SAM status text during auto-populate. */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
+    },
   },
   setup(props, { emit }) {
     const { prompt, visible } = usePrompt();
@@ -224,13 +234,15 @@ export default defineComponent({
     const displayComparisons = ref(props.comparisonSets.length
       ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
     const selectedSet = ref('');
+    // Created before useMediaController / provideAnnotator so both share one flag.
+    const segmentationCursorLoading = ref(false);
     const {
       aggregateController,
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
       setResetZoomOverride,
-    } = useMediaController();
+    } = useMediaController({ segmentationCursorLoading });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -473,8 +485,12 @@ export default defineComponent({
     }
 
     const segmentationRecipe = new SegmentationPointClick();
-    const segmentationCursorLoading = computed(
+    // Spinner while loading or predicting; CPU work runs in ORT's wasm proxy
+    // worker so the main thread can keep painting and handling Esc/Cancel.
+    watch(
       () => segmentationRecipe.loading.value || segmentationRecipe.predicting.value,
+      (busy) => { segmentationCursorLoading.value = busy; },
+      { immediate: true },
     );
     const recipes = [
       new PolygonBase(),
@@ -868,6 +884,7 @@ export default defineComponent({
 
     // Provides wrappers for actions to integrate with settings
     const {
+      linkingState,
       linkingTrack,
       linkingCamera,
       multiSelectList,
@@ -893,6 +910,8 @@ export default defineComponent({
       readonlyState,
       alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
+      lassoModeActive: lassoMode.lassoModeActive,
+      lassoDrawing: lassoMode.lassoDrawing,
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
       },
@@ -1141,6 +1160,7 @@ export default defineComponent({
         }
       }
       const typeHierarchyPatch = trackFilters.typeHierarchySavePatch();
+      const taxonomyPatch = trackFilters.taxonomySavePatch();
       try {
         const { canonicalConfigPersisted } = await saveToServer({
           customTypeStyling: trackStyleManager.getTypeStyles(
@@ -1151,15 +1171,18 @@ export default defineComponent({
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
           ...typeHierarchyPatch,
+          ...taxonomyPatch,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
         if (canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
       } catch (err) {
         const saveResult = err as { canonicalConfigPersisted?: boolean };
         if (saveResult.canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
         let text = 'Unable to Save Data';
         const saveErr = err as { response?: { status?: number } };
@@ -1724,6 +1747,7 @@ export default defineComponent({
         context.resetActive();
         const meta = await loadConfig(datasetId.value);
         trackFilters.setTypeHierarchy(meta.typeHierarchy);
+        trackFilters.setTaxonomySources(meta.taxonomySources);
         const hierarchyWarning = trackFilters.consumeLoadWarning();
         if (hierarchyWarning) {
           await prompt({
@@ -2131,9 +2155,13 @@ export default defineComponent({
         errorEl.innerHTML = getResponseError(err);
         loadError.value = errorEl.innerText
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        emit('load-error', loadError.value);
         throw err;
       }
     };
+    function forwardLoadError(message: string, largeImage?: boolean) {
+      emit('load-error', message, largeImage);
+    }
     loadData();
 
     /**
@@ -2511,6 +2539,7 @@ export default defineComponent({
       imageData,
       lineChartData,
       loadError,
+      forwardLoadError,
       multiSelectActive,
       lassoModeActive: lassoMode.lassoModeActive,
       lassoDrawing: lassoMode.lassoDrawing,
@@ -2537,6 +2566,7 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
+      linkingState,
       cameraEnhOutputs,
       isCameraDefault,
       cameraPercentileStretch,
@@ -2741,6 +2771,8 @@ export default defineComponent({
 
         <EditorMenu
           ref="editorMenuRef"
+          :has-selected-track="selectedTrackId !== null"
+          :disabled="readonlyState || linkingState || !progress.loaded"
           v-bind="{
             editingMode,
             visibleModes,
@@ -2754,6 +2786,8 @@ export default defineComponent({
             textQueryEnabled,
             textQueryAvailable,
             checkTextQueryAvailable,
+            autoPopulateBusy,
+            autoPopulateStatus,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
@@ -2761,6 +2795,7 @@ export default defineComponent({
           :suppression-display.sync="clientSettings.annotatorPreferences.suppressionDisplay"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @cancel-auto-populate="$emit('cancel-auto-populate')"
           @text-query-init="$emit('text-query-init')"
           @text-query="onTextQuerySubmit"
           @text-query-all-frames="$emit('text-query-all-frames', $event)"
@@ -2906,7 +2941,6 @@ export default defineComponent({
       <sidebar
         v-if="sidebarMode === 'left'"
         :is-stereo-dataset="subType === 'stereo'"
-        @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
         <template>
@@ -2982,6 +3016,7 @@ export default defineComponent({
                   filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
+                @load-error="forwardLoadError"
               >
                 <LayerManager :camera="camera" />
               </component>
@@ -3080,6 +3115,7 @@ export default defineComponent({
                   filterId: `imageEnhancements-${camera}`,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
+                @load-error="forwardLoadError"
               >
                 <LayerManager :camera="camera" />
               </component>

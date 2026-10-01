@@ -9,7 +9,6 @@ import type LineLayer from '../../layers/AnnotationLayers/LineLayer';
 import type { LayerManagerAlignedView } from './useLayerManagerAlignedView';
 import routeMulticamEditToCamera from './useMulticamEditRouting';
 import type CameraStore from '../../CameraStore';
-import type TrackStore from '../../TrackStore';
 import { pointInPolygon } from '../../utils';
 import pickPolygon from './polygonSelection';
 
@@ -23,7 +22,6 @@ export default function useAnnotationClickHandling(options: {
   flickNumberRef: Ref<number>;
   editingModeRef: Ref<false | EditAnnotationTypes>;
   cameraStore: CameraStore;
-  trackStore: TrackStore;
   alignedView: Pick<
     LayerManagerAlignedView,
     'alignedDisplayInverse' | 'mapNativePoint' | 'mapEditGeoJSONToNative'
@@ -45,7 +43,6 @@ export default function useAnnotationClickHandling(options: {
     flickNumberRef,
     editingModeRef,
     cameraStore,
-    trackStore,
     alignedView,
     editAnnotationLayer,
     boxEditLayer,
@@ -282,7 +279,6 @@ export default function useAnnotationClickHandling(options: {
         editingModeRef,
         selectedKeyRef,
         cameraStore,
-        trackStore,
         handler,
       })) {
         return;

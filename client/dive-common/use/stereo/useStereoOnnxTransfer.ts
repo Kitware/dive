@@ -97,14 +97,8 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   const measureLengths = () => config.measureLengths?.() ?? false;
 
   function getOrCreateTrack(trackId: number, sourceCamera: string, targetCamera: string, frameNum: number): Track | undefined {
-    let track = cameraStore.getPossibleTrack(trackId, targetCamera);
-    if (!track) {
-      const targetStore = cameraStore.camMap.value.get(targetCamera)?.trackStore;
-      const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
-      const trackType = sourceTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-      track = targetStore?.add(frameNum, trackType, undefined, trackId);
-    }
-    return track;
+    return cameraStore.getPossibleTrack(trackId, targetCamera)
+      ?? cameraStore.addLinkedTrack(trackId, targetCamera, frameNum, sourceCamera);
   }
 
   /**
@@ -294,7 +288,7 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   }
 
   /** Run the correspondence search for one set of points, source camera -> other. */
-  async function warp(points: Point[], sourceCamera: string, otherCamera: string, frameNum: number) {
+  async function warp(points: Point[], sourceCamera: string, otherCamera: string, frameNum: number, line = false) {
     const [rig0, srcFrame, tgtFrame] = await Promise.all([
       getRig(), getFrame(sourceCamera, frameNum), getFrame(otherCamera, frameNum),
     ]);
@@ -304,7 +298,8 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     if (!matcher) throw new Error('The stereo matching model could not be loaded.');
     const rig = orientRig(rig0, sourceCamera);
 
-    return matcher.warpPoints(points, srcFrame, tgtFrame, rig, {
+    const match = line && matcher.warpLine ? matcher.warpLine : matcher.warpPoints;
+    return match.call(matcher, points, srcFrame, tgtFrame, rig, {
       range: getRange(),
       threshold: config.threshold,
       uniquenessRatio: config.uniquenessRatio,
@@ -476,7 +471,7 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
         }] as GeoJSON.Feature<GeoJSON.Geometry>[] as never);
         config.onChange?.(otherCamera, track);
       } else {
-        const res = await warp(params.line, params.camera, otherCamera, params.frameNum);
+        const res = await warp(params.line, params.camera, otherCamera, params.frameNum, true);
         if (!res.every((r) => r.accepted)) {
           throw new Error('No confident stereo match for the line endpoints.');
         }
@@ -609,6 +604,16 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     warpAllFromCamera,
     warpPoint,
     measureAtFrame,
+    refreshMeasurement: async (id: number, frame: number) => {
+      if (measureLengths()) await measureAndReport(id, frame);
+    },
+    warpPoints: async (points: Point[], camera: string, frame: number, line = false): Promise<(Point | null)[]> => {
+      const other = getMultiCamList().find((c) => c !== camera);
+      if (!other || getMultiCamList().length !== 2) return [];
+      return (await warp(points, camera, other, frame, line)).map((p) => (
+        p.accepted && Number.isFinite(p.x) && Number.isFinite(p.y) ? [p.x, p.y] : null
+      ));
+    },
     precomputeFrame,
   };
 }

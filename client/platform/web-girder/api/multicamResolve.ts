@@ -56,3 +56,25 @@ export function clearMultiCamMetaCache(parentId?: string): void {
     multiCamMetaCache.clear();
   }
 }
+
+/** Review a whole rig even when entered from a camera folder or viewer link. */
+export async function resolveReviewDatasetId(datasetId: string): Promise<string> {
+  const { parentId, cameraName } = parseCompositeDatasetId(datasetId);
+  if (cameraName) return parentId;
+  const { data: folder } = await girderRest.get<{
+    parentId?: string;
+    parentCollection?: string;
+    meta?: { type?: string };
+  }>(`folder/${datasetId}`);
+  if (folder.meta?.type === 'multi' || folder.parentCollection !== 'folder' || !folder.parentId) {
+    return datasetId;
+  }
+  const { data: parent } = await girderRest.get<{
+    meta?: { type?: string; multiCam?: MultiCamStorageMeta };
+  }>(`folder/${folder.parentId}`);
+  const cameras = parent.meta?.multiCam?.cameras;
+  // Only registered cameras belong to the sequence.
+  return parent.meta?.type === 'multi'
+    && Object.values(cameras ?? {}).some((camera) => camera.folderId === datasetId)
+    ? folder.parentId : datasetId;
+}

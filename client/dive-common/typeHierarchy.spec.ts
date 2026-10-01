@@ -3,8 +3,10 @@ import {
   acceptPairAsCorrect,
   compareTypeNames,
   compileHierarchy,
+  flattenHierarchyForest,
   mergePairs,
   normalizeTypeHierarchy,
+  pruneHierarchyUpward,
   reassignPairs,
   removeHierarchyType,
   removePair,
@@ -289,6 +291,66 @@ describe('hierarchy editing transformations', () => {
       expect(result).toEqual(hierarchy);
       expect(result).not.toBe(hierarchy);
       expect(hierarchy).toEqual({ cod: 'fish', tern: 'bird' });
+    });
+  });
+
+  describe('pruneHierarchyUpward', () => {
+    it('makes children roots and drops unused ancestors', () => {
+      expect(pruneHierarchyUpward({
+        something: 'Animalia',
+        Animalia: 'Biota',
+      }, 'Animalia')).toEqual({
+        hierarchy: undefined,
+        removed: ['Animalia', 'Biota'],
+      });
+    });
+
+    it('keeps shared ancestors still used by another branch', () => {
+      expect(pruneHierarchyUpward({
+        fish: 'Animalia',
+        Animalia: 'Biota',
+        oak: 'Plantae',
+        Plantae: 'Biota',
+      }, 'Animalia')).toEqual({
+        hierarchy: { oak: 'Plantae', Plantae: 'Biota' },
+        removed: ['Animalia'],
+      });
+    });
+
+    it('preserves deeper structure under promoted children', () => {
+      expect(pruneHierarchyUpward({
+        shark: 'Chordata',
+        Chordata: 'Animalia',
+        Animalia: 'Biota',
+      }, 'Animalia')).toEqual({
+        hierarchy: { shark: 'Chordata' },
+        removed: ['Animalia', 'Biota'],
+      });
+    });
+
+    it('removes a leaf and unused ancestors above it', () => {
+      expect(pruneHierarchyUpward({
+        shark: 'fish',
+        fish: 'animal',
+      }, 'shark')).toEqual({
+        hierarchy: undefined,
+        removed: ['shark', 'fish', 'animal'],
+      });
+    });
+  });
+
+  describe('flattenHierarchyForest', () => {
+    it('orders roots and children by type name with depth', () => {
+      expect(flattenHierarchyForest(
+        ['shark', 'tern'],
+        { shark: 'fish', fish: 'animal', tern: 'bird' },
+      )).toEqual([
+        { name: 'animal', depth: 0 },
+        { name: 'fish', depth: 1 },
+        { name: 'shark', depth: 2 },
+        { name: 'bird', depth: 0 },
+        { name: 'tern', depth: 1 },
+      ]);
     });
   });
 

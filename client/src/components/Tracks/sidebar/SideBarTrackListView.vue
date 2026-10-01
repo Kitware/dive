@@ -3,11 +3,12 @@ import { defineComponent, computed } from 'vue';
 import { clientSettings } from 'dive-common/store/settings';
 import TrackItem from '../TrackItem.vue';
 import DeleteAllScopeDialog from '../../DeleteAllScopeDialog.vue';
+import TrackSettingsDialog from '../TrackSettingsDialog.vue';
 import { useReadOnlyMode, useTrackFilters, useTrackStyleManager } from '../../../provides';
 
 export default defineComponent({
   name: 'SideBarTrackListView',
-  components: { TrackItem, DeleteAllScopeDialog },
+  components: { TrackItem, DeleteAllScopeDialog, TrackSettingsDialog },
   props: {
     data: { type: Object, required: true },
     filteredTracks: { type: Array, required: true },
@@ -55,33 +56,9 @@ export default defineComponent({
         <v-row align="center">
           Tracks ({{ filteredTracks.length }})
           <v-spacer />
-          <v-menu
-            v-model="data.settingsActive"
-            :close-on-content-click="false"
-            :nudge-bottom="28"
-            class="track-settings-menu-content"
-          >
-            <template #activator="{ on, attrs }">
-              <v-btn
-                icon
-                small
-                class="mr-2"
-                v-bind="attrs"
-                v-on="on"
-              >
-                <v-icon
-                  small
-                  :color="data.settingsActive ? 'accent' : 'default'"
-                >
-                  mdi-cog
-                </v-icon>
-              </v-btn>
-            </template>
-            <slot
-              v-if="data.settingsActive"
-              name="settings"
-            />
-          </v-menu>
+          <TrackSettingsDialog v-model="data.settingsActive">
+            <slot name="settings" />
+          </TrackSettingsDialog>
           <v-tooltip open-delay="100" bottom>
             <template #activator="{ on }">
               <v-btn

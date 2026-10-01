@@ -1113,3 +1113,19 @@ def test_update_metadata_rejects_unknown_training_split(_verify, folder_cls, cru
 
     with pytest.raises((RestException, ValidationException)):
         crud_dataset.update_metadata(folder, {'trainingSplit': 'holdout'})
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_preserves_worms_provenance(_verify, folder_cls, crud_folder_cls):
+    folder = {'_id': 'dataset-id', 'meta': {'annotate': True, 'type': 'video'}}
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+    sources = {'126175': {'aphiaId': 126175, 'scientificName': 'Sebastes', 'rank': 'Genus'}}
+    crud_dataset.update_metadata(folder, {'taxonomySources': sources})
+    assert folder['meta']['taxonomySources'] == sources
+    crud_dataset.update_metadata(folder, {'confidenceFilters': {'default': 0.5}})
+    assert folder['meta']['taxonomySources'] == sources
+    validated = models.MetadataMutable(**folder['meta'])
+    assert validated.dict(exclude_none=True)['taxonomySources'] == sources

@@ -3,7 +3,6 @@ import type { AnnotationId } from '../../BaseAnnotation';
 import type CameraStore from '../../CameraStore';
 import type { Handler } from '../../provides';
 import type { EditAnnotationTypes } from '../../layers/EditAnnotationLayer';
-import type TrackStore from '../../TrackStore';
 import {
   cameraAwaitingGeometry,
   isCreatingNewDetection,
@@ -25,7 +24,6 @@ export default function routeMulticamEditToCamera(options: {
   editingModeRef: Ref<false | EditAnnotationTypes>;
   selectedKeyRef: Ref<string>;
   cameraStore: CameraStore;
-  trackStore: TrackStore;
   handler: Handler;
 }): boolean {
   const {
@@ -36,7 +34,6 @@ export default function routeMulticamEditToCamera(options: {
     editingModeRef,
     selectedKeyRef,
     cameraStore,
-    trackStore,
     handler,
   } = options;
 
@@ -58,9 +55,7 @@ export default function routeMulticamEditToCamera(options: {
     const trackId = selectedTrackIdRef.value as number;
     const sourceCamera = selectedCamera.value;
     if (!cameraStore.getPossibleTrack(trackId, camera)) {
-      const anyTrack = cameraStore.getAnyPossibleTrack(trackId);
-      const trackType = anyTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-      trackStore.add(frameNumberRef.value, trackType, undefined, trackId);
+      cameraStore.addLinkedTrack(trackId, camera, frameNumberRef.value, sourceCamera);
       // First draw of a new track belongs to this camera only. Leave existing
       // geometry in place when the user is extending a linked track.
       if (isEmptyCameraTrack(cameraStore, sourceCamera, trackId)) {

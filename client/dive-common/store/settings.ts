@@ -47,6 +47,13 @@ interface AnnotationSettings {
       type: string;
       /** Segment a freshly drawn box or line and store the polygon. */
       autoPopulateMask: boolean;
+      /** Browser point-prompt segmentation model (loaded lazily). */
+      segmentationModel: 'sam2' | 'sam2-small';
+      /**
+       * Where the browser SAM session runs: prefer hardware WebGPU, force GPU,
+       * or force WASM/CPU. Auto still falls back to CPU if GPU load fails.
+       */
+      segmentationDevice: 'auto' | 'gpu' | 'cpu';
       /** Derive head/tail from that polygon for a box; a tighter box from it for a line. */
       autoPopulatePoints: boolean;
       modeSettings: {
@@ -116,6 +123,8 @@ const defaultSettings: AnnotationSettings = {
       mode: 'Track' as 'Track' | 'Detection',
       type: 'unknown',
       autoPopulateMask: false,
+      segmentationModel: 'sam2',
+      segmentationDevice: 'auto',
       autoPopulatePoints: false,
       modeSettings: {
         Track: {
@@ -252,6 +261,15 @@ function hydrate(obj: Partial<AnnotationSettings>): AnnotationSettings {
   );
   if (!isStereoMatchMethod(hydrated.stereoSettings.matchMethod, isDesktopRuntime())) {
     hydrated.stereoSettings.matchMethod = DEFAULT_STEREO_MATCH_METHOD;
+  }
+  // Drop retired browser options (e.g. SAM3) that no longer fit typical GPUs.
+  if (hydrated.trackSettings.newTrackSettings.segmentationModel !== 'sam2'
+    && hydrated.trackSettings.newTrackSettings.segmentationModel !== 'sam2-small') {
+    hydrated.trackSettings.newTrackSettings.segmentationModel = 'sam2';
+  }
+  const device = hydrated.trackSettings.newTrackSettings.segmentationDevice;
+  if (device !== 'auto' && device !== 'gpu' && device !== 'cpu') {
+    hydrated.trackSettings.newTrackSettings.segmentationDevice = 'auto';
   }
   return hydrated;
 }

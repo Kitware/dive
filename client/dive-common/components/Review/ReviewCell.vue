@@ -25,7 +25,9 @@ export type ReviewCellGeometryEdit = ReviewChipGeometryEdit;
 
 /**
  * One grid entry: the track's chips (one per camera it appears in, side by
- * side) with the annotation's type editable underneath. Presentation-only;
+ * side) with the annotation's type editable underneath. Controls that act on
+ * the whole entry appear once: frame stepping on the first chip, accept,
+ * delete and open on the last; box editing stays on every camera's chip. Presentation-only;
  * the page supplies the images and applies edits, so other item sources
  * (e.g. search results) can reuse it with their own actions through the
  * `actions` slot. Single-chip users may pass the chip props directly
@@ -78,6 +80,10 @@ export default defineComponent({
     animate: {
       type: Boolean,
       default: true,
+    },
+    activateOnHover: {
+      type: Boolean,
+      default: false,
     },
     cycleIntervalMs: {
       type: Number,
@@ -150,6 +156,8 @@ export default defineComponent({
   setup(props, { emit }) {
     /** Chips currently in edit mode, to outline the whole entry. */
     const editingCount = ref(0);
+    const hovered = ref(false);
+    const cycling = computed(() => props.animate && (!props.activateOnHover || hovered.value));
 
     const viewList = computed<ReviewCellView[]>(() => props.views ?? [{
       key: 'single',
@@ -194,7 +202,7 @@ export default defineComponent({
     }
 
     function syncSharedTimer() {
-      const shouldRun = shared.value && props.animate && sequenceLength.value > 1
+      const shouldRun = shared.value && cycling.value && sequenceLength.value > 1
         && !sharedPaused.value && editingCount.value === 0;
       if (shouldRun && timer === null) {
         timer = window.setInterval(() => advanceShared(1), props.cycleIntervalMs);
@@ -204,7 +212,7 @@ export default defineComponent({
       }
     }
     watch(
-      [shared, () => props.animate, sequenceLength, sharedPaused, editingCount, () => props.cycleIntervalMs],
+      [shared, cycling, sequenceLength, sharedPaused, editingCount, () => props.cycleIntervalMs],
       () => {
         if (timer !== null) {
           window.clearInterval(timer);
@@ -231,9 +239,16 @@ export default defineComponent({
       if (next !== props.type) emit('assign', next);
     }
 
+    function onHoverChange(active: boolean) {
+      hovered.value = active;
+      emit('hover-change', active);
+    }
+
     return {
       viewList,
       editingCount,
+      hovered,
+      onHoverChange,
       commitType,
       shared,
       sharedSlot,
@@ -256,6 +271,8 @@ export default defineComponent({
       'cell-negative': highlight === 'negative',
     }"
     :style="{ '--cell-scale': scale }"
+    @mouseenter="onHoverChange(true)"
+    @mouseleave="onHoverChange(false)"
   >
     <div class="cell-views">
       <ReviewChip
@@ -270,6 +287,7 @@ export default defineComponent({
         :frame-count="view.frameCount"
         :label="view.label"
         :animate="animate"
+        :activate-on-hover="activateOnHover"
         :cycle-interval-ms="cycleIntervalMs"
         :type="type"
         :confidence="index === 0 ? confidence : null"
@@ -282,6 +300,8 @@ export default defineComponent({
         :controlled-slot="shared ? sharedSlot : null"
         :controlled-paused="sharedPaused"
         :controlled-view="shared ? sharedView : null"
+        :entry-actions="!shared || index === viewList.length - 1"
+        :sequence-controls="!shared || index === 0"
         @view-change="sharedView = $event"
         @step="stepShared"
         @toggle-paused="toggleSharedPaused"
@@ -361,6 +381,11 @@ export default defineComponent({
   min-width: 0;
   gap: 2px;
   background: #101010;
+
+  // The entry-wide actions sit on one chip; reveal them from any camera.
+  &:hover ::v-deep .cell-actions {
+    opacity: 1;
+  }
 }
 
 .cell-footer {

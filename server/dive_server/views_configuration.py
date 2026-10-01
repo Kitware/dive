@@ -1,8 +1,8 @@
 import csv
 from datetime import datetime, timedelta, timezone
 import os
+from pathlib import Path
 from typing import Dict, List
-from urllib.parse import urlparse
 
 from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
@@ -239,14 +239,16 @@ class ConfigurationResource(Resource):
             download = s.get(constants.AddonsListURL)
             decoded_content = download.content.decode('utf-8')
             cr = csv.reader(decoded_content.splitlines(), delimiter=',', skipinitialspace=True)
-            my_list = [
-                item for item in cr if len(item) >= 5 and item[4].strip() != 'ALL-EXCEPT-DIVE'
+            rows = [item for item in cr if len(item) >= 5 and item[4].strip() != 'ALL-EXCEPT-DIVE']
+            return [
+                [
+                    name,
+                    url,
+                    description,
+                    tasks._addon_zip_path_for_url(url, Path()).name in installed_addons,
+                ]
+                for name, url, description, *_ in rows
             ]
-            for item in my_list:
-                addon = item[1]
-                download_name = urlparse(addon).path.replace(os.path.sep, '_')
-                item.append(f'{download_name}.zip' in installed_addons)
-            return my_list
 
     @access.admin
     @autoDescribeRoute(

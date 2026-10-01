@@ -22,6 +22,7 @@ import type {
   ScoringResultSummary,
   ScoringSourceOptions,
 } from 'dive-common/scoring/types';
+import type { TaxonomySources } from './worms';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
 type MultiTrackRecord = Record<string, TrackData>;
@@ -31,7 +32,9 @@ type PipelineParamType = | 'bool'
   | 'int' | 'positive_int' | 'strictly_positive_int' | 'range_int'
   | 'float' | 'positive_float' | 'strictly_positive_float' | 'range_float'
   | 'folder' | 'path'
-  | 'file';
+  | 'file'
+  /** One of the values listed after the type, e.g. `choice, bytetrack, srnn`. */
+  | 'choice';
 
 interface AnnotationSchema {
   version: number;
@@ -303,6 +306,7 @@ type DatasetInfoFields = Record<string, unknown>;
  * The parts of dataset config a user should be able to modify.
  */
 interface DatasetConfigMutable {
+  taxonomySources?: TaxonomySources;
   typeHierarchy?: Record<string, string> | null;
   customTypeStyling?: Record<string, CustomStyle>;
   customGroupStyling?: Record<string, CustomStyle>;
@@ -333,7 +337,7 @@ interface DatasetConfigMutable {
   trainingSplit?: TrainingSplit | null;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'cameraRoles'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
@@ -481,6 +485,11 @@ interface Api {
    * dataset list the review page offers.
    */
   listScoringDatasets?(): Promise<ScoringDatasetSummary[]>;
+  /** Resolve a selected camera to its whole sequence before loading review. */
+  resolveReviewDatasetId?(datasetId: string): Promise<string>;
+  /** Review includes whole stereo/multicamera sequences, unlike scoring. */
+  listReviewDatasets?(): Promise<ScoringDatasetSummary[]>;
+  pickReviewDataset?(excludeIds: string[]): Promise<ScoringDatasetSummary | null>;
   /**
    * Open a platform dataset picker; returns null when the user cancels.
    * Shared by the scoring and review pages.

@@ -10,7 +10,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { cellScaleFor } from 'dive-common/review/gridSettings';
-import { cycleIntervalFor } from 'dive-common/review/reviewItems';
+import { chipCycleIntervalMs } from 'dive-common/review/reviewItems';
 import {
   holdReviewSession, sessionKey, shouldResume, takeReviewSession,
 } from 'dive-common/review/reviewSession';
@@ -81,12 +81,16 @@ export default defineComponent({
     provideReview(review);
     const { prompt } = usePrompt();
 
-    // Empty first visit opens Datasets; coming back with loaded data opens Results.
+    // Only an empty first visit opens Datasets; a library selection or
+    // loaded data opens Results.
     const hasReady = review.datasets.value.some((d) => d.status === 'ready');
-    const view = ref<ReviewView>(hasReady ? 'results' : 'datasets');
+    const view = ref<ReviewView>(hasReady || initialIds.length > 0 ? 'results' : 'datasets');
     const resuming = ref(!!resumed);
+    // Covers the gap before the initial selection starts loading.
+    const opening = ref(!hasReady && initialIds.length > 0);
     const pageTypeInput = ref('');
     const showSettings = ref(false);
+    const hoveredEntryKeys = ref(new Set<string>());
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
 
     /** The type field's arrow opens its list, and closes it again on a second press. */
@@ -114,7 +118,18 @@ export default defineComponent({
       outline: '',
       // Deleting or editing an entry keeps the page; only a new query resets it.
       retainPage: true,
+      activateOnHover: computed(() => review.settings.activateOnHover),
+      hoverEntryKeys: hoveredEntryKeys,
+      entryKeyOf: (entry) => entry.key,
     });
+
+    function setEntryHovered(key: string, hovered: boolean) {
+      const next = new Set(hoveredEntryKeys.value);
+      if (hovered) next.add(key);
+      else next.delete(key);
+      hoveredEntryKeys.value = next;
+      grid.ensureVisible();
+    }
     watch(review.queryGeneration, () => grid.goToPage(0));
 
     const showDatasetNames = computed(() => review.datasets.value.length > 1);
@@ -160,7 +175,12 @@ export default defineComponent({
           title: `${review.datasetName(parent)} · track ${item.trackId} · frame ${item.primary.frame}`,
           subtitle: subtitleBits.join(' · '),
           attributeText,
-          cycleIntervalMs: cycleIntervalFor(item.frames, fps, review.grid.cycleIntervalMs),
+          cycleIntervalMs: chipCycleIntervalMs(
+            item.frames,
+            fps,
+            review.settings.playbackFps,
+            review.grid.cycleIntervalMs,
+          ),
         };
       });
     });
@@ -366,10 +386,8 @@ export default defineComponent({
 
     async function applyInitial(ids: string[]) {
       if (ids.length === 0) return;
+      view.value = 'results';
       await review.addDatasets(ids);
-      if (review.datasets.value.some((d) => d.status === 'ready')) {
-        view.value = 'results';
-      }
     }
 
     onMounted(async () => {
@@ -388,6 +406,7 @@ export default defineComponent({
       if (!resumed || datasetKey !== sessionKey(initialIds) || review.datasets.value.length === 0) {
         await applyInitial(initialIds);
       }
+      opening.value = false;
     });
     watch(() => props.initialDatasetIds, (ids) => { applyInitial(ids); });
     onBeforeUnmount(() => {
@@ -408,6 +427,7 @@ export default defineComponent({
     return {
       review,
       view,
+      opening,
       typeField,
       toggleTypeMenu,
       grid,
@@ -421,6 +441,7 @@ export default defineComponent({
       countLabel,
       pageTypeInput,
       showSettings,
+      setEntryHovered,
       setView,
       openItem,
       openDataset,
@@ -745,7 +766,7 @@ export default defineComponent({
           >
             mdi-database-outline
           </v-icon>
-          <div v-if="review.loading.value">
+          <div v-if="opening || review.loading.value">
             Loading annotations…
           </div>
           <template v-else>
@@ -803,7 +824,9 @@ export default defineComponent({
             :key="cell.entry.key"
             :views="cell.views"
             :animate="true"
+            :activate-on-hover="review.settings.activateOnHover"
             :cycle-interval-ms="cell.cycleIntervalMs"
+            @hover-change="setEntryHovered(cell.entry.key, $event)"
             :scale="cellScale"
             :color="review.colorFor(cell.type)"
             :type="cell.type"
@@ -826,6 +849,7 @@ export default defineComponent({
 
     <UserSettingsDialog
       :value="showSettings"
+      :review-settings="review.settings"
       @input="showSettings = $event"
     />
 

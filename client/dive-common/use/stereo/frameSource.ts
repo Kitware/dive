@@ -27,7 +27,9 @@ export function imageElementToRgba(
   const ctx = canvas.getContext('2d');
   if (!ctx) throw new Error('Could not get 2d canvas context');
   ctx.drawImage(img as CanvasImageSource, 0, 0, width, height);
-  return { ...ctx.getImageData(0, 0, width, height), width, height };
+  // ImageData's fields are prototype getters, which a spread would drop.
+  const { data } = ctx.getImageData(0, 0, width, height);
+  return { data, width, height };
 }
 
 /**
