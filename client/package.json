@@ -10,7 +10,7 @@
   "license": "Apache-2.0",
   "scripts": {
     "dev": "npm run serve",
-    "dev:electron": "npm run serve:electron",
+    "dev:electron": "npm run serve:electron -- --noSandbox",
     "dev:electron:windows": "npm run serve:electron:windows",
     "serve": "vite",
     "serve:electron": "mkdir -p /tmp/dive-electron && cross-env ELECTRON_RUN_AS_NODE= ELECTRON_DISABLE_SECURITY_WARNINGS=true TMPDIR=/tmp/dive-electron electron-vite dev --entry=.electron/main/background.js",
