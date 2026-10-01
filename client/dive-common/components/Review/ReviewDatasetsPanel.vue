@@ -55,7 +55,7 @@ export default defineComponent({
 
     function statusText(status: string) {
       if (status === 'ready') return 'Ready';
-      if (status === 'queued') return 'Loads when Results opens';
+      if (status === 'queued') return 'Loads when Results or Statistics opens';
       return 'Loading…';
     }
 

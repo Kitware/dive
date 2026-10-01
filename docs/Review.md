@@ -17,7 +17,7 @@ Review shows many annotations at once as a grid of cropped image chips, so you c
 
 ## Choosing datasets
 
-The page has two views, toggled with the **Datasets** / **Grid** buttons at the top left; only one is shown at a time to keep the grid uncluttered.
+The page has three views, toggled with the **Results** / **Statistics** / **Datasets** buttons at the top left; only one is shown at a time to keep the grid uncluttered.
 
 The **Datasets** view has the same dataset picker as the Training and Pipelines pages: search the library, add datasets one at a time or with **Select all**, and drop them again with **Remove all** (on the web, **Browse** opens the folder picker instead). The selected datasets are listed underneath with their type, how many tracks they hold and their load state; reload a dataset's annotations or remove it from there. Datasets picked here are only queued: their annotations are read when you switch to **Results**, so picking many costs nothing until you look at them.
 
@@ -128,3 +128,38 @@ Type assignment, acceptance, and deletion apply across the entry's cameras. Geom
 edits and adding a missing box affect only the chosen camera. Saves target the
 individual camera folders; if one save fails, its edits remain pending for retry.
 Opening an entry in the viewer opens the whole rig at the selected frame and track.
+
+## Statistics
+
+Choose **Review → Statistics** to summarize every selected sequence. Queued
+sequences load when this tab opens; partial results are labelled while loading
+or if a sequence fails. Retry failed loads on Datasets.
+
+**Categories** counts each track once per category whose confidence meets that
+sequence's saved type-specific threshold (or its default threshold). Without
+saved filters, the viewer default of 0.1 applies. Unclassified tracks have their
+own row. A track with multiple qualifying labels can appear in multiple category
+counts. **Attributes** separates track and detection occurrences by name and
+value, including false and zero. Only attributes on qualifying tracks are counted.
+Stereo cameras contribute independently. Search, sorting, and pagination keep
+large category and attribute lists manageable.
+
+Statistics use the current loaded annotations, including unsaved edits, and do
+not inherit the Results tab's type, attribute, or confidence query. Changing the
+selected sequences, editing, deleting, or reloading annotations updates totals.
+
+Timeline rows show qualifying track spans as colored, per-type steps in 200 bins,
+with the total number of tracks present as a grey outline. Each row has its own
+count axis, labelled in tracks and reaching that sequence's peak, so a quiet
+sequence is as readable as a busy one; compare rows by their axis labels, not by
+the height of their plots. All cameras of a sequence share one plot; overlapping
+spans for the same track ID are counted once in each type series.
+Each row uses elapsed seconds, converting each camera by its own FPS (frames
+when any camera lacks FPS). Image
+sequences include their full frame range; video rows use the annotated extent
+because review metadata does not provide the full video duration. No media is
+decoded to construct these plots. Capture timestamps on images or parsed from
+sequence names order rows newest first; undated sequences follow alphabetically.
+Import dates are not treated as capture dates. Scroll inside the timeline list
+to browse more rows. Click a sequence name to open its viewer, or click a point
+on its plot to open the viewer at that point in the sequence.
