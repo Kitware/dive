@@ -2,44 +2,21 @@ import type { GirderModel } from '@girder/components/src';
 import {
   ref, watch, type Ref,
 } from 'vue';
-import girderRest from './plugins/girder';
+import { resolveFolderSelection } from './api/dataset.service';
 
 /** Stop at datasets so camera and auxiliary folders are not separate job inputs. */
 export async function resolveFolderDatasets(
   selection: GirderModel[],
   signal?: AbortSignal,
 ): Promise<GirderModel[]> {
-  const datasets: GirderModel[] = [];
-  const visited = new Set<string>();
-  const pending = selection.filter((item) => item._modelType === 'folder');
-  const limit = 100;
-  for (let index = 0; index < pending.length; index += 1) {
-    const folder = pending[index];
-    // eslint-disable-next-line no-continue
-    if (visited.has(folder._id)) continue;
-    visited.add(folder._id);
-    if (folder.meta?.annotate) {
-      datasets.push(folder);
-      // eslint-disable-next-line no-continue
-      continue;
-    }
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      // Girder applies the current user's read permissions to each folder listing.
-      // eslint-disable-next-line no-await-in-loop
-      const { data } = await girderRest.get<GirderModel[]>('folder', {
-        params: {
-          parentType: 'folder', parentId: folder._id, limit, offset, sort: '_id', sortdir: 1,
-        },
-        signal,
-      });
-      pending.push(...data.map((child) => ({ ...child, _modelType: 'folder' as const })));
-      offset += data.length;
-      hasMore = data.length === limit;
-    }
+  const folderIds = selection
+    .filter((item) => item._modelType === 'folder')
+    .map(({ _id }) => _id);
+  if (folderIds.length === 0) {
+    return [];
   }
-  return datasets;
+  const { data } = await resolveFolderSelection(folderIds, signal);
+  return data;
 }
 
 /** Clear previous inputs immediately and discard requests superseded by a new selection. */

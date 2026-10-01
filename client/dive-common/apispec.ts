@@ -520,6 +520,11 @@ interface Api {
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
+  /** Web: recursively tag datasets under root folders and store split on each root. */
+  bulkSetTrainingSplitUnderFolders?(
+    folderIds: string[],
+    trainingSplit: TrainingSplit | null,
+  ): Promise<{ datasetIds: string[]; updatedCount: number; rootFolderIds: string[] }>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;

@@ -5,7 +5,8 @@ from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set,
 
 from bson.objectid import InvalidId, ObjectId
 import cherrypy
-from girder.constants import AccessType
+import pymongo
+from girder.constants import AccessType, SortDir
 from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
@@ -253,6 +254,128 @@ def list_datasets(
     total = response['totalCount'][0]['count'] if len(response['results']) > 0 else 0
     cherrypy.response.headers['Girder-Total-Count'] = total
     return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
+
+
+_FOLDER_CHILD_PAGE_SIZE = 100
+
+
+def resolve_folder_datasets(
+    user: types.GirderUserModel,
+    folder_ids: List[str],
+) -> List[types.GirderModel]:
+    """Expand container folders to descendant DIVE datasets (breadth-first).
+
+    Folders marked with ``meta.annotate`` are datasets; their children are not walked.
+    Matches the web client's former folder-walk behavior for pipelines and training.
+    """
+    datasets: List[types.GirderModel] = []
+    visited: Set[str] = set()
+    pending: List[types.GirderModel] = []
+
+    for folder_id in folder_ids:
+        folder = Folder().load(folder_id, level=AccessType.READ, user=user)
+        if folder is None:
+            raise RestException(f'Cannot access folder {folder_id}', code=403)
+        pending.append(folder)
+
+    index = 0
+    while index < len(pending):
+        folder = pending[index]
+        index += 1
+        folder_id = str(folder['_id'])
+        if folder_id in visited:
+            continue
+        visited.add(folder_id)
+
+        if asbool(fromMeta(folder, constants.DatasetMarker, False)):
+            datasets.append(Folder().filter(folder))
+            continue
+
+        offset = 0
+        while True:
+            children = list(
+                Folder().childFolders(
+                    folder,
+                    parentType='folder',
+                    user=user,
+                    limit=_FOLDER_CHILD_PAGE_SIZE,
+                    offset=offset,
+                    sortKey='_id',
+                    sortDir=SortDir.ASCENDING,
+                )
+            )
+            pending.extend(children)
+            offset += len(children)
+            if len(children) < _FOLDER_CHILD_PAGE_SIZE:
+                break
+
+    return datasets
+
+
+def _training_split_bulk_update(training_split: Optional[str]) -> dict:
+    if training_split is None:
+        return {'$unset': {'meta.trainingSplit': ''}}
+    return {'$set': {'meta.trainingSplit': training_split}}
+
+
+def _apply_training_split_to_folder_document(
+    folder: types.GirderModel,
+    training_split: Optional[str],
+) -> None:
+    folder.setdefault('meta', {})
+    if training_split is None:
+        folder['meta'].pop('trainingSplit', None)
+    else:
+        folder['meta']['trainingSplit'] = training_split
+
+
+def bulk_set_training_split_under_folders(
+    user: types.GirderUserModel,
+    root_folder_ids: List[str],
+    training_split: Optional[str],
+) -> Dict[str, Any]:
+    """Tag training splits on every DIVE dataset under each root and on the roots themselves."""
+    if not root_folder_ids:
+        raise RestException('No folder ids provided', code=400)
+    if training_split is not None:
+        validate_metadata_shape({'trainingSplit': training_split})
+
+    dataset_ids: Set[str] = set()
+    roots: List[types.GirderModel] = []
+    for folder_id in root_folder_ids:
+        root = Folder().load(folder_id, level=AccessType.WRITE, user=user)
+        if root is None:
+            raise RestException(f'Cannot write to folder {folder_id}', code=403)
+        roots.append(root)
+        for dataset in resolve_folder_datasets(user, [folder_id]):
+            loaded = Folder().load(dataset['_id'], level=AccessType.WRITE, user=user)
+            if loaded is None:
+                raise RestException(
+                    f'Cannot write to dataset {dataset["_id"]}',
+                    code=403,
+                )
+            dataset_ids.add(str(loaded['_id']))
+
+    bulk_update = _training_split_bulk_update(training_split)
+    if dataset_ids:
+        operations = [
+            pymongo.UpdateOne({'_id': _mongo_id(folder_id)}, bulk_update)
+            for folder_id in sorted(dataset_ids)
+        ]
+        Folder().collection.bulk_write(operations, ordered=False)
+
+    for root in roots:
+        refreshed = Folder().load(root['_id'], level=AccessType.WRITE, user=user)
+        if refreshed is None:
+            raise RestException(f'Cannot write to folder {root["_id"]}', code=403)
+        _apply_training_split_to_folder_document(refreshed, training_split)
+        Folder().save(refreshed)
+
+    return {
+        'datasetIds': sorted(dataset_ids),
+        'updatedCount': len(dataset_ids),
+        'rootFolderIds': [str(root['_id']) for root in roots],
+    }
 
 
 def _multicam_camera_order(multi_cam: dict) -> List[str]:

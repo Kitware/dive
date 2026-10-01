@@ -83,6 +83,7 @@ export default defineComponent({
         ? [location.value]
         : selected.value.filter((item) => item._modelType === 'folder')
     ));
+    const selectedRootFolderIds = computed(() => folderSelection.value.map(({ _id }) => _id));
     const {
       datasets: selectedViameFolders,
       loading: resolvingFolders,
@@ -169,6 +170,7 @@ export default defineComponent({
       folderSelectionError,
       includesContainerFolders,
       cloneDatasetId,
+      selectedRootFolderIds,
       // methods
       prompt,
       clearSelected,
@@ -307,9 +309,9 @@ export default defineComponent({
                   </span>
                 </v-btn>
                 <training-split-menu
-                  v-if="trainingEnabled && locationInputs.length > 0"
+                  v-if="trainingEnabled && selectedRootFolderIds.length > 0"
                   v-bind="{ buttonOptions, menuOptions }"
-                  :dataset-ids="locationInputs"
+                  :root-folder-ids="selectedRootFolderIds"
                   @saved="eventBus.$emit('refresh-data-browser')"
                 />
                 <export
