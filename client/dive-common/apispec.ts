@@ -12,6 +12,7 @@ import type {
   CameraHomographies, CameraObservations, CameraTransformTypes, RegistrationSource,
 } from 'vue-media-annotator/alignedView/CameraRegistrationStore';
 import type { CameraRole } from 'dive-common/pipelineCameraOrder';
+import type { TrainingSplit } from 'dive-common/trainingSplit';
 import type { PercentileStretch } from 'vue-media-annotator/use/useImageEnhancements';
 import type {
   ScoringDatasetSummary,
@@ -332,9 +333,11 @@ interface DatasetConfigMutable {
    * role are absent.
    */
   cameraRoles?: Record<string, CameraRole>;
+  /** Role in training runs; null clears it, absent leaves it unchanged. */
+  trainingSplit?: TrainingSplit | null;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles', 'trainingSplit'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
@@ -517,6 +520,11 @@ interface Api {
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
+  /** Web: recursively tag datasets under root folders and store split on each root. */
+  bulkSetTrainingSplitUnderFolders?(
+    folderIds: string[],
+    trainingSplit: TrainingSplit | null,
+  ): Promise<{ datasetIds: string[]; updatedCount: number; rootFolderIds: string[] }>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;

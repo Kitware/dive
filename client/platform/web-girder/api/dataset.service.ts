@@ -8,6 +8,7 @@ import {
   DatasetConfigMutable, DatasetType, FrameImage, GlobalStyleSettings,
   SaveAttributeArgs, SaveAttributeTrackFilterArgs,
 } from 'dive-common/apispec';
+import type { TrainingSplit } from 'dive-common/trainingSplit';
 import {
   calibrationFileMarker, frameMetadataFileMarker, jsonCalibrationFileMarker, MultiType,
 } from 'dive-common/constants';
@@ -31,6 +32,38 @@ async function getDataset(datasetId: string) {
   Object.values(response.data.multiCamMedia?.cameras ?? {}).forEach(
     (camera) => attachFrameTimestamps(camera.imageData),
   );
+  return response;
+}
+
+/**
+ * Expand container folders to descendant DIVE datasets (server-side walk).
+ * Annotated folders are returned as-is; their children are not included.
+ */
+export interface BulkTrainingSplitResult {
+  datasetIds: string[];
+  updatedCount: number;
+  rootFolderIds: string[];
+}
+
+async function bulkSetTrainingSplitUnderFolders(
+  folderIds: string[],
+  trainingSplit: TrainingSplit | null,
+) {
+  return girderRest.post<BulkTrainingSplitResult>('dive_dataset/bulk_training_split', {
+    folderIds,
+    trainingSplit,
+  });
+}
+
+async function resolveFolderSelection(folderIds: string[], signal?: AbortSignal) {
+  const response = await girderRest.get<GirderModel[]>('dive_dataset/resolve_selection', {
+    params: { folderIds: JSON.stringify(folderIds) },
+    signal,
+  });
+  response.data.forEach((element) => {
+    // eslint-disable-next-line no-param-reassign
+    element._modelType = 'folder';
+  });
   return response;
 }
 
@@ -551,7 +584,9 @@ export {
   getDatasetCalibration,
   importAnnotationFile,
   importCameraRegistration,
+  bulkSetTrainingSplitUnderFolders,
   makeViameFolder,
+  resolveFolderSelection,
   saveAttributes,
   saveAttributeTrackFilters,
   saveConfig,
