@@ -1,3 +1,4 @@
+/* eslint-disable vue/one-component-per-file -- harness components for shallow mounting */
 import {
   defineComponent, h, nextTick, ref, Ref,
 } from 'vue';

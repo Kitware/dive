@@ -9,6 +9,7 @@ import {
   GirderFileManager, GirderMarkdown,
 } from '@girder/components/src';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
+import TrainingSplitMenu from 'dive-common/components/TrainingSplitMenu.vue';
 import type { SubType } from 'dive-common/apispec';
 import { isMultiCamTrainingTarget } from 'dive-common/multicamDisplay';
 import { getMultiCamCameraCount } from 'dive-common/pipelineMenuFilters';
@@ -55,6 +56,7 @@ export default defineComponent({
     RunPipelineMenu,
     RunTrainingMenu,
     ShareTab,
+    TrainingSplitMenu,
   },
   // everything below needs to be refactored to composition-api
   inject: ['girderRest'],
@@ -81,11 +83,18 @@ export default defineComponent({
         ? [location.value]
         : selected.value.filter((item) => item._modelType === 'folder')
     ));
+    const selectedRootFolderIds = computed(() => folderSelection.value.map(({ _id }) => _id));
     const {
       datasets: selectedViameFolders,
       loading: resolvingFolders,
       error: folderSelectionError,
+      refresh: refreshFolderDatasets,
     } = useFolderDatasets(folderSelection);
+
+    const onTrainingSplitSaved = () => {
+      refreshFolderDatasets();
+      eventBus.$emit('refresh-data-browser');
+    };
     const includesContainerFolders = computed(() => folderSelection.value.some(
       (item) => !item.meta?.annotate,
     ));
@@ -112,6 +121,10 @@ export default defineComponent({
 
     const datasetTypeList = computed(() => pipelineTargetFolders.value.map(
       (item) => item.meta?.type ?? null,
+    ));
+
+    const trainingSplits = computed(() => pipelineTargetFolders.value.map(
+      (item) => item.meta?.trainingSplit ?? null,
     ));
 
     const selectedFileIds = computed(() => selected.value.filter(
@@ -152,6 +165,7 @@ export default defineComponent({
       subTypeList,
       cameraNumbers,
       datasetTypeList,
+      trainingSplits,
       selectedFileIds,
       includesLargeImage,
       includesMultiCamDataset,
@@ -162,6 +176,8 @@ export default defineComponent({
       folderSelectionError,
       includesContainerFolders,
       cloneDatasetId,
+      selectedRootFolderIds,
+      onTrainingSplitSaved,
       // methods
       prompt,
       clearSelected,
@@ -273,6 +289,7 @@ export default defineComponent({
                     menuOptions,
                   }"
                   :selected-dataset-ids="locationInputs"
+                  :dataset-splits="trainingSplits"
                 />
                 <v-btn
                   v-if="selectedViameFolderIds.length > 0"
@@ -298,6 +315,12 @@ export default defineComponent({
                     Score
                   </span>
                 </v-btn>
+                <training-split-menu
+                  v-if="trainingEnabled && selectedRootFolderIds.length > 0"
+                  v-bind="{ buttonOptions, menuOptions }"
+                  :root-folder-ids="selectedRootFolderIds"
+                  @saved="onTrainingSplitSaved"
+                />
                 <export
                   v-if="!resolvingFolders && !folderSelectionError"
                   v-bind="{ buttonOptions, menuOptions }"
