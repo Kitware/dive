@@ -12,14 +12,34 @@ function asFolderModel(folder: GirderModel): GirderModel {
   return { ...folder, _modelType: 'folder' as const };
 }
 
+export type ResolveFolderDatasetsOptions = {
+  /** Re-fetch every selected folder from the server (e.g. after metadata edits). */
+  reload?: boolean;
+};
+
 /** Stop at datasets so camera and auxiliary folders are not separate job inputs. */
 export async function resolveFolderDatasets(
   selection: GirderModel[],
   signal?: AbortSignal,
+  options: ResolveFolderDatasetsOptions = {},
 ): Promise<GirderModel[]> {
   const folders = selection.filter((item) => item._modelType === 'folder');
   if (folders.length === 0) {
     return [];
+  }
+
+  if (options.reload) {
+    const { data } = await resolveFolderSelection(folders.map(({ _id }) => _id), signal);
+    const seen = new Set<string>();
+    const datasets: GirderModel[] = [];
+    data.forEach((folder) => {
+      if (seen.has(folder._id)) {
+        return;
+      }
+      seen.add(folder._id);
+      datasets.push(folder);
+    });
+    return datasets;
   }
 
   const containerIds = folders
@@ -56,14 +76,23 @@ export function useFolderDatasets(selection: Ref<GirderModel[]>) {
   const datasets = ref<GirderModel[]>([]);
   const loading = ref(false);
   const error = ref('');
-  watch(selection, async (folders, previous, onCleanup) => {
+  const reloadNonce = ref(0);
+  const reloadRequested = ref(false);
+
+  watch([selection, reloadNonce], async ([folders], _previous, onCleanup) => {
     const controller = new AbortController();
     onCleanup(() => controller.abort());
+    const reload = reloadRequested.value;
+    reloadRequested.value = false;
     datasets.value = [];
     error.value = '';
     loading.value = true;
     try {
-      const resolved = await resolveFolderDatasets(folders, controller.signal);
+      const resolved = await resolveFolderDatasets(
+        folders,
+        controller.signal,
+        { reload },
+      );
       if (!controller.signal.aborted) datasets.value = resolved;
     } catch (err) {
       if (!controller.signal.aborted) {
@@ -73,5 +102,16 @@ export function useFolderDatasets(selection: Ref<GirderModel[]>) {
       if (!controller.signal.aborted) loading.value = false;
     }
   }, { immediate: true, flush: 'sync' });
-  return { datasets, loading, error };
+
+  function refresh() {
+    if (selection.value.length === 0) {
+      return;
+    }
+    reloadRequested.value = true;
+    reloadNonce.value += 1;
+  }
+
+  return {
+    datasets, loading, error, refresh,
+  };
 }

@@ -50,6 +50,16 @@ describe('folder job selection', () => {
     expect(resolve).not.toHaveBeenCalled();
   });
 
+  it('reloads selected folders from the server when metadata may have changed', async () => {
+    const sequence = folder('sequence', true);
+    const refreshed = { ...folder('sequence', true), meta: { annotate: true, trainingSplit: 'test' } };
+    const resolve = vi.spyOn(datasetService, 'resolveFolderSelection')
+      .mockResolvedValue(axiosResponse([refreshed]));
+    const result = await resolveFolderDatasets([sequence], undefined, { reload: true });
+    expect(resolve).toHaveBeenCalledWith(['sequence'], undefined);
+    expect(result[0].meta?.trainingSplit).toBe('test');
+  });
+
   it('returns no inputs when only files are selected', async () => {
     const resolve = vi.spyOn(datasetService, 'resolveFolderSelection');
     expect(await resolveFolderDatasets([
@@ -100,6 +110,23 @@ describe('folder job selection', () => {
     expect(state.datasets.value).toEqual([]);
     expect(state.error.value).toContain('Unable to load');
     expect(state.loading.value).toBe(false);
+    scope.stop();
+  });
+
+  it('refresh re-resolves the current selection from the server', async () => {
+    const sequence = folder('sequence', true);
+    const refreshed = { ...folder('sequence', true), meta: { annotate: true, trainingSplit: 'validation' } };
+    const resolve = vi.spyOn(datasetService, 'resolveFolderSelection')
+      .mockResolvedValue(axiosResponse([refreshed]));
+    const scope = effectScope();
+    const selection = ref([sequence]);
+    const state = scope.run(() => useFolderDatasets(selection))!;
+    await flush();
+    expect(state.datasets.value[0].meta?.trainingSplit).toBeUndefined();
+    state.refresh();
+    await flush();
+    expect(resolve).toHaveBeenCalledWith(['sequence'], expect.any(AbortSignal));
+    expect(state.datasets.value[0].meta?.trainingSplit).toBe('validation');
     scope.stop();
   });
 });
