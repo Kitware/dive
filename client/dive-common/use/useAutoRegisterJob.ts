@@ -5,21 +5,7 @@ import type CameraRegistrationStore from 'vue-media-annotator/alignedView/Camera
 import proposeRegistrationFrames from 'dive-common/autoRegisterSelection';
 import type { AlignedSlot } from 'dive-common/alignedTimeline';
 
-/**
- * Auto-register job bridge for the Camera Registration panel.
- *
- * Replaces the old single-frame interactive-service bridge: registration is
- * now computed from MANY image pairs by the `utility_align_cameras_{2,3}-cam`
- * pipeline (one job per rig; a triplet registers in one job). The panel
- * calls {@link AutoRegisterJobService.run} with the knobs worth changing;
- * the service proposes a stratified candidate spread (DIVE picks for
- * diversity and synchronization; the VIAME process picks for image quality
- * within each temporal bin), launches the pipeline with the frame subset,
- * and refreshes the registration store when the job's output lands in the
- * dataset. Availability is "is the align pipe in the pipeline list" -- the
- * add-on packaging makes pipe present <=> weights present by construction,
- * so no separate weights probe exists (and none could work on web).
- */
+/** Auto-register job bridge; availability is pipe presence, which implies weights. */
 
 /** Minimal pipe shape from the pipeline list (see apispec Pipe). */
 export interface AlignPipe {
@@ -29,15 +15,7 @@ export interface AlignPipe {
 }
 
 export interface AutoRegisterRunOptions {
-  /** Candidate frames proposed per temporal bin (oversampling factor). */
-  candidatesPerBin: number;
-  /** Temporal bins == the pipeline's max_frames budget. */
-  maxFrames: number;
-  /**
-   * Camera pairs for a triplet as 1-based input indices ("1-2,1-3,2-3").
-   * Undefined = all pairs (the pipe default).
-   */
-  pairs?: string;
+  frames: number;
   /** Per-frame minimum-inlier gate override. */
   minInliers?: number;
   /**
@@ -46,19 +24,15 @@ export interface AutoRegisterRunOptions {
    * merging over them frame by frame.
    */
   replaceExisting?: boolean;
-  /**
-   * Explicit global aligned-timeline slots to match, bypassing the stratified
-   * proposal. Used by "queue these frames and run": the user has already
-   * chosen the captures, so temporal spread and per-bin oversampling do not
-   * apply -- every queued capture is matched, and only captures missing a
-   * frame on some camera are dropped. maxFrames/candidatesPerBin are ignored.
-   */
+  /** Queued aligned-timeline slots to match instead of the even spread; `frames` is ignored. */
   slots?: number[];
 }
 
 export interface AutoRegisterJobService {
   /** Whether the align pipeline is installed (reactive; resolves after mount). */
   available: Readonly<Ref<boolean>>;
+  /** Null when not installed. */
+  pipe: Readonly<Ref<AlignPipe | null>>;
   running: Readonly<Ref<boolean>>;
   /** Progress/status line for the panel, or null when idle. */
   status: Readonly<Ref<string | null>>;
@@ -72,7 +46,7 @@ export interface AutoRegisterJobDeps {
   /** Rig cameras in display order (the job is rig-wide). */
   cameras: Ref<string[]>;
   frameCount(camera: string): number;
-  /** Per-frame capture timestamps for skew ranking, or null when unknown. */
+  /** Per-frame capture timestamps for the skew filter, or null when unknown. */
   timestampsFor(camera: string): (number | undefined)[] | null;
   /**
    * The dataset's aligned timeline (alignedTimeline.ts), or null when the
@@ -153,19 +127,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     skipped: Record<string, number>;
   }
 
-  /**
-   * Summarize the run from the merged registration.
-   *
-   * The pipeline already records why it discarded a candidate -- stats.skipped,
-   * e.g. low_texture over flat ice or open water -- and DIVE persists that per
-   * observation, but nothing read it back: a run that rejected every frame and
-   * fitted nothing reported the same "complete" as one that fitted the whole
-   * rig, leaving the reason visible only in the job log.
-   *
-   * Reason counts are per pair rather than summed. Every pair sees the same
-   * candidate spread, so summing would report a 14-frame run as 42 rejections
-   * on a triplet.
-   */
+  /** Skip counts take the worst pair, not the sum: every pair sees the same frames. */
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function summarizeRun(meta: any): RunSummary {
     const homographies = meta?.cameraHomographies ?? {};
@@ -195,7 +157,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     return summary;
   }
 
-  /** "14 low_texture, 2 low_overlap", commonest first; empty when nothing was rejected. */
+  /** "14 insufficient_matches, 2 low_confidence", commonest first. */
   function describeSkips(skipped: Record<string, number>): string {
     return Object.entries(skipped)
       .sort(([, a], [, b]) => b - a)
@@ -214,7 +176,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
     if (summary.pairs > 0 && summary.fitted === 0) {
       status.value = null;
       error.value = skips
-        ? 'Auto Register fitted no camera pairs: every candidate frame was rejected '
+        ? 'Auto Register fitted no camera pairs: every frame was rejected '
           + `(${skips}). Try frames with more visible structure.`
         : 'Auto Register fitted no camera pairs; see the job log for details.';
       return;
@@ -399,17 +361,16 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
             ? cameras.map((camera, i) => slots.map((slot) => lists[i][slot[camera] as number]))
             : lists;
         })(),
-        bins: options.maxFrames,
-        perBin: options.candidatesPerBin,
+        count: options.frames,
       });
       if (frames.length === 0) {
         throw new Error(aligned
-          ? 'No candidate frames could be proposed: no capture has a frame on every camera.'
-          : 'No candidate frames could be proposed for this dataset.');
+          ? 'No frames could be proposed: no capture has a frame on every camera.'
+          : 'No frames could be proposed for this dataset.');
       }
       status.value = queued
         ? `Preparing ${frames.length} queued frame(s)…`
-        : `Proposing ${frames.length} candidate frames…`;
+        : `Preparing ${frames.length} frame(s)…`;
       const imagePairs: Record<string, string[]> = {};
       // eslint-disable-next-line no-restricted-syntax
       for (const camera of cameras) {
@@ -442,16 +403,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
           registration.markSaved();
         }
       }
-      const kwiverParams: Record<string, string> = {
-        // max_frames is the pipeline's bin budget: it keeps the best candidate
-        // per bin and prunes the rest. A queued run has already chosen its
-        // captures, so give it one bin per frame or it would prune them back
-        // down to the proposal's budget.
-        'register:max_frames': String(queued ? frames.length : options.maxFrames),
-      };
-      if (options.pairs) {
-        kwiverParams['register:pairs'] = options.pairs;
-      }
+      const kwiverParams: Record<string, string> = {};
       if (options.minInliers !== undefined) {
         kwiverParams['register:min_inliers'] = String(options.minInliers);
       }
@@ -495,6 +447,7 @@ export function createAutoRegisterJobService(deps: AutoRegisterJobDeps): AutoReg
 
   return {
     available: computed(() => alignPipe.value !== null),
+    pipe: computed(() => alignPipe.value),
     running,
     status,
     error,

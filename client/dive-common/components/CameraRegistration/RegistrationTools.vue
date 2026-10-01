@@ -81,15 +81,12 @@ export default defineComponent({
         return { name, status };
       });
     });
-    /** One-line rig-alignment summary (icon + color + text) for the status header. */
+    /** One-line rig-alignment summary for the status header. */
     const alignmentSummary = computed(() => {
       const total = cameras.value.length;
       const unresolvedCount = cameraAlignmentStatuses.value
         .filter((c) => c.status === 'unresolved').length;
-      const complete = unresolvedCount === 0;
       return {
-        icon: complete ? 'mdi-check-circle' : 'mdi-alert',
-        color: complete ? 'success' : 'warning',
         text: `${total - unresolvedCount}/${total} cameras ready`,
       };
     });
@@ -210,12 +207,7 @@ export default defineComponent({
         current: row.frame !== null && row.frame === currentPairFrame.value,
       }));
     });
-    /**
-     * Skipped rows are candidates a producer rejected -- overwhelmingly
-     * "pruned", the oversampling remainder from proposing candidatesPerBin per
-     * bin and keeping the best. They carry no points and support no action, so
-     * they are counted, not listed.
-     */
+    /** Rejected frames carry no points and support no action, so they are counted, not listed. */
     const skippedCount = computed(() => frameRows.value.filter((row) => row.skipped).length);
     const listedRows = computed(() => frameRows.value.filter((row) => !row.skipped));
     const autoRows = computed(() => listedRows.value.filter((row) => row.source !== MANUAL_SOURCE));
@@ -308,8 +300,7 @@ export default defineComponent({
     }
     function runQueuedFrames() {
       autoRegisterJob?.run({
-        maxFrames: queuedSlots.value.length,
-        candidatesPerBin: 1,
+        frames: queuedSlots.value.length,
         slots: [...queuedSlots.value],
       });
       queuedSlots.value = [];
@@ -418,8 +409,6 @@ export default defineComponent({
     const canClearLast = computed(
       () => registration.pendingPoint.value !== null || correspondences.value.length > 0,
     );
-    /** How many more correspondence pairs are needed before the transform can be fit. */
-    const remainingPoints = computed(() => Math.max(0, minPoints.value - correspondences.value.length));
     /** The active pair has a usable transform: enough points to fit one, or one loaded from a file. */
     const hasTransform = computed(() => canFit.value
       || Boolean(activeKey.value && registration.homographies.value[activeKey.value]));
@@ -454,24 +443,30 @@ export default defineComponent({
         return {
           icon: 'mdi-file-check',
           color: 'success',
-          text: 'Transform loaded from a registration file',
+          text: 'Transform loaded from file',
+          hint: 'Linked pan/zoom and the overlay warp use the loaded transform. Fitting '
+            + `${minPoints.value} or more picked point pairs replaces it.`,
         };
       }
       if (canFit.value) {
         const stats = pairStats.value;
         const frames = stats ? stats.frameCount : 0;
-        const rms = stats && stats.rmsPx !== null ? ` — rms ${stats.rmsPx.toFixed(1)} px` : '';
+        const rms = stats && stats.rmsPx !== null ? ` · rms ${stats.rmsPx.toFixed(1)} px` : '';
         return {
           icon: 'mdi-check-circle',
           color: fitQualityColor.value,
-          text: `Transform fit from ${frames} frame${frames === 1 ? '' : 's'} / `
-            + `${correspondences.value.length} point pairs${rms}`,
+          text: `Fit: ${frames} frame${frames === 1 ? '' : 's'} · `
+            + `${correspondences.value.length} pairs${rms}`,
+          hint: 'Green with 12 or more point pairs; yellow when the transform can be fit '
+            + 'but has few points to support it.',
         };
       }
       return {
         icon: 'mdi-progress-clock',
         color: 'grey',
-        text: 'No transform yet: pick points below, or import a registration (Import menu)',
+        text: 'No transform yet',
+        hint: 'Auto Register, pick points with Edit points, or import a registration '
+          + '(Import menu).',
       };
     });
     /**
@@ -577,43 +572,47 @@ export default defineComponent({
       return `${here} -> ${shortCameraLabel(other.camera)}: (${ox.toFixed(1)}, ${oy.toFixed(1)})`;
     });
 
-    /**
-     * Persist the registration (all pairs) with the dataset: it is written as
-     * the project's per-camera <camera>_to_<reference>_registration.json files and restored
-     * on every dataset load (so the Align button works across sessions).
-     * Deliberately not gated on the
-     * active pair having correspondences: saving must also be able to persist
-     * a cleared state (so stale saved registration doesn't survive Clear All /
-     * per-row deletes) and state belonging to non-active pairs. Portable
-     * copies for sharing come from the Export menu's per-camera registration
-     * downloads, which read this saved state.
-     *
-     * Overwriting an existing saved registration (e.g. one imported from a
-     * producer like KAMERA) is confirmed first, naming only the per-camera
-     * file(s) whose content this save actually changes -- pairs the user
-     * didn't touch are rewritten byte-identical, which isn't an overwrite
-     * worth warning about.
-     */
+    const fileReference = computed(
+      () => alignedView.reference.value ?? cameras.value[0] ?? null,
+    );
+    const pairLabel = computed(() => `${camLeft.value ?? 'A'} ↔ ${camRight.value ?? 'B'}`);
+    const pairDirty = computed(
+      () => (activeKey.value ? registration.pairDirty(activeKey.value) : false),
+    );
+    const otherPairsDirty = computed(
+      () => (activeKey.value ? registration.dirtyOutsidePair(activeKey.value) : false),
+    );
+    /** Falls back to the saved baseline because a deleted pair is only there. */
+    const pairFileName = computed(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return null;
+      }
+      const [left, right] = key.split('::');
+      const holdsPair = (file: ReturnType<typeof buildPerCameraRegistrationFiles>[number]) => (
+        file.body.pairs.some((pair) => pair.left === left && pair.right === right));
+      const reference = fileReference.value;
+      const next = buildPerCameraRegistrationFiles(registration.valuesSavingPair(key), reference);
+      const saved = buildPerCameraRegistrationFiles(registration.savedRegistrationValues(), reference);
+      return (next.find(holdsPair) ?? saved.find(holdsPair))?.name ?? null;
+    });
+
+    /** Persist the selected pair's file, confirming first if it overwrites a changed saved file. */
     async function save() {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
       // Fit before diffing so the comparison reflects what will be written.
       registration.maybeFitActivePair();
-      // Group the saved baseline and the current state into per-camera files
-      // exactly the way the persistence layer writes them, against the same
-      // reference camera the backend uses (the dataset's Reference Camera
-      // choice, published by the viewer).
-      const reference = alignedView.reference.value ?? cameras.value[0] ?? null;
+      // Group into per-camera files exactly as the persistence layer does.
       const savedFiles = buildPerCameraRegistrationFiles(
         registration.savedRegistrationValues(),
-        reference,
+        fileReference.value,
       );
       const nextFiles = new Map(buildPerCameraRegistrationFiles(
-        {
-          homographies: registration.homographies.value,
-          observations: registration.observations.value,
-          transformTypes: registration.transformTypes.value,
-          source: registration.source.value,
-        },
-        reference,
+        registration.valuesSavingPair(key),
+        fileReference.value,
       ).map((file) => [file.name, file]));
       // Existing files this save replaces with different content (or removes,
       // for a cleared pair) -- the actual overwrites.
@@ -641,33 +640,79 @@ export default defineComponent({
           return;
         }
       }
+      await persistPair(key);
+    }
+
+    /** Other pairs are sent at their saved state so their files and pending edits are kept. */
+    async function persistPair(key: string) {
+      const values = registration.valuesSavingPair(key);
       saving.value = true;
       try {
         await saveConfig(datasetId.value, {
-          cameraHomographies: registration.homographies.value,
-          cameraCorrespondences: registration.observations.value,
-          cameraTransformTypes: registration.transformTypes.value,
-          cameraRegistrationSource: registration.source.value,
+          cameraHomographies: values.homographies,
+          cameraCorrespondences: values.observations,
+          cameraTransformTypes: values.transformTypes,
+          cameraRegistrationSource: values.source,
         });
-        registration.markSaved();
+        registration.markPairSaved(key);
       } finally {
         saving.value = false;
       }
     }
 
-    /**
-     * Auto Register Frames: launch the align_cameras pipeline over a
-     * stratified spread of candidate frames (one job registers the whole
-     * rig; a triplet solves up to three pairs at once). The service is
-     * provided by the viewer; availability tracks whether the align pipes
-     * are installed, which hides the button entirely when they aren't.
-     */
+    const canDeletePair = computed(() => {
+      const key = activeKey.value;
+      if (!key) {
+        return false;
+      }
+      const saved = registration.savedRegistrationValues();
+      return [
+        registration.homographies.value, registration.observations.value,
+        registration.transformTypes.value,
+        saved.homographies, saved.observations, saved.transformTypes,
+      ].some((map) => key in map);
+    });
+
+    /** Disables the aligned view when no transform is left, so it can't re-enable itself later. */
+    async function deletePair() {
+      const key = activeKey.value;
+      if (!key) {
+        return;
+      }
+      const file = pairFileName.value;
+      const confirmed = await prompt({
+        title: `Delete ${pairLabel.value} Registration?`,
+        text: `Remove the ${pairLabel.value} points and transform`
+          + `${file ? `, and its entry in ${file}` : ''}? Other camera pairs are `
+          + 'not affected. This cannot be undone.',
+        positiveButton: 'Delete',
+        negativeButton: 'Cancel',
+        confirm: true,
+      });
+      if (!confirmed) {
+        return;
+      }
+      registration.deletePair(key);
+      if (!Object.keys(registration.homographies.value).length) {
+        alignedView.setEnabled(false);
+      }
+      await persistPair(key);
+    }
+
+    /** Auto Register: one align_cameras job over evenly spread frames; hidden without the align pipes. */
     const autoRegisterJob = useAutoRegisterJob();
     const autoRegisterAvailable = computed(() => !!autoRegisterJob?.available.value);
     const autoRegistering = computed(() => !!autoRegisterJob?.running.value);
     const autoRegisterError = computed(() => autoRegisterJob?.error.value ?? null);
     const autoRegisterStatus = computed(() => autoRegisterJob?.status.value ?? null);
     const autoRegisterDialog = ref(false);
+
+    const autoRegisterTooltip = computed(() => {
+      const pipe = autoRegisterJob?.pipe.value;
+      return pipe
+        ? `Auto Register: runs ${pipe.name} (${pipe.pipe})`
+        : 'Auto Register';
+    });
 
     function openAutoRegisterDialog() {
       autoRegisterDialog.value = true;
@@ -797,10 +842,8 @@ export default defineComponent({
       transformType,
       transformTypeItems: TRANSFORM_TYPES,
       minPoints,
-      remainingPoints,
       alignmentModeItems,
       hasTransform,
-      hasLoadedTransform,
       refinedFromSource,
       canClearPair,
       canClearLast,
@@ -809,17 +852,23 @@ export default defineComponent({
       transformStatus,
       setLinkedNav,
       linkedNav: registration.linkedNav,
-      dirty: registration.dirty,
+      pairLabel,
+      pairDirty,
+      otherPairsDirty,
+      pairFileName,
       saving,
       sourceReadout,
       setTransformType,
       setAlignmentMode,
       save,
+      canDeletePair,
+      deletePair,
       autoRegisterAvailable,
       autoRegistering,
       autoRegisterError,
       autoRegisterStatus,
       autoRegisterDialog,
+      autoRegisterTooltip,
       openAutoRegisterDialog,
       runAutoRegister,
       loopClosure,
@@ -836,146 +885,167 @@ export default defineComponent({
     ]"
     class="mx-4"
   >
-    <span class="text-body-2">
-      Register cameras by importing a registration file (Import menu) or by
-      picking corresponding points between two cameras.
-    </span>
-    <v-divider class="my-3" />
-
-    <span
-      v-if="sourceReadout"
-      class="text-caption grey--text d-block"
-    >
-      Source: {{ sourceReadout }}
-    </span>
-    <!-- Persistent divergence status (survives save by design); only the
-         action hint tracks the save state so it never asks for a save
-         that's already done. -->
-    <span
-      v-if="refinedFromSource"
-      class="text-caption warning--text d-block"
-    >
-      This pair has been refined in-app since the source registration was
-      produced.
-      <template v-if="dirty">
-        Save, then download the camera's registration from the Export menu
-        to hand the refinement (and its points) back to the producer.
-      </template>
-      <template v-else>
-        Download the camera's registration from the Export menu to hand the
-        refinement (and its points) back to the producer.
-      </template>
-    </span>
-
     <div
       v-if="cameras.length >= 2"
-      class="mt-2"
+      class="d-flex align-center flex-wrap"
     >
-      <div
-        class="d-flex align-center text-caption mb-1"
-        :class="`${alignmentSummary.color}--text`"
+      <v-chip
+        v-for="cam in cameraAlignmentStatuses"
+        :key="cam.name"
+        small
+        label
+        :ripple="false"
+        :color="cam.status === 'resolved'
+          ? 'success'
+          : (cam.status === 'unresolved' ? 'warning' : undefined)"
+        :outlined="cam.status !== 'resolved'"
+        class="mr-1 mb-1"
+        style="pointer-events: none;"
       >
         <v-icon
-          small
-          :color="alignmentSummary.color"
-          class="mr-1"
+          x-small
+          left
         >
-          {{ alignmentSummary.icon }}
+          {{ cam.status === 'reference' ? 'mdi-star'
+            : (cam.status === 'resolved' ? 'mdi-check' : 'mdi-alert-outline') }}
         </v-icon>
-        {{ alignmentSummary.text }}
-      </div>
-      <div class="d-flex flex-wrap">
-        <v-chip
-          v-for="cam in cameraAlignmentStatuses"
-          :key="cam.name"
-          small
-          label
-          :ripple="false"
-          :color="cam.status === 'resolved'
-            ? 'success'
-            : (cam.status === 'unresolved' ? 'warning' : undefined)"
-          :outlined="cam.status !== 'resolved'"
-          class="mr-1 mb-1"
-          style="pointer-events: none;"
+        {{ cam.name }}
+      </v-chip>
+      <v-spacer />
+      <v-tooltip
+        bottom
+        max-width="320"
+      >
+        <template #activator="{ on }">
+          <v-icon
+            small
+            class="mb-1"
+            v-on="on"
+          >
+            mdi-information-outline
+          </v-icon>
+        </template>
+        <div>
+          {{ alignmentSummary.text }}; the starred camera is the reference.
+          Register a camera by importing a registration file (Import menu),
+          running Auto Register, or picking matching points between two cameras.
+        </div>
+        <div
+          v-if="sourceReadout"
+          class="mt-1"
+        >
+          Source: {{ sourceReadout }}
+        </div>
+      </v-tooltip>
+    </div>
+    <v-tooltip
+      v-if="loopClosure"
+      bottom
+      max-width="320"
+    >
+      <template #activator="{ on }">
+        <div
+          class="d-flex align-center text-caption"
+          :class="loopClosure.consistent ? 'success--text' : 'warning--text'"
+          v-on="on"
         >
           <v-icon
-            x-small
-            left
+            small
+            :color="loopClosure.consistent ? 'success' : 'warning'"
+            class="mr-1"
           >
-            {{ cam.status === 'reference' ? 'mdi-star'
-              : (cam.status === 'resolved' ? 'mdi-check' : 'mdi-alert-outline') }}
+            {{ loopClosure.consistent ? 'mdi-vector-triangle' : 'mdi-alert' }}
           </v-icon>
-          {{ cam.name }}{{ cam.status === 'reference' ? ' · reference' : '' }}
-        </v-chip>
-      </div>
-      <div
-        v-if="loopClosure"
-        class="d-flex align-center text-caption"
-        :class="loopClosure.consistent ? 'success--text' : 'warning--text'"
-      >
-        <v-icon
-          small
-          :color="loopClosure.consistent ? 'success' : 'warning'"
-          class="mr-1"
-        >
-          {{ loopClosure.consistent ? 'mdi-vector-triangle' : 'mdi-alert' }}
-        </v-icon>
-        <template v-if="loopClosure.consistent">
-          triplet consistent — {{ loopClosure.meanPx.toFixed(1) }} px loop closure
-          ({{ (loopClosure.fraction * 100).toFixed(3) }}% of {{ cameras[2] }} width)
-        </template>
-        <template v-else>
-          {{ loopClosure.meanPx.toFixed(1) }} px loop closure
-          ({{ (loopClosure.fraction * 100).toFixed(3) }}% of {{ cameras[2] }} width)
-          — {{ loopClosure.route }} disagree
-        </template>
-      </div>
-    </div>
-    <v-divider class="my-3" />
-
-    <v-select
-      v-model="camLeft"
-      :items="cameras"
-      label="Camera A (left)"
-      dense
-      outlined
-      hide-details
-      class="mb-3"
-    />
-    <v-select
-      v-model="camRight"
-      :items="cameras"
-      label="Camera B (right)"
-      dense
-      outlined
-      hide-details
-      class="mb-3"
-    />
-
-    <div class="d-flex align-center text-caption">
-      <v-icon
-        small
-        :color="transformStatus.color"
-        class="mr-1"
-      >
-        {{ transformStatus.icon }}
-      </v-icon>
-      <span :class="`${transformStatus.color}--text`">
-        {{ transformStatus.text }}
-      </span>
-    </div>
-    <span
-      v-if="hasLoadedTransform"
-      class="text-caption grey--text d-block mt-1"
+          Loop closure {{ loopClosure.meanPx.toFixed(1) }} px
+          {{ loopClosure.consistent ? '' : '· inconsistent' }}
+        </div>
+      </template>
+      {{ (loopClosure.fraction * 100).toFixed(3) }}% of {{ cameras[2] }} width.
+      Compares {{ loopClosure.route }}.
+    </v-tooltip>
+    <v-tooltip
+      v-if="refinedFromSource"
+      bottom
+      max-width="320"
     >
-      Linked pan/zoom and the overlay warp use the loaded transform. Picking
-      points is optional: fitting {{ minPoints }} or more pairs replaces it.
-    </span>
+      <template #activator="{ on }">
+        <div
+          class="d-flex align-center text-caption warning--text"
+          v-on="on"
+        >
+          <v-icon
+            small
+            color="warning"
+            class="mr-1"
+          >
+            mdi-source-branch
+          </v-icon>
+          Refined since the source registration
+        </div>
+      </template>
+      {{ pairDirty ? 'Save, then download' : 'Download' }} the camera's registration
+      from the Export menu to hand the refinement (and its points) back to the
+      producer.
+    </v-tooltip>
+
+    <div class="d-flex mt-3">
+      <v-select
+        v-model="camLeft"
+        :items="cameras"
+        label="Camera A"
+        dense
+        outlined
+        hide-details
+        class="mr-2"
+      />
+      <v-select
+        v-model="camRight"
+        :items="cameras"
+        label="Camera B"
+        dense
+        outlined
+        hide-details
+      />
+    </div>
+    <v-tooltip
+      bottom
+      max-width="320"
+    >
+      <template #activator="{ on }">
+        <div
+          class="d-flex align-center text-caption mt-2"
+          v-on="on"
+        >
+          <v-icon
+            small
+            :color="transformStatus.color"
+            class="mr-1"
+          >
+            {{ transformStatus.icon }}
+          </v-icon>
+          <span :class="`${transformStatus.color}--text`">
+            {{ transformStatus.text }}
+          </span>
+        </div>
+      </template>
+      {{ transformStatus.hint }}
+    </v-tooltip>
 
     <template v-if="camLeft && camRight && camLeft !== camRight">
       <v-divider class="my-3" />
       <div class="d-flex align-center">
-        <h4>Registration Frames</h4>
+        <v-tooltip
+          bottom
+          max-width="320"
+        >
+          <template #activator="{ on }">
+            <h4 v-on="on">
+              Registration Frames
+            </h4>
+          </template>
+          The fit pools points from every checked frame, auto and manual alike.
+          Uncheck a frame to exclude it without deleting its points.
+        </v-tooltip>
         <v-spacer />
         <tooltip-btn
           icon="mdi-chevron-left"
@@ -990,13 +1060,9 @@ export default defineComponent({
           @click="seekNextMarker"
         />
       </div>
-      <span class="text-caption grey--text d-block mb-2">
-        The fit pools points from every checked frame, auto and manual alike.
-        Uncheck a frame to exclude it without deleting its points.
-      </span>
 
       <!-- Auto: matched frames, and the queue for the next run -->
-      <div class="d-flex align-center section-head">
+      <div class="d-flex align-center mt-1">
         <v-icon
           x-small
           class="mr-1"
@@ -1005,12 +1071,21 @@ export default defineComponent({
         </v-icon>
         <span class="font-weight-medium">Auto</span>
         <span class="text-caption grey--text mx-2">
-          {{ autoSummary.enabled }}/{{ autoSummary.total }} frames
+          {{ autoSummary.enabled }}/{{ autoSummary.total }}
           <template v-if="autoSummary.rmsPx !== null">
             · rms {{ autoSummary.rmsPx.toFixed(1) }} px
           </template>
         </span>
         <v-spacer />
+        <tooltip-btn
+          v-if="autoRegisterAvailable"
+          icon="mdi-playlist-plus"
+          :disabled="currentSlot === null || currentQueued"
+          :tooltip-text="currentQueued
+            ? 'This frame is already queued'
+            : 'Queue the current frame for a matcher run'"
+          @click="queueCurrentFrame"
+        />
         <tooltip-btn
           icon="mdi-delete-sweep-outline"
           color="error"
@@ -1020,18 +1095,14 @@ export default defineComponent({
         />
         <tooltip-btn
           v-if="autoRegisterAvailable"
-          icon="mdi-cog-outline"
+          icon="mdi-play-circle-outline"
+          color="primary"
           :disabled="cameras.length < 2 || autoRegistering"
-          tooltip-text="Auto Register: match a spread of frames across the sequence"
+          :tooltip-text="autoRegisterTooltip"
           @click="openAutoRegisterDialog"
         />
       </div>
-      <!-- Running state for the matcher job. It lives in the section, not on
-           a button: the buttons come and go with the frame list, and a run
-           has to still read as running when the user leaves this tab and
-           comes back (the job service owns `running`, this component does
-           not). A linear bar also cannot overflow the way a circular spinner
-           stuffed into an x-small button does. -->
+      <!-- Not on a button, so a run still shows after leaving and returning to this tab -->
       <div
         v-if="autoRegistering"
         class="ml-2 mb-2"
@@ -1052,48 +1123,17 @@ export default defineComponent({
         @jump="jumpToFrame"
         @remove="removeFrameRow"
       />
-      <div
-        v-if="!autoRows.length"
-        class="ml-2 mb-1"
+      <span
+        v-if="!autoRows.length && !autoRegistering"
+        class="text-caption grey--text d-block ml-2"
       >
-        <span class="text-caption grey--text d-block">
-          No auto-registered frames yet.
-        </span>
-        <v-btn
-          v-if="autoRegisterAvailable"
-          outlined
-          x-small
-          color="primary"
-          class="mt-1"
-          :disabled="cameras.length < 2 || autoRegistering"
-          @click="openAutoRegisterDialog"
-        >
-          <v-icon
-            x-small
-            left
-          >
-            mdi-auto-fix
-          </v-icon>
-          Auto Register Frames…
-        </v-btn>
-      </div>
-
-      <!-- Queue: captures the user picked for the next matcher run -->
-      <div class="d-flex align-center flex-wrap ml-2 mt-1">
-        <tooltip-btn
-          icon="mdi-plus"
-          :disabled="currentSlot === null || currentQueued"
-          :tooltip-text="currentQueued
-            ? 'This frame is already queued'
-            : 'Queue the current frame for the next matcher run'"
-          @click="queueCurrentFrame"
-        />
-        <span
-          v-if="!queuedSlots.length"
-          class="text-caption grey--text"
-        >
-          Queue frames to match
-        </span>
+        None yet
+      </span>
+      <div
+        v-if="queuedSlots.length"
+        class="d-flex align-center flex-wrap ml-2 mt-1"
+      >
+        <span class="text-caption grey--text mr-1">Queued:</span>
         <v-chip
           v-for="slot in queuedSlots"
           :key="`queued-${slot}`"
@@ -1105,21 +1145,14 @@ export default defineComponent({
         >
           {{ slot }}
         </v-chip>
-      </div>
-      <div
-        v-if="queuedSlots.length"
-        class="d-flex align-center mt-1"
-      >
-        <v-btn
-          outlined
-          x-small
+        <v-spacer />
+        <tooltip-btn
+          icon="mdi-play"
           color="primary"
-          class="flex-grow-1"
           :disabled="autoRegistering"
+          :tooltip-text="`Run the matcher on ${queuedSlots.length} queued frame(s)`"
           @click="runQueuedFrames"
-        >
-          Run matcher on {{ queuedSlots.length }} frame(s)
-        </v-btn>
+        />
         <tooltip-btn
           icon="mdi-close"
           tooltip-text="Clear the queue"
@@ -1128,7 +1161,7 @@ export default defineComponent({
       </div>
 
       <!-- Manual: hand-picked points -->
-      <div class="d-flex align-center section-head mt-3">
+      <div class="d-flex align-center mt-3">
         <v-icon
           x-small
           class="mr-1"
@@ -1137,7 +1170,7 @@ export default defineComponent({
         </v-icon>
         <span class="font-weight-medium">Manual</span>
         <span class="text-caption grey--text mx-2">
-          {{ manualSummary.enabled }}/{{ manualSummary.total }} frames
+          {{ manualSummary.enabled }}/{{ manualSummary.total }}
           <template v-if="manualSummary.rmsPx !== null">
             · rms {{ manualSummary.rmsPx.toFixed(1) }} px
           </template>
@@ -1164,16 +1197,16 @@ export default defineComponent({
       />
       <span
         v-if="!manualRows.length"
-        class="text-caption grey--text d-block ml-2 mb-1"
+        class="text-caption grey--text d-block ml-2"
       >
-        No hand-picked frames.
+        None yet
       </span>
 
       <span
         v-if="skippedCount"
         class="text-caption grey--text d-block mt-1"
       >
-        {{ skippedCount }} candidate(s) the matcher rejected are not listed.
+        {{ skippedCount }} frame(s) rejected by the matcher are hidden
       </span>
     </template>
 
@@ -1196,36 +1229,34 @@ export default defineComponent({
       {{ autoRegisterStatus }}
     </span>
 
-    <v-checkbox
-      :input-value="linkedNav"
-      :disabled="!hasTransform"
-      :color="fitQualityColor"
-      label="Link pan/zoom"
-      dense
-      hide-details
-      class="mt-1"
-      @change="setLinkedNav"
-    />
-
     <v-divider class="my-3" />
-
-    <v-switch
-      v-model="pickingEnabled"
-      label="Edit points"
-      dense
-      hide-details
-      class="mt-0"
-    />
-    <span class="text-caption grey--text d-block">
-      Click matching features in each camera to add correspondence pairs.
-    </span>
+    <div class="d-flex align-center">
+      <v-switch
+        v-model="pickingEnabled"
+        label="Edit points"
+        dense
+        hide-details
+        class="mt-0 pt-0"
+      />
+      <v-spacer />
+      <v-checkbox
+        :input-value="linkedNav"
+        :disabled="!hasTransform"
+        :color="fitQualityColor"
+        label="Link pan/zoom"
+        dense
+        hide-details
+        class="mt-0 pt-0"
+        @change="setLinkedNav"
+      />
+    </div>
 
     <template v-if="pickingEnabled">
       <div
         class="text-caption mt-2"
         style="font-family: monospace;"
       >
-        {{ cursorReadout || 'Move the cursor over a camera to see its coordinates.' }}
+        {{ cursorReadout || 'Click matching features in each camera to add pairs.' }}
       </div>
 
       <v-expansion-panels
@@ -1234,7 +1265,7 @@ export default defineComponent({
       >
         <v-expansion-panel>
           <v-expansion-panel-header class="px-1">
-            Correspondences on frame
+            Points on frame
             {{ currentPairFrame !== null ? currentPairFrame : '—' }}
             ({{ frameCorrespondences.length }})
           </v-expansion-panel-header>
@@ -1293,55 +1324,32 @@ export default defineComponent({
               </template>
             </v-simple-table>
             <span
-              v-else-if="hasLoadedTransform"
-              class="text-caption grey--text"
-            >
-              Transform loaded from a file (no picked points). Picking {{ minPoints }} or more
-              points and fitting will replace it.
-            </span>
-            <span
               v-else
               class="text-caption grey--text"
             >
-              No correspondences on this frame yet
-              ({{ correspondences.length }} total across all frames; at least
-              {{ minPoints }} required for the selected transform).
+              None on this frame ({{ correspondences.length }} across all frames).
             </span>
           </v-expansion-panel-content>
         </v-expansion-panel>
       </v-expansion-panels>
 
-      <h4 class="mt-3">
-        Transform Type
-      </h4>
-      <v-select
-        :value="transformType"
-        :items="transformTypeItems"
-        item-text="text"
-        item-value="value"
-        label="Transform type"
-        dense
-        outlined
-        hide-details
-        class="my-2"
-        @change="setTransformType"
-      />
-      <div class="d-flex align-center text-caption mt-1">
-        <v-icon
-          small
-          :color="canFit ? 'success' : 'grey'"
-          class="mr-1"
+      <div class="d-flex align-center mt-2">
+        <v-select
+          :value="transformType"
+          :items="transformTypeItems"
+          item-text="text"
+          item-value="value"
+          label="Transform type"
+          dense
+          outlined
+          hide-details
+          @change="setTransformType"
+        />
+        <span
+          class="text-caption ml-2 text-no-wrap"
+          :class="canFit ? 'success--text' : 'grey--text'"
         >
-          {{ canFit ? 'mdi-check-circle' : 'mdi-progress-clock' }}
-        </v-icon>
-        <span :class="canFit ? 'success--text' : 'grey--text'">
-          <template v-if="canFit">
-            Ready to fit ({{ correspondences.length }} / {{ minPoints }} point pairs)
-          </template>
-          <template v-else>
-            {{ remainingPoints }} more point pair{{ remainingPoints === 1 ? '' : 's' }} needed
-            ({{ correspondences.length }} / {{ minPoints }})
-          </template>
+          {{ correspondences.length }} / {{ minPoints }} pairs
         </span>
       </div>
     </template>
@@ -1355,55 +1363,80 @@ export default defineComponent({
 
     <v-divider class="my-3" />
 
-    <h4>Overlay Warp</h4>
-
-    <v-btn-toggle
-      :value="alignment.mode"
-      mandatory
-      dense
-      class="d-flex my-2"
-      @change="setAlignmentMode"
-    >
-      <v-btn
-        v-for="item in alignmentModeItems"
-        :key="item.value"
-        :value="item.value"
-        :disabled="item.disabled"
-        :title="item.title"
-        small
-        class="flex-grow-1"
-        style="text-transform: none;"
+    <div class="d-flex align-center">
+      <span class="text-caption mr-2">Overlay</span>
+      <v-btn-toggle
+        :value="alignment.mode"
+        mandatory
+        dense
+        class="d-flex flex-grow-1"
+        @change="setAlignmentMode"
       >
-        {{ item.text }}
-      </v-btn>
-    </v-btn-toggle>
-
-    <span
-      class="text-caption"
-      :class="{ 'grey--text': alignment.mode === 'original' }"
-    >Warp Opacity</span>
+        <v-btn
+          v-for="item in alignmentModeItems"
+          :key="item.value"
+          :value="item.value"
+          :disabled="item.disabled"
+          :title="item.title"
+          small
+          class="flex-grow-1"
+          style="text-transform: none;"
+        >
+          {{ item.text }}
+        </v-btn>
+      </v-btn-toggle>
+    </div>
     <v-slider
       v-model="alignment.opacity"
+      label="Opacity"
       :min="0"
       :max="1"
       :step="0.05"
       :disabled="alignment.mode === 'original'"
       dense
       hide-details
+      class="mt-2"
     />
 
-    <v-divider class="my-3" />
-
+    <v-tooltip
+      bottom
+      :disabled="!pairFileName"
+    >
+      <template #activator="{ on }">
+        <div
+          class="mt-3 mb-2"
+          v-on="on"
+        >
+          <v-btn
+            block
+            :color="pairDirty ? 'success' : undefined"
+            :disabled="!pairDirty || saving"
+            small
+            :loading="saving"
+            @click="save"
+          >
+            {{ pairDirty ? `Save ${pairLabel}` : `${pairLabel} saved` }}
+          </v-btn>
+        </div>
+      </template>
+      Writes {{ pairFileName }}
+    </v-tooltip>
+    <span
+      v-if="otherPairsDirty"
+      class="text-caption warning--text d-block mb-2"
+    >
+      Other camera pairs have unsaved changes; select a pair to save it.
+    </span>
     <v-btn
       block
-      :color="dirty ? 'success' : undefined"
-      :disabled="!dirty || saving"
+      outlined
+      color="error"
+      :disabled="!canDeletePair || saving"
       small
-      :loading="saving"
       class="mb-2"
-      @click="save"
+      @click="deletePair"
     >
-      {{ dirty ? 'Save registration' : 'Registration saved' }}
+      Delete {{ pairLabel }}
     </v-btn>
   </div>
 </template>
