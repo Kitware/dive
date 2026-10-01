@@ -33,6 +33,11 @@ const parentConfig = {
   customTypeStyling: { fish: { color: '#123456' } },
 };
 
+function folderIdFromRequestOptions(options?: { params?: unknown }): string {
+  const params = options?.params as { folderId?: string } | undefined;
+  return params?.folderId ?? '';
+}
+
 describe('web stereo review through the real platform adapters', () => {
   let review: ReviewService;
   let scope: ReturnType<typeof effectScope>;
@@ -86,7 +91,7 @@ describe('web stereo review through the real platform adapters', () => {
       if (url === 'dive_dataset/rig/media') return { data: { imageData: [] } } as never;
       if (url === 'dive_dataset/rig/configuration') return { data: parentConfig } as never;
       if (url === 'dive_annotation/track') {
-        const folder = options?.params.folderId;
+        const folder = folderIdFromRequestOptions(options);
         if (folder === failCamera) throw new Error('Camera access denied');
         return { data: JSON.parse(JSON.stringify(tracks[folder])) } as never;
       }
@@ -105,7 +110,7 @@ describe('web stereo review through the real platform adapters', () => {
       throw new Error(`Unexpected GET ${url}`);
     });
     vi.mocked(girderRest.patch).mockImplementation(async (_url, body, options) => {
-      const folder = options?.params.folderId;
+      const folder = folderIdFromRequestOptions(options);
       if (folder === failCamera) throw new Error('Write denied');
       const { upsert, delete: deleted } = (body as SaveDetectionsArgs).tracks;
       tracks[folder] = tracks[folder].filter((item) => !deleted.includes(item.id));
@@ -196,7 +201,7 @@ describe('web stereo review through the real platform adapters', () => {
     review.entries.value[0].items.forEach((item) => review.deleteTrack(item));
     await review.save();
     expect(tracks).toEqual({ leftFolder: [], rightFolder: [] });
-    expect(vi.mocked(girderRest.patch).mock.calls.every(([, , options]) => options?.params.folderId !== 'rig')).toBe(true);
+    expect(vi.mocked(girderRest.patch).mock.calls.every(([, , options]) => folderIdFromRequestOptions(options) !== 'rig')).toBe(true);
   });
 
   it('loads each stereo video URL and frame rate without using the parent media', async () => {
