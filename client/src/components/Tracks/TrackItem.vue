@@ -5,7 +5,9 @@ import {
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
 import SideBarTrackItemView from './sidebar/SideBarTrackItemView.vue';
 import BottomBarTrackItemView from './bottombar/BottomBarTrackItemView.vue';
-import { useCameraStore, useSelectedCamera, useTime } from '../../provides';
+import {
+  useCameraStore, useSelectedCamera, useTime, useTrackTimeline,
+} from '../../provides';
 import type { TrackProjection } from '../../TrackProjection';
 import useVuetify from '../../use/useVuetify';
 
@@ -82,6 +84,19 @@ export default defineComponent({
     const { frame: frameRef } = useTime();
     const cameraStore = useCameraStore();
     const selectedCamera = useSelectedCamera();
+    const trackTimeline = useTrackTimeline();
+    // Null when stored frames already match the playhead.
+    const timelineSpan = computed(() => trackTimeline.range(props.track.id));
+    const displayBegin = computed(() => timelineSpan.value?.[0] ?? props.track.begin);
+    const displayEnd = computed(() => timelineSpan.value?.[1] ?? props.track.end);
+    function seekBegin() {
+      if (timelineSpan.value) trackTimeline.seekSlot(timelineSpan.value[0]);
+      else emit('seek', props.track.begin);
+    }
+    function seekEnd() {
+      if (timelineSpan.value) trackTimeline.seekSlot(timelineSpan.value[1]);
+      else emit('seek', props.track.end);
+    }
 
     /**
      * Recomputes when the track prop is rebuilt, which TrackList does whenever the annotation
@@ -177,7 +192,11 @@ export default defineComponent({
       style,
       frame: frameRef,
       keyframeDisabled,
+      displayBegin,
+      displayEnd,
       /* methods */
+      seekBegin,
+      seekEnd,
       gotoNext,
       gotoPrevious,
       toggleInterpolation,
@@ -197,6 +216,10 @@ export default defineComponent({
     :toggle-keyframe="toggleKeyframe"
     :toggle-interpolation="toggleInterpolation"
     :toggle-all-interpolation="toggleAllInterpolation"
+    :display-begin="displayBegin"
+    :display-end="displayEnd"
+    :seek-begin="seekBegin"
+    :seek-end="seekEnd"
     @seek="$emit('seek', $event)"
   />
   <side-bar-track-item-view
@@ -213,6 +236,8 @@ export default defineComponent({
     :toggle-all-interpolation="toggleAllInterpolation"
     :goto-previous="gotoPrevious"
     :goto-next="gotoNext"
+    :seek-begin="seekBegin"
+    :seek-end="seekEnd"
     @seek="$emit('seek', $event)"
   />
 </template>

@@ -305,6 +305,10 @@ class MetadataMutable(BaseModel):
     # and image names and editable afterwards; used to place cameras onto a
     # pipeline's declared camera slots. Cameras with no known role are absent.
     cameraRoles: Optional[Dict[str, CameraRole]]
+    # Per-camera start offset in its own frames, for recorders that started at different times.
+    cameraFrameOffsets: Optional[Dict[str, int]]
+    # Portion of cameraFrameOffsets already shifted into the annotations.
+    cameraFrameOffsetsApplied: Optional[Dict[str, int]]
     fps: Optional[float]
 
     @staticmethod

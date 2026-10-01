@@ -255,7 +255,7 @@ def build_registration_pairs(folder_meta: dict) -> List[dict]:
     become the file's imageLeft/imageRight, and each point's a/b pair becomes
     one `leftX leftY rightX rightY` row.
 
-    VIAME's dive transform reader only consumes the matrices; the
+    VIAME's homography_json transform reader only consumes the matrices; the
     observations travel for provenance and so a file round-trips back into
     DIVE without losing which frame contributed what.
     """
@@ -387,10 +387,128 @@ def build_registration_kwiver_settings(
             )
         warp = f'warp{index + 1}'
         settings[f'{warp}:transformation_file'] = str(registration_path)
-        settings[f'{warp}:transform_reader:type'] = 'dive'
-        settings[f'{warp}:transform_reader:dive:from_camera'] = name
-        settings[f'{warp}:transform_reader:dive:to_camera'] = reference
+        settings[f'{warp}:transform_reader:type'] = 'homography_json'
+        settings[f'{warp}:transform_reader:homography_json:from_camera'] = name
+        settings[f'{warp}:transform_reader:homography_json:to_camera'] = reference
     return settings
+
+
+def video_frame_count(folder_meta: dict) -> Optional[int]:
+    """Native frame count of a video camera from its folder metadata, or None."""
+    info = folder_meta.get('ffprobe_info') or {}
+    try:
+        nb_frames = int(info.get('nb_frames') or 0)
+    except (TypeError, ValueError):
+        nb_frames = 0
+    if nb_frames > 0:
+        return nb_frames
+    try:
+        duration = float(info.get('duration') or 0)
+        fps = float(folder_meta.get(constants.OriginalFPSMarker) or 0)
+    except (TypeError, ValueError):
+        return None
+    if duration > 0 and fps > 0:
+        return int(round(duration * fps))
+    return None
+
+
+def common_frame_bound(
+    camera_media: Dict[str, Tuple[List[str], str]],
+    image_pairs: Optional[Dict[str, List[str]]],
+    frame_counts: Dict[str, int],
+) -> Optional[int]:
+    """Shortest camera length so the lockstep pipe ends together, or None if they agree."""
+    counts: List[int] = []
+    for name, (media_list, media_type) in camera_media.items():
+        subset = (image_pairs or {}).get(name)
+        if subset is not None:
+            counts.append(len(subset))
+        elif media_type == constants.VideoType:
+            if name in frame_counts:
+                counts.append(frame_counts[name])
+        else:
+            counts.append(len(media_list))
+    if len(counts) < 2 or min(counts) == max(counts):
+        return None
+    return min(counts)
+
+
+def paired_start_frames(
+    frame_counts: Dict[str, int],
+    offsets: Optional[Dict[str, int]],
+) -> Optional[Tuple[Dict[str, int], int]]:
+    """Per-camera start frame and common length from time offsets, or None if none are offset."""
+    names = list(frame_counts)
+    if not offsets or not any(offsets.get(name, 0) for name in names):
+        return None
+    first_slot = max(-offsets.get(name, 0) for name in names)
+    start = {name: first_slot + offsets.get(name, 0) for name in names}
+    spans = [frame_counts[name] - start[name] for name in names if frame_counts[name] > 0]
+    return start, (min(spans) if spans else 0)
+
+
+def camera_frame_size(
+    folder_meta: dict, media_list: List[str], media_type: str
+) -> Optional[Tuple[int, int]]:
+    """Pixel size of a camera's frames, or None if unknown."""
+    if media_type == constants.VideoType:
+        info = folder_meta.get('ffprobe_info') or {}
+        try:
+            width, height = int(info.get('width') or 0), int(info.get('height') or 0)
+        except (TypeError, ValueError):
+            return None
+        return (width, height) if width > 0 and height > 0 else None
+    if not media_list:
+        return None
+    try:
+        from PIL import Image
+
+        with Image.open(media_list[0]) as image:
+            return image.size
+    except Exception:
+        return None
+
+
+def _csv_number(value: float) -> str:
+    return str(int(round(value))) if value == round(value) else f'{value:.3f}'
+
+
+def clip_viame_csv_to_frame(
+    csv_path: str, width: int, height: int, min_visible: float = 0.25
+) -> Tuple[str, int, int]:
+    """Clamp VIAME CSV boxes to the frame, dropping those under min_visible inside."""
+    output_path = csv_path.replace('.csv', '_clipped.csv')
+    clipped = 0
+    dropped = 0
+    with (
+        open(csv_path, 'r', encoding='utf-8') as infile,
+        open(output_path, 'w', encoding='utf-8') as outfile,
+    ):
+        for line in infile:
+            parts = line.rstrip('\r\n').split(',')
+            if line.startswith('#') or len(parts) < 7:
+                outfile.write(line)
+                continue
+            try:
+                x0, y0, x1, y1 = (float(value) for value in parts[3:7])
+            except ValueError:
+                outfile.write(line)
+                continue
+            cx0, cy0 = min(max(x0, 0.0), width), min(max(y0, 0.0), height)
+            cx1, cy1 = min(max(x1, 0.0), width), min(max(y1, 0.0), height)
+            area = max(0.0, x1 - x0) * max(0.0, y1 - y0)
+            inside = max(0.0, cx1 - cx0) * max(0.0, cy1 - cy0)
+            visible = inside / area if area > 0 else float((cx0, cy0, cx1, cy1) == (x0, y0, x1, y1))
+            if visible < min_visible:
+                dropped += 1
+                continue
+            if (cx0, cy0, cx1, cy1) != (x0, y0, x1, y1):
+                parts[3:7] = [_csv_number(v) for v in (cx0, cy0, cx1, cy1)]
+                clipped += 1
+                outfile.write(','.join(parts) + '\n')
+            else:
+                outfile.write(line)
+    return output_path, clipped, dropped
 
 
 def build_multicam_kwiver_settings(
@@ -402,6 +520,8 @@ def build_multicam_kwiver_settings(
     image_pairs: Optional[Dict[str, List[str]]] = None,
     fps: Optional[float] = None,
     on_progress: Optional[Callable[[str], None]] = None,
+    frame_bound: Optional[int] = None,
+    frame_starts: Optional[Dict[str, int]] = None,
 ) -> Tuple[Dict[str, str], Dict[str, str]]:
     """
     Build KWIVER -s key/value pairs for per-camera inputs/outputs.
@@ -414,6 +534,8 @@ def build_multicam_kwiver_settings(
     types reach the pipe through the identical image-list input; the caller
     must then drop any video reader type it would otherwise set (see
     video_subset_cameras).
+
+    frame_starts/frame_bound trim each camera to the paired span (see paired_start_frames).
 
     Returns (arg_file_pair, out_files) where out_files maps camera name -> output csv basename.
     """
@@ -480,7 +602,11 @@ def build_multicam_kwiver_settings(
             arg_file_pair['detector_writer:file_name'] = output_file_name
             arg_file_pair['track_writer:file_name'] = output_file_name
 
+        first = (frame_starts or {}).get(key, 0) if not extracted_subset else 0
         if media_type in constants.ImageListTypes or extracted_subset:
+            if first or frame_bound is not None:
+                stop = None if frame_bound is None else first + frame_bound
+                media_list = media_list[first:stop]
             input_file_name = str(work_dir / f'input{i + 1}_images.txt')
             with open(input_file_name, 'w', encoding='utf-8') as img_list_file:
                 img_list_file.write('\n'.join(media_list))
@@ -490,6 +616,12 @@ def build_multicam_kwiver_settings(
         elif media_type == constants.VideoType:
             assert len(media_list) == 1, 'Expected exactly one video per camera'
             arg_file_pair[f'input{i + 1}:video_reader:type'] = 'vidl_ffmpeg'
+            reader = f'input{i + 1}:video_reader:vidl_ffmpeg'
+            if first:
+                # vidl_ffmpeg frames are 1-based; 0 means unset.
+                arg_file_pair[f'{reader}:start_at_frame'] = str(first + 1)
+            if frame_bound is not None:
+                arg_file_pair[f'{reader}:stop_after_frame'] = str(first + frame_bound)
             arg_file_pair[input_arg] = media_list[0]
             if i == 0:
                 arg_file_pair['input:video_filename'] = media_list[0]

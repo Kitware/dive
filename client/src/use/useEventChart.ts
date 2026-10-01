@@ -11,6 +11,15 @@ interface EventChartParams<T extends BaseAnnotation> {
   selectedTrackIds: Ref<AnnotationId[]>;
   typeStyling: Ref<TypeStyling>;
   getTrackProjection: (id: AnnotationId) => TrackProjection;
+  /** Timeline-slot overrides for aligned timelines. */
+  timelineRange?: (id: AnnotationId) => [number, number] | null;
+  timelineFeatures?: (id: AnnotationId) => TimelineFeature[] | null;
+}
+
+export interface TimelineFeature {
+  frame: number;
+  keyframe: boolean;
+  interpolate: boolean;
 }
 
 export interface EventChartData {
@@ -24,7 +33,7 @@ export interface EventChartData {
 }
 
 export default function useEventChart<T extends BaseAnnotation>({
-  enabledTracks, selectedTrackIds, typeStyling, getTrackProjection,
+  enabledTracks, selectedTrackIds, typeStyling, getTrackProjection, timelineRange, timelineFeatures,
 }: EventChartParams<T>) {
   const eventChartData = computed(() => {
     const values = [] as EventChartData[];
@@ -36,9 +45,14 @@ export default function useEventChart<T extends BaseAnnotation>({
       const { confidencePairs } = track;
       let markers: [number, boolean][] = [];
       if (selectedTrackIds.value.includes(filtered.annotation.id)) {
-        const projection = getTrackProjection(filtered.annotation.id);
-        markers = projection.featureIndex.map((i) => (
-          [i, projection.features[i]?.interpolate || false]));
+        const onTimeline = timelineFeatures?.(filtered.annotation.id);
+        if (onTimeline) {
+          markers = onTimeline.map((feature) => [feature.frame, feature.interpolate]);
+        } else {
+          const projection = getTrackProjection(filtered.annotation.id);
+          markers = projection.featureIndex.map((i) => (
+            [i, projection.features[i]?.interpolate || false]));
+        }
       }
       if (confidencePairs.length) {
         const trackType = track.getType(filtered.context.confidencePairIndex);
@@ -48,7 +62,7 @@ export default function useEventChart<T extends BaseAnnotation>({
           type: trackType,
           color: mapfunc(trackType),
           selected: selectedTrackIdsValue.includes(track.id),
-          range: [track.begin, track.end],
+          range: timelineRange?.(track.id) ?? [track.begin, track.end],
           markers,
         });
       }

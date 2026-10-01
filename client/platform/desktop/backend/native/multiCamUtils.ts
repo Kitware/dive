@@ -14,6 +14,7 @@ import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { getBinaryPath, spawnResult } from './utils';
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
+const ffprobePath = getBinaryPath('ffmpeg-ffprobe-static/ffprobe');
 
 /** Frame subset / range inputs for multicam pipeline arg writing. */
 export interface MultiCamRuntimeSubset {
@@ -96,6 +97,38 @@ async function extractVideoFrames(
     onProgress?.(results.length, frames.length);
   }
   return results;
+}
+
+/** Start frame per camera so row i of every input is the same instant; null if none offset. */
+export function pairedStartFrames(
+  frameCounts: Record<string, number>,
+  offsets: Record<string, number> | undefined,
+): { start: Record<string, number>; length: number } | null {
+  const names = Object.keys(frameCounts);
+  if (!offsets || !names.some((name) => (offsets[name] ?? 0) !== 0)) {
+    return null;
+  }
+  const firstSlot = Math.max(...names.map((name) => -(offsets[name] ?? 0)));
+  const start = Object.fromEntries(
+    names.map((name) => [name, firstSlot + (offsets[name] ?? 0)]),
+  );
+  // Inputs must also stop together: one video finishing early desynchronizes the pipeline.
+  const spans = names
+    .filter((name) => frameCounts[name] > 0)
+    .map((name) => frameCounts[name] - start[name]);
+  return { start, length: spans.length ? Math.min(...spans) : 0 };
+}
+
+/** Header frame count; a full decode would add tens of seconds per camera. */
+async function videoFrameCount(videoPath: string): Promise<number> {
+  const result = await spawnResult(ffprobePath, [
+    '-v', 'error', '-select_streams', 'v:0',
+    '-show_entries', 'stream=nb_frames',
+    '-of', 'default=nokey=1:noprint_wrappers=1',
+    videoPath,
+  ]);
+  const parsed = Number.parseInt((result.output ?? '').trim(), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : 0;
 }
 
 /** frame://N pseudo-name to frame number, or null for real image names. */
@@ -226,6 +259,33 @@ async function writeMultiCamStereoPipelineArgs(
       ? cameraOrder.filter((name) => name in cameras)
       : orderedMultiCamCameraNames(meta.multiCam);
     const cameraList = cameraNames.map((name) => [name, cameras[name]] as const);
+    const frameCounts: Record<string, number> = {};
+    if (meta.cameraFrameOffsets
+      && cameraList.some(([name]) => (meta.cameraFrameOffsets?.[name] ?? 0) !== 0)) {
+      // eslint-disable-next-line no-restricted-syntax
+      for (const [name, list] of cameraList) {
+        if (list.originalImageFiles.length) {
+          frameCounts[name] = list.originalImageFiles.length;
+        } else if (list.originalVideoFile) {
+          const vidFile = (list.transcodedVideoFile && forceTranscoded) || list.transcodedMisalign
+            ? list.transcodedVideoFile : list.originalVideoFile;
+          frameCounts[name] = await videoFrameCount(
+            npath.join(list.originalBasePath, vidFile),
+          );
+        } else {
+          frameCounts[name] = 0;
+        }
+      }
+    }
+    const startFrames = pairedStartFrames(frameCounts, meta.cameraFrameOffsets);
+    if (startFrames && startFrames.length <= 0) {
+      // Empty input lists would fail deep inside the pipeline; say why here.
+      throw new Error(
+        'The dataset\'s camera time offsets leave no overlapping frames between '
+        + 'cameras, so there is nothing to run. Check the Time Offset in the '
+        + 'Camera Registration panel.',
+      );
+    }
     for (let i = 0; i < cameraList.length; i += 1) {
       const [key, list] = cameraList[i];
       const { originalBasePath } = list;
@@ -260,6 +320,9 @@ async function writeMultiCamStereoPipelineArgs(
               throw new Error(`Image file not found: ${image}`);
             }
           }
+        } else if (startFrames) {
+          const from = startFrames.start[key];
+          images = images.slice(from, from + startFrames.length);
         } else if (runtime.frameRange) {
           // The single-camera path filters image lists by frameRange;
           // multicam silently ignored it (a pre-existing no-op) -- apply it
@@ -311,6 +374,13 @@ async function writeMultiCamStereoPipelineArgs(
         const vidTypeArg = `input${i + 1}:video_reader:type`;
         const vidType = 'vidl_ffmpeg';
         argFilePair[vidTypeArg] = vidType;
+        if (startFrames) {
+          // vidl_ffmpeg frames are 1-based and stop_after_frame is inclusive.
+          const from = startFrames.start[key];
+          const reader = `input${i + 1}:video_reader:${vidType}`;
+          argFilePair[`${reader}:start_at_frame`] = String(from + 1);
+          argFilePair[`${reader}:stop_after_frame`] = String(from + startFrames.length);
+        }
         const videoFileName = npath.join(originalBasePath, vidFile);
         argFilePair[inputArg] = videoFileName;
         if (i === 0) {

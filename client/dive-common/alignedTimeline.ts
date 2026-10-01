@@ -210,3 +210,42 @@ export function computeGapSlots(slots: AlignedSlot[]): number[] {
   });
   return gaps;
 }
+
+/** Per-camera start offset in frames; positive means the camera started later. */
+export type CameraFrameOffsets = Record<string, number>;
+
+/** Timeline from constant per-camera start offsets, spanning the union of coverage. */
+export function buildOffsetTimeline(
+  cameraFrameCounts: Record<string, number>,
+  offsets: CameraFrameOffsets,
+): TimelineResult {
+  const cameras = Object.keys(cameraFrameCounts)
+    .filter((camera) => cameraFrameCounts[camera] > 0);
+  if (cameras.length < 2) {
+    return { aligned: false };
+  }
+  if (cameras.every((camera) => (offsets[camera] ?? 0) === 0)) {
+    return { aligned: false };
+  }
+  const starts = cameras.map((camera) => -(offsets[camera] ?? 0));
+  const ends = cameras.map(
+    (camera) => cameraFrameCounts[camera] - (offsets[camera] ?? 0),
+  );
+  const base = Math.min(...starts);
+  const total = Math.max(...ends) - base;
+  if (total <= 0) {
+    return { aligned: false };
+  }
+  const slots: AlignedSlot[] = new Array(total);
+  for (let index = 0; index < total; index += 1) {
+    const slot: AlignedSlot = {};
+    cameras.forEach((camera) => {
+      const local = index + base + (offsets[camera] ?? 0);
+      slot[camera] = local >= 0 && local < cameraFrameCounts[camera]
+        ? local
+        : undefined;
+    });
+    slots[index] = slot;
+  }
+  return { aligned: true, slots };
+}

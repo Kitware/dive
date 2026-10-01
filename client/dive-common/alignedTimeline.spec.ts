@@ -1,6 +1,7 @@
 import type { FrameImage } from './apispec';
 import {
-  buildAlignedTimeline, buildInverseAlignedIndex, canAlign, computeGapGradient, computeGapSlots,
+  buildAlignedTimeline, buildInverseAlignedIndex, buildOffsetTimeline, canAlign,
+  computeGapGradient, computeGapSlots,
 } from './alignedTimeline';
 
 function frame(timestamp?: number): FrameImage {
@@ -207,5 +208,51 @@ describe('alignedTimeline', () => {
       // B has no local frame 2 -- it only ever appears in slots 0 and 2.
       expect(inverse.B.get(2)).toBeUndefined();
     });
+  });
+});
+
+describe('buildOffsetTimeline', () => {
+  it('pairs a later-starting camera with the reference instant', () => {
+    const result = buildOffsetTimeline({ A: 5, B: 5 }, { A: 0, B: 2 });
+    if (!result.aligned) throw new Error('expected aligned');
+    expect(result.slots[0]).toEqual({ A: undefined, B: 0 });
+    expect(result.slots[2]).toEqual({ A: 0, B: 2 });
+    expect(result.slots[4]).toEqual({ A: 2, B: 4 });
+  });
+
+  it('keeps the union, blanking each camera outside its own coverage', () => {
+    const result = buildOffsetTimeline({ A: 3, B: 3 }, { A: 0, B: 2 });
+    if (!result.aligned) throw new Error('expected aligned');
+    expect(result.slots).toHaveLength(5);
+    expect(computeGapSlots(result.slots)).toEqual([0, 1, 3, 4]);
+    expect(result.slots[2]).toEqual({ A: 0, B: 2 });
+  });
+
+  it('round-trips through the inverse index the resolver uses', () => {
+    const result = buildOffsetTimeline({ A: 4, B: 4 }, { A: 0, B: 1 });
+    if (!result.aligned) throw new Error('expected aligned');
+    const inverse = buildInverseAlignedIndex(result.slots);
+    const slotForA2 = inverse.A.get(2) as number;
+    expect(result.slots[slotForA2].B).toBe(3);
+    expect(inverse.B.get(3)).toBe(slotForA2);
+  });
+
+  it('handles a negative offset (reference is the later camera)', () => {
+    const result = buildOffsetTimeline({ A: 4, B: 4 }, { A: 0, B: -1 });
+    if (!result.aligned) throw new Error('expected aligned');
+    expect(result.slots[1]).toEqual({ A: 1, B: 0 });
+  });
+
+  it('declines when nothing needs correcting or there is no pair', () => {
+    expect(buildOffsetTimeline({ A: 5, B: 5 }, { A: 0, B: 0 })).toEqual({ aligned: false });
+    expect(buildOffsetTimeline({ A: 5, B: 0 }, { A: 0, B: 2 })).toEqual({ aligned: false });
+    expect(buildOffsetTimeline({ A: 5 }, { A: 3 })).toEqual({ aligned: false });
+  });
+
+  it('treats a missing camera entry as no offset', () => {
+    const result = buildOffsetTimeline({ A: 3, B: 3 }, { B: 1 });
+    if (!result.aligned) throw new Error('expected aligned');
+    expect(result.slots[0]).toEqual({ A: undefined, B: 0 });
+    expect(result.slots[1]).toEqual({ A: 0, B: 1 });
   });
 });

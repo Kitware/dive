@@ -482,3 +482,93 @@ def get_labels(user: types.GirderUserModel, published=False, shared=False):
         {'$sort': {'_id': 1}},
     ]
     return Folder().collection.aggregate(pipeline)
+
+
+def shift_track_frames(track: dict, delta: int) -> Optional[dict]:
+    """Shift a track by ``delta`` frames, dropping features before 0; None if none survive."""
+    if delta == 0:
+        return track
+    features = [
+        {**feature, 'frame': feature['frame'] + delta}
+        for feature in track.get('features', [])
+        if feature['frame'] + delta >= 0
+    ]
+    if not features:
+        return None
+    return {
+        **track,
+        'features': features,
+        'begin': features[0]['frame'],
+        'end': features[-1]['frame'],
+    }
+
+
+def shift_group_frames(group: dict, delta: int) -> Optional[dict]:
+    """Shift a group's member ranges by ``delta`` frames, clipping at 0; None if none survive."""
+    if delta == 0:
+        return group
+    members = {}
+    for member_id, member in group.get('members', {}).items():
+        ranges = [
+            [max(0, begin + delta), end + delta]
+            for begin, end in member.get('ranges', [])
+            if end + delta >= 0
+        ]
+        if ranges:
+            members[member_id] = {**member, 'ranges': ranges}
+    if not members:
+        return None
+    all_ranges = [r for member in members.values() for r in member['ranges']]
+    return {
+        **group,
+        'members': members,
+        'begin': min(r[0] for r in all_ranges),
+        'end': max(r[1] for r in all_ranges),
+    }
+
+
+def shift_annotation_frames(
+    dsFolder: types.GirderModel,
+    user: types.GirderUserModel,
+    delta: int,
+) -> dict:
+    """Shift every annotation set by ``delta`` frames, one undoable revision per set."""
+    counts = {'tracks': 0, 'groups': 0, 'dropped': 0}
+    if delta == 0:
+        return counts
+    sets: List[Optional[str]] = [None]
+    sets.extend(s for s in RevisionLogItem().sets(dsFolder) if s)
+    description = f'shift frames by {delta:+d}'
+    for annotation_set in sets:
+        upsert_tracks: List[dict] = []
+        delete_tracks: List[int] = []
+        for track in TrackItem().list(dsFolder, set=annotation_set):
+            shifted = shift_track_frames(track, delta)
+            if shifted is None:
+                delete_tracks.append(track[IDENTIFIER])
+            else:
+                upsert_tracks.append(shifted)
+        upsert_groups: List[dict] = []
+        delete_groups: List[int] = []
+        for group in GroupItem().list(dsFolder, set=annotation_set):
+            shifted = shift_group_frames(group, delta)
+            if shifted is None:
+                delete_groups.append(group[IDENTIFIER])
+            else:
+                upsert_groups.append(shifted)
+        if not (upsert_tracks or delete_tracks or upsert_groups or delete_groups):
+            continue
+        save_annotations(
+            dsFolder,
+            user,
+            upsert_tracks=upsert_tracks,
+            delete_tracks=delete_tracks,
+            upsert_groups=upsert_groups,
+            delete_groups=delete_groups,
+            description=description,
+            set=annotation_set or '',
+        )
+        counts['tracks'] += len(upsert_tracks)
+        counts['groups'] += len(upsert_groups)
+        counts['dropped'] += len(delete_tracks) + len(delete_groups)
+    return counts

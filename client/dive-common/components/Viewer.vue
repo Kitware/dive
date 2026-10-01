@@ -77,7 +77,8 @@ import {
 } from 'dive-common/apispec';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import {
-  buildAlignedTimeline, buildInverseAlignedIndex, computeGapSlots, TimelineResult,
+  buildAlignedTimeline, buildInverseAlignedIndex, buildOffsetTimeline, computeGapSlots,
+  TimelineResult,
 } from 'dive-common/alignedTimeline';
 import {
   computeOutputs,
@@ -94,6 +95,8 @@ import {
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import context from 'dive-common/store/context';
 import { MarkChangesPendingFilter } from 'vue-media-annotator/BaseFilterControls';
+import { pendingFrameShifts } from 'dive-common/frameOffsetAnnotations';
+import { timelineRange, timelineFeatures } from 'dive-common/timelineTrack';
 import GroupSidebarVue from './GroupSidebar.vue';
 import MultiCamToolsVue from './MultiCamTools.vue';
 import RegistrationToolsVue from './CameraRegistration/RegistrationTools.vue';
@@ -241,6 +244,7 @@ export default defineComponent({
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
+      setAnnotationFrameShifts,
       setResetZoomOverride,
     } = useMediaController({ segmentationCursorLoading });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
@@ -274,6 +278,20 @@ export default defineComponent({
      * always for singleCam datasets -- playback falls back to today's exact
      * positional (broadcast-same-index) behavior via useMediaController.ts.
      */
+    // Declared early: the aligned timeline below reads its frame offsets immediately.
+    const cameraRegistration = new CameraRegistrationStore();
+    /** Video panes carry no imageData, so fall back to the controller's maxFrame. */
+    function cameraFrameCount(camera: string): number {
+      const images = imageData.value[camera];
+      if (images && images.length) {
+        return images.length;
+      }
+      try {
+        return aggregateController.value.getController(camera).maxFrame.value + 1;
+      } catch {
+        return 0;
+      }
+    }
     const alignedTimeline = computed<TimelineResult>(() => {
       if (!progress.loaded || multiCamList.value.length < 2) {
         return { aligned: false };
@@ -286,8 +304,29 @@ export default defineComponent({
       multiCamList.value.forEach((camera) => {
         camerasFrames[camera] = imageData.value[camera] ?? [];
       });
+      // A time offset wins over filename timestamps; pipelines pair cameras by index.
+      const frameCounts: Record<string, number> = {};
+      multiCamList.value.forEach((camera) => {
+        frameCounts[camera] = cameraFrameCount(camera);
+      });
+      const byOffset = buildOffsetTimeline(frameCounts, cameraRegistration.frameOffsets.value);
+      if (byOffset.aligned) {
+        return byOffset;
+      }
       return buildAlignedTimeline(camerasFrames);
     });
+    // Unapplied offsets shift the video but not the annotations.
+    const pendingAnnotationShifts = computed(() => pendingFrameShifts(
+      cameraRegistration.frameOffsets.value,
+      cameraRegistration.appliedFrameOffsets.value,
+      multiCamList.value,
+    ));
+    watch(pendingAnnotationShifts, (shifts) => setAnnotationFrameShifts(shifts), { immediate: true });
+    // Edits would key to the unshifted frame, so pause editing until the offset is applied.
+    const offsetEditLock = computed(() => !readonlyState.value
+      && Object.keys(pendingAnnotationShifts.value).length > 0);
+    // Saving follows readonlyState alone: applying an offset saves pending edits first.
+    const editLocked = computed(() => readonlyState.value || offsetEditLock.value);
     // Serialized shape of the currently installed timeline. The computed
     // re-evaluates whenever any camera's imageData array identity changes --
     // including pure display-URL swaps (e.g. the percentile-stretch remap)
@@ -625,7 +664,6 @@ export default defineComponent({
      * loadData resolves), but watches, aligned navigation, and metadata
      * hydration only run for multicamera datasets.
      */
-    const cameraRegistration = new CameraRegistrationStore();
     const alignedView = new AlignedViewStore();
     const referenceCamera = computed(() => {
       const cams = multiCamList.value;
@@ -805,17 +843,7 @@ export default defineComponent({
     const autoRegisterJob = createAutoRegisterJobService({
       datasetId,
       cameras: multiCamList,
-      frameCount: (camera: string) => {
-        const images = imageData.value[camera];
-        if (images && images.length) {
-          return images.length;
-        }
-        try {
-          return aggregateController.value.getController(camera).maxFrame.value + 1;
-        } catch {
-          return 0;
-        }
-      },
+      frameCount: cameraFrameCount,
       timestampsFor: (camera: string) => {
         const images = imageData.value[camera];
         if (!images || !images.length
@@ -907,7 +935,7 @@ export default defineComponent({
       groupFilterControls: groupFilters,
       cameraStore,
       aggregateController,
-      readonlyState,
+      readonlyState: editLocked,
       alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
       lassoModeActive: lassoMode.lassoModeActive,
@@ -1002,11 +1030,30 @@ export default defineComponent({
       return multiSelectList.value;
     });
 
+    const trackReplicas = (id: AnnotationId): [string, Track][] => {
+      const replicas: [string, Track][] = [];
+      cameraStore.camMap.value.forEach(({ trackStore }, camera) => {
+        const track = trackStore.getPossible(id);
+        if (track) replicas.push([camera, track]);
+      });
+      return replicas;
+    };
+    const cameraFrameToSlot = (camera: string, frame: number) => (
+      aggregateController.value.cameraFrameToSlot(camera, frame)
+    );
+    const onTimeline = {
+      timelineRange: (id: AnnotationId) => (alignedTimeline.value.aligned
+        ? timelineRange(trackReplicas(id), cameraFrameToSlot) : null),
+      timelineFeatures: (id: AnnotationId) => (alignedTimeline.value.aligned
+        ? timelineFeatures(trackReplicas(id), cameraFrameToSlot) : null),
+    };
+
     const { lineChartData } = useLineChart({
       enabledTracks: trackFilters.enabledAnnotations,
       typeStyling: trackStyleManager.typeStyling,
       allTypes: trackFilters.allTypes,
       getTrackProjection,
+      ...onTimeline,
     });
 
     const { eventChartData } = useEventChart({
@@ -1014,6 +1061,7 @@ export default defineComponent({
       selectedTrackIds: allSelectedIds,
       typeStyling: trackStyleManager.typeStyling,
       getTrackProjection,
+      ...onTimeline,
     });
 
     const { eventChartData: groupChartData } = useEventChart({
@@ -1511,6 +1559,8 @@ export default defineComponent({
         cameraCorrespondences: cameraRegistration.observations.value,
         cameraTransformTypes: cameraRegistration.transformTypes.value,
         cameraRegistrationSource: cameraRegistration.source.value,
+        cameraFrameOffsets: cameraRegistration.frameOffsets.value,
+        cameraFrameOffsetsApplied: cameraRegistration.appliedFrameOffsets.value,
       });
       cameraRegistration.markSaved();
     }
@@ -2054,6 +2104,8 @@ export default defineComponent({
             meta.cameraCorrespondences,
             meta.cameraTransformTypes,
             meta.cameraRegistrationSource,
+            meta.cameraFrameOffsets,
+            meta.cameraFrameOffsetsApplied,
           );
           // Media is loaded at this point: resolve observation frames from
           // their image names against this dataset's own frame ordering.
@@ -2211,8 +2263,35 @@ export default defineComponent({
         ? props.comparisonSets.slice(0, 1) : props.comparisonSets;
     };
 
+    /** Comparison sets are only rebuilt by a full reload, so fall back to one there. */
+    const reloadCameraAnnotations = async (camera: string) => {
+      const stores = cameraStore.camMap.value.get(camera);
+      if (!stores || props.comparisonSets.length) {
+        await reloadAnnotations();
+        return;
+      }
+      handler.trackSelect(null, false);
+      const parentId = baseMulticamDatasetId.value ?? datasetId.value;
+      const cameraId = multiCamList.value.length > 1 ? `${parentId}/${camera}` : parentId;
+      const { tracks, groups } = await loadDetections(cameraId, props.revision, props.currentSet);
+      stores.trackStore.clearAll();
+      stores.groupStore.clearAll();
+      for (let j = 0; j < tracks.length; j += 1) {
+        if (j % 4000 === 0 && j > 0) {
+          // eslint-disable-next-line no-await-in-loop
+          await new Promise((resolve) => { window.setTimeout(resolve, 0); });
+        }
+        stores.trackStore.insert(Track.fromJSON(tracks[j]), { imported: true });
+      }
+      groups.forEach((group) => {
+        stores.groupStore.insert(Group.fromJSON(group), { imported: true });
+      });
+      // Pre-reload undo snapshots would write stale frames back.
+      annotationUndo.start();
+    };
+
     watch(datasetId, reloadAnnotations);
-    watch(readonlyState, () => handler.trackSelect(null, false));
+    watch(editLocked, () => handler.trackSelect(null, false));
     // Update segmentation recipe when frame changes to show only current frame's points
     watch(() => time.frame.value, (newFrame) => {
       segmentationRecipe.handleFrameChange(newFrame);
@@ -2258,6 +2337,7 @@ export default defineComponent({
       setAttribute,
       deleteAttribute,
       reloadAnnotations,
+      reloadCameraAnnotations,
       setSVGFilters,
       selectCamera,
       linkCameraTrack,
@@ -2308,7 +2388,12 @@ export default defineComponent({
         trackFilters,
         trackStyleManager,
         visibleModes,
-        readOnlyMode: readonlyState,
+        readOnlyMode: editLocked,
+        offsetEditLock,
+        trackTimeline: {
+          range: onTimeline.timelineRange,
+          seekSlot: (slot: number) => aggregateController.value.seek(slot),
+        },
         imageEnhancements,
         percentileStretchSupported,
         percentileHistogram,
@@ -2567,6 +2652,7 @@ export default defineComponent({
       context,
       readonlyState,
       linkingState,
+      editLocked,
       cameraEnhOutputs,
       isCameraDefault,
       cameraPercentileStretch,
@@ -2772,7 +2858,7 @@ export default defineComponent({
         <EditorMenu
           ref="editorMenuRef"
           :has-selected-track="selectedTrackId !== null"
-          :disabled="readonlyState || linkingState || !progress.loaded"
+          :disabled="editLocked || linkingState || !progress.loaded"
           v-bind="{
             editingMode,
             visibleModes,
@@ -2781,8 +2867,8 @@ export default defineComponent({
             multiSelectActive,
             editingDetails,
             groupEditActive: editingGroupId !== null,
-            lassoModeActive: !readonlyState && lassoModeActive,
-            lassoDrawing: !readonlyState && lassoDrawing,
+            lassoModeActive: !editLocked && lassoModeActive,
+            lassoDrawing: !editLocked && lassoDrawing,
             textQueryEnabled,
             textQueryAvailable,
             checkTextQueryAvailable,
@@ -2972,7 +3058,7 @@ export default defineComponent({
         <div
           v-if="progress.loaded"
           v-mousetrap="[
-            { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+            { bind: 'n', handler: () => !editLocked && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
@@ -3075,7 +3161,7 @@ export default defineComponent({
         <div
           v-if="progress.loaded"
           v-mousetrap="[
-            { bind: 'n', handler: () => !readonlyState && handler.trackAdd() },
+            { bind: 'n', handler: () => !editLocked && handler.trackAdd() },
             { bind: 'r', handler: () => resetAggregateZoom() },
             { bind: 'esc', handler: () => handler.trackAbort() },
             { bind: 'e', handler: () => multiCamList.length === 1 && selectedTrackId !== null && handler.trackEdit(selectedTrackId) },
@@ -3135,7 +3221,7 @@ export default defineComponent({
             :track-filters="trackFilters"
             :attributes="attributes"
             :frame-rate="frameRate"
-            :readonly-state="readonlyState"
+            :readonly-state="editLocked"
             :disable-annotation-filters="disableAnnotationFilters"
             :prompt-visible="visible"
             :confidence-filters="confidenceFilters"

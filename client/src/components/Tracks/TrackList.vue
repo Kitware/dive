@@ -21,6 +21,7 @@ import {
   useMultiSelectList,
   useCameraStore,
   usePendingSaveCount,
+  useTrackTimeline,
 } from '../../provides';
 import useVirtualScrollTo from '../../use/useVirtualScrollTo';
 import { getSuppressedTrackIds, suppressionTypeResolver } from '../../use/suppression';
@@ -85,6 +86,7 @@ export default defineComponent({
     const editingModeRef = useEditingMode();
     const selectedTrackIdRef = useSelectedTrackId();
     const cameraStore = useCameraStore();
+    const trackTimeline = useTrackTimeline();
     const pendingSaveCount = usePendingSaveCount();
     const filteredTracksRef = trackFilters.filteredAnnotations;
     const typeStylingRef = useTrackStyleManager().typeStyling;
@@ -231,6 +233,9 @@ export default defineComponent({
         }
       });
 
+      const spanOf = (track: TrackProjection): [number, number] => (
+        trackTimeline.range(track.id) ?? [track.begin, track.end]
+      );
       sorted.sort((a, b) => {
         const trackA = projections.get(a.annotation.id);
         const trackB = projections.get(b.annotation.id);
@@ -263,10 +268,10 @@ export default defineComponent({
             return (trackA.trackId - trackB.trackId) * direction;
           case 'start':
           case 'startTime':
-            return (trackA.begin - trackB.begin) * direction;
+            return (spanOf(trackA)[0] - spanOf(trackB)[0]) * direction;
           case 'end':
           case 'endTime':
-            return (trackA.end - trackB.end) * direction;
+            return (spanOf(trackA)[1] - spanOf(trackB)[1]) * direction;
           case 'confidence': {
             const confA = displayConfidence(trackA, a.context.confidencePairIndex);
             const confB = displayConfidence(trackB, b.context.confidencePairIndex);

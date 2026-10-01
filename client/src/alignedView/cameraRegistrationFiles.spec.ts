@@ -234,3 +234,49 @@ describe('mergeRegistrationValues', () => {
     });
   });
 });
+
+describe('frame offsets in registration files', () => {
+  it('writes the right camera\'s offset onto its pair', () => {
+    const files = buildPerCameraRegistrationFiles({
+      homographies: {},
+      observations: {},
+      transformTypes: { 'EO::IR': 'homography' },
+      source: null,
+      frameOffsets: { IR: 12 },
+    }, 'EO');
+    expect(files).toHaveLength(1);
+    expect(files[0].body.pairs[0].frameOffset).toBe(12);
+  });
+
+  it('omits the field entirely when a camera is in step', () => {
+    const files = buildPerCameraRegistrationFiles({
+      homographies: {},
+      observations: {},
+      transformTypes: { 'EO::IR': 'homography' },
+      source: null,
+      frameOffsets: { IR: 0 },
+    }, 'EO');
+    expect(files[0].body.pairs[0]).not.toHaveProperty('frameOffset');
+  });
+
+  it('merges per camera, letting a later file win without clearing others', () => {
+    const merged = mergeRegistrationValues(
+      {
+        homographies: {},
+        observations: {},
+        transformTypes: {},
+        source: null,
+        frameOffsets: { IR: 12, UV: -3 },
+      },
+      {
+        homographies: {},
+        observations: {},
+        transformTypes: {},
+        source: null,
+        frameOffsets: { IR: 9 },
+      },
+      'ir_to_eo_registration.json',
+    );
+    expect(merged.frameOffsets).toStrictEqual({ IR: 9, UV: -3 });
+  });
+});

@@ -114,6 +114,17 @@ type VisibleModesType = Readonly<Ref<readonly VisibleAnnotationTypes[]>>;
 const ReadOnlyModeSymbol = Symbol('readOnlyMode');
 type ReadOnylModeType = Readonly<Ref<boolean>>;
 
+// True when editing is paused because a time offset is not yet applied to annotations.
+const OffsetEditLockSymbol = Symbol('offsetEditLock');
+type OffsetEditLockType = Readonly<Ref<boolean>>;
+
+// Track span in timeline slots, which differ from stored frames under an aligned timeline.
+const TrackTimelineSymbol = Symbol('trackTimeline');
+interface TrackTimelineType {
+  range: (id: AnnotationId) => [number, number] | null;
+  seekSlot: (slot: number) => void;
+}
+
 const ImageEnhancementsSymbol = Symbol('imageEnhancements');
 type ImageEnhancementsType = Readonly<Ref<ImageEnhancements>>;
 
@@ -217,6 +228,8 @@ export interface Handler {
   unstageFromMerge(ids: AnnotationId[]): void;
   /* Reload Annotation File */
   reloadAnnotations(): Promise<void>;
+  /* Replace one camera's in-memory annotations with what persistence now holds */
+  reloadCameraAnnotations(camera: string): Promise<void>;
   setSVGFilters({
     brightness, contrast, saturation, sharpen, percentileStretch,
   }: {
@@ -281,6 +294,7 @@ function dummyHandler(handle: (name: string, args: unknown[]) => void): Handler 
     groupEdit(...args) { handle('groupEdit', args); },
     unstageFromMerge(...args) { handle('unstageFromMerge', args); },
     reloadAnnotations(...args) { handle('reloadTracks', args); return Promise.resolve(); },
+    reloadCameraAnnotations(...args) { handle('reloadCameraAnnotations', args); return Promise.resolve(); },
     setSVGFilters(...args) { handle('setSVGFilter', args); },
     unlinkCameraTrack(...args) { handle('unlinkCameraTrack', args); },
     linkCameraTrack(...args) { handle('linkCameraTrack', args); },
@@ -330,6 +344,8 @@ export interface State {
   trackStyleManager: StyleManager;
   visibleModes: VisibleModesType;
   readOnlyMode: ReadOnylModeType;
+  offsetEditLock: OffsetEditLockType;
+  trackTimeline: TrackTimelineType;
   imageEnhancements: ImageEnhancementsType;
   percentileStretchSupported: Readonly<Ref<boolean>>;
   percentileHistogram: PercentileHistogramType;
@@ -411,6 +427,8 @@ function dummyState(): State {
     trackStyleManager: new StyleManager({ markChangesPending }),
     visibleModes: ref(['rectangle', 'text'] as VisibleAnnotationTypes[]),
     readOnlyMode: ref(false),
+    offsetEditLock: ref(false),
+    trackTimeline: { range: () => null, seekSlot: () => undefined },
     imageEnhancements: ref({
       brightness: 1,
       contrast: 1,
@@ -461,6 +479,8 @@ function provideAnnotator(state: State, handler: Handler, attributesFilters: Att
   provide(TimeSymbol, state.time);
   provide(VisibleModesSymbol, state.visibleModes);
   provide(ReadOnlyModeSymbol, state.readOnlyMode);
+  provide(OffsetEditLockSymbol, state.offsetEditLock);
+  provide(TrackTimelineSymbol, state.trackTimeline);
   provide(ImageEnhancementsSymbol, state.imageEnhancements);
   provide(PercentileStretchSupportedSymbol, state.percentileStretchSupported);
   provide(PercentileHistogramSymbol, state.percentileHistogram);
@@ -592,6 +612,12 @@ function useVisibleModes() {
 function useReadOnlyMode() {
   return use<ReadOnylModeType>(ReadOnlyModeSymbol);
 }
+function useOffsetEditLock() {
+  return use<OffsetEditLockType>(OffsetEditLockSymbol);
+}
+function useTrackTimeline() {
+  return use<TrackTimelineType>(TrackTimelineSymbol);
+}
 function useImageEnhancements() {
   return use<ImageEnhancementsType>(ImageEnhancementsSymbol);
 }
@@ -650,6 +676,8 @@ export {
   useTime,
   useVisibleModes,
   useReadOnlyMode,
+  useOffsetEditLock,
+  useTrackTimeline,
   useImageEnhancements,
   usePercentileStretchSupported,
   usePercentileHistogram,

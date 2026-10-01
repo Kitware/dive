@@ -144,7 +144,14 @@ export function useMediaController(options?: {
   // that must NOT be deep-reactive-converted/auto-unwrapped by a plain ref().
   const alignedFrameResolver: Ref<AlignedFrameResolver | null> = shallowRef(null);
   const alignedCurrentFrame: Ref<number> = ref(0);
-  const externallyDriven = computed(() => alignedFrameResolver.value !== null);
+  // Per camera: time offset not yet applied to its annotations.
+  const annotationFrameShifts: Ref<Record<string, number>> = ref({});
+  // All-video aligned rigs free-run the <video> elements instead of ticking.
+  const alignedNativePlayback = ref(false);
+  let stopNativePlaybackWatch: (() => void) | null = null;
+  const externallyDriven = computed(
+    () => alignedFrameResolver.value !== null && !alignedNativePlayback.value,
+  );
   const alignedGapSlots = computed(() => alignedFrameResolver.value?.gapSlots.value ?? []);
   let alignedPlaybackTimer: ReturnType<typeof setTimeout> | undefined;
   const emptyControllerFrame = ref(0);
@@ -195,15 +202,27 @@ export function useMediaController(options?: {
    */
   function setAlignedFrameResolver(resolver: AlignedFrameResolver | null) {
     stopAlignedPlaybackTimer();
+    const previous = alignedFrameResolver.value;
+    const previousSlot = alignedCurrentFrame.value;
     alignedFrameResolver.value = resolver;
-    if (resolver) {
-      // Immediately perform an aligned seek to slot 0 so that any camera with
-      // no frame at that slot blanks right away, rather than continuing to
-      // show its own local frame 0 until the first user-driven seek.
-      alignedSeek(resolver, 0);
-    } else {
+    if (!resolver) {
       alignedCurrentFrame.value = 0;
+      return;
     }
+    // Keep the first camera's displayed frame on screen rather than jumping to slot 0.
+    const shown = previous ? previous.resolveSlot(previousSlot) : null;
+    let kept: number | undefined;
+    subControllers.forEach((mc) => {
+      const local = shown ? shown[mc.cameraName.value] : mc.frame.value;
+      if (kept === undefined && local !== undefined) {
+        kept = resolver.resolveGlobalSlot(mc.cameraName.value, local);
+      }
+    });
+    alignedSeek(resolver, kept ?? 0);
+  }
+
+  function setAnnotationFrameShifts(shifts: Record<string, number>) {
+    annotationFrameShifts.value = { ...shifts };
   }
 
   /**
@@ -664,6 +683,16 @@ export function useMediaController(options?: {
       }
     });
 
+    // Image panes adopt a new shift only once the matching image is drawn.
+    const settledShift = ref(annotationFrameShifts.value[cameraName] ?? 0);
+    watch(
+      [() => state[camera].syncedFrame, () => state[camera].frame,
+        () => annotationFrameShifts.value[cameraName] ?? 0],
+      ([synced, frame, shift]) => {
+        if (synced === frame) settledShift.value = shift;
+      },
+      { flush: 'post' },
+    );
     const mediaController: MediaController = {
       mediaKind,
       ready: toRef(state[camera], 'ready'),
@@ -682,6 +711,10 @@ export function useMediaController(options?: {
       speed: toRef(state[camera], 'speed'),
       syncedFrame: toRef(state[camera], 'syncedFrame'),
       hasFrame: toRef(state[camera], 'hasFrame'),
+      // Video draws at the requested frame, as before; images wait for syncedFrame.
+      annotationFrame: computed(() => (mediaKind === 'video'
+        ? state[camera].frame - (annotationFrameShifts.value[cameraName] ?? 0)
+        : state[camera].syncedFrame - settledShift.value)),
       imageRevision: toRef(state[camera], 'imageRevision'),
       frameTexture: toRef(state[camera], 'frameTexture'),
       originalBounds: toRef(state[camera], 'originalBounds'),
@@ -812,17 +845,52 @@ export function useMediaController(options?: {
   }
 
   function aggregatePause() {
+    const wasNative = alignedNativePlayback.value;
+    if (stopNativePlaybackWatch) {
+      stopNativePlaybackWatch();
+      stopNativePlaybackWatch = null;
+    }
+    alignedNativePlayback.value = false;
     subControllers.forEach((mc) => mc.pause());
     stopAlignedPlaybackTimer();
+    const resolver = alignedFrameResolver.value;
+    if (wasNative && resolver) {
+      // Free-running videos drift; snap every pane back to the slot.
+      alignedSeek(resolver, alignedCurrentFrame.value);
+    }
   }
 
   function aggregatePlay() {
+    const resolver = alignedFrameResolver.value;
+    if (resolver && subControllers.length && subControllers.every((mc) => mc.mediaKind === 'video')) {
+      // Per-tick video seeks can't keep up; align once and play natively.
+      stopAlignedPlaybackTimer();
+      alignedSeek(resolver, alignedCurrentFrame.value);
+      alignedNativePlayback.value = true;
+      const reference = subControllers[0];
+      const stopFrame = watch(reference.frame, (local) => {
+        const slot = resolver.resolveGlobalSlot(reference.cameraName.value, local);
+        if (slot !== undefined) {
+          alignedCurrentFrame.value = slot;
+        }
+      });
+      const stopPlaying = watch(reference.playing, (playing) => {
+        if (!playing) {
+          aggregatePause();
+        }
+      });
+      stopNativePlaybackWatch = () => {
+        stopFrame();
+        stopPlaying();
+      };
+      subControllers.forEach((mc) => mc.play());
+      return;
+    }
     // Each camera still flips its own `playing` UI state; when a resolver is
     // set, ImageAnnotator/VideoAnnotator skip starting their own internal
     // frame-advance loop (see externallyDriven) and this centralized tick
     // drives seeks instead.
     subControllers.forEach((mc) => mc.play());
-    const resolver = alignedFrameResolver.value;
     if (!resolver) {
       return;
     }
@@ -891,6 +959,8 @@ export function useMediaController(options?: {
     onResize,
     clear,
     setAlignedFrameResolver,
+    setAnnotationFrameShifts,
     setResetZoomOverride,
+    externallyDriven,
   };
 }

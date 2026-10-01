@@ -300,6 +300,17 @@ describe('CameraRegistrationStore', () => {
       expect(store.pairDirty(lt)).toBe(true);
       expect(store.pairDirty(lr)).toBe(false);
     });
+
+    it('leaves unsaved frame offsets out of a pair save', () => {
+      const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      registerTwoPairs(store);
+      store.markSaved();
+      store.frameOffsets.value = { right: 2 };
+      expect(store.valuesSavingPair(lr).frameOffsets).toEqual({});
+      expect(store.pairDirty(lr)).toBe(false);
+      expect(store.dirtyOutsidePair(lr)).toBe(true);
+    });
   });
 
   it('fits when enabling alignment mode with >= 4 pairs', () => {

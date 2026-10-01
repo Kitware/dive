@@ -1,9 +1,14 @@
 <script lang="ts">
 import { computed, defineComponent, ref } from 'vue';
 import {
+  useCameraRegistration,
   useCameraStore,
+  useDatasetId,
   useEditingMode,
   useHandler,
+  useOffsetEditLock,
+  usePendingSaveCount,
+  useReadOnlyMode,
   useSelectedCamera,
   useSelectedTrackId,
   useTime,
@@ -11,6 +16,8 @@ import {
 } from 'vue-media-annotator/provides';
 import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { AnnotationId } from 'vue-media-annotator/BaseAnnotation';
+import { useApi } from 'dive-common/apispec';
+import { pendingFrameShifts } from 'dive-common/frameOffsetAnnotations';
 
 interface CameraTrackData {
   trackExists: boolean;
@@ -25,10 +32,75 @@ export default defineComponent({
     const inEditingMode = useEditingMode();
     const enabledTracksRef = useTrackFilters().enabledAnnotations;
     const handler = useHandler();
-    const { frame } = useTime();
+    const { frame, frameRate } = useTime();
     const selectedTrackId = useSelectedTrackId();
     const cameraStore = useCameraStore();
     const cameras = computed(() => cameraStore.orderedCameraNames());
+    const registration = useCameraRegistration();
+    const datasetId = useDatasetId();
+    const pendingSaveCount = usePendingSaveCount();
+    const readOnlyMode = useReadOnlyMode();
+    const offsetEditLock = useOffsetEditLock();
+    const { applyCameraFrameOffset } = useApi();
+
+    const OFFSET_LIMIT_SECONDS = 10;
+    const referenceCamera = computed(() => cameras.value[0] ?? null);
+    const offsetCameras = computed(() => cameras.value.slice(1));
+    const offsetLimit = computed(
+      () => Math.max(1, Math.round((frameRate.value || 30) * OFFSET_LIMIT_SECONDS)),
+    );
+    function cameraOffset(camera: string): number {
+      return registration.frameOffsets.value[camera] ?? 0;
+    }
+    function setCameraOffset(camera: string, value: number) {
+      // Replace the map so the aligned-timeline computed re-runs.
+      registration.frameOffsets.value = {
+        ...registration.frameOffsets.value,
+        [camera]: Math.round(value),
+      };
+    }
+    function nudgeOffset(camera: string, delta: number) {
+      setCameraOffset(camera, cameraOffset(camera) + delta);
+    }
+    function offsetReadout(camera: string): string {
+      const frames = cameraOffset(camera);
+      const sign = frames > 0 ? '+' : '';
+      const plural = Math.abs(frames) === 1 ? '' : 's';
+      const seconds = frameRate.value ? ` (${sign}${(frames / frameRate.value).toFixed(3)}s)` : '';
+      return `${sign}${frames} frame${plural}${seconds}`;
+    }
+    const pendingShifts = computed(() => pendingFrameShifts(
+      registration.frameOffsets.value,
+      registration.appliedFrameOffsets.value,
+      offsetCameras.value,
+    ));
+    const savingOffsets = ref(false);
+    /** The backend rewrites annotations so the page never uploads the whole dataset. */
+    async function saveAnnotationOffsets() {
+      savingOffsets.value = true;
+      try {
+        // The shift applies to stored data, so save unsaved edits first.
+        if (pendingSaveCount.value > 0) {
+          await handler.save();
+        }
+        const pending = Object.keys(pendingShifts.value);
+        for (let i = 0; i < pending.length; i += 1) {
+          const camera = pending[i];
+          const offset = cameraOffset(camera);
+          // eslint-disable-next-line no-await-in-loop
+          await applyCameraFrameOffset(datasetId.value, camera, offset);
+          registration.appliedFrameOffsets.value = {
+            ...registration.appliedFrameOffsets.value,
+            [camera]: offset,
+          };
+          registration.markFrameOffsetSaved(camera, offset);
+          // eslint-disable-next-line no-await-in-loop
+          await handler.reloadCameraAnnotations(camera);
+        }
+      } finally {
+        savingOffsets.value = false;
+      }
+    }
     const canary = ref(false);
     function _depend(): boolean {
       return canary.value;
@@ -119,6 +191,18 @@ export default defineComponent({
       deleteTrack,
       startLinking,
       handler,
+      referenceCamera,
+      offsetCameras,
+      offsetLimit,
+      cameraOffset,
+      setCameraOffset,
+      nudgeOffset,
+      offsetReadout,
+      pendingShifts,
+      savingOffsets,
+      saveAnnotationOffsets,
+      readOnlyMode,
+      offsetEditLock,
     };
   },
 });
@@ -130,6 +214,59 @@ export default defineComponent({
       Multi Camera Tools for creating tracks, linking and unlinking tracks
     </span>
     <v-divider class="my-3" />
+    <div v-if="offsetCameras.length">
+      <h4>Time Offset</h4>
+      <span class="text-caption grey--text d-block mb-1">
+        Frames to shift each camera so it plays in step with {{ referenceCamera }}.
+      </span>
+      <div v-for="camera in offsetCameras" :key="camera" class="mb-2">
+        <span class="text-body-2">{{ camera }}</span>
+        <div class="d-flex align-center">
+          <tooltip-btn
+            icon="mdi-minus"
+            :tooltip-text="`Shift ${camera} one frame earlier`"
+            @click="nudgeOffset(camera, -1)"
+          />
+          <v-slider
+            :value="cameraOffset(camera)"
+            :min="-offsetLimit"
+            :max="offsetLimit"
+            :step="1"
+            dense
+            hide-details
+            class="mx-1"
+            @input="setCameraOffset(camera, $event)"
+          />
+          <tooltip-btn
+            icon="mdi-plus"
+            :tooltip-text="`Shift ${camera} one frame later`"
+            @click="nudgeOffset(camera, 1)"
+          />
+        </div>
+        <div class="text-caption" style="font-family: monospace;">
+          {{ offsetReadout(camera) }}
+        </div>
+      </div>
+      <v-btn
+        block
+        small
+        color="primary"
+        :disabled="(readOnlyMode && !offsetEditLock) || !Object.keys(pendingShifts).length"
+        :loading="savingOffsets"
+        @click="saveAnnotationOffsets"
+      >
+        Apply to annotations
+      </v-btn>
+      <span class="text-caption grey--text d-block mt-1">
+        Moves every stored annotation on a shifted camera by its offset.
+      </span>
+      <span
+        v-if="offsetEditLock"
+        class="text-caption warning--text d-block mt-1"
+      >
+        Annotation editing is paused until the offset is applied.
+      </span>
+    </div>
     <v-divider class="my-3" />
     <div v-if="selectedTrackId !== null">
       <span> Selected Track: {{ selectedTrackId }} Frame: {{ frame }}</span>

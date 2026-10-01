@@ -25,6 +25,8 @@ export interface CameraRegistrationValues {
   observations: CameraObservations;
   transformTypes: CameraTransformTypes;
   source: RegistrationSource | null;
+  /** Per-camera start offset in its own frames; absent means all in step. */
+  frameOffsets?: Record<string, number>;
 }
 
 /**
@@ -109,6 +111,10 @@ function toRegistrationFilePairs(values: CameraRegistrationValues): Registration
       leftToRight: homography ? homography.AtoB : null,
       rightToLeft: homography ? homography.BtoA : null,
       transformType: values.transformTypes[key] || DEFAULT_TRANSFORM_TYPE,
+      // Assumes left is the rig reference.
+      ...(values.frameOffsets?.[right]
+        ? { frameOffset: values.frameOffsets[right] }
+        : {}),
     };
   });
 }
@@ -291,7 +297,13 @@ export function mergeRegistrationValues(
       files: { previous: existing.source, [incomingLabel]: incoming.source },
     };
   }
+  // Later files win per camera; a file without offsets keeps existing ones.
+  const frameOffsets = { ...existing.frameOffsets, ...incoming.frameOffsets };
   return {
-    homographies, observations, transformTypes, source,
+    homographies,
+    observations,
+    transformTypes,
+    source,
+    ...(Object.keys(frameOffsets).length ? { frameOffsets } : {}),
   };
 }

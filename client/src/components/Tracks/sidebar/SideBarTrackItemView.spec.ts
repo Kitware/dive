@@ -73,6 +73,8 @@ describe('SideBarTrackItemView classification editing', () => {
       toggleAllInterpolation: vi.fn(),
       gotoPrevious: vi.fn(),
       gotoNext: vi.fn(),
+      seekBegin: vi.fn(),
+      seekEnd: vi.fn(),
       editing: false,
     });
     vm.setTrackType('new leaf');
@@ -107,6 +109,8 @@ describe('SideBarTrackItemView classification editing', () => {
       toggleAllInterpolation: vi.fn(),
       gotoPrevious: vi.fn(),
       gotoNext: vi.fn(),
+      seekBegin: vi.fn(),
+      seekEnd: vi.fn(),
       editing: false,
     });
     vm.editNotesValue = ' reviewed ';

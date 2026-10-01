@@ -10,15 +10,20 @@ from dive_tasks.multicam_pipeline import (
     build_multicam_kwiver_settings,
     build_registration_kwiver_settings,
     build_registration_pairs,
+    camera_frame_size,
+    clip_viame_csv_to_frame,
+    common_frame_bound,
     find_downloaded_calibration_file,
     infer_camera_role,
     infer_camera_roles,
     is_stereo_measurement_pipeline,
     is_stereo_or_multicam_pipeline,
     missing_registrations,
+    paired_start_frames,
     pipeline_requires_input,
     pseudo_frame_number,
     stereo_calibration_keys,
+    video_frame_count,
     video_subset_cameras,
 )
 from dive_utils import constants
@@ -284,9 +289,9 @@ def test_build_registration_kwiver_settings(tmp_path: Path):
     registration_path = str(tmp_path / 'ir_to_rgb_registration.json')
     assert settings == {
         'warp2:transformation_file': registration_path,
-        'warp2:transform_reader:type': 'dive',
-        'warp2:transform_reader:dive:from_camera': 'ir',
-        'warp2:transform_reader:dive:to_camera': 'rgb',
+        'warp2:transform_reader:type': 'homography_json',
+        'warp2:transform_reader:homography_json:from_camera': 'ir',
+        'warp2:transform_reader:homography_json:to_camera': 'rgb',
     }
     written = json.loads((tmp_path / 'ir_to_rgb_registration.json').read_text(encoding='utf-8'))
     assert written['type'] == 'dive-camera-registration'
@@ -442,3 +447,110 @@ def test_build_multicam_kwiver_settings_large_image_subset(tmp_path: Path):
 
     assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == '/tmp/ir/001.tif'
     assert arg_pair['input:video_filename'] == str(tmp_path / 'input1_images.txt')
+
+
+def test_video_frame_count():
+    assert video_frame_count({'ffprobe_info': {'nb_frames': '300'}}) == 300
+    assert video_frame_count({'ffprobe_info': {'duration': '10.0'}, 'originalFps': 29.97}) == 300
+    assert video_frame_count({'ffprobe_info': {'duration': '10.0'}}) is None
+    assert video_frame_count({}) is None
+
+
+def test_common_frame_bound():
+    seq = constants.ImageSequenceType
+    equal = {'a': (['1', '2'], seq), 'b': (['1', '2'], seq)}
+    assert common_frame_bound(equal, None, {}) is None
+    uneven = {'a': (['1', '2', '3'], seq), 'b': (['1', '2'], seq)}
+    assert common_frame_bound(uneven, None, {}) == 2
+    videos = {'a': (['a.mp4'], constants.VideoType), 'b': (['b.mp4'], constants.VideoType)}
+    assert common_frame_bound(videos, None, {'a': 900, 'b': 850}) == 850
+    assert common_frame_bound(videos, None, {'a': 900}) is None
+    # A frame subset already pairs row for row, so its length is the count.
+    assert common_frame_bound(videos, {'a': ['frame://1'], 'b': ['frame://1']}, {'a': 9}) is None
+    mixed = {'a': (['1', '2', '3'], seq), 'b': (['b.mp4'], constants.VideoType)}
+    assert common_frame_bound(mixed, None, {'b': 2}) == 2
+
+
+def test_build_multicam_kwiver_settings_frame_bound(tmp_path: Path):
+    cameras = [
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.ImageSequenceType},
+        {'name': 'eo', 'folder_id': 'e', 'media_type': constants.VideoType},
+    ]
+    camera_media = {
+        'ir': (['/tmp/ir/0.png', '/tmp/ir/1.png', '/tmp/ir/2.png'], constants.ImageSequenceType),
+        'eo': (['/tmp/eo.mp4'], constants.VideoType),
+    }
+    arg_pair, _ = build_multicam_kwiver_settings(tmp_path, cameras, camera_media, frame_bound=2)
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == (
+        '/tmp/ir/0.png\n/tmp/ir/1.png'
+    )
+    assert arg_pair['input2:video_reader:vidl_ffmpeg:stop_after_frame'] == '2'
+    unbounded, _ = build_multicam_kwiver_settings(tmp_path, cameras, camera_media)
+    assert 'input2:video_reader:vidl_ffmpeg:stop_after_frame' not in unbounded
+
+
+def test_paired_start_frames():
+    assert paired_start_frames({'EO': 100, 'IR': 100}, None) is None
+    assert paired_start_frames({'EO': 100, 'IR': 100}, {'EO': 0, 'IR': 0}) is None
+    # IR frame 9 is the same instant as EO frame 0, so IR skips ahead and both stop together.
+    assert paired_start_frames({'EO': 100, 'IR': 100}, {'IR': 9}) == ({'EO': 0, 'IR': 9}, 91)
+    assert paired_start_frames({'EO': 100, 'IR': 100}, {'IR': -4}) == ({'EO': 4, 'IR': 0}, 96)
+    assert paired_start_frames({'EO': 9000, 'IR': 9008}, {'IR': 9}) == ({'EO': 0, 'IR': 9}, 8999)
+    assert paired_start_frames({'EO': 100, 'IR': 100, 'UV': 100}, {'IR': 9, 'UV': -4}) == (
+        {'EO': 4, 'IR': 13, 'UV': 0},
+        87,
+    )
+    start, length = paired_start_frames({'EO': 100, 'IR': 5}, {'IR': 9})
+    assert length <= 0
+
+
+def test_build_multicam_kwiver_settings_frame_starts(tmp_path: Path):
+    cameras = [
+        {'name': 'ir', 'folder_id': 'i', 'media_type': constants.ImageSequenceType},
+        {'name': 'eo', 'folder_id': 'e', 'media_type': constants.VideoType},
+    ]
+    camera_media = {
+        'ir': (['/tmp/ir/0.png', '/tmp/ir/1.png', '/tmp/ir/2.png'], constants.ImageSequenceType),
+        'eo': (['/tmp/eo.mp4'], constants.VideoType),
+    }
+    arg_pair, _ = build_multicam_kwiver_settings(
+        tmp_path, cameras, camera_media, frame_bound=2, frame_starts={'ir': 1, 'eo': 3}
+    )
+    assert (tmp_path / 'input1_images.txt').read_text(encoding='utf-8') == (
+        '/tmp/ir/1.png\n/tmp/ir/2.png'
+    )
+    assert arg_pair['input2:video_reader:vidl_ffmpeg:start_at_frame'] == '4'
+    assert arg_pair['input2:video_reader:vidl_ffmpeg:stop_after_frame'] == '5'
+
+
+def test_clip_viame_csv_to_frame(tmp_path: Path):
+    source = tmp_path / 'computed_tracks_IR.csv'
+    source.write_text(
+        '# metadata\n'
+        '1,a.png,0,10,10,50,50,0.9,-1,fish,0.9\n'  # inside: untouched
+        '2,a.png,0,-20,10,40,50,0.9,-1,fish,0.9\n'  # 2/3 visible: clipped
+        '3,a.png,0,-100,10,-40,50,0.9,-1,fish,0.9\n'  # fully outside: dropped
+        '4,a.png,0,630,300,730,400,0.9,-1,fish,0.9\n'  # 10% visible: dropped
+        '5,a.png,0,630.5,5,650,20,0.9,-1,fish,0.9\n',  # clipped, keeps decimals
+        encoding='utf-8',
+    )
+    out, clipped, dropped = clip_viame_csv_to_frame(str(source), 640, 480)
+    lines = Path(out).read_text(encoding='utf-8').splitlines()
+    assert lines[0] == '# metadata'
+    assert lines[1] == '1,a.png,0,10,10,50,50,0.9,-1,fish,0.9'
+    assert lines[2] == '2,a.png,0,0,10,40,50,0.9,-1,fish,0.9'
+    assert lines[3] == '5,a.png,0,630.500,5,640,20,0.9,-1,fish,0.9'
+    assert len(lines) == 4
+    assert (clipped, dropped) == (2, 2)
+
+
+def test_camera_frame_size(tmp_path: Path):
+    meta = {'ffprobe_info': {'width': '640', 'height': '512'}}
+    assert camera_frame_size(meta, ['/tmp/x.mp4'], constants.VideoType) == (640, 512)
+    assert camera_frame_size({}, ['/tmp/x.mp4'], constants.VideoType) is None
+    from PIL import Image
+
+    image_path = tmp_path / 'frame.png'
+    Image.new('L', (320, 240)).save(image_path)
+    assert camera_frame_size({}, [str(image_path)], constants.ImageSequenceType) == (320, 240)
+    assert camera_frame_size({}, [], constants.ImageSequenceType) is None

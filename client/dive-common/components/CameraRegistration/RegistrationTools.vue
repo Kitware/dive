@@ -653,6 +653,8 @@ export default defineComponent({
           cameraCorrespondences: values.observations,
           cameraTransformTypes: values.transformTypes,
           cameraRegistrationSource: values.source,
+          cameraFrameOffsets: values.frameOffsets,
+          cameraFrameOffsetsApplied: values.appliedFrameOffsets,
         });
         registration.markPairSaved(key);
       } finally {

@@ -199,6 +199,17 @@ interface SaveDetectionsArgs {
   set?: string;
 }
 
+interface CameraFrameOffsetResult {
+  camera: string;
+  offset: number;
+  /** Offset minus what was already applied. */
+  delta: number;
+  tracks: number;
+  groups: number;
+  /** Annotations deleted because they fell entirely before frame 0. */
+  dropped: number;
+}
+
 interface SaveAttributeArgs {
   delete: string[];
   upsert: Attribute[];
@@ -332,9 +343,13 @@ interface DatasetConfigMutable {
    * role are absent.
    */
   cameraRoles?: Record<string, CameraRole>;
+  /** Per-camera start offset, in that camera's frames. */
+  cameraFrameOffsets?: Record<string, number>;
+  /** The part of cameraFrameOffsets already applied to each camera's annotations. */
+  cameraFrameOffsetsApplied?: Record<string, number>;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'cameraFrameOffsets', 'cameraFrameOffsetsApplied', 'typeHierarchy', 'taxonomySources', 'cameraRoles'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
@@ -517,6 +532,10 @@ interface Api {
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
+  /** Only the not-yet-applied part moves; the caller reloads the camera afterwards. */
+  applyCameraFrameOffset(
+    datasetId: string, camera: string, offset: number,
+  ): Promise<CameraFrameOffsetResult>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;
@@ -931,6 +950,7 @@ export type {
   PipeMetadata,
   Pipelines,
   SaveDetectionsArgs,
+  CameraFrameOffsetResult,
   SaveAttributeArgs,
   SaveAttributeTrackFilterArgs,
   TrainingConfig,

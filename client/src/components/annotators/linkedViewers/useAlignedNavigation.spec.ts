@@ -137,6 +137,7 @@ function makeHarness() {
   return {
     eo,
     ir,
+    controllers,
     cameraSync,
     resizing,
     resizeTrigger,
@@ -166,6 +167,36 @@ describe('useAlignedNavigation', () => {
     expect(eo.zoom()).toBeCloseTo(Math.log2(1 / (400 / VIEWPORT_PX)), 6);
     expect(ir.center()).toEqual({ x: 200, y: 150 });
     expect(ir.zoom()).toBeCloseTo(Math.log2(8 / (400 / VIEWPORT_PX)), 6);
+  });
+
+  it('re-fits once late imagery lands, but not over a zoom the user has since set', async () => {
+    const h = makeHarness();
+    h.alignedView.setTransforms('eo', { eo: IDENTITY, ir: IDENTITY });
+    h.alignedView.setEnabled(true);
+    await nextTick();
+    await nextTick();
+    h.eo.zoom(3);
+    h.eo.center({ x: 50, y: 40 });
+    h.controllers.eo.imageRevision.value += 1;
+    await nextTick();
+    expect(h.eo.zoom()).toBe(3);
+    expect(h.eo.center()).toEqual({ x: 50, y: 40 });
+  });
+
+  it('re-fits when late imagery lands on an untouched Align-on view', async () => {
+    const h = makeHarness();
+    h.alignedView.setTransforms('eo', { eo: IDENTITY, ir: IDENTITY });
+    h.alignedView.setEnabled(true);
+    await nextTick();
+    await nextTick();
+    const fitted = { zoom: h.eo.zoom(), center: { ...h.eo.center() } };
+    h.controllers.eo.originalBounds.value = {
+      left: 0, top: 0, right: 800, bottom: 600,
+    };
+    h.controllers.eo.imageRevision.value += 1;
+    await nextTick();
+    expect(h.eo.zoom()).not.toBe(fitted.zoom);
+    expect(h.eo.center()).toEqual({ x: 400, y: 300 });
   });
 
   it('clears GeoJS pan/zoom clamp on activation so large-image can show the reference FOV', async () => {

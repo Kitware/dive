@@ -1,4 +1,6 @@
-import { defineComponent, ref } from 'vue';
+import {
+  defineComponent, nextTick, ref, type Ref,
+} from 'vue';
 import { mount } from '@vue/test-utils';
 import { useMediaController } from './useMediaController';
 import type { AlignedFrameResolver } from './mediaControllerType';
@@ -11,7 +13,7 @@ function noop() { /* unused setVolume/setSpeed stub */ }
  * GeoJS/DOM, so camera controllers can be registered directly here with
  * mocked seek/play/pause -- no need to mount real annotator components.
  */
-function mountMediaController() {
+function mountMediaController(kind: 'image-sequence' | 'video' = 'image-sequence') {
   const seekA = vi.fn();
   const playA = vi.fn();
   const pauseA = vi.fn();
@@ -24,10 +26,10 @@ function mountMediaController() {
   const Host = defineComponent({
     setup() {
       composable = useMediaController();
-      composable.initialize('A', 'image-sequence', {
+      composable.initialize('A', kind, {
         seek: seekA, play: playA, pause: pauseA, setVolume: noop, setSpeed: noop,
       });
-      composable.initialize('B', 'image-sequence', {
+      composable.initialize('B', kind, {
         seek: seekB, play: playB, pause: pauseB, setVolume: noop, setSpeed: noop,
       });
       return {};
@@ -193,6 +195,41 @@ describe('useMediaController', () => {
     }
   });
 
+  it('an all-video rig plays natively: no tick, the slot follows the reference camera', () => {
+    vi.useFakeTimers();
+    try {
+      const { composable, mocks } = mountMediaController('video');
+      const {
+        seekA, seekB, pauseA, pauseB,
+      } = mocks;
+      composable.setAlignedFrameResolver(makeShiftedResolver());
+      composable.aggregateController.value.seek(0);
+      seekA.mockClear();
+      seekB.mockClear();
+
+      composable.aggregateController.value.play();
+      expect(composable.externallyDriven.value).toBe(false);
+      expect(seekA).toHaveBeenCalledTimes(1);
+      vi.advanceTimersByTime(3000);
+      expect(seekA).toHaveBeenCalledTimes(1);
+      expect(seekB).toHaveBeenCalledTimes(1);
+
+      const a = composable.aggregateController.value.getController('A');
+      (a.frame as Ref<number>).value = 1;
+      return nextTick().then(() => {
+        expect(composable.aggregateController.value.frame.value).toBe(2);
+        composable.aggregateController.value.pause();
+        expect(composable.externallyDriven.value).toBe(true);
+        expect(pauseA).toHaveBeenCalled();
+        expect(pauseB).toHaveBeenCalled();
+        expect(seekA).toHaveBeenLastCalledWith(1);
+        expect(seekB).toHaveBeenLastCalledWith(2);
+      });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('pause() stops the centralized tick', () => {
     vi.useFakeTimers();
     try {
@@ -254,10 +291,8 @@ describe('useMediaController', () => {
     expect(composable.aggregateController.value.alignedGapSlots.value).toEqual([]);
   });
 
-  it('installing a resolver immediately performs an aligned seek to slot 0', () => {
+  it('installing a first resolver seeks to the slot showing the current frame', () => {
     const { composable, mocks } = mountMediaController();
-    // Gap at slot 0: A has no frame there and must blank right away rather
-    // than continuing to show its local frame 0 until the first user seek.
     const resolver: AlignedFrameResolver = {
       slotCount: ref(3),
       frameRate: ref(2),
@@ -270,9 +305,107 @@ describe('useMediaController', () => {
       gapSlots: ref([0]),
     };
     composable.setAlignedFrameResolver(resolver);
-    expect(mocks.seekA).toHaveBeenCalledWith(undefined);
-    expect(mocks.seekB).toHaveBeenCalledWith(0);
-    expect(composable.aggregateController.value.frame.value).toBe(0);
+    expect(mocks.seekA).toHaveBeenLastCalledWith(0);
+    expect(mocks.seekB).toHaveBeenLastCalledWith(1);
+    expect(composable.aggregateController.value.frame.value).toBe(1);
+  });
+
+  it('replacing a resolver keeps the first camera\'s displayed frame instead of jumping to slot 0', () => {
+    const { composable, mocks } = mountMediaController();
+    composable.setAlignedFrameResolver(makeGappedResolver(10));
+    composable.aggregateController.value.seek(5);
+    const shifted: AlignedFrameResolver = {
+      slotCount: ref(13),
+      frameRate: ref(2),
+      resolveSlot: (f: number) => ({
+        A: f < 3 ? undefined : f - 3,
+        B: f < 10 ? f : undefined,
+      }),
+      resolveGlobalSlot: (camera: string, localFrame: number) => (
+        camera === 'A' ? localFrame + 3 : localFrame),
+      gapSlots: ref([0, 1, 2, 10, 11, 12]),
+    };
+    composable.setAlignedFrameResolver(shifted);
+    expect(composable.aggregateController.value.frame.value).toBe(8);
+    expect(mocks.seekA).toHaveBeenLastCalledWith(5);
+    expect(mocks.seekB).toHaveBeenLastCalledWith(8);
+  });
+
+  it('a first resolver keeps the frame positional playback was showing', () => {
+    const { composable, mocks } = mountMediaController();
+    (composable.aggregateController.value.getController('A').frame as Ref<number>).value = 4;
+    (composable.aggregateController.value.getController('B').frame as Ref<number>).value = 4;
+    const shifted: AlignedFrameResolver = {
+      slotCount: ref(13),
+      frameRate: ref(2),
+      resolveSlot: (f: number) => ({
+        A: f < 3 ? undefined : f - 3,
+        B: f < 10 ? f : undefined,
+      }),
+      resolveGlobalSlot: (camera: string, localFrame: number) => (
+        camera === 'A' ? localFrame + 3 : localFrame),
+      gapSlots: ref([0, 1, 2, 10, 11, 12]),
+    };
+    composable.setAlignedFrameResolver(shifted);
+    expect(composable.aggregateController.value.frame.value).toBe(7);
+    expect(mocks.seekA).toHaveBeenLastCalledWith(4);
+    expect(mocks.seekB).toHaveBeenLastCalledWith(7);
+  });
+
+  it('annotationFrame trails the video frame by the camera\'s unapplied shift', async () => {
+    const { composable } = mountMediaController();
+    const a = composable.aggregateController.value.getController('A');
+    const b = composable.aggregateController.value.getController('B');
+    (a.frame as Ref<number>).value = 12;
+    (a.syncedFrame as Ref<number>).value = 12;
+    (b.frame as Ref<number>).value = 12;
+    (b.syncedFrame as Ref<number>).value = 12;
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(12);
+    composable.setAnnotationFrameShifts({ A: 9 });
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(3);
+    expect(b.annotationFrame.value).toBe(12);
+    composable.setAnnotationFrameShifts({});
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(12);
+  });
+
+  it('holds an image pane\'s old shift until the image the new shift pairs with is drawn', async () => {
+    const { composable } = mountMediaController('image-sequence');
+    const a = composable.aggregateController.value.getController('A');
+    (a.frame as Ref<number>).value = 10;
+    (a.syncedFrame as Ref<number>).value = 10;
+    composable.setAnnotationFrameShifts({ A: 2 });
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(8);
+    (a.frame as Ref<number>).value = 11;
+    composable.setAnnotationFrameShifts({ A: 3 });
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(8);
+    (a.syncedFrame as Ref<number>).value = 11;
+    await nextTick();
+    expect(a.annotationFrame.value).toBe(8);
+  });
+
+  it('annotationFrame follows an image pane\'s drawn frame, not one still loading', () => {
+    const { composable } = mountMediaController('image-sequence');
+    const a = composable.aggregateController.value.getController('A');
+    (a.frame as Ref<number>).value = 5;
+    (a.syncedFrame as Ref<number>).value = 4;
+    expect(a.annotationFrame.value).toBe(4);
+    (a.syncedFrame as Ref<number>).value = 5;
+    expect(a.annotationFrame.value).toBe(5);
+  });
+
+  it('annotationFrame follows a video pane\'s requested frame and shift at once', () => {
+    const { composable } = mountMediaController('video');
+    const a = composable.aggregateController.value.getController('A');
+    (a.frame as Ref<number>).value = 5;
+    (a.syncedFrame as Ref<number>).value = 4;
+    expect(a.annotationFrame.value).toBe(5);
+    composable.setAnnotationFrameShifts({ A: 2 });
+    expect(a.annotationFrame.value).toBe(3);
   });
 
   it('re-applies the current aligned slot when a camera registers after the resolver is installed', async () => {

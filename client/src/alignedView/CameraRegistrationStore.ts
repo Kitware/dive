@@ -132,6 +132,8 @@ export interface RegistrationFilePair {
   leftToRight?: Matrix3 | null;
   rightToLeft?: Matrix3 | null;
   transformType?: TransformType;
+  /** Right camera's start offset in its own frames: right `n + frameOffset` = left `n`. */
+  frameOffset?: number;
 }
 
 /** Portable calibration file: everything needed to restore all pairs. */
@@ -307,6 +309,12 @@ export default class CameraRegistrationStore {
    */
   source: Ref<RegistrationSource | null>;
 
+  /** Per-camera start offset in frames against the reference; persisted with the calibration. */
+  frameOffsets: Ref<Record<string, number>>;
+
+  /** Per-camera frame offset already baked into that camera's annotations. */
+  appliedFrameOffsets: Ref<Record<string, number>>;
+
   /** True when the calibration has unsaved changes since the last save or load. */
   dirty: ComputedRef<boolean>;
 
@@ -338,6 +346,8 @@ export default class CameraRegistrationStore {
     this.recenterRequest = ref(null);
     this.fitError = ref(null);
     this.source = ref(null);
+    this.frameOffsets = ref({});
+    this.appliedFrameOffsets = ref({});
     this.nextId = 1;
     this.nextRecenterId = 1;
     this.homographySources = {};
@@ -353,12 +363,22 @@ export default class CameraRegistrationStore {
       observations: this.observations.value,
       transformTypes: this.transformTypes.value,
       source: this.source.value,
+      frameOffsets: this.frameOffsets.value,
+      appliedFrameOffsets: this.appliedFrameOffsets.value,
     });
   }
 
   /** Capture the current calibration as the saved baseline, so {@link dirty} reads false. */
   markSaved() {
     this.savedSnapshot.value = this.registrationSnapshot();
+  }
+
+  /** Mark only `camera`'s offset as saved, so other unsaved edits stay dirty. */
+  markFrameOffsetSaved(camera: string, offset: number) {
+    const saved = JSON.parse(this.savedSnapshot.value);
+    saved.frameOffsets = { ...saved.frameOffsets, [camera]: offset };
+    saved.appliedFrameOffsets = { ...saved.appliedFrameOffsets, [camera]: offset };
+    this.savedSnapshot.value = canonicalJson(saved);
   }
 
   /**
@@ -421,6 +441,8 @@ export default class CameraRegistrationStore {
     observations: CameraObservations;
     transformTypes: CameraTransformTypes;
     source: RegistrationSource | null;
+    frameOffsets: Record<string, number>;
+    appliedFrameOffsets: Record<string, number>;
     } {
     const saved = JSON.parse(this.savedSnapshot.value);
     const current = JSON.parse(canonicalJson({
@@ -443,6 +465,8 @@ export default class CameraRegistrationStore {
       observations: withPair(saved.observations, current.observations),
       transformTypes: withPair(saved.transformTypes, current.transformType),
       source: current.source ?? null,
+      frameOffsets: saved.frameOffsets ?? {},
+      appliedFrameOffsets: saved.appliedFrameOffsets ?? {},
     };
   }
 
@@ -1289,6 +1313,7 @@ export default class CameraRegistrationStore {
     const observations: CameraObservations = {};
     const homographies: CameraHomographies = {};
     const transformTypes: CameraTransformTypes = {};
+    const frameOffsets: Record<string, number> = {};
     const cameras = new Set<string>();
     file.pairs.forEach((pair, i) => {
       const context = `Pair ${i + 1}`;
@@ -1299,6 +1324,13 @@ export default class CameraRegistrationStore {
       const key = this.pairKey(pair.left, pair.right);
       cameras.add(pair.left);
       cameras.add(pair.right);
+      if (pair.frameOffset !== undefined) {
+        if (!Number.isInteger(pair.frameOffset)) {
+          throw new Error(`${context}: "frameOffset" must be a whole number of frames`);
+        }
+        // Assumes left is the rig reference, as producers write it.
+        frameOffsets[pair.right] = pair.frameOffset;
+      }
       if (pair.transformType !== undefined) {
         if (!TRANSFORM_TYPES.some((t) => t.value === pair.transformType)) {
           throw new Error(
@@ -1331,6 +1363,7 @@ export default class CameraRegistrationStore {
     this.homographies.value = homographies;
     this.transformTypes.value = transformTypes;
     this.source.value = source;
+    this.frameOffsets.value = frameOffsets;
     this.markHomographySources();
     this.renumberPoints();
     this.pendingPoint.value = null;
@@ -1465,11 +1498,15 @@ export default class CameraRegistrationStore {
     observations?: CameraObservations,
     transformTypes?: CameraTransformTypes,
     source?: RegistrationSource | null,
+    frameOffsets?: Record<string, number> | null,
+    appliedFrameOffsets?: Record<string, number> | null,
   ) {
     this.homographies.value = homographies ? { ...homographies } : {};
     this.observations.value = observations ? { ...observations } : {};
     this.transformTypes.value = transformTypes ? { ...transformTypes } : {};
     this.source.value = source ?? null;
+    this.frameOffsets.value = frameOffsets ? { ...frameOffsets } : {};
+    this.appliedFrameOffsets.value = appliedFrameOffsets ? { ...appliedFrameOffsets } : {};
     this.markHomographySources();
     this.activePair.value = null;
     this.pendingPoint.value = null;
