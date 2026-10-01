@@ -380,17 +380,27 @@ export default defineComponent({
        same displayed rows rather than every type that happens to be checked. */
     const deletableTypes = computed(() => typeListModel.value.actionableCheckedTypes);
     async function clickDelete() {
-      const preamble = props.group
-        ? 'This will remove the group assignment from any visible tracks and delete the group. Do you want to delete all groups of the following types:'
-        : 'This will remove the type from any visible track or delete the track if it is the only type. Do you want to delete all tracks of following types:';
+      if (readOnlyMode.value) return;
+      const types = [...deletableTypes.value];
+      if (!types.length) return;
+      const description = props.group
+        ? 'Remove these groups from visible tracks? Groups no longer used anywhere leave the list.'
+        : 'Remove these types from visible tracks? Tracks left without a type are deleted, and types no longer used anywhere leave the list.';
 
       const result = await prompt({
         title: 'Really delete types?',
-        text: [preamble, '-------', ...deletableTypes.value],
+        text: [description, '-------', ...types],
         confirm: true,
       });
-      if (result) {
-        trackFilters.removeTypeAnnotations([...deletableTypes.value]);
+      if (result && !readOnlyMode.value) {
+        trackFilters.removeTypeAnnotations(types);
+        const removedTypes = types.filter((type) => {
+          const inUse = trackFilters instanceof TrackFilterControls
+            ? trackFilters.typeInUseOnAnyCamera(type)
+            : trackFilters.usedTypes.value.includes(type);
+          return !inUse && trackFilters.deleteType(type);
+        });
+        trackFilters.updateCheckedTypes(difference(trackFilters.checkedTypes.value, removedTypes));
       }
     }
 
