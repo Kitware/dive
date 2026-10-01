@@ -17,11 +17,11 @@ const flush = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 afterEach(() => vi.restoreAllMocks());
 
 describe('folder job selection', () => {
-  it('asks the server to resolve folders into datasets', async () => {
+  it('uses selected dive datasets locally and resolves only containers', async () => {
     const sequence = folder('sequence', true);
     const multi = { ...folder('multi', true), meta: { annotate: true, type: 'multi' } } as GirderModel;
     const resolve = vi.spyOn(datasetService, 'resolveFolderSelection').mockResolvedValue({
-      data: [sequence, multi],
+      data: [multi],
       status: 200,
       statusText: 'OK',
       headers: {},
@@ -32,8 +32,16 @@ describe('folder job selection', () => {
       { ...folder('item'), _modelType: 'item' },
     ]);
     expect(result.map((item) => item._id)).toEqual(['sequence', 'multi']);
-    expect(resolve).toHaveBeenCalledWith(['root', 'nested', 'sequence'], undefined);
+    expect(resolve).toHaveBeenCalledWith(['root', 'nested'], undefined);
     expect(result[1].meta?.type).toBe('multi');
+  });
+
+  it('does not call resolve when every selected folder is already a dive dataset', async () => {
+    const sequence = folder('sequence', true);
+    const resolve = vi.spyOn(datasetService, 'resolveFolderSelection');
+    const result = await resolveFolderDatasets([sequence]);
+    expect(result).toEqual([{ ...sequence, _modelType: 'folder' }]);
+    expect(resolve).not.toHaveBeenCalled();
   });
 
   it('returns no inputs when only files are selected', async () => {
@@ -84,20 +92,14 @@ describe('folder job selection', () => {
   });
 
   it('clears old inputs and reports failures without exposing partial results', async () => {
-    vi.spyOn(datasetService, 'resolveFolderSelection')
-      .mockResolvedValueOnce({
-        data: [folder('sequence', true)],
-        status: 200,
-        statusText: 'OK',
-        headers: {},
-        config: {},
-      })
+    const resolve = vi.spyOn(datasetService, 'resolveFolderSelection')
       .mockRejectedValueOnce(new Error('forbidden'));
     const scope = effectScope();
     const selection = ref([folder('previous', true)]);
     const state = scope.run(() => useFolderDatasets(selection))!;
     await flush();
     expect(state.datasets.value).toHaveLength(1);
+    expect(resolve).not.toHaveBeenCalled();
     selection.value = [folder('root')];
     expect(state.datasets.value).toEqual([]);
     await flush();
