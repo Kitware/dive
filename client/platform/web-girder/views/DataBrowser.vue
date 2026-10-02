@@ -176,9 +176,9 @@ export default defineComponent({
         <v-icon
           v-if="jobs.getDatasetRunningState(item._id)"
           color="warning"
-          class="rotate ml-2"
+          class="ml-2"
         >
-          mdi-autorenew
+          mdi-spin mdi-autorenew
         </v-icon>
         <v-btn
           v-if="isAnnotationFolder(item)"

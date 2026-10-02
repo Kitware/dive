@@ -22,7 +22,6 @@ export default defineComponent({
       <template slot="badge">
         <v-icon
           dark
-          class="rotate"
         >
           mdi-spin mdi-autorenew
         </v-icon>
