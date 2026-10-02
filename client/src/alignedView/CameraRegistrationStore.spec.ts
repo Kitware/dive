@@ -251,6 +251,57 @@ describe('CameraRegistrationStore', () => {
     });
   }
 
+  /** left<->right and left<->third, each with four fitted translation pairs. */
+  function registerTwoPairs(store: CameraRegistrationStore) {
+    const pts: [number, number][] = [[0, 0], [10, 0], [10, 10], [0, 10]];
+    [['right', 5], ['third', 7]].forEach(([camera, dx]) => {
+      store.setActivePair('left', camera as string);
+      pts.forEach((p) => {
+        store.addPoint('left', p);
+        store.addPoint(camera as string, [p[0] + (dx as number), p[1] - 3]);
+      });
+      store.fitTransform(store.pairKey('left', camera as string));
+    });
+  }
+
+  describe('pair-scoped save', () => {
+    it('saving one pair leaves the other pairs dirty', () => {
+      const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      const lt = store.pairKey('left', 'third');
+      registerTwoPairs(store);
+      expect(store.pairDirty(lr)).toBe(true);
+      expect(store.pairDirty(lt)).toBe(true);
+
+      // Reverse order, so baseline key order differs from the live maps'.
+      store.markPairSaved(lt);
+      expect(store.pairDirty(lt)).toBe(false);
+      expect(store.pairDirty(lr)).toBe(true);
+      expect(store.dirtyOutsidePair(lt)).toBe(true);
+      expect(store.dirty.value).toBe(true);
+
+      store.markPairSaved(lr);
+      expect(store.dirty.value).toBe(false);
+    });
+
+    it('writes the other pairs at their saved state, not their unsaved edits', () => {
+      const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      const lt = store.pairKey('left', 'third');
+      registerTwoPairs(store);
+      store.markSaved();
+      store.setActivePair('left', 'third');
+      store.addPoint('left', [20, 20]);
+      store.addPoint('third', [27, 17]);
+
+      const values = store.valuesSavingPair(lr);
+      expect(values.observations[lt]
+        .reduce((sum, obs) => sum + obs.points.length, 0)).toBe(4);
+      expect(store.pairDirty(lt)).toBe(true);
+      expect(store.pairDirty(lr)).toBe(false);
+    });
+  });
+
   it('fits when enabling alignment mode with >= 4 pairs', () => {
     const store = new CameraRegistrationStore();
     store.setActivePair('left', 'right');
@@ -983,6 +1034,22 @@ describe('CameraRegistrationStore', () => {
       store.fitTransform(key);
       store.clearPair();
       expect(store.homographies.value[key]).toBeUndefined();
+    });
+
+    it('deletePair removes one pair entirely and leaves the others', () => {
+      const store = new CameraRegistrationStore();
+      const lr = store.pairKey('left', 'right');
+      const lt = store.pairKey('left', 'third');
+      registerTwoPairs(store);
+      store.setActivePair('left', 'right');
+      store.setAlignmentMode('AtoB');
+      store.deletePair(lr);
+      expect(lr in store.observations.value).toBe(false);
+      expect(lr in store.homographies.value).toBe(false);
+      expect(lr in store.transformTypes.value).toBe(false);
+      expect(store.alignment.value.mode).toBe('original');
+      expect(pointsFor(store, lt)).toHaveLength(4);
+      expect(store.homographies.value[lt]).toBeDefined();
     });
 
     it('rejects a singular loaded matrix', () => {
