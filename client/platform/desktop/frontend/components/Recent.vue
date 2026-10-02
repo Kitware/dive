@@ -811,7 +811,7 @@ export default defineComponent({
                     <span class="pl-4">
                       Converting
                       <v-icon>
-                        mdi-spin mdi-sync
+                        mdi-spin mdi-autorenew
                       </v-icon>
                     </span>
                   </div>
@@ -842,7 +842,7 @@ export default defineComponent({
                     <v-chip small>
                       Awaiting Conversion
                       <v-icon right>
-                        mdi-sync mdi-spin
+                        mdi-spin mdi-autorenew
                       </v-icon>
                     </v-chip>
                   </div>
