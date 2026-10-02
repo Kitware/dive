@@ -460,7 +460,7 @@ export default defineComponent({
           >
             <div>
               <v-icon>
-                {{ processing ? 'mdi-spin mdi-sync' : 'mdi-application-import' }}
+                {{ processing ? 'mdi-spin mdi-autorenew' : 'mdi-application-import' }}
               </v-icon>
               <span
                 v-show="!$vuetify.breakpoint.mdAndDown || buttonOptions.block"

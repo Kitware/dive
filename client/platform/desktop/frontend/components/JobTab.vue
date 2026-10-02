@@ -24,7 +24,7 @@ export default defineComponent({
           dark
           class="rotate"
         >
-          mdi-spin mdi-sync
+          mdi-spin mdi-autorenew
         </v-icon>
       </template>
       <v-icon>mdi-format-list-checks</v-icon>

@@ -178,7 +178,7 @@ export default defineComponent({
           @click="update"
         >
           <v-icon>
-            {{ loading ? "mdi-spin mdi-sync" : "" }}
+            {{ loading ? "mdi-spin mdi-autorenew" : "" }}
           </v-icon>
 
           Update
