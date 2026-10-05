@@ -37,6 +37,8 @@ export interface UserState {
 export interface JobState {
   jobIds: Record<string, number>;
   datasetStatus: Record<string, { status: number; jobId: string }>;
+  /** All jobs attributed to a dataset id (parent-scoped convert/split/finalize). */
+  datasetJobs: Record<string, Record<string, number>>;
   completeJobsInfo: Record<string, { type: string; title: string; success: boolean }>;
 }
 
