@@ -43,14 +43,7 @@ export interface Correspondence extends CorrespondencePoint {
   source: string;
 }
 
-/**
- * Free-form per-observation quality statistics, written by a producer (the
- * align_cameras pipeline reports numMatches / numInliers / inlierRatio /
- * rmsPx / coverage / textureScore, and `skipped` with a machine-readable
- * reason for rejected candidates). Never interpreted structurally by the
- * store -- preserved verbatim through round trips and surfaced by the
- * review UI.
- */
+/** Free-form producer stats (incl. `skipped` reason); preserved verbatim, never interpreted. */
 export type ObservationStats = Record<string, unknown>;
 
 /**
@@ -224,6 +217,14 @@ function pseudoImageName(frame: number): string {
   return `frame://${frame}`;
 }
 
+/** Key-sorted JSON, so string snapshot comparison ignores map key order. */
+function canonicalJson(value: unknown): string {
+  return JSON.stringify(value, (_key, item) => (
+    item && typeof item === 'object' && !Array.isArray(item)
+      ? Object.fromEntries(Object.entries(item).sort(([a], [b]) => a.localeCompare(b)))
+      : item));
+}
+
 /**
  * Shared, reactive store for camera-registration data (per-image-pair
  * correspondence observations, fitted/loaded homographies, transform-type
@@ -347,7 +348,7 @@ export default class CameraRegistrationStore {
 
   /** Serialize the saved-to-dataset calibration state (observations, transforms, provenance). */
   private registrationSnapshot(): string {
-    return JSON.stringify({
+    return canonicalJson({
       homographies: this.homographies.value,
       observations: this.observations.value,
       transformTypes: this.transformTypes.value,
@@ -386,6 +387,72 @@ export default class CameraRegistrationStore {
     const saved = this.savedRegistrationValues();
     return Object.keys(saved.homographies).length > 0
       || Object.values(saved.observations).some((list) => list.length > 0);
+  }
+
+  private static pairState(
+    values: {
+      homographies: CameraHomographies;
+      observations: CameraObservations;
+      transformTypes: CameraTransformTypes;
+    },
+    key: string,
+  ): string {
+    return canonicalJson({
+      homography: values.homographies[key] ?? null,
+      // A cleared pair keeps an empty list.
+      observations: values.observations[key] ?? [],
+      transformType: values.transformTypes[key] ?? null,
+    });
+  }
+
+  pairDirty(key: string): boolean {
+    const current = {
+      homographies: this.homographies.value,
+      observations: this.observations.value,
+      transformTypes: this.transformTypes.value,
+    };
+    return CameraRegistrationStore.pairState(current, key)
+      !== CameraRegistrationStore.pairState(this.savedRegistrationValues(), key);
+  }
+
+  /** Saved baseline with only this pair replaced; other unsaved edits stay pending. */
+  valuesSavingPair(key: string): {
+    homographies: CameraHomographies;
+    observations: CameraObservations;
+    transformTypes: CameraTransformTypes;
+    source: RegistrationSource | null;
+    } {
+    const saved = JSON.parse(this.savedSnapshot.value);
+    const current = JSON.parse(canonicalJson({
+      homography: this.homographies.value[key],
+      observations: this.observations.value[key],
+      transformType: this.transformTypes.value[key],
+      source: this.source.value,
+    }));
+    function withPair<T>(map: Record<string, T>, value: T | undefined): Record<string, T> {
+      const next = { ...map };
+      if (value === undefined) {
+        delete next[key];
+      } else {
+        next[key] = value;
+      }
+      return next;
+    }
+    return {
+      homographies: withPair(saved.homographies, current.homography),
+      observations: withPair(saved.observations, current.observations),
+      transformTypes: withPair(saved.transformTypes, current.transformType),
+      source: current.source ?? null,
+    };
+  }
+
+  /** Rebaselines only this pair so other pairs' edits stay dirty. */
+  markPairSaved(key: string) {
+    this.savedSnapshot.value = canonicalJson(this.valuesSavingPair(key));
+  }
+
+  dirtyOutsidePair(key: string): boolean {
+    return canonicalJson(this.valuesSavingPair(key)) !== this.registrationSnapshot();
   }
 
   /**
@@ -859,6 +926,26 @@ export default class CameraRegistrationStore {
     // 'loaded' mark lets maybeFitPair remove it through the normal path.
     delete this.homographySources[key];
     this.maybeFitPair(key);
+  }
+
+  /** Unlike clearPair, removes the keys so saving drops the pair from its file. */
+  deletePair(key: string) {
+    function without<T>(map: Record<string, T>): Record<string, T> {
+      const next = { ...map };
+      delete next[key];
+      return next;
+    }
+    this.observations.value = without(this.observations.value);
+    this.homographies.value = without(this.homographies.value);
+    this.transformTypes.value = without(this.transformTypes.value);
+    delete this.homographySources[key];
+    this.pendingPoint.value = null;
+    this.selectedCorrespondenceId.value = null;
+    this.fitError.value = null;
+    // With its transform gone the pair can no longer be warped.
+    if (key === this.activePairKey()) {
+      this.alignment.value = { ...this.alignment.value, mode: 'original' };
+    }
   }
 
   /**

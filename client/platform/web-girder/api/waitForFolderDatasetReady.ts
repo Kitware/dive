@@ -62,8 +62,8 @@ export async function waitForFolderDatasetReady(
   options?: {
     pollIntervalMs?: number;
     timeoutMs?: number;
-    /** Called with average job completion fraction in [0, 1] when jobs report progress. */
-    onProgress?: (fraction: number) => void;
+    /** Called with the average job completion fraction in [0, 1] and summed item counts. */
+    onProgress?: (fraction: number, counts: { current: number; total: number }) => void;
     /** When true, keep polling until at least one web-safe image exists in the folder. */
     requireViewableImages?: boolean;
     /** When true, keep polling until at least one tiled/large-image file exists in the folder. */
@@ -115,7 +115,14 @@ export async function waitForFolderDatasetReady(
             (sum, job) => sum + job.progress!.current / job.progress!.total,
             0,
           ) / jobsWithProgress.length;
-          options.onProgress(fraction);
+          const counts = jobsWithProgress.reduce(
+            (sum, job) => ({
+              current: sum.current + job.progress!.current,
+              total: sum.total + job.progress!.total,
+            }),
+            { current: 0, total: 0 },
+          );
+          options.onProgress(fraction, counts);
         }
       }
       const allTerminal = jobs.every((job) => TERMINAL_JOB_STATUSES.includes(job.status));
