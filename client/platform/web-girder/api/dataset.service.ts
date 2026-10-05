@@ -424,6 +424,15 @@ export interface CreateMulticamDatasetResponse extends GirderModel {
   importWarnings?: string[];
 }
 
+export interface FinalizeMulticamDatasetArgs extends CreateMulticamDatasetArgs {
+  /** Camera postprocess / convert / split job ids to wait on before linking. */
+  waitJobIds?: string[];
+  /** Optional registration seed applied after create_multicam succeeds. */
+  registration?: Pick<DatasetConfigMutable,
+    'cameraHomographies' | 'cameraCorrespondences' | 'cameraTransformTypes' | 'cameraRegistrationSource'
+  >;
+}
+
 function createMulticamDataset(args: CreateMulticamDatasetArgs) {
   const {
     parentFolderId, name, fps, type, subType, defaultDisplay, cameras, cameraOrder, calibrationFileId,
@@ -441,6 +450,36 @@ function createMulticamDataset(args: CreateMulticamDatasetArgs) {
       cameraOrder,
       calibrationFileId,
       metadataFileId,
+    },
+    {
+      params: { parentFolderId },
+    },
+  );
+}
+
+/**
+ * Schedule server-side wait + create_multicam. Returns the Girder job (type convert)
+ * associated with the parent folder for data-browser processing status.
+ */
+function finalizeMulticamDataset(args: FinalizeMulticamDatasetArgs) {
+  const {
+    parentFolderId, name, fps, type, subType, defaultDisplay, cameras, cameraOrder,
+    calibrationFileId, metadataFileId, waitJobIds, registration,
+  } = args;
+  return girderRest.post<GirderModel>(
+    'dive_dataset/multicam_finalize',
+    {
+      name,
+      fps,
+      type,
+      subType,
+      defaultDisplay,
+      cameras,
+      cameraOrder,
+      calibrationFileId,
+      metadataFileId,
+      waitJobIds,
+      registration,
     },
     {
       params: { parentFolderId },
@@ -575,6 +614,7 @@ export {
   clearCalibrationFolderMetadata,
   createGirderFolder,
   createMulticamDataset,
+  finalizeMulticamDataset,
   getDataset,
   getDatasetList,
   getDatasetMedia,

@@ -22,6 +22,7 @@ class DIVEPlugin(GirderWorkerPluginABC):
             'dive_tasks.convert_video',
             'dive_tasks.convert_images',
             'dive_tasks.split_stitched',
+            'dive_tasks.finalize_multicam',
             'dive_tasks.tasks',
             'dive_tasks.local_tasks',
         ]

@@ -13,10 +13,12 @@ function postProcess(
   additivePrepend = '',
   set: string | undefined = undefined,
   stitchedSide: StitchedSide | undefined = undefined,
+  /** Associate convert/split jobs with this folder (multicam parent) for UI status. */
+  jobDatasetId: string | undefined = undefined,
 ) {
   return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
     params: {
-      skipJobs, skipTranscoding, additive, additivePrepend, set, stitchedSide,
+      skipJobs, skipTranscoding, additive, additivePrepend, set, stitchedSide, jobDatasetId,
     },
   });
 }

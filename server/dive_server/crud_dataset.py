@@ -1976,6 +1976,65 @@ def create_multicam(
     return parent_folder_doc
 
 
+class FinalizeMulticamArgs(CreateMulticamArgs):
+    """CreateMulticamArgs plus optional wait/registration for async finalize."""
+
+    waitJobIds: Optional[List[str]] = None
+    registration: Optional[Dict[str, Any]] = None
+
+    class Config:
+        extra = 'forbid'
+
+
+def schedule_finalize_multicam(
+    user: types.GirderUserModel,
+    parent_folder: types.GirderModel,
+    data: dict,
+) -> types.GirderModel:
+    """
+    Enqueue a named convert job that waits for camera postprocess, then links the parent.
+
+    Uses girder-worker ``apply_async`` with ``girder_job_title`` (same as transcode jobs)
+    so only one titled job appears — not createLocalJob + Celery .delay() (which left an
+    untitled second job in the Girder UI).
+    """
+    from girder.models.token import Token
+
+    from dive_server.crud_rpc import _persist_async_job_metadata
+    from dive_tasks.finalize_multicam import finalize_multicam
+
+    validated: FinalizeMulticamArgs = crud.get_validated_model(FinalizeMulticamArgs, **data)
+    if parent_folder['name'] != validated.name:
+        raise RestException(
+            f'Dataset folder name "{parent_folder["name"]}" does not match "{validated.name}"',
+            code=400,
+        )
+    create_args = validated.dict(exclude={'waitJobIds', 'registration'}, exclude_none=True)
+    wait_job_ids = [str(jid) for jid in (validated.waitJobIds or [])]
+    token = Token().createToken(user=user, days=2)
+    async_result = finalize_multicam.apply_async(
+        kwargs=dict(
+            params={
+                'parent_folder_id': str(parent_folder['_id']),
+                'user_id': str(user['_id']),
+                'create_args': create_args,
+                'wait_job_ids': wait_job_ids,
+                'registration': validated.registration,
+            },
+            girder_job_title=f'Finalizing multicam dataset {parent_folder["name"]}',
+            girder_client_token=str(token['_id']),
+            girder_job_type='convert',
+        ),
+    )
+    return _persist_async_job_metadata(
+        async_result,
+        **{
+            constants.JOBCONST_DATASET_ID: str(parent_folder['_id']),
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
+
+
 UNSUPPORTED_SIDE_FILE_REASON = "Unsupported side file"
 
 

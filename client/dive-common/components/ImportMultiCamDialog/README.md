@@ -59,7 +59,7 @@ User-facing behavior (desktop in-place read vs web worker split) is documented i
 | Platform | Import payload | Stored media | Half-frame handling |
 |----------|----------------|--------------|---------------------|
 | **Desktop** | `stitched: true`; `multiCamImport` sets `stitchedSide` on each camera and requires one shared `sourcePath` for `left`/`right` | Original side-by-side file(s); no split job | Annotators: `stitchedSide` prop → geojs crop (`client/src/stitchedStereo.ts`). Review: wrapper in `dive-common/review/frameSource.ts`. Pipelines/search: `stitchedReaderSettings` in `platform/desktop/backend/native/stitchedMedia.ts`. |
-| **Web** | Same dialog; `Upload.vue` passes `stitchedSide` per camera upload | After postprocess, cropped media only | `postProcess(..., stitchedSide)` enqueues `server/dive_tasks/split_stitched.py` instead of normal transcode; not run on the HTTP request thread. |
+| **Web** | Same dialog; `Upload.vue` passes `stitchedSide` per camera upload | After postprocess, cropped media only | `postProcess(..., stitchedSide, jobDatasetId=parent)` enqueues `split_stitched`; `dive_dataset/multicam_finalize` waits for those jobs then links the parent. Upload UI returns after scheduling; the data browser shows Processing until annotate is set. |
 
 ## Architecture
 

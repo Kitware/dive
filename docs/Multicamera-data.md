@@ -43,7 +43,7 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
     fields. A file named to end in `species.json` in the folder the cameras share (or beside
     one camera) is pre-filled there; a species list is stored on the dataset, so every camera
     shares the declared types.
-11. When upload finishes, DIVE opens the new multicam dataset in the annotator.
+11. When file upload finishes, the upload dialog closes and you return to the data browser. A server job waits for camera postprocess (transcode, stitched split, image conversion) then links the multicam parent. The folder shows a **Processing** state until that job finishes; then **Launch Annotator** appears.
 
 !!! note
 

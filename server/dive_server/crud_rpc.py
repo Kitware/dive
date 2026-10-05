@@ -1593,6 +1593,7 @@ def postprocess(
     additivePrepend='',
     set='',
     stitchedSide='',
+    jobDatasetId='',
 ) -> dict:
     return _postprocess(
         user,
@@ -1603,6 +1604,7 @@ def postprocess(
         additivePrepend,
         set,
         stitchedSide,
+        jobDatasetId,
     )
 
 
@@ -1615,6 +1617,7 @@ def _postprocess(
     additivePrepend='',
     set='',
     stitchedSide='',
+    jobDatasetId='',
 ) -> dict:
     """
     Post-processing to be run after media/annotation import
@@ -1635,6 +1638,9 @@ def _postprocess(
     isClone = dsFolder.get(constants.ForeignMediaIdMarker, None) is not None
     # Track job IDs for batch processing
     created_job_ids = []
+    # When set (e.g. multicam parent), associate convert/split jobs with that
+    # folder so the data browser spinner tracks the parent rather than each camera.
+    job_dataset_id = str(jobDatasetId) if jobDatasetId else str(dsFolder["_id"])
 
     # Validate user-supplied metadata fields are present
     if fromMeta(dsFolder, constants.FPSMarker) is None:
@@ -1699,7 +1705,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: str(item["folderId"]),
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1738,7 +1744,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: split_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1777,7 +1783,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1818,7 +1824,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },

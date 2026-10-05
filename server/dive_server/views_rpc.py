@@ -251,9 +251,25 @@ class RpcResource(Resource):
             default='',
             required=False,
         )
+        .param(
+            "jobDatasetId",
+            "Optional folder id for job.dataset_id (e.g. multicam parent while cameras convert)",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
     )
     def postprocess(
-        self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set, stitchedSide
+        self,
+        folder,
+        skipJobs,
+        skipTranscoding,
+        additive,
+        additivePrepend,
+        set,
+        stitchedSide,
+        jobDatasetId,
     ):
         return crud_rpc.postprocess(
             self.getCurrentUser(),
@@ -264,6 +280,7 @@ class RpcResource(Resource):
             additivePrepend,
             set,
             stitchedSide or '',
+            jobDatasetId or '',
         )
 
     @access.user
