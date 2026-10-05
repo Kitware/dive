@@ -50,6 +50,7 @@ User-facing docs: [Multicamera and Stereo Data](../../../../docs/Multicamera-dat
 | `multi` | `ImportMultiCamMultiFolder.vue` | Pick a folder or image list per camera. Default for video imports. |
 | `subfolders` | `ImportMultiCamSubfolders.vue` | Pick one parent folder; each immediate child subfolder becomes a camera (2–3 cameras). Enabled when `enableSubfolderImport` is true. |
 | `keyword` | `ImportMultiCamKeyword.vue` | One shared folder; glob patterns split images per camera (image sequences only). |
+| `stitched` | `ImportMultiCamStitched.vue` | Stereo only. One folder, image list, or video whose frames hold the left and right cameras side by side; both cameras share the source and the payload carries `stitched: true`. |
 
 ## Architecture
 
@@ -64,6 +65,7 @@ ImportMultiCamDialog.vue          Shell: platform props, ctx wiring, errors, act
 ├── ImportMultiCamMultiFolder.vue
 ├── ImportMultiCamSubfolders.vue
 ├── ImportMultiCamKeyword.vue
+├── ImportMultiCamStitched.vue
 ├── ImportMultiCamFinalizeStep.vue
 ├── ImportMultiCamCalibration.vue
 ├── ImportMultiCamCameraOrderControls.vue

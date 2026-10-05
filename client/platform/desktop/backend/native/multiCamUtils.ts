@@ -138,7 +138,10 @@ export function resolveMultiCamImagePath(
   if (originalImageFiles.includes(entry)) {
     return npath.join(originalBasePath, entry);
   }
-  return npath.join(originalBasePath, entry);
+  // Split stitched media keeps the source extension, which a transcoded
+  // viewer name no longer carries.
+  const original = originalImageFiles.find((name) => imageStem(name) === imageStem(entry));
+  return npath.join(originalBasePath, original ?? entry);
 }
 
 /**
@@ -165,13 +168,16 @@ function transcodeMultiCam(
           if (!cameraData.transcodedImageFiles) {
             cameraData.transcodedImageFiles = [];
           }
-          if (cameraData.originalImageFiles.includes(npath.basename(item))) {
+          // Stitched cameras share their source files; each claims its own copy.
+          if (cameraData.originalImageFiles.includes(npath.basename(item))
+            && !cameraData.transcodedImageFiles.includes(npath.basename(destLoc))) {
             destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
             cameraData.transcodedImageFiles.push(npath.basename(destLoc));
             break;
           }
         } else if (cameraData.type === 'video') {
-          if (item === npath.join(cameraData.originalBasePath, cameraData.originalVideoFile)) {
+          if (item === npath.join(cameraData.originalBasePath, cameraData.originalVideoFile)
+            && !cameraData.transcodedVideoFile) {
             destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
             cameraData.transcodedVideoFile = npath.basename(destLoc);
             break;
@@ -391,6 +397,7 @@ function getMultiCamUrls(
         imageData,
         videoUrl,
         type: value.type,
+        ...(value.stitchedSide ? { stitchedSide: value.stitchedSide } : {}),
       };
     });
     return multiCamMedia;

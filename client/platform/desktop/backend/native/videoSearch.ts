@@ -52,6 +52,7 @@ import {
 } from './utils';
 import linux from './linux';
 import win32 from './windows';
+import { withSplitStitchedMedia } from './stitchedMedia';
 
 const GlobalIndexFolderName = 'DIVE_SearchIndex';
 
@@ -297,6 +298,9 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
     meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   }
   updater({ ...jobBase, body: [`Index source: ${datasetId}`] });
+  const mediaMeta = await withSplitStitchedMedia(settings, meta, projectInfo.basePath, {
+    onProgress: (message) => updater({ ...jobBase, body: [message] }),
+  });
 
   const indexDir = getIndexDir(settings);
   await fs.ensureDir(indexDir);
@@ -317,11 +321,11 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
   const ingestList = npath.join(indexDir, `${sanitizeName(streamName)}.txt`);
   let inputArg: string;
   if (meta.type === 'video') {
-    const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+    const videoAbsPath = npath.join(mediaMeta.originalBasePath, mediaMeta.originalVideoFile);
     inputArg = `-v "${videoAbsPath}"`;
   } else {
-    const fileData = meta.originalImageFiles
-      .map((f: string) => npath.join(meta.originalBasePath, f))
+    const fileData = mediaMeta.originalImageFiles
+      .map((f: string) => npath.join(mediaMeta.originalBasePath, f))
       .join('\n');
     await fs.writeFile(ingestList, `${fileData}\n`);
     inputArg = `-l "${ingestList}"`;

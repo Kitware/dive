@@ -5,6 +5,7 @@
  */
 import type { DatasetConfig } from 'dive-common/apispec';
 import { frameToVideoTime } from 'vue-media-annotator/components/annotators/videoSeek';
+import { drawFrame, stitchedFrame } from 'vue-media-annotator/stitchedStereo';
 
 /** Anything drawImage accepts, with its pixel size. */
 export interface DecodedFrame {
@@ -269,6 +270,35 @@ function videoFrameSource(config: DatasetConfig, cacheSize: number, cacheBytes: 
  * crop (tiled large images, multicamera parents).
  */
 export function createFrameSource(config: DatasetConfig, options: FrameSourceOptions = {}): FrameSource {
+  const source = createWholeFrameSource(config, options);
+  const side = config.stitchedSide;
+  if (!side) {
+    return source;
+  }
+  const halves = new WeakMap<DecodedFrame, DecodedFrame>();
+  return {
+    get frameCount() { return source.frameCount; },
+    dispose: () => source.dispose(),
+    getFrame: async (frame) => {
+      const whole = await source.getFrame(frame);
+      let half = halves.get(whole);
+      if (!half) {
+        const region = stitchedFrame(side, whole.width, whole.height);
+        const canvas = document.createElement('canvas');
+        canvas.width = region.width;
+        canvas.height = region.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas unavailable');
+        drawFrame(ctx, whole.source, region);
+        half = { source: canvas, width: region.width, height: region.height };
+        halves.set(whole, half);
+      }
+      return half;
+    },
+  };
+}
+
+function createWholeFrameSource(config: DatasetConfig, options: FrameSourceOptions): FrameSource {
   const cacheSize = options.cacheSize ?? DefaultCacheSize;
   const cacheBytes = options.cacheBytes ?? 32 * 1024 * 1024;
   if (config.type === 'large-image') {
