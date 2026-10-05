@@ -45,7 +45,7 @@ import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   videoSubsetCameras, writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
-import { hasStitchedMedia, stitchedReaderSettings } from './stitchedMedia';
+import { assertNotStitchedVideo, stitchedReaderSettings } from './stitchedMedia';
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -360,9 +360,7 @@ async function runPipeline(
     command = [
       `${viameConstants.setupScriptAbs} &&`,
       `"${viameConstants.viameExe}" run "${pipelinePath}"`,
-      // Stitched media names its own reader below, which wraps the video reader.
-      ...(feedsVideoReader && !hasStitchedMedia(meta)
-        ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
+      ...(feedsVideoReader ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
       ...(feedsVideoReader ? [`-s downsampler:target_frame_rate=${meta.fps}`] : []),
     ];
     if (frameRange && feedsVideoReader) {
@@ -411,6 +409,14 @@ async function runPipeline(
   }
 
   if (!stereoOrMultiCam) {
+    if (metaType === 'video') {
+      try {
+        assertNotStitchedVideo(meta.stitchedSide, 'Running a pipeline');
+      } catch (err) {
+        failedToStart(err);
+        throw err;
+      }
+    }
     Object.entries(stitchedReaderSettings('input', meta.stitchedSide)).forEach(([key, value]) => {
       command.push(`-s ${key}=${value}`);
     });
