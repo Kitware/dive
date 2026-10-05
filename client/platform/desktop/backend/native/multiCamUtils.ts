@@ -12,7 +12,7 @@ import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { getBinaryPath, spawnResult } from './utils';
-import { assertNotStitchedVideo, stitchedReaderSettings } from './stitchedMedia';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
 
@@ -310,7 +310,6 @@ async function writeMultiCamStereoPipelineArgs(
           argFilePair['input:video_filename'] = inputFileName;
         }
       } else if (list.originalVideoFile) {
-        assertNotStitchedVideo(list.stitchedSide, 'Running a pipeline');
         const vidFile = (list.transcodedVideoFile && forceTranscoded) || list.transcodedMisalign
           ? list.transcodedVideoFile : list.originalVideoFile;
         const vidTypeArg = `input${i + 1}:video_reader:type`;

@@ -96,37 +96,40 @@ describe('stitched stereo import', () => {
 });
 
 describe('stitched reader settings', () => {
-  it('turns on the image-list crop for a stitched input', () => {
+  it('turns on the crop of both readers for a stitched input', () => {
     expect(stitchedReaderSettings('input2', 'right')).toEqual({
       'input2:video_reader:image_list:crop_right': 'true',
+      'input2:video_reader:vidl_ffmpeg:crop_right': 'true',
     });
     expect(stitchedReaderSettings('input', undefined)).toEqual({});
   });
 
-  it('feeds a stereo pipeline the stitched images themselves', async () => {
-    const { jsonConfig } = await stitchedImport('image-sequence', stitchedDir);
+  it.each([
+    ['image-sequence', () => stitchedDir],
+    ['video', () => stitchedVideo],
+  ] as const)('feeds a stereo pipeline the stitched %s itself', async (type, source) => {
+    const { jsonConfig } = await stitchedImport(type, source());
     const jobDir = fs.mkdtempSync(npath.join(tmpDir, 'job-'));
     const { argFilePair } = await writeMultiCamStereoPipelineArgs(jobDir, jsonConfig, settings);
 
     expect(argFilePair).toMatchObject({
-      'input:video_reader:image_list:crop_left': 'true',
-      'input1:video_reader:image_list:crop_left': 'true',
-      'input2:video_reader:image_list:crop_right': 'true',
+      ...stitchedReaderSettings('input', 'left'),
+      ...stitchedReaderSettings('input1', 'left'),
+      ...stitchedReaderSettings('input2', 'right'),
     });
-    expect(argFilePair['input1:video_reader:type']).toBeUndefined();
-    // The list is written through a stream the caller does not wait on.
-    await vi.waitFor(() => {
-      const frames = fs.readFileSync(argFilePair['input2:video_filename'], 'utf8').trim();
-      expect(frames.split('\n')).toEqual([
-        npath.join(stitchedDir, 'frame0.jpg'), npath.join(stitchedDir, 'frame1.jpg'),
-      ]);
-    });
-  });
-
-  it('refuses to feed a pipeline stitched video', async () => {
-    const { jsonConfig } = await stitchedImport('video', stitchedVideo);
-    const jobDir = fs.mkdtempSync(npath.join(tmpDir, 'job-'));
-    await expect(writeMultiCamStereoPipelineArgs(jobDir, jsonConfig, settings))
-      .rejects.toThrow('not supported on stitched stereo video');
+    if (type === 'video') {
+      expect(argFilePair['input1:video_reader:type']).toBe('vidl_ffmpeg');
+      expect(argFilePair['input1:video_filename']).toBe(stitchedVideo);
+      expect(argFilePair['input2:video_filename']).toBe(stitchedVideo);
+    } else {
+      expect(argFilePair['input1:video_reader:type']).toBeUndefined();
+      // The list is written through a stream the caller does not wait on.
+      await vi.waitFor(() => {
+        const frames = fs.readFileSync(argFilePair['input2:video_filename'], 'utf8').trim();
+        expect(frames.split('\n')).toEqual([
+          npath.join(stitchedDir, 'frame0.jpg'), npath.join(stitchedDir, 'frame1.jpg'),
+        ]);
+      });
+    }
   });
 });

@@ -52,7 +52,7 @@ import {
 } from './utils';
 import linux from './linux';
 import win32 from './windows';
-import { assertNotStitchedVideo, stitchedReaderSettings } from './stitchedMedia';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const GlobalIndexFolderName = 'DIVE_SearchIndex';
 
@@ -318,7 +318,6 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
   const ingestList = npath.join(indexDir, `${sanitizeName(streamName)}.txt`);
   let inputArg: string;
   if (meta.type === 'video') {
-    assertNotStitchedVideo(meta.stitchedSide, 'Building a search index');
     const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     inputArg = `-v "${videoAbsPath}"`;
   } else {
