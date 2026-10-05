@@ -38,11 +38,26 @@ const defaultBrandData: BrandData = {
 
 const brandData = ref<BrandData>({ ...defaultBrandData });
 
+/** Read by the inline script in index.html before the app loads. */
+export const BrandCacheKey = 'diveBrand';
+
+function cacheBrand(data: BrandData) {
+  try {
+    localStorage.setItem(BrandCacheKey, JSON.stringify({
+      name: data.name,
+      favicon: data.favicon,
+    }));
+  } catch {
+    // Storage is unavailable or full; the next load just starts untitled.
+  }
+}
+
 function applyBrandSideEffects(data: BrandData) {
   setTitle(data.name);
   if (data.favicon) {
     setFavicon(data.favicon);
   }
+  cacheBrand(data);
 }
 
 export function useBrand() {

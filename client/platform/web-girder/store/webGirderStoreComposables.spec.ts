@@ -15,7 +15,7 @@ import * as configurationService from '../api/configuration.service';
 import girderRest from '../plugins/girder';
 
 import { bindWebGirderRouter, useLocation } from './useLocation';
-import { useBrand } from './useBrand';
+import { BrandCacheKey, useBrand } from './useBrand';
 import { useConfig } from './useConfig';
 import { useDataset } from './useDataset';
 import { initJobs, useJobs } from './useJobs';
@@ -147,6 +147,13 @@ describe('web-girder store composables', () => {
       } as never);
       await useBrand().loadBrand();
       expect(useBrand().getBrandData().name).toBe('From API');
+    });
+
+    it('remembers the brand so the next page load can title itself before the API answers', () => {
+      useBrand().setBrandData({ name: 'VIAME', favicon: '/viame.ico' });
+      expect(JSON.parse(localStorage.getItem(BrandCacheKey) || '{}')).toEqual({
+        name: 'VIAME', favicon: '/viame.ico',
+      });
     });
   });
 
