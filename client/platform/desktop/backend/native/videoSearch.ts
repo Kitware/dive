@@ -52,7 +52,7 @@ import {
 } from './utils';
 import linux from './linux';
 import win32 from './windows';
-import { withSplitStitchedMedia } from './stitchedMedia';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const GlobalIndexFolderName = 'DIVE_SearchIndex';
 
@@ -298,9 +298,6 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
     meta = await common.loadJsonConfig(projectInfo.datasetFileAbsPath);
   }
   updater({ ...jobBase, body: [`Index source: ${datasetId}`] });
-  const mediaMeta = await withSplitStitchedMedia(settings, meta, projectInfo.basePath, {
-    onProgress: (message) => updater({ ...jobBase, body: [message] }),
-  });
 
   const indexDir = getIndexDir(settings);
   await fs.ensureDir(indexDir);
@@ -321,11 +318,11 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
   const ingestList = npath.join(indexDir, `${sanitizeName(streamName)}.txt`);
   let inputArg: string;
   if (meta.type === 'video') {
-    const videoAbsPath = npath.join(mediaMeta.originalBasePath, mediaMeta.originalVideoFile);
+    const videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
     inputArg = `-v "${videoAbsPath}"`;
   } else {
-    const fileData = mediaMeta.originalImageFiles
-      .map((f: string) => npath.join(mediaMeta.originalBasePath, f))
+    const fileData = meta.originalImageFiles
+      .map((f: string) => npath.join(meta.originalBasePath, f))
       .join('\n');
     await fs.writeFile(ingestList, `${fileData}\n`);
     inputArg = `-l "${ingestList}"`;
@@ -361,6 +358,7 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
   if (meta.type === 'video') {
     indexInvocation.push(`-frate ${meta.fps}`);
   }
+  const readerSettings = Object.entries(stitchedReaderSettings('input', meta.stitchedSide));
   if (method === 'existing') {
     const detectionsCsv = npath.join(indexDir, `${sanitizeName(streamName)}_detections.csv`);
     const csvStream = fs.createWriteStream(detectionsCsv);
@@ -368,6 +366,10 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
     await serialize(csvStream, inputData, meta);
     csvStream.end();
     indexInvocation.push(`-id "${detectionsCsv}"`);
+  }
+  if (readerSettings.length) {
+    // Everything after -- goes to the batch runner, so it has to come last.
+    indexInvocation.push('--', ...readerSettings.map(([key, value]) => `-s ${key}=${value}`));
   }
   command.push(indexInvocation.join(' '));
 

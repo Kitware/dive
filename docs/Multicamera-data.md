@@ -114,7 +114,7 @@ For a single multicam dataset from one parent folder (one collect, camera subfol
 
 Stitched stereo media holds both cameras in every frame: the left camera in the left half and the right camera in the right half, side by side. Choose ==Stereo== from the import menu, then ==Stitched== as the way to choose each camera, and pick the single folder, image list, or video. The dataset opens as an ordinary stereo dataset with `left` and `right` cameras; annotations are in each camera's own half-frame pixel coordinates. A frame with an odd width drops its middle column so both cameras have the same size.
 
-* **DIVE Desktop** reads the stitched media in place. Nothing is copied at import; each camera pane shows its half of the shared frames. VIAME reads whole files, so the first pipeline, training, or search-index run on the dataset writes the split halves into the dataset's project directory (`<camera>/stitched_split`) and later runs reuse them. Interactive tools (segmentation, stereo measurement, text query) cut the single frame they need.
+* **DIVE Desktop** reads the stitched media in place. Nothing is copied or re-encoded, at import or later: each camera pane shows its half of the shared frames, and pipelines, search indexing, and the interactive tools (segmentation, stereo measurement, text query) hand VIAME the stitched media itself, which VIAME's `stitched_side` reader cuts to the camera's half as it reads. This needs a VIAME install that includes that reader.
 * **DIVE Web** uploads the stitched media to each camera and a server job keeps that camera's half, so the stored dataset is a regular stereo dataset.
 
 ### Flat multi-modality view folders

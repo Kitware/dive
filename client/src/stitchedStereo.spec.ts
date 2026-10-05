@@ -1,7 +1,6 @@
 /// <reference types="vitest/globals" />
 import {
   parseStitchedPath,
-  stitchedCropFilter,
   stitchedFrame,
   stitchedSourceCrop,
   tagStitchedPath,
@@ -34,11 +33,6 @@ describe('stitched stereo frame geometry', () => {
       },
     });
     expect(stitchedFrame(null, 200, 50)).toEqual({ width: 200, height: 50 });
-  });
-
-  it('builds ffmpeg crop filters that match the source crop', () => {
-    expect(stitchedCropFilter('left')).toBe('crop=trunc(iw/2):ih:0:0');
-    expect(stitchedCropFilter('right')).toBe('crop=trunc(iw/2):ih:iw-trunc(iw/2):0');
   });
 });
 

@@ -45,7 +45,7 @@ import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   videoSubsetCameras, writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
-import { withSplitStitchedMedia } from './stitchedMedia';
+import { hasStitchedMedia, stitchedReaderSettings } from './stitchedMedia';
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -328,17 +328,6 @@ async function runPipeline(
     groundTruthFileStream.end();
   }
 
-  let mediaMeta: JsonConfig;
-  try {
-    mediaMeta = await withSplitStitchedMedia(settings, meta, projectInfo.basePath, {
-      forceTranscoded: forceTranscodedVideo,
-      onProgress: reportPreparing,
-    });
-  } catch (err) {
-    failedToStart(err);
-    throw err;
-  }
-
   let metaType = meta.type;
 
   if (metaType === MultiType && meta.multiCam) {
@@ -362,17 +351,18 @@ async function runPipeline(
   const feedsVideoReader = !videoSubsetCameras(meta, imagePairs).length;
 
   if (metaType === 'video') {
-    let videoAbsPath = npath.join(mediaMeta.originalBasePath, mediaMeta.originalVideoFile);
-    if (mediaMeta.type === MultiType) {
-      videoAbsPath = getMultiCamVideoPath(mediaMeta, forceTranscodedVideo);
-    } else if (mediaMeta.transcodedVideoFile
-      && (mediaMeta.transcodedMisalign || forceTranscodedVideo)) {
-      videoAbsPath = npath.join(projectInfo.basePath, mediaMeta.transcodedVideoFile);
+    let videoAbsPath = npath.join(meta.originalBasePath, meta.originalVideoFile);
+    if (meta.type === MultiType) {
+      videoAbsPath = getMultiCamVideoPath(meta, forceTranscodedVideo);
+    } else if ((meta.transcodedVideoFile && meta.transcodedMisalign) || forceTranscodedVideo) {
+      videoAbsPath = npath.join(projectInfo.basePath, meta.transcodedVideoFile);
     }
     command = [
       `${viameConstants.setupScriptAbs} &&`,
       `"${viameConstants.viameExe}" run "${pipelinePath}"`,
-      ...(feedsVideoReader ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
+      // Stitched media names its own reader below, which wraps the video reader.
+      ...(feedsVideoReader && !hasStitchedMedia(meta)
+        ? ['-s "input:video_reader:type=vidl_ffmpeg"'] : []),
       ...(feedsVideoReader ? [`-s downsampler:target_frame_rate=${meta.fps}`] : []),
     ];
     if (frameRange && feedsVideoReader) {
@@ -396,16 +386,16 @@ async function runPipeline(
     // Create frame image manifest
     const manifestFile = npath.join(jobWorkDir, 'image-manifest.txt');
     // map image file names to absolute paths
-    let imageList = mediaMeta.originalImageFiles;
-    if (mediaMeta.type === MultiType) {
-      imageList = getMultiCamImageFiles(mediaMeta);
+    let imageList = meta.originalImageFiles;
+    if (meta.type === MultiType) {
+      imageList = getMultiCamImageFiles(meta);
     }
     // Filter image list by frame range if specified
     if (frameRange) {
       imageList = filterImageListByFrameRange(imageList, frameRange);
     }
     const fileData = imageList
-      .map((f) => npath.join(mediaMeta.originalBasePath, f))
+      .map((f) => npath.join(meta.originalBasePath, f))
       .join('\n');
     await fs.writeFile(manifestFile, fileData);
     command = [
@@ -418,6 +408,12 @@ async function runPipeline(
       command.push(`-s track_writer:file_name="${trackOutput}"`);
       inputImageLists = [manifestFile];
     }
+  }
+
+  if (!stereoOrMultiCam) {
+    Object.entries(stitchedReaderSettings('input', meta.stitchedSide)).forEach(([key, value]) => {
+      command.push(`-s ${key}=${value}`);
+    });
   }
 
   if (isFilterPipe) {
@@ -460,7 +456,7 @@ async function runPipeline(
       : undefined;
     const { argFilePair, outFiles } = await writeMultiCamStereoPipelineArgs(
       jobWorkDir,
-      mediaMeta,
+      meta,
       settings,
       requiresInput,
       false,
@@ -918,12 +914,7 @@ async function train(
     jobWorkDir = await createWorkingDirectory(settings, jsonConfigList, runTrainingArgs.pipelineName);
 
     const entries = await Promise.all(
-      infoAndMeta.map(async ({ meta: storedMeta, projectInfo }) => {
-        const meta = storedMeta.multiCam
-          ? storedMeta
-          : await withSplitStitchedMedia(settings, storedMeta, projectInfo.basePath, {
-            forceTranscoded: forceTranscoding,
-          });
+      infoAndMeta.map(async ({ meta, projectInfo }) => {
         // Organize data for training
         const groundTruthFileName = `groundtruth_${meta.id}.csv`;
         const groundTruthFileStream = fs.createWriteStream(
