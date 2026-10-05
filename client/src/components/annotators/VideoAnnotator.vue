@@ -3,6 +3,7 @@ import {
   defineComponent, onBeforeUnmount, PropType, watch, toRef,
 } from 'vue';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
+import { StitchedSide, stitchedFrame } from 'vue-media-annotator/stitchedStereo';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
 import useAnnotatorImageCursor from './useAnnotatorImageCursor';
@@ -53,6 +54,11 @@ export default defineComponent({
     filterId: {
       type: String as PropType<string>,
       default: 'imageEnhancements',
+    },
+    /** Show only this half of each frame (stitched stereo). */
+    stitchedSide: {
+      type: String as PropType<StitchedSide | null>,
+      default: null,
     },
   },
   setup(props, { emit }) {
@@ -200,8 +206,11 @@ export default defineComponent({
      */
     function loadedMetadata() {
       video.removeEventListener('loadedmetadata', loadedMetadata);
-      const width = video.videoWidth;
-      const height = video.videoHeight;
+      const { width, height, crop } = stitchedFrame(
+        props.stitchedSide,
+        video.videoWidth,
+        video.videoHeight,
+      );
       const maybeMaxFrame = Math.floor(props.frameRate * video.duration);
       if (props.originalFps !== null) {
         /**
@@ -228,6 +237,7 @@ export default defineComponent({
             ul: { x: 0, y: 0 },
             lr: { x: width, y: height },
             video,
+            ...(crop ? { crop } : {}),
           },
         ])
         .draw();

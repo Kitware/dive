@@ -45,6 +45,7 @@ import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   videoSubsetCameras, writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -405,6 +406,12 @@ async function runPipeline(
       command.push(`-s track_writer:file_name="${trackOutput}"`);
       inputImageLists = [manifestFile];
     }
+  }
+
+  if (!stereoOrMultiCam) {
+    Object.entries(stitchedReaderSettings('input', meta.stitchedSide)).forEach(([key, value]) => {
+      command.push(`-s ${key}=${value}`);
+    });
   }
 
   if (isFilterPipe) {

@@ -162,7 +162,7 @@ export default Vue.extend({
         throw error;
       }
     },
-    async uploadFiles(name, folder, files, uploaded, skipTranscoding = false) {
+    async uploadFiles(name, folder, files, uploaded, skipTranscoding = false, stitchedSide = undefined, jobDatasetId = undefined) {
       let jobIds = [];
       // function called after mixins upload finishes
       const postUpload = async (data) => {
@@ -171,7 +171,16 @@ export default Vue.extend({
           results: data.results,
         });
         try {
-          const { data: postprocessResult } = await postProcess(folder._id, false, skipTranscoding);
+          const { data: postprocessResult } = await postProcess(
+            folder._id,
+            false,
+            skipTranscoding,
+            false,
+            '',
+            undefined,
+            stitchedSide,
+            jobDatasetId,
+          );
           jobIds = postprocessResult.job_ids ?? [];
         } catch (err) {
           this.$emit('error', { err, name });
@@ -193,6 +202,7 @@ export default Vue.extend({
      */
     async uploadCameraDataset({
       name, fps, type, uploadFiles, skipTranscoding = true, parentFolderId = null,
+      stitchedSide = undefined,
     }) {
       // The validated package is the only source of files to upload for the camera.
       const files = uploadFiles
@@ -202,7 +212,17 @@ export default Vue.extend({
       if (!folder) {
         throw new Error(`Failed to create folder for camera ${name}`);
       }
-      const { folder: uploadedFolder, jobIds } = await this.uploadFiles(name, folder, files, [], skipTranscoding);
+      const { folder: uploadedFolder, jobIds } = await this.uploadFiles(
+        name,
+        folder,
+        files,
+        [],
+        skipTranscoding,
+        stitchedSide,
+        // Tag convert/split jobs with the multicam parent so the browser spinner
+        // tracks the parent folder (same as single-dataset transcode).
+        parentFolderId || undefined,
+      );
       return { folder: uploadedFolder, jobIds };
     },
   },

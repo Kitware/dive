@@ -18,7 +18,7 @@ import { bindWebGirderRouter, useLocation } from './useLocation';
 import { useBrand } from './useBrand';
 import { useConfig } from './useConfig';
 import { useDataset } from './useDataset';
-import { initJobs, useJobs } from './useJobs';
+import { initJobs, updateJobFromMessage, useJobs } from './useJobs';
 import { useUser } from './useUser';
 
 function resetAllStoreState() {
@@ -55,6 +55,7 @@ function resetAllStoreState() {
   const jobs = useJobs();
   jobs.jobIds.value = {};
   jobs.datasetStatus.value = {};
+  jobs.datasetJobs.value = {};
   jobs.completeJobsInfo.value = {};
 }
 
@@ -470,6 +471,57 @@ describe('web-girder store composables', () => {
       const jobs = useJobs();
       jobs.setDatasetStatus({ datasetId: 'd1', status: 2, jobId: 'job99' });
       expect(jobs.getDatasetRunningState('d1')).toBe('/girder/#job/job99');
+    });
+
+    it('keeps Processing while a sibling parent-scoped job is still running', () => {
+      const jobs = useJobs();
+      // Multicam: finalize + left/right split all share the parent dataset id.
+      jobs.setDatasetStatus({ datasetId: 'parent', status: 2, jobId: 'finalize' });
+      jobs.setDatasetStatus({ datasetId: 'parent', status: 2, jobId: 'split-left' });
+      jobs.setDatasetStatus({ datasetId: 'parent', status: 2, jobId: 'split-right' });
+
+      jobs.setDatasetStatus({ datasetId: 'parent', status: 3, jobId: 'split-left' });
+      expect(jobs.getDatasetRunningState('parent')).toBeTruthy();
+      expect(jobs.datasetStatus.value.parent.jobId).not.toBe('split-left');
+
+      jobs.setDatasetStatus({ datasetId: 'parent', status: 3, jobId: 'split-right' });
+      expect(jobs.getDatasetRunningState('parent')).toBe('/girder/#job/finalize');
+      expect(jobs.datasetStatus.value.parent).toEqual({ jobId: 'finalize', status: 2 });
+
+      jobs.setDatasetStatus({ datasetId: 'parent', status: 3, jobId: 'finalize' });
+      expect(jobs.getDatasetRunningState('parent')).toBe(false);
+    });
+
+    it('defers completeJobsInfo until every parent-scoped job is terminal', () => {
+      updateJobFromMessage({
+        _id: 'finalize',
+        status: 2,
+        dataset_id: 'parent',
+        type: 'convert',
+        title: 'Finalizing multicam',
+      } as never);
+      updateJobFromMessage({
+        _id: 'split-left',
+        status: 3,
+        dataset_id: 'parent',
+        type: 'convert',
+        title: 'Splitting left',
+      } as never);
+      expect(useJobs().getDatasetCompleteJobs('parent')).toBe(false);
+      expect(useJobs().getDatasetRunningState('parent')).toBe('/girder/#job/finalize');
+
+      updateJobFromMessage({
+        _id: 'finalize',
+        status: 3,
+        dataset_id: 'parent',
+        type: 'convert',
+        title: 'Finalizing multicam',
+      } as never);
+      expect(useJobs().getDatasetCompleteJobs('parent')).toMatchObject({
+        type: 'convert',
+        title: 'Finalizing multicam',
+        success: true,
+      });
     });
 
     it('setCompleteJobsInfo and removeCompleteJob', () => {

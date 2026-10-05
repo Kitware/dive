@@ -12,9 +12,8 @@ import type { DatasetType } from 'dive-common/apispec';
 import { openFromDisk } from 'platform/web-girder/utils';
 import {
   createGirderFolder,
-  createMulticamDataset,
+  finalizeMulticamDataset,
   validateUploadGroup,
-  waitForFolderDatasetReady,
 } from 'platform/web-girder/api';
 import Upload from './Upload.vue';
 
@@ -24,23 +23,26 @@ Vue.config.ignoredElements = [/^v-/];
 
 vi.mock('platform/web-girder/api', () => ({
   createGirderFolder: vi.fn(),
-  createMulticamDataset: vi.fn(),
   deleteResources: vi.fn(),
-  saveConfig: vi.fn(),
-  uploadCalibrationItem: vi.fn(),
+  finalizeMulticamDataset: vi.fn(),
   uploadAndSetMetadataFile: vi.fn(),
+  uploadCalibrationItem: vi.fn(),
   uploadMetadataFileItem: vi.fn(),
   validateUploadGroup: vi.fn(),
-  waitForFolderDatasetReady: vi.fn(),
+}));
+
+vi.mock('platform/web-girder/store/useJobs', () => ({
+  useJobs: () => ({
+    setJobState: vi.fn(),
+    setDatasetStatus: vi.fn(),
+  }),
+  isJobFinished: (status: number) => [3, 4, 5].includes(status),
+  jobSucceeded: (status: number) => status === 3,
 }));
 
 vi.mock('platform/web-girder/utils', () => ({
   openFromDisk: vi.fn(),
   GirderUploadManager: class {},
-}));
-
-vi.mock('vue-router/composables', () => ({
-  useRouter: () => ({ push: vi.fn() }),
 }));
 
 vi.mock('dive-common/vue-utilities/prompt-service', () => ({
@@ -383,18 +385,17 @@ describe('Upload pending rows', () => {
     expect(upload).toHaveBeenCalledTimes(1);
   });
 
-  it('surfaces import warnings returned when the multicam dataset is linked', async () => {
+  it('schedules server multicam finalize after camera uploads', async () => {
     const uploadCameraDataset = vi.fn().mockResolvedValue({
       folder: { _id: 'camera-folder' },
-      jobIds: [],
+      jobIds: ['job-1'],
     });
     vi.mocked(createGirderFolder).mockResolvedValue({ data: { _id: 'dataset-folder' } } as never);
     vi.mocked(validateUploadGroup).mockResolvedValue({
       data: validation({ roles: { media: ['left.mp4'] } }),
     } as never);
-    vi.mocked(waitForFolderDatasetReady).mockResolvedValue(undefined as never);
-    vi.mocked(createMulticamDataset).mockResolvedValue({
-      data: { _id: 'parent-folder', importWarnings: ['Camera hierarchy was skipped.'] },
+    vi.mocked(finalizeMulticamDataset).mockResolvedValue({
+      data: { _id: 'finalize-job', status: 0 },
     } as never);
     const { vm } = mountUpload(
       () => Promise.resolve(),
@@ -413,10 +414,11 @@ describe('Upload pending rows', () => {
       },
     });
 
-    expect(prompt).toHaveBeenCalledWith({
-      title: 'Import Warnings',
-      text: ['Camera hierarchy was skipped.'],
-      positiveButton: 'OK',
-    });
+    expect(finalizeMulticamDataset).toHaveBeenCalledWith(expect.objectContaining({
+      parentFolderId: 'dataset-folder',
+      name: 'multicam',
+      waitJobIds: ['job-1'],
+      cameras: { left: { folderId: 'camera-folder', type: 'video' } },
+    }));
   });
 });

@@ -12,6 +12,7 @@ import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { getBinaryPath, spawnResult } from './utils';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
 
@@ -165,13 +166,16 @@ function transcodeMultiCam(
           if (!cameraData.transcodedImageFiles) {
             cameraData.transcodedImageFiles = [];
           }
-          if (cameraData.originalImageFiles.includes(npath.basename(item))) {
+          // Stitched cameras share their source files; each claims its own copy.
+          if (cameraData.originalImageFiles.includes(npath.basename(item))
+            && !cameraData.transcodedImageFiles.includes(npath.basename(destLoc))) {
             destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
             cameraData.transcodedImageFiles.push(npath.basename(destLoc));
             break;
           }
         } else if (cameraData.type === 'video') {
-          if (item === npath.join(cameraData.originalBasePath, cameraData.originalVideoFile)) {
+          if (item === npath.join(cameraData.originalBasePath, cameraData.originalVideoFile)
+            && !cameraData.transcodedVideoFile) {
             destLoc = destLoc.replace(cameraData.originalBasePath, `${projectDirAbsPath}/${cameraName}`);
             cameraData.transcodedVideoFile = npath.basename(destLoc);
             break;
@@ -317,6 +321,10 @@ async function writeMultiCamStereoPipelineArgs(
           argFilePair['input:video_filename'] = videoFileName;
         }
       }
+      Object.assign(argFilePair, stitchedReaderSettings(`input${i + 1}`, list.stitchedSide));
+      if (i === 0) {
+        Object.assign(argFilePair, stitchedReaderSettings('input', list.stitchedSide));
+      }
       if (utility) {
         const inputArgDetection = `detection_reader${i + 1}:file_name`;
         const inputArgTrack = `track_reader${i + 1}:file_name`;
@@ -391,6 +399,7 @@ function getMultiCamUrls(
         imageData,
         videoUrl,
         type: value.type,
+        ...(value.stitchedSide ? { stitchedSide: value.stitchedSide } : {}),
       };
     });
     return multiCamMedia;

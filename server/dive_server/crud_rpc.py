@@ -1592,6 +1592,8 @@ def postprocess(
     additive=False,
     additivePrepend='',
     set='',
+    stitchedSide='',
+    jobDatasetId='',
 ) -> dict:
     return _postprocess(
         user,
@@ -1601,6 +1603,8 @@ def postprocess(
         additive,
         additivePrepend,
         set,
+        stitchedSide,
+        jobDatasetId,
     )
 
 
@@ -1612,6 +1616,8 @@ def _postprocess(
     additive=False,
     additivePrepend='',
     set='',
+    stitchedSide='',
+    jobDatasetId='',
 ) -> dict:
     """
     Post-processing to be run after media/annotation import
@@ -1619,6 +1625,7 @@ def _postprocess(
     When skipJobs=False, the following may run as jobs:
         Transcoding of Video
         Transcoding of Images
+        Splitting of stitched stereo media (stitchedSide), in place of transcoding
         Conversion of KPF annotations into track JSON
         Extraction and upload of zip files
 
@@ -1631,12 +1638,17 @@ def _postprocess(
     isClone = dsFolder.get(constants.ForeignMediaIdMarker, None) is not None
     # Track job IDs for batch processing
     created_job_ids = []
+    # When set (e.g. multicam parent), associate convert/split jobs with that
+    # folder so the data browser spinner tracks the parent rather than each camera.
+    job_dataset_id = str(jobDatasetId) if jobDatasetId else str(dsFolder["_id"])
 
     # Validate user-supplied metadata fields are present
     if fromMeta(dsFolder, constants.FPSMarker) is None:
         raise RestException(f'{constants.FPSMarker} missing from metadata')
     if fromMeta(dsFolder, constants.TypeMarker) is None:
         raise RestException(f'{constants.TypeMarker} missing from metadata')
+    if stitchedSide and stitchedSide not in ('left', 'right'):
+        raise RestException('stitchedSide must be "left" or "right"')
 
     configuration_plan = _prepare_configuration_imports(dsFolder, user, additive)
 
@@ -1693,7 +1705,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: str(item["folderId"]),
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1705,9 +1717,47 @@ def _postprocess(
                 'configurationHierarchyWrite': configuration_hierarchy_write,
             }
 
+        if stitchedSide:
+            # The split job transcodes as it crops and marks the folder ready,
+            # so it replaces the conversions below.
+            split_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+                'stitched_side': stitchedSide,
+            }
+            newjob = tasks.split_stitched_media.apply_async(
+                queue=_get_queue_name(user),
+                kwargs=dict(
+                    folderId=str(dsFolder["_id"]),
+                    side=stitchedSide,
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
+                    girder_client_token=str(token["_id"]),
+                    girder_job_title=(
+                        f"Splitting stitched stereo {dsFolder['name']} ({stitchedSide})"
+                    ),
+                    girder_job_type="private" if job_is_private else "convert",
+                ),
+            )
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
+                    constants.JOBCONST_PARAMS: split_params,
+                    constants.JOBCONST_CREATOR: str(user['_id']),
+                },
+            )
+            created_job_ids.append(job['_id'])
+
         # transcode VIDEO if necessary
-        videoItems = Folder().childItems(
-            dsFolder, filters={"lowerName": {"$regex": constants.videoRegex}}
+        videoItems = (
+            []
+            if stitchedSide
+            else Folder().childItems(
+                dsFolder, filters={"lowerName": {"$regex": constants.videoRegex}}
+            )
         )
 
         for item in videoItems:
@@ -1733,7 +1783,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1751,7 +1801,9 @@ def _postprocess(
             dsFolder, filters={"lowerName": {"$regex": constants.largeImageRegEx}}
         )
 
-        if imageItems.count() > safeImageItems.count():
+        if stitchedSide:
+            pass
+        elif imageItems.count() > safeImageItems.count():
             convert_params = {
                 'user_id': str(user["_id"]),
                 'user_login': str(user["login"]),
@@ -1772,7 +1824,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },

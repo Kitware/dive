@@ -27,6 +27,9 @@ describe('watchPipelineJob', () => {
     Object.keys(jobs.datasetStatus.value).forEach((key) => {
       delete jobs.datasetStatus.value[key];
     });
+    Object.keys(jobs.datasetJobs.value).forEach((key) => {
+      delete jobs.datasetJobs.value[key];
+    });
   });
 
   /** Drive the job through states, letting each one reach the watcher. */
@@ -66,8 +69,8 @@ describe('watchPipelineJob', () => {
   });
 
   it('ignores a job that had already finished when the watch started', async () => {
-    // The store keeps one job per dataset, so the previous run's terminal state
-    // is sitting there when the next run starts watching.
+    // The primary slot keeps the previous run's terminal state until a new job
+    // is recorded, so the watch skips that stale id.
     await advance('ds1', 'old-job', [SUCCESS]);
     const pending = watchPipelineJob('ds1');
     let settled = false;
@@ -77,6 +80,17 @@ describe('watchPipelineJob', () => {
 
     await advance('ds1', 'new-job', [RUNNING, ERROR]);
     await expect(pending).resolves.toMatchObject({ ok: false });
+  });
+
+  it('keeps watching the running job when a sibling parent-scoped job finishes', async () => {
+    const pending = watchPipelineJob('parent');
+    await advance('parent', 'pipeline', [RUNNING]);
+    await advance('parent', 'split', [SUCCESS]);
+    await nextTick();
+    expect(jobs.datasetStatus.value.parent).toEqual({ jobId: 'pipeline', status: RUNNING });
+
+    await advance('parent', 'pipeline', [SUCCESS]);
+    await expect(pending).resolves.toEqual({ ok: true });
   });
 
   it('waits when the dataset has no job yet', async () => {

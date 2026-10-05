@@ -52,6 +52,7 @@ import {
 } from './utils';
 import linux from './linux';
 import win32 from './windows';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const GlobalIndexFolderName = 'DIVE_SearchIndex';
 
@@ -357,6 +358,7 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
   if (meta.type === 'video') {
     indexInvocation.push(`-frate ${meta.fps}`);
   }
+  const readerSettings = Object.entries(stitchedReaderSettings('input', meta.stitchedSide));
   if (method === 'existing') {
     const detectionsCsv = npath.join(indexDir, `${sanitizeName(streamName)}_detections.csv`);
     const csvStream = fs.createWriteStream(detectionsCsv);
@@ -364,6 +366,10 @@ async function startIndexBuild(settings: Settings, args: BuildSearchIndex, updat
     await serialize(csvStream, inputData, meta);
     csvStream.end();
     indexInvocation.push(`-id "${detectionsCsv}"`);
+  }
+  if (readerSettings.length) {
+    // Everything after -- goes to the batch runner, so it has to come last.
+    indexInvocation.push('--', ...readerSettings.map(([key, value]) => `-s ${key}=${value}`));
   }
   command.push(indexInvocation.join(' '));
 
