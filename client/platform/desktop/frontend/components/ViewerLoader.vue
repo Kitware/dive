@@ -298,7 +298,7 @@ export default defineComponent({
       const {
         originalBasePath, originalImageFiles, type, originalVideoFile,
       } = meta;
-      // The interactive service backend cuts tagged paths to the camera's half.
+      // VIAME's interactive services read only the tagged half of the frame.
       const side = forInteractiveService ? meta.stitchedSide : undefined;
       return (frameNum: number): string => {
         if (type === 'video') {

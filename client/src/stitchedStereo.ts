@@ -69,19 +69,12 @@ export function drawFrame(
   }
 }
 
-/** ffmpeg video filter cropping a stitched frame to one half. */
-export function stitchedCropFilter(side: StitchedSide): string {
-  return side === 'left'
-    ? 'crop=trunc(iw/2):ih:0:0'
-    : 'crop=trunc(iw/2):ih:iw-trunc(iw/2):0';
-}
-
 const PathTag = '#stitched=';
 
 /**
- * Media paths handed to the desktop interactive service name a whole stitched
- * frame; the tag tells the backend which half to cut out before the service
- * reads it.
+ * A media path handed to VIAME's interactive services names a whole stitched
+ * frame; the tag (understood by viame.core.stitched_media) tells the service
+ * which half to read.
  */
 export function tagStitchedPath(path: string, side: StitchedSide | null | undefined): string {
   return side && path ? `${path}${PathTag}${side}` : path;

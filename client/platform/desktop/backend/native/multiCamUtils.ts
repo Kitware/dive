@@ -12,6 +12,7 @@ import { serialize } from 'platform/desktop/backend/serializers/viame';
 import { parseFrameTimestamp } from 'dive-common/frameTimestamp';
 import { orderedMultiCamCameraNames } from 'dive-common/multicamDisplay';
 import { getBinaryPath, spawnResult } from './utils';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const ffmpegPath = getBinaryPath('ffmpeg-ffprobe-static/ffmpeg');
 
@@ -138,10 +139,7 @@ export function resolveMultiCamImagePath(
   if (originalImageFiles.includes(entry)) {
     return npath.join(originalBasePath, entry);
   }
-  // Split stitched media keeps the source extension, which a transcoded
-  // viewer name no longer carries.
-  const original = originalImageFiles.find((name) => imageStem(name) === imageStem(entry));
-  return npath.join(originalBasePath, original ?? entry);
+  return npath.join(originalBasePath, entry);
 }
 
 /**
@@ -322,6 +320,11 @@ async function writeMultiCamStereoPipelineArgs(
         if (i === 0) {
           argFilePair['input:video_filename'] = videoFileName;
         }
+      }
+      // After the media branches so it replaces the plain video reader type.
+      Object.assign(argFilePair, stitchedReaderSettings(`input${i + 1}`, list.stitchedSide));
+      if (i === 0) {
+        Object.assign(argFilePair, stitchedReaderSettings('input', list.stitchedSide));
       }
       if (utility) {
         const inputArgDetection = `detection_reader${i + 1}:file_name`;

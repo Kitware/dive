@@ -50,7 +50,6 @@ import {
   StereoStatusResponse,
   StereoMeasurement,
 } from './stereo';
-import { resolveStitchedRequestPaths } from './stitchedMedia';
 
 /** Error headline shown to users when the interactive service fails to load. */
 export const INTERACTIVE_LOAD_ERROR_MESSAGE = 'Unable to load the interactive service.';
@@ -350,13 +349,9 @@ export class InteractiveServiceManager extends EventEmitter {
   }
 
   /** Write a command to the process and resolve with the matching response. */
-  private async sendRequest(taggedPayload: Record<string, unknown>, timeoutLabel: string): Promise<ServiceResponse> {
+  private sendRequest(payload: Record<string, unknown>, timeoutLabel: string): Promise<ServiceResponse> {
     if (!this.isReady() || !this.process?.stdin) {
-      throw new Error('Interactive service is not running');
-    }
-    const payload = await resolveStitchedRequestPaths(taggedPayload);
-    if (!this.process?.stdin) {
-      throw new Error('Interactive service is not running');
+      return Promise.reject(new Error('Interactive service is not running'));
     }
     const id = this.generateRequestId();
     const fullRequest = { ...payload, id };
