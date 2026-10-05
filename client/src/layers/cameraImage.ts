@@ -1,3 +1,5 @@
+import type { SourceCrop } from '../stitchedStereo';
+
 /**
  * Texture source for Align View warps and registration ghost overlays.
  */
@@ -18,4 +20,10 @@ export interface CameraImage {
    */
   width: number;
   height: number;
+  /**
+   * Sub-rectangle of `source`, in its own pixels, that is this camera's
+   * frame (one half of stitched stereo media). Absent when the whole source
+   * is the frame.
+   */
+  crop?: SourceCrop;
 }

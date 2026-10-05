@@ -63,6 +63,7 @@ import eventBus from 'platform/web-girder/eventBus';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { getResponseError } from 'vue-media-annotator/utils';
 import { clientSettings } from 'dive-common/store/settings';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 import UploadGirder from './UploadGirder.vue';
 
 export interface InteralFiles {
@@ -119,6 +120,7 @@ interface GirderUpload {
     uploadFiles: File[];
     skipTranscoding?: boolean;
     parentFolderId?: string;
+    stitchedSide?: StitchedSide;
   }) => Promise<{ folder: { _id: string }; jobIds: string[] }>;
 }
 
@@ -575,6 +577,8 @@ export default defineComponent({
             uploadFiles,
             skipTranscoding: true,
             parentFolderId: datasetFolder._id,
+            // Each camera folder receives the stitched media and the server keeps its half.
+            stitchedSide: args.stitched ? cameraName as StitchedSide : undefined,
           });
           clearMulticamUploadProgressTimer();
           setMulticamImportProgress(

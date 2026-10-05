@@ -28,6 +28,7 @@ import { AnnotationHistory, annotationUndoShortcut } from 'dive-common/use/annot
 import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 
 import {
   ImageAnnotator,
@@ -269,6 +270,7 @@ export default defineComponent({
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
     const nativeVideoPath: Ref<Record<string, string>> = ref({});
+    const stitchedSideByCamera: Ref<Record<string, StitchedSide>> = ref({});
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
@@ -1922,6 +1924,7 @@ export default defineComponent({
         imageData.value = Object.fromEntries(
           multiCamList.value.map((camera) => [camera, [] as FrameImage[]]),
         );
+        stitchedSideByCamera.value = {};
         for (let i = 0; i < multiCamList.value.length; i += 1) {
           const camera = multiCamList.value[i];
           let cameraId = baseMulticamDatasetId.value;
@@ -1954,6 +1957,9 @@ export default defineComponent({
           }
           if (subCameraMeta.nativeVideoPath) {
             nativeVideoPath.value[camera] = subCameraMeta.nativeVideoPath;
+          }
+          if (subCameraMeta.stitchedSide) {
+            VueSet(stitchedSideByCamera.value, camera, subCameraMeta.stitchedSide);
           }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
@@ -2688,6 +2694,7 @@ export default defineComponent({
       selectedCameraUpdateTime,
       // multicam
       multiCamList,
+      stitchedSideByCamera,
       defaultCamera,
       selectedCamera,
       changeCamera,
@@ -3111,6 +3118,7 @@ export default defineComponent({
                   getTileURL,
                   percentileStretch: cameraPercentileStretch(camera),
                   filterId: `imageEnhancements-${camera}`,
+                  stitchedSide: stitchedSideByCamera[camera] || null,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
                 @load-error="forwardLoadError"
@@ -3224,6 +3232,7 @@ export default defineComponent({
                   getTileURL,
                   percentileStretch: cameraPercentileStretch(camera),
                   filterId: `imageEnhancements-${camera}`,
+                  stitchedSide: stitchedSideByCamera[camera] || null,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
                 @load-error="forwardLoadError"

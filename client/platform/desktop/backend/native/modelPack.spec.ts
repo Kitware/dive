@@ -1,7 +1,7 @@
 import os from 'os';
 import path from 'path';
 import fs from 'fs-extra';
-import archiver from 'archiver';
+import { ZipFile } from 'yazl';
 import type { Pipe } from 'dive-common/apispec';
 import { PipelinesFolderName, Settings } from 'platform/desktop/constants';
 import * as common from './common';
@@ -23,14 +23,14 @@ afterEach(async () => { await fs.remove(temp); });
 
 async function makeZip(files: string[], destination: string) {
   await new Promise<void>((resolve, reject) => {
+    const zip = new ZipFile();
     const output = fs.createWriteStream(destination);
-    const archive = archiver('zip');
     output.on('close', resolve);
     output.on('error', reject);
-    archive.on('error', reject);
-    archive.pipe(output);
-    files.forEach((file) => archive.append(`contents of ${file}`, { name: file }));
-    archive.finalize().catch(reject);
+    zip.outputStream.on('error', reject);
+    zip.outputStream.pipe(output);
+    files.forEach((file) => zip.addBuffer(Buffer.from(`contents of ${file}`), file));
+    zip.end();
   });
 }
 

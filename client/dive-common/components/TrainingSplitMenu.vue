@@ -5,15 +5,21 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { TrainingSplit, TrainingSplitOptions } from 'dive-common/trainingSplit';
 
 /**
- * Sets or clears the training split of the given datasets, then emits
+ * Sets or clears the training split of the given datasets or folder trees, then emits
  * `saved` so the host can refresh its listing.
  */
 export default defineComponent({
   name: 'TrainingSplitMenu',
   props: {
+    /** DIVE dataset folder ids (desktop / per-row edits). */
     datasetIds: {
       type: Array as PropType<string[]>,
-      required: true,
+      default: () => [],
+    },
+    /** Container or dataset roots to tag recursively (web). */
+    rootFolderIds: {
+      type: Array as PropType<string[]>,
+      default: () => [],
     },
     buttonOptions: {
       type: Object,
@@ -25,22 +31,28 @@ export default defineComponent({
     },
   },
   setup(props, { emit }) {
-    const { saveConfig } = useApi();
+    const { saveConfig, bulkSetTrainingSplitUnderFolders } = useApi();
     const { prompt } = usePrompt();
     const saving = ref(false);
 
     async function apply(split: TrainingSplit | null) {
-      if (saving.value || props.datasetIds.length === 0) return;
+      const useBulk = bulkSetTrainingSplitUnderFolders && props.rootFolderIds.length > 0;
+      const datasetTargets = props.datasetIds;
+      if (saving.value || (!useBulk && datasetTargets.length === 0)) return;
       saving.value = true;
       try {
-        await Promise.all(props.datasetIds.map((id) => saveConfig(id, { trainingSplit: split })));
+        if (useBulk) {
+          await bulkSetTrainingSplitUnderFolders(props.rootFolderIds, split);
+        } else {
+          await Promise.all(datasetTargets.map((id) => saveConfig(id, { trainingSplit: split })));
+        }
         emit('saved', split);
       } catch (err) {
         const status = (err as { response?: { status?: number } }).response?.status;
         await prompt({
           title: 'Unable to Set Split',
           text: status === 403
-            ? 'You do not have permission to edit one of the selected datasets.'
+            ? 'You do not have permission to edit one of the selected folders or datasets.'
             : 'The training split could not be saved.',
           positiveButton: 'OK',
         });

@@ -81,6 +81,10 @@ export default defineComponent({
       type: Boolean,
       default: true,
     },
+    activateOnHover: {
+      type: Boolean,
+      default: false,
+    },
     cycleIntervalMs: {
       type: Number,
       default: 400,
@@ -152,6 +156,8 @@ export default defineComponent({
   setup(props, { emit }) {
     /** Chips currently in edit mode, to outline the whole entry. */
     const editingCount = ref(0);
+    const hovered = ref(false);
+    const cycling = computed(() => props.animate && (!props.activateOnHover || hovered.value));
 
     const viewList = computed<ReviewCellView[]>(() => props.views ?? [{
       key: 'single',
@@ -196,7 +202,7 @@ export default defineComponent({
     }
 
     function syncSharedTimer() {
-      const shouldRun = shared.value && props.animate && sequenceLength.value > 1
+      const shouldRun = shared.value && cycling.value && sequenceLength.value > 1
         && !sharedPaused.value && editingCount.value === 0;
       if (shouldRun && timer === null) {
         timer = window.setInterval(() => advanceShared(1), props.cycleIntervalMs);
@@ -206,7 +212,7 @@ export default defineComponent({
       }
     }
     watch(
-      [shared, () => props.animate, sequenceLength, sharedPaused, editingCount, () => props.cycleIntervalMs],
+      [shared, cycling, sequenceLength, sharedPaused, editingCount, () => props.cycleIntervalMs],
       () => {
         if (timer !== null) {
           window.clearInterval(timer);
@@ -233,9 +239,16 @@ export default defineComponent({
       if (next !== props.type) emit('assign', next);
     }
 
+    function onHoverChange(active: boolean) {
+      hovered.value = active;
+      emit('hover-change', active);
+    }
+
     return {
       viewList,
       editingCount,
+      hovered,
+      onHoverChange,
       commitType,
       shared,
       sharedSlot,
@@ -258,6 +271,8 @@ export default defineComponent({
       'cell-negative': highlight === 'negative',
     }"
     :style="{ '--cell-scale': scale }"
+    @mouseenter="onHoverChange(true)"
+    @mouseleave="onHoverChange(false)"
   >
     <div class="cell-views">
       <ReviewChip
@@ -272,6 +287,7 @@ export default defineComponent({
         :frame-count="view.frameCount"
         :label="view.label"
         :animate="animate"
+        :activate-on-hover="activateOnHover"
         :cycle-interval-ms="cycleIntervalMs"
         :type="type"
         :confidence="index === 0 ? confidence : null"

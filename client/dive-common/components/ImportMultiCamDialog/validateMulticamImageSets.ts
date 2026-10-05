@@ -7,7 +7,7 @@
  * legitimately have differing per-camera counts and are aligned downstream by
  * their filename timestamps rather than by exact positional index.
  */
-export type MulticamImportType = 'multi' | 'keyword' | 'subfolders' | '';
+export type MulticamImportType = 'multi' | 'keyword' | 'subfolders' | 'stitched' | '';
 
 export function validateMulticamImageSets(
   importType: MulticamImportType,

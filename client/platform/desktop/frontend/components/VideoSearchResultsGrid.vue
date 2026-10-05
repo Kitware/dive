@@ -11,7 +11,9 @@ import type { ResultsGridMemory } from 'platform/desktop/frontend/querySession';
 import { useReview } from 'dive-common/use/useReview';
 import type { ReviewService } from 'dive-common/use/useReview';
 import { usePersistentGridSettings } from 'dive-common/review/gridSettings';
+import { usePersistentReviewSettings } from 'dive-common/review/reviewSettings';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
+import { chipCycleIntervalMs } from 'dive-common/review/reviewItems';
 import type { ReviewItem } from 'dive-common/review/types';
 import type { VideoSearchLayoutResponse, VideoSearchResult } from 'dive-common/apispec';
 import type { SpacePoint } from 'platform/desktop/frontend/resultSpace';
@@ -86,6 +88,8 @@ export default defineComponent({
     const review: ReviewService | null = props.searchReview ? useReview() : null;
     const { prompt } = usePrompt();
     const gridSettings = usePersistentGridSettings();
+    const reviewSettings = usePersistentReviewSettings();
+    const hoveredEntryKeys = ref(new Set<string>());
     const open = computed(() => props.inline || props.value);
 
     const state = computed(() => search?.state ?? null);
@@ -109,7 +113,17 @@ export default defineComponent({
       // The box is drawn over the chip so it follows edits.
       outline: '',
       retainPage: true,
+      activateOnHover: computed(() => reviewSettings.activateOnHover),
+      hoverEntryKeys: hoveredEntryKeys,
     });
+
+    function setEntryHovered(key: string, hovered: boolean) {
+      const next = new Set(hoveredEntryKeys.value);
+      if (hovered) next.add(key);
+      else next.delete(key);
+      hoveredEntryKeys.value = next;
+      grid.ensureVisible();
+    }
     watch(() => state.value?.queryGeneration, () => grid.goToPage(0));
 
     // ---- 3D descriptor-space view ----------------------------------------
@@ -223,6 +237,12 @@ export default defineComponent({
           color: review ? review.colorFor(type) : '#00e5ff',
           subtitle: bits.join(' · '),
           title: `${datasetName || 'This dataset'} · frame ${item.primary.frame}`,
+          cycleIntervalMs: chipCycleIntervalMs(
+            item.frames,
+            review?.datasetFps(item.datasetId) ?? 0,
+            reviewSettings.playbackFps,
+            gridSettings.cycleIntervalMs,
+          ),
         };
       });
     });
@@ -340,7 +360,9 @@ export default defineComponent({
       review,
       open,
       gridSettings,
+      reviewSettings,
       grid,
+      setEntryHovered,
       cells,
       countLabel,
       adjudicationCounts,
@@ -667,7 +689,8 @@ export default defineComponent({
             :frames="cell.item.frames"
             :failure="searchChips.store.failures.value[cell.item.key] || null"
             :animate="open"
-            :cycle-interval-ms="gridSettings.cycleIntervalMs"
+            :activate-on-hover="reviewSettings.activateOnHover"
+            :cycle-interval-ms="cell.cycleIntervalMs"
             :confidence="cell.item.confidence"
             :frame-count="cell.item.keyframeCount"
             :type="cell.type"
@@ -679,6 +702,7 @@ export default defineComponent({
             :title="cell.title"
             :subtitle="cell.subtitle"
             :highlight="cell.adjudication"
+            @hover-change="setEntryHovered(cell.item.key, $event)"
             @assign="assign(cell.result, $event)"
             @open="openItem(cell.item, $event)"
             @edit-geometry="editGeometry(cell.result, $event)"

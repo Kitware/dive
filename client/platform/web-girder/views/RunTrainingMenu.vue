@@ -345,7 +345,6 @@ export default defineComponent({
               hint="Model to Fine Tune"
               persistent-hint
             />
-
             <div
               v-if="splitSummary.labeled"
               class="text-caption grey--text mt-2"

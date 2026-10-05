@@ -83,11 +83,18 @@ export default defineComponent({
         ? [location.value]
         : selected.value.filter((item) => item._modelType === 'folder')
     ));
+    const selectedRootFolderIds = computed(() => folderSelection.value.map(({ _id }) => _id));
     const {
       datasets: selectedViameFolders,
       loading: resolvingFolders,
       error: folderSelectionError,
+      refresh: refreshFolderDatasets,
     } = useFolderDatasets(folderSelection);
+
+    const onTrainingSplitSaved = () => {
+      refreshFolderDatasets();
+      eventBus.$emit('refresh-data-browser');
+    };
     const includesContainerFolders = computed(() => folderSelection.value.some(
       (item) => !item.meta?.annotate,
     ));
@@ -169,6 +176,8 @@ export default defineComponent({
       folderSelectionError,
       includesContainerFolders,
       cloneDatasetId,
+      selectedRootFolderIds,
+      onTrainingSplitSaved,
       // methods
       prompt,
       clearSelected,
@@ -307,10 +316,10 @@ export default defineComponent({
                   </span>
                 </v-btn>
                 <training-split-menu
-                  v-if="trainingEnabled && locationInputs.length > 0"
+                  v-if="trainingEnabled && selectedRootFolderIds.length > 0"
                   v-bind="{ buttonOptions, menuOptions }"
-                  :dataset-ids="locationInputs"
-                  @saved="eventBus.$emit('refresh-data-browser')"
+                  :root-folder-ids="selectedRootFolderIds"
+                  @saved="onTrainingSplitSaved"
                 />
                 <export
                   v-if="!resolvingFolders && !folderSelectionError"

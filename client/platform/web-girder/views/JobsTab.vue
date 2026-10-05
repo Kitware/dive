@@ -24,9 +24,8 @@ export default defineComponent({
       <template slot="badge">
         <v-icon
           dark
-          class="rotate"
         >
-          mdi-autorenew
+          mdi-spin mdi-autorenew
         </v-icon>
       </template>
       <v-icon>mdi-format-list-checks</v-icon>

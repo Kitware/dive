@@ -313,6 +313,7 @@ export default class SamOnnx {
     // Copy the prompts: the recipe may receive another click while queued.
     const points = request.points.map((p) => [...p]);
     const labels = [...request.pointLabels];
+    const pointClick = !request.line && !request.box && !labels.some((label) => label > 1);
     return this.run(async () => {
       if (version !== this.version) throw new Error('Segmentation model changed.');
       if (!points.length || points.length !== labels.length
@@ -377,7 +378,7 @@ export default class SamOnnx {
             if (!this.postprocessor) this.postprocessor = await SamMaskPostprocessor.create();
             const { mask, score } = await this.postprocessor.run(output.pred_masks, output.iou_scores, frame.original[0], frame.reshaped[0], frame.padded);
             if (version !== this.version) throw new Error('Segmentation model changed.');
-            return { ...maskGeometry(mask, image.width, image.height), score };
+            return { ...maskGeometry(mask, image.width, image.height, pointClick), score };
           } finally {
             output.pred_masks.dispose();
             output.iou_scores.dispose();

@@ -7,6 +7,7 @@ import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
 import type { ScoringJobArgs } from 'dive-common/scoring/types';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 
 export const JsonConfigCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
@@ -59,6 +60,11 @@ export interface Camera {
   metadataFile?: string;
   /** Preserved original name of the camera-local metadata attachment. */
   metadataOriginalName?: string;
+  /**
+   * Stitched stereo: the media (original and transcoded alike) holds both
+   * cameras side by side and this camera is the named half of every frame.
+   */
+  stitchedSide?: StitchedSide;
 }
 
 export interface MultiCamDesktop {
@@ -169,6 +175,9 @@ export interface JsonConfig extends DatasetConfigMutable {
   metadataFile?: string;
   // The user's original metadata file name, preserved for display.
   metadataOriginalName?: string;
+
+  // Per-camera dataset of a stitched stereo import; see Camera.stitchedSide.
+  stitchedSide?: StitchedSide;
 
   // execTime is athe execution time for desktop runs
   execTime?: number

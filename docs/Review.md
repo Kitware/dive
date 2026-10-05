@@ -62,7 +62,7 @@ Two query modes are available in the toolbar:
 
 Changes to the query take effect as soon as they settle. The grid otherwise keeps its entries, so editing a type never reshuffles the page you are working on.
 
-The gear next to **Save** opens the same settings as the annotator, including the auto-save switch and delay.
+The gear next to **Save** opens settings: a **Review** section (load and animate extra track frames on hover, on by default—the primary frame of every chip still loads) and chip playback in frames per second (1 by default; 0 = real-time from the dataset), plus the same annotator options as elsewhere, including the auto-save switch and delay.
 
 Entries are sorted by confidence, highest first, by default; the sort field also offers lowest first, dataset and track id, or frame.
 

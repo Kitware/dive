@@ -22,6 +22,7 @@ import type {
   ScoringResultSummary,
   ScoringSourceOptions,
 } from 'dive-common/scoring/types';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 import type { TaxonomySources } from './worms';
 
 type DatasetType = 'image-sequence' | 'video' | 'multi' | 'large-image';
@@ -264,6 +265,11 @@ export interface MultiCamImportFolderArgs {
   calibrationFile?: string; // NPZ calibation matrix file
   metadataFile?: string; // Optional per-dataset metadata file (e.g. sea-lion flight log)
   type: 'image-sequence' | 'video' | 'large-image';
+  /**
+   * Stitched stereo: `left` and `right` share one source whose frames hold
+   * the left camera in the left half and the right camera in the right half.
+   */
+  stitched?: boolean;
 }
 
 export interface MultiCamImportKeywordArgs {
@@ -285,6 +291,8 @@ interface MultiCamMedia {
     type: DatasetType;
     imageData: FrameImage[];
     videoUrl: string;
+    /** Set when this camera is one half of stitched stereo media. */
+    stitchedSide?: StitchedSide;
   }>;
   defaultDisplay: string; // Default camera for displaying the MultiCamMedia
   /** Camera names in display order (import / UI order). */
@@ -337,7 +345,7 @@ interface DatasetConfigMutable {
   trainingSplit?: TrainingSplit | null;
   error?: string;
 }
-const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles'];
+const DatasetConfigMutableKeys = ['attributes', 'confidenceFilters', 'timeFilters', 'imageEnhancements', 'customTypeStyling', 'customGroupStyling', 'attributeTrackFilters', 'datasetInfo', 'cameraHomographies', 'cameraCorrespondences', 'cameraTransformTypes', 'cameraRegistrationSource', 'typeHierarchy', 'taxonomySources', 'cameraRoles', 'trainingSplit'];
 /**
  * Cross-dataset color/style overrides, reused across every dataset when the
  * "shared" color scope is enabled (see clientSettings.typeSettings.colorScope).
@@ -379,6 +387,8 @@ interface DatasetConfig extends DatasetConfigMutable {
   originalFps?: Readonly<number>;
   subType: Readonly<SubType>; // In future this could have stuff like IR/EO
   multiCamMedia: Readonly<MultiCamMedia | null>;
+  /** Set when this dataset's media is one half of stitched stereo frames. */
+  stitchedSide?: Readonly<StitchedSide>;
   /** Stereo calibration / camera file currently associated with the dataset (desktop). */
   calibration?: Readonly<string | null>;
   /** Optional metadata file associated with the dataset, passed to opt-in pipelines. */
@@ -529,6 +539,11 @@ interface Api {
 
   saveDetections(datasetId: string, args: SaveDetectionsArgs): Promise<unknown>;
   saveConfig(datasetId: string, config: DatasetConfigMutable): Promise<unknown>;
+  /** Web: recursively tag datasets under root folders and store split on each root. */
+  bulkSetTrainingSplitUnderFolders?(
+    folderIds: string[],
+    trainingSplit: TrainingSplit | null,
+  ): Promise<{ datasetIds: string[]; updatedCount: number; rootFolderIds: string[] }>;
   saveAttributes(datasetId: string, args: SaveAttributeArgs): Promise<unknown>;
   saveAttributeTrackFilters(datasetId: string,
     args: SaveAttributeTrackFilterArgs): Promise<unknown>;

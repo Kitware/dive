@@ -20,6 +20,7 @@ from dive_tasks.run_pipeline import (
 )
 from dive_tasks.run_scoring import build_score_args, run_scoring
 from dive_tasks.run_training import export_trained_pipeline, train_pipeline
+from dive_tasks.split_stitched import split_stitched_media
 from dive_tasks.upgrade_pipelines import (
     UPGRADE_JOB_DEFAULT_URLS,
     _addon_zip_path_for_url,
@@ -50,6 +51,7 @@ __all__ = [
     'resolve_annotation_fps',
     'run_pipeline',
     'run_scoring',
+    'split_stitched_media',
     'train_pipeline',
     'upgrade_pipelines',
 ]

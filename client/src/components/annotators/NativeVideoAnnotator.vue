@@ -5,6 +5,7 @@ import {
 // eslint-disable-next-line import/no-extraneous-dependencies
 import { ipcRenderer } from 'electron';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
+import { StitchedSide, stitchedFrame } from 'vue-media-annotator/stitchedStereo';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import { injectCameraInitializer } from './useMediaController';
 import { createNativeFrameRenderer, nativeVideoSourceFrame, nativeVideoMaxFrame } from './nativeVideoFrames';
@@ -40,6 +41,11 @@ export default defineComponent({
     camera: {
       type: String as PropType<string>,
       default: 'singleCam',
+    },
+    /** Show only this half of each frame (stitched stereo). */
+    stitchedSide: {
+      type: String as PropType<StitchedSide | null>,
+      default: null,
     },
     imageEnhancementOutputs: {
       type: Object as PropType<ImageEnhancementOutputs>,
@@ -176,10 +182,12 @@ export default defineComponent({
         frameCanvas.height = img.height;
       }
       if (quadFeature) {
+        const frame = stitchedFrame(props.stitchedSide, img.width, img.height);
         quadFeature.data([{
           ul: { x: 0, y: 0 },
-          lr: { x: img.width, y: img.height },
+          lr: { x: frame.width, y: frame.height },
           image: img,
+          ...(frame.crop ? { crop: frame.crop } : {}),
         }]).draw();
       }
     });
@@ -327,7 +335,8 @@ export default defineComponent({
       data.duration = frameCount / fps;
 
       // Initialize geojs viewer
-      initializeViewer(width, height);
+      const frame = stitchedFrame(props.stitchedSide, width, height);
+      initializeViewer(frame.width, frame.height);
 
       // Create quad feature layer for rendering frames
       quadFeatureLayer = geoViewer.value.createLayer('feature', {
@@ -341,8 +350,9 @@ export default defineComponent({
         .data([
           {
             ul: { x: 0, y: 0 },
-            lr: { x: width, y: height },
+            lr: { x: frame.width, y: frame.height },
             image: frameCanvas,
+            ...(frame.crop ? { crop: frame.crop } : {}),
           },
         ])
         .draw();

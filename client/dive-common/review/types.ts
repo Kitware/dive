@@ -124,6 +124,29 @@ export const DEFAULT_REVIEW_GRID: ReviewGridSettings = {
   maxSequenceFrames: 8,
 };
 
+/** Behaviour settings for chip grids (Review, search results, and similar). */
+export interface ReviewSettings {
+  /**
+   * When true, extra sequence frames load and cycle only while the pointer
+   * is over the entry; the primary chip still loads for every visible entry.
+   */
+  activateOnHover: boolean;
+  /**
+   * Fixed cycling rate in frames per second. 0 keeps real-time playback from
+   * each dataset's frame rate and the spacing of sampled keyframes.
+   */
+  playbackFps: number;
+}
+
+export const DEFAULT_REVIEW_SETTINGS: ReviewSettings = {
+  activateOnHover: true,
+  playbackFps: 1,
+};
+
+export const REVIEW_PLAYBACK_FPS_LIMITS = {
+  fps: [0, 60] as const,
+};
+
 export const REVIEW_GRID_LIMITS = {
   columns: [1, 12] as const,
   rows: [1, 10] as const,

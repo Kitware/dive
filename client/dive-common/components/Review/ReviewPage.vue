@@ -10,7 +10,7 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { createReviewService, provideReview } from 'dive-common/use/useReview';
 import { useReviewGrid } from 'dive-common/review/useReviewGrid';
 import { cellScaleFor } from 'dive-common/review/gridSettings';
-import { cycleIntervalFor } from 'dive-common/review/reviewItems';
+import { chipCycleIntervalMs } from 'dive-common/review/reviewItems';
 import {
   holdReviewSession, sessionKey, shouldResume, takeReviewSession,
 } from 'dive-common/review/reviewSession';
@@ -92,6 +92,7 @@ export default defineComponent({
     const opening = ref(!hasReady && initialIds.length > 0);
     const pageTypeInput = ref('');
     const showSettings = ref(false);
+    const hoveredEntryKeys = ref(new Set<string>());
     const typeField = ref<{ isMenuActive: boolean; activateMenu(): void; blur(): void } | null>(null);
 
     /** The type field's arrow opens its list, and closes it again on a second press. */
@@ -119,7 +120,18 @@ export default defineComponent({
       outline: '',
       // Deleting or editing an entry keeps the page; only a new query resets it.
       retainPage: true,
+      activateOnHover: computed(() => review.settings.activateOnHover),
+      hoverEntryKeys: hoveredEntryKeys,
+      entryKeyOf: (entry) => entry.key,
     });
+
+    function setEntryHovered(key: string, hovered: boolean) {
+      const next = new Set(hoveredEntryKeys.value);
+      if (hovered) next.add(key);
+      else next.delete(key);
+      hoveredEntryKeys.value = next;
+      grid.ensureVisible();
+    }
     watch(review.queryGeneration, () => grid.goToPage(0));
 
     const showDatasetNames = computed(() => review.datasets.value.length > 1);
@@ -165,7 +177,12 @@ export default defineComponent({
           title: `${review.datasetName(parent)} · track ${item.trackId} · frame ${item.primary.frame}`,
           subtitle: subtitleBits.join(' · '),
           attributeText,
-          cycleIntervalMs: cycleIntervalFor(item.frames, fps, review.grid.cycleIntervalMs),
+          cycleIntervalMs: chipCycleIntervalMs(
+            item.frames,
+            fps,
+            review.settings.playbackFps,
+            review.grid.cycleIntervalMs,
+          ),
         };
       });
     });
@@ -426,6 +443,7 @@ export default defineComponent({
       countLabel,
       pageTypeInput,
       showSettings,
+      setEntryHovered,
       setView,
       openItem,
       openDataset,
@@ -818,6 +836,7 @@ export default defineComponent({
             :key="cell.entry.key"
             :views="cell.views"
             :animate="true"
+            :activate-on-hover="review.settings.activateOnHover"
             :cycle-interval-ms="cell.cycleIntervalMs"
             :scale="cellScale"
             :color="review.colorFor(cell.type)"
@@ -828,6 +847,7 @@ export default defineComponent({
             :subtitle="cell.subtitle"
             :attribute-text="cell.attributeText"
             :type-options="review.knownTypes.value"
+            @hover-change="setEntryHovered(cell.entry.key, $event)"
             @assign="assignEntryType(cell.entry, $event)"
             @accept="acceptEntry(cell.entry)"
             @delete="deleteEntry(cell.entry)"
@@ -841,6 +861,7 @@ export default defineComponent({
 
     <UserSettingsDialog
       :value="showSettings"
+      :review-settings="review.settings"
       @input="showSettings = $event"
     />
 

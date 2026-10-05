@@ -243,10 +243,27 @@ class RpcResource(Resource):
             default='',
             required=False,
         )
+        .param(
+            "stitchedSide",
+            "The folder holds stitched (side-by-side) stereo media; keep only this half",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set):
+    def postprocess(
+        self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set, stitchedSide
+    ):
         return crud_rpc.postprocess(
-            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend, set
+            self.getCurrentUser(),
+            folder,
+            skipJobs,
+            skipTranscoding,
+            additive,
+            additivePrepend,
+            set,
+            stitchedSide or '',
         )
 
     @access.user
