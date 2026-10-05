@@ -45,7 +45,7 @@ import {
   getMultiCamImageFiles, getMultiCamVideoPath,
   videoSubsetCameras, writeMultiCamStereoPipelineArgs,
 } from './multiCamUtils';
-import { assertNotStitchedVideo, stitchedReaderSettings } from './stitchedMedia';
+import { stitchedReaderSettings } from './stitchedMedia';
 
 const PipelineRelativeDir = 'configs/pipelines';
 const DiveJobManifestName = 'dive_job_manifest.json';
@@ -409,14 +409,6 @@ async function runPipeline(
   }
 
   if (!stereoOrMultiCam) {
-    if (metaType === 'video') {
-      try {
-        assertNotStitchedVideo(meta.stitchedSide, 'Running a pipeline');
-      } catch (err) {
-        failedToStart(err);
-        throw err;
-      }
-    }
     Object.entries(stitchedReaderSettings('input', meta.stitchedSide)).forEach(([key, value]) => {
       command.push(`-s ${key}=${value}`);
     });
