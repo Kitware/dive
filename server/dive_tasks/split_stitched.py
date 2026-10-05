@@ -19,7 +19,7 @@ STITCHED_SIDES = ('left', 'right')
 
 
 def stitched_crop_filter(side: str) -> str:
-    """ffmpeg filter keeping one half of a side-by-side frame.
+    """Return the ffmpeg filter keeping one half of a side-by-side frame.
 
     Both halves share one width so the two cameras agree on frame size; an
     odd-width frame drops its middle column.
