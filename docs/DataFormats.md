@@ -596,8 +596,9 @@ For COCO files not produced by DIVE:
     writes. Holes are not representable and are dropped, and a mask that cannot be
     decoded is skipped with a warning, as before. On the web, RLE conversion runs as
     a postprocess convert job (same job tracking as video/image transcoding) so the
-    import request does not decode masks inline; desktop import still skips RLE.
-    Decoding needs no extra dependency: the outline is traced with numpy alone.
+    import request does not decode masks inline; desktop import decodes RLE the same
+    way during COCO parse. Decoding needs no extra dependency: the outline is traced
+    with typed arrays alone on desktop, and with numpy on the server.
 
 ### Example COCO Annotation with DIVE Extensions
 

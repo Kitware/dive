@@ -6,6 +6,7 @@ import { JsonConfig } from 'platform/desktop/constants';
 import processTrackAttributes from 'platform/desktop/backend/native/attributeProcessor';
 import { strNumericCompare } from 'platform/desktop/sharedUtils';
 import { TrackSupportedFeature } from 'vue-media-annotator/track';
+import { rlePolygonCoords } from 'platform/desktop/backend/serializers/cocoRle';
 
 type CocoImage = {
   id: number;
@@ -24,8 +25,8 @@ type CocoCategory = {
 };
 
 const RLE_SEGMENTATION_WARNING = (
-  'The COCO file included run-length encoded segmentation masks that are not supported. '
-  + 'Bounding boxes and other annotation data were imported, but masks were skipped.'
+  'The COCO file included run-length encoded segmentation masks that could not be decoded. '
+  + 'Bounding boxes and other annotation data were imported, but those masks were skipped.'
 );
 
 const PROB_TOP_K = 25;
@@ -170,7 +171,8 @@ function annotationHasImportableBounds(annotation: CocoAnnotation): boolean {
     return true;
   }
   if (hasRleSegmentation(annotation)) {
-    return false;
+    // An RLE mask supplies bounds only when it can be decoded to an outline.
+    return rlePolygonCoords(annotation.segmentation).length > 0;
   }
   return extractPolygonCoordsLists(annotation.segmentation).length > 0;
 }
@@ -182,7 +184,7 @@ function missingBoundsError(annotationIds: Array<number | string>): string {
     `${annotationIds.length} COCO annotation(s) cannot be imported because they have no bbox and `
     + `no usable polygon segmentation (ids: ${shown}${extra}). `
     + 'Provide bbox [x, y, width, height] or polygon segmentation as [[x1, y1, ...]]. '
-    + 'Annotations with only RLE segmentation masks still require a bbox.'
+    + 'An RLE mask supplies bounds only when it can be decoded.'
   );
 }
 
@@ -190,7 +192,10 @@ function resolveCocoBbox(annotation: CocoAnnotation): [number, number, number, n
   if (hasValidBbox(annotation)) {
     return annotation.bbox as [number, number, number, number];
   }
-  const allPoints = extractPolygonCoordsLists(annotation.segmentation).flat();
+  const coordLists = hasRleSegmentation(annotation)
+    ? rlePolygonCoords(annotation.segmentation)
+    : extractPolygonCoordsLists(annotation.segmentation);
+  const allPoints = coordLists.flat();
   if (allPoints.length) {
     return bboxFromPoints(allPoints);
   }
@@ -219,8 +224,8 @@ type CocoAnnotation = {
    * COCO `iscrowd` flag (0 or 1). In the COCO spec, 0 means a single instance with
    * polygon `segmentation` ([[x1, y1, ...]]); 1 means a crowd region whose
    * `segmentation` is run-length encoded (RLE) as an object (e.g. { counts, size }).
-   * DIVE does not import RLE masks: when `iscrowd` is truthy, or `segmentation` is
-   * a dict, polygon/mask geometry is skipped (bbox and other fields still import).
+   * Decodable RLE is traced to an outline polygon; undecodable masks keep bbox
+   * (when present) and skip geometry.
    */
   iscrowd?: number;
   keypoints?: number[] | { xy: number[]; keypoint_category?: string; keypoint_category_id?: number; visible?: number }[];
@@ -270,7 +275,7 @@ function frameRateFromDocument(document: CocoDocument): number | undefined {
   return undefined;
 }
 
-/** True when segmentation is COCO RLE (crowd / `iscrowd: 1`), which DIVE does not decode. */
+/** True when segmentation is COCO RLE / crowd (`iscrowd: 1` or a counts dict). */
 function hasRleSegmentation(annotation: CocoAnnotation): boolean {
   if (annotation.iscrowd) {
     return true;
@@ -284,10 +289,19 @@ function buildFeatureGeometry(
   category?: CocoCategory,
   keypointCategories: { id: number; name: string }[] = [],
 ): { geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>; rleSkipped: boolean } {
-  const rleSkipped = hasRleSegmentation(annotation);
   const geometryFeatures:
     GeoJSON.Feature<TrackSupportedFeature, GeoJSON.GeoJsonProperties>[] = [];
-  const coordLists = rleSkipped ? [] : extractPolygonCoordsLists(annotation.segmentation);
+  let rleSkipped = false;
+  let coordLists: [number, number][][];
+  if (hasRleSegmentation(annotation)) {
+    const rleCoords = rlePolygonCoords(annotation.segmentation);
+    // Only undecodable masks are reported; a traced outline is not a loss.
+    rleSkipped = !rleCoords.length;
+    // Largest outline only (server parity); holes / extra components are dropped.
+    coordLists = rleCoords.length ? [rleCoords[0]] : [];
+  } else {
+    coordLists = extractPolygonCoordsLists(annotation.segmentation);
+  }
   coordLists.forEach((coords) => {
     geometryFeatures.push({
       type: 'Feature',
@@ -712,6 +726,7 @@ export {
   PROB_DUPLICATE_CATEGORY_WARNING,
   PROB_LENGTH_MISMATCH_WARNING,
   PROB_TOP_K,
+  RLE_SEGMENTATION_WARNING,
   SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
   SUPERCATEGORY_MULTI_PARENT_WARNING,
   invalidCocoHierarchyMessage,
