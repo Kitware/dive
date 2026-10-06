@@ -18,6 +18,52 @@ import {
   speciesListFromCategories,
   typeHierarchyFromCategories,
 } from 'platform/desktop/backend/serializers/coco';
+import { decodeRleCounts } from 'platform/desktop/backend/serializers/cocoRle';
+
+/** pycocotools rleToString, so the decoder is tested against real output. */
+function rleToString(cnts: number[]): string {
+  const out: string[] = [];
+  cnts.forEach((count, i) => {
+    let x = count;
+    if (i > 2) {
+      x -= cnts[i - 2];
+    }
+    let more = true;
+    while (more) {
+      /* eslint-disable no-bitwise -- LEB128 digit packing from pycocotools */
+      let chunk = x & 0x1f;
+      x >>= 5;
+      more = (chunk & 0x10) ? (x !== -1) : (x !== 0);
+      if (more) {
+        chunk |= 0x20;
+      }
+      /* eslint-enable no-bitwise */
+      out.push(String.fromCharCode(chunk + 48));
+    }
+  });
+  return out.join('');
+}
+
+/** Column-major run lengths for a 6x6 square at (3, 2) in a 10x10 mask. */
+function squareMaskRuns(): number[] {
+  const runs: number[] = [];
+  let current = 0;
+  let length = 0;
+  for (let column = 0; column < 10; column += 1) {
+    for (let row = 0; row < 10; row += 1) {
+      const value = (row >= 2 && row < 8 && column >= 3 && column < 9) ? 1 : 0;
+      if (value === current) {
+        length += 1;
+      } else {
+        runs.push(length);
+        current = value;
+        length = 1;
+      }
+    }
+  }
+  runs.push(length);
+  return runs;
+}
 
 const kwcocoProfile = fs.readJSONSync('../testutils/kwcoco/import-profile.json');
 
@@ -172,7 +218,7 @@ describe('COCO serializer', () => {
       },
     });
     await expect(parseFile('/input/coco_no_bbox.json')).rejects.toThrow(/no bbox and no usable polygon/);
-    await expect(parseFile('/input/coco_no_bbox.json')).rejects.toThrow(/RLE segmentation masks still require a bbox/);
+    await expect(parseFile('/input/coco_no_bbox.json')).rejects.toThrow(/An RLE mask supplies bounds only when it can be decoded/);
   });
 
   it('derives bbox from polygon when bbox is omitted', async () => {
@@ -197,7 +243,7 @@ describe('COCO serializer', () => {
     expect(warnings).toEqual([]);
   });
 
-  it('imports polygon segmentations and warns on RLE in the same file', async () => {
+  it('imports polygon segmentations and warns on undecodable RLE in the same file', async () => {
     mockfs({
       '/input': {
         'coco_mixed.json': JSON.stringify({
@@ -229,9 +275,10 @@ describe('COCO serializer', () => {
     expect(parsed.tracks[301].features[0].geometry?.features.length).toBe(1);
     expect(parsed.tracks[302].features[0].geometry).toBeUndefined();
     expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('could not be decoded');
   });
 
-  it('imports bbox when RLE masks are present and returns a warning', async () => {
+  it('imports bbox when RLE masks cannot be decoded and returns a warning', async () => {
     mockfs({
       '/input': {
         'coco_rle.json': JSON.stringify({
@@ -253,7 +300,48 @@ describe('COCO serializer', () => {
     expect(parsed.tracks[8].features[0].bounds).toEqual([10, 20, 40, 60]);
     expect(parsed.tracks[8].features[0].geometry).toBeUndefined();
     expect(warnings).toHaveLength(1);
-    expect(warnings[0]).toContain('segmentation masks');
+    expect(warnings[0]).toContain('could not be decoded');
+  });
+
+  it.each([
+    ['uncompressed list', false],
+    ['pycocotools string', true],
+  ])('imports RLE masks as outlines (%s)', async (_label, asString) => {
+    const runs = squareMaskRuns();
+    const counts = asString ? rleToString(runs) : runs;
+    mockfs({
+      '/input': {
+        'coco_rle_ok.json': JSON.stringify({
+          images: [{ id: 1, file_name: 'frame_000000.png', frame_index: 0 }],
+          annotations: [{
+            id: 1,
+            image_id: 1,
+            category_id: 1,
+            track_id: 1,
+            iscrowd: 1,
+            segmentation: { counts, size: [10, 10] },
+          }],
+          categories: [{ id: 1, name: 'fish' }],
+        }),
+      },
+    });
+    const [parsed, , warnings] = await parseFile('/input/coco_rle_ok.json');
+    const feature = parsed.tracks[1].features[0];
+    const polygon = feature.geometry?.features.find((g) => g.geometry.type === 'Polygon');
+    expect(polygon).toBeTruthy();
+    const coords = (polygon?.geometry as GeoJSON.Polygon).coordinates[0];
+    const xs = coords.map(([x]) => x);
+    const ys = coords.map(([, y]) => y);
+    expect([Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)]).toEqual([3, 8, 2, 7]);
+    expect(feature.bounds).toEqual([3, 2, 8, 7]);
+    expect(warnings).toEqual([]);
+  });
+
+  it('rejects junk RLE counts', () => {
+    expect(decodeRleCounts([1, -2])).toBeNull();
+    expect(decodeRleCounts([1, 'x'])).toBeNull();
+    expect(decodeRleCounts(null)).toBeNull();
+    expect(decodeRleCounts(rleToString([4, 2, 4]))).toEqual([4, 2, 4]);
   });
 
   it('serializes COCO with DIVE extension attributes', async () => {

@@ -3,7 +3,7 @@ from unittest.mock import patch
 from girder.exceptions import RestException
 import pytest
 
-from dive_server.crud_rpc import process_items
+from dive_server.crud_rpc import _has_competing_annotation_imports, process_items
 from dive_utils import constants, frame_metadata
 
 VIAME_HEADER = (
@@ -456,3 +456,69 @@ def test_undecodable_plain_csv_fails_loudly_with_rename_hint(
     assert 'frame-metadata.csv' in str(excinfo.value)
     item_cls.return_value.remove.assert_called_once_with(item)
     save_annotations.assert_not_called()
+
+
+@patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
+def test_competing_annotation_imports_detects_csv_beside_rle(resolve_attachment_item_id):
+    # RLE deferral must stay off when a CSV shares the batch, or the async overwrite
+    # import would wipe the CSV tracks.
+    resolve_attachment_item_id.return_value = None
+    plan = {
+        'unprocessed_items': [
+            {'_id': 'rle', 'name': 'masks.json', 'meta': {}},
+            {'_id': 'csv', 'name': 'annotations.csv', 'meta': {}},
+        ],
+        'parsed_json_items': {
+            'rle': (
+                {'_id': 'f-rle'},
+                {'has_rle': True, 'annotations': None},
+                [],
+            ),
+        },
+    }
+    assert (
+        _has_competing_annotation_imports(plan, {'rle'}, {'_id': 'ds', 'meta': {}}, {'_id': 'u'})
+        is True
+    )
+
+
+@patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
+def test_competing_annotation_imports_ignores_solo_rle(resolve_attachment_item_id):
+    resolve_attachment_item_id.return_value = None
+    plan = {
+        'unprocessed_items': [{'_id': 'rle', 'name': 'masks.json', 'meta': {}}],
+        'parsed_json_items': {
+            'rle': (
+                {'_id': 'f-rle'},
+                {'has_rle': True, 'annotations': None},
+                [],
+            ),
+        },
+    }
+    assert (
+        _has_competing_annotation_imports(plan, {'rle'}, {'_id': 'ds', 'meta': {}}, {'_id': 'u'})
+        is False
+    )
+
+
+@patch('dive_server.crud_rpc.crud_dataset.resolve_metadata_attachment_item_id')
+def test_competing_annotation_imports_detects_dive_json_tracks(resolve_attachment_item_id):
+    resolve_attachment_item_id.return_value = None
+    plan = {
+        'unprocessed_items': [
+            {'_id': 'rle', 'name': 'masks.json', 'meta': {}},
+            {'_id': 'dive', 'name': 'tracks.json', 'meta': {}},
+        ],
+        'parsed_json_items': {
+            'rle': ({'_id': 'f-rle'}, {'has_rle': True, 'annotations': None}, []),
+            'dive': (
+                {'_id': 'f-dive'},
+                {'annotations': {'tracks': {'1': {}}, 'groups': {}}},
+                [],
+            ),
+        },
+    }
+    assert (
+        _has_competing_annotation_imports(plan, {'rle'}, {'_id': 'ds', 'meta': {}}, {'_id': 'u'})
+        is True
+    )
