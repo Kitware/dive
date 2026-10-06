@@ -23,9 +23,11 @@ def import_coco_annotations(
 ):
     """Finish COCO import for files whose RLE masks were deferred from postprocess.
 
-    The originating postprocess call enqueues this job only after its synchronous
-    ``process_items`` sweep finishes, so co-uploaded CSV/JSON are already imported
-    before this worker re-enters ``dive_rpc/postprocess`` with ``skipJobs=True``.
+    Postprocess only enqueues this job when RLE COCO is the sole annotation source
+    in the batch (mixed CSV/JSON/KPF stays on the sync path to preserve overwrite
+    ordering). The job is started after the originating ``process_items`` sweep so
+    hierarchy/fps staging is already applied before this worker re-enters
+    ``dive_rpc/postprocess`` with ``skipJobs=True``.
     """
     context: dict = {}
     gc: GirderClient = self.girder_client

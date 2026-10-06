@@ -1125,6 +1125,37 @@ def _unprocessed_data_items(folder: types.GirderModel) -> list:
     )
 
 
+def _has_competing_annotation_imports(
+    configuration_plan: dict,
+    rle_item_ids: Set[str],
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> bool:
+    """True when the sync sweep would import annotations besides deferred RLE files.
+
+    Deferring RLE always finishes after the sync ``process_items`` pass. With
+    ``additive=False``, that follow-up calls ``save_annotations(..., overwrite=True)``
+    and would wipe tracks imported moments earlier from co-uploaded CSV/JSON/KPF.
+    Keep RLE on the sync path whenever another annotation source shares the batch so
+    creation-order overwrite semantics stay intact.
+    """
+    _, is_declared_sidecar = _declared_sidecar_predicate(folder, user)
+    parsed_json_items = configuration_plan['parsed_json_items']
+    for item in configuration_plan['unprocessed_items']:
+        item_id = str(item['_id'])
+        if item_id in rle_item_ids or is_declared_sidecar(item):
+            continue
+        name = item['name']
+        if constants.csvRegex.search(name) or constants.ymlRegex.search(name):
+            return True
+        cached = parsed_json_items.get(item_id)
+        if cached is not None:
+            _file, results, _warnings = cached
+            if results.get('annotations'):
+                return True
+    return False
+
+
 def _declared_sidecar_predicate(folder: types.GirderModel, user: types.GirderUserModel):
     """Return the folder's attachment item id and a predicate identifying declared sidecars.
 
@@ -1873,6 +1904,8 @@ def _postprocess(
         # COCO files with RLE masks decode off-thread like media convert jobs so the
         # postprocess request stays responsive. Hierarchy/fps were already staged;
         # the job re-enters postprocess with skipJobs=True to finish the import.
+        # Only defer when RLE is the sole annotation source in this batch: a later
+        # overwrite import would otherwise wipe sync CSV/JSON/KPF tracks.
         rle_item_ids = {
             item_id
             for item_id, (_file, results, _warnings) in configuration_plan[
@@ -1880,6 +1913,10 @@ def _postprocess(
             ].items()
             if results.get('has_rle')
         }
+        if rle_item_ids and _has_competing_annotation_imports(
+            configuration_plan, rle_item_ids, dsFolder, user
+        ):
+            rle_item_ids = set()
         if rle_item_ids:
             rle_names = [
                 item['name']
