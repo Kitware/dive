@@ -55,7 +55,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 * ==:material-folder: Directory== is the default option for image sequences. It will prompt you to choose an **entire folder** of images to import as a dataset.
     * You can use globbing patterns to filter the contents of an image directory during import. Click ==:material-chevron-down: Show advanced options== to reveal the glob input.
 * ==:material-view-list-outline: Image List== will prompt you to choose a `.txt` file that contains an image name or full path on each line.
-* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file.
+* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file. In the stereo dialog you can also choose ==Stitched== to import one side-by-side source as `left` and `right` without splitting files on disk — see [Stitched stereo](Multicamera-data.md#stitched-stereo).
 * ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
 * ==:material-folder-multiple-image: MultiCam Batch== will prompt you to choose a root folder of **collect** subfolders and import one multicam image-sequence dataset per collect. See [Batch multicam import](Multicamera-data.md#batch-multicam-import) for the expected folder layout.
 
@@ -138,6 +138,8 @@ Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with
 1. Add one or more datasets to the staging area by clicking ==:material-plus:==.
 1. Choose an appropriate training config file and any training parameters.  These are documented on the [training configuration page](Pipeline-Documentation.md).
 1. Click ==Train on (N) Datasets==.  Note that depending on what configuration and datasets you chose, training could take hours or days.
+
+To hold datasets out of training, pick **Validation** or **Test** from a dataset's dropdown in the library's ==Split== column; with several datasets selected, choosing a split on any of them applies it to all of them. See [training splits](Pipeline-Documentation.md#train-validation-and-test-splits).
 
 ## Add-Ons
 

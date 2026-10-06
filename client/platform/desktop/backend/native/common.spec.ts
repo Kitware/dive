@@ -1209,8 +1209,8 @@ describe('native.common', () => {
 
     expect(result.processedFiles).toEqual([first, empty, third]);
     expect(result.warnings).toEqual([
-      'The COCO file included run-length encoded segmentation masks that are not supported. '
-        + 'Bounding boxes and other annotation data were imported, but masks were skipped.',
+      'The COCO file included run-length encoded segmentation masks that could not be decoded. '
+        + 'Bounding boxes and other annotation data were imported, but those masks were skipped.',
       'Ignored dataset_info entry: expected a JSON object but got number',
     ]);
   });
@@ -1333,6 +1333,19 @@ describe('native.common', () => {
     expect(await fs.pathExists(legacy)).toBe(false);
     const dir = await common.getValidatedProjectDir(settings, 'projectid1');
     expect(dir.datasetFileAbsPath).toBe(preferred);
+  });
+
+  it('sets and clears the training split through saveConfig', async () => {
+    await common.saveConfig(settings, 'projectid1', { trainingSplit: 'validation' });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBe('validation');
+    // An unrelated save leaves it alone.
+    await common.saveConfig(settings, 'projectid1', { confidenceFilters: { default: 0.5 } });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBe('validation');
+    await common.saveConfig(settings, 'projectid1', { trainingSplit: null });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBeUndefined();
   });
 
   it('saveConfig works on legacy meta.json-only projects and migrates', async () => {

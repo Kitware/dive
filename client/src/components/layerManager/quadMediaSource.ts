@@ -43,6 +43,10 @@ export function findQuadMediaSource(
     if (layer !== excludeLayer) {
       const datum = quadDatumFromLayer(layer);
       if (datum) {
+        const { crop } = datum;
+        const cropped = crop && crop.right > crop.left && crop.bottom > crop.top
+          ? { width: crop.right - crop.left, height: crop.bottom - crop.top, crop }
+          : null;
         if (datum.image) {
           const image = datum.image as HTMLImageElement | HTMLCanvasElement;
           const width = 'naturalWidth' in image && image.naturalWidth
@@ -56,6 +60,7 @@ export function findQuadMediaSource(
             kind: 'image' as const,
             width,
             height,
+            ...cropped,
           };
         }
         const video = datum.video as HTMLVideoElement;
@@ -64,6 +69,7 @@ export function findQuadMediaSource(
           kind: 'video' as const,
           width: video.videoWidth,
           height: video.videoHeight,
+          ...cropped,
         };
       }
     }

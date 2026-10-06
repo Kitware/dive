@@ -12,6 +12,7 @@ import ImportMultiCamTypeSelector from './ImportMultiCamTypeSelector.vue';
 import ImportMultiCamSubfolders from './ImportMultiCamSubfolders.vue';
 import ImportMultiCamMultiFolder from './ImportMultiCamMultiFolder.vue';
 import ImportMultiCamKeyword from './ImportMultiCamKeyword.vue';
+import ImportMultiCamStitched from './ImportMultiCamStitched.vue';
 import ImportMultiCamFinalizeStep from './ImportMultiCamFinalizeStep.vue';
 import ImportMultiCamCalibration from './ImportMultiCamCalibration.vue';
 import ImportMultiCamMetadata from './ImportMultiCamMetadata.vue';
@@ -23,6 +24,7 @@ export default defineComponent({
     ImportMultiCamSubfolders,
     ImportMultiCamMultiFolder,
     ImportMultiCamKeyword,
+    ImportMultiCamStitched,
     ImportMultiCamFinalizeStep,
     ImportMultiCamCalibration,
     ImportMultiCamMetadata,
@@ -91,6 +93,7 @@ export default defineComponent({
         :ctx="ctx"
         :data-type="dataType"
         :enable-subfolder-import="enableSubfolderImport"
+        :stereo="stereo"
       />
 
       <ImportMultiCamSubfolders
@@ -112,6 +115,12 @@ export default defineComponent({
         :ctx="ctx"
         :data-type="dataType"
         :stereo="stereo"
+      />
+
+      <ImportMultiCamStitched
+        v-else-if="importType === 'stitched'"
+        :ctx="ctx"
+        :data-type="dataType"
       />
 
       <ImportMultiCamCalibration

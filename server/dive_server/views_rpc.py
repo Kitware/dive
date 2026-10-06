@@ -243,10 +243,44 @@ class RpcResource(Resource):
             default='',
             required=False,
         )
+        .param(
+            "stitchedSide",
+            "The folder holds stitched (side-by-side) stereo media; keep only this half",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
+        .param(
+            "jobDatasetId",
+            "Optional folder id for job.dataset_id (e.g. multicam parent while cameras convert)",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set):
+    def postprocess(
+        self,
+        folder,
+        skipJobs,
+        skipTranscoding,
+        additive,
+        additivePrepend,
+        set,
+        stitchedSide,
+        jobDatasetId,
+    ):
         return crud_rpc.postprocess(
-            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend, set
+            self.getCurrentUser(),
+            folder,
+            skipJobs,
+            skipTranscoding,
+            additive,
+            additivePrepend,
+            set,
+            stitchedSide or '',
+            jobDatasetId or '',
         )
 
     @access.user

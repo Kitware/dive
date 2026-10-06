@@ -93,7 +93,7 @@ export default defineComponent({
                   <v-icon
                     v-if="job.job.exitCode === null"
                   >
-                    mdi-spin mdi-sync
+                    mdi-spin mdi-autorenew
                   </v-icon>
                   <v-icon
                     v-else-if="job.job.exitCode === 0"

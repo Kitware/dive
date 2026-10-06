@@ -16,20 +16,10 @@ const zipMock = vi.hoisted(() => ({
   snapshot: null as null | ((dir: string) => Promise<Record<string, string>>),
 }));
 
-vi.mock('archiver', () => ({
-  default: () => {
-    let piped: { end: () => void } | undefined;
-    let pending: Promise<unknown> = Promise.resolve();
-    const archive = {
-      on: () => archive,
-      pipe: (output: { end: () => void }) => { piped = output; },
-      directory: (sourceDir: string) => {
-        pending = zipMock.snapshot!(sourceDir)
-          .then((tree) => Object.assign(zipMock.staged, tree));
-      },
-      finalize: () => { pending.then(() => piped?.end()); },
-    };
-    return archive;
+vi.mock('./zipExport', () => ({
+  zipDirectoryToFile: async (sourceDir: string) => {
+    const tree = await zipMock.snapshot!(sourceDir);
+    Object.assign(zipMock.staged, tree);
   },
 }));
 

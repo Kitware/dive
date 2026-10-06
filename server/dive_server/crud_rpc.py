@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import Dict, List, Literal, NamedTuple, Optional, Tuple, TypedDict, cast
+from typing import Dict, List, Literal, NamedTuple, Optional, Set, Tuple, TypedDict, cast
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -688,6 +688,7 @@ def run_training(
     force_transcoded=False,
 ) -> types.GirderModel:
     dataset_input_list: List[Tuple[str, int]] = []
+    dataset_splits: Dict[str, str] = {}
     if len(bodyParams.folderIds) == 0:
         raise RestException("No folderIds in param")
 
@@ -698,6 +699,17 @@ def run_training(
         crud.assert_training_allowed_folder(user, folder)
         crud.getCloneRoot(user, folder)
         dataset_input_list.append((folderId, crud_annotation.RevisionLogItem().latest(folder)))
+        split = fromMeta(folder, 'trainingSplit')
+        if split in constants.TrainingSplits:
+            dataset_splits[folderId] = split
+
+    if dataset_input_list and all(
+        dataset_splits.get(folderId, 'train') != 'train' for folderId, _ in dataset_input_list
+    ):
+        raise RestException(
+            'Every selected dataset is labeled validation or test; '
+            'at least one must be available for training'
+        )
 
     # Ensure the folder to upload results to exists
     results_folder = training_output_folder(user)
@@ -713,6 +725,7 @@ def run_training(
     params: types.TrainingJob = {
         'results_folder_id': results_folder['_id'],
         'dataset_input_list': dataset_input_list,
+        'dataset_splits': dataset_splits,
         'pipeline_name': pipelineName,
         'config': config,
         'annotated_frames_only': annotatedFramesOnly,
@@ -871,6 +884,7 @@ GetDataReturnType = TypedDict(
         'type': crud.FileType,
         'hierarchy': NotRequired[Optional[Dict[str, str]]],
         'species': NotRequired[List[str]],
+        'has_rle': NotRequired[bool],
     },
 )
 
@@ -996,14 +1010,32 @@ def _get_data_by_type(
             'species': kwcoco.species_list_from_categories(data_dict),
         }, species_warnings or warnings
     if as_type == crud.FileType.COCO_JSON:
+        hierarchy, hierarchy_warnings = kwcoco.type_hierarchy_from_categories(data_dict)
+        coco_fps = kwcoco.frame_rate_from_coco(data_dict)
+        has_rle = kwcoco.coco_contains_rle(data_dict)
+        # RLE decode is expensive; configuration staging only needs hierarchy/fps.
+        # Full track conversion is deferred to a convert-style job when skipJobs
+        # is false, or done below when importing synchronously.
+        if configuration_only and has_rle:
+            datasetInfo = (data_dict.get('info') or {}).get('dive_dataset_info') or {}
+            coco_meta = {
+                **({"datasetInfo": datasetInfo} if datasetInfo else {}),
+                **({'fps': coco_fps} if coco_fps is not None else {}),
+            }
+            return {
+                'annotations': None,
+                'meta': coco_meta or None,
+                'attributes': None,
+                'type': as_type,
+                'hierarchy': hierarchy,
+                'has_rle': True,
+            }, hierarchy_warnings or warnings
         (
             converted,
             attributes,
             coco_warnings,
             datasetInfo,
         ) = kwcoco.load_coco_as_tracks_and_attributes(data_dict)
-        hierarchy, hierarchy_warnings = kwcoco.type_hierarchy_from_categories(data_dict)
-        coco_fps = kwcoco.frame_rate_from_coco(data_dict)
         coco_meta = {
             **({"datasetInfo": datasetInfo} if datasetInfo else {}),
             **({'fps': coco_fps} if coco_fps is not None else {}),
@@ -1014,6 +1046,7 @@ def _get_data_by_type(
             'attributes': attributes,
             'type': as_type,
             'hierarchy': hierarchy,
+            'has_rle': has_rle,
         }, (coco_warnings + hierarchy_warnings) or warnings
     if as_type == crud.FileType.DIVE_CONF:
         return {
@@ -1090,6 +1123,37 @@ def _unprocessed_data_items(folder: types.GirderModel) -> list:
             sort=[("created", pymongo.ASCENDING)],
         )
     )
+
+
+def _has_competing_annotation_imports(
+    configuration_plan: dict,
+    rle_item_ids: Set[str],
+    folder: types.GirderModel,
+    user: types.GirderUserModel,
+) -> bool:
+    """True when the sync sweep would import annotations besides deferred RLE files.
+
+    Deferring RLE always finishes after the sync ``process_items`` pass. With
+    ``additive=False``, that follow-up calls ``save_annotations(..., overwrite=True)``
+    and would wipe tracks imported moments earlier from co-uploaded CSV/JSON/KPF.
+    Keep RLE on the sync path whenever another annotation source shares the batch so
+    creation-order overwrite semantics stay intact.
+    """
+    _, is_declared_sidecar = _declared_sidecar_predicate(folder, user)
+    parsed_json_items = configuration_plan['parsed_json_items']
+    for item in configuration_plan['unprocessed_items']:
+        item_id = str(item['_id'])
+        if item_id in rle_item_ids or is_declared_sidecar(item):
+            continue
+        name = item['name']
+        if constants.csvRegex.search(name) or constants.ymlRegex.search(name):
+            return True
+        cached = parsed_json_items.get(item_id)
+        if cached is not None:
+            _file, results, _warnings = cached
+            if results.get('annotations'):
+                return True
+    return False
 
 
 def _declared_sidecar_predicate(folder: types.GirderModel, user: types.GirderUserModel):
@@ -1517,9 +1581,13 @@ def process_items(
 
         # Configuration staging already parsed and validated every JSON item; reuse that
         # result so an import is not parsed twice and cannot disagree with the plan.
+        # RLE-bearing COCO is staged without annotations so the request thread stays
+        # light; re-parse fully when this sync import path actually consumes the file.
         cached = parsed_json_items.get(str(item['_id']))
         if cached is not None:
             _cached_file, results, warnings = cached
+            if results.get('has_rle') and results.get('annotations') is None:
+                results, warnings = _parse_data_item(item, file, image_map)
         else:
             results, warnings = _parse_data_item(item, file, image_map)
         if warnings:
@@ -1579,6 +1647,8 @@ def postprocess(
     additive=False,
     additivePrepend='',
     set='',
+    stitchedSide='',
+    jobDatasetId='',
 ) -> dict:
     return _postprocess(
         user,
@@ -1588,6 +1658,8 @@ def postprocess(
         additive,
         additivePrepend,
         set,
+        stitchedSide,
+        jobDatasetId,
     )
 
 
@@ -1599,6 +1671,8 @@ def _postprocess(
     additive=False,
     additivePrepend='',
     set='',
+    stitchedSide='',
+    jobDatasetId='',
 ) -> dict:
     """
     Post-processing to be run after media/annotation import
@@ -1607,11 +1681,14 @@ def _postprocess(
         Transcoding of Video
         Transcoding of Images
         Tile creation for large images (TIFF, NITF, ...)
+        Splitting of stitched stereo media (stitchedSide), in place of transcoding
         Conversion of KPF annotations into track JSON
         Extraction and upload of zip files
+        Import of COCO annotations that include RLE masks (decoded to outlines)
 
     In either case, the following may run synchronously:
         Conversion of CSV annotations into track JSON
+        Import of non-RLE COCO / DIVE JSON annotations
     Returns:
         dict: Contains 'folder' (the processed folder) and 'job_ids' (list of created job IDs)
     """
@@ -1619,12 +1696,17 @@ def _postprocess(
     isClone = dsFolder.get(constants.ForeignMediaIdMarker, None) is not None
     # Track job IDs for batch processing
     created_job_ids = []
+    # When set (e.g. multicam parent), associate convert/split jobs with that
+    # folder so the data browser spinner tracks the parent rather than each camera.
+    job_dataset_id = str(jobDatasetId) if jobDatasetId else str(dsFolder["_id"])
 
     # Validate user-supplied metadata fields are present
     if fromMeta(dsFolder, constants.FPSMarker) is None:
         raise RestException(f'{constants.FPSMarker} missing from metadata')
     if fromMeta(dsFolder, constants.TypeMarker) is None:
         raise RestException(f'{constants.TypeMarker} missing from metadata')
+    if stitchedSide and stitchedSide not in ('left', 'right'):
+        raise RestException('stitchedSide must be "left" or "right"')
 
     configuration_plan = _prepare_configuration_imports(dsFolder, user, additive)
 
@@ -1654,6 +1736,13 @@ def _postprocess(
         dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
         Folder().save(dsFolder)
 
+    # RLE COCO is deferred to a convert-style job. Collect ids here (and strip them
+    # from the sync sweep) but enqueue only after process_items finishes so a fast
+    # worker cannot re-enter postprocess while CSV/JSON are still being imported.
+    rle_item_ids: Set[str] = set()
+    rle_names: List[str] = []
+    rle_job_token = None
+
     if not skipJobs and not isClone:
         token = Token().createToken(user=user, days=2)
 
@@ -1681,7 +1770,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: str(item["folderId"]),
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1693,9 +1782,47 @@ def _postprocess(
                 'configurationHierarchyWrite': configuration_hierarchy_write,
             }
 
+        if stitchedSide:
+            # The split job transcodes as it crops and marks the folder ready,
+            # so it replaces the conversions below.
+            split_params = {
+                'user_id': str(user["_id"]),
+                'user_login': str(user["login"]),
+                'input_folder': str(dsFolder["_id"]),
+                'stitched_side': stitchedSide,
+            }
+            newjob = tasks.split_stitched_media.apply_async(
+                queue=_get_queue_name(user),
+                kwargs=dict(
+                    folderId=str(dsFolder["_id"]),
+                    side=stitchedSide,
+                    user_id=str(user["_id"]),
+                    user_login=str(user["login"]),
+                    girder_client_token=str(token["_id"]),
+                    girder_job_title=(
+                        f"Splitting stitched stereo {dsFolder['name']} ({stitchedSide})"
+                    ),
+                    girder_job_type="private" if job_is_private else "convert",
+                ),
+            )
+            job = _persist_async_job_metadata(
+                newjob,
+                **{
+                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
+                    constants.JOBCONST_PARAMS: split_params,
+                    constants.JOBCONST_CREATOR: str(user['_id']),
+                },
+            )
+            created_job_ids.append(job['_id'])
+
         # transcode VIDEO if necessary
-        videoItems = Folder().childItems(
-            dsFolder, filters={"lowerName": {"$regex": constants.videoRegex}}
+        videoItems = (
+            []
+            if stitchedSide
+            else Folder().childItems(
+                dsFolder, filters={"lowerName": {"$regex": constants.videoRegex}}
+            )
         )
 
         for item in videoItems:
@@ -1721,7 +1848,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1746,7 +1873,9 @@ def _postprocess(
             },
         )
 
-        if imageItems.count() > safeImageItems.count():
+        if stitchedSide:
+            pass
+        elif imageItems.count() > safeImageItems.count():
             convert_params = {
                 'user_id': str(user["_id"]),
                 'user_login': str(user["login"]),
@@ -1767,7 +1896,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: convert_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1796,7 +1925,7 @@ def _postprocess(
                 newjob,
                 **{
                     constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: dsFolder["_id"],
+                    constants.JOBCONST_DATASET_ID: job_dataset_id,
                     constants.JOBCONST_PARAMS: tiles_params,
                     constants.JOBCONST_CREATOR: str(user['_id']),
                 },
@@ -1808,6 +1937,35 @@ def _postprocess(
             crud.refresh_folder_document(dsFolder)
             dsFolder.setdefault('meta', {})[constants.DatasetMarker] = True
             Folder().save(dsFolder)
+
+        # COCO files with RLE masks decode off-thread like media convert jobs so the
+        # postprocess request stays responsive. Hierarchy/fps were already staged;
+        # the job re-enters postprocess with skipJobs=True to finish the import.
+        # Only defer when RLE is the sole annotation source in this batch: a later
+        # overwrite import would otherwise wipe sync CSV/JSON/KPF tracks.
+        rle_item_ids = {
+            item_id
+            for item_id, (_file, results, _warnings) in configuration_plan[
+                'parsed_json_items'
+            ].items()
+            if results.get('has_rle')
+        }
+        if rle_item_ids and _has_competing_annotation_imports(
+            configuration_plan, rle_item_ids, dsFolder, user
+        ):
+            rle_item_ids = set()
+        if rle_item_ids:
+            rle_names = [
+                item['name']
+                for item in configuration_plan['unprocessed_items']
+                if str(item['_id']) in rle_item_ids
+            ]
+            rle_job_token = token
+            configuration_plan['unprocessed_items'] = [
+                item
+                for item in configuration_plan['unprocessed_items']
+                if str(item['_id']) not in rle_item_ids
+            ]
 
     aggregate_warnings = process_items(
         dsFolder,
@@ -1828,6 +1986,42 @@ def _postprocess(
         if requested_fps != new_fps:
             dsFolder['meta'][constants.FPSMarker] = new_fps
             Folder().save(dsFolder)
+
+    if rle_item_ids and rle_job_token is not None:
+        convert_params = {
+            'user_id': str(user["_id"]),
+            'user_login': str(user["login"]),
+            'input_folder': str(dsFolder["_id"]),
+            'rle_items': sorted(rle_item_ids),
+        }
+        newjob = tasks.import_coco_annotations.apply_async(
+            queue=_get_queue_name(user),
+            kwargs=dict(
+                folderId=str(dsFolder["_id"]),
+                user_id=str(user["_id"]),
+                user_login=str(user["login"]),
+                additive=additive,
+                additivePrepend=additivePrepend,
+                set=set,
+                girder_client_token=str(rle_job_token["_id"]),
+                girder_job_title=(
+                    f"Importing COCO RLE masks for {dsFolder['name']}"
+                    + (f" ({', '.join(rle_names)})" if rle_names else '')
+                ),
+                girder_job_type="private" if job_is_private else "convert",
+            ),
+        )
+        job = _persist_async_job_metadata(
+            newjob,
+            **{
+                constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                constants.JOBCONST_DATASET_ID: job_dataset_id,
+                constants.JOBCONST_PARAMS: convert_params,
+                constants.JOBCONST_CREATOR: str(user['_id']),
+            },
+        )
+        created_job_ids.append(job['_id'])
+
     return {
         'folder': dsFolder,
         'warnings': aggregate_warnings,

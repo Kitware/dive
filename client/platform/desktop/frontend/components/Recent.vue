@@ -15,6 +15,8 @@ import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { clientSettings } from 'dive-common/store/settings';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
+import TrainingSplitChip from 'dive-common/components/TrainingSplitChip.vue';
+import TrainingSplitMenu from 'dive-common/components/TrainingSplitMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
 import { getResponseError } from 'vue-media-annotator/utils';
@@ -23,7 +25,7 @@ import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
 import * as api from '../api';
 import {
-  JsonConfigCache, recents, removeRecents, setRecents,
+  JsonConfigCache, autoDiscover, recents, removeRecents, setRecents,
 } from '../store/dataset';
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
@@ -49,6 +51,8 @@ export default defineComponent({
     ImportMultiCamBatchDialog,
     ImportStereoBatchDialog,
     TooltipBtn,
+    TrainingSplitChip,
+    TrainingSplitMenu,
   },
 
   setup() {
@@ -346,13 +350,27 @@ export default defineComponent({
         sortable: true,
       },
       {
+        text: 'Split',
+        value: 'trainingSplit',
+        align: 'center',
+        sortable: true,
+        width: 130,
+      },
+      {
         text: 'Accessed',
         value: 'accessedAt',
+        align: 'center',
         sortable: true,
         sort: (a: string, b: string) => parseRecentDate(b).valueOf() - parseRecentDate(a).valueOf(),
         width: 140,
       },
     ];
+    function splitTargetIds(item: JsonConfigCache) {
+      return selectedIds.value.size > 1 && selectedIds.value.has(item.id)
+        ? Array.from(selectedIds.value)
+        : [item.id];
+    }
+    const splitSaved = () => autoDiscover();
     const toDisplayString = (dateString: string) => {
       const parsed = parseRecentDate(dateString);
       return parsed.isValid() ? parsed.format('MM/DD/YY HH:mm') : dateString;
@@ -372,6 +390,8 @@ export default defineComponent({
       confirmDeleteSelected,
       runPipelineOnSelected,
       runTrainingOnSelected,
+      splitSaved,
+      splitTargetIds,
       scoreSelected,
       reviewSelected,
       indexSelected,
@@ -791,7 +811,7 @@ export default defineComponent({
                     <span class="pl-4">
                       Converting
                       <v-icon>
-                        mdi-spin mdi-sync
+                        mdi-spin mdi-autorenew
                       </v-icon>
                     </span>
                   </div>
@@ -822,7 +842,7 @@ export default defineComponent({
                     <v-chip small>
                       Awaiting Conversion
                       <v-icon right>
-                        mdi-sync mdi-spin
+                        mdi-spin mdi-autorenew
                       </v-icon>
                     </v-chip>
                   </div>
@@ -856,6 +876,38 @@ export default defineComponent({
                 >
                   {{ toDisplayString(item.accessedAt) }}
                 </span>
+              </template>
+              <template #[`item.trainingSplit`]="{ item }">
+                <TrainingSplitMenu
+                  :key="item.id"
+                  :dataset-ids="splitTargetIds(item)"
+                  @saved="splitSaved"
+                >
+                  <template #activator="{ on, saving }">
+                    <v-btn
+                      text
+                      x-small
+                      class="px-1"
+                      :loading="saving"
+                      v-on="on"
+                    >
+                      <TrainingSplitChip
+                        v-if="item.trainingSplit"
+                        :split="item.trainingSplit"
+                        x-small
+                      />
+                      <span
+                        v-else
+                        class="grey--text"
+                      >
+                        None
+                      </span>
+                      <v-icon small>
+                        mdi-menu-down
+                      </v-icon>
+                    </v-btn>
+                  </template>
+                </TrainingSplitMenu>
               </template>
               <template #[`item.select`]="{ item }">
                 <v-simple-checkbox

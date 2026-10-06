@@ -2,43 +2,72 @@ import type { GirderModel } from '@girder/components/src';
 import {
   ref, watch, type Ref,
 } from 'vue';
-import girderRest from './plugins/girder';
+import { resolveFolderSelection } from './api/dataset.service';
+
+function isDiveDatasetFolder(folder: GirderModel): boolean {
+  return !!folder.meta?.annotate;
+}
+
+function asFolderModel(folder: GirderModel): GirderModel {
+  return { ...folder, _modelType: 'folder' as const };
+}
+
+export type ResolveFolderDatasetsOptions = {
+  /** Re-fetch every selected folder from the server (e.g. after metadata edits). */
+  reload?: boolean;
+};
 
 /** Stop at datasets so camera and auxiliary folders are not separate job inputs. */
 export async function resolveFolderDatasets(
   selection: GirderModel[],
   signal?: AbortSignal,
+  options: ResolveFolderDatasetsOptions = {},
 ): Promise<GirderModel[]> {
-  const datasets: GirderModel[] = [];
-  const visited = new Set<string>();
-  const pending = selection.filter((item) => item._modelType === 'folder');
-  const limit = 100;
-  for (let index = 0; index < pending.length; index += 1) {
-    const folder = pending[index];
-    // eslint-disable-next-line no-continue
-    if (visited.has(folder._id)) continue;
-    visited.add(folder._id);
-    if (folder.meta?.annotate) {
-      datasets.push(folder);
-      // eslint-disable-next-line no-continue
-      continue;
-    }
-    let offset = 0;
-    let hasMore = true;
-    while (hasMore) {
-      // Girder applies the current user's read permissions to each folder listing.
-      // eslint-disable-next-line no-await-in-loop
-      const { data } = await girderRest.get<GirderModel[]>('folder', {
-        params: {
-          parentType: 'folder', parentId: folder._id, limit, offset, sort: '_id', sortdir: 1,
-        },
-        signal,
-      });
-      pending.push(...data.map((child) => ({ ...child, _modelType: 'folder' as const })));
-      offset += data.length;
-      hasMore = data.length === limit;
-    }
+  const folders = selection.filter((item) => item._modelType === 'folder');
+  if (folders.length === 0) {
+    return [];
   }
+
+  if (options.reload) {
+    const { data } = await resolveFolderSelection(folders.map(({ _id }) => _id), signal);
+    const seen = new Set<string>();
+    const datasets: GirderModel[] = [];
+    data.forEach((folder) => {
+      if (seen.has(folder._id)) {
+        return;
+      }
+      seen.add(folder._id);
+      datasets.push(folder);
+    });
+    return datasets;
+  }
+
+  const containerIds = folders
+    .filter((folder) => !isDiveDatasetFolder(folder))
+    .map(({ _id }) => _id);
+
+  let resolvedFromContainers: GirderModel[] = [];
+  if (containerIds.length > 0) {
+    const { data } = await resolveFolderSelection(containerIds, signal);
+    resolvedFromContainers = data;
+  }
+
+  const seen = new Set<string>();
+  const datasets: GirderModel[] = [];
+  folders.forEach((folder) => {
+    if (!isDiveDatasetFolder(folder) || seen.has(folder._id)) {
+      return;
+    }
+    seen.add(folder._id);
+    datasets.push(asFolderModel(folder));
+  });
+  resolvedFromContainers.forEach((folder) => {
+    if (seen.has(folder._id)) {
+      return;
+    }
+    seen.add(folder._id);
+    datasets.push(folder);
+  });
   return datasets;
 }
 
@@ -47,14 +76,23 @@ export function useFolderDatasets(selection: Ref<GirderModel[]>) {
   const datasets = ref<GirderModel[]>([]);
   const loading = ref(false);
   const error = ref('');
-  watch(selection, async (folders, previous, onCleanup) => {
+  const reloadNonce = ref(0);
+  const reloadRequested = ref(false);
+
+  watch([selection, reloadNonce], async ([folders], _previous, onCleanup) => {
     const controller = new AbortController();
     onCleanup(() => controller.abort());
+    const reload = reloadRequested.value;
+    reloadRequested.value = false;
     datasets.value = [];
     error.value = '';
     loading.value = true;
     try {
-      const resolved = await resolveFolderDatasets(folders, controller.signal);
+      const resolved = await resolveFolderDatasets(
+        folders,
+        controller.signal,
+        { reload },
+      );
       if (!controller.signal.aborted) datasets.value = resolved;
     } catch (err) {
       if (!controller.signal.aborted) {
@@ -64,5 +102,16 @@ export function useFolderDatasets(selection: Ref<GirderModel[]>) {
       if (!controller.signal.aborted) loading.value = false;
     }
   }, { immediate: true, flush: 'sync' });
-  return { datasets, loading, error };
+
+  function refresh() {
+    if (selection.value.length === 0) {
+      return;
+    }
+    reloadRequested.value = true;
+    reloadNonce.value += 1;
+  }
+
+  return {
+    datasets, loading, error, refresh,
+  };
 }

@@ -5,7 +5,7 @@ from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set,
 
 from bson.objectid import InvalidId, ObjectId
 import cherrypy
-from girder.constants import AccessType
+from girder.constants import AccessType, SortDir
 from girder.exceptions import RestException
 from girder.models.file import File
 from girder.models.folder import Folder
@@ -13,6 +13,7 @@ from girder.models.item import Item
 from girder.models.token import Token
 from girder.utility import ziputil
 from pydantic.main import BaseModel
+import pymongo
 
 from dive_server import crud, crud_annotation
 from dive_tasks import tasks
@@ -253,6 +254,127 @@ def list_datasets(
     total = response['totalCount'][0]['count'] if len(response['results']) > 0 else 0
     cherrypy.response.headers['Girder-Total-Count'] = total
     return [Folder().filter(doc, additionalKeys=['ownerLogin']) for doc in response['results']]
+
+
+_FOLDER_CHILD_PAGE_SIZE = 100
+
+
+def resolve_folder_datasets(
+    user: types.GirderUserModel,
+    folder_ids: List[str],
+) -> List[types.GirderModel]:
+    """Expand container folders to descendant DIVE datasets (breadth-first).
+
+    Folders marked with ``meta.annotate`` are datasets; their children are not walked.
+    Matches the web client's former folder-walk behavior for pipelines and training.
+    """
+    datasets: List[types.GirderModel] = []
+    visited: Set[str] = set()
+    pending: List[types.GirderModel] = []
+
+    for folder_id in folder_ids:
+        folder = Folder().load(folder_id, level=AccessType.READ, user=user)
+        if folder is None:
+            raise RestException(f'Cannot access folder {folder_id}', code=403)
+        pending.append(folder)
+
+    index = 0
+    while index < len(pending):
+        folder = pending[index]
+        index += 1
+        folder_id = str(folder['_id'])
+        if folder_id in visited:
+            continue
+        visited.add(folder_id)
+
+        if asbool(fromMeta(folder, constants.DatasetMarker, False)):
+            datasets.append(Folder().filter(folder))
+            continue
+
+        offset = 0
+        while True:
+            children = list(
+                Folder().childFolders(
+                    folder,
+                    parentType='folder',
+                    user=user,
+                    limit=_FOLDER_CHILD_PAGE_SIZE,
+                    offset=offset,
+                    sortKey='_id',
+                    sortDir=SortDir.ASCENDING,
+                )
+            )
+            pending.extend(children)
+            offset += len(children)
+            if len(children) < _FOLDER_CHILD_PAGE_SIZE:
+                break
+
+    return datasets
+
+
+def _training_split_bulk_update(training_split: Optional[str]) -> dict:
+    if training_split is None:
+        return {'$unset': {'meta.trainingSplit': ''}}
+    return {'$set': {'meta.trainingSplit': training_split}}
+
+
+def _apply_training_split_to_folder_document(
+    folder: types.GirderModel,
+    training_split: Optional[str],
+) -> None:
+    folder.setdefault('meta', {})
+    if training_split is None:
+        folder['meta'].pop('trainingSplit', None)
+    else:
+        folder['meta']['trainingSplit'] = training_split
+
+
+def bulk_set_training_split_under_folders(
+    user: types.GirderUserModel,
+    root_folder_ids: List[str],
+    training_split: Optional[str],
+) -> Dict[str, Any]:
+    """Tag training splits on every DIVE dataset under each root and on the roots themselves."""
+    if not root_folder_ids:
+        raise RestException('No folder ids provided', code=400)
+    if training_split is not None:
+        validate_metadata_shape({'trainingSplit': training_split})
+
+    folder_model = Folder()
+    roots: List[types.GirderModel] = []
+    for folder_id in root_folder_ids:
+        root = folder_model.load(folder_id, level=AccessType.WRITE, user=user)
+        if root is None:
+            raise RestException(f'Cannot write to folder {folder_id}', code=403)
+        roots.append(root)
+
+    dataset_ids: Set[str] = set()
+    for dataset in resolve_folder_datasets(user, root_folder_ids):
+        dataset_id = str(dataset['_id'])
+        if not folder_model.hasAccess(dataset, user, AccessType.WRITE):
+            raise RestException(
+                f'Cannot write to dataset {dataset["_id"]}',
+                code=403,
+            )
+        dataset_ids.add(dataset_id)
+
+    bulk_update = _training_split_bulk_update(training_split)
+    if dataset_ids:
+        operations = [
+            pymongo.UpdateOne({'_id': _mongo_id(folder_id)}, bulk_update)
+            for folder_id in sorted(dataset_ids)
+        ]
+        folder_model.collection.bulk_write(operations, ordered=False)
+
+    for root in roots:
+        _apply_training_split_to_folder_document(root, training_split)
+        folder_model.save(root)
+
+    return {
+        'datasetIds': sorted(dataset_ids),
+        'updatedCount': len(dataset_ids),
+        'rootFolderIds': [str(root['_id']) for root in roots],
+    }
 
 
 def _multicam_camera_order(multi_cam: dict) -> List[str]:
@@ -643,7 +765,7 @@ def update_metadata(
     # must be popped by hand. timeFilters: null disables the filter;
     # cameraRegistrationSource: null drops a stale producer-provenance stamp when
     # the calibration is cleared or hand-refined.
-    for nullable in ('timeFilters', 'cameraRegistrationSource'):
+    for nullable in ('timeFilters', 'cameraRegistrationSource', 'trainingSplit'):
         if nullable in data and data[nullable] is None:
             dsFolder['meta'].pop(nullable, None)
     Folder().save(dsFolder)
@@ -1852,6 +1974,65 @@ def create_multicam(
         response['importWarnings'] = hierarchy_warnings
         return response
     return parent_folder_doc
+
+
+class FinalizeMulticamArgs(CreateMulticamArgs):
+    """CreateMulticamArgs plus optional wait/registration for async finalize."""
+
+    waitJobIds: Optional[List[str]] = None
+    registration: Optional[Dict[str, Any]] = None
+
+    class Config:
+        extra = 'forbid'
+
+
+def schedule_finalize_multicam(
+    user: types.GirderUserModel,
+    parent_folder: types.GirderModel,
+    data: dict,
+) -> types.GirderModel:
+    """
+    Enqueue a named convert job that waits for camera postprocess, then links the parent.
+
+    Uses girder-worker ``apply_async`` with ``girder_job_title`` (same as transcode jobs)
+    so only one titled job appears — not createLocalJob + Celery .delay() (which left an
+    untitled second job in the Girder UI).
+    """
+    from girder.models.token import Token
+
+    from dive_server.crud_rpc import _persist_async_job_metadata
+    from dive_tasks.finalize_multicam import finalize_multicam
+
+    validated: FinalizeMulticamArgs = crud.get_validated_model(FinalizeMulticamArgs, **data)
+    if parent_folder['name'] != validated.name:
+        raise RestException(
+            f'Dataset folder name "{parent_folder["name"]}" does not match "{validated.name}"',
+            code=400,
+        )
+    create_args = validated.dict(exclude={'waitJobIds', 'registration'}, exclude_none=True)
+    wait_job_ids = [str(jid) for jid in (validated.waitJobIds or [])]
+    token = Token().createToken(user=user, days=2)
+    async_result = finalize_multicam.apply_async(
+        kwargs=dict(
+            params={
+                'parent_folder_id': str(parent_folder['_id']),
+                'user_id': str(user['_id']),
+                'create_args': create_args,
+                'wait_job_ids': wait_job_ids,
+                'registration': validated.registration,
+            },
+            girder_job_title=f'Finalizing multicam dataset {parent_folder["name"]}',
+            girder_client_token=str(token['_id']),
+            girder_job_type='convert',
+        ),
+    )
+    return _persist_async_job_metadata(
+        async_result,
+        **{
+            constants.JOBCONST_DATASET_ID: str(parent_folder['_id']),
+            constants.JOBCONST_CREATOR: str(user['_id']),
+        },
+    )
 
 
 UNSUPPORTED_SIDE_FILE_REASON = "Unsupported side file"
