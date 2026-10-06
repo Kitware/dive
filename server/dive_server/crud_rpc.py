@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 import json
-from typing import Dict, List, Literal, NamedTuple, Optional, Tuple, TypedDict, cast
+from typing import Dict, List, Literal, NamedTuple, Optional, Set, Tuple, TypedDict, cast
 
 from girder.constants import AccessType
 from girder.exceptions import RestException
@@ -1704,6 +1704,13 @@ def _postprocess(
         dsFolder['meta'][constants.ConfidenceFiltersMarker] = {'default': 0.1}
         Folder().save(dsFolder)
 
+    # RLE COCO is deferred to a convert-style job. Collect ids here (and strip them
+    # from the sync sweep) but enqueue only after process_items finishes so a fast
+    # worker cannot re-enter postprocess while CSV/JSON are still being imported.
+    rle_item_ids: Set[str] = set()
+    rle_names: List[str] = []
+    rle_job_token = None
+
     if not skipJobs and not isClone:
         token = Token().createToken(user=user, days=2)
 
@@ -1879,39 +1886,7 @@ def _postprocess(
                 for item in configuration_plan['unprocessed_items']
                 if str(item['_id']) in rle_item_ids
             ]
-            convert_params = {
-                'user_id': str(user["_id"]),
-                'user_login': str(user["login"]),
-                'input_folder': str(dsFolder["_id"]),
-                'rle_items': sorted(rle_item_ids),
-            }
-            newjob = tasks.import_coco_annotations.apply_async(
-                queue=_get_queue_name(user),
-                kwargs=dict(
-                    folderId=str(dsFolder["_id"]),
-                    user_id=str(user["_id"]),
-                    user_login=str(user["login"]),
-                    additive=additive,
-                    additivePrepend=additivePrepend,
-                    set=set,
-                    girder_client_token=str(token["_id"]),
-                    girder_job_title=(
-                        f"Importing COCO RLE masks for {dsFolder['name']}"
-                        + (f" ({', '.join(rle_names)})" if rle_names else '')
-                    ),
-                    girder_job_type="private" if job_is_private else "convert",
-                ),
-            )
-            job = _persist_async_job_metadata(
-                newjob,
-                **{
-                    constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
-                    constants.JOBCONST_DATASET_ID: job_dataset_id,
-                    constants.JOBCONST_PARAMS: convert_params,
-                    constants.JOBCONST_CREATOR: str(user['_id']),
-                },
-            )
-            created_job_ids.append(job['_id'])
+            rle_job_token = token
             configuration_plan['unprocessed_items'] = [
                 item
                 for item in configuration_plan['unprocessed_items']
@@ -1937,6 +1912,42 @@ def _postprocess(
         if requested_fps != new_fps:
             dsFolder['meta'][constants.FPSMarker] = new_fps
             Folder().save(dsFolder)
+
+    if rle_item_ids and rle_job_token is not None:
+        convert_params = {
+            'user_id': str(user["_id"]),
+            'user_login': str(user["login"]),
+            'input_folder': str(dsFolder["_id"]),
+            'rle_items': sorted(rle_item_ids),
+        }
+        newjob = tasks.import_coco_annotations.apply_async(
+            queue=_get_queue_name(user),
+            kwargs=dict(
+                folderId=str(dsFolder["_id"]),
+                user_id=str(user["_id"]),
+                user_login=str(user["login"]),
+                additive=additive,
+                additivePrepend=additivePrepend,
+                set=set,
+                girder_client_token=str(rle_job_token["_id"]),
+                girder_job_title=(
+                    f"Importing COCO RLE masks for {dsFolder['name']}"
+                    + (f" ({', '.join(rle_names)})" if rle_names else '')
+                ),
+                girder_job_type="private" if job_is_private else "convert",
+            ),
+        )
+        job = _persist_async_job_metadata(
+            newjob,
+            **{
+                constants.JOBCONST_PRIVATE_QUEUE: job_is_private,
+                constants.JOBCONST_DATASET_ID: job_dataset_id,
+                constants.JOBCONST_PARAMS: convert_params,
+                constants.JOBCONST_CREATOR: str(user['_id']),
+            },
+        )
+        created_job_ids.append(job['_id'])
+
     return {
         'folder': dsFolder,
         'warnings': aggregate_warnings,

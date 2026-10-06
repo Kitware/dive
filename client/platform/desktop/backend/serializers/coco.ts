@@ -166,15 +166,29 @@ function bboxFromPoints(points: [number, number][]): [number, number, number, nu
   return [xMin, yMin, Math.max(...xs) - xMin, Math.max(...ys) - yMin];
 }
 
-function annotationHasImportableBounds(annotation: CocoAnnotation): boolean {
+/** Decode segmentation once; reuse for bounds check, bbox, and geometry. */
+function segmentationCoordLists(
+  annotation: CocoAnnotation,
+): { coordLists: [number, number][][]; rleSkipped: boolean } {
+  if (!annotation.segmentation) {
+    return { coordLists: [], rleSkipped: false };
+  }
+  if (hasRleSegmentation(annotation)) {
+    const coordLists = rlePolygonCoords(annotation.segmentation);
+    return { coordLists, rleSkipped: !coordLists.length };
+  }
+  return { coordLists: extractPolygonCoordsLists(annotation.segmentation), rleSkipped: false };
+}
+
+function annotationHasImportableBounds(
+  annotation: CocoAnnotation,
+  coordLists?: [number, number][][],
+): boolean {
   if (hasValidBbox(annotation)) {
     return true;
   }
-  if (hasRleSegmentation(annotation)) {
-    // An RLE mask supplies bounds only when it can be decoded to an outline.
-    return rlePolygonCoords(annotation.segmentation).length > 0;
-  }
-  return extractPolygonCoordsLists(annotation.segmentation).length > 0;
+  const lists = coordLists ?? segmentationCoordLists(annotation).coordLists;
+  return lists.length > 0;
 }
 
 function missingBoundsError(annotationIds: Array<number | string>): string {
@@ -188,23 +202,30 @@ function missingBoundsError(annotationIds: Array<number | string>): string {
   );
 }
 
-function resolveCocoBbox(annotation: CocoAnnotation): [number, number, number, number] {
+function resolveCocoBbox(
+  annotation: CocoAnnotation,
+  coordLists?: [number, number][][],
+): [number, number, number, number] {
   if (hasValidBbox(annotation)) {
     return annotation.bbox as [number, number, number, number];
   }
-  const coordLists = hasRleSegmentation(annotation)
-    ? rlePolygonCoords(annotation.segmentation)
-    : extractPolygonCoordsLists(annotation.segmentation);
-  const allPoints = coordLists.flat();
+  const lists = coordLists ?? segmentationCoordLists(annotation).coordLists;
+  const allPoints = lists.flat();
   if (allPoints.length) {
     return bboxFromPoints(allPoints);
   }
   throw new Error(missingBoundsError([annotation.id]));
 }
 
-function validateAnnotationBounds(annotations: CocoAnnotation[]): void {
+function validateAnnotationBounds(
+  annotations: CocoAnnotation[],
+  coordListsByAnnotation?: WeakMap<CocoAnnotation, [number, number][][]>,
+): void {
   const missingIds = annotations
-    .filter((annotation) => !annotationHasImportableBounds(annotation))
+    .filter((annotation) => !annotationHasImportableBounds(
+      annotation,
+      coordListsByAnnotation?.get(annotation),
+    ))
     .map((annotation) => annotation.id);
   if (missingIds.length) {
     throw new Error(missingBoundsError(missingIds));
@@ -288,20 +309,16 @@ function buildFeatureGeometry(
   annotation: CocoAnnotation,
   category?: CocoCategory,
   keypointCategories: { id: number; name: string }[] = [],
+  precomputed?: { coordLists: [number, number][][]; rleSkipped: boolean },
 ): { geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>; rleSkipped: boolean } {
   const geometryFeatures:
     GeoJSON.Feature<TrackSupportedFeature, GeoJSON.GeoJsonProperties>[] = [];
-  let rleSkipped = false;
-  let coordLists: [number, number][][];
-  if (hasRleSegmentation(annotation)) {
-    const rleCoords = rlePolygonCoords(annotation.segmentation);
-    // Only undecodable masks are reported; a traced outline is not a loss.
-    rleSkipped = !rleCoords.length;
-    // Largest outline only (server parity); holes / extra components are dropped.
-    coordLists = rleCoords.length ? [rleCoords[0]] : [];
-  } else {
-    coordLists = extractPolygonCoordsLists(annotation.segmentation);
-  }
+  const resolved = precomputed ?? segmentationCoordLists(annotation);
+  const { rleSkipped } = resolved;
+  // Largest outline only for RLE (server parity); holes / extra components are dropped.
+  const coordLists = hasRleSegmentation(annotation) && resolved.coordLists.length
+    ? [resolved.coordLists[0]]
+    : resolved.coordLists;
   coordLists.forEach((coords) => {
     geometryFeatures.push({
       type: 'Feature',
@@ -471,12 +488,25 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
   let probIgnoredForDuplicates = false;
   let diveConfidencePairsInvalid = false;
 
-  validateAnnotationBounds(parsed.annotations);
+  // Decode each segmentation once; reuse for bounds check, bbox, and geometry.
+  const segByAnnotation = new WeakMap<CocoAnnotation, {
+    coordLists: [number, number][][];
+    rleSkipped: boolean;
+  }>();
+  const coordListsByAnnotation = new WeakMap<CocoAnnotation, [number, number][][]>();
+  parsed.annotations.forEach((annotation) => {
+    const resolved = segmentationCoordLists(annotation);
+    segByAnnotation.set(annotation, resolved);
+    coordListsByAnnotation.set(annotation, resolved.coordLists);
+  });
+  validateAnnotationBounds(parsed.annotations, coordListsByAnnotation);
 
   parsed.annotations.forEach((annotation) => {
     const frame = frameByImageId[annotation.image_id];
     if (frame === undefined) return;
-    const [x, y, w, h] = resolveCocoBbox(annotation);
+    const precomputed = segByAnnotation.get(annotation)
+      ?? segmentationCoordLists(annotation);
+    const [x, y, w, h] = resolveCocoBbox(annotation, precomputed.coordLists);
     const bounds: [number, number, number, number] = [x, y, x + w, y + h];
     const trackId = annotation.track_id ?? annotation.id;
     const category = categoriesById[annotation.category_id];
@@ -542,7 +572,12 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
     } else if (typeof noteField === 'string' && noteField.trim()) {
       feature.notes = [noteField.trim()];
     }
-    const { geometry, rleSkipped } = buildFeatureGeometry(annotation, category, parsed.keypoint_categories);
+    const { geometry, rleSkipped } = buildFeatureGeometry(
+      annotation,
+      category,
+      parsed.keypoint_categories,
+      precomputed,
+    );
     if (rleSkipped) {
       skippedRleMasks = true;
     }
