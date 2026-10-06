@@ -271,6 +271,8 @@ class RpcResource(Resource):
         stitchedSide,
         jobDatasetId,
     ):
+        # Keep Girder form param name ``set``; CRUD uses annotation_set to avoid
+        # shadowing the builtin.
         return crud_rpc.postprocess(
             self.getCurrentUser(),
             folder,

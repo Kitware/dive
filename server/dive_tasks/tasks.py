@@ -9,6 +9,7 @@ from dive_tasks.convert_images import (
     convert_calibration,
     convert_images,
     convert_large_images,
+    create_large_image_tiles,
     extract_zip,
 )
 from dive_tasks.convert_video import convert_video, resolve_annotation_fps
@@ -42,6 +43,7 @@ __all__ = [
     'convert_images',
     'convert_large_images',
     'convert_video',
+    'create_large_image_tiles',
     'download_google_drive_zip',
     'export_trained_pipeline',
     'extract_zip',
