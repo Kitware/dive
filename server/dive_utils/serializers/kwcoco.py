@@ -237,6 +237,15 @@ def _is_rle_segmentation(annotation: dict, segmentation=None) -> bool:
     return bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
 
 
+def coco_contains_rle(coco: Dict[str, Any]) -> bool:
+    """True when any annotation carries COCO RLE / crowd segmentation."""
+    annotations = coco.get('annotations') or []
+    return any(
+        isinstance(annotation, dict) and _is_rle_segmentation(annotation)
+        for annotation in annotations
+    )
+
+
 def _decode_rle_counts(counts) -> Optional[List[int]]:
     """Run lengths from either COCO counts spelling.
 
@@ -244,8 +253,10 @@ def _decode_rle_counts(counts) -> Optional[List[int]]:
     runs LEB128-encoded into a string.
     """
     if isinstance(counts, (list, tuple)):
-        if all(isinstance(count, int) and not isinstance(count, bool) and count >= 0
-               for count in counts):
+        if all(
+            isinstance(count, int) and not isinstance(count, bool) and count >= 0
+            for count in counts
+        ):
             return list(counts)
         return None
     if not isinstance(counts, (str, bytes)):
@@ -278,7 +289,14 @@ def _decode_rle_counts(counts) -> Optional[List[int]]:
 
 # Clockwise Moore neighbourhood, as (dx, dy) starting from due east.
 _MOORE_OFFSETS = (
-    (1, 0), (1, 1), (0, 1), (-1, 1), (-1, 0), (-1, -1), (0, -1), (1, -1),
+    (1, 0),
+    (1, 1),
+    (0, 1),
+    (-1, 1),
+    (-1, 0),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
 )
 
 
@@ -361,7 +379,7 @@ def _rle_polygon_coords(segmentation) -> List[List[Tuple[float, float]]]:
     position = 0
     for index, run in enumerate(runs):
         if index % 2:  # odd runs are foreground
-            flat[position:position + run] = True
+            flat[position : position + run] = True
         position += run
     # COCO run-length order is column-major.
     mask = flat.reshape((height, width), order='F')
@@ -371,9 +389,7 @@ def _rle_polygon_coords(segmentation) -> List[List[Tuple[float, float]]]:
     # A boundary pixel is foreground with at least one background 4-neighbour.
     padded = np.zeros((height + 2, width + 2), dtype=bool)
     padded[1:-1, 1:-1] = mask
-    interior = (
-        padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:]
-    )
+    interior = padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:]
     boundary = mask & ~interior
 
     visited = np.zeros_like(mask)

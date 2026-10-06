@@ -1446,7 +1446,7 @@ def test_centerlines_with_different_vertex_counts_share_coco_schema():
 
 
 def _rle_to_string(cnts):
-    """pycocotools rleToString, so the decoder is tested against real output."""
+    """Pycocotools rleToString, so the decoder is tested against real output."""
     out = []
     for i, count in enumerate(cnts):
         x = int(count)
@@ -1482,10 +1482,16 @@ def _square_mask_runs():
 def _rle_document(counts):
     return {
         'images': [{'id': 1, 'file_name': 'frame_000000.png', 'frame_index': 0}],
-        'annotations': [{
-            'id': 1, 'image_id': 1, 'category_id': 1, 'track_id': 1,
-            'segmentation': {'counts': counts, 'size': [10, 10]}, 'iscrowd': 1,
-        }],
+        'annotations': [
+            {
+                'id': 1,
+                'image_id': 1,
+                'category_id': 1,
+                'track_id': 1,
+                'segmentation': {'counts': counts, 'size': [10, 10]},
+                'iscrowd': 1,
+            }
+        ],
         'categories': [{'id': 1, 'name': 'fish'}],
     }
 
@@ -1499,7 +1505,8 @@ def test_rle_masks_import_as_outlines(as_string):
 
     feature = tracks['tracks']['1']['features'][0]
     polygon = [
-        geometry for geometry in feature['geometry']['features']
+        geometry
+        for geometry in feature['geometry']['features']
         if geometry['geometry']['type'] == 'Polygon'
     ]
     assert polygon, 'expected a polygon traced from the mask'
@@ -1527,3 +1534,27 @@ def test_decode_rle_counts_rejects_junk():
     assert kwcoco._decode_rle_counts([1, 'x']) is None
     assert kwcoco._decode_rle_counts(None) is None
     assert kwcoco._decode_rle_counts(_rle_to_string([4, 2, 4])) == [4, 2, 4]
+
+
+def test_coco_contains_rle_detects_masks():
+    assert kwcoco.coco_contains_rle(_rle_document([4, 2, 4])) is True
+    assert (
+        kwcoco.coco_contains_rle(
+            {
+                'images': [{'id': 1, 'file_name': 'a.png'}],
+                'annotations': [
+                    {
+                        'id': 1,
+                        'image_id': 1,
+                        'category_id': 1,
+                        'bbox': [0, 0, 1, 1],
+                        'segmentation': [[0, 0, 1, 0, 1, 1]],
+                    }
+                ],
+                'categories': [{'id': 1, 'name': 'fish'}],
+            }
+        )
+        is False
+    )
+    assert kwcoco.coco_contains_rle({'annotations': []}) is False
+    assert kwcoco.coco_contains_rle({}) is False

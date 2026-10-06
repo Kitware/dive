@@ -594,9 +594,10 @@ For COCO files not produced by DIVE:
     outline, since DIVE stores geometry rather than rasters. Both COCO counts
     spellings are read: a list of run lengths, and the LEB128 string pycocotools
     writes. Holes are not representable and are dropped, and a mask that cannot be
-    decoded is skipped with a warning, as before. Web import only; desktop import
-    still skips RLE. Decoding needs no extra dependency: the outline is traced with
-    numpy alone.
+    decoded is skipped with a warning, as before. On the web, RLE conversion runs as
+    a postprocess convert job (same job tracking as video/image transcoding) so the
+    import request does not decode masks inline; desktop import still skips RLE.
+    Decoding needs no extra dependency: the outline is traced with numpy alone.
 
 ### Example COCO Annotation with DIVE Extensions
 
