@@ -308,8 +308,8 @@ function hasRleSegmentation(annotation: CocoAnnotation): boolean {
 function buildFeatureGeometry(
   annotation: CocoAnnotation,
   category?: CocoCategory,
-  keypointCategories: { id: number; name: string }[] = [],
   precomputed?: { coordLists: [number, number][][]; rleSkipped: boolean },
+  keypointCategories: { id: number; name: string }[] = [],
 ): { geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>; rleSkipped: boolean } {
   const geometryFeatures:
     GeoJSON.Feature<TrackSupportedFeature, GeoJSON.GeoJsonProperties>[] = [];
@@ -575,8 +575,8 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
     const { geometry, rleSkipped } = buildFeatureGeometry(
       annotation,
       category,
-      parsed.keypoint_categories,
       precomputed,
+      parsed.keypoint_categories,
     );
     if (rleSkipped) {
       skippedRleMasks = true;
