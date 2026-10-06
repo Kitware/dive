@@ -48,6 +48,17 @@ A parent row's checkbox always toggles its complete subtree. The heading checkbo
 
 While a hierarchy is active, **Prevent Cascade Types** is disabled and shows: `Not applicable to hierarchical types; DIVE selects the deepest qualifying type.`
 
+## Manage Types
+
+Open the Type List settings cog and choose **Manage Types** to see every type, including empty types and parents hidden by the list's filters. Use the arrow beside a parent to collapse or expand its branch, or use **Expand All** / **Collapse All**. Search temporarily expands matching branches and restores the collapsed state when cleared. Branch counts remain visible when collapsed.
+
+* Use the pencil to rename a type, change its parent, or adjust its appearance. Clearing **Parent Type** moves the type to the top level. Children follow their parent when it moves.
+* **Direct tracks** counts tracks that explicitly carry that label. **Branch tracks** includes descendants, counting each track only once. These counts include all cameras and ignore visibility, confidence, frame, and attribute filters.
+* Use the trash button to delete a type. Its children move to its parent, or to the top level if it has no parent. For types with a parent, optionally check **Delete empty parents too** to remove ancestors left without child types or directly assigned tracks. Cleanup stops at the first parent still in use; the option starts unchecked.
+* If tracks directly carry the deleted type, choose either to transfer that label to `unknown` (keeping other labels and annotations) or to delete those entire tracks from every camera. Tracks carrying only descendant labels are kept. Cancel leaves the type and tracks unchanged.
+
+Changes apply immediately and are persisted when you save the dataset. Read-only mode allows inspecting counts but disables editing and deletion.
+
 ## Type Style Editor
 
 ![Type Editor](images/TypeEditor.png){ align=right loading=lazy width=260 }

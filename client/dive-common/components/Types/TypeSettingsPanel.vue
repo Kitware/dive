@@ -8,11 +8,12 @@ import {
 } from 'vue';
 import { useReadOnlyMode } from 'vue-media-annotator/provides';
 import { clientSettings } from 'dive-common/store/settings';
+import TypeManagementDialog from 'vue-media-annotator/components/Types/TypeManagementDialog.vue';
 import CategoryImportDialog from './CategoryImportDialog.vue';
 
 export default defineComponent({
   name: 'TypeSettingsPanel',
-  components: { CategoryImportDialog },
+  components: { CategoryImportDialog, TypeManagementDialog },
 
   props: {
     allTypes: {
@@ -40,6 +41,7 @@ export default defineComponent({
       suppressionThreshold: 'Minimum percent of a detection that must lie under suppression regions for it to be hidden (default 99).',
     });
     const importDialog = ref(false);
+    const manageDialog = ref(false);
     const active = ref(false);
     // Always offer the default suppression type even when no annotations use it yet.
     const suppressionTypeItems = computed(() => (
@@ -54,6 +56,7 @@ export default defineComponent({
       itemHeight,
       help,
       importDialog,
+      manageDialog,
       readOnlyMode,
       suppressionTypeItems,
     };
@@ -97,41 +100,30 @@ export default defineComponent({
         </v-card-title>
         <v-card-text>
           <v-row>
-            <v-col>
+            <v-col class="d-flex align-center">
               <v-btn
-                dense
                 small
                 outlined
-                hide-details
+                class="mr-2"
+                :title="help.import"
                 :disabled="readOnlyMode"
                 @click="active = false; importDialog = true"
               >
-                <v-icon small>
+                <v-icon small class="mr-1">
                   mdi-plus
                 </v-icon>
-                Types
+                Add Types
               </v-btn>
-            </v-col>
-            <v-col
-              cols="2"
-              align="right"
-              justify="center"
-            >
-              <v-tooltip
-                open-delay="200"
-                bottom
-                max-width="200"
+              <v-btn
+                small
+                outlined
+                @click="active = false; manageDialog = true"
               >
-                <template #activator="{ on }">
-                  <v-icon
-                    small
-                    v-on="on"
-                  >
-                    mdi-help
-                  </v-icon>
-                </template>
-                <span>{{ help.import }}</span>
-              </v-tooltip>
+                <v-icon small class="mr-1">
+                  mdi-file-tree
+                </v-icon>
+                Manage Types
+              </v-btn>
             </v-col>
           </v-row>
           <v-row>
@@ -436,6 +428,9 @@ export default defineComponent({
       </v-card>
     </v-menu>
 
+    <v-dialog v-model="manageDialog" max-width="1000" scrollable>
+      <TypeManagementDialog v-if="manageDialog" @close="manageDialog = false" />
+    </v-dialog>
     <v-dialog
       v-model="importDialog"
       width="550"
