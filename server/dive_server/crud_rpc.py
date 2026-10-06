@@ -1497,7 +1497,7 @@ def process_items(
     user: types.GirderUserModel,
     additive=False,
     additivePrepend='',
-    set='',
+    annotation_set='',
     configuration_plan=None,
 ):
     """
@@ -1611,7 +1611,7 @@ def process_items(
                 upsert_groups=results['annotations']['groups'].values(),
                 overwrite=True,
                 description=f'Import {results["type"].name} from {file["name"]}',
-                set=set,
+                set=annotation_set,
             )
         if results['attributes']:
             crud.saveImportAttributes(folder, results['attributes'], user)
@@ -1646,7 +1646,7 @@ def postprocess(
     skipTranscoding=False,
     additive=False,
     additivePrepend='',
-    set='',
+    annotation_set='',
     stitchedSide='',
     jobDatasetId='',
 ) -> dict:
@@ -1657,7 +1657,7 @@ def postprocess(
         skipTranscoding,
         additive,
         additivePrepend,
-        set,
+        annotation_set,
         stitchedSide,
         jobDatasetId,
     )
@@ -1670,7 +1670,7 @@ def _postprocess(
     skipTranscoding=False,
     additive=False,
     additivePrepend='',
-    set='',
+    annotation_set='',
     stitchedSide='',
     jobDatasetId='',
 ) -> dict:
@@ -1972,7 +1972,7 @@ def _postprocess(
         user,
         additive,
         additivePrepend,
-        set,
+        annotation_set,
         configuration_plan=configuration_plan,
     )
     # Image sequences start at fps=-1 (auto). CSV import may have set a value;
@@ -2002,7 +2002,7 @@ def _postprocess(
                 user_login=str(user["login"]),
                 additive=additive,
                 additivePrepend=additivePrepend,
-                set=set,
+                set=annotation_set,
                 girder_client_token=str(rle_job_token["_id"]),
                 girder_job_title=(
                     f"Importing COCO RLE masks for {dsFolder['name']}"
