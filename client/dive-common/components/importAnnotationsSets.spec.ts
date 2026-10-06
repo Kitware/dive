@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { defineComponent, h, ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import { provideAnnotator, dummyState, dummyHandler } from 'vue-media-annotator/provides';

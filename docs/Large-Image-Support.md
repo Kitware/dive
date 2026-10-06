@@ -7,7 +7,7 @@ GeoTIFF tile server).
 ## Dynamic range in the viewer
 
 For **Web** tiled TIFF datasets (`large-image` type), use the
-[Image Enhancements](UI-Image-Enhancements.md) panel to apply **percentile stretch** while
+[Image Adjustments](UI-Image-Enhancements.md) panel to apply **percentile stretch** while
 annotating. DIVE passes stretch parameters to Girder tile requests so 16-bit (and other
 high bit-depth) data can be viewed interactively without baking a fixed min/max into the
 file first.

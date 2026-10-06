@@ -50,6 +50,16 @@ User-facing docs: [Multicamera and Stereo Data](../../../../docs/Multicamera-dat
 | `multi` | `ImportMultiCamMultiFolder.vue` | Pick a folder or image list per camera. Default for video imports. |
 | `subfolders` | `ImportMultiCamSubfolders.vue` | Pick one parent folder; each immediate child subfolder becomes a camera (2–3 cameras). Enabled when `enableSubfolderImport` is true. |
 | `keyword` | `ImportMultiCamKeyword.vue` | One shared folder; glob patterns split images per camera (image sequences only). |
+| `stitched` | `ImportMultiCamStitched.vue` | Stereo only. One folder, image list, or video whose frames hold the left and right cameras side by side; both cameras share the source and the payload carries `stitched: true`. |
+
+### Stitched stereo (implementation)
+
+User-facing behavior (desktop in-place read vs web worker split) is documented in [Multicamera-data.md — Stitched stereo](../../../../docs/Multicamera-data.md#stitched-stereo).
+
+| Platform | Import payload | Stored media | Half-frame handling |
+|----------|----------------|--------------|---------------------|
+| **Desktop** | `stitched: true`; `multiCamImport` sets `stitchedSide` on each camera and requires one shared `sourcePath` for `left`/`right` | Original side-by-side file(s); no split job | Annotators: `stitchedSide` prop → geojs crop (`client/src/stitchedStereo.ts`). Review: wrapper in `dive-common/review/frameSource.ts`. Pipelines/search: `stitchedReaderSettings` in `platform/desktop/backend/native/stitchedMedia.ts`. |
+| **Web** | Same dialog; `Upload.vue` passes `stitchedSide` per camera upload | After postprocess, cropped media only | `postProcess(..., stitchedSide, jobDatasetId=parent)` enqueues `split_stitched`; `dive_dataset/multicam_finalize` waits for those jobs then links the parent. Upload UI returns after scheduling; the data browser shows Processing until annotate is set. |
 
 ## Architecture
 
@@ -64,6 +74,7 @@ ImportMultiCamDialog.vue          Shell: platform props, ctx wiring, errors, act
 ├── ImportMultiCamMultiFolder.vue
 ├── ImportMultiCamSubfolders.vue
 ├── ImportMultiCamKeyword.vue
+├── ImportMultiCamStitched.vue
 ├── ImportMultiCamFinalizeStep.vue
 ├── ImportMultiCamCalibration.vue
 ├── ImportMultiCamCameraOrderControls.vue

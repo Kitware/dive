@@ -323,6 +323,15 @@ def test_metadata_mutable_does_not_classify_unrelated_json_as_config():
     assert models.MetadataMutable.is_dive_configuration({'tracks': {}, 'groups': {}}) is False
 
 
+def test_metadata_mutable_does_not_classify_dive_annotation_json_as_config():
+    assert (
+        models.MetadataMutable.is_dive_configuration(
+            {'version': 2, 'fps': 5, 'tracks': {'0': {}}, 'groups': {}}
+        )
+        is False
+    )
+
+
 @pytest.mark.parametrize(
     'media_type',
     [
@@ -451,8 +460,7 @@ def test_type_hierarchy_for_export_names_the_coco_artifact():
         crud_dataset.type_hierarchy_for_export(folder, artifact='COCO file')
 
     assert str(error_info.value) == (
-        'Type hierarchy is invalid: self edge "fish -> fish". '
-        'No COCO file was exported.'
+        'Type hierarchy is invalid: self edge "fish -> fish". No COCO file was exported.'
     )
 
 
@@ -1075,3 +1083,49 @@ def test_get_multicam_camera_name_returns_matching_camera():
     assert crud.get_multicam_camera_name({'_id': 'left-id'}, parent) == 'left'
     assert crud.get_multicam_camera_name({'_id': 'right-id'}, parent) == 'right'
     assert crud.get_multicam_camera_name({'_id': 'other-id'}, parent) is None
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_sets_and_clears_training_split(_verify, folder_cls, crud_folder_cls):
+    folder = {'_id': 'dataset-id', 'meta': {'annotate': True, 'type': 'video'}}
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    crud_dataset.update_metadata(folder, {'trainingSplit': 'test'})
+    assert folder['meta']['trainingSplit'] == 'test'
+
+    crud_dataset.update_metadata(folder, {'fps': 10})
+    assert folder['meta']['trainingSplit'] == 'test'
+
+    crud_dataset.update_metadata(folder, {'trainingSplit': None})
+    assert 'trainingSplit' not in folder['meta']
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_rejects_unknown_training_split(_verify, folder_cls, crud_folder_cls):
+    folder = {'_id': 'dataset-id', 'meta': {'annotate': True, 'type': 'video'}}
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+
+    with pytest.raises((RestException, ValidationException)):
+        crud_dataset.update_metadata(folder, {'trainingSplit': 'holdout'})
+
+
+@patch('dive_server.crud.Folder')
+@patch('dive_server.crud_dataset.Folder')
+@patch('dive_server.crud_dataset.crud.verify_dataset')
+def test_update_metadata_preserves_worms_provenance(_verify, folder_cls, crud_folder_cls):
+    folder = {'_id': 'dataset-id', 'meta': {'annotate': True, 'type': 'video'}}
+    _stub_folder_load_and_save(folder_cls, folder)
+    _stub_folder_load_and_save(crud_folder_cls, folder)
+    sources = {'126175': {'aphiaId': 126175, 'scientificName': 'Sebastes', 'rank': 'Genus'}}
+    crud_dataset.update_metadata(folder, {'taxonomySources': sources})
+    assert folder['meta']['taxonomySources'] == sources
+    crud_dataset.update_metadata(folder, {'confidenceFilters': {'default': 0.5}})
+    assert folder['meta']['taxonomySources'] == sources
+    validated = models.MetadataMutable(**folder['meta'])
+    assert validated.dict(exclude_none=True)['taxonomySources'] == sources

@@ -1,5 +1,6 @@
 import BaseLayer, { LayerStyle } from '../BaseLayer';
 import { FrameDataTrack } from '../LayerTypes';
+import { spineIndex } from '../../headTail';
 
 interface PointGeoJSData {
     trackId: number;
@@ -10,6 +11,9 @@ interface PointGeoJSData {
     x: number;
     y: number;
 }
+
+const compactInterior = (data: PointGeoJSData) => spineIndex(data.feature) !== null
+  && !(data.selected && data.editing === 'LineString');
 
 export default class PointLayer extends BaseLayer<PointGeoJSData> {
   initialize() {
@@ -56,29 +60,44 @@ export default class PointLayer extends BaseLayer<PointGeoJSData> {
   createStyle(): LayerStyle<PointGeoJSData> {
     return {
       ...super.createStyle(),
-      fill: (data: PointGeoJSData) => data.feature === 'head',
+      fill: (data: PointGeoJSData) => data.feature === 'head'
+        || compactInterior(data),
       fillColor: (data: PointGeoJSData) => {
+        if (compactInterior(data) && data.selected) {
+          return this.stateStyling.selected.color;
+        }
         if (data.styleType) {
           return this.typeStyling.value.color(data.styleType[0]);
         }
         return this.typeStyling.value.color('');
       },
       fillOpacity: (data: PointGeoJSData) => {
+        if (compactInterior(data)) return 1;
         if (data.styleType) {
           return this.typeStyling.value.opacity(data.styleType[0]);
         }
         return this.stateStyling.standard.opacity;
       },
       radius: (data: PointGeoJSData) => {
+        // Selection changes color, not the size of a compact interior marker.
+        if (compactInterior(data)) {
+          return data.styleType ? this.typeStyling.value.strokeWidth(data.styleType[0])
+            : this.stateStyling.standard.strokeWidth;
+        }
+        const scale = 2;
         if (data.selected) {
-          return this.stateStyling.selected.strokeWidth * 2;
+          return this.stateStyling.selected.strokeWidth * scale;
         }
         if (data.styleType) {
-          return this.typeStyling.value.strokeWidth(data.styleType[0]) * 2;
+          return this.typeStyling.value.strokeWidth(data.styleType[0]) * scale;
         }
-        return this.stateStyling.standard.strokeWidth * 2;
+        return this.stateStyling.standard.strokeWidth * scale;
       },
       strokeWidth: (data: PointGeoJSData) => {
+        if (compactInterior(data)) {
+          return (data.styleType ? this.typeStyling.value.strokeWidth(data.styleType[0])
+            : this.stateStyling.standard.strokeWidth) / 2;
+        }
         if (data.selected) {
           return this.stateStyling.selected.strokeWidth;
         }

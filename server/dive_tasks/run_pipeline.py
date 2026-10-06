@@ -17,8 +17,10 @@ from dive_tasks.multicam_pipeline import (
     append_metadata_file_kwiver_settings,
     append_stereo_calibration_kwiver_settings,
     build_multicam_kwiver_settings,
+    build_registration_kwiver_settings,
     find_downloaded_calibration_file,
     is_stereo_measurement_pipeline,
+    video_subset_cameras,
 )
 from dive_tasks.pipeline_creates_dataset import (
     append_new_dataset_media_writers,
@@ -26,6 +28,8 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
+from dive_tasks.registration_output import ingest_registration_output
+from dive_tasks.single_camera_pipeline import csv_rows, finish_single_camera_run
 from dive_tasks.viame_config import Config
 from dive_utils import constants, fromMeta
 from dive_utils.types import GirderModel, MulticamCameraJob, MulticamPipelineJob, PipelineJob
@@ -253,6 +257,7 @@ def run_pipeline(self: Task, params: PipelineJob):
     force_transcoded = params.get('force_transcoded', False)
     runtime_params = params.get('runtime_params') or {}
     frame_range = runtime_params.get('frameRange')
+    image_pairs = runtime_params.get('imagePairs')
     multicam_params: MulticamPipelineJob = params
     multicam_cameras: List[MulticamCameraJob] = multicam_params.get('multicam_cameras') or []
     camera_name = params.get('camera_name')
@@ -286,12 +291,17 @@ def run_pipeline(self: Task, params: PipelineJob):
             creates_new_dataset = pipeline_creates_new_dataset(pipeline)
             camera_media: Dict[str, Tuple[List[str], str]] = {}
 
+            # A frame subset names frames by the timeline the viewer showed the
+            # user, which for web video is the transcoded file (useDataset reads
+            # media.video); extracting from the source instead would pair frame
+            # numbers against a different timeline wherever a transcode shifted it.
+            multicam_force_transcoded = force_transcoded or bool(image_pairs)
             for cam_index, camera in enumerate(multicam_cameras, start=1):
                 cam_input_path = utils.make_directory(input_path / camera['name'])
                 media_list, media_type = utils.download_source_media(
-                    gc, camera['folder_id'], cam_input_path, force_transcoded
+                    gc, camera['folder_id'], cam_input_path, multicam_force_transcoded
                 )
-                if frame_range is not None and media_type == constants.ImageSequenceType:
+                if frame_range is not None and media_type in constants.ImageListTypes:
                     media_list = filter_image_list_by_frame_range(media_list, frame_range)
                 camera_media[camera['name']] = (media_list, media_type)
                 if requires_input and camera.get('input_revision') is not None:
@@ -300,20 +310,43 @@ def run_pipeline(self: Task, params: PipelineJob):
                         gc, camera['folder_id'], camera['input_revision'], gt_path
                     )
 
+            # Video cameras in a frame-subset run are extracted to stills below,
+            # so the run feeds image lists only -- see the reader-type skip.
+            extracted_cameras = video_subset_cameras(camera_media, image_pairs)
+            if extracted_cameras:
+                manager.write(
+                    'Extracting registration frames from video for: '
+                    f'{", ".join(extracted_cameras)}\n'
+                )
+
+            def report_extraction(message: str) -> None:
+                # Extraction is a plain loop of short ffmpeg calls, so unlike a
+                # streamed subprocess nothing else notices a cancel while it runs.
+                if utils.check_canceled(self, context, force=False):
+                    manager.write('\nCanceled during frame extraction.\n')
+                    manager.updateStatus(JobStatus.CANCELED)
+                    raise utils.CanceledError('Job was canceled')
+                manager.write(f'{message}\n')
+
             arg_file_pair, out_files = build_multicam_kwiver_settings(
                 _working_directory_path,
                 multicam_cameras,
                 camera_media,
                 requires_input=requires_input,
+                image_pairs=image_pairs,
+                fps=input_fps,
+                on_progress=report_extraction if extracted_cameras else None,
             )
 
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "viame runner",
-                f"-p {shlex.quote(str(pipeline_path))}",
+                f"viame run {shlex.quote(str(pipeline_path))}",
             ]
-            if input_type == constants.VideoType:
+            # An extracted subset replaced every video input with an image list;
+            # leaving the video reader type (or the downsampler) bound would
+            # point a vidl_ffmpeg reader at a .txt manifest.
+            if input_type == constants.VideoType and not extracted_cameras:
                 command.extend(
                     [
                         '-s input:video_reader:type=vidl_ffmpeg',
@@ -326,6 +359,14 @@ def run_pipeline(self: Task, params: PipelineJob):
                     )
             for arg, file_name in arg_file_pair.items():
                 command.append(f"-s {shlex.quote(arg)}={shlex.quote(file_name)}")
+
+            multicam_registration = multicam_params.get('multicam_registration')
+            if multicam_registration:
+                registration_settings = build_registration_kwiver_settings(
+                    _working_directory_path, multicam_cameras, multicam_registration
+                )
+                for arg, value in registration_settings.items():
+                    command.append(f'-s {shlex.quote(arg)}={shlex.quote(value)}')
 
             transcoded_video: Optional[str] = None
             if creates_new_dataset:
@@ -365,6 +406,13 @@ def run_pipeline(self: Task, params: PipelineJob):
             _append_input_list_kwiver_settings(command, pipeline, input_manifests)
 
             _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
+
+            is_align_pipeline = 'align_cameras' in pipeline['pipe']
+            if is_align_pipeline:
+                # Camera names for the output JSON, aligned with the
+                # input{i} order used above.
+                camera_names = ','.join(camera['name'] for camera in multicam_cameras)
+                command.append(f'-s register:camera_names={shlex.quote(camera_names)}')
 
             kwiver_params = params.get('kwiver_params')
             if kwiver_params:
@@ -435,6 +483,31 @@ def run_pipeline(self: Task, params: PipelineJob):
                 return
 
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
+            if is_align_pipeline:
+                # The register process writes its JSON atomically in the run
+                # cwd (output_path); a canceled/failed job leaves no file, so
+                # a file present here is a complete result. Substring sniff,
+                # like the desktop collector.
+                registration_files = [
+                    path
+                    for path in output_path.iterdir()
+                    if path.is_file()
+                    and 'registration' in path.name.lower()
+                    and path.suffix == '.json'
+                ]
+                if not registration_files:
+                    manager.write('No registration output produced; see the log above.\n')
+                    return
+                registration_path = registration_files[0]
+                # Keep the raw artifact with the dataset (provenance), then
+                # merge it into the saved registration meta.
+                newfile = gc.uploadFileToFolder(input_folder_id, str(registration_path))
+                gc.addMetadataToItem(str(newfile['itemId']), {'pipeline': pipeline})
+                merged = ingest_registration_output(
+                    gc, input_folder_id, registration_path, extracted_cameras
+                )
+                manager.write(f'Merged camera registration for {merged} pair(s) into the dataset\n')
+                return
             for camera in multicam_cameras:
                 cam_name = camera['name']
                 output_name = out_files[cam_name]
@@ -470,9 +543,8 @@ def run_pipeline(self: Task, params: PipelineJob):
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "viame runner",
+                f"viame run {shlex.quote(str(pipeline_path))}",
                 "-s input:video_reader:type=vidl_ffmpeg",
-                f"-p {shlex.quote(str(pipeline_path))}",
                 f"-s input:video_filename={shlex.quote(input_media_list[0])}",
                 f"-s downsampler:target_frame_rate={shlex.quote(str(input_fps))}",
                 f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
@@ -482,7 +554,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 _append_frame_range_video_settings(
                     command, input_folder, frame_range, pipeline['pipe']
                 )
-        elif input_type == constants.ImageSequenceType:
+        elif input_type in constants.ImageListTypes:
             # Filter image list by frame range if specified
             filtered_media_list = input_media_list
             if frame_range is not None:
@@ -494,8 +566,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             command = [
                 f". {shlex.quote(str(conf.viame_setup_script))} &&",
                 f"KWIVER_DEFAULT_LOG_LEVEL={shlex.quote(conf.kwiver_log_level)}",
-                "viame runner",
-                f"-p {shlex.quote(str(pipeline_path))}",
+                f"viame run {shlex.quote(str(pipeline_path))}",
                 f"-s input:video_filename={shlex.quote(str(img_list_path))}",
                 f"-s detector_writer:file_name={shlex.quote(detector_output_file)}",
                 f"-s track_writer:file_name={shlex.quote(track_output_file)}",
@@ -523,7 +594,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             )
 
         single_input_manifest = (
-            str(img_list_path) if input_type == constants.ImageSequenceType else input_media_list[0]
+            str(img_list_path) if input_type in constants.ImageListTypes else input_media_list[0]
         )
         _append_input_list_kwiver_settings(command, pipeline, [single_input_manifest])
 
@@ -563,12 +634,25 @@ def run_pipeline(self: Task, params: PipelineJob):
         else:
             output_file = detector_output_file
 
+        # Some detectors also create a track CSV containing only its header.
+        if (
+            params.get('single_camera')
+            and Path(detector_output_file).exists()
+            and not csv_rows(Path(output_file).read_text())
+        ):
+            output_file = detector_output_file
+
         # Filter output CSV by frame range for videos
         if frame_range is not None and input_type == constants.VideoType:
             output_file = filter_csv_by_frame_range(output_file, frame_range)
 
+        outputs = [(output_folder_id, Path(output_file))]
+        if params.get('single_camera'):
+            outputs = finish_single_camera_run(
+                self, context, manager, conf, gc, params, output_file, output_path
+            )
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        newfile = gc.uploadFileToFolder(output_folder_id, output_file)
-
-        gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
-        gc.post(f'dive_rpc/postprocess/{output_folder_id}', data={"skipJobs": True})
+        for folder_id, result in outputs:
+            newfile = gc.uploadFileToFolder(folder_id, str(result))
+            gc.addMetadataToItem(str(newfile["itemId"]), {"pipeline": pipeline})
+            gc.post(f'dive_rpc/postprocess/{folder_id}', data={"skipJobs": True})

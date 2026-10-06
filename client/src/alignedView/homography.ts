@@ -7,6 +7,7 @@
  * more. This is the client-side analogue of OpenCV's cv2.findHomography used by
  * the keypointgui reference app; the warp itself is done by geojs (quadFeature).
  */
+import type { SourceCrop } from '../stitchedStereo';
 
 export type Point = [number, number];
 export type Matrix3 = number[][];
@@ -263,23 +264,27 @@ export function geojsWarpQuadsForImage(
     kind: 'image' | 'video';
     width: number;
     height: number;
+    crop?: SourceCrop;
   },
   overlap = 0,
 ): Array<GeojsWarpQuad & { image?: typeof image.source; video?: typeof image.source }> {
   const quads = geojsWarpQuads(h, image.width, image.height, overlap);
-  const tex = texturePixelSize(image.source);
-  const scaleX = image.width > 0 ? tex.width / image.width : 1;
-  const scaleY = image.height > 0 ? tex.height / image.height : 1;
-  const rescale = Math.abs(scaleX - 1) > 1e-9 || Math.abs(scaleY - 1) > 1e-9;
+  const full = texturePixelSize(image.source);
+  const region = image.crop ?? {
+    left: 0, top: 0, right: full.width, bottom: full.height,
+  };
+  const scaleX = image.width > 0 ? (region.right - region.left) / image.width : 1;
+  const scaleY = image.height > 0 ? (region.bottom - region.top) / image.height : 1;
+  const remap = !!image.crop || Math.abs(scaleX - 1) > 1e-9 || Math.abs(scaleY - 1) > 1e-9;
   return quads.map((q) => {
-    const crop = rescale
+    const crop = remap
       ? {
-        left: q.crop.left * scaleX,
-        top: q.crop.top * scaleY,
-        right: q.crop.right * scaleX,
-        bottom: q.crop.bottom * scaleY,
-        x: tex.width,
-        y: tex.height,
+        left: region.left + q.crop.left * scaleX,
+        top: region.top + q.crop.top * scaleY,
+        right: region.left + q.crop.right * scaleX,
+        bottom: region.top + q.crop.bottom * scaleY,
+        x: full.width,
+        y: full.height,
       }
       : q.crop;
     return { ...q, crop, [image.kind]: image.source };
@@ -411,4 +416,42 @@ export function solveHomography(src: Point[], dst: Point[]): Matrix3 {
   // Scale so H[2][2] == 1 for a canonical form.
   const scale = Math.abs(denorm[2][2]) > 1e-12 ? 1 / denorm[2][2] : 1;
   return denorm.map((row) => row.map((value) => value * scale));
+}
+
+/**
+ * Mutual-consistency check for a solved camera triplet: push a grid of
+ * points from camera 1 into camera 3 via the direct homography (`h13`) and
+ * via the composed route (`h23 . h12`), and report the mean/max disagreement
+ * in camera-3 pixels. Near-zero means the three independently fitted pairs
+ * describe one consistent rig; a large value means at least one pair
+ * disagrees with the route through the third camera. `size1` is camera 1's
+ * native (width, height); without it a nominal 1000x1000 grid is used.
+ */
+export function loopClosureResidual(
+  h12: Matrix3,
+  h23: Matrix3,
+  h13: Matrix3,
+  size1: [number, number] = [1000, 1000],
+  grid = 10,
+): { meanPx: number; maxPx: number } {
+  const [width, height] = size1;
+  const composed = matMul3(h23, h12);
+  let sum = 0;
+  let max = 0;
+  let count = 0;
+  for (let i = 0; i < grid; i += 1) {
+    for (let j = 0; j < grid; j += 1) {
+      const p: Point = [
+        (width * i) / (grid - 1),
+        (height * j) / (grid - 1),
+      ];
+      const direct = applyHomography(h13, p);
+      const routed = applyHomography(composed, p);
+      const dist = Math.hypot(direct[0] - routed[0], direct[1] - routed[1]);
+      sum += dist;
+      max = Math.max(max, dist);
+      count += 1;
+    }
+  }
+  return { meanPx: sum / count, maxPx: max };
 }

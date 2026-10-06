@@ -1,44 +1,46 @@
 # Pipeline Import and Export
 
-## Trained model downloads
+## Model packs
 
-You can download your trained models through the administrative interface.
+Open **Models** in DIVE Web or DIVE Desktop. On desktop, Models is immediately
+beside Training and contains the model management controls previously on Training.
 
-!!! warning
+- **Import** (top right of Trained Models) accepts a ZIP of `.pipe` files, model
+  weights, and supporting files. Imported packs appear in Trained Models and in
+  the Trained pipeline list. Web imports belong to the current user and are private.
+- **Export to ZIP** downloads or saves all files in the selected model pack,
+  including other pipelines and nested model folders. The ZIP can be imported
+  into either DIVE Web or Desktop.
+- **Convert to ONNX** starts the existing ONNX conversion job. This is separate
+  from exporting the complete pack.
+- **Delete** removes the whole pack, including its pipelines and weights. If a
+  pack has multiple pipelines listed, deleting any one of them removes the pack.
 
-    Use caution when modifying data through the admin interface
+### Accepted ZIP layouts
 
-* Open the admin interface at [https://viame.kitware.com/girder](https://viame.kitware.com/girder) (or `myserver.com/girder` if you host your own instance)
-* Navigate to your personal workspace by clicking ==:material-folder: My Folders== under your user dropdown in the top right corner.
+A ZIP must contain at least one `.pipe` file. These layouts are accepted:
 
-    ![My Folders](images/Girder/my_folders.png)
+```text
+configs/pipelines/example.pipe     pipelines/example.pipe     example.pipe
+configs/pipelines/models/...       pipelines/models/...       models/...
+```
 
-* Navigate to the `VIAME/VIAME Training Results` folder and into the folder you wish to download
-    
-    ![Select All](images/Girder/select_all.png)
+The third layout may put weights beside the `.pipe` files instead of in `models/`.
+Any layout may also be inside one enclosing folder. The importer removes the
+layout's outer folders and preserves paths beneath the pipeline directory, so
+references such as `models/weights.onnx` continue to point to the same files.
+Files outside the pipeline directory in a VIAME add-on are not installed.
+Dependencies on the base VIAME installation must be installed separately.
 
-* Select all items and download using the menu
+Pack names come from the ZIP filename. Importing the same name again creates a
+new name with a numeric suffix; it does not replace an existing model. Invalid
+archives are rejected, and a failed import does not leave a partial model pack.
 
-    ![Download](images/Girder/download_selected.png)
+On desktop, packs are stored under `${Project Data Storage Path}/DIVE_Pipelines`.
+On web, they are stored in your `VIAME/VIAME Training Results` folder, which can
+also be opened with **Browse** for managing files and sharing permissions.
 
-## Custom Pipeline Upload
-
-It's possible to upload custom pipes to DIVE Web through the girder interface.
-
-!!! warning
-
-    This feature is not yet standardized, and the instructions below may change.
-
-1. Open the girder interface at `/girder` and create a new private folder called `MyPipelines`
-    1. For our demo instance, open [https://viame.kitware.com/girder](https://viame.kitware.com/girder)
-1. Create a new folder in that private folder, and give it a name you'd like to associate with your new pipeline.
-1. Upload one or more files inside your new pipeline subfolder:
-    1. A pipeline file ending in the `.pipe` file extension
-    1. Whatever other model `.zip` files are required by the pipe, named exactly as they appear in your `.pipe` file above.
-1. Finally, set the **pipeline folder** metadata key `trained_pipeline` with value `true`.
-1. Your new pipeline will be available under the `Run Pipeline -> Trained` menu from the DIVE web app.
-
-![Upload Pipeline](images/Misc/UploadPipeline.png)
+## Advanced pipeline configuration
 
 ### Accepting input
 
@@ -75,6 +77,16 @@ Example:
 | `# Calibration Keys: <k> [k…]` | Opt-in: binds the dataset's stereo calibration file to each listed KWIVER config key at run time (one `-s <k>=<cal-path>` per key). Keys may be space- or comma-separated. Use this when the pipe's calibration consumer is not the conventional `measurer:calibration_file` / `calibration_reader:file` pair (those are used when the header is unset). Needed because `$CONFIG{global:…}` indirection cannot receive `-s` overrides (macros expand at parse time; `-s` blocks are appended last). |
 | `# Metadata File: <block>:<key>` | Opt-in: when the dataset has an attached **Metadata File**, DIVE appends a KWIVER override `-s <block>:<key>=<path>` at run time. The same CSV/TXT attachment is also considered for [Frame Metadata](Frame-Metadata.md). Without this header, no metadata file is injected. |
 | `# Image List Keys: <k> [k…]` | Opt-in: binds the run's per-camera input image list(s) to each listed KWIVER key. Keys may be space- or comma-separated. A key containing `{cam}` is expanded once per camera (1-based), e.g. `stabilizer:image_list{cam}` → `image_list1`, `image_list2`, …. A key without `{cam}` receives camera 1's list only. |
+| `# Camera Order: <cam> [cam…]` | 2-cam/3-cam pipes only: labels the role expected on each `inputN`, in order (e.g. `# Camera Order: EO, UV, IR` → `input1` optical, `input2` ultraviolet, `input3` thermal). Role tokens are `EO`, `IR`, `UV` (aliases: eo/rgb/optical/color/vis, ir/thermal/lwir/flir, uv/ultraviolet); any other token (e.g. `left`, `right`) labels the slot literally. See [Multicam camera assignment](#multicam-camera-assignment) for the pre-run dialog where you confirm which dataset camera fills each slot. Camera 1 is the frame the pipe's warp processes map onto: each other camera's registration (Camera Registration tab) onto camera 1 is written to the job as `<camera>_to_<camera1>_registration.json` and bound to `warpN`. |
+
+### Multicam camera assignment
+
+Which dataset camera feeds which input of a 2-cam/3-cam pipe is confirmed in a dialog before the run:
+
+1. **Camera roles.** Each camera of a multicam dataset carries a sensor role (`eo`, `ir`, `uv`) in `cameraRoles`, inferred once at import from the camera (subfolder) name and, failing that, from tokens in its image file names (KAMERA style `…_rgb.jpg`, `…_ir.tif`, `…_uv.jpg`). Only a unanimous answer is recorded; ambiguous cameras get no role.
+2. **Assignment step.** When you run a 2-cam/3-cam pipe, DIVE shows one row per pipeline input (from the `# Camera Order:` header, or plain `input1..N` when the pipe has none) with the dataset camera it proposes — matched by role when both sides have one, else by name — and any slot that would otherwise stay empty is prefilled from display order (input *N* gets the *N*th camera) instead of leaving a blank picker. You confirm or change it before anything runs. Unfilled or duplicated slots block the run. Confirming a role-labelled slot saves the roles back onto the dataset (uncheck *Save these as the dataset's camera roles* to skip), so a corrected role wins over a misleading name next time and for every other pipeline.
+3. **Registration check.** DIVE reads which inputs the pipe warps onto camera 1 (`process warpN :: warp_detections` / `warp_image` in the pipe body) and, in the same dialog, shows for each such row whether the chosen camera has a fitted registration onto camera 1. A missing one blocks the run with "Register X → Y in the Camera Registration tab first" — the pipe never gets to fail at configure time on a missing `registration_cameraN_to_camera1.json`. The same check runs server-side (and on desktop) before the job is created, so CLI runs get the same message.
+4. **Job.** The confirmed order is what the job runs with (`cameraOrder` in the pipeline params; visible in the desktop job manifest). API callers that omit it get the dataset's stored camera order, as before.
 
 ### Metadata File vs Configuration File
 

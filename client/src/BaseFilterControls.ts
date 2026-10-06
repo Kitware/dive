@@ -1,6 +1,7 @@
 import {
   ref, computed, Ref, watch,
 } from 'vue';
+import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 import type { AnnotationId, ConfidencePair } from './BaseAnnotation';
 import { SortedAnnotation } from './BaseAnnotationStore';
 import type Group from './Group';
@@ -15,6 +16,9 @@ interface MarkChangesPendingData {
 export type MarkChangesPendingFilter = (data?: MarkChangesPendingData) => void;
 
 export const DefaultConfidence = 0.1;
+
+/** Which annotations a delete-all reaches, relative to each type's threshold. */
+export type ThresholdScope = 'above' | 'below' | 'all';
 /**
  * AnnotationWithContext wraps an annotation with additional information
  * such as why the annotation was included or returned by a system
@@ -32,8 +36,6 @@ export interface FilterControlsParams<T extends Track | Group> {
   sorted: Ref<SortedAnnotation<T>[]>;
   markChangesPending: MarkChangesPendingFilter;
   remove: (id: AnnotationId) => void;
-  setType: (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => void;
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
   getTrack?: (trackId: Readonly<AnnotationId>, cameraName?: string) => T;
 }
@@ -81,9 +83,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
 
   remove: (id: AnnotationId) => void;
 
-  setType: (id: AnnotationId, newType: string,
-    confidenceVal?: number, currentType?: string) => void;
-
   removeTypes: (id: AnnotationId, types: string[]) => ConfidencePair[];
 
   disableAnnotationFilters: Ref<boolean>;
@@ -100,8 +99,6 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     this.sorted = params.sorted;
 
     this.remove = params.remove;
-
-    this.setType = params.setType;
 
     this.removeTypes = params.removeTypes;
 
@@ -174,6 +171,31 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     }
   }
 
+  /**
+   * Make `types` the whole declared list, as a freshly loaded dataset states it. importTypes
+   * only ever grows the list, so a reload after an Overwrite import would keep listing the
+   * types the import dropped, and the next save would write them straight back. A choice
+   * for a type that is no longer listed is dropped with it.
+   */
+  setConfiguredTypes(types: string[]) {
+    this.configuredTypes.value = Array.from(new Set(types));
+    const listed = new Set(this.allTypes.value);
+    this.checkedTypes.value = this.checkedTypes.value.filter((name) => listed.has(name));
+  }
+
+  /**
+   * Carry a renamed type's confidence threshold over to its new name, unless
+   * the new name already carries one of its own.
+   */
+  protected carryConfidenceFilter(currentType: string, newType: string) {
+    if (!(newType in this.confidenceFilters.value) && currentType in this.confidenceFilters.value) {
+      this.setConfidenceFilters({
+        ...this.confidenceFilters.value,
+        [newType]: this.confidenceFilters.value[currentType],
+      });
+    }
+  }
+
   protected deleteTypeConfiguration(type: string) {
     if (this.configuredTypes.value.includes(type)) {
       this.configuredTypes.value.splice(this.configuredTypes.value.indexOf(type), 1);
@@ -197,25 +219,7 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
     this.timeFilters.value = val;
   }
 
-  updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
-    //Go through the entire list and replace the oldType with the new Type
-    this.sorted.value.forEach((annotation) => {
-      for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
-        const [name, confidenceVal] = annotation.confidencePairs[i];
-        if (name === currentType) {
-          this.setType(annotation.id, newType, confidenceVal, currentType);
-          break;
-        }
-      }
-    });
-    if (!(newType in this.confidenceFilters.value) && currentType in this.confidenceFilters.value) {
-      this.setConfidenceFilters({
-        ...this.confidenceFilters.value,
-        [newType]: this.confidenceFilters.value[currentType],
-      });
-    }
-    this.deleteType(currentType);
-  }
+  abstract updateTypeName(params: { currentType: string; newType: string }): void;
 
   removeTypeAnnotations(types: string[]) {
     const processedIds = new Set<AnnotationId>();
@@ -233,6 +237,21 @@ export default abstract class BaseFilterControls<T extends Track | Group> {
         }
       }
     });
+  }
+
+  /**
+   * Tracks with enabled classes, none of which reach their confidence threshold.
+   * TrackFilterControls overrides this to also apply time, group, and attribute filters.
+   */
+  annotationIdsBelowThreshold(types: string[]): AnnotationId[] {
+    const wanted = new Set(types);
+    const filters = this.confidenceFilters.value;
+    return this.sorted.value.filter((annotation) => {
+      const matching = annotation.confidencePairs.filter(([type]) => wanted.has(type));
+      return matching.length > 0 && matching.every(([type, confidence]) => (
+        confidence < resolveConfidenceThreshold(filters, type)
+      ));
+    }).map(({ id }) => id);
   }
 
   updateCheckedTypes(types: string[]) {

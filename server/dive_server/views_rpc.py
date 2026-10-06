@@ -4,6 +4,7 @@ from girder.api import access
 from girder.api.describe import Description, autoDescribeRoute
 from girder.api.rest import Resource
 from girder.constants import AccessType
+from girder.exceptions import RestException
 from girder.models.folder import Folder
 from girder.models.item import Item
 from girder.models.token import Token
@@ -12,7 +13,7 @@ from dive_utils import asbool, fromMeta
 from dive_utils.constants import DatasetMarker, FPSMarker, MarkForPostProcess, TypeMarker
 from dive_utils.types import PipelineDescription, PipelineParams, TrainingModelTuneArgs
 
-from . import crud, crud_rpc, worker_capabilities
+from . import crud, crud_rpc, model_pack, worker_capabilities
 
 
 class RpcResource(Resource):
@@ -24,11 +25,26 @@ class RpcResource(Resource):
 
         self.route("POST", ("pipeline",), self.run_pipeline_task)
         self.route("POST", ("export",), self.export_pipeline_onnx)
+        self.route("POST", ("model", "import"), self.import_model_pack)
         self.route("POST", ("train",), self.run_training)
+        self.route("POST", ("score",), self.run_scoring)
         self.route("POST", ("postprocess", ":id"), self.postprocess)
         self.route("POST", ("convert_dive", ":id"), self.convert_dive)
         self.route("POST", ("convert_large_image", ":id"), self.convert_large_image)
         self.route("POST", ("batch_postprocess", ":id"), self.batch_postprocess)
+
+    @access.user
+    @autoDescribeRoute(
+        Description("Import a ZIP containing pipelines and model weights").param(
+            "archive", "Model pack ZIP", dataType="file", required=True
+        )
+    )
+    def import_model_pack(self, archive):
+        if not getattr(archive, 'file', None):
+            raise RestException('A model ZIP file is required.', code=400)
+        return model_pack.import_model_pack(
+            self.getCurrentUser(), archive.file, archive.filename or 'model.zip'
+        )
 
     @access.user
     @autoDescribeRoute(
@@ -160,6 +176,26 @@ class RpcResource(Resource):
 
     @access.user
     @autoDescribeRoute(
+        Description("Score a list of sequence pairs together with viame score").jsonParam(
+            "body",
+            description=(
+                "schema: RunScoringArgs. Each pair's computed and truth name a dataset plus an "
+                "optional annotation set and revision; the result is stored on the first "
+                "pair's computed dataset."
+            ),
+            paramType="body",
+            requireObject=True,
+        )
+    )
+    def run_scoring(self, body):
+        worker_capabilities.require_pipeline_worker()
+        user = self.getCurrentUser()
+        token = Token().createToken(user=user, days=14)
+        run_scoring_args = crud.get_validated_model(crud_rpc.RunScoringArgs, **body)
+        return crud_rpc.run_scoring(user, token, run_scoring_args)
+
+    @access.user
+    @autoDescribeRoute(
         Description("Post-processing to be run after media/annotation import")
         .modelParam(
             "id",
@@ -207,10 +243,44 @@ class RpcResource(Resource):
             default='',
             required=False,
         )
+        .param(
+            "stitchedSide",
+            "The folder holds stitched (side-by-side) stereo media; keep only this half",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
+        .param(
+            "jobDatasetId",
+            "Optional folder id for job.dataset_id (e.g. multicam parent while cameras convert)",
+            paramType="formData",
+            dataType="string",
+            default='',
+            required=False,
+        )
     )
-    def postprocess(self, folder, skipJobs, skipTranscoding, additive, additivePrepend, set):
+    def postprocess(
+        self,
+        folder,
+        skipJobs,
+        skipTranscoding,
+        additive,
+        additivePrepend,
+        set,
+        stitchedSide,
+        jobDatasetId,
+    ):
         return crud_rpc.postprocess(
-            self.getCurrentUser(), folder, skipJobs, skipTranscoding, additive, additivePrepend, set
+            self.getCurrentUser(),
+            folder,
+            skipJobs,
+            skipTranscoding,
+            additive,
+            additivePrepend,
+            set,
+            stitchedSide or '',
+            jobDatasetId or '',
         )
 
     @access.user

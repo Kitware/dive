@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import {
   candidateOwnsClick,
   distanceToRingSquared,

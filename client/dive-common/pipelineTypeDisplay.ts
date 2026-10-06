@@ -8,8 +8,8 @@ export default function pipelineTypeDisplay(pipeType: string): string {
       return 'utilities';
     case 'transcode':
       return 'transcoders';
-    case 'measurement':
-      return 'Measurement';
+    case 'stereo':
+      return 'Stereo';
     default:
       return `${pipeType}s`;
   }

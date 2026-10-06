@@ -206,6 +206,17 @@ function bboxCoverUpperBound(det: Rect, regions: PreparedRegion[]): number {
   return sum / detArea;
 }
 
+function isShapeSuppressed(
+  shape: Shape,
+  regions: PreparedRegion[],
+  threshold: number,
+): boolean {
+  if (!shape.poly && bboxCoverUpperBound(shape.bbox, regions) < threshold) {
+    return false;
+  }
+  return overlapFraction(shape, regions) >= threshold;
+}
+
 interface SuppressionCacheEntry {
   revision: number;
   type: string;
@@ -299,6 +310,55 @@ export function hasSuppressionAttribute(
 }
 
 /**
+ * Build a region-suppression predicate optimized for peak-frame counting,
+ * where the caller already walks known track keyframes. Region tracks are
+ * resolved once and geometry is cached per visited frame, avoiding an
+ * interval-tree query and shared-cache entry for every candidate frame.
+ */
+export function createRegionSuppressionTester(
+  trackStore: BaseAnnotationStore<Track>,
+  suppressionType: string | undefined,
+  thresholdPercent?: number,
+  resolver?: SuppressionTypeResolver,
+): (track: Track, frame: number) => boolean {
+  if (!suppressionType) return () => false;
+  const threshold = normalizeSuppressionThreshold(thresholdPercent);
+  const displayType = (track: Track) => (
+    resolver ? resolver.displayType(track) : track.confidencePairs[0]?.[0]
+  );
+  const regionTracks: Track[] = [];
+  const regionTrackIds = new Set<AnnotationId>();
+  trackStore.annotationMap.forEach((annotation) => {
+    const track = annotation as Track;
+    if (displayType(track) === suppressionType) {
+      regionTracks.push(track);
+      regionTrackIds.add(track.id);
+    }
+  });
+  if (regionTracks.length === 0) return () => false;
+
+  const regionsByFrame = new Map<number, PreparedRegion[]>();
+  const regionsAt = (frame: number) => {
+    const cached = regionsByFrame.get(frame);
+    if (cached) return cached;
+    const regions = regionTracks
+      .map((track) => featureShape(track.getFeature(frame)[0]))
+      .filter((shape): shape is Shape => shape !== null)
+      .map(prepareRegion);
+    regionsByFrame.set(frame, regions);
+    return regions;
+  };
+
+  return (track, frame) => {
+    if (regionTrackIds.has(track.id)) return false;
+    const shape = featureShape(track.getFeature(frame)[0]);
+    if (!shape) return false;
+    const regions = regionsAt(frame);
+    return regions.length > 0 && isShapeSuppressed(shape, regions, threshold);
+  };
+}
+
+/**
  * Track ids whose detection on `frame` is suppressed by a region on that frame.
  * Empty when suppressionType is falsy (feature disabled) or no regions exist.
  * `thresholdPercent` is the minimum covered fraction as a percent (0-100];
@@ -359,12 +419,7 @@ export function getSuppressedTrackIds(
   });
   if (regions.length > 0) {
     candidates.forEach(({ id, shape }) => {
-      // Bbox prefilter is only sound for bbox-only detections (see
-      // bboxCoverUpperBound). Polygon candidates always go to sampling.
-      if (!shape.poly && bboxCoverUpperBound(shape.bbox, regions) < threshold) {
-        return;
-      }
-      if (overlapFraction(shape, regions) >= threshold) {
+      if (isShapeSuppressed(shape, regions, threshold)) {
         result.add(id);
       }
     });

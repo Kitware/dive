@@ -11,8 +11,11 @@ import {
   SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
   SUPERCATEGORY_MULTI_PARENT_WARNING,
   isCocoJson,
+  isCocoSpeciesList,
   parseFile,
+  repeatedCategoryNames,
   serializeFile,
+  speciesListFromCategories,
   typeHierarchyFromCategories,
 } from 'platform/desktop/backend/serializers/coco';
 
@@ -748,6 +751,133 @@ describe('COCO serializer', () => {
   });
 });
 
+describe('KWCOCO species list', () => {
+  it('is a category block with no media behind it', () => {
+    // The list declares what a dataset may use; it asserts nothing was observed.
+    expect(isCocoSpeciesList({ categories: [{ id: 1, name: 'fish' }] })).toBe(true);
+    expect(isCocoSpeciesList({
+      images: [], annotations: [], categories: [{ id: 1, name: 'fish' }],
+    })).toBe(true);
+  });
+
+  it('is not a COCO document that carries media or annotations', () => {
+    expect(isCocoSpeciesList({
+      images: [{ id: 1, file_name: 'a.png' }], categories: [{ id: 1, name: 'fish' }],
+    })).toBe(false);
+    expect(isCocoSpeciesList({
+      annotations: [{ id: 1 }], categories: [{ id: 1, name: 'fish' }],
+    })).toBe(false);
+  });
+
+  it('is not a document without usable category names', () => {
+    expect(isCocoSpeciesList({ categories: [] })).toBe(false);
+    expect(isCocoSpeciesList({ categories: [{ id: 1 }] })).toBe(false);
+    expect(isCocoSpeciesList({ categories: [{ id: 1, name: '' }] })).toBe(false);
+    expect(isCocoSpeciesList({ categories: ['fish'] })).toBe(false);
+    expect(isCocoSpeciesList({ tracks: {}, groups: {} })).toBe(false);
+    expect(isCocoSpeciesList([{ name: 'fish' }])).toBe(false);
+    expect(isCocoSpeciesList(null)).toBe(false);
+  });
+
+  it('reads names in file order without repeats, skipping nameless slots', () => {
+    const document = {
+      categories: [
+        { id: 1, name: 'Sebastes' },
+        { id: 2, name: 'Sebastes melanops', supercategory: 'Sebastes' },
+        { id: 3 },
+        { id: 4, name: '' },
+        { id: 5, name: 'Sebastes' },
+        { id: 6, name: 'Sebastes flavidus', supercategory: 'Sebastes' },
+      ],
+    };
+    expect(speciesListFromCategories(document)).toEqual([
+      'Sebastes', 'Sebastes melanops', 'Sebastes flavidus',
+    ]);
+    // The nameless slots are reported once, by the hierarchy reader both callers use.
+    // Repeats also cost the file its hierarchy, which that same reader reports; an import
+    // refuses the file instead, using the repeated names listed below.
+    const { hierarchy, warnings } = typeHierarchyFromCategories(document);
+    expect(hierarchy).toBeUndefined();
+    expect(warnings).toEqual([
+      CATEGORY_MISSING_NAME_WARNING,
+      SUPERCATEGORY_DUPLICATE_CATEGORY_WARNING,
+    ]);
+    expect(repeatedCategoryNames(document)).toEqual(['Sebastes']);
+  });
+
+  it('lists each repeated name once, in first-seen order', () => {
+    expect(repeatedCategoryNames({
+      categories: [
+        { id: 1, name: 'b' },
+        { id: 2, name: 'a' },
+        { id: 3, name: 'b' },
+        { id: 4, name: 'a' },
+        { id: 5, name: 'b' },
+        { id: 6 },
+        { id: 7, name: '' },
+      ],
+    })).toEqual(['b', 'a']);
+    // Nameless slots never count as repeats of each other.
+    expect(repeatedCategoryNames({ categories: [{ id: 1 }, { id: 2 }] })).toEqual([]);
+    expect(repeatedCategoryNames({ categories: [{ id: 1, name: 'a' }] })).toEqual([]);
+  });
+});
+
 afterEach(() => {
   mockfs.restore();
+});
+
+it.each([false, true])('round-trips ordered centerlines from COCO and KWCOCO (named=%s)', async (named) => {
+  const labels = ['tail', 'spine_010', 'head', 'spine_002', 'spine_003', 'eye'];
+  const triples = [[90.5, 20.25, 2], [60.1, 35.2, 2], [10.25, 20.5, 2], [30.75, 40.125, 1], [0, 0, 0], [12.5, 18.5, 2]];
+  const doc = {
+    images: [{ id: 1, file_name: 'fish.png', frame_index: 0 }],
+    categories: [{ id: 7, name: 'fish', keypoints: labels }],
+    keypoint_categories: labels.map((name, i) => ({ id: 10 + i * 3, name })),
+    annotations: [{
+      id: 1,
+      image_id: 1,
+      category_id: 7,
+      bbox: [0, 0, 100, 50],
+      keypoints: named ? triples.map((p, i) => ({ keypoint_category_id: 10 + i * 3, xy: p.slice(0, 2), visible: p[2] })) : triples.flat(),
+    }],
+  };
+  await fs.writeJSON('/input/curve.json', doc);
+  const [parsed] = await parseFile('/input/curve.json');
+  const feature = Object.values(parsed.tracks)[0].features[0];
+  const geometry = feature.geometry!.features;
+  const expected = [2, 3, 1, 0].map((i) => triples[i].slice(0, 2));
+  expect(geometry.find((g) => g.geometry.type === 'LineString')!.geometry.coordinates).toEqual(expected);
+  expect(geometry.some((g) => g.properties?.key === 'spine_003')).toBe(false);
+  feature.geometry!.features = geometry.filter((g) => g.geometry.type === 'LineString');
+  await serializeFile('/output/curve.json', parsed, imageMeta);
+  const out = await fs.readJSON('/output/curve.json');
+  expect(out.categories[0].keypoints).toEqual(['head', 'spine_001', 'spine_002', 'tail']);
+  expect(out.categories[0].skeleton).toEqual([[1, 2], [2, 3], [3, 4]]);
+  expect(out.annotations[0].num_keypoints).toBe(4);
+  const [again] = await parseFile('/output/curve.json');
+  expect(Object.values(again.tracks)[0].features[0].geometry!.features.find((g) => g.geometry.type === 'LineString')!.geometry.coordinates).toEqual(expected);
+});
+
+it('pads shorter centerlines without inventing vertices or missing endpoints', async () => {
+  const source = JSON.parse(JSON.stringify(annotationSchema)) as AnnotationSchema;
+  const lines = [[[1.25, 2.5], [4.5, 6.25], [9.5, 3.25]], [[2.5, 3.5], [8.5, 4.5]]];
+  source.tracks[3].end = 1;
+  source.tracks[3].features = lines.map((coordinates, frame) => ({
+    frame,
+    bounds: [0, 0, 10, 10],
+    geometry: { type: 'FeatureCollection', features: [{ type: 'Feature', properties: { key: 'HeadTails' }, geometry: { type: 'LineString', coordinates } }] },
+  }));
+  await serializeFile('/output/curves.json', source, imageMeta);
+  const out = await fs.readJSON('/output/curves.json');
+  expect(out.annotations[1].keypoints).toEqual([2.5, 3.5, 2, 0, 0, 0, 8.5, 4.5, 2]);
+  expect(out.annotations[1].num_keypoints).toBe(2);
+  const [again] = await parseFile('/output/curves.json');
+  again.tracks[3].features.forEach((f, i) => {
+    expect(f.geometry!.features.find((g) => g.geometry.type === 'LineString')!.geometry.coordinates).toEqual(lines[i]);
+  });
+  out.annotations[0].keypoints[out.annotations[0].keypoints.length - 1] = 0;
+  await fs.writeJSON('/output/missing.json', out);
+  const [missing] = await parseFile('/output/missing.json');
+  expect(missing.tracks[3].features[0].geometry!.features.some((g) => g.geometry.type === 'LineString')).toBe(false);
 });

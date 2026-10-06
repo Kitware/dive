@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import {
   ref, shallowRef, nextTick, Ref,
 } from 'vue';

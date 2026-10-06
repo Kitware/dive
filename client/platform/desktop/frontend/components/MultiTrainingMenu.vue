@@ -12,11 +12,14 @@ import {
   watch,
 } from 'vue';
 import {
-  DatasetConfig, Pipelines, TrainingConfigs, useApi, Pipe,
+  Pipelines, TrainingConfigs, useApi,
 } from 'dive-common/apispec';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { itemsPerPageOptions, simplifyTrainingName } from 'dive-common/constants';
 import { clientSettings } from 'dive-common/store/settings';
+import DatasetPicker from 'dive-common/components/DatasetPicker.vue';
+import TrainingSplitChip from 'dive-common/components/TrainingSplitChip.vue';
+import { summarizeTrainingSplits } from 'dive-common/trainingSplit';
 
 import { useRoute, useRouter } from 'vue-router/composables';
 import { DesktopJob, RunTraining } from 'platform/desktop/constants';
@@ -25,15 +28,11 @@ import {
 } from '../api';
 import { datasets, JsonConfigCache } from '../store/dataset';
 
-function joinPath(dir: string, filename: string) {
-  const separator = dir.includes('\\') ? '\\' : '/';
-  return `${dir.replace(/[\\/]+$/, '')}${separator}${filename}`;
-}
-
 export default defineComponent({
+  components: { DatasetPicker, TrainingSplitChip },
   setup() {
     const {
-      runTraining, getPipelineList, deleteTrainedPipeline, getTrainingConfigurations, exportTrainedPipeline,
+      runTraining, getPipelineList, getTrainingConfigurations,
     } = useApi();
     const { prompt } = usePrompt();
     const router = useRouter();
@@ -116,19 +115,12 @@ export default defineComponent({
       return [];
     });
 
-    const trainedModels = computed(() => {
-      if (unsortedPipelines.value.trained) {
-        return unsortedPipelines.value.trained.pipes;
-      }
-      return [];
-    });
-
     const nameRules = [
       (val: string) => (!trainedPipelines.value.includes(val) || 'A Trained pipeline with that name already exists'),
     ];
 
     const data = reactive({
-      stagedItems: {} as Record<string, DatasetConfig>,
+      stagedItems: {} as Record<string, JsonConfigCache>,
       trainingOutputName: '',
       selectedTrainingConfig: 'foo.whatever',
       fineTuneTraining: false,
@@ -163,14 +155,6 @@ export default defineComponent({
       },
     ];
 
-    const trainedHeadersTmpl: DataTableHeader[] = [
-      {
-        text: 'Model',
-        value: 'name',
-        sortable: true,
-      },
-    ];
-
     onBeforeMount(async () => {
       const configs = await getTrainingConfigurations();
       data.trainingConfigurations = configs;
@@ -186,7 +170,7 @@ export default defineComponent({
       return [];
     });
 
-    function toggleStaged(meta: DatasetConfig) {
+    function toggleStaged(meta: JsonConfigCache) {
       if (data.stagedItems[meta.id]) {
         del(data.stagedItems, meta.id);
       } else {
@@ -194,81 +178,36 @@ export default defineComponent({
       }
     }
     const availableItems = computed(() => Object.values(datasets.value)
-      .filter((item) => item.subType === null)
-      .map((item) => ({
-        ...item,
-        included: item.id in data.stagedItems,
-      })));
+      .filter((item) => item.subType === null));
 
     const stagedItems = computed(() => Object.values(data.stagedItems));
 
-    function getAvailableItemClass({ included }: JsonConfigCache & { included: boolean }) {
-      return included ? 'disabled-row' : '';
+    const stagedIds = computed(() => Object.keys(data.stagedItems));
+
+    /** Stage the picked datasets that are not staged yet. */
+    function stageIds(ids: string[]) {
+      ids.forEach((id) => {
+        const meta = datasets.value[id];
+        if (meta && !data.stagedItems[id]) toggleStaged(meta);
+      });
     }
+
+    function unstageIds(ids: string[]) {
+      ids.forEach((id) => {
+        if (data.stagedItems[id]) toggleStaged(data.stagedItems[id]);
+      });
+    }
+
+    const splitSummary = computed(() => summarizeTrainingSplits(
+      stagedItems.value.map((item) => item.trainingSplit),
+    ));
 
     const isReadyToTrain = computed(() => (
       stagedItems.value.length > 0
+        && splitSummary.value.trainable
         && data.selectedTrainingConfig
         && data.trainingOutputName
     ));
-
-    async function deleteModel(item: Pipe) {
-      const confirmDelete = await prompt({
-        title: `Delete "${item.name}" model`,
-        text: 'Are you sure you want to delete this model?',
-        positiveButton: 'Delete',
-        negativeButton: 'Cancel',
-        confirm: true,
-      });
-
-      if (confirmDelete) {
-        try {
-          await deleteTrainedPipeline(item);
-          unsortedPipelines.value = await getPipelineList();
-        } catch (err) {
-          let text = 'Unable to delete model';
-          const deleteErr = err as { response?: { status?: number } };
-          if (deleteErr.response?.status === 403) text = 'You do not have permission to delete the selected resource(s).';
-          prompt({
-            title: 'Delete Failed',
-            text,
-            positiveButton: 'OK',
-          });
-        }
-      }
-    }
-
-    async function exportModel(item: Pipe) {
-      try {
-        const location = await window.diveDesktop.showSaveDialog({
-          title: 'Export Model',
-          defaultPath: joinPath(await window.diveDesktop.getAppPath('home'), 'model.onnx'),
-        });
-        if (!location.canceled && location.filePath) {
-          await exportTrainedPipeline(location.filePath!, item);
-          const goToJobsPage = !await prompt({
-            title: 'Export Started',
-            text: 'You can check the export status in the Jobs tab.',
-            negativeButton: 'View',
-            positiveButton: 'OK',
-            confirm: true,
-          });
-          if (goToJobsPage) {
-            router.push('/jobs');
-          }
-        }
-      } catch (err) {
-        const errorTemplate = 'Unable to export model';
-        const exportErr = err as { response?: { status?: number } };
-        let text = `${errorTemplate}: ${err}`;
-        if (exportErr.response?.status === 403) text = `${errorTemplate}: You do not have permission to export the selected resource(s).`;
-        prompt({
-          title: 'Export Failed',
-          text,
-          positiveButton: 'OK',
-        });
-      }
-    }
 
     async function runTrainingOnFolder() {
       // Get the full data for fine tuning
@@ -343,9 +282,9 @@ export default defineComponent({
       labelFile,
       clearLabelText,
       toggleStaged,
-      getAvailableItemClass,
-      deleteModel,
-      exportModel,
+      stagedIds,
+      stageIds,
+      unstageIds,
       simplifyTrainingName,
       isReadyToTrain,
       runTrainingOnFolder,
@@ -359,37 +298,19 @@ export default defineComponent({
         items: resumableItems,
         headers: resumableHeaders,
       },
-      models: {
-        items: trainedModels,
-        headers: trainedHeadersTmpl.concat({
-          text: 'Export',
-          value: 'export',
-          sortable: false,
-          width: 80,
-        }, {
-          text: 'Delete',
-          value: 'delete',
-          sortable: false,
-          width: 80,
-        }),
-      },
       available: {
         items: availableItems,
-        headers: headersTmpl.concat({
-          text: 'View',
-          value: 'view',
-          sortable: false,
-          width: 80,
-        }, {
-          text: 'Include',
-          value: 'action',
-          sortable: false,
-          width: 80,
-        }),
+        headers: headersTmpl,
       },
+      splitSummary,
       staged: {
         items: stagedItems,
         headers: headersTmpl.concat({
+          text: 'Split',
+          value: 'trainingSplit',
+          sortable: true,
+          width: 110,
+        }, {
           text: 'Exclude',
           value: 'action',
           sortable: false,
@@ -404,11 +325,11 @@ export default defineComponent({
 <template>
   <div class="multitraining-menu">
     <div class="mb-4">
-      <v-card-title class="text-h4">
-        Staged for training ({{ staged.items.value.length }})
+      <v-card-title class="text-h4 px-0">
+        Training configuration
       </v-card-title>
-      <v-card-text>
-        Add datasets to the staging area and choose a training configuration.
+      <v-card-text class="px-0">
+        Name the model and choose a configuration, then add datasets below.
       </v-card-text>
       <v-row
         class="mt-4 pt-0"
@@ -483,25 +404,7 @@ export default defineComponent({
         </v-col>
         <v-spacer />
       </v-row>
-      <v-data-table
-        v-bind="{ headers: staged.headers, items: staged.items.value }"
-        hide-default-footer
-        dense
-        :hide-default-header="staged.items.value.length === 0"
-        no-data-text="No data chosen for training."
-      >
-        <template #[`item.action`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="error"
-            x-small
-            @click="toggleStaged(item)"
-          >
-            <v-icon>mdi-minus</v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
-      <div class="d-flex flex-row mt-7">
+      <div class="d-flex flex-row mt-4">
         <v-checkbox
           v-model="data.annotatedFramesOnly"
           label="Use annotated frames only"
@@ -510,16 +413,8 @@ export default defineComponent({
           persistent-hint
           class="py-0 my-0"
         />
-        <v-spacer />
-        <v-btn
-          :disabled="!isReadyToTrain"
-          color="primary"
-          @click="runTrainingOnFolder"
-        >
-          Train on ({{ staged.items.value.length }}) Datasets
-        </v-btn>
       </div>
-      <div class="d-flex flex-row mt-7">
+      <div class="d-flex flex-row mt-2">
         <v-checkbox
           v-model="data.fineTuneTraining"
           label="Fine Tuning"
@@ -534,11 +429,110 @@ export default defineComponent({
         />
       </div>
     </div>
+    <div>
+      <v-card-title class="text-h4 px-0">
+        Available for training
+      </v-card-title>
+      <v-card-text class="px-0">
+        These datasets meet the requirements for the chosen training configuration.
+      </v-card-text>
+      <DatasetPicker
+        :items="available.items.value"
+        :selected-ids="stagedIds"
+        :headers="available.headers"
+        no-data-text="No data meets criteria for chosen configuration"
+        @add="stageIds([$event])"
+        @add-many="stageIds"
+        @remove="unstageIds([$event])"
+        @remove-many="unstageIds"
+      >
+        <template #row-actions="{ item }">
+          <v-btn
+            icon
+            x-small
+            color="info"
+            title="Open in the viewer"
+            @click="$router.push({ name: 'viewer', params: { id: item.id } })"
+          >
+            <v-icon small>
+              mdi-eye
+            </v-icon>
+          </v-btn>
+        </template>
+      </DatasetPicker>
+    </div>
+
+    <div class="mb-4 selected-datasets">
+      <v-card-title class="text-h4 px-0">
+        Selected datasets ({{ staged.items.value.length }})
+      </v-card-title>
+      <v-data-table
+        v-bind="{ headers: staged.headers, items: staged.items.value }"
+        hide-default-footer
+        dense
+        :hide-default-header="staged.items.value.length === 0"
+        no-data-text="Add datasets from the list above."
+      >
+        <template #[`item.trainingSplit`]="{ item }">
+          <TrainingSplitChip
+            v-if="item.trainingSplit"
+            :key="item.id"
+            :split="item.trainingSplit"
+            x-small
+          />
+          <span
+            v-else
+            :key="`${item.id}-unlabeled`"
+            class="grey--text text-caption"
+          >
+            unlabeled
+          </span>
+        </template>
+        <template #[`item.action`]="{ item }">
+          <v-btn
+            :key="item.name"
+            color="error"
+            x-small
+            @click="toggleStaged(item)"
+          >
+            <v-icon>mdi-minus</v-icon>
+          </v-btn>
+        </template>
+      </v-data-table>
+      <div
+        v-if="splitSummary.labeled"
+        class="text-caption grey--text mt-2"
+      >
+        Split: {{ splitSummary.text }}. Unlabeled datasets train; validation datasets
+        are held out to monitor training; test datasets are scored once training finishes.
+      </div>
+      <v-alert
+        v-if="staged.items.value.length > 0 && !splitSummary.trainable"
+        dense
+        outlined
+        type="warning"
+        class="mt-2"
+      >
+        Every selected dataset is labeled validation or test; label at least one
+        as Train or clear its split.
+      </v-alert>
+      <div class="d-flex flex-row mt-4">
+        <v-spacer />
+        <v-btn
+          :disabled="!isReadyToTrain"
+          color="primary"
+          @click="runTrainingOnFolder"
+        >
+          Train on ({{ staged.items.value.length }}) Datasets
+        </v-btn>
+      </div>
+    </div>
+
     <div v-if="resumable.items.value.length">
-      <v-card-title class="text-h4">
+      <v-card-title class="text-h4 px-0">
         Interrupted training runs
       </v-card-title>
-      <v-card-text>
+      <v-card-text class="px-0">
         These runs did not finish, but their intermediate files are still on disk.
         Resuming continues from the last saved training state.
       </v-card-text>
@@ -574,89 +568,5 @@ export default defineComponent({
         </template>
       </v-data-table>
     </div>
-
-    <div>
-      <v-card-title class="text-h4">
-        Available for training
-      </v-card-title>
-      <v-card-text>
-        These datasets meet the requirements for the chosen training configuration.
-      </v-card-text>
-      <v-data-table
-        dense
-        v-bind="{ headers: available.headers, items: available.items.value }"
-        :footer-props="{ itemsPerPageOptions }"
-        :items-per-page.sync="clientSettings.rowsPerPage"
-        :item-class="getAvailableItemClass"
-        no-data-text="No data meets criteria for chosen configuration"
-      >
-        <template #[`item.action`]="{ item }">
-          <v-btn
-            :key="item.name"
-            :disabled="item.included"
-            color="success"
-            x-small
-            @click="toggleStaged(item)"
-          >
-            <v-icon>mdi-plus</v-icon>
-          </v-btn>
-        </template>
-        <template #[`item.view`]="{ item }">
-          <v-btn
-            :key="item.name"
-            :disabled="item.included"
-            color="info"
-            x-small
-            @click="$router.push({ name: 'viewer', params: { id: item.id } })"
-          >
-            <v-icon>mdi-eye</v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
-    </div>
-
-    <div>
-      <v-card-title class="text-h4">
-        Trained models
-      </v-card-title>
-      <v-card-text>
-        Here are all your trained models
-      </v-card-text>
-      <v-data-table
-        dense
-        v-bind="{ headers: models.headers, items: models.items.value }"
-        no-data-text="You don't have any trained model"
-      >
-        <template #[`item.export`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="info"
-            x-small
-            @click="exportModel(item)"
-          >
-            <v-icon>mdi-export</v-icon>
-          </v-btn>
-        </template>
-
-        <template #[`item.delete`]="{ item }">
-          <v-btn
-            :key="item.name"
-            color="error"
-            x-small
-            @click="deleteModel(item)"
-          >
-            <v-icon>mdi-trash-can</v-icon>
-          </v-btn>
-        </template>
-      </v-data-table>
-    </div>
   </div>
 </template>
-
-<style lang="scss">
-.multitraining-menu {
-  .disabled-row {
-    color: #444444;
-  }
-}
-</style>

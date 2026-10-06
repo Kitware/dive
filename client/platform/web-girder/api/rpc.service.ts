@@ -1,12 +1,24 @@
+import type { AxiosProgressEvent } from 'axios';
 import girderRest from 'platform/web-girder/plugins/girder';
 import type { GirderModel } from '@girder/components/src';
 import type { Pipe, PipelineParams } from 'dive-common/apispec';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 import { resolveDatasetFolderId } from './multicamResolve';
 
-function postProcess(folderId: string, skipJobs = false, skipTranscoding = false, additive = false, additivePrepend = '', set: string | undefined = undefined) {
+function postProcess(
+  folderId: string,
+  skipJobs = false,
+  skipTranscoding = false,
+  additive = false,
+  additivePrepend = '',
+  set: string | undefined = undefined,
+  stitchedSide: StitchedSide | undefined = undefined,
+  /** Associate convert/split jobs with this folder (multicam parent) for UI status. */
+  jobDatasetId: string | undefined = undefined,
+) {
   return girderRest.post<{folder: GirderModel, warnings: string[], job_ids: string[]}>(`dive_rpc/postprocess/${folderId}`, null, {
     params: {
-      skipJobs, skipTranscoding, additive, additivePrepend, set,
+      skipJobs, skipTranscoding, additive, additivePrepend, set, stitchedSide, jobDatasetId,
     },
   });
 }
@@ -58,6 +70,23 @@ function exportTrainedPipeline(path: string, pipeline: Pipe) {
   });
 }
 
+/**
+ * Upload a model-pack ZIP. `onProgress` reports uploaded bytes so the UI can
+ * show a determinate bar; `total` is absent when the length is not computable.
+ */
+function importModelPack(
+  archive: File,
+  onProgress?: (loaded: number, total?: number) => void,
+) {
+  const body = new FormData();
+  body.append('archive', archive);
+  return girderRest.post('dive_rpc/model/import', body, {
+    onUploadProgress: onProgress
+      ? (event: AxiosProgressEvent) => onProgress(event.loaded, event.total)
+      : undefined,
+  });
+}
+
 function convertLargeImage(folderId: string) {
   return girderRest.post(`dive_rpc/convert_large_image/${folderId}`, null, {});
 }
@@ -69,4 +98,5 @@ export {
   runTraining,
   deleteTrainedPipeline,
   exportTrainedPipeline,
+  importModelPack,
 };

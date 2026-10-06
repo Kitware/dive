@@ -4,6 +4,7 @@ import {
 } from 'vue';
 import { map } from 'lodash';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
+import { StitchedSide, stitchedFrame } from 'vue-media-annotator/stitchedStereo';
 import { SetTimeFunc } from '../../use/useTimeObserver';
 import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
 import useAnnotatorImageCursor from './useAnnotatorImageCursor';
@@ -63,6 +64,11 @@ export default defineComponent({
     filterId: {
       type: String as PropType<string>,
       default: 'imageEnhancements',
+    },
+    /** Show only this half of each image (stitched stereo). */
+    stitchedSide: {
+      type: String as PropType<StitchedSide | null>,
+      default: null,
     },
   },
   setup(props, { emit }) {
@@ -125,6 +131,14 @@ export default defineComponent({
       }
       return imgInternal;
     }
+    function failedToLoad(imgInternal: ImageDataItemInternal, loaded: boolean) {
+      if (loaded || local.imgs[imgInternal.frame] !== imgInternal) {
+        return false;
+      }
+      loadingImage.value = false;
+      emit('load-error', `Could not load ${imgInternal.filename}. The file may have been moved or deleted.`);
+      return true;
+    }
     /**
      * Draw image to the GeoJS map, and update the map dimensions if they have changed.
      */
@@ -136,17 +150,18 @@ export default defineComponent({
         // Warn about large images and conversion if possible
         emit('large-image-warning', true);
       }
+      const frame = stitchedFrame(props.stitchedSide, img.naturalWidth, img.naturalHeight);
       if (
-        img.naturalWidth > 0
-        && img.naturalHeight > 0
-        && ((img.naturalWidth !== local.width) || (img.naturalHeight !== local.height))
+        frame.width > 0
+        && frame.height > 0
+        && ((frame.width !== local.width) || (frame.height !== local.height))
       ) {
         /**
          * Only update dimensions if the image has loaded
          * AND the dimensions have changed
          */
-        local.width = img.naturalWidth;
-        local.height = img.naturalHeight;
+        local.width = frame.width;
+        local.height = frame.height;
         mediaController.resetMapDimensions(local.width, local.height);
       }
       local.quadFeature
@@ -155,10 +170,15 @@ export default defineComponent({
             ul: { x: 0, y: 0 },
             lr: { x: local.width, y: local.height },
             image: img,
+            ...(frame.crop ? { crop: frame.crop } : {}),
           },
         ])
         .draw();
       data.imageRevision += 1;
+    }
+    function initializeFrameViewer(img: HTMLImageElement) {
+      const frame = stitchedFrame(props.stitchedSide, img.naturalWidth, img.naturalHeight);
+      initializeViewer(frame.width, frame.height);
     }
     /**
      * Adds a single frame to the pendingImgs array for loading and assigns it to the main
@@ -277,8 +297,8 @@ export default defineComponent({
       if (!imgInternal.cached) {
         loadingImage.value = true;
         // else wait for it to load
-        await imgInternal.onloadPromise;
-        if (imgInternal.frame === data.frame) {
+        const loaded = await imgInternal.onloadPromise;
+        if (imgInternal.frame === data.frame && !failedToLoad(imgInternal, loaded)) {
           loadingImage.value = false;
           // if the seek hasn't changed since the image completed loading, draw it.
           drawImage(imgInternal.image);
@@ -368,14 +388,24 @@ export default defineComponent({
 
     if (local.imgs.length) {
       const imgInternal = cacheFrame(0);
-      imgInternal.onloadPromise.then(async () => {
+      imgInternal.onloadPromise.then(async (loaded) => {
+        if (imgInternal.frame !== data.frame || failedToLoad(imgInternal, loaded)) {
+          return;
+        }
         try {
           await imgInternal.image.decode();
         } catch (error) {
-          emit('large-image-warning', true);
+          if (imgInternal.frame !== data.frame) {
+            return;
+          }
+          loadingImage.value = false;
+          emit('load-error', `Could not display ${imgInternal.filename}. Its resolution may be too large for this browser or hardware.`, true);
           return;
         }
-        initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
+        if (imgInternal.frame !== data.frame) {
+          return;
+        }
+        initializeFrameViewer(imgInternal.image);
         const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],
           autoshareRenderer: false,
@@ -428,8 +458,8 @@ export default defineComponent({
         drawImage(imgInternal.image);
         if (!imgInternal.cached) {
           loadingImage.value = true;
-          imgInternal.onloadPromise.then(() => {
-            if (imgInternal.frame === data.frame) {
+          imgInternal.onloadPromise.then((loaded) => {
+            if (imgInternal.frame === data.frame && !failedToLoad(imgInternal, loaded)) {
               loadingImage.value = false;
               drawImage(imgInternal.image);
             }
@@ -440,8 +470,11 @@ export default defineComponent({
         return;
       }
       const imgInternal = cacheFrame(0);
-      imgInternal.onloadPromise.then(() => {
-        initializeViewer(imgInternal.image.naturalWidth, imgInternal.image.naturalHeight);
+      imgInternal.onloadPromise.then((loaded) => {
+        if (failedToLoad(imgInternal, loaded)) {
+          return;
+        }
+        initializeFrameViewer(imgInternal.image);
         const quadFeatureLayer = geoViewer.value.createLayer('feature', {
           features: ['quad'],
           autoshareRenderer: false,

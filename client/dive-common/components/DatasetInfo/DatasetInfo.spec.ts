@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { mount } from '@vue/test-utils';
 import Vue, {
   CreateElement, defineComponent, nextTick, ref,

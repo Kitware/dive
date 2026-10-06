@@ -32,6 +32,7 @@ export interface LayerRefreshContext {
     attributeLayer: DisableableLayer;
     attributeBoxLayer: DisableableLayer;
     editAnnotationLayer: DisableableLayer;
+    boxEditLayer?: DisableableLayer;
     segmentationPointsLayer: SegmentationPointsLayer;
     uiLayer: UILayer;
   };
@@ -68,6 +69,7 @@ export default function useLayerRefresh(ctx: LayerRefreshContext) {
     layers.attributeLayer.disable();
     layers.attributeBoxLayer.disable();
     layers.editAnnotationLayer.disable();
+    layers.boxEditLayer?.disable();
     layers.segmentationPointsLayer.clear();
     ctx.hoverOvered.value = [];
     layers.uiLayer.setToolTipWidget('customToolTip', false);

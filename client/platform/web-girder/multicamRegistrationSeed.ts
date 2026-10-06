@@ -30,7 +30,7 @@ export async function parseRegistrationSeed(
   datasetCameraNames: string[],
 ): Promise<RegistrationSeedResult> {
   const homographies: CameraRegistrationValues['homographies'] = {};
-  const correspondences: CameraRegistrationValues['correspondences'] = {};
+  const observations: CameraRegistrationValues['observations'] = {};
   const transformTypes: CameraRegistrationValues['transformTypes'] = {};
   const stamps: { file: string; source: RegistrationSource | null }[] = [];
   const warnings: string[] = [];
@@ -56,15 +56,15 @@ export async function parseRegistrationSeed(
       warnings.push(warning);
     }
     Object.assign(homographies, store.homographies.value);
-    Object.assign(correspondences, store.correspondences.value);
+    Object.assign(observations, store.observations.value);
     Object.assign(transformTypes, store.transformTypes.value);
     stamps.push({ file: file.name, source: store.source.value });
   }
-  const seeded = Object.keys(homographies).length || Object.keys(correspondences).length;
+  const seeded = Object.keys(homographies).length || Object.keys(observations).length;
   return {
     values: seeded ? {
       homographies,
-      correspondences,
+      observations,
       transformTypes,
       source: mergeRegistrationSources(stamps),
     } : null,

@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import Track, { TrackData, TrackSupportedFeature } from './track';
 import { RectBounds } from './utils';
 import { ConfidencePair } from './BaseAnnotation';

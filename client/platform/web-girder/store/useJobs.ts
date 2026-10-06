@@ -12,13 +12,54 @@ const NonRunningStates = [
   JobStatus.SUCCESS.value,
 ];
 
+/** True once a job reached a terminal state (success, error or canceled). */
+export function isJobFinished(status: number): boolean {
+  return NonRunningStates.includes(status);
+}
+
+/** True for the one terminal state that is not a failure. */
+export function jobSucceeded(status: number): boolean {
+  return status === JobStatus.SUCCESS.value;
+}
+
+/** True when the job ended because someone canceled it. */
+export function jobCanceled(status: number): boolean {
+  return status === JobStatus.CANCELED.value;
+}
+
+export type DatasetJobEntry = { status: number; jobId: string };
+
 const jobIds = ref<Record<string, number>>({});
-const datasetStatus = ref<Record<string, { status: number; jobId: string }>>({});
+/**
+ * Primary (display) job per dataset: a still-running job when any exist,
+ * otherwise the job most recently updated. Consumers like watchPipelineJob
+ * watch this single slot.
+ */
+const datasetStatus = ref<Record<string, DatasetJobEntry>>({});
+/** All known jobs for a dataset — split + finalize can share one parent id. */
+const datasetJobs = ref<Record<string, Record<string, number>>>({});
 const completeJobsInfo = ref<Record<string, { type: string; title: string; success: boolean }>>({});
 
 const runningJobIds = computed(
   () => Object.values(jobIds.value).filter((v) => !NonRunningStates.includes(v)).length >= 1,
 );
+
+function pickPrimaryJob(jobsForDataset: Record<string, number>, fallbackJobId: string): DatasetJobEntry {
+  const running = Object.entries(jobsForDataset)
+    .find(([, status]) => !NonRunningStates.includes(status));
+  if (running) {
+    return { jobId: running[0], status: running[1] };
+  }
+  return { jobId: fallbackJobId, status: jobsForDataset[fallbackJobId] };
+}
+
+function datasetHasRunningJob(datasetId: string): boolean {
+  const jobsForDataset = datasetJobs.value[datasetId];
+  if (!jobsForDataset) {
+    return false;
+  }
+  return Object.values(jobsForDataset).some((status) => !NonRunningStates.includes(status));
+}
 
 export function useJobs() {
   function getJobIds(): Record<string, number> {
@@ -29,15 +70,22 @@ export function useJobs() {
     Vue.set(jobIds.value, payload.jobId, payload.value);
   }
 
-  function getDatasetStatus(): Record<string, { status: number; jobId: string }> {
+  function getDatasetStatus(): Record<string, DatasetJobEntry> {
     return datasetStatus.value;
   }
 
+  /**
+   * Record a job status for a dataset. Multiple jobs may share one dataset id
+   * (e.g. per-camera split/convert plus multicam finalize). Processing stays
+   * true while any of them is non-terminal.
+   */
   function setDatasetStatus(payload: { datasetId: string; status: number; jobId: string }): void {
-    Vue.set(datasetStatus.value, payload.datasetId, {
-      status: payload.status,
-      jobId: payload.jobId,
-    });
+    const { datasetId, status, jobId } = payload;
+    if (!datasetJobs.value[datasetId]) {
+      Vue.set(datasetJobs.value, datasetId, {});
+    }
+    Vue.set(datasetJobs.value[datasetId], jobId, status);
+    Vue.set(datasetStatus.value, datasetId, pickPrimaryJob(datasetJobs.value[datasetId], jobId));
   }
 
   function getCompleteJobsInfo(): Record<string, { type: string; title: string; success: boolean }> {
@@ -68,13 +116,16 @@ export function useJobs() {
   }
 
   function getDatasetRunningState(datasetId: string): string | false {
-    if (
-      datasetId in datasetStatus.value
-      && !NonRunningStates.includes(datasetStatus.value[datasetId].status)
-    ) {
-      return `/girder/#job/${datasetStatus.value[datasetId].jobId}`;
+    const jobsForDataset = datasetJobs.value[datasetId];
+    if (!jobsForDataset) {
+      return false;
     }
-    return false;
+    const running = Object.entries(jobsForDataset)
+      .find(([, status]) => !NonRunningStates.includes(status));
+    if (!running) {
+      return false;
+    }
+    return `/girder/#job/${running[0]}`;
   }
 
   function getDatasetCompleteJobs(datasetId: string):
@@ -93,6 +144,7 @@ export function useJobs() {
   return {
     jobIds,
     datasetStatus,
+    datasetJobs,
     completeJobsInfo,
     runningJobIds,
     getJobIds,
@@ -109,7 +161,8 @@ export function useJobs() {
   };
 }
 
-function updateJobFromMessage(job: GirderJob & { type?: string; title?: string }) {
+/** Apply a Girder job status message to the jobs store. Exported for tests. */
+export function updateJobFromMessage(job: GirderJob & { type?: string; title?: string }) {
   const jobs = useJobs();
   jobs.setJobState({ jobId: job._id, value: job.status });
   if (typeof job.dataset_id === 'string') {
@@ -118,7 +171,13 @@ function updateJobFromMessage(job: GirderJob & { type?: string; title?: string }
       status: job.status,
       jobId: job._id,
     });
-    if (['pipelines', 'convert'].includes(job.type || '') && NonRunningStates.includes(job.status)) {
+    if (
+      ['pipelines', 'convert', 'scoring'].includes(job.type || '')
+      && NonRunningStates.includes(job.status)
+      // Wait until every parent-scoped job is done so a finished camera split
+      // does not prompt / clear Processing while finalize is still running.
+      && !datasetHasRunningJob(job.dataset_id)
+    ) {
       jobs.setCompleteJobsInfo({
         datasetId: job.dataset_id,
         type: job.type || '',

@@ -13,6 +13,7 @@ DIVE supports **multicamera** and **stereo** datasets on both the [web version](
 | Run stereo / multicam VIAME pipelines | ✔️ | ✔️ |
 | Run single-camera pipelines on one view | ✔️ | ✔️ |
 | Glob / keyword pattern import | ❌ | ✔️ |
+| Stitched stereo import | ✔️ (split on upload) | ✔️ (read in place) |
 | Export full multicam dataset as one `.zip` | ✔️ | ✔️ |
 | Interactive stereo (auto-warp, length recompute) | ❌ | ✔️ |
 | Interactive point-click segmentation | ❌ | ✔️ |
@@ -37,7 +38,12 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
 7. Optionally attach a per-camera annotation file during import.
 8. Optionally attach a **Metadata File** (`.json`, `.txt`, or `.csv`) — for example a flight log used by registration pipelines. This is **not** stereo-only and is independent of the calibration file; matching CSV/TXT rows are also shown as [Frame Metadata](Frame-Metadata.md) for image-sequence and video cameras. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
 9. Enter a dataset name, choose the default display camera, and click ==Begin Import==.
-10. When upload finishes, DIVE opens the new multicam dataset in the annotator.
+10. On Desktop, ==Begin Import== opens the import dialog, whose advanced options hold the
+    Configuration File, [Species List](DataFormats.md#kwcoco-species-list), and Metadata File
+    fields. A file named to end in `species.json` in the folder the cameras share (or beside
+    one camera) is pre-filled there; a species list is stored on the dataset, so every camera
+    shares the declared types.
+11. When file upload finishes, the upload dialog closes and you return to the data browser. A server job waits for camera postprocess (transcode, stitched split, image conversion) then links the multicam parent. The folder shows a **Processing** state until that job finishes; then **Launch Annotator** appears.
 
 !!! note
 
@@ -103,6 +109,25 @@ Each immediate child of the root is a **collect** folder. Inside every collect, 
 On **Web**, the folder picker uploads all files under the chosen root; scanning uses browser paths to group images by collect and camera. On **Desktop**, scanning reads the folder tree locally before import begins.
 
 For a single multicam dataset from one parent folder (one collect, camera subfolders only), use ==MultiCam== with the **parent-folder** import mode instead of MultiCam Batch.
+
+### Stitched stereo
+
+Stitched stereo media holds both cameras in every frame: the left camera in the left half and the right camera in the right half, side by side. Choose ==Stereo== from the import menu, then ==Stitched== as the way to choose each camera, and pick the single folder, image list, or video. The dataset opens as an ordinary stereo dataset with `left` and `right` cameras; annotations are in each camera's own half-frame pixel coordinates. A frame with an odd width drops its middle column so both cameras have the same size.
+
+* **DIVE Desktop** does **not** run an ingestion pipeline that writes separate left/right files. Import records one shared source path on both cameras and marks each with `stitchedSide` (`left` or `right`). The side-by-side file on disk is unchanged.
+* **DIVE Web** uploads the full stitched media into **each** camera folder, then a **background worker job** (`split_stitched_media`) crops that folder to the camera's half and replaces the uploaded items. Postprocess skips the usual transcode jobs for that folder because the split job transcodes as it crops. After the job finishes, the dataset is ordinary stereo (per-camera files only); nothing is cropped live in the browser.
+
+!!! note "Where each half is produced (desktop vs web)"
+
+    | Stage | DIVE Desktop | DIVE Web |
+    |-------|--------------|----------|
+    | **After import** | One native file (or folder) referenced by both `left` and `right` | One half-width file (or sequence) per camera folder |
+    | **Annotator** | Crops the shared media in the viewer (geojs quad `crop`) | Uses the stored half-frame media as-is |
+    | **Review chips** | Crops when decoding frames (same geometry as the annotator) | Uses stored half-frame media as-is |
+    | **VIAME pipelines / search** | Same paths as import; DIVE sets `crop_left` / `crop_right` on VIAME's image-list and video readers so VIAME reads one half per input | Same as any other stereo dataset (already split on the server) |
+    | **Interactive tools** (desktop only) | Same shared paths; VIAME loads the requested half | N/A |
+
+    On desktop, cropping is **on demand** at display or read time, not by copying or re-encoding at import. That requires a VIAME build whose readers support the crop options DIVE enables for stitched inputs.
 
 ### Flat multi-modality view folders
 
@@ -220,7 +245,12 @@ Per-camera export from the viewer still exports only the active camera.
 
 Single camera pipelines can be used by selecting the camera and then running the pipeline from the pipeline menu.
 
-> **Note:** it is suggested that single camera pipelines only be run on empty datasets that don't have annotations already. When the pipeline finishes it will create tracks with TrackIds that may conflict with the other cameras. So it is recommended that all tracks be removed before running single camera pipelines.
+When other cameras already have detections, DIVE prompts before launch:
+
+- **No** / **Continue** (separate) — remaps new TrackIds above every ID on the other cameras so IDs do not collide.
+- **Yes** (associate) — only offered for calibrated stereo with interactive stereo features enabled. Runs VIAME association and **replaces annotations on both cameras** with the paired result. Pairing works the way VIAME's stereo track-and-measure pipelines pair cameras: by head/tail keypoints where both cameras have them, and by box position against the stereo geometry otherwise; a track's classes are kept as its own camera's pipeline produced them.
+
+When association is unavailable (plain multicam, missing calibration, or stereo features off), the dialog explains why and only offers separate-ID remapping.
 
 ### MultiCamera/Stereo Pipelines
 
@@ -242,10 +272,10 @@ Open the ==:material-cog:== creation settings menu in the [Track List](UI-Track-
 | Setting | What it does |
 |---------|--------------|
 | **Update lengths when modified** | Recomputes stereo length measurements when you edit a head/tail line on a detection linked across both cameras. |
-| **Auto-compute location on other camera** | Warps a new annotation drawn on one camera to the other camera when no detection exists there yet. |
+| **Auto-compute location on other camera** | Warps a new annotation drawn on one camera to the other camera when no detection exists there yet. With **Synchronize camera controls** also on, panning or zooming one camera recentres the other on the same object: the point at the centre of the moved view is matched on the other camera with the loaded stereo method, and the other view is recentred there once the motion settles. Where no match is found the views keep moving together as before. |
 
 Enabling either option loads the interactive stereo service (shared with [interactive segmentation](Interactive-Annotation.md)). Warped head/tail lines become normal editable line annotations; manual edits are preserved and not overwritten by later auto-warping.
 
-On stereo datasets, [interactive segmentation](Interactive-Annotation.md#interactive-segmentation) can also warp confirmed polygon masks to the paired camera when auto-compute is enabled.
+On stereo datasets, [interactive segmentation](Interactive-Annotation.md#interactive-segmentation) can also warp confirmed polygon masks to the paired camera when auto-compute is enabled. With [auto-populate](Interactive-Annotation.md#auto-populate-from-a-new-box-or-line) enabled, the stereo-mapped copy of a new box or line receives the same mask and/or head/tail pass after the transfer succeeds.
 
 Full details: [Interactive Annotation](Interactive-Annotation.md).

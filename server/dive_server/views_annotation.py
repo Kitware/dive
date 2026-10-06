@@ -126,6 +126,14 @@ class AnnotationResource(Resource):
             default=None,
             requireArray=True,
         )
+        .param(
+            "set",
+            "Annotation set to export (viame_csv only).  Default is the default set.",
+            paramType="query",
+            dataType="string",
+            default=None,
+            required=False,
+        )
     )
     def export(
         self,
@@ -134,6 +142,7 @@ class AnnotationResource(Resource):
         revisionId: int,
         format: str,
         typeFilter: Optional[List[str]],
+        set: Optional[str],
     ):
         crud.verify_dataset(folder)
 
@@ -156,6 +165,7 @@ class AnnotationResource(Resource):
                 excludeBelowThreshold=excludeBelowThreshold,
                 typeFilter=typeFilter,
                 revision=revisionId,
+                set=set or None,
             )
             setContentDisposition(filename, mime='text/csv')
             return gen

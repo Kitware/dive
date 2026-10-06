@@ -15,6 +15,8 @@ import TooltipBtn from 'vue-media-annotator/components/TooltipButton.vue';
 import { clientSettings } from 'dive-common/store/settings';
 import ImportButton from 'dive-common/components/ImportButton.vue';
 import ImportMultiCamDialog from 'dive-common/components/ImportMultiCamDialog.vue';
+import TrainingSplitChip from 'dive-common/components/TrainingSplitChip.vue';
+import TrainingSplitMenu from 'dive-common/components/TrainingSplitMenu.vue';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { useRequest } from 'dive-common/use';
 import { getResponseError } from 'vue-media-annotator/utils';
@@ -23,7 +25,7 @@ import { DataTableHeader } from 'vuetify';
 import { useRouter } from 'vue-router/composables';
 import * as api from '../api';
 import {
-  JsonConfigCache, recents, removeRecents, setRecents,
+  JsonConfigCache, autoDiscover, recents, removeRecents, setRecents,
 } from '../store/dataset';
 import {
   upgradedVersion, downgradedVersion, acknowledgeVersion, knownVersion,
@@ -49,6 +51,8 @@ export default defineComponent({
     ImportMultiCamBatchDialog,
     ImportStereoBatchDialog,
     TooltipBtn,
+    TrainingSplitChip,
+    TrainingSplitMenu,
   },
 
   setup() {
@@ -192,6 +196,7 @@ export default defineComponent({
       const result = await prompt({
         title: `Delete ${items.length} dataset${items.length > 1 ? 's' : ''}`,
         text: ['Do you want to delete the selected datasets?',
+          '',
           '1.  Deleting datasets will not remove source media, such as images or video.',
           '2.  It will not remove annotations files that were imported when the datasets were created.',
           '3.  This will remove any annotations that have been created in DIVE for these datasets',
@@ -236,17 +241,21 @@ export default defineComponent({
 
     const filteredRecents = computed(() => recents.value
       .filter((v) => v.name.toLowerCase().indexOf((searchText.value || '').toLowerCase()) >= 0));
-    const allSelected = computed(() => filteredRecents.value.length > 0
-      && filteredRecents.value.every((item) => selectedIds.value.has(item.id)));
-    const someSelected = computed(() => filteredRecents.value.some(
+    const visibleRecents = ref([] as JsonConfigCache[]);
+    const allSelected = computed(() => visibleRecents.value.length > 0
+      && visibleRecents.value.every((item) => selectedIds.value.has(item.id)));
+    const someSelected = computed(() => visibleRecents.value.some(
       (item) => selectedIds.value.has(item.id),
     ));
 
     function toggleSelectAll() {
       if (allSelected.value) {
-        selectedRecents.value = [];
+        const visibleIds = new Set(visibleRecents.value.map((item) => item.id));
+        selectedRecents.value = selectedRecents.value.filter((item) => !visibleIds.has(item.id));
       } else {
-        selectedRecents.value = filteredRecents.value.slice();
+        selectedRecents.value = selectedRecents.value.concat(
+          visibleRecents.value.filter((item) => !selectedIds.value.has(item.id)),
+        );
       }
     }
 
@@ -260,6 +269,18 @@ export default defineComponent({
 
     function runTrainingOnSelected() {
       router.push({ name: 'training', query: selectedIdsQuery() });
+    }
+
+    function scoreSelected() {
+      router.push({ name: 'scoring', query: selectedIdsQuery() });
+    }
+
+    function reviewSelected() {
+      router.push({ name: 'review', query: selectedIdsQuery() });
+    }
+
+    function indexSelected() {
+      router.push({ name: 'query', query: { ...selectedIdsQuery(), view: 'datasets' } });
     }
     function getTypeIcon(recent: JsonConfigCache) {
       if (recent.subType) {
@@ -329,13 +350,27 @@ export default defineComponent({
         sortable: true,
       },
       {
+        text: 'Split',
+        value: 'trainingSplit',
+        align: 'center',
+        sortable: true,
+        width: 130,
+      },
+      {
         text: 'Accessed',
         value: 'accessedAt',
+        align: 'center',
         sortable: true,
         sort: (a: string, b: string) => parseRecentDate(b).valueOf() - parseRecentDate(a).valueOf(),
         width: 140,
       },
     ];
+    function splitTargetIds(item: JsonConfigCache) {
+      return selectedIds.value.size > 1 && selectedIds.value.has(item.id)
+        ? Array.from(selectedIds.value)
+        : [item.id];
+    }
+    const splitSaved = () => autoDiscover();
     const toDisplayString = (dateString: string) => {
       const parsed = parseRecentDate(dateString);
       return parsed.isValid() ? parsed.format('MM/DD/YY HH:mm') : dateString;
@@ -355,6 +390,11 @@ export default defineComponent({
       confirmDeleteSelected,
       runPipelineOnSelected,
       runTrainingOnSelected,
+      splitSaved,
+      splitTargetIds,
+      scoreSelected,
+      reviewSelected,
+      indexSelected,
       isSelected,
       toggleSelected,
       toggleSelectAll,
@@ -365,6 +405,7 @@ export default defineComponent({
       multiCamOpenType,
       stereo,
       filteredRecents,
+      visibleRecents,
       selectedRecents,
       allSelected,
       someSelected,
@@ -382,7 +423,7 @@ export default defineComponent({
       knownVersion,
       checkingMedia,
       clientSettings,
-      itemsPerPageOptions,
+      itemsPerPageOptions: [...itemsPerPageOptions, 1000, -1],
       queuedConversionDatasetIds,
     };
   },
@@ -618,10 +659,73 @@ export default defineComponent({
                       >
                         mdi-brain
                       </v-icon>
-                      Run Training
+                      Training
                     </v-btn>
                   </template>
                   <span>Train a model on the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="indexSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-database-plus
+                      </v-icon>
+                      Index
+                    </v-btn>
+                  </template>
+                  <span>Build search indexes for the selected datasets</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="reviewSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-view-grid-outline
+                      </v-icon>
+                      Review
+                    </v-btn>
+                  </template>
+                  <span>Review the selected datasets' annotations as a grid</span>
+                </v-tooltip>
+                <v-tooltip bottom>
+                  <template #activator="{ on }">
+                    <v-btn
+                      class="ml-2 align-self-center"
+                      color="primary"
+                      outlined
+                      small
+                      v-on="on"
+                      @click="scoreSelected"
+                    >
+                      <v-icon
+                        left
+                        small
+                      >
+                        mdi-chart-box-outline
+                      </v-icon>
+                      Score
+                    </v-btn>
+                  </template>
+                  <span>Score the selected datasets against ground truth</span>
                 </v-tooltip>
                 <v-tooltip bottom>
                   <template #activator="{ on }">
@@ -678,6 +782,7 @@ export default defineComponent({
               :footer-props="{ itemsPerPageOptions }"
               :items-per-page.sync="clientSettings.rowsPerPage"
               no-data-text="No data loaded"
+              @current-items="visibleRecents = $event"
             >
               <template #[`header.select`]>
                 <v-simple-checkbox
@@ -706,7 +811,7 @@ export default defineComponent({
                     <span class="pl-4">
                       Converting
                       <v-icon>
-                        mdi-spin mdi-sync
+                        mdi-spin mdi-autorenew
                       </v-icon>
                     </span>
                   </div>
@@ -737,7 +842,7 @@ export default defineComponent({
                     <v-chip small>
                       Awaiting Conversion
                       <v-icon right>
-                        mdi-sync mdi-spin
+                        mdi-spin mdi-autorenew
                       </v-icon>
                     </v-chip>
                   </div>
@@ -771,6 +876,38 @@ export default defineComponent({
                 >
                   {{ toDisplayString(item.accessedAt) }}
                 </span>
+              </template>
+              <template #[`item.trainingSplit`]="{ item }">
+                <TrainingSplitMenu
+                  :key="item.id"
+                  :dataset-ids="splitTargetIds(item)"
+                  @saved="splitSaved"
+                >
+                  <template #activator="{ on, saving }">
+                    <v-btn
+                      text
+                      x-small
+                      class="px-1"
+                      :loading="saving"
+                      v-on="on"
+                    >
+                      <TrainingSplitChip
+                        v-if="item.trainingSplit"
+                        :split="item.trainingSplit"
+                        x-small
+                      />
+                      <span
+                        v-else
+                        class="grey--text"
+                      >
+                        None
+                      </span>
+                      <v-icon small>
+                        mdi-menu-down
+                      </v-icon>
+                    </v-btn>
+                  </template>
+                </TrainingSplitMenu>
               </template>
               <template #[`item.select`]="{ item }">
                 <v-simple-checkbox

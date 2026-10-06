@@ -12,9 +12,9 @@ function mk(relativePath: string, content: string): File {
 
 const commonPathPrefix = () => 'collect';
 
-const untypedRegistration = JSON.stringify({ version: 1, pairs: [] });
+const untypedRegistration = JSON.stringify({ version: 2, pairs: [] });
 const typedRegistration = JSON.stringify({
-  type: 'dive-camera-registration', version: 1, pairs: [],
+  type: 'dive-camera-registration', version: 2, pairs: [],
 });
 
 describe('findRegistrationFilesInFileList', () => {
@@ -38,7 +38,7 @@ describe('findRegistrationFilesInFileList', () => {
 
   it('rejects a registration-named file without a pairs list', async () => {
     const found = await findRegistrationFilesInFileList([
-      mk('collect/no_pairs_registration.json', JSON.stringify({ version: 1 })),
+      mk('collect/no_pairs_registration.json', JSON.stringify({ version: 2 })),
     ], 'collect', commonPathPrefix);
     expect(found).toStrictEqual([]);
   });

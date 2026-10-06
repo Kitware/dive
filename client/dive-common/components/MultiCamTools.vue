@@ -28,7 +28,7 @@ export default defineComponent({
     const { frame } = useTime();
     const selectedTrackId = useSelectedTrackId();
     const cameraStore = useCameraStore();
-    const cameras = computed(() => [...cameraStore.camMap.value.keys()]);
+    const cameras = computed(() => cameraStore.orderedCameraNames());
     const canary = ref(false);
     function _depend(): boolean {
       return canary.value;

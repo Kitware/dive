@@ -272,7 +272,7 @@ export default defineComponent({
             v-if="autoDiscoverState.loading.value || autoDiscoverState.count.value === 0"
             class="pr-2"
           >
-            mdi-sync {{ autoDiscoverState.loading.value ? 'mdi-spin' : '' }}
+            mdi-autorenew {{ autoDiscoverState.loading.value ? 'mdi-spin' : '' }}
           </v-icon>
           <v-icon
             v-else-if="autoDiscoverState.count.value > 0"

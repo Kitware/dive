@@ -107,6 +107,7 @@ Omit `set` or use an empty string for the default collection.
 
 ## Related documentation
 
+* [Scoring](Scoring.md) — compare a named set (or revision) against ground truth.
 * [User Interface Guide](Annotation-User-Interface-Overview.md) — overview of viewer regions.
 * [Data Formats](DataFormats.md) — track and group JSON schema (unchanged per set; sets are a storage partition, not a different file format).
 * [Scripting endpoints](scripting/Endpoints.md) — REST reference including annotation routes.

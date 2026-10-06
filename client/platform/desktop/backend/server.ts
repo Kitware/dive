@@ -15,6 +15,7 @@ import settings from './state/settings';
 import * as common from './native/common';
 import * as geotiffTiles from './tiles/geotiffTiles';
 import * as displayProcessing from './media/displayProcessing';
+import * as frameExtraction from './native/frameExtraction';
 
 const app = express();
 app.use(express.json({ limit: '250MB' }));
@@ -54,7 +55,7 @@ function makeMediaUrl(filepath: string): string {
 }
 
 /* LOAD dataset config */
-apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
+apirouter.get('/dataset/:id{/:camera}/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -69,7 +70,7 @@ apirouter.get('/dataset/:id/:camera?/meta', async (req, res, next) => {
 });
 
 /* SAVE dataset config */
-apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/meta', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -84,7 +85,7 @@ apirouter.post('/dataset/:id/:camera?/meta', async (req, res, next) => {
 });
 
 /* SAVE attributes */
-apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/attributes', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -100,7 +101,7 @@ apirouter.post('/dataset/:id/:camera?/attributes', async (req, res, next) => {
   return null;
 });
 
-apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/attribute_track_filters', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -117,7 +118,7 @@ apirouter.post('/dataset/:id/:camera?/attribute_track_filters', async (req, res,
 });
 
 /* SAVE detections */
-apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
+apirouter.post('/dataset/:id{/:camera}/detections', async (req, res, next) => {
   try {
     let { id } = req.params;
     if (req.params.camera) {
@@ -134,7 +135,7 @@ apirouter.post('/dataset/:id/:camera?/detections', async (req, res, next) => {
 });
 
 /* Large image (GeoTIFF) tiles - compatible with LargeImageAnnotator getTiles/getTileURL */
-apirouter.get('/dataset/:id/:camera?/tiles/:level/:x/:y', async (req, res, next) => {
+apirouter.get('/dataset/:id{/:camera}/tiles/:level/:x/:y', async (req, res, next) => {
   try {
     const datasetId = req.params.camera
       ? `${req.params.id}/${req.params.camera}`
@@ -160,7 +161,7 @@ apirouter.get('/dataset/:id/:camera?/tiles/:level/:x/:y', async (req, res, next)
   return null;
 });
 
-apirouter.get('/dataset/:id/:camera?/tiles', async (req, res, next) => {
+apirouter.get('/dataset/:id{/:camera}/tiles', async (req, res, next) => {
   try {
     const datasetId = req.params.camera
       ? `${req.params.id}/${req.params.camera}`
@@ -292,6 +293,26 @@ apirouter.get('/media/histogram', async (req, res, next) => {
     }
     (err as { status?: number }).status = 500;
     return next(err);
+  }
+});
+
+/* Probe a video file for fps / size (Query page frame extraction). */
+apirouter.get('/video-info', async (req, res, next) => {
+  const { path } = req.query;
+  if (!path || Array.isArray(path)) {
+    return next({
+      status: 400,
+      statusMessage: `Invalid path: ${path}`,
+    });
+  }
+  try {
+    const info = await frameExtraction.getVideoInfo(path.toString());
+    return res.json(info);
+  } catch (err) {
+    return next({
+      status: 500,
+      statusMessage: `Failed to get video info: ${err}`,
+    });
   }
 });
 

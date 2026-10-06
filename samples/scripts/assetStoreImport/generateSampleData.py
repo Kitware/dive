@@ -458,6 +458,11 @@ def write_annotations(
         generate_annotation_json(tracks, output_file)
 
 
+def _random_annotation_suffix() -> str:
+    """Optional ``_tracks`` / ``_detections`` suffix for assetstore pairing tests."""
+    return random.choice(["", "_tracks", "_detections"])
+
+
 def _annotation_extension(annotation_format: str) -> str:
     return ".csv" if annotation_format == "viame-csv" else ".json"
 
@@ -544,9 +549,10 @@ def create_video_content(
         counter["count"] += 1
 
         ext = _annotation_extension(annotation_format)
+        annotation_suffix = _random_annotation_suffix()
         write_annotations(
             duration * annotation_fps,
-            video_path.with_suffix(ext),
+            base_dir / f"{stem}{annotation_suffix}{ext}",
             annotation_format=annotation_format,
             dataset_name=video_path.stem,
             fps=annotation_fps,

@@ -45,6 +45,9 @@ export interface StereoTransferLineRequest {
  * All values are in calibration units (e.g. mm). Keys match VIAME's attribute names.
  */
 export interface StereoMeasurement {
+  curved_length?: number;
+  straight_length?: number;
+  curvature_ratio?: number;
   length: number;
   midpoint_x: number;
   midpoint_y: number;
@@ -74,8 +77,12 @@ export interface StereoTransferLineResponse {
 
 /** Request to triangulate the length of a line already corresponded on both images */
 export interface StereoMeasureLineRequest {
-  leftLine: [[number, number], [number, number]];
-  rightLine: [[number, number], [number, number]];
+  /** Frame identity for deferred multi-point measurement. */
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
+  leftLine: [number, number][];
+  rightLine: [number, number][];
 }
 
 /** Response from a measure-line request */
@@ -83,6 +90,8 @@ export interface StereoMeasureLineResponse {
   id: string;
   success: boolean;
   error?: string;
+  /** The measurement is usable but the stereo matches dispute the drawn lines. */
+  warning?: string;
   /** Triangulated 3D length in calibration units (e.g. mm). */
   length?: number;
   /** Full stereo measurement (length, midpoint, range, RMS). */
@@ -107,6 +116,11 @@ export interface StereoAggregateLengthsResponse {
 
 /** Request to transfer multiple points */
 export interface StereoTransferPointsRequest {
+  sourceCamera?: 'left' | 'right';
+  strict?: boolean;
+  leftImagePath?: string;
+  rightImagePath?: string;
+  frameTime?: number;
   points: [number, number][];
 }
 
@@ -118,6 +132,7 @@ export interface StereoTransferPointsResponse {
   transferredPoints?: [number, number][];
   originalPoints?: [number, number][];
   disparityValues?: number[];
+  validMatches?: boolean[];
 }
 
 /** Status response from the stereo service */

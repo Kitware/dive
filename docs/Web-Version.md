@@ -27,6 +27,7 @@ A user account is required to store data and run pipelines on viame.kitware.com.
 * Select a video or multi-select a group of image frames.
     * Use ++ctrl++ or ++shift++ to click every file you want to upload.
     * If you already have `annotations.csv` or an annotation or configuration JSON select that too.
+    * Optionally select a **Species List**: a [KWCOCO Species List](DataFormats.md#kwcoco-species-list) declaring the classes readers pick from. It has its own slot, so it can be uploaded together with an annotation file and a configuration file. A file named to end in `species.json` lands there automatically.
     * Optionally select a **Metadata File** (`.json`, `.txt`, or `.csv`) such as a flight log. This is separate from the DIVE **Configuration File** JSON; pipelines that declare `# Metadata File:` use it, and matching CSV/TXT rows also appear as [Frame Metadata](Frame-Metadata.md) on image-sequence and video datasets. See [Metadata File vs Configuration File](Pipeline-Import-Export.md#metadata-file-vs-configuration-file).
     * Uploads that contain only `.tif` / `.tiff` files are classified as [large-image](Large-Image-Support.md) datasets rather than image sequences.
 * Choose a name for the dataset and enter the optional playback frame rate or select other optional files.
@@ -59,7 +60,7 @@ DIVE Web supports importing **stereo** (2 cameras + calibration) and **multicam*
     * ==:material-binoculars: Stereoscopic== — 2 cameras plus a calibration `.npz` file.
     * ==:material-camera-burst: MultiCam== — assign media to each of 2 or 3 cameras for **one** dataset.
     * ==:material-folder-multiple-image: MultiCam Batch== — import **many** multicam image-sequence datasets from a root folder of collect subfolders (see [Batch multicam import](Multicamera-data.md#batch-multicam-import)).
-5. For Stereoscopic or MultiCam, assign media to each camera, optionally attach annotations and a **Metadata File**, set a dataset name and default display camera, then start the import. For MultiCam Batch, choose the root folder, review the scan table, edit dataset names, select collects, and start the batch.
+5. For Stereoscopic or MultiCam, assign media to each camera, optionally attach annotations and a **Metadata File**, set a dataset name and default display camera, then start the import. In the stereo dialog, ==Stitched== imports one side-by-side source; the server splits each camera folder in a background job after upload (see [Stitched stereo](Multicamera-data.md#stitched-stereo)). For MultiCam Batch, choose the root folder, review the scan table, edit dataset names, select collects, and start the batch.
 
 All cameras in one import must share the same media type. By default, every camera must have the same frame count (or matching video duration). For image-sequence ==MultiCam== imports with capture timestamps in filenames, enable **Infer frame index from filename** in the import dialog to allow unequal per-camera counts — see [Multicamera and Stereo Data](Multicamera-data.md#infer-frame-index-from-filename). Stereoscopic imports require a calibration `.npz` file. The optional Metadata File is independent of calibration and is available for single-camera and multicam imports. MultiCam Batch is **image-sequence only** (not video or stereo).
 

@@ -743,7 +743,6 @@ def test_export_multicam_annotations_preflights_invalid_coco_hierarchy(zip_gen_c
         )
 
     assert str(error_info.value) == (
-        'Type hierarchy is invalid: self edge "fish -> fish". '
-        'No COCO file was exported.'
+        'Type hierarchy is invalid: self edge "fish -> fish". No COCO file was exported.'
     )
     zip_gen_cls.assert_not_called()

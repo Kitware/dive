@@ -12,6 +12,7 @@ import {
   MultiType,
 } from 'dive-common/constants';
 import { preferEoIrSubfolderOrder } from 'dive-common/components/ImportMultiCamDialog/multicamSubfolderLayout';
+import { inferCameraRoles } from 'dive-common/pipelineCameraOrder';
 import {
   JsonConfig, JsonConfigCurrentVersion,
   DesktopMediaImportResponse,
@@ -19,13 +20,14 @@ import {
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 import {
   mergeRegistrationSources, unknownCameraWarning,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
-import { discoverMetadataAttachment, findImagesInFolder } from './common';
+import { discoverMetadataAttachment, discoverSpeciesList, findImagesInFolder } from './common';
 import {
-  CameraCorrespondences,
   CameraHomographies,
+  CameraObservations,
   CameraTransformTypes,
   fromRegistrationPairs,
   RegistrationPair,
@@ -85,6 +87,13 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     if (args.type === 'large-image') {
       throw new Error('large-image is not supported for multi-camera import');
     }
+    if (args.stitched) {
+      const names = Object.keys(args.sourceList).sort();
+      if (names.join(',') !== 'left,right'
+        || args.sourceList.left.sourcePath !== args.sourceList.right.sourcePath) {
+        throw new Error('stitched stereo import needs left and right cameras sharing one source');
+      }
+    }
     const cameraType = args.type;
     const sourceDirectories = Object.fromEntries(
       Object.entries(args.sourceList).map(([key, item]) => [
@@ -108,6 +117,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         originalVideoFile: '',
         transcodedImageFiles: [],
         transcodedVideoFile: '',
+        ...(args.stitched ? { stitchedSide: key as StitchedSide } : {}),
       };
       // Discovery runs only when the user picked nothing for this camera, and only when the
       // camera owns its directory: a directory shared by several cameras is resolved once at
@@ -159,7 +169,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   // the aligned view consumes (loadConfig falls back to these meta fields
   // until a save writes the standalone per-camera files).
   const seedHomographies: CameraHomographies = {};
-  const seedCorrespondences: CameraCorrespondences = {};
+  const seedCorrespondences: CameraObservations = {};
   const seedTransformTypes: CameraTransformTypes = {};
   const seedSourceStamps: { file: string; source: RegistrationSource | null }[] = [];
   const importWarnings: string[] = [];
@@ -178,6 +188,12 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         if (!data || !Array.isArray(data.pairs)) {
           throw new Error('not a DIVE registration file (expected a "pairs" list)');
         }
+        if (data.version !== 2) {
+          throw new Error(
+            `unsupported registration file version ${JSON.stringify(data.version)} `
+            + '(expected 2); regenerate the file with a current producer',
+          );
+        }
         const parsed = fromRegistrationPairs(data.pairs);
         Object.entries(parsed.homographies).forEach(([key, homography]) => {
           if (!readTransformMatrix(homography.AtoB) || !readTransformMatrix(homography.BtoA)) {
@@ -185,7 +201,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
           }
           seedHomographies[key] = homography;
         });
-        Object.assign(seedCorrespondences, parsed.correspondences);
+        Object.assign(seedCorrespondences, parsed.observations);
         Object.assign(seedTransformTypes, parsed.transformTypes);
         const fileName = item.transformFile.replace(/^.*[\\/]/, '');
         const warning = unknownCameraWarning(
@@ -213,6 +229,11 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   }
 
   let sharedMetadataFile: string | undefined;
+  // A species list declares the types of the whole dataset, so it is discovered at the
+  // dataset scope: the directory the cameras share, or failing that the camera directories
+  // themselves when they agree on one file. It rides the response, not jsonConfig, so the
+  // import dialog shows it in its Species List field where the user can clear or replace it.
+  let sharedSpeciesFile: string | undefined;
   if (isFolderArgs(args)) {
     const cameraDirectories = Object.values(args.sourceList).map((item) => (
       args.type === 'video' ? npath.dirname(item.sourcePath) : item.sourcePath
@@ -229,8 +250,26 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     }
     sharedMetadataFile = args.metadataFile
       || (sharedDirectory ? await discoverMetadataAttachment(sharedDirectory) : undefined);
+    sharedSpeciesFile = sharedDirectory ? await discoverSpeciesList(sharedDirectory) : undefined;
+    if (!sharedSpeciesFile) {
+      const perCamera = [...new Set((await Promise.all(
+        uniqueCameraDirectories
+          .filter((directory) => directory !== sharedDirectory)
+          .map((directory) => discoverSpeciesList(directory)),
+      )).filter((path): path is string => path !== undefined))];
+      if (perCamera.length === 1) {
+        [sharedSpeciesFile] = perCamera;
+      } else if (perCamera.length > 1) {
+        importWarnings.push(
+          'More than one species list was found beside the cameras '
+          + `(${perCamera.map((path) => npath.basename(path)).join(', ')}). `
+          + 'None was applied; choose one in the Species List field.',
+        );
+      }
+    }
   } else {
     sharedMetadataFile = args.metadataFile || undefined;
+    sharedSpeciesFile = await discoverSpeciesList(args.sourcePath);
   }
 
   const jsonConfig: JsonConfig = {
@@ -371,6 +410,19 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
   // Shared attachment travels on the response (like beginMediaImport), not on
   // jsonConfig: ImportDialog binds metadataFileAbsPath so the user can see and clear it.
   // finalizeMediaImport still accepts jsonConfig.metadataFile as a fallback for older callers.
+  // Sensor role per camera, from the camera name and (for image sequences)
+  // the image names; the pipeline camera-assignment step prefills from it
+  // and the user can correct it there.
+  const cameraRoles = inferCameraRoles(Object.fromEntries(
+    Object.entries(cameras).map(([name, camera]) => [
+      name,
+      camera.originalImageFiles.length ? camera.originalImageFiles : [camera.originalVideoFile],
+    ]),
+  ));
+  if (Object.keys(cameraRoles).length) {
+    jsonConfig.cameraRoles = cameraRoles;
+  }
+
   return {
     jsonConfig,
     globPattern: '',
@@ -379,6 +431,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     forceMediaTranscode: false,
     multiCamTrackFiles: trackFileCount === 0 ? null : multiCamTrackFiles,
     ...(sharedMetadataFile ? { metadataFileAbsPath: sharedMetadataFile } : {}),
+    ...(sharedSpeciesFile ? { speciesFileAbsPath: sharedSpeciesFile } : {}),
     ...(importWarnings.length ? { importWarnings } : {}),
   };
 }

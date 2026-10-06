@@ -24,6 +24,7 @@ from .views_override import (
     use_private_queue,
 )
 from .views_rpc import RpcResource
+from .views_scoring import ScoringResource
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class GirderPlugin(plugin.GirderPlugin):
         info["apiRoot"].dive_configuration = ConfigurationResource("dive_configuration")
         info["apiRoot"].dive_dataset = DatasetResource("dive_dataset")
         info["apiRoot"].dive_rpc = RpcResource("dive_rpc")
+        info["apiRoot"].dive_scoring = ScoringResource("dive_scoring")
         # required because girder doesn't load plugins in order so we need to manually load first.
         getPlugin('jobs').load(info)
         # Setup route additions for exsting resources

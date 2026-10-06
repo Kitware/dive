@@ -71,6 +71,10 @@ Run model training on ground truth annotations.  Currently, training configurati
 * Full-frame classifiers can be trained on arbitrary multi-class labels.  It's helpful to start with `empty frame lbls` utility pipe and add type annotations to each generated frame.
 * Object classifiers and detectors are trained on bounding boxes with arbitrary multi-class labels.
 
+### Train, validation, and test splits
+
+Datasets can optionally be labeled **Train**, **Validation**, or **Test** with the ==Split== menu in the data browser (web) after selecting them, or from the ==Split== column dropdown in the library (desktop), which applies to every selected dataset.  Labeled datasets show a colored chip in the list.  When training runs on a mix of labeled datasets, validation datasets are held out to monitor training, test datasets are excluded entirely and, once training finishes, the new model is run on them and scored; the metrics, plots and per-sequence detections land in `test_results/` inside the trained model folder.  Unlabeled datasets are used for training.  Without any labels, VIAME picks its own validation frames as before.
+
 ### Overview
 
 * SVM ([Support Vector Machine](https://en.wikipedia.org/wiki/Support-vector_machine)) configurations are usable with the smallest amount of ground-truth and train relatively quickly.
@@ -130,3 +134,7 @@ By default, training runs include all frames from the chosen input datasets, and
 ## Pipeline Import and Export
 
 Pipelines created outside of VIAME Web can be upload and shared with other users.  See [Pipeline Import and Export](Pipeline-Import-Export.md) for upload steps and [pipe file headers](Pipeline-Import-Export.md#pipe-file-headers) (including `# Metadata File:` and `# Image List Keys:`).
+
+## Evaluating pipeline output
+
+After running a detector or tracker pipeline, use [Scoring](Scoring.md) to compare the pipeline annotations against ground truth. On web, keep labels and model output in separate [annotation sets](Annotation-Sets.md) (for example `groundTruth` vs `default`) and score them from the **Scoring** tab.

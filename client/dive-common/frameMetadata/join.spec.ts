@@ -1,5 +1,3 @@
-/// <reference types="vitest" />
-
 import { extractCounter, resolveTableToFrames } from './join';
 import type { ResolvedCameraFrameMetadata } from './join';
 import { parseFrameMetadataTable } from './parser';

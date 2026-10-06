@@ -24,8 +24,11 @@ import {
   StyleManager, TrackFilterControls, GroupFilterControls,
 } from 'vue-media-annotator/index';
 import type { CustomStyle } from 'vue-media-annotator/StyleManager';
+import { AnnotationHistory, annotationUndoShortcut } from 'dive-common/use/annotationUndo';
+import seedSharedStyles from 'dive-common/seedSharedStyles';
 import { resolveToReferenceTransforms, unresolvedCameras } from 'vue-media-annotator/alignedView/alignedView';
 import { provideAnnotator, LassoModeSymbol } from 'vue-media-annotator/provides';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 
 import {
   ImageAnnotator,
@@ -49,7 +52,7 @@ import SegmentationPointClick from 'dive-common/recipes/segmentationpointclick';
 import EditorMenu from 'dive-common/components/EditorMenu.vue';
 import ConfidenceFilter from 'dive-common/components/ConfidenceFilter.vue';
 import UserGuideButton from 'dive-common/components/UserGuideButton.vue';
-import TypeSettingsPanel from 'dive-common/components/TypeSettingsPanel.vue';
+import TypeSettingsPanel from 'dive-common/components/Types/TypeSettingsPanel.vue';
 import TrackSettingsPanel from 'dive-common/components/TrackSettingsPanel.vue';
 import TrackListColumnSettings from 'dive-common/components/TrackListColumnSettings.vue';
 import TrackDetailsPanel from 'dive-common/components/TrackDetailsPanel.vue';
@@ -62,10 +65,12 @@ import ControlsContainer from 'dive-common/components/ControlsContainer.vue';
 import Sidebar from 'dive-common/components/Sidebar.vue';
 import BottomPanel from 'dive-common/components/BottomPanel.vue';
 import { useModeManager, useSave, useLassoMode } from 'dive-common/use';
+import { createAutoRegisterJobService, provideAutoRegisterJob } from 'dive-common/use/useAutoRegisterJob';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
+  NewAnnotationGeometryParams,
 } from 'dive-common/use/useModeManager';
 import clientSettingsSetup, { clientSettings, isStereoInteractiveModeEnabled } from 'dive-common/store/settings';
 import {
@@ -97,6 +102,14 @@ import MultiCamToolbar from './MultiCamToolbar.vue';
 import AlignedViewToggle from './AlignedViewToggle.vue';
 import PrimaryAttributeTrackFilter from './PrimaryAttributeTrackFilter.vue';
 import UserSettingsDialog from './UserSettingsDialog.vue';
+import UnsavedChangesDialog from './UnsavedChangesDialog.vue';
+
+export interface StereoViewLinkParams {
+  camera: string;
+  frameNum: number;
+  point: [number, number];
+}
+export type StereoViewLinkFunc = (params: StereoViewLinkParams) => Promise<[number, number] | null>;
 
 export interface ImageDataItem {
   url: string;
@@ -118,6 +131,7 @@ export default defineComponent({
     ConfidenceFilter,
     UserGuideButton,
     UserSettingsDialog,
+    UnsavedChangesDialog,
     EditorMenu,
     MultiCamToolbar,
     AlignedViewToggle,
@@ -155,6 +169,16 @@ export default defineComponent({
       type: Array as PropType<string[]>,
       default: () => [],
     },
+    /** Label for annotations loaded from a scoring result or other preview. */
+    annotationSourceLabel: {
+      type: String,
+      default: '',
+    },
+    /** Offer a control to return to the dataset's current annotations. */
+    annotationSourceReturnable: {
+      type: Boolean,
+      default: false,
+    },
     textQueryEnabled: {
       type: Boolean,
       default: false,
@@ -162,6 +186,39 @@ export default defineComponent({
     textQueryAvailable: {
       type: Boolean,
       default: false,
+    },
+    checkTextQueryAvailable: {
+      type: Function as PropType<() => Promise<boolean>>,
+      default: undefined,
+    },
+    /** Deep link: frame to seek to once the media is ready (e.g. from the review grid). */
+    initialFrame: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+    /** Deep link: track to select once annotations are loaded. */
+    initialTrackId: {
+      type: Number as PropType<number | undefined>,
+      default: undefined,
+    },
+    /**
+     * Where a point on one stereo camera lands on the other, using the loaded
+     * stereo matcher; null when it cannot be found. Lets synchronised panning
+     * follow the same object on both cameras.
+     */
+    stereoViewLink: {
+      type: Function as PropType<StereoViewLinkFunc | undefined>,
+      default: undefined,
+    },
+    /** True while browser auto-populate (mask/points) is embedding or predicting. */
+    autoPopulateBusy: {
+      type: Boolean,
+      default: false,
+    },
+    /** Live SAM status text during auto-populate. */
+    autoPopulateStatus: {
+      type: String as PropType<string | null>,
+      default: null,
     },
   },
   setup(props, { emit }) {
@@ -178,13 +235,15 @@ export default defineComponent({
     const displayComparisons = ref(props.comparisonSets.length
       ? props.comparisonSets.slice(0, 1) : props.comparisonSets);
     const selectedSet = ref('');
+    // Created before useMediaController / provideAnnotator so both share one flag.
+    const segmentationCursorLoading = ref(false);
     const {
       aggregateController,
       onResize,
       clear: mediaControllerClear,
       setAlignedFrameResolver,
       setResetZoomOverride,
-    } = useMediaController();
+    } = useMediaController({ segmentationCursorLoading });
     const { time, updateTime, initialize: initTime } = useTimeObserver();
     const imageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
     const rawImageData = ref({ singleCam: [] } as Record<string, FrameImage[]>);
@@ -194,9 +253,11 @@ export default defineComponent({
     const subType = ref(null as string | null);
     const saveInProgress = ref(false);
     const videoUrl: Ref<Record<string, string>> = ref({});
+    const stitchedSideByCamera: Ref<Record<string, StitchedSide>> = ref({});
     const {
       loadDetections, loadConfig, saveConfig, getTiles, getTileURL, getTileHistogram,
       loadGlobalStyleSettings, saveGlobalStyleSettings,
+      getPipelineList, runPipeline, watchPipelineJob,
     } = useApi();
     const progress = reactive({
       // Loaded flag prevents annotator window from populating
@@ -330,25 +391,23 @@ export default defineComponent({
     });
     const showUserSettingsDialog = ref(false);
 
-    // When the Camera Registration panel opens, minimize the workspace chrome to
-    // give the picking view more room: collapse the left type-filter sidebar and
-    // the bottom detections graph. This is a soft default -- the normal sidebar
-    // and timeline toggles still work while registering, so the user can bring
-    // either back -- and whatever layout they had before is restored on close.
+    // When the Camera Registration panel opens, minimize the workspace chrome
+    // to give the picking view more room: hide the type-filter sidebar,
+    // whichever side it is on. Bottom especially -- it competes for the same
+    // vertical room the two picking panes want. The bottom controls
+    // deliberately stay as they are -- the timeline hosts the
+    // registration-frame marker row, which is most useful exactly while this
+    // panel is open. This is a soft default -- the normal sidebar toggle
+    // still works while registering -- and whatever layout the user had
+    // before is restored on close.
     const registrationActive = computed(() => context.state.active === RegistrationToolsVue.name);
     let preRegistrationSidebarMode: 'left' | 'bottom' | 'collapsed' | null = null;
-    let preRegistrationControlsCollapsed = false;
     watch(registrationActive, (active) => {
       if (active) {
         preRegistrationSidebarMode = sidebarMode.value;
-        preRegistrationControlsCollapsed = controlsCollapsed.value;
-        if (sidebarMode.value === 'left') {
-          sidebarMode.value = 'collapsed';
-        }
-        controlsCollapsed.value = true;
+        sidebarMode.value = 'collapsed';
       } else if (preRegistrationSidebarMode !== null) {
         sidebarMode.value = preRegistrationSidebarMode;
-        controlsCollapsed.value = preRegistrationControlsCollapsed;
         preRegistrationSidebarMode = null;
       }
     });
@@ -385,12 +444,22 @@ export default defineComponent({
 
     const {
       save: saveToServer,
-      markChangesPending,
+      markChangesPending: markSaveChangesPending,
       discardChanges,
       pendingSaveCount,
       addCamera: addSaveCamera,
       removeCamera: removeSaveCamera,
     } = useSave(datasetId, readonlyState);
+
+    let annotationHistory: AnnotationHistory | undefined;
+    const markChangesPending: typeof markSaveChangesPending = (change) => {
+      markSaveChangesPending(change);
+      if (change && change.action !== 'meta' && (change.track || change.group)) {
+        annotationHistory?.record({
+          ...change, action: change.action, cameraName: change.cameraName ?? 'singleCam',
+        });
+      }
+    };
 
     const {
       imageEnhancements,
@@ -418,8 +487,12 @@ export default defineComponent({
     }
 
     const segmentationRecipe = new SegmentationPointClick();
-    const segmentationCursorLoading = computed(
+    // Spinner while loading or predicting; CPU work runs in ORT's wasm proxy
+    // worker so the main thread can keep painting and handling Esc/Cancel.
+    watch(
       () => segmentationRecipe.loading.value || segmentationRecipe.predicting.value,
+      (busy) => { segmentationCursorLoading.value = busy; },
+      { immediate: true },
     );
     const recipes = [
       new PolygonBase(),
@@ -531,6 +604,11 @@ export default defineComponent({
     groupStyleManager.onStyleEdit = (change) => onStyleEdit(change, 'group');
 
     const cameraStore = new CameraStore({ markChangesPending });
+    const annotationUndo = new AnnotationHistory(cameraStore);
+    annotationHistory = annotationUndo;
+    function runAnnotationOperation<T>(operation: () => Promise<T>) {
+      return annotationUndo.run(operation);
+    }
     const isMultiCameraDataset = computed(() => multiCamList.value.length > 1);
 
     /**
@@ -564,6 +642,44 @@ export default defineComponent({
       alignedView.setRegistrationProgress(null);
       cameraRegistration.hydrate();
     }
+    // Keep the registration store's current frame in sync so newly picked
+    // points are stamped with the image pair they were picked on.
+    watch(() => aggregateController.value.frame.value, (frameNum) => {
+      cameraRegistration.currentFrame.value = frameNum;
+    }, { immediate: true });
+    /**
+     * Publish the frame/image bridge the registration store resolves
+     * observation identities with: image-sequence cameras resolve to real
+     * file names; video cameras resolve to stable frame://N pseudo-names so
+     * the persisted schema stays uniform across media types. Frames resolve
+     * in each camera's own local frame space.
+     */
+    function publishRegistrationFrameResolver() {
+      cameraRegistration.setFrameResolver({
+        currentImageName: (camera: string) => {
+          let cameraFrame: number;
+          try {
+            cameraFrame = aggregateController.value.getController(camera).frame.value;
+          } catch {
+            cameraFrame = aggregateController.value.frame.value;
+          }
+          return imageData.value[camera]?.[cameraFrame]?.filename
+            ?? `frame://${cameraFrame}`;
+        },
+        frameForImage: (camera: string, imageName: string) => {
+          const pseudo = /^frame:\/\/(\d+)$/.exec(imageName);
+          if (pseudo) {
+            return Number(pseudo[1]);
+          }
+          const images = imageData.value[camera];
+          if (!images || !images.length) {
+            return null;
+          }
+          const index = images.findIndex((image) => image.filename === imageName);
+          return index >= 0 ? index : null;
+        },
+      });
+    }
 
     const alignedResolution = computed(() => {
       if (!isMultiCameraDataset.value) {
@@ -582,7 +698,7 @@ export default defineComponent({
     });
     // Publish how much of the rig resolves so UI outside the viewer core
     // (e.g. the import menu's "Import to all cameras" checkbox) shows the
-    // same "N/M cameras registered" status as the Align View toggle.
+    // same "N/M cameras ready" status as the Align View toggle.
     const registrationProgress = computed(() => {
       if (!isMultiCameraDataset.value) {
         return null;
@@ -614,7 +730,7 @@ export default defineComponent({
      * Camera panes currently displayed. While the Camera Registration panel is
      * open with an active pair on a 3+ camera dataset, only the pair's two
      * panes show, so the left/right alignment flow reads without unrelated
-     * panes in between (regardless of whether Pick points is toggled on).
+     * panes in between (regardless of whether Edit points is toggled on).
      * Panes are hidden (v-show), not unmounted, so their viewers keep state.
      */
     const displayedCameras = computed(() => {
@@ -639,14 +755,6 @@ export default defineComponent({
     const removeGroups = (id: AnnotationId) => {
       cameraStore.removeGroups(id);
     };
-    const setTrackType = (
-      id: AnnotationId,
-      newType: string,
-      confidenceVal?: number,
-      currentType?: string,
-    ) => {
-      cameraStore.setTrackType(id, newType, confidenceVal, currentType);
-    };
     const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
     const setGroupType = (
       id: AnnotationId,
@@ -664,7 +772,7 @@ export default defineComponent({
       sorted: cameraStore.sortedGroups,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
       remove: removeGroups,
-      setType: setGroupType,
+      setGroupType,
       removeTypes: removeGroupTypes,
     });
 
@@ -676,13 +784,12 @@ export default defineComponent({
       sorted: cameraStore.sortedTracks,
       remove: removeTracks,
       markChangesPending: (markChangesPending as MarkChangesPendingFilter),
-      lookupGroups: cameraStore.lookupGroups,
+      lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
       getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
       renameTrackPair: (id, currentType, newType) => (
         cameraStore.renameTrackPair(id, currentType, newType)
       ),
       groupFilterControls: groupFilters,
-      setType: setTrackType,
       removeTypes,
     });
 
@@ -691,8 +798,95 @@ export default defineComponent({
     const lassoMode = useLassoMode();
     provide(LassoModeSymbol, lassoMode);
 
+    // Auto-register job bridge for the Camera Registration panel: proposes a
+    // stratified candidate spread, launches the utility_align_cameras pipe
+    // over exactly those frames, and refreshes the registration store when
+    // the merged result lands in the dataset meta. Availability is "is the
+    // align pipe in the pipeline list" -- truthful on both platforms because
+    // the add-on pack installs the pipes together with the matcher weights.
+    const autoRegisterJob = createAutoRegisterJobService({
+      datasetId,
+      cameras: multiCamList,
+      frameCount: (camera: string) => {
+        const images = imageData.value[camera];
+        if (images && images.length) {
+          return images.length;
+        }
+        try {
+          return aggregateController.value.getController(camera).maxFrame.value + 1;
+        } catch {
+          return 0;
+        }
+      },
+      timestampsFor: (camera: string) => {
+        const images = imageData.value[camera];
+        if (!images || !images.length
+          || !images.some((image) => image.timestamp !== undefined)) {
+          return null;
+        }
+        return images.map((image) => image.timestamp);
+      },
+      // Register through the same timeline playback uses, so a candidate
+      // "frame" is one capture across the rig rather than one index reused on
+      // cameras that may have dropped different frames.
+      alignedSlots: () => {
+        const result = alignedTimeline.value;
+        return result.aligned ? result.slots : null;
+      },
+      resolveImagePaths: async (camera: string, frames: number[]) => {
+        const images = imageData.value[camera];
+        return frames.map((frameNum) => images?.[frameNum]?.filename ?? `frame://${frameNum}`);
+      },
+      getPipelineList,
+      runPipeline,
+      // Only platforms that can report job state supply this; without it the
+      // service falls back to watching the dataset for the job's output.
+      watchJob: watchPipelineJob,
+      loadMetadata: loadConfig,
+      registration: cameraRegistration,
+      saveRegistration,
+      confirmReload: () => prompt({
+        title: 'Auto Register Finished',
+        text: 'The auto-register job finished, but this registration has '
+          + 'unsaved edits. Load the job results (replacing the unsaved '
+          + 'edits)?',
+        positiveButton: 'Load results',
+        negativeButton: 'Keep my edits',
+        confirm: true,
+      }),
+    });
+    provideAutoRegisterJob(autoRegisterJob);
+    onBeforeUnmount(() => autoRegisterJob.dispose());
+
+    // Linked panning: with camera controls synchronised and auto-compute on,
+    // the other pane recentres on where this pane's centre is on its camera.
+    const stereoViewLinkResolver = async (camera: string, point: [number, number]) => {
+      if (!props.stereoViewLink) return null;
+      let frameNum: number;
+      try {
+        frameNum = aggregateController.value.getController(camera).frame.value;
+      } catch {
+        return null;
+      }
+      return props.stereoViewLink({ camera, frameNum, point });
+    };
+    watch(
+      [
+        () => clientSettings.stereoSettings.autoComputeOtherCamera,
+        () => props.stereoViewLink,
+        () => multiCamList.value.length,
+      ],
+      ([autoCompute, link, cameras]) => {
+        aggregateController.value.setViewLinkResolver(
+          autoCompute && link && cameras === 2 ? stereoViewLinkResolver : null,
+        );
+      },
+      { immediate: true },
+    );
+
     // Provides wrappers for actions to integrate with settings
     const {
+      linkingState,
       linkingTrack,
       linkingCamera,
       multiSelectList,
@@ -718,15 +912,34 @@ export default defineComponent({
       readonlyState,
       alignedView,
       isStereoscopicDataset: computed(() => subType.value === 'stereo'),
+      lassoModeActive: lassoMode.lassoModeActive,
+      lassoDrawing: lassoMode.lassoDrawing,
       onStereoAnnotationComplete: (params: StereoAnnotationCompleteParams) => {
         emit('stereo-annotation-complete', params);
       },
       onStereoAnnotationReset: (params: StereoAnnotationResetParams) => {
         emit('stereo-annotation-reset', params);
       },
+      onNewAnnotationGeometry: (params: NewAnnotationGeometryParams) => {
+        emit('new-annotation-geometry', params);
+      },
       onStereoSegmentationFinalize: (params?: StereoSegmentationFinalizeParams) => {
         emit('stereo-segmentation-finalize', params);
       },
+    });
+
+    const canUndoAnnotation = computed(() => annotationUndo.canUndo.value
+      && progress.loaded && !readonlyState.value && !saveInProgress.value
+      && !segmentationRecipe.predicting.value && !segmentationRecipe.loading.value
+      && !registrationActive.value);
+    function undoAnnotation() {
+      if (canUndoAnnotation.value) annotationUndo.undo(handler.prepareAnnotationUndo);
+    }
+    const onUndoKeydown = (event: KeyboardEvent) => annotationUndoShortcut(event, undoAnnotation, canUndoAnnotation.value);
+    window.addEventListener('keydown', onUndoKeydown);
+    onBeforeUnmount(() => {
+      window.removeEventListener('keydown', onUndoKeydown);
+      annotationUndo.reset();
     });
 
     // Register linked-viewer composables during setup (after selectedCamera exists)
@@ -949,6 +1162,7 @@ export default defineComponent({
         }
       }
       const typeHierarchyPatch = trackFilters.typeHierarchySavePatch();
+      const taxonomyPatch = trackFilters.taxonomySavePatch();
       try {
         const { canonicalConfigPersisted } = await saveToServer({
           customTypeStyling: trackStyleManager.getTypeStyles(
@@ -959,15 +1173,18 @@ export default defineComponent({
           timeFilters: trackFilters.timeFilters.value,
           imageEnhancements: imageEnhancements.value,
           ...typeHierarchyPatch,
+          ...taxonomyPatch,
           // TODO Group confidence filters are not yet supported.
         }, saveSet);
         if (canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
       } catch (err) {
         const saveResult = err as { canonicalConfigPersisted?: boolean };
         if (saveResult.canonicalConfigPersisted) {
           trackFilters.markTypeHierarchyPersisted(typeHierarchyPatch);
+          trackFilters.markTaxonomyPersisted(taxonomyPatch);
         }
         let text = 'Unable to Save Data';
         const saveErr = err as { response?: { status?: number } };
@@ -1293,7 +1510,7 @@ export default defineComponent({
       cameraRegistration.maybeFitActivePair();
       await saveConfig(datasetId.value, {
         cameraHomographies: cameraRegistration.homographies.value,
-        cameraCorrespondences: cameraRegistration.correspondences.value,
+        cameraCorrespondences: cameraRegistration.observations.value,
         cameraTransformTypes: cameraRegistration.transformTypes.value,
         cameraRegistrationSource: cameraRegistration.source.value,
       });
@@ -1305,18 +1522,17 @@ export default defineComponent({
       // eslint-disable-next-line no-param-reassign
       event.returnValue = '';
     }
+    const unsavedChangesDialog = ref<InstanceType<typeof UnsavedChangesDialog>>();
+
+    async function saveBeforeLeave() {
+      if (pendingSaveCount.value > 0) await save(props.currentSet);
+      await saveRegistration();
+      if (hasUnsavedChanges.value) throw new Error('There are still unsaved changes.');
+    }
+
     async function navigateAwayGuard(): Promise<boolean> {
-      let result = true;
-      if (hasUnsavedChanges.value) {
-        result = await prompt({
-          title: 'Save Items',
-          text: 'There is unsaved data, would you like to continue or cancel and save?',
-          positiveButton: 'Discard and Leave',
-          negativeButton: 'Don\'t Leave',
-          confirm: true,
-        });
-      }
-      return result;
+      if (!hasUnsavedChanges.value) return true;
+      return unsavedChangesDialog.value?.confirm() ?? false;
     }
 
     async function handleSetChange(set: string) {
@@ -1453,6 +1669,10 @@ export default defineComponent({
       }
       return false;
     };
+    let editingOnRightMouseDown = false;
+    const noteRightMouseDown = () => {
+      editingOnRightMouseDown = editingTrack.value;
+    };
     // Handles changing camera using the dropdown or mouse clicks
     // When using mouse clicks and right button it will remain in edit mode for the selected track
     const changeCamera = (camera: string, event?: MouseEvent) => {
@@ -1476,15 +1696,21 @@ export default defineComponent({
       if (event && isExtendingDetectionToCamera(camera)) {
         return;
       }
-      // A right-click while editing must finalize and deselect the detection
-      // in a single press -- matching single-camera behavior -- not merely
-      // switch cameras (which used to leave the detection selected until a
-      // second right-click on the new camera). Right-clicks ON an annotation
-      // never reach here: the annotation layers' right-click handoff switches
-      // the selected camera synchronously first, so this handler returns at
-      // the top (same camera).
-      if (event?.button === 2 && editingTrack.value) {
+      // A right-click off the detection while editing must finalize it,
+      // deselect it AND select the clicked camera in a single press, whatever
+      // the edit mode. When the track also has geometry on the clicked camera,
+      // that camera's edit layer has already ended editing by the time this
+      // mouseup arrives -- leaving the detection selected -- so editingTrack
+      // alone cannot tell; selectCamera(camera, true) would then put it
+      // straight back into edit mode. Right-clicks ON an annotation never
+      // reach here: the annotation layers' right-click handoff (including the
+      // one that moves an edit in progress to this camera) switches the
+      // selected camera synchronously first, so this handler returns at the
+      // top (same camera).
+      if (event?.button === 2 && (editingTrack.value || editingOnRightMouseDown)) {
+        editingOnRightMouseDown = false;
         handler.trackSelect(null, false);
+        selectCamera(camera, false);
         return;
       }
       // While editing a track that exists on the target camera, its edit
@@ -1514,6 +1740,7 @@ export default defineComponent({
     };
     /** Trigger data load */
     const loadData = async () => {
+      annotationUndo.reset();
       try {
         // Flush any pending shared-style write before this load replaces the
         // in-memory global* refs / manager customStyles (see onStyleEdit).
@@ -1522,6 +1749,7 @@ export default defineComponent({
         context.resetActive();
         const meta = await loadConfig(datasetId.value);
         trackFilters.setTypeHierarchy(meta.typeHierarchy);
+        trackFilters.setTaxonomySources(meta.taxonomySources);
         const hierarchyWarning = trackFilters.consumeLoadWarning();
         if (hierarchyWarning) {
           await prompt({
@@ -1534,6 +1762,9 @@ export default defineComponent({
         if (meta.multiCamMedia) {
           /* We're loading a multicamera dataset */
           multiCamList.value = orderedMultiCamCameraNames(meta.multiCamMedia);
+          // Publish the persisted rig order for consumers that need to know
+          // which camera is first/last (see CameraStore.displayOrder).
+          cameraStore.displayOrder.value = multiCamList.value;
           defaultCamera.value = meta.multiCamMedia.defaultDisplay;
           changeCamera(defaultCamera.value);
           baseMulticamDatasetId.value = datasetId.value;
@@ -1542,6 +1773,9 @@ export default defineComponent({
           }
         } else {
           multiCamList.value = ['singleCam'];
+          // Clear any order carried over from a previously loaded multicam
+          // dataset, so orderedCameraNames falls back to camMap.
+          cameraStore.displayOrder.value = [];
           resetMulticamAlignment();
         }
         cameraStore.setCameraOrder(multiCamList.value);
@@ -1577,12 +1811,10 @@ export default defineComponent({
             ? { ...(meta.customGroupStyling ?? {}), ...globalGroupStyles.value }
             : meta.customGroupStyling,
         );
-        if (meta.customTypeStyling) {
-          trackFilters.importTypes(Object.keys(meta.customTypeStyling), false);
-        }
-        if (meta.customGroupStyling) {
-          groupFilters.importTypes(Object.keys(meta.customGroupStyling), false);
-        }
+        // The declared lists are replaced, not grown: an Overwrite species-list import
+        // drops types, and a reload must stop listing them or the next save puts them back.
+        trackFilters.setConfiguredTypes(Object.keys(meta.customTypeStyling ?? {}));
+        groupFilters.setConfiguredTypes(Object.keys(meta.customGroupStyling ?? {}));
         if (loadedGlobalStyles) {
           // Do not importTypes() for shared keys: that would list every
           // historically colored type as an empty type in this dataset.
@@ -1598,6 +1830,9 @@ export default defineComponent({
           let seeded = false;
           const nextTypes = { ...globalTypeStyles.value };
           Object.entries(meta.customTypeStyling ?? {}).forEach(([name, style]) => {
+            // A type declared by a species list has no style of its own, and a curated list
+            // runs to hundreds of entries. There is nothing to share, so it is not seeded.
+            if (!Object.keys(style).length) return;
             if (!(name in nextTypes)) {
               nextTypes[name] = {
                 ...style,
@@ -1666,6 +1901,7 @@ export default defineComponent({
         imageData.value = Object.fromEntries(
           multiCamList.value.map((camera) => [camera, [] as FrameImage[]]),
         );
+        stitchedSideByCamera.value = {};
         for (let i = 0; i < multiCamList.value.length; i += 1) {
           const camera = multiCamList.value[i];
           let cameraId = baseMulticamDatasetId.value;
@@ -1695,6 +1931,9 @@ export default defineComponent({
           applyDisplayUrls(camera);
           if (subCameraMeta.videoUrl) {
             videoUrl.value[camera] = subCameraMeta.videoUrl;
+          }
+          if (subCameraMeta.stitchedSide) {
+            VueSet(stitchedSideByCamera.value, camera, subCameraMeta.stitchedSide);
           }
           cameraStore.addCamera(camera);
           addSaveCamera(camera);
@@ -1822,6 +2061,11 @@ export default defineComponent({
             meta.cameraTransformTypes,
             meta.cameraRegistrationSource,
           );
+          // Media is loaded at this point: resolve observation frames from
+          // their image names against this dataset's own frame ordering.
+          publishRegistrationFrameResolver();
+          // Probe for the align_cameras pipes (fire and forget).
+          autoRegisterJob.refreshAvailability();
           // Reset the aligned-view toggle for the newly loaded dataset (no
           // persistence this phase).
           alignedView.setEnabled(false);
@@ -1837,33 +2081,19 @@ export default defineComponent({
          * Existing shared overrides win; new keys are tagged with this dataset.
          */
         if (loadedGlobalStyles) {
-          const sourceId = datasetId.value;
-          const sourceName = datasetName.value || meta.name;
-          const seedMissing = (
-            into: Record<string, CustomStyle>,
-            from: Record<string, CustomStyle>,
-          ) => {
-            let changed = false;
-            const next = { ...into };
-            Object.entries(from).forEach(([name, style]) => {
-              if (!(name in next)) {
-                next[name] = {
-                  ...style,
-                  sourceDatasetId: sourceId,
-                  sourceDatasetName: sourceName,
-                };
-                changed = true;
-              }
-            });
-            return { next, changed };
+          const source = {
+            sourceDatasetId: datasetId.value,
+            sourceDatasetName: datasetName.value || meta.name,
           };
-          const typeSeed = seedMissing(
+          const typeSeed = seedSharedStyles(
             globalTypeStyles.value,
             trackStyleManager.getTypeStyles(trackFilters.allTypes),
+            source,
           );
-          const groupSeed = seedMissing(
+          const groupSeed = seedSharedStyles(
             globalGroupStyles.value,
             groupStyleManager.getTypeStyles(groupFilters.allTypes),
+            source,
           );
           if (typeSeed.changed || groupSeed.changed) {
             globalTypeStyles.value = typeSeed.next;
@@ -1884,6 +2114,7 @@ export default defineComponent({
             }
           }
         }
+        annotationUndo.start();
         progress.loaded = true;
         fetchSelectedCameraHistogram().catch(() => {});
         // If multiCam add Tools and remove group Tools
@@ -1930,10 +2161,40 @@ export default defineComponent({
         errorEl.innerHTML = getResponseError(err);
         loadError.value = errorEl.innerText
           .concat(". If you don't know how to resolve this, please contact the server administrator.");
+        emit('load-error', loadError.value);
         throw err;
       }
     };
+    function forwardLoadError(message: string, largeImage?: boolean) {
+      emit('load-error', message, largeImage);
+    }
     loadData();
+
+    /**
+     * Apply a deep link (initialFrame / initialTrackId) once: after the
+     * annotations are loaded and the media controller reports its frame
+     * range, so the seek is not swallowed by the annotator's own init seek.
+     */
+    let initialFocusApplied = false;
+    watch(
+      () => [progress.loaded, aggregateController.value.maxFrame.value] as const,
+      ([loaded, maxFrame]) => {
+        if (initialFocusApplied || !loaded) return;
+        if (props.initialFrame === undefined && props.initialTrackId === undefined) return;
+        if (props.initialFrame !== undefined && maxFrame <= 0) return;
+        initialFocusApplied = true;
+        nextTick(() => {
+          if (props.initialFrame !== undefined) {
+            handler.seekFrame(Math.min(props.initialFrame, maxFrame));
+          }
+          if (props.initialTrackId !== undefined
+            && cameraStore.getAnyPossibleTrack(props.initialTrackId)) {
+            handler.trackSelect(props.initialTrackId, false);
+          }
+        });
+      },
+      { immediate: true },
+    );
 
     const reloadAnnotations = async () => {
       progress.loaded = false;
@@ -2267,6 +2528,7 @@ export default defineComponent({
       cycleSidebarMode,
       sidebarModeIcon,
       sidebarModeTooltip,
+      registrationActive,
       bottomRightPanelView,
       toggleBottomRightPanel,
       colorBy,
@@ -2283,6 +2545,7 @@ export default defineComponent({
       imageData,
       lineChartData,
       loadError,
+      forwardLoadError,
       multiSelectActive,
       lassoModeActive: lassoMode.lassoModeActive,
       lassoDrawing: lassoMode.lassoDrawing,
@@ -2290,6 +2553,9 @@ export default defineComponent({
       progress,
       progressValue,
       saveInProgress,
+      canUndoAnnotation,
+      undoAnnotation,
+      runAnnotationOperation,
       showUserSettingsDialog,
       onGlobalStylesChange,
       playbackComponent,
@@ -2306,12 +2572,13 @@ export default defineComponent({
       originalFps: time.originalFps,
       context,
       readonlyState,
+      linkingState,
       cameraEnhOutputs,
       isCameraDefault,
       cameraPercentileStretch,
       disableAnnotationFilters,
       trackStyleManager,
-      visible,
+      visible: () => visible() || unsavedChangesDialog.value?.show === true,
       selectedTrackForDetails,
       showConfidenceFirst,
       showTrackAttributesFirst,
@@ -2344,10 +2611,14 @@ export default defineComponent({
       selectedCameraUpdateTime,
       // multicam
       multiCamList,
+      stitchedSideByCamera,
       defaultCamera,
       selectedCamera,
       changeCamera,
+      noteRightMouseDown,
       // For Navigation Guarding
+      unsavedChangesDialog,
+      saveBeforeLeave,
       navigateAwayGuard,
       warnBrowserExit,
       hasUnsavedChanges,
@@ -2365,7 +2636,16 @@ export default defineComponent({
 
 <template>
   <v-main class="viewer">
-    <v-app-bar app>
+    <unsaved-changes-dialog
+      ref="unsavedChangesDialog"
+      :save="saveBeforeLeave"
+      :saving="saveInProgress"
+      :readonly="readonlyState"
+    />
+    <v-app-bar
+      app
+      extension-height="56"
+    >
       <slot name="title" />
       <span
         class="title pl-3 flex-row"
@@ -2410,6 +2690,43 @@ export default defineComponent({
           </template>
           Click on the {{ currentSet || 'default' }} chip to open the Comparison Menu
         </v-tooltip>
+        <v-tooltip
+          v-if="annotationSourceLabel"
+          bottom
+        >
+          <template #activator="{ on }">
+            <v-chip
+              class="ml-2 annotation-source-chip"
+              small
+              outlined
+              color="info"
+              v-on="on"
+            >
+              <v-icon
+                small
+                left
+              >
+                mdi-chart-box-outline
+              </v-icon>
+              {{ annotationSourceLabel }}
+              <v-icon
+                v-if="annotationSourceReturnable"
+                small
+                right
+                class="ml-1"
+                @click.stop="$emit('return-to-current-annotations')"
+              >
+                mdi-close
+              </v-icon>
+            </v-chip>
+          </template>
+          <span>
+            Annotations from a scoring result.
+            <template v-if="annotationSourceReturnable">
+              Click the close icon to return to the dataset's current annotations.
+            </template>
+          </span>
+        </v-tooltip>
         <div
           v-if="readonlyState"
           class="mx-auto my-0 pa-0"
@@ -2438,7 +2755,14 @@ export default defineComponent({
       </span>
       <v-spacer />
       <template #extension>
+        <!--
+          No sidebar while registering: the picking panes want the room, and
+          the bottom layout in particular doesn't lay them out usably. The
+          panel collapses the sidebar on open and restores it on close, so
+          the toggle is simply not offered in between.
+        -->
         <v-tooltip
+          v-if="!registrationActive"
           bottom
         >
           <template #activator="{ on }">
@@ -2454,6 +2778,8 @@ export default defineComponent({
 
         <EditorMenu
           ref="editorMenuRef"
+          :has-selected-track="selectedTrackId !== null"
+          :disabled="readonlyState || linkingState || !progress.loaded"
           v-bind="{
             editingMode,
             visibleModes,
@@ -2466,6 +2792,9 @@ export default defineComponent({
             lassoDrawing: !readonlyState && lassoDrawing,
             textQueryEnabled,
             textQueryAvailable,
+            checkTextQueryAvailable,
+            autoPopulateBusy,
+            autoPopulateStatus,
           }"
           :tail-settings.sync="clientSettings.annotatorPreferences.trackTails"
           :show-user-created-icon.sync="clientSettings.annotatorPreferences.showUserCreatedIcon"
@@ -2473,6 +2802,7 @@ export default defineComponent({
           :suppression-display.sync="clientSettings.annotatorPreferences.suppressionDisplay"
           @set-annotation-state="handler.setAnnotationState"
           @exit-edit="handler.trackAbort"
+          @cancel-auto-populate="$emit('cancel-auto-populate')"
           @text-query-init="$emit('text-query-init')"
           @text-query="onTextQuerySubmit"
           @text-query-all-frames="$emit('text-query-all-frames', $event)"
@@ -2489,14 +2819,8 @@ export default defineComponent({
             />
           </template>
           <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera === multiCamList[0]"
-            slot="multicam-controls-left"
-          >
-            <multi-cam-toolbar />
-          </template>
-          <template
-            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar && selectedCamera !== multiCamList[0]"
-            slot="multicam-controls-right"
+            v-if="showMultiCamToolbar && multiCamList.length > 1 && clientSettings.multiCamSettings.showToolbar"
+            slot="multicam-controls"
           >
             <multi-cam-toolbar />
           </template>
@@ -2544,6 +2868,21 @@ export default defineComponent({
 
       <slot name="title-right" />
       <user-guide-button annotating />
+      <v-tooltip bottom>
+        <template #activator="{ on }">
+          <span v-on="on">
+            <v-btn
+              icon
+              aria-label="Undo last annotation change"
+              :disabled="!canUndoAnnotation"
+              @click="undoAnnotation"
+            >
+              <v-icon>mdi-undo</v-icon>
+            </v-btn>
+          </span>
+        </template>
+        <span>Undo last annotation change (Ctrl+Z / ⌘Z)</span>
+      </v-tooltip>
       <v-tooltip bottom>
         <template #activator="{ on }">
           <div v-on="on">
@@ -2609,7 +2948,6 @@ export default defineComponent({
       <sidebar
         v-if="sidebarMode === 'left'"
         :is-stereo-dataset="subType === 'stereo'"
-        @import-types="trackFilters.importTypes($event)"
         @track-seek="seekToFrame($event)"
       >
         <template>
@@ -2661,6 +2999,7 @@ export default defineComponent({
               :class="displayedCameras.includes(camera) ? 'd-flex flex-column grow' : 'd-none'"
               :style="{ height: `calc(100% - ${controlsHeight}px)` }"
               @mousedown.left="changeCamera(camera, $event)"
+              @mousedown.right="noteRightMouseDown"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
@@ -2682,8 +3021,10 @@ export default defineComponent({
                   getTileURL,
                   percentileStretch: cameraPercentileStretch(camera),
                   filterId: `imageEnhancements-${camera}`,
+                  stitchedSide: stitchedSideByCamera[camera] || null,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
+                @load-error="forwardLoadError"
               >
                 <LayerManager :camera="camera" />
               </component>
@@ -2758,6 +3099,7 @@ export default defineComponent({
               :key="camera"
               class="d-flex flex-column grow"
               @mousedown.left="changeCamera(camera, $event)"
+              @mousedown.right="noteRightMouseDown"
               @mouseup.right="changeCamera(camera, $event)"
             >
               <component
@@ -2779,8 +3121,10 @@ export default defineComponent({
                   getTileURL,
                   percentileStretch: cameraPercentileStretch(camera),
                   filterId: `imageEnhancements-${camera}`,
+                  stitchedSide: stitchedSideByCamera[camera] || null,
                 }"
                 @large-image-warning="$emit('large-image-warning', true)"
+                @load-error="forwardLoadError"
               >
                 <LayerManager :camera="camera" />
               </component>
@@ -2961,5 +3305,15 @@ html {
 .camera-select fieldset {
   height: 33px;
   margin-top: 4px;
+}
+
+.annotation-source-chip {
+  max-width: min(280px, 40vw);
+
+  .v-chip__content {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
 }
 </style>

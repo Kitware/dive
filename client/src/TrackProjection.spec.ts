@@ -1,4 +1,3 @@
-/// <reference types="vitest" />
 import { createTrackProjection, TrackProjection } from './TrackProjection';
 import Track, { Feature } from './track';
 

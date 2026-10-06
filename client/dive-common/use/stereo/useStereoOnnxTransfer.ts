@@ -1,8 +1,8 @@
 /**
  * Client-side stereo transfer: when a detection is annotated on one camera,
- * warp it onto the other camera using the VIAME "match" ONNX model
- * ({@link StereoOnnxMatcher}) — no backend, so it works in both the web and
- * desktop DIVE builds.
+ * warp it onto the other camera using the selected {@link StereoMatcher} — the
+ * VIAME "match" ONNX model or the Fast-FoundationStereo export — with no
+ * backend, so it works in both the web and desktop DIVE builds.
  *
  * This mirrors the desktop backend stereo handler (ViewerLoader's
  * `handleStereoAnnotationComplete`) but runs the correspondence search and the
@@ -16,12 +16,19 @@
 
 import CameraStore from 'vue-media-annotator/CameraStore';
 import Track from 'vue-media-annotator/track';
+import {
+  headTailFeatures, sampleHeadTail, distanceToHeadTail, isHeadTailPoint,
+} from 'vue-media-annotator/headTail';
 import { RectBounds } from 'vue-media-annotator/utils';
-import { HeadPointKey, TailPointKey, HeadTailLineKey } from 'dive-common/recipes/headtail';
+import { HeadTailLineKey } from 'dive-common/recipes/headtail';
 import type { StereoAnnotationCompleteParams } from '../useModeManager';
-import { StereoOnnxMatcher, SearchRange } from './StereoOnnxMatcher';
+import {
+  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState, detectionTransferJob, unmappedPoints,
+} from './keypointTransfer';
+import type { SearchRange } from './StereoOnnxMatcher';
+import type { StereoMatcher } from './stereoMatcher';
 import { StereoRig, invertRig } from './calibration';
-import { rgbaToGray, RgbaImage } from './image';
+import { RgbaImage } from './image';
 import { measureLine, aggregateLengths, StereoMeasurement } from './triangulate';
 
 export interface StereoOnnxTransferConfig {
@@ -32,8 +39,13 @@ export interface StereoOnnxTransferConfig {
   getLeftCameraName: () => string;
   /** Stereo calibration, or null if unavailable (transfer is then skipped). */
   getRig: () => Promise<StereoRig | null>;
-  /** The (lazily created / cached) ONNX matcher, or null if unavailable. */
-  getMatcher: () => Promise<StereoOnnxMatcher | null>;
+  /**
+   * The (lazily created / cached) matcher for the selected method, or null if
+   * unavailable. Either correspondence method satisfies {@link StereoMatcher},
+   * so nothing downstream branches on which one is in use.
+   */
+  /** `imagery` is the frame size, so a size-dependent model can be chosen. */
+  getMatcher: (imagery?: { width: number; height: number }) => Promise<StereoMatcher | null>;
   /** Full-resolution RGBA pixels for a camera at a frame, or null. */
   getFrame: (cameraName: string, frameNum: number) => Promise<RgbaImage | null>;
   /** Disparity- or depth-based search range for the correspondence search. */
@@ -67,11 +79,11 @@ export const STEREO_USER_LINE_ATTR = 'stereo_user_line';
 /** 'stereo' = auto-computed from the warped lines, 'user_set' = locked by the user. */
 export const STEREO_LENGTH_METHOD_ATTR = 'length_method';
 export const STEREO_MEASUREMENT_ATTRS = [
-  'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+  'length', 'curved_length', 'straight_length', 'curvature_ratio', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
 ] as const;
 
 type Point = [number, number];
-type Line = [Point, Point];
+type Line = Point[];
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -85,14 +97,8 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   const measureLengths = () => config.measureLengths?.() ?? false;
 
   function getOrCreateTrack(trackId: number, sourceCamera: string, targetCamera: string, frameNum: number): Track | undefined {
-    let track = cameraStore.getPossibleTrack(trackId, targetCamera);
-    if (!track) {
-      const targetStore = cameraStore.camMap.value.get(targetCamera)?.trackStore;
-      const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
-      const trackType = sourceTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-      track = targetStore?.add(frameNum, trackType, undefined, trackId);
-    }
-    return track;
+    return cameraStore.getPossibleTrack(trackId, targetCamera)
+      ?? cameraStore.addLinkedTrack(trackId, targetCamera, frameNum, sourceCamera);
   }
 
   /**
@@ -135,39 +141,27 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     if (!features) return null;
     const lineFeat = features.find(
       (f) => f.geometry.type === 'LineString'
-        && (f.geometry.coordinates as Point[]).length === 2,
+        && (f.geometry.coordinates as Point[]).length >= 2,
     );
     if (!lineFeat) return null;
     const c = lineFeat.geometry.coordinates as unknown as Point[];
-    return [c[0], c[1]];
+    return c;
   }
 
   /** Replace a track feature's head/tail line, preserving any other geometry. */
-  function applyLine(track: Track | undefined, frameNum: number, line: Line, key?: string) {
+  function applyLine(track: Track | undefined, frameNum: number, line: Line, sourceCamera: string) {
     if (!track) return;
-    const [feature] = track.getFeature(frameNum);
-    const [p1, p2] = line;
-    const preserved = (feature?.geometry?.features ?? []).filter((f) => {
-      if (f.geometry.type === 'LineString') return false;
-      const k = f.properties?.key;
-      return k !== HeadPointKey && k !== TailPointKey;
-    });
-    const geometry: GeoJSON.Feature[] = [
-      ...preserved,
-      {
-        type: 'Feature',
-        geometry: { type: 'LineString', coordinates: line },
-        properties: { key: key ?? HeadTailLineKey },
-      },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: p1 }, properties: { key: HeadPointKey } },
-      { type: 'Feature', geometry: { type: 'Point', coordinates: p2 }, properties: { key: TailPointKey } },
-    ];
+    const geometry = headTailFeatures(line).map((g) => ({
+      ...g,
+      properties: g.geometry.type === 'Point'
+        ? { ...g.properties, stereoSource: sourceCamera, stereoKey: g.properties?.key } : g.properties,
+    }));
     track.setFeature({
       frame: frameNum,
       flick: 0,
       keyframe: true,
       interpolate: false,
-      bounds: boundsFromPoints([p1, p2], BOX_PAD, true),
+      bounds: boundsFromPoints(line, BOX_PAD, true),
     }, geometry as GeoJSON.Feature<GeoJSON.Geometry>[] as never);
   }
 
@@ -179,6 +173,7 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
   function applyMeasurement(track: Track | undefined, frameNum: number, m: StereoMeasurement) {
     if (!track) return;
     const [feature] = track.getFeature(frameNum);
+    track.setFeatureAttribute(frameNum, 'measurement_stale', false);
     const lengthLocked = feature?.attributes?.[STEREO_LENGTH_METHOD_ATTR] === 'user_set';
     if (!lengthLocked && Number.isFinite(m.length) && feature?.keyframe) {
       track.setFeature({ frame: frameNum, fishLength: round2(m.length) });
@@ -187,7 +182,7 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     STEREO_MEASUREMENT_ATTRS.forEach((name) => {
       if (name === 'length' && lengthLocked) return;
       const v = m[name as keyof StereoMeasurement];
-      if (Number.isFinite(v)) track.setFeatureAttribute(frameNum, name, round2(v));
+      if (typeof v === 'number' && Number.isFinite(v)) track.setFeatureAttribute(frameNum, name, round2(v));
     });
   }
 
@@ -235,10 +230,36 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     const rig = await getRig();
     if (!rig) throw new Error('No stereo calibration is available for this dataset.');
 
-    const measurement = measureLine(rig, leftLine, rightLine);
+    let measurement: StereoMeasurement | null;
+    if (leftLine.length > 2 || rightLine.length > 2) {
+      const samples = sampleHeadTail(leftLine);
+      const matches = await warp(samples, leftCamera, rightCamera, frameNum);
+      if (!matches.every((m) => m.accepted && distanceToHeadTail([m.x, m.y], rightLine) <= 5)) {
+        throw new Error('Incomplete or inconsistent centerline correspondence.');
+      }
+      const target = matches.map((m): Point => [m.x, m.y]);
+      const pieces = samples.slice(1).map((p, i) => measureLine(rig, [samples[i], p], [target[i], target[i + 1]]));
+      const chord = measureLine(rig, [samples[0], samples[samples.length - 1]], [target[0], target[target.length - 1]]);
+      if (!chord || chord.length <= 0 || pieces.some((p) => !p || !Number.isFinite(p.length) || p.length <= 0 || p.stereo_rms > 5)) {
+        throw new Error('Invalid reconstructed centerline.');
+      }
+      const length = pieces.reduce((sum, p) => sum + (p as StereoMeasurement).length, 0);
+      measurement = {
+        ...chord,
+        length,
+        curved_length: length,
+        straight_length: chord.length,
+        curvature_ratio: length / chord.length,
+        stereo_rms: Math.max(...pieces.map((p) => (p as StereoMeasurement).stereo_rms)),
+      };
+    } else {
+      measurement = measureLine(rig, [leftLine[0], leftLine[1]], [rightLine[0], rightLine[1]]);
+    }
     if (!measurement) {
       throw new Error('The two lines could not be triangulated; check that the calibration matches these cameras.');
     }
+    if (JSON.stringify(lineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
+        || JSON.stringify(lineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
     config.ensureMeasurementAttributes?.();
     applyMeasurement(leftTrack, frameNum, measurement);
     applyMeasurement(rightTrack, frameNum, measurement);
@@ -256,24 +277,57 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     return measurement;
   }
 
+  /** Identifies a (source camera -> other camera, frame) pair for matcher caches. */
+  function frameKey(sourceCamera: string, otherCamera: string, frameNum: number) {
+    return `${sourceCamera}>${otherCamera}@${frameNum}`;
+  }
+
+  /** Orient the rig so `sourceCamera` is the source ("left"). */
+  function orientRig(rig0: StereoRig, sourceCamera: string) {
+    return sourceCamera === getLeftCameraName() ? rig0 : invertRig(rig0);
+  }
+
   /** Run the correspondence search for one set of points, source camera -> other. */
-  async function warp(points: Point[], sourceCamera: string, otherCamera: string, frameNum: number) {
-    const [rig0, matcher] = await Promise.all([getRig(), getMatcher()]);
-    if (!rig0) throw new Error('No stereo calibration is available for this dataset.');
-    if (!matcher) throw new Error('The stereo matching model could not be loaded.');
-    // Orient the rig so the annotated camera is the source ("left").
-    const rig = sourceCamera === getLeftCameraName() ? rig0 : invertRig(rig0);
-
-    const [srcFrame, tgtFrame] = await Promise.all([
-      getFrame(sourceCamera, frameNum), getFrame(otherCamera, frameNum),
+  async function warp(points: Point[], sourceCamera: string, otherCamera: string, frameNum: number, line = false) {
+    const [rig0, srcFrame, tgtFrame] = await Promise.all([
+      getRig(), getFrame(sourceCamera, frameNum), getFrame(otherCamera, frameNum),
     ]);
+    if (!rig0) throw new Error('No stereo calibration is available for this dataset.');
     if (!srcFrame || !tgtFrame) throw new Error('Could not read the frame pixels for both cameras.');
+    const matcher = await getMatcher({ width: srcFrame.width, height: srcFrame.height });
+    if (!matcher) throw new Error('The stereo matching model could not be loaded.');
+    const rig = orientRig(rig0, sourceCamera);
 
-    return matcher.warpPoints(points, rgbaToGray(srcFrame), rgbaToGray(tgtFrame), rig, {
+    const match = line && matcher.warpLine ? matcher.warpLine : matcher.warpPoints;
+    return match.call(matcher, points, srcFrame, tgtFrame, rig, {
       range: getRange(),
       threshold: config.threshold,
       uniquenessRatio: config.uniquenessRatio,
+      frameKey: frameKey(sourceCamera, otherCamera, frameNum),
     });
+  }
+
+  /**
+   * Let a matcher that works per frame (the foundation method's dense
+   * disparity) compute its map for `frameNum` before the user draws anything
+   * there. Both warp directions are prepared, the calibration's left camera
+   * first. A no-op for matchers without per-frame state. `stillWanted` lets the
+   * host drop the work once the viewer has moved on to another frame.
+   */
+  async function precomputeFrame(frameNum: number, stillWanted: () => boolean = () => true): Promise<void> {
+    const cams = getMultiCamList();
+    if (cams.length < 2) return;
+    const leftCamera = getLeftCameraName();
+    const rightCamera = cams.find((c) => c !== leftCamera);
+    if (!rightCamera) return;
+    const [rig0, leftFrame, rightFrame] = await Promise.all([
+      getRig(), getFrame(leftCamera, frameNum), getFrame(rightCamera, frameNum),
+    ]);
+    if (!rig0 || !leftFrame || !rightFrame || !stillWanted()) return;
+    const matcher = await getMatcher({ width: leftFrame.width, height: leftFrame.height });
+    if (!matcher?.prepare || !stillWanted()) return;
+    await matcher.prepare(frameKey(leftCamera, rightCamera, frameNum), leftFrame, rightFrame, rig0, stillWanted);
+    await matcher.prepare(frameKey(rightCamera, leftCamera, frameNum), rightFrame, leftFrame, invertRig(rig0), stillWanted);
   }
 
   /**
@@ -291,10 +345,14 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     quiet = false,
   ): Promise<'transferred' | 'skipped' | 'failed'> {
     if (params.type === 'segmentation') return 'skipped';
+    if (params.type === 'point' && isHeadTailPoint(params.key)) {
+      getMultiCamList().forEach((camera) => cameraStore.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
+    }
 
     // The warp writes geometry directly rather than re-emitting this event, so
     // reaching here means the user authored this camera's line.
-    if (params.type === 'line') {
+    if (params.type === 'line' || (params.type === 'point' && isHeadTailPoint(params.key))) {
+      getMultiCamList().forEach((camera) => cameraStore.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
       cameraStore.getPossibleTrack(params.trackId, params.camera)
         ?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
     }
@@ -324,13 +382,55 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
         }
         return 'skipped';
       }
+    } else if (params.type === 'point') {
+      if (!shouldWarp || (!params.insert && !canMapPoint(otherTrack, params.frameNum, params.key, params.camera))) {
+        if (isHeadTailPoint(params.key) && measureLengths() && otherHasFeature) {
+          try { await measureAndReport(params.trackId, params.frameNum); } catch (err) { config.onError?.(`Stereo measurement failed. ${(err as Error).message}`); }
+        }
+        return 'skipped';
+      }
+      if (!otherHasFeature) {
+        // One keypoint alone would make a detection of just that point on
+        // the other camera; map the detection it belongs to instead.
+        const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
+        const job = detectionTransferJob(sourceTrack, params.frameNum, params.camera);
+        if (!job) return 'skipped';
+        const result = await handleStereoAnnotationComplete(job, forceAutoCompute, quiet);
+        if (result !== 'transferred') return result;
+        const mapped = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+        const remaining = unmappedPoints(sourceTrack, mapped, params.frameNum);
+        for (let i = 0; i < remaining.length; i += 1) {
+          // eslint-disable-next-line no-await-in-loop
+          await handleStereoAnnotationComplete({
+            type: 'point', camera: params.camera, trackId: params.trackId, frameNum: params.frameNum, ...remaining[i],
+          }, forceAutoCompute, true);
+        }
+        return 'transferred';
+      }
     } else if (otherHasFeature || !shouldWarp) {
       return 'skipped';
     }
 
     if (!quiet) config.onStatus?.('Computing stereo correspondence...');
     try {
-      if (params.type === 'box') {
+      if (params.type === 'point') {
+        const source = cameraStore.getPossibleTrack(params.trackId, params.camera);
+        const targetBefore = pointTargetState(otherTrack, params.frameNum, params.key, params.insert, params.camera);
+        const result = await warp([params.point], params.camera, otherCamera, params.frameNum);
+        if (result.length !== 1 || !result[0].accepted || !Number.isFinite(result[0].x) || !Number.isFinite(result[0].y)) {
+          throw new Error('No confident stereo match for this keypoint.');
+        }
+        const currentTarget = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+        if (!pointUnchanged(source, params.frameNum, params.key, params.point)
+            || pointTargetState(currentTarget, params.frameNum, params.key, params.insert, params.camera) !== targetBefore) return 'skipped';
+        const track = getOrCreateTrack(params.trackId, params.camera, otherCamera, params.frameNum);
+        if (!track) throw new Error('Could not create the target detection.');
+        applyMappedPoint(track, params.frameNum, params.key, [result[0].x, result[0].y], params.camera, params.insert);
+        config.onChange?.(otherCamera, track);
+        if (isHeadTailPoint(params.key) && measureLengths()) {
+          try { await measureAndReport(params.trackId, params.frameNum); } catch (err) { config.onError?.(`Point transferred; stereo measurement failed. ${(err as Error).message}`); }
+        }
+      } else if (params.type === 'box') {
         const [x1, y1, x2, y2] = params.bounds;
         const corners: Point[] = [[x1, y1], [x2, y1], [x2, y2], [x1, y2]];
         const res = await warp(corners, params.camera, otherCamera, params.frameNum);
@@ -371,13 +471,13 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
         }] as GeoJSON.Feature<GeoJSON.Geometry>[] as never);
         config.onChange?.(otherCamera, track);
       } else {
-        const res = await warp(params.line, params.camera, otherCamera, params.frameNum);
-        if (!res[0].accepted || !res[1].accepted) {
+        const res = await warp(params.line, params.camera, otherCamera, params.frameNum, true);
+        if (!res.every((r) => r.accepted)) {
           throw new Error('No confident stereo match for the line endpoints.');
         }
         const track = getOrCreateTrack(params.trackId, params.camera, otherCamera, params.frameNum);
         if (!track) throw new Error('Could not create the track on the other camera.');
-        applyLine(track, params.frameNum, [[res[0].x, res[0].y], [res[1].x, res[1].y]], params.key);
+        applyLine(track, params.frameNum, res.map((r): Point => [r.x, r.y]), params.camera);
         config.onChange?.(otherCamera, track);
         if (measureLengths()) await measureAndReport(params.trackId, params.frameNum);
       }
@@ -481,10 +581,39 @@ export default function useStereoOnnxTransfer(config: StereoOnnxTransferConfig) 
     return counts;
   }
 
+  /**
+   * Where one point on `sourceCamera` lands on the other camera at `frameNum`,
+   * or null when the match is rejected or the stereo setup is incomplete.
+   * Used for linked panning, so it never reports errors to the user.
+   */
+  async function warpPoint(point: Point, sourceCamera: string, frameNum: number): Promise<Point | null> {
+    const otherCamera = getMultiCamList().find((c) => c !== sourceCamera);
+    if (!otherCamera || getMultiCamList().length !== 2) return null;
+    try {
+      const [result] = await warp([point], sourceCamera, otherCamera, frameNum);
+      return result?.accepted && Number.isFinite(result.x) && Number.isFinite(result.y)
+        ? [result.x, result.y] : null;
+    } catch {
+      return null;
+    }
+  }
+
   return {
     handleStereoAnnotationComplete,
     handleStereoTrackLinked,
     warpAllFromCamera,
+    warpPoint,
     measureAtFrame,
+    refreshMeasurement: async (id: number, frame: number) => {
+      if (measureLengths()) await measureAndReport(id, frame);
+    },
+    warpPoints: async (points: Point[], camera: string, frame: number, line = false): Promise<(Point | null)[]> => {
+      const other = getMultiCamList().find((c) => c !== camera);
+      if (!other || getMultiCamList().length !== 2) return [];
+      return (await warp(points, camera, other, frame, line)).map((p) => (
+        p.accepted && Number.isFinite(p.x) && Number.isFinite(p.y) ? [p.x, p.y] : null
+      ));
+    },
+    precomputeFrame,
   };
 }

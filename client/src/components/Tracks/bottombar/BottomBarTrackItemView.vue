@@ -2,6 +2,7 @@
 import {
   computed, defineComponent, nextTick, PropType, ref, watch,
 } from 'vue';
+import type { ComponentPublicInstance } from 'vue';
 import { ColumnVisibilitySettings } from 'dive-common/store/settings';
 import TooltipBtn from '../../TooltipButton.vue';
 import {
@@ -26,6 +27,8 @@ export default defineComponent({
     fps: { type: Number, default: null },
     editing: { type: Boolean, required: true },
     inputValue: { type: Boolean, required: true },
+    solo: { type: Boolean, default: false },
+    disabled: { type: Boolean, default: false },
     merging: { type: Boolean, default: false },
     toggleKeyframe: { type: Function as PropType<() => void>, required: true },
     toggleInterpolation: { type: Function as PropType<() => void>, required: true },
@@ -52,6 +55,10 @@ export default defineComponent({
     const editAttributeValue = ref('');
     const attributeInputRef = ref<HTMLInputElement | null>(null);
     const localAttributeDisplay = ref<Record<string, string>>({});
+
+    function setAttributeInputRef(el: Element | ComponentPublicInstance | null) {
+      attributeInputRef.value = el instanceof HTMLInputElement ? el : null;
+    }
 
     watch(() => props.track.id, () => {
       localNotesDisplay.value = '';
@@ -209,6 +216,7 @@ export default defineComponent({
       editAttributeValue.value = getAttributeValue(attrKey);
       editingAttributeKey.value = attrKey;
       nextTick(() => {
+        // Without focus the field would never blur, and so never close
         attributeInputRef.value?.focus();
         attributeInputRef.value?.select();
       });
@@ -258,7 +266,7 @@ export default defineComponent({
 
     return {
       allTypes,
-      attributeInputRef,
+      setAttributeInputRef,
       cancelEditAttribute,
       cancelEditConfidence,
       cancelEditNotes,
@@ -294,6 +302,7 @@ export default defineComponent({
       startTimestamp,
       topConfidence,
       trackAttributeColumns,
+      trackFilters,
       typeInputRef,
     };
   },
@@ -328,10 +337,27 @@ export default defineComponent({
     :style="itemStyle"
     @click="handleClicked"
   >
-    <div
-      class="type-color-box-compact"
-      :style="{ backgroundColor: color }"
-    />
+    <div class="track-lead-compact">
+      <div
+        v-if="solo"
+        class="type-color-box-compact"
+        :style="{ backgroundColor: color }"
+      />
+      <div
+        v-else
+        @click.stop
+      >
+        <v-checkbox
+          class="track-checkbox-compact my-0 pt-0"
+          dense
+          hide-details
+          :disabled="disabled"
+          :input-value="inputValue"
+          :color="color"
+          @change="trackFilters.updateCheckedId(track.trackId, $event)"
+        />
+      </div>
+    </div>
     <div class="trackNumber-compact">
       {{ track.trackId }}
     </div>
@@ -425,10 +451,11 @@ export default defineComponent({
       <input
         v-if="editingAttributeKey === attrKey"
         :key="attrKey + '-input'"
-        ref="attributeInputRef"
+        :ref="setAttributeInputRef"
         :value="editAttributeValue"
         type="text"
         class="compact-attribute-input"
+        :class="{ 'track-length': attrKey.split('_').pop()?.toLowerCase() === 'length' }"
         @input="handleAttributeInput"
         @blur="saveAttribute"
         @keydown.enter="saveAttribute"
@@ -439,7 +466,7 @@ export default defineComponent({
         v-else
         :key="attrKey"
         class="track-attribute text-truncate"
-        :class="{ editable: !readOnlyMode }"
+        :class="{ editable: !readOnlyMode, 'track-length': attrKey.split('_').pop()?.toLowerCase() === 'length' }"
         @click="startEditAttribute(attrKey, $event)"
       >{{ getAttributeValue(attrKey) || '-' }}</span>
     </template>
@@ -478,7 +505,7 @@ export default defineComponent({
         v-if="!merging"
         icon="mdi-pencil-box-outline"
         tooltip-text="Toggle edit mode"
-        size="x-small"
+        size="small"
         :disabled="!inputValue || readOnlyMode"
         @click="handler.trackEdit(track.trackId)"
       />
@@ -486,7 +513,7 @@ export default defineComponent({
         icon="mdi-delete"
         color="error"
         tooltip-text="Delete track"
-        size="x-small"
+        size="small"
         :disabled="merging || readOnlyMode"
         @click="handler.removeTrack([track.trackId])"
       />
@@ -515,13 +542,27 @@ export default defineComponent({
     background-color: #2a2a2a;
   }
 
+  .track-lead-compact {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 24px;
+    margin-right: 6px;
+  }
+
   .type-color-box-compact {
     min-width: 10px;
     max-width: 10px;
     min-height: 10px;
     max-height: 10px;
-    margin-right: 6px;
     border-radius: 2px;
+  }
+
+  .track-checkbox-compact {
+    ::v-deep .v-input--selection-controls__input {
+      margin-right: 0;
+    }
   }
 
   .trackNumber-compact {
@@ -529,6 +570,7 @@ export default defineComponent({
     font-weight: bold;
     margin-right: 8px;
     min-width: 30px;
+    text-align: center;
   }
 
   .track-frame-start,
@@ -572,7 +614,8 @@ export default defineComponent({
   .track-attribute {
     font-size: 12px;
     color: #888;
-    min-width: 60px;
+    width: 100px;
+    min-width: 100px;
     max-width: 100px;
     flex-shrink: 0;
     text-align: left;
@@ -589,7 +632,8 @@ export default defineComponent({
 
   .compact-attribute-input {
     font-size: 12px;
-    min-width: 60px;
+    width: 100px;
+    min-width: 100px;
     max-width: 100px;
     flex-shrink: 0;
     background-color: #333;
@@ -599,6 +643,20 @@ export default defineComponent({
     padding: 1px 4px;
     margin-right: 8px;
     outline: none;
+
+    &.track-length {
+      width: 64px;
+      min-width: 64px;
+      max-width: 64px;
+      text-align: center;
+    }
+  }
+
+  .track-length {
+    width: 64px;
+    min-width: 64px;
+    max-width: 64px;
+    text-align: center;
   }
 
   .track-notes-wrapper {
@@ -634,7 +692,7 @@ export default defineComponent({
     font-size: 14px;
     color: #666;
     flex-grow: 1;
-    padding: 1px 4px;
+    padding: 1px 0;
     pointer-events: none;
 
     &.has-notes {
@@ -678,7 +736,7 @@ export default defineComponent({
     width: 40px;
     min-width: 40px;
     flex-shrink: 0;
-    text-align: right;
+    text-align: center;
     background-color: #333;
     padding: 1px 4px;
     border-radius: 3px;
@@ -715,10 +773,11 @@ export default defineComponent({
   }
 
   .compact-confidence-input {
-    width: 54px;
-    min-width: 54px;
+    width: 40px;
+    min-width: 40px;
+    margin-right: 8px;
     flex-shrink: 0;
-    text-align: right;
+    text-align: center;
     -moz-appearance: textfield;
   }
 

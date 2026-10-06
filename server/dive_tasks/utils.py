@@ -541,6 +541,27 @@ def download_revision_csv(gc: GirderClient, dataset_id: str, revision: int, path
     request.urlretrieve(url, filename=path)
 
 
+def download_annotation_csv(
+    gc: GirderClient,
+    dataset_id: str,
+    path: Path,
+    revision: Optional[int] = None,
+    set: Optional[str] = None,
+):
+    """Download the VIAME CSV for a dataset at a revision and annotation set.
+
+    Nothing is dropped below the dataset's confidence filters: scoring sweeps the
+    confidence range itself, so every computed detection has to be present.
+    """
+    args: dict = {'folderId': dataset_id, 'excludeBelowThreshold': False}
+    if revision is not None:
+        args['revisionId'] = revision
+    if set:
+        args['set'] = set
+    url = urljoin(urljoin(gc.urlBase, 'dive_annotation/export'), f'?{urlencode(args)}')
+    request.urlretrieve(url, filename=path)
+
+
 def download_source_media(
     girder_client: GirderClient, datasetId: str, dest: Path, force_transcoded=False
 ) -> Tuple[List[str], str]:
@@ -552,6 +573,19 @@ def download_source_media(
             destination_path = dest / frameImage.filename
             url = urljoin(girder_client.urlBase, frameImage.url)
             request.urlretrieve(url, filename=destination_path)
+        return [str(dest / image.filename) for image in media.imageData], dataset.type
+    elif dataset.type == constants.LargeImageType:
+        # These carry a tile-metadata URL in imageData (the viewer renders them
+        # through girder's tile server), so ask for the item's own file instead
+        # -- same route the image-sequence urls above use. The bytes are the
+        # original image either way: large-image conversion only adds tile views
+        # beside the file, it does not replace it.
+        for image in media.imageData:
+            url = urljoin(
+                girder_client.urlBase,
+                f'dive_dataset/{datasetId}/media/{image.id}/download',
+            )
+            request.urlretrieve(url, filename=dest / image.filename)
         return [str(dest / image.filename) for image in media.imageData], dataset.type
     elif dataset.type == constants.VideoType and media.video is not None:
         if media.video and media.sourceVideo and not force_transcoded:

@@ -18,8 +18,11 @@ class DIVEPlugin(GirderWorkerPluginABC):
             'dive_tasks.upgrade_pipelines',
             'dive_tasks.run_pipeline',
             'dive_tasks.run_training',
+            'dive_tasks.run_scoring',
             'dive_tasks.convert_video',
             'dive_tasks.convert_images',
+            'dive_tasks.split_stitched',
+            'dive_tasks.finalize_multicam',
             'dive_tasks.tasks',
             'dive_tasks.local_tasks',
         ]

@@ -42,7 +42,7 @@ Shared viewer behavior (camera selection, linked tracks, MultiCamera Tools, and 
 
 DIVE Desktop can run VIAME-backed **interactive segmentation** and **interactive stereo** tools while you annotate. These require a local VIAME install with interactive service support and are not available in the web annotator.
 
-* **Interactive segmentation** — click foreground/background points to generate polygon masks (++s++ or the Segment button). See [Interactive Annotation](Interactive-Annotation.md).
+* **Interactive segmentation** — click foreground/background points to generate polygon masks (++s++ or the Segment button), or enable **Auto-populate mask** / **Auto-populate points** in creation settings to segment each new box or line automatically. See [Interactive Annotation](Interactive-Annotation.md).
 * **Interactive stereo** — on stereo datasets, auto-warp annotations between cameras and recompute head/tail length measurements. Configure from the **Stereo Settings** section in the track list creation settings menu.
 
 Both features share one lazy-loaded Python interactive service subprocess. GPU is recommended for model initialization.
@@ -55,7 +55,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 * ==:material-folder: Directory== is the default option for image sequences. It will prompt you to choose an **entire folder** of images to import as a dataset.
     * You can use globbing patterns to filter the contents of an image directory during import. Click ==:material-chevron-down: Show advanced options== to reveal the glob input.
 * ==:material-view-list-outline: Image List== will prompt you to choose a `.txt` file that contains an image name or full path on each line.
-* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file.
+* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file. In the stereo dialog you can also choose ==Stitched== to import one side-by-side source as `left` and `right` without splitting files on disk — see [Stitched stereo](Multicamera-data.md#stitched-stereo).
 * ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
 * ==:material-folder-multiple-image: MultiCam Batch== will prompt you to choose a root folder of **collect** subfolders and import one multicam image-sequence dataset per collect. See [Batch multicam import](Multicamera-data.md#batch-multicam-import) for the expected folder layout.
 
@@ -139,6 +139,22 @@ Transcoding is done with [ffmpeg](https://ffmpeg.org/), which comes bundled with
 1. Choose an appropriate training config file and any training parameters.  These are documented on the [training configuration page](Pipeline-Documentation.md).
 1. Click ==Train on (N) Datasets==.  Note that depending on what configuration and datasets you chose, training could take hours or days.
 
+To hold datasets out of training, pick **Validation** or **Test** from a dataset's dropdown in the library's ==Split== column; with several datasets selected, choosing a split on any of them applies it to all of them. See [training splits](Pipeline-Documentation.md#train-validation-and-test-splits).
+
+## Add-Ons
+
+The **Add-Ons** tab, before **Settings** in the main desktop menu, manages model packs in the configured VIAME installation. It is omitted from the shorter annotation viewer menu.
+
+Use **Download and Install** to download a pack or replace an installed pack, or **Import Local ZIP** to use a previously downloaded archive. Public Google Drive packs, including SAM3, also support **Download and Install** with an updated VIAME installation (gdown 6.1 or later). ZIP import remains available for files downloaded in a browser. Installing a model pack does not install its prerequisite VIAME components.
+
+The manager reads `<VIAME Install Path>/bin/download_viame_addons.csv`. It checks each row's final-column file relative to `configs/pipelines`, so packs installed outside DIVE are recognized too. Status refreshes when you return to the window, press **Refresh**, or finish an installation. A catalog entry without a check file displays **unknown**, not “not installed.” Rows whose platform column is `ALL-EXCEPT-DIVE` are not listed.
+
+Status and Actions are centered, with separate aligned columns for **Download and Install** and **Import Local ZIP**. A progress pop-up opens automatically with separate download and installation progress bars; archive checksum verification shows an indeterminate bar. Download percentages and transferred bytes are shown for both current and older installers when the server provides the total size. Downloads without a known size show transferred bytes with an indeterminate bar. Installation percentages require the updated VIAME installer. The pop-up displays completion, cancellation, and download, checksum, or filesystem errors. **Cancel installation** stays enabled during startup, download, and installation. DIVE can stop blocked downloads and installers even with older VIAME versions, including inside an elevated Windows installer. Canceling before Windows permission is approved prevents installation from starting afterward. A hard stop during file replacement can leave a pack incomplete; reinstall that pack before using it.
+
+On Windows, DIVE requests administrator permission through the Windows UAC prompt when it cannot write to the VIAME installation. Only the installer runs elevated. Canceling the prompt is reported as an error; on other platforms, permission errors explain that write access must be granted or a writable installation selected.
+
+Installation uses VIAME's `configs/add_ons.py`, retaining its checksum checks and archive handling. If the tool is missing, the catalog and installed status remain available, and DIVE asks you to update VIAME before installing. Background progress polling does not animate Refresh. Cancel closes the progress pop-up immediately and returns to the add-ons list; the installer finishes stopping in the background. Close the pop-up after a successful installation. Returning to Add-Ons reopens progress for any running installation. Installation is disabled in read-only mode. Like the VIAME add-ons tool, this page installs and reinstalls packs; it does not remove shared model or pipeline files.
+
 ## Desktop Settings
 
 DIVE Desktop requires a local installation of the VIAME toolkit to run ML pipelines and training.
@@ -210,12 +226,11 @@ DIVE Desktop looks for the these environment variables on launch.
 
 ## Import/Export of Models
 
-Trained models are kept in `${Project Data Storage Path}/DIVE_Pipelines` as described above.  Each model file consists of exactly 1 pipe file and some number of other model files.
-
-* The pipe file can be one of `detector.pipe`, `tracker.pipe`, or `generate.pipe`.
-* Other files can be `.zip`, `.svm`, `.lbl`, or `.cfg`.
-
-You can use externally trained models in DIVE by creating a folder containing these files.  The name of the configuration or pipeline in dive will be the folder name you create.
+Open **Models**, immediately to the right of **Training**, to import model ZIPs,
+export complete packs to ZIP, convert models to ONNX, or delete packs. Models
+are stored under `${Project Data Storage Path}/DIVE_Pipelines`; a pack can contain
+multiple `.pipe` files and nested folders of model weights and supporting files.
+See [Pipeline Import and Export](Pipeline-Import-Export.md) for supported ZIP layouts.
 
 ## Troubleshooting
 
@@ -227,7 +242,7 @@ See [Importing images and video above](#importing-datasets).  You most likely ne
 
 You may need to install VIAME Toolkit, or correct your **VIAME Install Base Path** setting.
 
-If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Download and install these based on the [VIAME installation docs](https://github.com/viame/VIAME#installations).  
+If you don't see some pipelines you expect, you may not have installed the addons (also called Optional Patches) yet.  Open the **Add-Ons** tab to check and install them, or follow the [VIAME installation docs](https://github.com/viame/VIAME#installations).
 
 > Advanced troubleshooting
 
@@ -240,3 +255,20 @@ It's also helpful to look in the debug console.  Press ++ctrl+shift+i++ to launc
 See [Interactive Annotation troubleshooting](Interactive-Annotation.md#troubleshooting). Verify the VIAME install path, confirm VIAME includes interactive service support, and check the debug console for subprocess errors (message: "Unable to load the interactive service").
 
 ![Debugging Desktop](images/General/desktop-debug.png)
+
+
+When started through the VIAME launch scripts (`DIVE_VIAME_INSTALL_PATH` is set),
+the native window title is **VIAME - DIVE Interface**. Standalone launches use
+**DIVE Desktop**.
+
+## Desktop navigation
+
+While annotating a sequence, the top menu contains **Library**, **Jobs**,
+**Review**, and **Other** with downward arrows. **Other** opens Settings,
+Pipelines, Training, Scoring, and Query when available. Add-Ons is available
+from the full desktop menu. Navigation still follows the normal
+unsaved-annotation checks.
+
+The full desktop menu shows every available destination when there is room.
+As the window narrows, secondary destinations move into **Other** while Library
+and Jobs remain visible. Settings moves into Other. Widening the window restores the tabs.

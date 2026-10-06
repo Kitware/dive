@@ -160,6 +160,7 @@ def get_annotation_csv_generator(
     excludeBelowThreshold=False,
     typeFilter=None,
     revision=None,
+    set: Optional[str] = None,
 ) -> Tuple[str, Callable[[], Generator[str, None, None]]]:
     """Get the annotation generator for a folder"""
     fps = None
@@ -175,7 +176,7 @@ def get_annotation_csv_generator(
     datasetInfo = fromMeta(folder, "datasetInfo", {})
 
     def downloadGenerator():
-        datalist = TrackItem().list(folder, revision=revision)
+        datalist = TrackItem().list(folder, revision=revision, set=set)
         for data in viame.export_tracks_as_csv(
             datalist,
             excludeBelowThreshold,

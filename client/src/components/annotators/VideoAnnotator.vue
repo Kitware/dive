@@ -3,68 +3,13 @@ import {
   defineComponent, onBeforeUnmount, PropType, watch, toRef,
 } from 'vue';
 import { ImageEnhancementOutputs } from 'vue-media-annotator/use/useImageEnhancements';
+import { StitchedSide, stitchedFrame } from 'vue-media-annotator/stitchedStereo';
 import { Flick, SetTimeFunc } from '../../use/useTimeObserver';
 import AnnotatorImageCursor from './AnnotatorImageCursor.vue';
 import useAnnotatorImageCursor from './useAnnotatorImageCursor';
 import { injectCameraInitializer } from './useMediaController';
-/**
- * For MPEG codecs, the PTS (Presentation Timestamp)
- * should be forced ahead 1 tick. currentTime has a finite
- * resolution of 90MHZ
- *
- * Chrome has a PTS precision bug:
- * https://bugs.chromium.org/p/chromium/issues/detail?id=555376
- * "currentTime must be in the range [PTS, PTS + duration)",
- * but Chrome behaves as if currentTime in = [PTS, PTS + duration]
- *
- * Firefox behaves correctly, so it's harmless to advance a single
- * tick into the already correct PTS.
- *
- * Other browsers can be wrong by more than an entire frame and are
- * futile to attempt to correct.
- *
- * TODO: VideoAnnotator _should_not_ report this PTS force hack
- * when reporting currentTime, as it would be inaccurate re: the
- * MPEG specification.
- */
-const OnePTSTick = 1 / (90 * 1000);
-/**
- * The Kwiver seek function performs seek based on
- * downsampled frame number such that the converse of the
- * function (maping timestamp to downsampled frame)
- * is consistent with the implementation in kwiver:
- *
- * https://github.com/Kitware/kwiver/blob/1c97ad72c8b6237cb4b9618665d042be16825005/sprokit/processes/core/downsample_process.cxx#L267
- */
-function kwiverSeek(frame: number, frameRate: number, originalFps: number) {
-  /**
-   * If the downsample rate is truly lower than the original,
-   * ceiling to find the sample boundary, else floor
-   */
-  const roundOrFloor = frameRate < originalFps ? Math.ceil : Math.floor;
-  /**
-   * requestedTimeInSeconds is the position, in seconds, that was
-   * requested for seek
-   */
-  const requestedTimeInSeconds = frame / frameRate;
-  /**
-   * RequestedTrueVideoFrame is the floating point frame number
-   * expected to be found at requested time
-   */
-  const requestedTrueVideoFrame = requestedTimeInSeconds * originalFps;
-  /**
-   * nextTrueFrameBoundary is the time, in seconds, of the
-   * next frame transition boundary ASSUMING even frame spacing.
-   *
-   * For videos with b frames or inconsistent frame widths, this
-   * will only be an aggregate approximation
-   */
-  const nextTrueFrameBoundary = roundOrFloor(requestedTrueVideoFrame) / originalFps;
-  /**
-   * Return one tick over the appropriate boundary
-   */
-  return nextTrueFrameBoundary + OnePTSTick;
-}
+import { kwiverSeek, OnePTSTick } from './videoSeek';
+
 export default defineComponent({
   name: 'VideoAnnotator',
   components: { AnnotatorImageCursor },
@@ -110,8 +55,13 @@ export default defineComponent({
       type: String as PropType<string>,
       default: 'imageEnhancements',
     },
+    /** Show only this half of each frame (stitched stereo). */
+    stitchedSide: {
+      type: String as PropType<StitchedSide | null>,
+      default: null,
+    },
   },
-  setup(props) {
+  setup(props, { emit }) {
     const cameraInitializer = injectCameraInitializer();
     const {
       state: data,
@@ -224,6 +174,7 @@ export default defineComponent({
     }
     function logError(event: ErrorEvent) {
       console.error('Media failed to initialize', event);
+      emit('load-error', 'Could not load the video. The file may have been moved or deleted.');
     }
     function setVolume(level: number) {
       video.volume = level;
@@ -255,8 +206,11 @@ export default defineComponent({
      */
     function loadedMetadata() {
       video.removeEventListener('loadedmetadata', loadedMetadata);
-      const width = video.videoWidth;
-      const height = video.videoHeight;
+      const { width, height, crop } = stitchedFrame(
+        props.stitchedSide,
+        video.videoWidth,
+        video.videoHeight,
+      );
       const maybeMaxFrame = Math.floor(props.frameRate * video.duration);
       if (props.originalFps !== null) {
         /**
@@ -283,6 +237,7 @@ export default defineComponent({
             ul: { x: 0, y: 0 },
             lr: { x: width, y: height },
             video,
+            ...(crop ? { crop } : {}),
           },
         ])
         .draw();
@@ -305,6 +260,13 @@ export default defineComponent({
     // is switching from number -> undefined, or vice versa.
     function pendingUpdate() {
       data.syncedFrame = Math.round(video.currentTime * props.frameRate);
+      // The aligned-view warp is a canvas snapshot of this <video> element,
+      // redrawn only on an imageRevision bump -- unlike the native pane,
+      // which the browser keeps live on its own. loadedmetadata bumps it
+      // once for the initial frame; without another bump here, a scrub
+      // leaves the warp showing whatever the video displayed mid-seek
+      // (often a black frame) instead of the frame the seek landed on.
+      data.imageRevision += 1;
     }
     video.addEventListener('loadedmetadata', loadedMetadata);
     video.addEventListener('seeked', pendingUpdate);

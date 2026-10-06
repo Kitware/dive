@@ -22,7 +22,7 @@ def test_append_new_dataset_media_writers_disparity(tmp_path: Path):
     pipeline = {
         'name': 'disparity',
         'type': constants.StereoPipelineMarker,
-        'pipe': 'measurement_compute_rectified_disparity.pipe',
+        'pipe': 'stereo_compute_rectified_disparity.pipe',
     }
     result = append_new_dataset_media_writers(command, pipeline, tmp_path)
     assert result is None
@@ -42,6 +42,6 @@ def test_append_new_dataset_media_writers_transcode(tmp_path: Path):
 def test_pipeline_renumbers_frames():
     assert pipeline_renumbers_frames('filter_enhance.pipe')
     assert pipeline_renumbers_frames('transcode_default.pipe')
-    assert pipeline_renumbers_frames('measurement_compute_rectified_disparity.pipe')
+    assert pipeline_renumbers_frames('stereo_compute_rectified_disparity.pipe')
     assert not pipeline_renumbers_frames('detector_default.pipe')
-    assert not pipeline_renumbers_frames('measurement_gmm_left_right_stereo.pipe')
+    assert not pipeline_renumbers_frames('stereo_gmm_left_right_stereo.pipe')

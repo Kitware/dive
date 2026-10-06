@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { ref } from 'vue';
 import { getCameraQuadMedia } from './quadMediaSource';
 import type { CameraImage } from '../../layers/cameraImage';

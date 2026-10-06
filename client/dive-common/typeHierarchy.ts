@@ -54,17 +54,13 @@ export function selectFlatPairIndex(
     checkedSet.has(type)
     && confidence >= resolveConfidenceThreshold(confidenceFilters, type)
   );
-  if (preventCascade) {
-    const [type, confidence] = pairs[0];
-    return checkedSet.has(type)
-      && confidence > resolveConfidenceThreshold(confidenceFilters, type) ? 0 : -1;
-  }
+  if (preventCascade) return passes(pairs[0]) ? 0 : -1;
   return pairs.findIndex(passes);
 }
 
 // Python orders strings by code point; JS compares UTF-16 units, which sorts astral
 // names before U+E000-U+FFFF. Compare code points so both platforms agree.
-function codePointCompare(left: string, right: string): number {
+export function compareTypeNames(left: string, right: string): number {
   const leftPoints = [...left].map((char) => char.codePointAt(0) as number);
   const rightPoints = [...right].map((char) => char.codePointAt(0) as number);
   const sharedLength = Math.min(leftPoints.length, rightPoints.length);
@@ -77,7 +73,7 @@ function codePointCompare(left: string, right: string): number {
 }
 
 function sortedNames(names: readonly string[]): string[] {
-  return [...names].sort(codePointCompare);
+  return [...names].sort(compareTypeNames);
 }
 
 function hasOwn(hierarchy: TypeHierarchy, type: string): boolean {
@@ -115,7 +111,7 @@ function cycleReason(hierarchy: TypeHierarchy): string | undefined {
       const cycle = path.slice(positions.get(current) as number);
       let smallestIndex = 0;
       cycle.forEach((name, index) => {
-        if (codePointCompare(name, cycle[smallestIndex]) < 0) {
+        if (compareTypeNames(name, cycle[smallestIndex]) < 0) {
           smallestIndex = index;
         }
       });
@@ -128,7 +124,7 @@ function cycleReason(hierarchy: TypeHierarchy): string | undefined {
   if (renderedCycles.length === 0) {
     return undefined;
   }
-  renderedCycles.sort(codePointCompare);
+  renderedCycles.sort(compareTypeNames);
   return `cycle ${renderedCycles[0]}`;
 }
 
@@ -257,7 +253,7 @@ export function compileHierarchy(hierarchy: TypeHierarchy): TypeHierarchyIndex {
   return { hierarchy: normalized, ancestors: Object.fromEntries(ancestorEntries) };
 }
 
-function ancestorsOf(index: TypeHierarchyIndex, type: string): readonly string[] {
+export function ancestorsOf(index: TypeHierarchyIndex, type: string): readonly string[] {
   return Object.prototype.hasOwnProperty.call(index.ancestors, type)
     ? index.ancestors[type]
     : [];
@@ -297,7 +293,7 @@ export function rewriteHierarchyType(
     rewritten.set(child, parent);
   };
 
-  sortedNames(Object.keys(normalized))
+  Object.keys(normalized)
     .filter((child) => child !== currentType)
     .forEach((child) => {
       const parent = normalized[child] === currentType ? newType : normalized[child];
@@ -315,6 +311,129 @@ export function rewriteHierarchyType(
     }
     throw error;
   }
+}
+
+export function removeHierarchyType(
+  hierarchy: TypeHierarchy,
+  type: string,
+): TypeHierarchy | undefined {
+  const normalized = normalizeTypeHierarchy(hierarchy) || {};
+  const parent = hasOwn(normalized, type) ? normalized[type] : undefined;
+  const updated = new Map<string, string>();
+
+  Object.keys(normalized).forEach((child) => {
+    if (child === type) {
+      return;
+    }
+    const currentParent = normalized[child];
+    if (currentParent !== type) {
+      updated.set(child, currentParent);
+    } else if (parent !== undefined) {
+      updated.set(child, parent);
+    }
+  });
+  return normalizeTypeHierarchy(Object.fromEntries(updated));
+}
+
+export interface PruneHierarchyResult {
+  hierarchy: TypeHierarchy | undefined;
+  removed: readonly string[];
+}
+
+/**
+ * Remove `type` so its children become roots (not reparented to the grandparent),
+ * then walk ancestors upward and drop any that no longer have children.
+ */
+export function pruneHierarchyUpward(
+  hierarchy: TypeHierarchy | undefined,
+  type: string,
+): PruneHierarchyResult {
+  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
+  const updated = new Map<string, string>();
+  Object.keys(normalized).forEach((child) => {
+    if (child === type) return;
+    const parent = normalized[child];
+    if (parent === type) return;
+    updated.set(child, parent);
+  });
+
+  const removed = new Set<string>([type]);
+  let ancestor: string | undefined = hasOwn(normalized, type) ? normalized[type] : undefined;
+  while (ancestor !== undefined) {
+    const hasChild = [...updated.values()].includes(ancestor);
+    if (hasChild) break;
+    const parentOfAncestor = updated.get(ancestor) ?? (
+      hasOwn(normalized, ancestor) ? normalized[ancestor] : undefined
+    );
+    updated.delete(ancestor);
+    removed.add(ancestor);
+    ancestor = parentOfAncestor;
+  }
+
+  return {
+    hierarchy: normalizeTypeHierarchy(Object.fromEntries(updated)),
+    removed: [...removed],
+  };
+}
+
+export interface HierarchyForestRow {
+  name: string;
+  depth: number;
+}
+
+/** Depth-first forest of hierarchy members plus any extra names (roots first). */
+export function flattenHierarchyForest(
+  names: readonly string[],
+  hierarchy: TypeHierarchy | undefined,
+): HierarchyForestRow[] {
+  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
+  const children = new Map<string, string[]>();
+  const members = new Set<string>(names);
+  Object.entries(normalized).forEach(([child, parent]) => {
+    members.add(child);
+    members.add(parent);
+    const siblings = children.get(parent);
+    if (siblings) siblings.push(child);
+    else children.set(parent, [child]);
+  });
+  children.forEach((siblings, parent) => {
+    children.set(parent, sortedNames(siblings));
+  });
+
+  const roots = sortedNames([...members].filter((name) => !hasOwn(normalized, name)));
+  const rows: HierarchyForestRow[] = [];
+  const visit = (name: string, depth: number) => {
+    rows.push({ name, depth });
+    (children.get(name) || []).forEach((child) => visit(child, depth + 1));
+  };
+  roots.forEach((root) => visit(root, 0));
+  return rows;
+}
+
+/** Build the final hierarchy for an atomic type rename and parent edit. */
+export function updateHierarchyTypeDefinition(
+  hierarchy: TypeHierarchy | undefined,
+  currentType: string,
+  newType: string,
+  parent: string | undefined,
+): TypeHierarchy | undefined {
+  const normalized = normalizeTypeHierarchy(hierarchy || {}) || {};
+  if (isBlankName(currentType) || isBlankName(newType)) {
+    throw new TypeHierarchyError('empty child');
+  }
+
+  const updated = new Map<string, string>();
+  Object.keys(normalized).forEach((child) => {
+    if (child === currentType || child === newType) {
+      return;
+    }
+    const currentParent = normalized[child];
+    updated.set(child, currentParent === currentType ? newType : currentParent);
+  });
+  if (parent !== undefined) {
+    updated.set(newType, parent);
+  }
+  return normalizeTypeHierarchy(Object.fromEntries(updated));
 }
 
 // Assignment replaces the selected claim's lineage while retaining unrelated claims and the
@@ -381,7 +500,7 @@ export function mergePairs(
     });
   });
   return Array.from(confidenceByType.entries())
-    .sort((left, right) => (right[1] - left[1]) || codePointCompare(left[0], right[0]));
+    .sort((left, right) => (right[1] - left[1]) || compareTypeNames(left[0], right[0]));
 }
 
 export function selectPairIndex(

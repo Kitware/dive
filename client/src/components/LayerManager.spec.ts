@@ -1,9 +1,9 @@
-// @vitest-environment jsdom
-/// <reference types="vitest" />
 /* eslint-disable max-classes-per-file -- lightweight layer doubles */
-import {
-  defineComponent, h, ref,
+/* eslint-disable vue/one-component-per-file -- harness components for shallow mounting */
+import Vue, {
+  defineComponent, h, ref, nextTick,
 } from 'vue';
+import type { Ref } from 'vue';
 import { shallowMount } from '@vue/test-utils';
 import Track, { Feature } from '../track';
 import CameraStore from '../CameraStore';
@@ -14,6 +14,7 @@ import LayerManager from './LayerManager.vue';
 
 const layerMocks = vi.hoisted(() => {
   const rectangleChangeData = vi.fn();
+  const mountWidget = vi.fn();
 
   class MockLayer {
     bus = { $on: vi.fn() };
@@ -40,13 +41,15 @@ const layerMocks = vi.hoisted(() => {
 
     getMode = vi.fn(() => 'disabled');
 
+    restoreHandleActions = vi.fn();
+
     clear = vi.fn();
 
     updatePoints = vi.fn();
 
     update = vi.fn();
 
-    addDOMWidget = vi.fn();
+    addDOMWidget = mountWidget;
 
     setToolTipWidget = vi.fn();
 
@@ -57,7 +60,9 @@ const layerMocks = vi.hoisted(() => {
     changeData = rectangleChangeData;
   }
 
-  return { MockLayer, MockRectangleLayer, rectangleChangeData };
+  return {
+    MockLayer, MockRectangleLayer, rectangleChangeData, mountWidget,
+  };
 });
 
 const provided = vi.hoisted(() => ({
@@ -253,7 +258,7 @@ function makeMultiCamFixture(
     sorted: cameraStore.sortedGroups,
     remove: () => undefined,
     markChangesPending: () => undefined,
-    setType: () => undefined,
+    setGroupType: () => undefined,
     removeTypes: () => [],
   });
   const trackFilters = new TrackFilterControls({
@@ -266,7 +271,6 @@ function makeMultiCamFixture(
       cameraStore.renameTrackPair(id, currentType, newType)
     ),
     groupFilterControls,
-    setType: () => undefined,
     removeTypes: () => [],
   });
   trackFilters.setTypeHierarchy(hierarchy);
@@ -319,9 +323,11 @@ function renderCamera(
     pendingSaveCount: ref(0),
   };
   layerMocks.rectangleChangeData.mockClear();
-  mountLayerManager({ camera });
+  const wrapper = mountLayerManager({ camera });
   const { calls } = layerMocks.rectangleChangeData.mock;
-  return calls[calls.length - 1][0] as { styleType: [string, number] }[];
+  const frameData = calls[calls.length - 1][0] as { styleType: [string, number] }[];
+  wrapper.destroy();
+  return frameData;
 }
 
 describe('LayerManager multicamera hierarchy selection', () => {
@@ -353,5 +359,36 @@ describe('LayerManager multicamera hierarchy selection', () => {
     trackFilters.setConfidenceFilters({ default: 0.5 });
     expect(renderCamera(cameraStore, trackFilters, 'left')[0].styleType).toEqual(['leaf', 0.8]);
     expect(renderCamera(cameraStore, trackFilters, 'right')).toHaveLength(0);
+  });
+});
+
+describe('LayerManager pipeline reload lifecycle', () => {
+  it('stops redraw watchers when the old viewer unmounts, including after mounting a tooltip', async () => {
+    // GeoJS tooltips mount their own Vue root. Exercise that real Vue lifecycle:
+    // mounting it during setup detaches subsequent watches from LayerManager.
+    const widgets: Vue[] = [];
+    layerMocks.mountWidget.mockImplementation(() => {
+      const Tooltip = defineComponent({ setup: () => () => h('span') });
+      widgets.push(new Vue({ render: (createElement) => createElement(Tooltip) }).$mount());
+    });
+    const { cameraStore, trackFilters } = makeMultiCamFixture([['fish', 1]], [['fish', 1]], {});
+    try {
+      renderCamera(cameraStore, trackFilters, 'left'); // mounts and destroys the old manager
+      const selectedKey = provided.values?.selectedKey as Ref<string>;
+      layerMocks.rectangleChangeData.mockClear();
+      selectedKey.value = '1';
+      await nextTick();
+      expect(layerMocks.rectangleChangeData).not.toHaveBeenCalled();
+
+      const replacement = mountLayerManager({ camera: 'left' });
+      layerMocks.rectangleChangeData.mockClear();
+      selectedKey.value = '';
+      await nextTick();
+      expect(layerMocks.rectangleChangeData).toHaveBeenCalledTimes(1);
+      replacement.destroy();
+    } finally {
+      widgets.forEach((widget) => widget.$destroy());
+      layerMocks.mountWidget.mockReset();
+    }
   });
 });

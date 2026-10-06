@@ -79,3 +79,31 @@ These are remote procedural calls to run jobs or perform actions that may be a b
 ####  `dive_rpc/train`
 - **Method:** POST
 - **Usage:** This endpoint is used to train a machine learning model using the annotations and media in a dataset, allowing for the creation of custom models for specific tasks.
+
+#### `dive_rpc/score`
+- **Method:** POST
+- **Usage:** Runs the VIAME scoring tool to compare computed annotations against ground truth. Body fields: `pairs` (array of `{ computed, truth }` sources with `datasetId` and optional `set`, `revision`, or `file`), `params` (IoU, confidence, match mode, tracking, sweep options), and optional `title`. Returns a Girder job. See [Scoring](Scoring.md).
+
+### dive_scoring/
+
+Stored scoring results (metrics JSON in each dataset's auxiliary folder).
+
+#### `dive_scoring`
+- **Method:** GET
+- **Usage:** Lists scoring result summaries for all datasets the current user can read.
+
+#### `dive_dataset/{id}/scoring`
+- **Method:** GET
+- **Usage:** Lists scoring results stored on one dataset.
+
+#### `dive_dataset/{id}/scoring/{resultId}`
+- **Method:** GET
+- **Usage:** Loads the full scoring result JSON (metrics, matches, sweep curves).
+
+#### `dive_dataset/{id}/scoring/{resultId}`
+- **Method:** DELETE
+- **Usage:** Deletes a stored scoring result.
+
+#### `dive_dataset/{id}/scoring_sources`
+- **Method:** GET
+- **Usage:** Returns annotation sets, revisions, and auxiliary files available as scoring inputs for the dataset.

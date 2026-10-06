@@ -45,12 +45,17 @@ beforeAll(() => {
   registrationJsonPath = npath.join(tmpDir, 'calibration.json');
   fs.writeJsonSync(registrationJsonPath, {
     type: 'dive-camera-calibration',
-    version: 1,
+    version: 2,
     source: { model: 'colmap-2026-07-01', swathe: 'fl07_C' },
     pairs: [{
       left: 'eo',
       right: 'ir',
-      points: [[0, 0, 5, -3], [10, 0, 15, -3]],
+      observations: [{
+        imageLeft: 'frame0.png',
+        imageRight: 'frame0.png',
+        source: 'kamera-solver',
+        points: [[0, 0, 5, -3], [10, 0, 15, -3]],
+      }],
       leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
       rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
       transformType: 'translation',
@@ -76,7 +81,8 @@ describe('multiCamImport transform wire-through', () => {
     expect(output.jsonConfig.cameraHomographies?.['eo::ir'].AtoB).toEqual(
       [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
     );
-    expect(output.jsonConfig.cameraCorrespondences?.['eo::ir']).toHaveLength(2);
+    expect(output.jsonConfig.cameraCorrespondences?.['eo::ir']).toHaveLength(1);
+    expect(output.jsonConfig.cameraCorrespondences?.['eo::ir'][0].points).toHaveLength(2);
     expect(output.jsonConfig.cameraTransformTypes?.['eo::ir']).toBe('translation');
     // The producer provenance stamp travels with the seed.
     expect(output.jsonConfig.cameraRegistrationSource).toEqual(
@@ -98,11 +104,11 @@ describe('multiCamImport transform wire-through', () => {
   it('warns (but imports) when pairs name cameras the dataset does not have', async () => {
     const mismatchedPath = npath.join(tmpDir, 'uv_to_rgb_registration.json');
     fs.writeJsonSync(mismatchedPath, {
-      version: 1,
+      version: 2,
       pairs: [{
         left: 'uv',
         right: 'rgb',
-        points: [],
+        observations: [],
         leftToRight: [[1, 0, 5], [0, 1, -3], [0, 0, 1]],
         rightToLeft: [[1, 0, -5], [0, 1, 3], [0, 0, 1]],
       }],

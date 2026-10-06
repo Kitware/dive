@@ -872,5 +872,181 @@
             }
         },
         {}
+    ],
+    [
+        [
+            "0,1.png,0,10,10,20,20,0.5,-1,fish,0.9,scallop,0.1",
+            "0,2.png,1,10,10,20,20,0.5,-1",
+            "0,3.png,2,10,10,20,20,0.5,-1",
+            "1,1.png,0,10,10,20,20,0.5,-1",
+            "1,2.png,1,10,10,20,20,0.5,-1",
+            "1,3.png,2,10,10,20,20,0.5,-1,skate,0.7",
+            "2,1.png,0,10,10,20,20,0.5,-1",
+            "2,2.png,1,10,10,20,20,0.25,-1",
+            "3,1.png,0,10,10,20,20,0.5,-1,fish,0.9",
+            "3,2.png,1,10,10,20,20,0.5,-1,(trk-atr) booleanAttr true"
+        ],
+        {
+            "0": {
+                "id": 0,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "fish",
+                        0.9
+                    ],
+                    [
+                        "scallop",
+                        0.1
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 2
+            },
+            "1": {
+                "id": 1,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "skate",
+                        0.7
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 2,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 2
+            },
+            "2": {
+                "id": 2,
+                "attributes": {},
+                "confidencePairs": [
+                    [
+                        "unknown",
+                        0.25
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 1
+            },
+            "3": {
+                "id": 3,
+                "attributes": {
+                    "booleanAttr": true
+                },
+                "confidencePairs": [
+                    [
+                        "fish",
+                        0.9
+                    ]
+                ],
+                "features": [
+                    {
+                        "frame": 0,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    },
+                    {
+                        "frame": 1,
+                        "bounds": [
+                            10,
+                            10,
+                            20,
+                            20
+                        ]
+                    }
+                ],
+                "begin": 0,
+                "end": 1
+            }
+        },
+        {
+            "track_booleanAttr": {
+                "belongs": "track",
+                "datatype": "boolean",
+                "key": "track_booleanAttr",
+                "name": "booleanAttr"
+            }
+        }
     ]
 ]

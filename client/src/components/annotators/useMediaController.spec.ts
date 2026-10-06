@@ -1,4 +1,3 @@
-// @vitest-environment jsdom
 import { defineComponent, ref } from 'vue';
 import { mount } from '@vue/test-utils';
 import { useMediaController } from './useMediaController';

@@ -1,21 +1,30 @@
 <script lang="ts">
 import {
+  canMapPoint, pointUnchanged, applyMappedPoint, pointTargetState, detectionTransferJob, unmappedPoints,
+} from 'dive-common/use/stereo/keypointTransfer';
+import { headTailFeatures, isHeadTailPoint } from 'vue-media-annotator/headTail';
+import {
   computed, defineComponent, ref, watch, Ref, onMounted, onBeforeUnmount, nextTick,
 } from 'vue';
-import Viewer from 'dive-common/components/Viewer.vue';
+import { ANNOTATION_SOURCE_QUERY } from 'dive-common/scoring/viewerNavigation';
+import { parseViewerFocus } from 'dive-common/review/viewerNavigation';
+import { useRoute, useRouter } from 'vue-router/composables';
+import Viewer, { StereoViewLinkParams } from 'dive-common/components/Viewer.vue';
 import RunPipelineMenu from 'dive-common/components/RunPipelineMenu.vue';
 import ImportAnnotations from 'dive-common//components/ImportAnnotations.vue';
 import CalibrationMenu from 'dive-common/components/CalibrationMenu.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { SegmentationPredictRequest } from 'dive-common/apispec';
+import { SegmentationPredictRequest, SegmentationPolygon } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
+import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 import { isStereoscopicDatasetConfig } from 'dive-common/multicamDisplay';
 import type {
   StereoAnnotationCompleteParams,
   StereoAnnotationResetParams,
   StereoSegmentationFinalizeParams,
+  NewAnnotationGeometryParams,
 } from 'dive-common/use/useModeManager';
 import { HeadPointKey, TailPointKey, HeadTailLineKey } from 'dive-common/recipes/headtail';
 import {
@@ -26,19 +35,33 @@ import type { RectBounds } from 'vue-media-annotator/utils';
 import type Track from 'vue-media-annotator/track';
 import {
   segmentationPredict, segmentationStereoSegment, segmentationInitialize, segmentationIsReady,
+  segmentationPolygonKeypoints,
   segmentationEnsureStarted,
   segmentationSam3Installed,
-  loadConfig, textQuery,
+  loadConfig, saveConfig, textQuery,
   runTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
   openLink,
+  setScoringAnnotationPreviewFile,
 } from 'platform/desktop/frontend/api';
+import {
+  componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
+} from 'dive-common/recipes/segmentationPolygons';
+import { boundsEnclosing } from 'dive-common/use/autoPopulate';
+import { StitchedSide, tagStitchedPath } from 'vue-media-annotator/stitchedStereo';
+import populateAnnotation from '../autoPopulate';
+import shouldTransferStereoSegmentation from '../stereoSegmentation';
 import Export from './Export.vue';
 import JobTab from './JobTab.vue';
+import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
-import { datasets } from '../store/dataset';
+import VideoSearchContext from './VideoSearchContext.vue';
+import {
+  createVideoSearch, provideVideoSearch, VideoSearchMediaInfo,
+} from '../useVideoSearch';
+import { datasets, rememberAnnotation } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
 import { setCloseGuard } from '../store/closeGuard';
@@ -54,6 +77,13 @@ function joinPath(base: string, file: string): string {
   return `${base.replace(/[\\/]+$/, '')}${sep}${file}`;
 }
 
+// Desktop-only context panel: registered here (not in the shared context
+// store) so the web build does not pick it up.
+context.register({
+  description: 'Video Search',
+  component: VideoSearchContext,
+});
+
 const buttonOptions = {
   outlined: true,
   color: 'grey lighten-1',
@@ -68,6 +98,7 @@ export default defineComponent({
   components: {
     Export,
     JobTab,
+    AnnotationOtherMenu,
     DatasetSourceInfo,
     RunPipelineMenu,
     SidebarContext,
@@ -106,11 +137,35 @@ export default defineComponent({
   },
   setup(props) {
     const { prompt } = usePrompt();
+    const route = useRoute();
+    const router = useRouter();
     const viewerRef = ref();
     const subTypeList = computed(() => [datasets.value[props.id]?.subType || null]);
     const isStereoscopicDataset = computed(() => subTypeList.value[0] === 'stereo');
     const camNumbers = computed(() => [datasets.value[props.id]?.cameraNumber || 1]);
     const readonlyMode = computed(() => settings.value?.readonlyMode || false);
+    const scoringPreviewFile = computed(() => {
+      const file = route.query.scoringFile;
+      return typeof file === 'string' && file ? file : '';
+    });
+    watch(scoringPreviewFile, (file) => {
+      setScoringAnnotationPreviewFile(file || null);
+      if (viewerRef.value) {
+        viewerRef.value.reloadAnnotations();
+      }
+    }, { immediate: true });
+    const annotationSourceLabel = computed(() => {
+      const value = route.query[ANNOTATION_SOURCE_QUERY];
+      return typeof value === 'string' ? value : '';
+    });
+    const annotationSourceReturnable = computed(() => !!annotationSourceLabel.value);
+    /** Frame / track deep link from the review grid. */
+    const viewerFocus = computed(() => parseViewerFocus(route.query));
+
+    function returnToCurrentAnnotations() {
+      router.replace({ name: 'viewer', params: { id: props.id } });
+    }
+
     const selectedCamera = ref('');
     watch(runningJobs, async (_previous, current) => {
       // Check the current props.id so multicam files also trigger a reload
@@ -149,7 +204,11 @@ export default defineComponent({
       }
       return props.id;
     });
-    const readOnlyMode = computed(() => settings.value?.readonlyMode || false);
+    // Held as a computed rather than an inline `[modifiedId]` in the template:
+    // an inline array is a new value on every re-render, which makes the
+    // pipeline menu re-look-up the dataset's calibration on every click.
+    const pipelineDatasetIds = computed(() => [modifiedId.value]);
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
 
@@ -160,7 +219,17 @@ export default defineComponent({
       } catch {
         textQueryAvailable.value = false;
       }
+      return textQueryAvailable.value;
     }
+
+    // Keep button chrome current if the add-on is installed while this
+    // viewer stays open (e.g. manual extract, or another desktop window).
+    onMounted(() => {
+      window.addEventListener('focus', refreshTextQueryAvailability);
+    });
+    onBeforeUnmount(() => {
+      window.removeEventListener('focus', refreshTextQueryAvailability);
+    });
 
     watch(() => settings.value?.viamePath, () => {
       refreshTextQueryAvailability();
@@ -178,13 +247,33 @@ export default defineComponent({
       const results: string[] = [];
       // Check if any running job contains the root props.id
       // for multicam this is why we use the reduce to check each id
+      // Scoring only reads annotations, so it never locks the viewer.
       if (runningJobs.value.find(
-        (item) => item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
+        (item) => item.job.jobType !== 'scoring'
+          && item.job.datasetIds.reduce((prev: boolean, current) => (current.includes(props.id) && prev), true),
       )) {
         results.push(props.id);
       }
       return results;
     });
+
+    let loadFailed = false;
+    async function handleLoadError(message: string, largeImage?: boolean) {
+      if (loadFailed) {
+        return;
+      }
+      loadFailed = true;
+      if (largeImage) {
+        await largeImageWarning();
+      } else {
+        await prompt({
+          title: 'Error Loading Data',
+          text: [message],
+          positiveButton: 'Okay',
+        });
+      }
+      router.push({ name: 'recent' });
+    }
 
     async function largeImageWarning() {
       await prompt({
@@ -204,20 +293,23 @@ export default defineComponent({
       originalImageFiles: string[];
       type: string;
       originalVideoFile?: string;
-    }): (frameNum: number) => string {
+      stitchedSide?: StitchedSide;
+    }, forInteractiveService = false): (frameNum: number) => string {
       const {
         originalBasePath, originalImageFiles, type, originalVideoFile,
       } = meta;
+      // VIAME's interactive services read only the tagged half of the frame.
+      const side = forInteractiveService ? meta.stitchedSide : undefined;
       return (frameNum: number): string => {
         if (type === 'video') {
-          return joinPath(originalBasePath, originalVideoFile || '');
+          return tagStitchedPath(joinPath(originalBasePath, originalVideoFile || ''), side);
         }
         if (originalImageFiles && originalImageFiles[frameNum]) {
           const imagePath = originalImageFiles[frameNum];
           if (isAbsolutePath(imagePath)) {
-            return imagePath;
+            return tagStitchedPath(imagePath, side);
           }
-          return joinPath(originalBasePath, imagePath);
+          return tagStitchedPath(joinPath(originalBasePath, imagePath), side);
         }
         return '';
       };
@@ -248,7 +340,7 @@ export default defineComponent({
             const cam = cameraNames[i];
             // eslint-disable-next-line no-await-in-loop
             const camMeta = await loadConfig(`${props.id}/${cam}`);
-            stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+            stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta, true);
             if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
             if (camMeta.type === 'video') multiCamIsVideo = true;
           }
@@ -273,7 +365,7 @@ export default defineComponent({
             : undefined;
         } else {
           // Single cam: use base metadata directly
-          const singleGetter = buildImagePathGetter(meta);
+          const singleGetter = buildImagePathGetter(meta, true);
           getImagePath = singleGetter;
           // Also cache for text query and video frame usage
           cachedMeta = {
@@ -526,9 +618,36 @@ export default defineComponent({
             }, geoJsonFeatures.length > 0 ? geoJsonFeatures : undefined);
           });
 
+          // Lower each returned type's threshold to its weakest result so every
+          // track the query just created is visible.
+          let lowered = false;
+          const trackFilters = viewerRef.value?.trackFilters;
+          if (trackFilters) {
+            const filters = { ...trackFilters.confidenceFilters.value };
+            detections.forEach((det) => {
+              if (typeof det.score === 'number'
+                && det.score < resolveConfidenceThreshold(filters, det.label)) {
+                filters[det.label] = det.score;
+                lowered = true;
+              }
+            });
+            if (lowered) {
+              trackFilters.setConfidenceFilters(filters);
+              saveConfig(props.id, { confidenceFilters: filters });
+            }
+          }
+
+          const resultText = [
+            `Created ${detections.length} tracks for objects matching "${text}".`,
+          ];
+          if (lowered) {
+            resultText.push(
+              'Confidence thresholds for the matching types were lowered so these results are visible.',
+            );
+          }
           await prompt({
             title: 'Text Query Results',
-            text: [`Created ${detections.length} tracks for objects matching "${text}".`],
+            text: resultText,
           });
         }
       } catch (error) {
@@ -546,10 +665,31 @@ export default defineComponent({
       }
     }
 
+    /**
+     * Video Search / IQR session (index-backed similarity queries).
+     * Media info resolves lazily once metadata loads; multicam datasets are
+     * not yet supported (media stays null and the panel reports unavailable).
+     */
+    const videoSearchMedia = ref<VideoSearchMediaInfo | null>(null);
+    const videoSearch = createVideoSearch(props.id, () => videoSearchMedia.value);
+    provideVideoSearch(videoSearch);
+
     // Initialize segmentation when component is mounted
-    onMounted(() => {
+    onMounted(async () => {
       initializeSegmentation();
       refreshTextQueryAvailability();
+      try {
+        const meta = await loadConfig(props.id);
+        if (!meta.multiCamMedia) {
+          videoSearchMedia.value = {
+            type: meta.type,
+            fps: meta.fps,
+            getImagePath: buildImagePathGetter(meta),
+          };
+        }
+      } catch {
+        // Video search stays unavailable if metadata cannot load
+      }
     });
 
     /**
@@ -623,6 +763,7 @@ export default defineComponent({
     const stereoEnabled = ref(false);
     // Transient notification reporting the latest computed stereo length
     const stereoLengthSnackbar = ref(false);
+    const stereoLengthWarning = ref('');
     const stereoLengthMessage = ref('');
 
     // Cache image path getters per camera for stereo frame setting
@@ -642,8 +783,38 @@ export default defineComponent({
     let stereoDatasetFps: number | undefined;
 
     /**
-     * Load multicam metadata for both cameras to build image path getters
+     * Populate stereoImagePathGetters (per-camera frame -> image path) from a
+     * dataset's already-loaded multicam metadata. This part is not stereo
+     * specific: both the stereo features and Auto Register resolve per-camera
+     * image paths the same way. Callers gate on the dataset kind they support
+     * (stereo requires a stereoscopic dataset; auto-register accepts any multicam)
+     * before calling this. `meta.multiCamMedia` must already be truthy.
      */
+    async function populateMultiCamImagePathGetters(
+      meta: Awaited<ReturnType<typeof loadConfig>>,
+    ): Promise<boolean> {
+      // Extract calibration file path from multiCam metadata
+      stereoCalibrationFile = meta.multiCam?.calibration || undefined;
+      // Capture the dataset-level fps as a fallback for per-camera frame times.
+      stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
+
+      // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
+      if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
+
+      if (!meta.multiCamMedia) return false;
+      const { cameras } = meta.multiCamMedia;
+      const cameraNames = Object.keys(cameras);
+
+      for (let i = 0; i < cameraNames.length; i += 1) {
+        const cam = cameraNames[i];
+        const cameraId = `${props.id}/${cam}`;
+        // eslint-disable-next-line no-await-in-loop
+        const camMeta = await loadConfig(cameraId);
+        stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta, true);
+      }
+      return true;
+    }
+
     async function loadStereoMetadata(): Promise<boolean> {
       try {
         const meta = await loadConfig(props.id);
@@ -651,42 +822,7 @@ export default defineComponent({
         // no stereo so the caller does not load the stereo service.
         if (!meta.multiCamMedia
           || !isStereoscopicDatasetConfig({ type: meta.type, subType: meta.subType ?? undefined })) return false;
-
-        // Extract calibration file path from multiCam metadata
-        stereoCalibrationFile = meta.multiCam?.calibration || undefined;
-        // Capture the dataset-level fps as a fallback for per-camera frame times.
-        stereoDatasetFps = meta.fps || meta.originalFps || stereoDatasetFps;
-
-        // Skip per-camera metadata loading if already populated (e.g. by initializeSegmentation)
-        if (Object.keys(stereoImagePathGetters.value).length > 0) return true;
-
-        const { cameras } = meta.multiCamMedia;
-        const cameraNames = Object.keys(cameras);
-
-        for (let i = 0; i < cameraNames.length; i += 1) {
-          const cam = cameraNames[i];
-          const cameraId = `${props.id}/${cam}`;
-          // eslint-disable-next-line no-await-in-loop
-          const camMeta = await loadConfig(cameraId);
-          const {
-            originalBasePath, originalImageFiles, type, originalVideoFile,
-          } = camMeta;
-
-          stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-            if (type === 'video') {
-              return joinPath(originalBasePath, originalVideoFile || '');
-            }
-            if (originalImageFiles && originalImageFiles[frameNum]) {
-              const imagePath = originalImageFiles[frameNum];
-              if (isAbsolutePath(imagePath)) {
-                return imagePath;
-              }
-              return joinPath(originalBasePath, imagePath);
-            }
-            return '';
-          };
-        }
-        return true;
+        return await populateMultiCamImagePathGetters(meta);
       } catch (err) {
         console.error('[Stereo] Failed to load multicam metadata:', err);
         return false;
@@ -707,9 +843,9 @@ export default defineComponent({
     }
 
     // Push the stereo frame (left/right paths + frame time) to the backend and
-    // wait for it to land. Returns whether disparity/images are ready, so callers
-    // that need a correspondence (line/point transfer) can guarantee readiness
-    // instead of racing the proactive watcher. Updates lastStereoFrame on success.
+    // wait for acceptance. Dense disparity may still be computing; the backend
+    // defers correspondence and multi-point measurement requests until ready.
+    // Updates lastStereoFrame on successful acceptance.
     async function ensureStereoFrame(frameNum: number | undefined): Promise<boolean> {
       if (frameNum === undefined || !stereoEnabled.value) return false;
       const cameras = Object.keys(stereoImagePathGetters.value);
@@ -745,13 +881,34 @@ export default defineComponent({
       clientSettings.stereoSettings.autoComputeOtherCamera = false;
     }
 
+    // In-flight enable/disable promise. Stereo work requested while the
+    // service is still starting (spawning the backend service on a fresh
+    // launch can take a while) waits for it via stereoServiceReady instead of
+    // being dropped -- e.g. a line drawn on both cameras right after launch
+    // must still get its length computed once the service comes up.
+    let stereoStatePromise: Promise<void> | null = null;
+    // True once this dataset was determined to have no stereo pair, so the
+    // per-annotation self-heal below doesn't re-load metadata on every draw
+    // in single-camera datasets.
+    let stereoDatasetUnavailable = false;
+    // Set when auto-enable soft-falls back and writes matchMethod to match the
+    // config that actually started, so the method watcher does not bounce it.
+    let skipNextMatchMethodReload = false;
+
     // Enable or disable the backend stereo service to match the desired state.
     // Failures are always surfaced in the (persistent) dialog; userInitiated
     // additionally reverts the feature toggles, since the user just asked for
     // something that cannot work, whereas a load-time auto-enable failure
     // (e.g. an uncalibrated dataset) keeps the remembered toggles so a later
     // calibrated dataset still works.
-    async function applyStereoServiceState(enabled: boolean, userInitiated: boolean) {
+    // allowFallback: when the preferred match method's add-on is missing,
+    // soft-fall back to the next installed method (and update the setting) so
+    // the default "Higher Quality" does not brick stereo on a stock VIAME.
+    async function applyStereoServiceState(
+      enabled: boolean,
+      userInitiated: boolean,
+      allowFallback = false,
+    ) {
       if (enabled) {
         // Already running (e.g. a user toggle raced the load-time auto-enable):
         // nothing to do.
@@ -776,7 +933,12 @@ export default defineComponent({
           // annotation until measurements will actually work.
           stereoLoadingMessage.value = 'Loading stereo model...';
           stereoLoadingDialog.value = true;
-          const result = await stereoEnable(undefined, stereoCalibrationFile);
+          const result = await stereoEnable(
+            undefined,
+            stereoCalibrationFile,
+            clientSettings.stereoSettings.matchMethod,
+            allowFallback,
+          );
           if (!result.success) {
             // launchFailed means the backend service couldn't even start (e.g.
             // missing python interpreter or a broken import). That is a real
@@ -786,6 +948,13 @@ export default defineComponent({
             const err = new Error(result.error || 'Failed to enable stereo service');
             (err as Error & { launchFailed?: boolean }).launchFailed = result.launchFailed;
             throw err;
+          }
+          if (result.fellBack && result.matchMethod
+            && result.matchMethod !== clientSettings.stereoSettings.matchMethod) {
+            // Updating the setting must not re-enter the method watcher and
+            // bounce the service we just started.
+            skipNextMatchMethodReload = true;
+            clientSettings.stereoSettings.matchMethod = result.matchMethod;
           }
           stereoEnabled.value = true;
           stereoLoadingDialog.value = false;
@@ -823,17 +992,6 @@ export default defineComponent({
       }
     }
 
-    // In-flight enable/disable promise. Stereo work requested while the
-    // service is still starting (spawning the backend service on a fresh
-    // launch can take a while) waits for it via stereoServiceReady instead of
-    // being dropped -- e.g. a line drawn on both cameras right after launch
-    // must still get its length computed once the service comes up.
-    let stereoStatePromise: Promise<void> | null = null;
-    // True once this dataset was determined to have no stereo pair, so the
-    // per-annotation self-heal below doesn't re-load metadata on every draw
-    // in single-camera datasets.
-    let stereoDatasetUnavailable = false;
-
     function resetStereoStateForDatasetChange() {
       stereoDatasetUnavailable = false;
       stereoImagePathGetters.value = {};
@@ -844,8 +1002,12 @@ export default defineComponent({
       closeStereoLoadingDialog();
     }
 
-    function requestStereoServiceState(enabled: boolean, userInitiated: boolean): Promise<void> {
-      const p = applyStereoServiceState(enabled, userInitiated).finally(() => {
+    function requestStereoServiceState(
+      enabled: boolean,
+      userInitiated: boolean,
+      allowFallback = false,
+    ): Promise<void> {
+      const p = applyStereoServiceState(enabled, userInitiated, allowFallback).finally(() => {
         if (stereoStatePromise === p) stereoStatePromise = null;
       });
       stereoStatePromise = p;
@@ -879,7 +1041,9 @@ export default defineComponent({
       // up rather than silently producing no measurement.
       if (!stereoEnabled.value && !stereoStatePromise
         && !stereoDatasetUnavailable && stereoServiceWanted()) {
-        requestStereoServiceState(true, false);
+        // Allow falling back off an unavailable default method so drawing a
+        // line still measures when the Fast Foundation add-on is missing.
+        requestStereoServiceState(true, false, true);
       }
       while (stereoStatePromise) {
         // eslint-disable-next-line no-await-in-loop
@@ -888,14 +1052,42 @@ export default defineComponent({
       return stereoEnabled.value;
     }
 
-    // Runtime toggle changes are always user-initiated. This watcher is NOT
-    // immediate: a remembered setting must NOT auto-enable here, because this
-    // runs during setup() -- before the dataset/viewer has loaded. Enabling then
-    // races the not-yet-ready multicam metadata; on failure the load-time path
-    // degrades silently with nothing to retry, so the service would stay off
-    // until the toggle was flipped off and on again. The load-time auto-enable
-    // is deferred to the viewer-ready watcher below instead.
-    watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true));
+    // Runtime toggle changes are always user-initiated. Soft-fall back when the
+    // preferred method's add-on is missing: the user asked for lengths/transfer,
+    // not specifically for Higher Quality. This watcher is NOT immediate: a
+    // remembered setting must NOT auto-enable here, because this runs during
+    // setup() -- before the dataset/viewer has loaded. Enabling then races the
+    // not-yet-ready multicam metadata; on failure the load-time path degrades
+    // silently with nothing to retry, so the service would stay off until the
+    // toggle was flipped off and on again. The load-time auto-enable is
+    // deferred to the viewer-ready watcher below instead.
+    watch(stereoServiceWanted, (enabled) => requestStereoServiceState(enabled, true, true));
+
+    // The method selects the backend's stereo config, so switching it reloads
+    // the service. A failure (e.g. the add-on for the new method is not
+    // installed) shows the persistent error dialog and leaves the setting as
+    // chosen, so the message explains what to install or change.
+    watch(() => clientSettings.stereoSettings.matchMethod, async () => {
+      if (skipNextMatchMethodReload) {
+        skipNextMatchMethodReload = false;
+        return;
+      }
+      if (stereoDatasetUnavailable || !stereoServiceWanted()) return;
+      await requestStereoServiceState(false, false);
+      // Strict: the user picked this method; do not soft-fall back.
+      await requestStereoServiceState(true, false, false);
+    });
+
+    watch(
+      () => viewerRef.value?.progress?.loaded === true,
+      (loaded) => {
+        // Read-only scoring previews should not replace the last editing sequence.
+        if (loaded && !scoringPreviewFile.value) {
+          rememberAnnotation(props.id);
+        }
+      },
+      { immediate: true },
+    );
 
     // Load-time auto-enable of a remembered setting: run once the viewer has
     // actually finished loading the dataset (progress.loaded), so the metadata
@@ -908,7 +1100,7 @@ export default defineComponent({
         if (!loaded) return;
         stopStereoAutoEnable();
         if (stereoServiceWanted() && !stereoEnabled.value) {
-          requestStereoServiceState(true, false);
+          requestStereoServiceState(true, false, true);
         }
       },
       { immediate: true },
@@ -945,50 +1137,27 @@ export default defineComponent({
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function getOrCreateStereoTrack(cameraStore: any, trackId: number, sourceCamera: string, targetCamera: string, frameNum: number) {
-      let track = cameraStore.getPossibleTrack(trackId, targetCamera);
-      if (!track) {
-        const targetTrackStore = cameraStore.camMap.value.get(targetCamera)?.trackStore;
-        if (targetTrackStore) {
-          const sourceTrack = cameraStore.getPossibleTrack(trackId, sourceCamera);
-          const trackType = sourceTrack?.confidencePairs?.[0]?.[0] || 'unknown';
-          track = targetTrackStore.add(frameNum, trackType, undefined, trackId);
-        }
-      }
-      return track;
+      return cameraStore.getPossibleTrack(trackId, targetCamera)
+        ?? cameraStore.addLinkedTrack(trackId, targetCamera, frameNum, sourceCamera);
     }
 
     /**
-     * Extract the two endpoints of a 2-point LineString from a track's feature
+     * Extract all vertices of a measurement LineString from a track's feature
      * at the given frame. Returns null if there is no such line.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function getStereoLineEndpoints(track: any, frameNum: number)
-      : [[number, number], [number, number]] | null {
+      : [number, number][] | null {
       if (!track) return null;
       const [feature] = track.getFeature(frameNum);
       if (!feature || !feature.geometry) return null;
       const lineFeat = feature.geometry.features.find(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (f: any) => f.geometry.type === 'LineString' && f.geometry.coordinates.length === 2,
+        (f: any) => f.geometry.type === 'LineString' && f.geometry.coordinates.length >= 2,
       );
       if (!lineFeat) return null;
       const c = lineFeat.geometry.coordinates as [number, number][];
-      return [c[0], c[1]];
-    }
-
-    /**
-     * Extract the outer ring of the first Polygon in a track's feature at a frame.
-     */
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    function getStereoPolygon(track: any, frameNum: number): [number, number][] | null {
-      if (!track) return null;
-      const [feature] = track.getFeature(frameNum);
-      if (!feature || !feature.geometry) return null;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const polyFeat = feature.geometry.features.find((f: any) => f.geometry.type === 'Polygon');
-      if (!polyFeat) return null;
-      const ring = polyFeat.geometry.coordinates[0];
-      return ring && ring.length >= 3 ? (ring as [number, number][]) : null;
+      return c;
     }
 
     /**
@@ -1001,6 +1170,9 @@ export default defineComponent({
       if (!track) return;
       const [feature] = track.getFeature(frameNum);
       if (!feature || !feature.keyframe || !feature.geometry) return;
+      // The service answers well after the click; a line the user has moved
+      // in the meantime is theirs to keep.
+      if (feature.attributes?.[STEREO_USER_LINE_ATTR] === true) return;
       const [p1, p2] = line;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const preserved = (feature.geometry.features || []).filter((f: any) => {
@@ -1018,13 +1190,14 @@ export default defineComponent({
     }
 
     const STEREO_MEASUREMENT_ATTRS = [
-      'length', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
+      'length', 'curved_length', 'straight_length', 'curvature_ratio', 'midpoint_x', 'midpoint_y', 'midpoint_z', 'midpoint_range', 'stereo_rms',
     ];
 
     // Per-feature marker: a human (not the stereo warp) authored this camera's
     // line at this frame. Once set, interactive stereo never overwrites that
     // side's geometry again — only the user can. Kept off the Attributes panel.
     const STEREO_USER_LINE_ATTR = 'stereo_user_line';
+    const STEREO_LOADING_DIALOG_DELAY_MS = 300;
     // How the length was set: 'stereo' = auto-computed from the warped lines,
     // 'user_set' = locked by the user (auto-update leaves the length alone).
     const STEREO_LENGTH_METHOD_ATTR = 'length_method';
@@ -1040,6 +1213,15 @@ export default defineComponent({
     }
 
     const preStereoSegmentationState = new Map<string, Record<string, SavedStereoCameraState>>();
+
+    // In-flight auto-populate passes for freshly drawn shapes, so the stereo
+    // transfer of the same shape can populate its mapped copy afterwards.
+    /** Outcome of one auto-populate pass; the mask is reported even when only points were asked for. */
+    type AutoPopulateOutcome = { status: 'applied' | 'changed' | 'failed' | 'skipped'; polygons: SegmentationPolygon[] };
+    const pendingAutoPopulate = new Map<string, Promise<AutoPopulateOutcome>>();
+    /** Head/tail lines auto-populate derived, so a later pass knows which ones are still its own. */
+    const derivedLines = new Map<string, [number, number][]>();
+    const autoPopulateKey = (camera: string, trackId: number, frameNum: number) => `${camera}:${trackId}:${frameNum}`;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     function captureStereoCameraState(track: any, frameNum: number): SavedStereoCameraState {
@@ -1243,6 +1425,7 @@ export default defineComponent({
       // A length the user locked (length_method === 'user_set') is never
       // overwritten; the other measurements still track the shifting geometry.
       const lengthLocked = feature?.attributes?.[STEREO_LENGTH_METHOD_ATTR] === 'user_set';
+      track.setFeatureAttribute(frameNum, 'measurement_stale', false);
       const { length } = measurement;
       if (!lengthLocked && length !== undefined && Number.isFinite(length)) {
         if (feature && feature.keyframe) {
@@ -1269,13 +1452,14 @@ export default defineComponent({
         parts.push(`range: ${round2(measurement.midpoint_range)}`);
       }
       stereoLengthMessage.value = parts.join('  •  ');
+      stereoLengthWarning.value = typeof measurement.warning === 'string' ? measurement.warning : '';
       stereoLengthSnackbar.value = true;
     }
 
     /**
      * Triangulate and store the stereo measurement for one frame of a track that
-     * has a 2-point line on both cameras. Returns the measurement, or null if
-     * either side lacks a line (or the service fails).
+     * has a line on both cameras. Returns null if either side lacks a line or
+     * the geometry changed while waiting; service failures are reported.
      */
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     async function measureStereoLineAtFrame(cameraStore: any, trackId: number, frameNum: number) {
@@ -1288,14 +1472,30 @@ export default defineComponent({
       const rightLine = getStereoLineEndpoints(rightTrack, frameNum);
       if (!leftLine || !rightLine) return null;
 
-      const response = await stereoMeasureLine({ leftLine, rightLine });
+      const fps = stereoCameraFps.value[leftCamera]
+        || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+      const request = {
+        leftLine,
+        rightLine,
+        leftImagePath: stereoImagePathGetters.value[leftCamera](frameNum),
+        rightImagePath: stereoImagePathGetters.value[rightCamera](frameNum),
+        frameTime: fps ? frameNum / fps : undefined,
+      };
+      // Multi-point lines refine on this frame's disparity when it is there
+      // and measure from the drawn lines alone when it is not.
+      if (leftLine.length > 2 || rightLine.length > 2) await ensureStereoFrame(frameNum);
+      const response = await stereoMeasureLine(request);
+      if (JSON.stringify(getStereoLineEndpoints(leftTrack, frameNum)) !== JSON.stringify(leftLine)
+          || JSON.stringify(getStereoLineEndpoints(rightTrack, frameNum)) !== JSON.stringify(rightLine)) return null;
       if (response.success && response.measurement) {
         ensureMeasurementAttributes();
         applyStereoMeasurement(leftTrack, frameNum, response.measurement);
         applyStereoMeasurement(rightTrack, frameNum, response.measurement);
-        return response.measurement;
+        return { ...response.measurement, warning: response.warning };
       }
-      return null;
+      // A rejection for a frame the user has already left is expected, not an error.
+      if (getViewerFrame() !== frameNum) return null;
+      throw new Error(response.error || 'The stereo service could not measure these lines.');
     }
 
     /**
@@ -1312,11 +1512,34 @@ export default defineComponent({
     }
 
     /**
+     * Refresh the stereo length after a human edit, reporting service failures
+     * in the stereo dialog unless the caller owns it.
+     */
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    async function refreshStereoLength(cameraStore: any, trackId: number, frameNum: number, quiet: boolean) {
+      try {
+        await autoUpdateStereoLength(cameraStore, trackId, frameNum);
+      } catch (err) {
+        console.warn('[Stereo] Measurement update failed:', err);
+        if (quiet) return;
+        stereoErrorTitle.value = 'Stereo Measurement Error';
+        stereoErrorSeverity.value = 'warning';
+        stereoLoadingError.value = `Could not update the stereo length. ${err instanceof Error ? err.message : String(err)}`;
+        stereoLoadingDialog.value = true;
+      }
+    }
+
+    /**
      * Handle two detections being linked across cameras (multicam link tool).
      * Recompute the stereo measurement for every frame where both the left and
-     * right tracks now have a 2-point line.
+     * right tracks now have a measurement line.
      */
     async function handleStereoTrackLinked(trackId: number) {
+      const operation = () => measureLinkedStereoTrack(trackId);
+      return viewerRef.value?.runAnnotationOperation(operation) ?? operation();
+    }
+
+    async function measureLinkedStereoTrack(trackId: number) {
       // Wait out a still-starting service rather than dropping the recompute.
       if (!stereoEnabled.value && !(await stereoServiceReady())) return;
       // Linking a pair across cameras only (re)computes their stereo lengths.
@@ -1356,6 +1579,38 @@ export default defineComponent({
       }
     }
 
+    function paddedLineBounds(points: [number, number][]): RectBounds {
+      const minX = Math.min(...points.map((p) => p[0]));
+      const minY = Math.min(...points.map((p) => p[1]));
+      const maxX = Math.max(...points.map((p) => p[0]));
+      const maxY = Math.max(...points.map((p) => p[1]));
+      const width = maxX - minX;
+      const height = maxY - minY;
+      const padX = width * 0.10 || height * 0.10;
+      const padY = height * 0.10 || width * 0.10;
+      let bx0 = minX - padX;
+      let bx1 = maxX + padX;
+      let by0 = minY - padY;
+      let by1 = maxY + padY;
+      // Cap the aspect ratio so a near-axis-aligned warped line doesn't make
+      // a razor-thin box (matches headtail.ts MAX_BOX_ASPECT_RATIO).
+      const MAX_BOX_ASPECT_RATIO = 6;
+      const bw = bx1 - bx0;
+      const bh = by1 - by0;
+      if (bw > 0 && bh > 0) {
+        if (bw / bh > MAX_BOX_ASPECT_RATIO) {
+          const grow = (bw / MAX_BOX_ASPECT_RATIO - bh) / 2;
+          by0 -= grow;
+          by1 += grow;
+        } else if (bh / bw > MAX_BOX_ASPECT_RATIO) {
+          const grow = (bh / MAX_BOX_ASPECT_RATIO - bw) / 2;
+          bx0 -= grow;
+          bx1 += grow;
+        }
+      }
+      return [bx0, by0, bx1, by1] as RectBounds;
+    }
+
     /**
      * Handle stereo annotation complete event from Viewer
      * Warps annotation from source camera to the other camera
@@ -1365,11 +1620,58 @@ export default defineComponent({
      *   result status instead — used by bulk import "Warp to All" so failures
      *   can be aggregated rather than cleared by the next job.
      */
+    /**
+     * Where `point` on `camera` lands on the other stereo camera, for linked
+     * panning. Uses whatever matcher the stereo service loaded; null when the
+     * service is off or the match is rejected.
+     */
+    async function stereoViewLink(params: StereoViewLinkParams): Promise<[number, number] | null> {
+      if (!stereoEnabled.value) return null;
+      const cameras = Object.keys(stereoImagePathGetters.value);
+      if (cameras.length !== 2 || !cameras.includes(params.camera)) return null;
+      if (!(await ensureStereoFrame(params.frameNum))) return null;
+      const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+      try {
+        const response = await stereoTransferPoints({
+          points: [params.point],
+          strict: true,
+          sourceCamera: params.camera === cameras[0] ? 'left' : 'right',
+          leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+          rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+          frameTime: fps ? params.frameNum / fps : undefined,
+        });
+        const point = response.transferredPoints?.[0];
+        if (!response.success || response.validMatches?.[0] !== true || !point?.every(Number.isFinite)) {
+          return null;
+        }
+        return [point[0], point[1]];
+      } catch {
+        return null;
+      }
+    }
+
     async function handleStereoAnnotationComplete(
       params: StereoAnnotationCompleteParams,
       forceAutoCompute = false,
       quiet = false,
     ): Promise<'transferred' | 'skipped' | 'failed'> {
+      const operation = () => performStereoAnnotationComplete(params, forceAutoCompute, quiet);
+      return viewerRef.value?.runAnnotationOperation(operation) ?? operation();
+    }
+
+    async function performStereoAnnotationComplete(
+      params: StereoAnnotationCompleteParams,
+      forceAutoCompute = false,
+      quiet = false,
+    ): Promise<'transferred' | 'skipped' | 'failed'> {
+      // Read before the first await: the entry is dropped once the pass settles.
+      const sourceAutoPopulate = pendingAutoPopulate.get(
+        autoPopulateKey(params.camera, params.trackId, params.frameNum),
+      );
+      if (params.type === 'point' && isHeadTailPoint(params.key)) {
+        viewerRef.value?.multiCamList.forEach((camera: string) => viewerRef.value?.cameraStore
+          ?.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
+      }
       // This handler only fires on human edits — the stereo warp writes
       // geometry directly, bypassing the annotation-complete event — so the
       // camera the user just drew/edited is now human-authored. Mark it
@@ -1377,7 +1679,9 @@ export default defineComponent({
       // can be long on a fresh launch, and a line drawn on the other camera
       // in the meantime must see this one as human-authored, not
       // machine-generated, so the warp can never overwrite it.
-      if (params.type === 'line') {
+      if (params.type === 'line' || (params.type === 'point' && isHeadTailPoint(params.key))) {
+        viewerRef.value?.multiCamList.forEach((camera: string) => viewerRef.value?.cameraStore
+          ?.getPossibleTrack(params.trackId, camera)?.invalidateMeasurement(params.frameNum));
         const sourceTrack = viewerRef.value?.cameraStore
           ?.getPossibleTrack(params.trackId, params.camera);
         sourceTrack?.setFeatureAttribute(params.frameNum, STEREO_USER_LINE_ATTR, true);
@@ -1425,6 +1729,50 @@ export default defineComponent({
           // user (never overwrite it) or cross-camera auto-compute is disabled.
           // If both cameras now have a line, just refresh the measurement.
           if (updateLengths && otherHasFeature) {
+            await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
+          }
+          return 'skipped';
+        }
+        // Otherwise (auto-compute on, other side absent or still machine-generated)
+        // fall through and (re)warp source -> other so the auto-generated line
+        // keeps tracking edits.
+      } else if (params.type === 'point') {
+        if (!autoCompute || (!params.insert && !canMapPoint(otherTrack, params.frameNum, params.key, params.camera))) {
+          if (isHeadTailPoint(params.key) && updateLengths && otherHasFeature) {
+            await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
+          }
+          return 'skipped';
+        }
+        if (!otherHasFeature) {
+          // One keypoint alone would make a detection of just that point on
+          // the other camera; map the detection it belongs to instead.
+          const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          const job = detectionTransferJob(sourceTrack, params.frameNum, params.camera);
+          if (!job) return 'skipped';
+          const result = await handleStereoAnnotationComplete(job, forceAutoCompute, quiet);
+          if (result !== 'transferred') return result;
+          const mapped = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          const remaining = unmappedPoints(sourceTrack, mapped, params.frameNum);
+          for (let i = 0; i < remaining.length; i += 1) {
+            // eslint-disable-next-line no-await-in-loop
+            await handleStereoAnnotationComplete({
+              type: 'point', camera: params.camera, trackId: params.trackId, frameNum: params.frameNum, ...remaining[i],
+            }, forceAutoCompute, true);
+          }
+          return 'transferred';
+        }
+      } else if (params.type === 'segmentation') {
+        const saved = preStereoSegmentationState.get(`${params.trackId}:${params.frameNum}`);
+        if (!shouldTransferStereoSegmentation({
+          autoCompute,
+          otherHasFeature,
+          otherHadFeatureBeforeSegmentation: saved?.[otherCamera]?.hadFeature,
+          otherHasUserLine: otherFeature?.attributes?.[STEREO_USER_LINE_ATTR] === true,
+        })) {
+          // A pre-existing counterpart stays intact, but source auto-populate
+          // can move its head/tail and invalidate the previous measurement.
+          if (updateLengths && otherHasFeature) {
+            await sourceAutoPopulate;
             try {
               await autoUpdateStereoLength(cameraStore, params.trackId, params.frameNum);
             } catch (err) {
@@ -1433,11 +1781,8 @@ export default defineComponent({
           }
           return 'skipped';
         }
-        // Otherwise (auto-compute on, other side absent or still machine-generated)
-        // fall through and (re)warp source -> other so the auto-generated line
-        // keeps tracking edits.
       } else if (otherHasFeature) {
-        // Box / polygon / segmentation: warp only once; leave existing untouched.
+        // Box / polygon: warp only once; leave existing untouched.
         return 'skipped';
       } else if (!autoCompute) {
         // Creating geometry on the other camera is gated by auto-compute.
@@ -1446,12 +1791,20 @@ export default defineComponent({
 
       // Show loading indicator while waiting for stereo transfer (interactive
       // single-transfer path only; bulk import owns the dialog itself).
-      if (!quiet) {
-        stereoLoadingMessage.value = 'Computing stereo correspondence...';
-        stereoLoadingError.value = '';
-        stereoLoadingDialog.value = true;
+      // Only once the wait is noticeable, so a fast transfer doesn't flash it,
+      // and never for a single point.
+      let loadingTimer: number | undefined;
+      if (!quiet && params.type !== 'point') {
+        loadingTimer = window.setTimeout(() => {
+          stereoLoadingMessage.value = 'Computing stereo correspondence...';
+          stereoLoadingError.value = '';
+          stereoLoadingDialog.value = true;
+        }, STEREO_LOADING_DIALOG_DELAY_MS);
       }
 
+      let boxThroughMask: 'mapped' | 'refused' | 'unavailable' = 'unavailable';
+      const pointTargetBefore = params.type === 'point'
+        ? pointTargetState(otherTrack, params.frameNum, params.key, params.insert, params.camera) : undefined;
       try {
         // Guarantee the backend has this frame's images before transferring. The
         // proactive watcher only fires on frame-number changes, so a draw on the
@@ -1459,67 +1812,74 @@ export default defineComponent({
         // deferred disparity wait.
         await ensureStereoFrame(params.frameNum);
 
-        if (params.type === 'line') {
-          const response = await stereoTransferLine({ line: params.line });
+        if (params.type === 'point') {
+          const cameras = Object.keys(stereoImagePathGetters.value);
+          if (cameras.length !== 2 || !cameras.includes(params.camera)) throw new Error('Stereo camera mapping is unavailable');
+          const source = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+          const response = await stereoTransferPoints({
+            points: [params.point],
+            strict: true,
+            sourceCamera: params.camera === cameras[0] ? 'left' : 'right',
+            leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+            rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+            frameTime: fps ? params.frameNum / fps : undefined,
+          });
+          const point = response.transferredPoints?.[0];
+          if (!response.success || response.validMatches?.[0] !== true || !point?.every(Number.isFinite)) {
+            throw new Error(response.error || 'No valid stereo match for this keypoint');
+          }
+          const currentTarget = cameraStore.getPossibleTrack(params.trackId, otherCamera);
+          if (!pointUnchanged(source, params.frameNum, params.key, params.point)
+              || pointTargetState(currentTarget, params.frameNum, params.key, params.insert, params.camera) !== pointTargetBefore) return 'skipped';
+          const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
+          if (track) {
+            applyMappedPoint(track, params.frameNum, params.key, point, params.camera, params.insert);
+            // Point is across by now: a measurement failure is its own error.
+            if (isHeadTailPoint(params.key) && updateLengths) {
+              await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
+            }
+          }
+        } else if (params.type === 'line') {
+          const cameras = Object.keys(stereoImagePathGetters.value);
+          const fromRight = params.camera === cameras[1];
+          const fps = stereoCameraFps.value[cameras[0]] || stereoDatasetFps || Object.values(stereoCameraFps.value)[0];
+          const response = params.line.length === 2 && !fromRight
+            ? await stereoTransferLine({ line: [params.line[0], params.line[1]] })
+            : await stereoTransferPoints({
+              points: params.line,
+              strict: true,
+              sourceCamera: fromRight ? 'right' : 'left',
+              leftImagePath: stereoImagePathGetters.value[cameras[0]](params.frameNum),
+              rightImagePath: stereoImagePathGetters.value[cameras[1]](params.frameNum),
+              frameTime: fps ? params.frameNum / fps : undefined,
+            }).then((r) => ({
+              ...r,
+              transferredLine: r.transferredPoints,
+              measurement: undefined,
+              success: r.success && r.validMatches?.length === params.line.length && r.validMatches.every(Boolean),
+            }));
           if (!response.success || !response.transferredLine) {
             throw new Error(response.error || 'Line transfer returned no result');
           }
 
+          const currentSource = cameraStore.getPossibleTrack(params.trackId, params.camera);
+          if (JSON.stringify(getStereoLineEndpoints(currentSource, params.frameNum)) !== JSON.stringify(params.line)) return 'skipped';
           // Get or create the track on the other camera and set the warped line
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
           if (track) {
-            const [p1, p2] = response.transferredLine;
-            // Preserve the source line's key and include head/tail Point markers
-            // so the warped line is a standard, line-mode-editable annotation.
-            const lineGeometry: GeoJSON.Feature[] = [
-              {
-                type: 'Feature',
-                geometry: { type: 'LineString', coordinates: response.transferredLine },
-                properties: { key: params.key },
-              },
-              {
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [p1[0], p1[1]] },
-                properties: { key: HeadPointKey },
-              },
-              {
-                type: 'Feature',
-                geometry: { type: 'Point', coordinates: [p2[0], p2[1]] },
-                properties: { key: TailPointKey },
-              },
-            ];
-
-            // Compute bounds from the transferred line with 10% expansion to
-            // match the expansion applied on the source camera side (headtail.ts).
-            const minX = Math.min(p1[0], p2[0]);
-            const minY = Math.min(p1[1], p2[1]);
-            const maxX = Math.max(p1[0], p2[0]);
-            const maxY = Math.max(p1[1], p2[1]);
-            const width = maxX - minX;
-            const height = maxY - minY;
-            const padX = width * 0.10 || height * 0.10;
-            const padY = height * 0.10 || width * 0.10;
-            let bx0 = minX - padX;
-            let bx1 = maxX + padX;
-            let by0 = minY - padY;
-            let by1 = maxY + padY;
-            // Cap the aspect ratio so a near-axis-aligned warped line doesn't make
-            // a razor-thin box (matches headtail.ts MAX_BOX_ASPECT_RATIO).
-            const MAX_BOX_ASPECT_RATIO = 6;
-            const bw = bx1 - bx0;
-            const bh = by1 - by0;
-            if (bw > 0 && bh > 0) {
-              if (bw / bh > MAX_BOX_ASPECT_RATIO) {
-                const grow = (bw / MAX_BOX_ASPECT_RATIO - bh) / 2;
-                by0 -= grow;
-                by1 += grow;
-              } else if (bh / bw > MAX_BOX_ASPECT_RATIO) {
-                const grow = (bh / MAX_BOX_ASPECT_RATIO - bw) / 2;
-                bx0 -= grow;
-                bx1 += grow;
-              }
-            }
-            const bounds = [bx0, by0, bx1, by1] as [number, number, number, number];
+            const points = response.transferredLine;
+            const lineGeometry = headTailFeatures(points).map((g) => ({
+              ...g,
+              properties: g.geometry.type === 'Point'
+                ? { ...g.properties, stereoSource: params.camera, stereoKey: g.properties?.key } : g.properties,
+            }));
+            // A box already fitted to this camera's mask only grows to keep the
+            // moved line inside, as the source camera's box does on an edit.
+            const [existing] = track.getFeature(params.frameNum);
+            const bounds = existing?.bounds && track.getPolygonFeatures(params.frameNum).length
+              ? boundsEnclosing(existing.bounds, points)
+              : paddedLineBounds(points);
 
             track.setFeature({
               frame: params.frameNum,
@@ -1529,6 +1889,10 @@ export default defineComponent({
               interpolate: false,
             }, lineGeometry);
 
+            // The line is across by now: a measurement failure is its own error.
+            if ((params.line.length > 2 || fromRight) && updateLengths) {
+              await refreshStereoLength(cameraStore, params.trackId, params.frameNum, quiet);
+            }
             // Report and store the full stereo measurement on both cameras
             // (length attributes are gated by the length-update feature).
             if (response.measurement && updateLengths) {
@@ -1539,7 +1903,20 @@ export default defineComponent({
               reportStereoMeasurement(response.measurement);
               await updateStereoTrackAverages(cameraStore, params.trackId);
             }
+            if (sourceAutoPopulate) {
+              await autoPopulateOtherCamera(sourceAutoPopulate, params.camera, {
+                camera: otherCamera,
+                trackId: params.trackId,
+                frameNum: params.frameNum,
+                source: 'line',
+                line: points,
+              });
+            }
           }
+        } else if (params.type === 'box' && sourceAutoPopulate
+          // eslint-disable-next-line no-cond-assign
+          && (boxThroughMask = await mapBoxThroughSourceMask(sourceAutoPopulate, params, otherCamera)) === 'mapped') {
+          // The other camera's box came from its mask.
         } else if (params.type === 'box') {
           // Convert box bounds to 4 corner points
           const [x1, y1, x2, y2] = params.bounds;
@@ -1569,6 +1946,16 @@ export default defineComponent({
               keyframe: true,
               interpolate: false,
             });
+            // A mask the service already refused is not asked for again.
+            if (sourceAutoPopulate && boxThroughMask !== 'refused') {
+              await autoPopulateOtherCamera(sourceAutoPopulate, params.camera, {
+                camera: otherCamera,
+                trackId: params.trackId,
+                frameNum: params.frameNum,
+                source: 'box',
+                bounds: newBounds,
+              });
+            }
           }
         } else if (params.type === 'polygon') {
           const response = await stereoTransferPoints({ points: params.polygon });
@@ -1621,60 +2008,37 @@ export default defineComponent({
             otherCamera,
             cameraStore,
           );
-          // Single round-trip to the segmentation service: it warps the seed to
-          // the other camera (configured stereo backend, with median sampling
-          // when enabled), segments there, and optionally derives head/tail lines
-          // on both cameras plus the measurement.
+          // Single round-trip to the segmentation service: it warps seeds to
+          // the other camera, segments there, and optionally derives head/tail
+          // lines on both cameras plus the measurement.
           const sourceTrack = cameraStore.getPossibleTrack(params.trackId, params.camera);
-          const sourcePolygon = getStereoPolygon(sourceTrack, params.frameNum);
-          const sourceImagePath = stereoImagePathGetters.value[params.camera]?.(params.frameNum);
-          const otherImagePath = stereoImagePathGetters.value[otherCamera]?.(params.frameNum);
-          if (!sourceImagePath || !otherImagePath) {
-            throw new Error('No image path for one of the stereo cameras');
-          }
-          // Both stereo cameras share one fps: per-camera -> dataset -> any camera.
-          const segFps = stereoCameraFps.value[params.camera]
-            || stereoDatasetFps
-            || Object.values(stereoCameraFps.value)[0];
-          const segFrameTime = segFps ? params.frameNum / segFps : undefined;
+          const response = await stereoSegmentMask(
+            params.camera,
+            otherCamera,
+            params.frameNum,
+            trackMaskPolygons(sourceTrack, params.frameNum),
+            { points: params.points, labels: params.labels },
+          );
 
-          const response = await segmentationStereoSegment({
-            polygon: sourcePolygon || undefined,
-            points: params.points,
-            pointLabels: params.labels,
-            sourceImagePath,
-            otherImagePath,
-            calibrationFile: stereoCalibrationFile,
-            frameTime: segFrameTime,
-          });
-          if (!response.success) {
-            throw new Error(response.error || 'Stereo segmentation returned no result');
-          }
-
-          // Draw the segmented polygon on the other camera.
+          // Draw the segmented mask on the other camera.
           const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
-          if (track && response.polygon && response.polygon.length >= 3) {
-            const closedPolygon = [...response.polygon];
-            const first = closedPolygon[0];
-            const last = closedPolygon[closedPolygon.length - 1];
-            if (first[0] !== last[0] || first[1] !== last[1]) {
-              closedPolygon.push([...first] as [number, number]);
-            }
-            const segGeometry: GeoJSON.Feature[] = [{
-              type: 'Feature',
-              geometry: { type: 'Polygon', coordinates: [closedPolygon] },
-              properties: { key: '' },
-            }];
-            const segBounds = response.bounds || [
-              Math.min(...response.polygon.map((p: [number, number]) => p[0])),
-              Math.min(...response.polygon.map((p: [number, number]) => p[1])),
-              Math.max(...response.polygon.map((p: [number, number]) => p[0])),
-              Math.max(...response.polygon.map((p: [number, number]) => p[1])),
-            ] as [number, number, number, number];
+          const components = segmentationComponents(response);
+          if (track && components.length) {
+            // Same keys as the source polygons, so polygon editing reaches both.
+            const [sourceFeature] = sourceTrack?.getFeature(params.frameNum) ?? [null];
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const sourceKey = sourceFeature?.geometry?.features.find((f: any) => f.geometry.type === 'Polygon')?.properties?.key ?? '';
+            const segGeometry = segmentationPolygonFeatures(components, sourceKey);
+            const kept = new Set(segGeometry.map((g) => g.properties?.key));
+            track.getPolygonFeatures(params.frameNum).forEach((polygon: { key: string }) => {
+              if (isSegmentationPolygonKey(polygon.key, sourceKey) && !kept.has(polygon.key)) {
+                track.removeFeatureGeometry(params.frameNum, { type: 'Polygon', key: polygon.key });
+              }
+            });
             track.setFeature({
               frame: params.frameNum,
               flick: 0,
-              bounds: segBounds,
+              bounds: response.bounds || componentsBounds(components),
               keyframe: true,
               interpolate: false,
             }, segGeometry);
@@ -1682,6 +2046,9 @@ export default defineComponent({
 
           // Optionally add a head/tail line to each camera and store the
           // length/measurement attributes (as the line-transfer flow does).
+          // Finish the source's point extraction before storing the measurement;
+          // a late head/tail write would otherwise clear the new length again.
+          await sourceAutoPopulate;
           if (response.generateLine) {
             if (response.lineSource) applyStereoLine(sourceTrack, params.frameNum, response.lineSource);
             if (track && response.lineOther) applyStereoLine(track, params.frameNum, response.lineOther);
@@ -1693,10 +2060,7 @@ export default defineComponent({
               await updateStereoTrackAverages(cameraStore, params.trackId);
             }
           }
-        }
-        // Success — hide loading dialog (interactive path only)
-        if (!quiet) {
-          stereoLoadingDialog.value = false;
+          await autoPopulateStereoMask(params.camera, otherCamera, params.trackId, params.frameNum);
         }
         return 'transferred';
       } catch (err) {
@@ -1714,6 +2078,9 @@ export default defineComponent({
         stereoLoadingError.value = `Failed to transfer annotation to the other camera. ${message}`;
         stereoLoadingDialog.value = true;
         return 'failed';
+      } finally {
+        window.clearTimeout(loadingTimer);
+        if (!quiet && !stereoLoadingError.value) stereoLoadingDialog.value = false;
       }
     }
 
@@ -1763,34 +2130,8 @@ export default defineComponent({
             const otherTrack = cameraStore.getPossibleTrack(track.id, otherCamera);
             const [otherFeature] = otherTrack ? otherTrack.getFeature(frameNum) : [null];
             if (otherFeature) return;
-            const geoFeatures = feature.geometry?.features || [];
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const line = geoFeatures.find((g: any) => g.geometry?.type === 'LineString'
-              && g.geometry.coordinates?.length === 2);
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const poly = geoFeatures.find((g: any) => g.geometry?.type === 'Polygon');
-            const base = { camera: sourceCamera, trackId: track.id, frameNum };
-            if (line) {
-              jobs.push({
-                ...base,
-                type: 'line',
-                line: line.geometry.coordinates as [[number, number], [number, number]],
-                key: line.properties?.key ?? '',
-              });
-            } else if (poly) {
-              jobs.push({
-                ...base,
-                type: 'polygon',
-                polygon: poly.geometry.coordinates[0] as [number, number][],
-                key: poly.properties?.key ?? '',
-              });
-            } else {
-              jobs.push({
-                ...base,
-                type: 'box',
-                bounds: feature.bounds as [number, number, number, number],
-              });
-            }
+            const job = detectionTransferJob(track, frameNum, sourceCamera);
+            if (job) jobs.push(job);
           });
         });
 
@@ -1846,9 +2187,240 @@ export default defineComponent({
     }
 
     /**
+     * Auto-populate: segment a box or line with whatever interactive model is
+     * loaded and, per the settings, store the polygon, derive head/tail from
+     * it (box) or tighten the box to it (line). For a copy mapped from the other
+     * stereo camera, orientLike is that camera's line, which a derived head/tail
+     * is ordered to match, and a box the mask disagrees with is refit to the mask.
+     */
+    const autoPopulateActive = ref(0);
+    const autoPopulateMessage = ref('');
+    const autoPopulateMedia = new Map<string, Promise<Awaited<ReturnType<typeof loadConfig>>>>();
+    let autoPopulateInitialization: Promise<void> | null = null;
+
+    async function ensureAutoPopulateReady() {
+      if (!autoPopulateInitialization) {
+        autoPopulateInitialization = (async () => {
+          const status = await segmentationIsReady();
+          if (!status.ready) {
+            const result = await segmentationInitialize();
+            if (!result.success) throw new Error('Could not initialize segmentation.');
+          }
+        })().finally(() => { autoPopulateInitialization = null; });
+      }
+      await autoPopulateInitialization;
+    }
+
+    async function autoPopulateGeometry(
+      params: NewAnnotationGeometryParams,
+      stereo?: { orientLike: [number, number][] | null; fitBoxToMask: boolean; knownMask?: SegmentationPolygon[] },
+    ): Promise<AutoPopulateOutcome> {
+      const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
+      const cameraStore = viewerRef.value?.cameraStore;
+      if ((!autoPopulateMask && !autoPopulatePoints) || !cameraStore) return { status: 'skipped', polygons: [] };
+      let polygons: SegmentationPolygon[] = [];
+      // Resolve the requested camera independently of recipe initialization and
+      // whichever camera is selected when asynchronous work finishes.
+      const datasetId = params.camera === 'singleCam' ? props.id : `${props.id}/${params.camera}`;
+      const key = autoPopulateKey(params.camera, params.trackId, params.frameNum);
+      autoPopulateActive.value += 1;
+      try {
+        const result = await populateAnnotation(params, {
+          mask: autoPopulateMask,
+          points: autoPopulatePoints,
+          onMask: (mask) => { polygons = mask; },
+          ownLine: derivedLines.get(key) ?? null,
+          onLine: (line) => derivedLines.set(key, line),
+          ...stereo,
+        }, {
+          getTrack: () => cameraStore.getPossibleTrack(params.trackId, params.camera),
+          getMedia: async () => {
+            let loading = autoPopulateMedia.get(datasetId);
+            if (!loading) {
+              loading = loadConfig(datasetId).catch((err) => {
+                autoPopulateMedia.delete(datasetId);
+                throw err;
+              });
+              autoPopulateMedia.set(datasetId, loading);
+            }
+            const meta = await loading;
+            return {
+              imagePath: buildImagePathGetter(meta)(params.frameNum),
+              frameTime: meta.type === 'video' ? params.frameNum / meta.fps : undefined,
+            };
+          },
+          ensureReady: ensureAutoPopulateReady,
+          predict: segmentationPredict,
+          keypoints: segmentationPolygonKeypoints,
+        });
+        // A mask reshaped by the next click is expected; its own pass follows.
+        if (result === 'changed' && params.source !== 'mask'
+          && cameraStore.getPossibleTrack(params.trackId, params.camera)) {
+          autoPopulateMessage.value = `Auto-populate skipped for track ${params.trackId}: the annotation changed while the request was running.`;
+        }
+        return { status: result, polygons };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        autoPopulateMessage.value = `Auto-populate — track ${params.trackId}, ${params.camera}, frame ${params.frameNum}: ${message}`;
+        console.warn('[AutoPopulate] Could not populate the new annotation:', err);
+        return { status: 'failed', polygons };
+      } finally {
+        autoPopulateActive.value -= 1;
+      }
+    }
+
+    function trackMaskPolygons(track: Track | undefined, frameNum: number): SegmentationPolygon[] {
+      const [feature] = track?.getFeature(frameNum) ?? [null];
+      return (feature?.geometry?.features ?? [])
+        .filter((f): f is GeoJSON.Feature<GeoJSON.Polygon> => f.geometry.type === 'Polygon')
+        .map((f) => ({
+          exterior: f.geometry.coordinates[0] as [number, number][],
+          holes: f.geometry.coordinates.slice(1) as [number, number][][],
+        }));
+    }
+
+    /**
+     * The source camera's mask carried to the other camera by the
+     * segmentation service, which warps seeds from inside it, segments there
+     * and refuses a result out of scale with the source. Throws on failure.
+     */
+    async function stereoSegmentMask(
+      sourceCamera: string,
+      otherCamera: string,
+      frameNum: number,
+      polygons: SegmentationPolygon[],
+      click?: { points: [number, number][]; labels: number[] },
+    ) {
+      const sourceImagePath = stereoImagePathGetters.value[sourceCamera]?.(frameNum);
+      const otherImagePath = stereoImagePathGetters.value[otherCamera]?.(frameNum);
+      if (!sourceImagePath || !otherImagePath) {
+        throw new Error('No image path for one of the stereo cameras');
+      }
+      // Both stereo cameras share one fps: per-camera -> dataset -> any camera.
+      const fps = stereoCameraFps.value[sourceCamera]
+        || stereoDatasetFps
+        || Object.values(stereoCameraFps.value)[0];
+      const response = await segmentationStereoSegment({
+        polygon: polygons[0]?.exterior,
+        polygons: polygons.length ? polygons : undefined,
+        sourceCamera: sourceCamera === Object.keys(stereoImagePathGetters.value)[0] ? 'left' : 'right',
+        points: click?.points ?? [],
+        pointLabels: click?.labels ?? [],
+        sourceImagePath,
+        otherImagePath,
+        calibrationFile: stereoCalibrationFile,
+        frameTime: fps ? frameNum / fps : undefined,
+      });
+      if (!response.success) {
+        throw new Error(response.error || 'Stereo segmentation returned no result');
+      }
+      return response;
+    }
+
+    /**
+     * Stereo: a freshly drawn box or line was just mapped to the other camera.
+     * Populate the mapped copy too, once the source camera's own pass settles
+     * so a derived head/tail can follow the source's direction.
+     */
+    async function autoPopulateOtherCamera(
+      sourceJob: Promise<AutoPopulateOutcome | void>,
+      sourceCamera: string,
+      mapped: NewAnnotationGeometryParams,
+      knownMask?: SegmentationPolygon[],
+    ): Promise<AutoPopulateOutcome> {
+      const source = await sourceJob;
+      const cameraStore = viewerRef.value?.cameraStore;
+      if (!cameraStore) return { status: 'skipped', polygons: [] };
+      let mask = knownMask;
+      if (!mask && mapped.source !== 'mask' && source?.polygons.length) {
+        // The mapped copy's mask comes from the source camera's, through the
+        // service, rather than from a fresh prompt on the mapped geometry.
+        try {
+          mask = segmentationComponents(await stereoSegmentMask(sourceCamera, mapped.camera, mapped.frameNum, source.polygons));
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          autoPopulateMessage.value = `Auto-populate — track ${mapped.trackId}, ${mapped.camera}, frame ${mapped.frameNum}: ${message}`;
+          return { status: 'failed', polygons: [] };
+        }
+      }
+      const sourceTrack = cameraStore.getPossibleTrack(mapped.trackId, sourceCamera);
+      const outcome = await autoPopulateGeometry(mapped, {
+        orientLike: getStereoLineEndpoints(sourceTrack, mapped.frameNum),
+        fitBoxToMask: true,
+        knownMask: mask?.length ? mask : undefined,
+      });
+      if (mapped.source !== 'line' && clientSettings.stereoSettings.updateLengthsOnModify) {
+        try {
+          await autoUpdateStereoLength(cameraStore, mapped.trackId, mapped.frameNum);
+        } catch (err) {
+          console.warn('[Stereo] Measurement update failed:', err);
+        }
+      }
+      return outcome;
+    }
+
+    /**
+     * With auto-segmentation on, a new box reaches the other camera through
+     * its mask rather than its corners (which sit on the background and warp
+     * poorly): the service carries the source mask across and the other
+     * camera's box is that mask's bounds. 'refused' means the service found no
+     * acceptable mask there; 'unavailable' that there was no source mask.
+     */
+    async function mapBoxThroughSourceMask(
+      sourceJob: Promise<AutoPopulateOutcome>,
+      params: { camera: string; trackId: number; frameNum: number },
+      otherCamera: string,
+    ): Promise<'mapped' | 'refused' | 'unavailable'> {
+      const source = await sourceJob;
+      const cameraStore = viewerRef.value?.cameraStore;
+      if (!source.polygons.length || !cameraStore) return 'unavailable';
+      let components: SegmentationPolygon[];
+      let seeds: [number, number][];
+      try {
+        const response = await stereoSegmentMask(params.camera, otherCamera, params.frameNum, source.polygons);
+        components = segmentationComponents(response);
+        seeds = response.seedPoints ?? [];
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        autoPopulateMessage.value = `Auto-populate — track ${params.trackId}, ${otherCamera}, frame ${params.frameNum}: ${message}`;
+        return 'refused';
+      }
+      if (!components.length) return 'refused';
+      const track = getOrCreateStereoTrack(cameraStore, params.trackId, params.camera, otherCamera, params.frameNum);
+      if (!track) return 'unavailable';
+      // A placeholder for the mask to replace; it needs a feature to target.
+      track.setFeature({
+        frame: params.frameNum,
+        flick: 0,
+        bounds: componentsBounds(components),
+        keyframe: true,
+        interpolate: false,
+      });
+      const outcome = await autoPopulateOtherCamera(Promise.resolve(), params.camera, {
+        camera: otherCamera, trackId: params.trackId, frameNum: params.frameNum, source: 'points', points: seeds,
+      }, components);
+      if (outcome.status === 'applied' || outcome.status === 'changed') return 'mapped';
+      track.deleteFeature(params.frameNum);
+      return 'refused';
+    }
+
+    /** A brand-new box or line just got drawn, or a brand-new mask point-segmented. */
+    function handleNewAnnotationGeometry(params: NewAnnotationGeometryParams) {
+      const { autoPopulateMask, autoPopulatePoints } = clientSettings.trackSettings.newTrackSettings;
+      if (!autoPopulateMask && !autoPopulatePoints) return;
+      if (params.source === 'mask' && !autoPopulatePoints) return;
+      const key = autoPopulateKey(params.camera, params.trackId, params.frameNum);
+      const job: Promise<AutoPopulateOutcome> = autoPopulateGeometry(params).finally(() => {
+        if (pendingAutoPopulate.get(key) === job) pendingAutoPopulate.delete(key);
+      });
+      pendingAutoPopulate.set(key, job);
+    }
+
+    /**
      * Undo stereo side effects from interactive segmentation on reset.
      * Restores the other camera and clears saved undo state for the frame.
      */
+
     async function handleStereoAnnotationReset(params: StereoAnnotationResetParams) {
       const key = `${params.trackId}:${params.frameNum}`;
       const saved = preStereoSegmentationState.get(key);
@@ -1892,12 +2464,41 @@ export default defineComponent({
       });
     }
 
+    /**
+     * The other camera's point-segmented mask gets the same head/tail pass as
+     * the source camera's, once that one settles so the line runs the same way.
+     * Runs after each click's stereo segmentation, like the source camera's.
+     */
+    async function autoPopulateStereoMask(sourceCamera: string, otherCamera: string, trackId: number, frameNum: number) {
+      if (!clientSettings.trackSettings.newTrackSettings.autoPopulatePoints) return;
+      const polygons = trackMaskPolygons(viewerRef.value?.cameraStore?.getPossibleTrack(trackId, otherCamera), frameNum);
+      if (!polygons.length) return;
+      const sourceJob = pendingAutoPopulate.get(autoPopulateKey(sourceCamera, trackId, frameNum))
+        ?? Promise.resolve();
+      await autoPopulateOtherCamera(sourceJob, sourceCamera, {
+        camera: otherCamera, trackId, frameNum, source: 'mask', polygons,
+      });
+    }
+
     async function applyCalibrationAfterImport() {
       try {
         const hasStereo = await loadStereoMetadata();
         if (!hasStereo) return;
-        const result = await stereoEnable(undefined, stereoCalibrationFile);
+        // Same args as load-time auto-enable: honor the chosen method, but soft-
+        // fall back when its add-on is missing so import does not leave stereo
+        // offline on a stock VIAME.
+        const result = await stereoEnable(
+          undefined,
+          stereoCalibrationFile,
+          clientSettings.stereoSettings.matchMethod,
+          true,
+        );
         if (!result.success) return;
+        if (result.fellBack && result.matchMethod
+          && result.matchMethod !== clientSettings.stereoSettings.matchMethod) {
+          skipNextMatchMethodReload = true;
+          clientSettings.stereoSettings.matchMethod = result.matchMethod;
+        }
         stereoEnabled.value = true;
         await ensureStereoFrame(getViewerFrame());
       } catch (err) {
@@ -1965,15 +2566,18 @@ export default defineComponent({
       camNumbers,
       readonlyMode,
       modifiedId,
+      pipelineDatasetIds,
       changeCamera,
       readOnlyMode,
       runningPipelines,
       largeImageWarning,
+      handleLoadError,
       timeFilter,
       handleTextQuerySubmit,
       handleTextQueryInit,
       handleTextQueryAllFrames,
       textQueryAvailable,
+      refreshTextQueryAvailability,
       openLink,
       /* Stereo */
       stereoLoadingDialog,
@@ -1983,15 +2587,24 @@ export default defineComponent({
       stereoErrorTitle,
       stereoErrorSeverity,
       stereoLengthSnackbar,
+      stereoLengthWarning,
       stereoLengthMessage,
       closeStereoLoadingDialog,
       handleStereoAnnotationComplete,
+      stereoViewLink,
       handleStereoWarpImported,
       handleStereoAnnotationReset,
+      handleNewAnnotationGeometry,
+      autoPopulateActive,
+      autoPopulateMessage,
       handleStereoSegmentationFinalize,
       handleStereoTrackLinked,
       onCalibrationImported,
       onCalibrationDeleted,
+      annotationSourceLabel,
+      annotationSourceReturnable,
+      viewerFocus,
+      returnToCurrentAnnotations,
     };
   },
 });
@@ -2003,16 +2616,25 @@ export default defineComponent({
       :id.sync="id"
       ref="viewerRef"
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :annotation-source-label="annotationSourceLabel"
+      :annotation-source-returnable="annotationSourceReturnable"
+      :initial-frame="viewerFocus.frame"
+      :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
+      :check-text-query-available="refreshTextQueryAvailability"
+      :stereo-view-link="stereoViewLink"
+      @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
+      @load-error="handleLoadError"
       @text-query-submit="handleTextQuerySubmit"
       @text-query-init="handleTextQueryInit"
       @text-query-all-frames="handleTextQueryAllFrames"
       @open-external-link="openLink"
       @stereo-annotation-complete="handleStereoAnnotationComplete"
       @stereo-annotation-reset="handleStereoAnnotationReset"
+      @new-annotation-geometry="handleNewAnnotationGeometry"
       @stereo-segmentation-finalize="handleStereoSegmentationFinalize"
       @stereo-track-linked="handleStereoTrackLinked"
     >
@@ -2023,24 +2645,25 @@ export default defineComponent({
         <v-tabs
           icons-and-text
           hide-slider
+          class="desktop-nav-tabs"
           style="flex-basis:0; flex-grow:0;"
         >
           <v-tab :to="{ name: 'recent' }">
-            Library
-            <v-icon>mdi-folder-open</v-icon>
+            Library<v-icon>mdi-folder-open</v-icon>
           </v-tab>
           <job-tab />
-          <v-tab :to="{ name: 'training' }">
-            Training<v-icon>mdi-brain</v-icon>
+          <v-tab
+            :to="{ name: 'review', query: { fromDataset: id } }"
+          >
+            Review<v-icon>mdi-view-grid-outline</v-icon>
           </v-tab>
-          <v-tab :to="{ name: 'settings' }">
-            Settings<v-icon>mdi-cog</v-icon>
-          </v-tab>
+          <annotation-other-menu />
         </v-tabs>
       </template>
       <template #title-right>
         <RunPipelineMenu
-          :selected-dataset-ids="[modifiedId]"
+          :before-run="() => viewerRef.save()"
+          :selected-dataset-ids="pipelineDatasetIds"
           :sub-type-list="subTypeList"
           :camera-numbers="camNumbers"
           :running-pipelines="runningPipelines"
@@ -2142,15 +2765,46 @@ export default defineComponent({
       </v-card>
     </v-dialog>
     <v-snackbar
+      :value="autoPopulateActive > 0"
+      :timeout="-1"
+      bottom
+      left
+    >
+      <v-progress-circular indeterminate size="18" width="2" class="mr-2" />
+      Auto-populating {{ autoPopulateActive }} annotation(s)…
+    </v-snackbar>
+    <v-snackbar
+      :value="!!autoPopulateMessage"
+      :timeout="-1"
+      top
+      right
+      @input="!$event && (autoPopulateMessage = '')"
+    >
+      {{ autoPopulateMessage }}
+      <template #action="{ attrs }">
+        <v-btn text v-bind="attrs" @click="autoPopulateMessage = ''">
+          Close
+        </v-btn>
+      </template>
+    </v-snackbar>
+    <v-snackbar
       v-model="stereoLengthSnackbar"
-      :timeout="4000"
+      :timeout="stereoLengthWarning ? 10000 : 4000"
+      :color="stereoLengthWarning ? 'warning' : undefined"
       bottom
       right
     >
       {{ stereoLengthMessage }}
+      <div v-if="stereoLengthWarning">
+        {{ stereoLengthWarning }}
+      </div>
     </v-snackbar>
   </div>
 </template>
+
+<style lang="scss">
+@import './navTabs.scss';
+</style>
 
 <style scoped>
 .viewer-loader-wrapper {

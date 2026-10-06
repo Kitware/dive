@@ -1,4 +1,5 @@
 import fs from 'fs-extra';
+import { orderedHeadTail, spineIndex, syncHeadTail } from 'vue-media-annotator/headTail';
 import { isEmpty } from 'lodash';
 import { AnnotationSchema } from 'dive-common/apispec';
 import { JsonConfig } from 'platform/desktop/constants';
@@ -17,6 +18,7 @@ type CocoCategory = {
   id: number;
   name?: string;
   keypoints?: string[];
+  skeleton?: number[][];
   supercategory?: string | null;
   parents?: unknown;
 };
@@ -221,7 +223,8 @@ type CocoAnnotation = {
    * a dict, polygon/mask geometry is skipped (bbox and other fields still import).
    */
   iscrowd?: number;
-  keypoints?: number[];
+  keypoints?: number[] | { xy: number[]; keypoint_category?: string; keypoint_category_id?: number; visible?: number }[];
+  num_keypoints?: number;
   segmentation?: number[] | number[][] | Record<string, unknown>;
   dive_detection_attributes?: Record<string, unknown>;
   dive_track_attributes?: Record<string, unknown>;
@@ -237,12 +240,17 @@ type CocoVideo = {
   annotation_fps?: unknown;
 };
 
-type CocoDocument = {
+/** Any KWCOCO document that carries a category block, with or without media behind it. */
+type CocoCategoryDocument = {
+  categories: CocoCategory[];
+};
+
+type CocoDocument = CocoCategoryDocument & {
   info?: Record<string, unknown>;
   images: CocoImage[];
   annotations: CocoAnnotation[];
-  categories: CocoCategory[];
   videos?: CocoVideo[];
+  keypoint_categories?: { id: number; name: string }[];
 };
 
 /**
@@ -274,13 +282,12 @@ function hasRleSegmentation(annotation: CocoAnnotation): boolean {
 function buildFeatureGeometry(
   annotation: CocoAnnotation,
   category?: CocoCategory,
+  keypointCategories: { id: number; name: string }[] = [],
 ): { geometry?: GeoJSON.FeatureCollection<TrackSupportedFeature, GeoJSON.GeoJsonProperties>; rleSkipped: boolean } {
-  if (hasRleSegmentation(annotation)) {
-    return { rleSkipped: true };
-  }
+  const rleSkipped = hasRleSegmentation(annotation);
   const geometryFeatures:
     GeoJSON.Feature<TrackSupportedFeature, GeoJSON.GeoJsonProperties>[] = [];
-  const coordLists = extractPolygonCoordsLists(annotation.segmentation);
+  const coordLists = rleSkipped ? [] : extractPolygonCoordsLists(annotation.segmentation);
   coordLists.forEach((coords) => {
     geometryFeatures.push({
       type: 'Feature',
@@ -293,50 +300,35 @@ function buildFeatureGeometry(
   });
 
   const keypoints = annotation.keypoints || [];
-  if (Array.isArray(keypoints) && keypoints.length >= 3) {
-    const labels = category?.keypoints || [];
-    const headTail: [number, number][] = [];
-    for (let i = 0; i + 2 < keypoints.length; i += 3) {
-      const label = labels[Math.floor(i / 3)];
-      if (label === 'head' || label === 'tail') {
-        const x = keypoints[i];
-        const y = keypoints[i + 1];
-        const visible = keypoints[i + 2] > 0;
-        if (visible) {
-          const point: [number, number] = [x, y];
-          headTail.push(point);
-          geometryFeatures.push({
-            type: 'Feature',
-            properties: { key: label },
-            geometry: {
-              type: 'Point',
-              coordinates: point,
-            },
-          });
-        }
-      }
-    }
-    if (headTail.length === 2) {
-      geometryFeatures.push({
-        type: 'Feature',
-        properties: { key: 'HeadTails' },
-        geometry: {
-          type: 'LineString',
-          coordinates: headTail,
-        },
-      });
-    }
+  const points = new Map<string, number[]>();
+  if (keypoints.length && typeof keypoints[0] === 'number') {
+    const flat = keypoints as number[];
+    (category?.keypoints || []).forEach((label, i) => {
+      if (i * 3 + 2 < flat.length && flat[i * 3 + 2] > 0) points.set(label, flat.slice(i * 3, i * 3 + 2));
+    });
+  } else {
+    keypoints.forEach((kp) => {
+      if (typeof kp === 'number') return;
+      const label = kp.keypoint_category || keypointCategories.find((k) => k.id === kp.keypoint_category_id)?.name;
+      if (label && (kp.visible ?? 2) > 0) points.set(label, kp.xy);
+    });
   }
+  points.forEach((point, label) => {
+    if (!Array.isArray(point) || point.length < 2 || !point.slice(0, 2).every(Number.isFinite)) return;
+    geometryFeatures.push({ type: 'Feature', properties: { key: label }, geometry: { type: 'Point', coordinates: point.slice(0, 2) } });
+  });
+  const line = orderedHeadTail(geometryFeatures);
+  if (line) geometryFeatures.push({ type: 'Feature', properties: { key: 'HeadTails' }, geometry: { type: 'LineString', coordinates: line } });
 
   if (!geometryFeatures.length) {
-    return { rleSkipped: false };
+    return { rleSkipped };
   }
   return {
     geometry: {
       type: 'FeatureCollection' as const,
       features: geometryFeatures,
     },
-    rleSkipped: false,
+    rleSkipped,
   };
 }
 
@@ -348,8 +340,71 @@ function isCocoJson(value: unknown): value is CocoDocument {
     && Array.isArray(document.categories);
 }
 
+/**
+ * Whether a document is a DIVE species list: a KWCOCO category block and nothing else.
+ *
+ * A species list is the `categories` array of a KWCOCO file with no media and no annotations
+ * behind it, so it declares which classes a dataset may use without asserting that any of them
+ * were observed. `isCocoJson` requires `images` and `annotations`, so a curated list is not a
+ * COCO document by that test and callers must check this predicate first. A file that carries
+ * media or annotations is an ordinary COCO document even when its annotation list is empty.
+ */
+function isCocoSpeciesList(value: unknown): value is CocoCategoryDocument {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false;
+  const document = value as Record<string, unknown>;
+  const { categories } = document;
+  if (!Array.isArray(categories) || !categories.length) return false;
+  if (!categories.every((c) => !!c && typeof c === 'object' && !Array.isArray(c))) return false;
+  if (!categories.some((c) => {
+    const { name } = c as CocoCategory;
+    return typeof name === 'string' && !!name;
+  })) return false;
+  const hasMedia = Array.isArray(document.images) && document.images.length > 0;
+  const hasAnnotations = Array.isArray(document.annotations) && document.annotations.length > 0;
+  return !hasMedia && !hasAnnotations;
+}
+
+/**
+ * Category names a KWCOCO category block uses more than once, in first-seen order.
+ *
+ * A repeat makes a species list ambiguous: two slots claim the same class and may disagree
+ * about its parent, and `typeHierarchyFromCategories` drops the whole hierarchy rather than
+ * guess. A species list is imported for its classes, so callers fail the import on a repeat
+ * instead of declaring the de-duplicated names.
+ */
+function repeatedCategoryNames(document: CocoCategoryDocument): string[] {
+  const seen = new Set<string>();
+  const repeated: string[] = [];
+  document.categories.forEach((category) => {
+    const { name } = category;
+    if (typeof name !== 'string' || !name) return;
+    if (seen.has(name) && !repeated.includes(name)) repeated.push(name);
+    seen.add(name);
+  });
+  return repeated;
+}
+
+/**
+ * Species names a KWCOCO category block declares, in file order without repeats.
+ * Nameless category slots are skipped; `typeHierarchyFromCategories` reports them, so this
+ * does not warn a second time for the same file. Repeats are folded together here only so
+ * the reader never declares a name twice; `repeatedCategoryNames` is how an import decides
+ * whether to accept the file at all.
+ */
+function speciesListFromCategories(document: CocoCategoryDocument): string[] {
+  const names: string[] = [];
+  const seen = new Set<string>();
+  document.categories.forEach((category) => {
+    const { name } = category;
+    if (typeof name !== 'string' || !name || seen.has(name)) return;
+    seen.add(name);
+    names.push(name);
+  });
+  return names;
+}
+
 function typeHierarchyFromCategories(
-  document: CocoDocument,
+  document: CocoDocument | CocoCategoryDocument,
 ): { hierarchy?: Record<string, string>; warnings: string[] } {
   const warnings: string[] = [];
   if (document.categories.some((category) => Array.isArray(category.parents)
@@ -473,7 +528,7 @@ async function parseFile(path: string): Promise<[AnnotationSchema, Record<string
     } else if (typeof noteField === 'string' && noteField.trim()) {
       feature.notes = [noteField.trim()];
     }
-    const { geometry, rleSkipped } = buildFeatureGeometry(annotation, category);
+    const { geometry, rleSkipped } = buildFeatureGeometry(annotation, category, parsed.keypoint_categories);
     if (rleSkipped) {
       skippedRleMasks = true;
     }
@@ -530,6 +585,16 @@ async function serializeFile(
     excludeBelowThreshold: false,
   },
 ) {
+  const featurePoints = (feature: AnnotationSchema['tracks'][number]['features'][number]) => {
+    const geometry = feature.geometry?.features || [];
+    const hasLine = geometry.some((f) => f.geometry.type === 'LineString' && f.properties?.key === 'HeadTails');
+    return new Map((hasLine ? syncHeadTail(geometry) : geometry)
+      .filter((f) => f.geometry.type === 'Point' && f.properties?.key)
+      .map((f) => [f.properties?.key as string, (f.geometry as GeoJSON.Point).coordinates.slice(0, 2)]));
+  };
+  const names = new Set(Object.values(data.tracks).flatMap((t) => t.features.flatMap((f) => [...featurePoints(f).keys()])));
+  const spine = [...names].filter((k) => spineIndex(k) !== null).sort((a, b) => (spineIndex(a) as number) - (spineIndex(b) as number));
+  const labels = ['head', ...spine, 'tail', ...[...names].filter((k) => k !== 'head' && k !== 'tail' && spineIndex(k) === null).sort()];
   const images = new Map<number, CocoImage>();
   const annotations: CocoAnnotation[] = [];
   let annotationId = 1;
@@ -589,6 +654,7 @@ async function serializeFile(
           ...(emitVideo ? { video_id: 1 } : {}),
         });
       }
+      const points = featurePoints(feature);
       annotations.push({
         id: annotationId,
         image_id: imageId,
@@ -597,6 +663,7 @@ async function serializeFile(
         bbox: [x1, y1, Math.max(0, x2 - x1), Math.max(0, y2 - y1)],
         score,
         prob,
+        ...(points.size ? { keypoints: labels.flatMap((k) => (points.has(k) ? [...points.get(k)!, 2] : [0, 0, 0])), num_keypoints: points.size } : {}),
         dive_confidence_pairs: pairs.map(([name, confidence]) => [name, confidence]),
         ...(feature.attributes ? { dive_detection_attributes: feature.attributes } : {}),
         ...(track.attributes ? { dive_track_attributes: track.attributes } : {}),
@@ -609,7 +676,8 @@ async function serializeFile(
   const categoryDocs: CocoCategory[] = Array.from(categories.entries()).map(([name, id]) => ({
     id,
     name,
-    keypoints: ['head', 'tail'],
+    keypoints: labels,
+    skeleton: Array.from({ length: labels.indexOf('tail') }, (_, i) => [i + 1, i + 2]),
     ...(hierarchy[name] ? { supercategory: hierarchy[name] } : {}),
   }));
   // datasetInfo rides in the `info` block + dive_extensions; omitted entirely when empty.
@@ -648,7 +716,10 @@ export {
   SUPERCATEGORY_MULTI_PARENT_WARNING,
   invalidCocoHierarchyMessage,
   isCocoJson,
+  isCocoSpeciesList,
   parseFile,
+  repeatedCategoryNames,
   serializeFile,
+  speciesListFromCategories,
   typeHierarchyFromCategories,
 };

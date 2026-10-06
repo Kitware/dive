@@ -1,13 +1,27 @@
 import { computed, ref, Ref } from 'vue';
 import { cloneDeep } from 'lodash';
+import { AnnotationId } from './BaseAnnotation';
 import BaseFilterControls, { AnnotationWithContext, FilterControlsParams } from './BaseFilterControls';
 import type Group from './Group';
+
+export interface GroupFilterControlsParams extends FilterControlsParams<Group> {
+  setGroupType: (
+    id: AnnotationId,
+    newType: string,
+    confidenceVal?: number,
+    currentType?: string,
+  ) => void;
+}
 
 export default class GroupFilterControls extends BaseFilterControls<Group> {
   filteredAnnotations: Ref<AnnotationWithContext<Group>[]>;
 
-  constructor(params: FilterControlsParams<Group>) {
+  private setGroupType: GroupFilterControlsParams['setGroupType'];
+
+  constructor(params: GroupFilterControlsParams) {
     super(params);
+
+    this.setGroupType = params.setGroupType;
 
     /**
      * Override default confidence filters.  There is no UI to adjust this,
@@ -45,5 +59,19 @@ export default class GroupFilterControls extends BaseFilterControls<Group> {
       });
       return resultsArr;
     });
+  }
+
+  updateTypeName({ currentType, newType }: { currentType: string; newType: string }) {
+    this.sorted.value.forEach((annotation) => {
+      for (let i = 0; i < annotation.confidencePairs.length; i += 1) {
+        const [name, confidenceVal] = annotation.confidencePairs[i];
+        if (name === currentType) {
+          this.setGroupType(annotation.id, newType, confidenceVal, currentType);
+          break;
+        }
+      }
+    });
+    this.carryConfidenceFilter(currentType, newType);
+    this.deleteType(currentType);
   }
 }

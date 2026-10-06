@@ -17,6 +17,12 @@ export default defineComponent({
           name: 'General',
           data: [
             {
+              name: 'Undo Annotation Change',
+              icon: 'mdi-undo',
+              actions: ['Ctrl + Z', 'Cmd + Z (Mac)'],
+              description: 'Undo the last annotation edit, creation or deletion. Text fields keep normal text undo.',
+            },
+            {
               name: 'Select Track', icon: 'mdi-mouse', actions: ['Left Click Mouse'], description: 'Left click a rectangle to select a detection/track',
             },
             {

@@ -6,10 +6,23 @@
  * contracts shared between that manager and the IPC layer.
  */
 
+import type { SegmentationPolygon } from 'dive-common/apispec';
+import {
+  SegmentationMaxPolygonAreaError,
+  SegmentationMaxPolygonPoints,
+  SegmentationMaxPolygonPointsLimit,
+} from 'dive-common/use/segmentation/constants';
 import { StereoMeasurement } from './stereo';
 
 /** Error message shown to users when segmentation model process fails to load */
 export const SEGMENTATION_LOAD_ERROR_MESSAGE = "Model failed to load. If you haven't downloaded the SAM2 model pack from the VIAME Add-On wiki, please do so.";
+
+/** Re-exported for desktop callers; same as VIAME `service:max_polygon_points`. */
+export {
+  SegmentationMaxPolygonAreaError,
+  SegmentationMaxPolygonPoints,
+  SegmentationMaxPolygonPointsLimit,
+};
 
 /** Request to the segmentation service */
 export interface SegmentationInternalPredictRequest {
@@ -27,6 +40,10 @@ export interface SegmentationInternalPredictRequest {
   multimaskOutput?: boolean;
   /** Time in seconds when imagePath is a video file */
   frameTime?: number;
+  /** Head/tail line the prompt came from; the service keeps the mask in scale with it */
+  line?: [number, number][];
+  /** Drawn box [x0, y0, x1, y1] to segment inside; the service confines the mask to it */
+  box?: [number, number, number, number];
 }
 
 /** Response from the segmentation service */
@@ -60,7 +77,11 @@ export interface SegmentationInternalPredictResponse {
 export interface SegmentationStereoSegmentRequest {
   /** The already-segmented source-camera polygon (for sampling + measurement). */
   polygon?: [number, number][];
-  /** Source-camera click points and labels. */
+  /** Every part of the source-camera mask, with holes. */
+  polygons?: SegmentationPolygon[];
+  /** Which stereo camera the source is; the service works it out when absent. */
+  sourceCamera?: 'left' | 'right';
+  /** Source-camera click points and labels; none when an existing mask is being mapped. */
   points: [number, number][];
   pointLabels: number[];
   /** Source (clicked) and other camera image/video paths. */
@@ -79,6 +100,8 @@ export interface SegmentationStereoSegmentResponse {
   error?: string;
   /** Other-camera polygon from SAM. */
   polygon?: [number, number][];
+  /** Every part of the other-camera mask, with holes. */
+  polygons?: SegmentationPolygon[];
   bounds?: [number, number, number, number];
   score?: number;
   /** Seed point(s) used on the other camera (median of warped samples). */
@@ -93,3 +116,10 @@ export interface SegmentationStereoSegmentResponse {
 
 export type SegmentationPredictRequest = Omit<SegmentationInternalPredictRequest, 'id'>;
 export type SegmentationPredictResponse = SegmentationInternalPredictResponse;
+
+export interface SegmentationPolygonKeypointsResponse {
+  success: boolean;
+  error?: string;
+  head?: [number, number];
+  tail?: [number, number];
+}

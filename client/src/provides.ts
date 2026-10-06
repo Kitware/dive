@@ -344,14 +344,6 @@ const markChangesPending = () => { };
  */
 function dummyState(): State {
   const cameraStore = new CameraStore({ markChangesPending });
-  const setTrackType = (
-    id: AnnotationId,
-    newType: string,
-    confidenceVal?: number,
-    currentType?: string,
-  ) => {
-    cameraStore.setTrackType(id, newType, confidenceVal, currentType);
-  };
   const removeTypes = (id: AnnotationId, types: string[]) => cameraStore.removeTypes(id, types);
   const setGroupType = (
     id: AnnotationId,
@@ -367,7 +359,7 @@ function dummyState(): State {
       sorted: cameraStore.sortedGroups,
       remove: cameraStore.removeGroups,
       markChangesPending,
-      setType: setGroupType,
+      setGroupType,
       removeTypes: removeGroupTypes,
     },
   );
@@ -376,12 +368,11 @@ function dummyState(): State {
     remove: cameraStore.removeTracks,
     markChangesPending,
     groupFilterControls,
-    lookupGroups: cameraStore.lookupGroups,
+    lookupGroups: cameraStore.lookupGroups.bind(cameraStore),
     getTracks: (track: AnnotationId) => cameraStore.getTrackAll(track),
     renameTrackPair: (id, currentType, newType) => (
       cameraStore.renameTrackPair(id, currentType, newType)
     ),
-    setType: setTrackType,
     removeTypes,
 
   });

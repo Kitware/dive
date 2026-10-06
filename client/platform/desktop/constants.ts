@@ -1,10 +1,13 @@
 import type {
   DatasetConfig, DatasetConfigMutable, DatasetType,
   Pipe, SubType, MediaImportResponse, PipelineParams,
+  VideoSearchIndexMeta, VideoSearchIndexMethod,
 } from 'dive-common/apispec';
 import { Attribute } from 'vue-media-annotator/use/AttributeTypes';
 import { AttributeTrackFilter } from 'vue-media-annotator/AttributeTrackFilterControls';
 import { ImageEnhancements } from 'vue-media-annotator/use/useImageEnhancements';
+import type { ScoringJobArgs } from 'dive-common/scoring/types';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 
 export const JsonConfigCurrentVersion = 1;
 export const SettingsCurrentVersion = 1;
@@ -53,6 +56,11 @@ export interface Camera {
   metadataFile?: string;
   /** Preserved original name of the camera-local metadata attachment. */
   metadataOriginalName?: string;
+  /**
+   * Stitched stereo: the media (original and transcoded alike) holds both
+   * cameras side by side and this camera is the named half of every frame.
+   */
+  stitchedSide?: StitchedSide;
 }
 
 export interface MultiCamDesktop {
@@ -159,6 +167,9 @@ export interface JsonConfig extends DatasetConfigMutable {
   // The user's original metadata file name, preserved for display.
   metadataOriginalName?: string;
 
+  // Per-camera dataset of a stitched stereo import; see Camera.stitchedSide.
+  stitchedSide?: StitchedSide;
+
   // execTime is athe execution time for desktop runs
   execTime?: number
 }
@@ -189,6 +200,8 @@ export enum JobType {
   ExportTrainedPipeline,
   RunPipeline,
   RunTraining,
+  RunScoring,
+  BuildSearchIndex,
 }
 
 export interface JobArgs {
@@ -234,6 +247,10 @@ export interface RunTraining extends JobArgs {
   resumeWorkingDir?: string;
 }
 
+export interface RunScoring extends JobArgs, ScoringJobArgs {
+  type: JobType.RunScoring;
+}
+
 export interface ConversionArgs extends JobArgs {
   type: JobType.Conversion;
   meta: JsonConfig;
@@ -248,7 +265,21 @@ export interface CliTranscodingNotice {
   mediaCount: number;
 }
 
-export type Job = ConversionArgs | RunPipeline | RunTraining | ExportTrainedPipeline;
+/** Build a video search / IQR descriptor index over a dataset. */
+export interface BuildSearchIndex extends JobArgs {
+  type: JobType.BuildSearchIndex;
+  datasetId: string;
+  // detections: index around generic object proposals
+  // tracking: index around tracked proposals
+  // existing: index around this dataset's existing annotations
+  method: VideoSearchIndexMethod;
+}
+
+/** Sidecar metadata written alongside a built search index. */
+export type SearchIndexMeta = VideoSearchIndexMeta;
+
+export type Job = ConversionArgs | RunPipeline | RunTraining
+  | ExportTrainedPipeline | RunScoring | BuildSearchIndex;
 
 export interface DesktopJob {
   // key unique identifier for this job
@@ -256,11 +287,12 @@ export interface DesktopJob {
   // command that was run
   command: string;
   // jobType identify type of job
-  jobType: 'pipeline' | 'training' | 'conversion' | 'export';
+  jobType: 'pipeline' | 'training' | 'conversion' | 'export' | 'scoring' | 'indexing';
   // title whatever humans should see this job called
   title: string;
   // arguments to creation
-  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs;
+  args: RunPipeline | RunTraining | ExportTrainedPipeline | ConversionArgs | RunScoring
+    | BuildSearchIndex;
   // datasetIds of the involved datasets
   datasetIds: string[];
   // pid of the process spawned
@@ -284,6 +316,8 @@ export interface DesktopMediaImportResponse extends MediaImportResponse {
   forceMediaTranscode: boolean;
   /** Absolute path of an optional DIVE Configuration File (JSON) chosen at import. */
   configFileAbsPath?: string;
+  /** Absolute path of an optional KWCOCO species list chosen at import. */
+  speciesFileAbsPath?: string;
   /** Absolute path of an optional Metadata File (pipeline sidecar) chosen at import. */
   // Absolute path of the one optional metadata attachment. Seeded by import-time discovery
   // (an exported folder's metadata/ directory, or a reserved-name file beside the media) and
