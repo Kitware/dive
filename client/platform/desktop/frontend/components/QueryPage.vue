@@ -19,10 +19,10 @@ import type { ReviewItem } from 'dive-common/review/types';
 import ReviewGrid from 'dive-common/components/Review/ReviewGrid.vue';
 import ReviewGridControls from 'dive-common/components/Review/ReviewGridControls.vue';
 import ReviewCell from 'dive-common/components/Review/ReviewCell.vue';
+import QueryExemplar from 'dive-common/components/QueryExemplar.vue';
 import NavigationBar from './NavigationBar.vue';
 import QueryDatasetsPanel from './QueryDatasetsPanel.vue';
 import VideoSearchResultsGrid from './VideoSearchResultsGrid.vue';
-import QueryExemplar from './QueryExemplar.vue';
 import { takeQueryLaunch } from '../queryLaunch';
 import { unsavedChangesCloseGuard, useDesktopCloseGuard } from '../store/closeGuard';
 
