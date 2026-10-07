@@ -6,6 +6,7 @@ import { cloneDeep, isEqual } from 'lodash';
 import { clientSettings } from 'dive-common/store/settings';
 import {
   ancestorsOf,
+  descendantsOf,
   compileHierarchy,
   normalizeTypeHierarchy,
   removeHierarchyType,
@@ -377,10 +378,17 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
     return result;
   }
 
-  /** Children are promoted; optional ancestor cleanup stops at any remaining usage or child. */
-  deleteTypeWithTracks(type: string, disposition: 'unknown' | 'delete', deleteEmptyParents = false): boolean {
+  /** Children are promoted; optional cleanup stops at any remaining usage or child types. */
+  deleteTypeWithTracks(
+    type: string,
+    disposition: 'unknown' | 'delete',
+    deleteEmptyParents = false,
+    deleteEmptyChildren = false,
+  ): boolean {
     const parents = deleteEmptyParents && this.hierarchyIndex.value
       ? ancestorsOf(this.hierarchyIndex.value, type) : [];
+    const descendants = deleteEmptyChildren && this.hierarchyIndex.value
+      ? [...descendantsOf(this.hierarchyIndex.value, type)].reverse() : [];
     const ids = this.typeTrackIds().get(type) ?? new Set<AnnotationId>();
     if (type === 'unknown' && disposition === 'unknown' && ids.size) return false;
     ids.forEach((id) => {
@@ -403,6 +411,15 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       if (ids.size && disposition === 'unknown' && !this.checkedTypes.value.includes('unknown')) {
         this.checkedTypes.value.push('unknown');
       }
+    }
+    if (deleted && deleteEmptyChildren) {
+      const remainingUsage = this.typeTrackIds();
+      descendants.forEach((descendant) => {
+        if (remainingUsage.get(descendant)?.size
+          || Object.values(this.typeHierarchy.value ?? {}).includes(descendant)) return;
+        if (!this.deleteType(descendant)) return;
+        this.checkedTypes.value = this.checkedTypes.value.filter((name) => name !== descendant);
+      });
     }
     if (deleted && deleteEmptyParents) {
       const remainingUsage = this.typeTrackIds();

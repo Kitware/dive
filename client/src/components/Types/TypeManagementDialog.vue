@@ -30,8 +30,12 @@ export default defineComponent({
     const editing = ref<string | null>(null);
     const deleting = ref<string | null>(null);
     const deleteEmptyParents = ref(false);
+    const deleteEmptyChildren = ref(false);
     const hasParent = computed(() => (
       deleting.value !== null && !!filters.typeHierarchy.value?.[deleting.value]
+    ));
+    const hasChildren = computed(() => (
+      deleting.value !== null && parentTypes.value.has(deleting.value)
     ));
     const disposition = ref<'unknown' | 'delete' | null>(null);
     const error = ref('');
@@ -49,13 +53,21 @@ export default defineComponent({
       sort: 'a-z',
       collapsed: collapsed.value,
     }));
-    const rows = computed(() => model.value.rows.map((row) => {
-      const ids = new Set();
-      (model.value.subtree.get(row.type) ?? [row.type]).forEach((type) => {
-        usage.value.get(type)?.forEach((id) => ids.add(id));
+    const rows = computed(() => {
+      const colorFor = styles.typeStyling.value.color;
+      return model.value.rows.map((row) => {
+        const ids = new Set();
+        (model.value.subtree.get(row.type) ?? [row.type]).forEach((type) => {
+          usage.value.get(type)?.forEach((id) => ids.add(id));
+        });
+        return {
+          ...row,
+          color: colorFor(row.type),
+          direct: usage.value.get(row.type)?.size ?? 0,
+          total: ids.size,
+        };
       });
-      return { ...row, direct: usage.value.get(row.type)?.size ?? 0, total: ids.size };
-    }));
+    });
     const deleteCount = computed(() => usage.value.get(deleting.value ?? '')?.size ?? 0);
     const childMessage = computed(() => {
       const type = deleting.value;
@@ -70,12 +82,18 @@ export default defineComponent({
       deleting.value = type;
       disposition.value = null;
       deleteEmptyParents.value = false;
+      deleteEmptyChildren.value = false;
       error.value = '';
     }
     function confirmDelete() {
       if (readOnly.value || deleting.value === null) return;
       if (deleteCount.value && !disposition.value) return;
-      if (!filters.deleteTypeWithTracks(deleting.value, disposition.value ?? 'delete', deleteEmptyParents.value)) {
+      if (!filters.deleteTypeWithTracks(
+        deleting.value,
+        disposition.value ?? 'delete',
+        deleteEmptyParents.value,
+        deleteEmptyChildren.value,
+      )) {
         error.value = 'The type could not be removed. Review its remaining tracks and try again.';
         return;
       }
@@ -93,7 +111,9 @@ export default defineComponent({
       expandAll,
       collapseAll,
       deleteEmptyParents,
+      deleteEmptyChildren,
       hasParent,
+      hasChildren,
       editing,
       deleting,
       disposition,
@@ -156,23 +176,30 @@ export default defineComponent({
         <tbody>
           <tr v-for="row in rows" :key="row.type">
             <td :style="{ paddingLeft: `${16 + row.depth * 20}px` }">
-              <v-btn
-                v-if="row.hasChildren"
-                icon
-                small
-                :disabled="searching"
-                :aria-label="`${row.expanded ? 'Collapse' : 'Expand'} ${row.type}`"
-                :aria-expanded="String(row.expanded)"
-                @click="toggleBranch(row.type)"
-              >
-                <v-icon small>
-                  {{ row.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right' }}
-                </v-icon>
-              </v-btn>
-              <v-icon v-else small class="mx-2">
-                mdi-label-outline
-              </v-icon>
-              {{ row.type }}
+              <div class="d-flex align-center type-row-label">
+                <v-btn
+                  v-if="row.hasChildren"
+                  icon
+                  small
+                  :disabled="searching"
+                  :aria-label="`${row.expanded ? 'Collapse' : 'Expand'} ${row.type}`"
+                  :aria-expanded="String(row.expanded)"
+                  @click="toggleBranch(row.type)"
+                >
+                  <v-icon small>
+                    {{ row.expanded ? 'mdi-chevron-down' : 'mdi-chevron-right' }}
+                  </v-icon>
+                </v-btn>
+                <span v-else class="tree-leaf-spacer" aria-hidden="true" />
+                <div
+                  class="type-color-swatch mx-2"
+                  :style="{ backgroundColor: row.color }"
+                  :title="`Annotation color for ${row.type}`"
+                  role="img"
+                  :aria-label="`Annotation color for ${row.type}`"
+                />
+                {{ row.type }}
+              </div>
             </td>
             <td class="text-right">
               {{ row.direct }}
@@ -243,6 +270,14 @@ export default defineComponent({
             persistent-hint
             class="mb-4"
           />
+          <v-checkbox
+            v-if="hasChildren"
+            v-model="deleteEmptyChildren"
+            label="Delete empty children too"
+            hint="Also remove descendant types left with no child types or directly assigned tracks. Descendants still in use are kept."
+            persistent-hint
+            class="mb-4"
+          />
           <template v-if="deleteCount">
             <p>
               {{ deleteCount }} track(s) contain this type directly, including hidden tracks.
@@ -284,3 +319,23 @@ export default defineComponent({
     </v-dialog>
   </v-card>
 </template>
+
+<style lang="scss" scoped>
+.tree-leaf-spacer {
+  display: inline-block;
+  width: 36px;
+  flex-shrink: 0;
+}
+
+.type-color-swatch {
+  width: 14px;
+  height: 14px;
+  flex-shrink: 0;
+  border-radius: 3px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.type-row-label {
+  min-height: 36px;
+}
+</style>

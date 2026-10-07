@@ -1552,3 +1552,41 @@ describe('optional empty parent deletion', () => {
     expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
   });
 });
+
+describe('optional empty child deletion', () => {
+  it('keeps empty descendants by default', () => {
+    const { filters } = makePairFixture([]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('parent', 'delete');
+    expect(filters.allTypes.value).toEqual(expect.arrayContaining(['leaf', 'root']));
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+  });
+
+  it.each(['unknown', 'delete'] as const)('removes empty descendants after %s', (mode) => {
+    const { filters, cameraStore } = makePairFixture([[['parent', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.importTypes(['parent', 'leaf', 'root']);
+    filters.deleteTypeWithTracks('parent', mode, false, true);
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
+    expect(filters.allTypes.value).toEqual(mode === 'unknown' ? ['unknown', 'root'] : ['root']);
+    expect(cameraStore.getTrackAll(0)).toHaveLength(mode === 'unknown' ? 1 : 0);
+  });
+
+  it('stops at descendants with child types still in the hierarchy', () => {
+    const { filters } = makePairFixture([[['heavy', 1]]]);
+    filters.setTypeHierarchy({
+      empty: 'mid', heavy: 'mid', mid: 'parent', parent: 'root',
+    });
+    filters.deleteTypeWithTracks('parent', 'delete', false, true);
+    expect(filters.typeHierarchy.value).toEqual({ heavy: 'mid', mid: 'root' });
+    expect(filters.allTypes.value).not.toContain('empty');
+  });
+
+  it('keeps descendants with direct track usage', () => {
+    const { filters } = makePairFixture([[['leaf', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('parent', 'delete', false, true);
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+    expect(filters.allTypes.value).toContain('leaf');
+  });
+});

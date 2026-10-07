@@ -43,6 +43,13 @@ function mountManager() {
   return { state, wrapper, manager };
 }
 
+it('shows each type annotation color from the style manager', () => {
+  const { state, wrapper, manager } = mountManager();
+  state.trackStyleManager.updateTypeStyle({ type: 'parent', value: { color: '#ff0000' } });
+  expect(manager.rows.find(({ type }) => type === 'parent')?.color).toBe('#ff0000');
+  wrapper.destroy();
+});
+
 it('shows unfiltered deduplicated direct and branch counts and searchable hierarchy', async () => {
   const { state, wrapper, manager } = mountManager();
   state.trackFilters.checkedTypes.value = [];
@@ -138,6 +145,24 @@ it('offers ancestor cleanup only for children, applies it, and resets it between
   manager.requestDelete('child');
   expect(manager.deleteEmptyParents).toBe(false);
   manager.deleteEmptyParents = true;
+  manager.disposition = 'delete';
+  manager.confirmDelete();
+  expect(state.trackFilters.allTypes.value).toEqual([]);
+  wrapper.destroy();
+});
+
+it('offers descendant cleanup only for parents, applies it, and resets it between confirmations', () => {
+  const { state, wrapper, manager } = mountManager();
+  manager.requestDelete('child');
+  expect(manager.hasChildren).toBe(false);
+  manager.requestDelete('parent');
+  expect(manager.hasChildren).toBe(true);
+  expect(manager.deleteEmptyChildren).toBe(false);
+  manager.deleteEmptyChildren = true;
+  manager.deleting = null;
+  manager.requestDelete('parent');
+  expect(manager.deleteEmptyChildren).toBe(false);
+  manager.deleteEmptyChildren = true;
   manager.disposition = 'delete';
   manager.confirmDelete();
   expect(state.trackFilters.allTypes.value).toEqual([]);
