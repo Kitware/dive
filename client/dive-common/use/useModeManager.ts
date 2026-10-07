@@ -128,6 +128,8 @@ export default function useModeManager({
   recipes,
   alignedView,
   isStereoscopicDataset,
+  lassoModeActive,
+  lassoDrawing,
   onStereoAnnotationComplete,
   onStereoAnnotationReset,
   onNewAnnotationGeometry,
@@ -147,6 +149,9 @@ export default function useModeManager({
     alignedView?: AlignedViewStore;
     /** When set, interactive stereo only runs on stereoscopic datasets. */
     isStereoscopicDataset?: Ref<boolean>;
+    /** Alt-held lasso mode — keep in sync with EditorMenu tool disabling. */
+    lassoModeActive?: Readonly<Ref<boolean>>;
+    lassoDrawing?: Readonly<Ref<boolean>>;
     onStereoAnnotationComplete?: (params: StereoAnnotationCompleteParams) => void;
     onStereoAnnotationReset?: (params: StereoAnnotationResetParams) => void;
     /**
@@ -1357,7 +1362,21 @@ export default function useModeManager({
       annotationModes.visible = visible;
     }
     if (editing) {
+      // Match EditorMenu toolsDisabled so async recipe activate (e.g. seg init)
+      // cannot create/edit while the toolbar is blocked.
+      if (readonlyState.value || multiSelectActive.value
+          || editingGroupId.value !== null || linkingState.value
+          || lassoModeActive?.value || lassoDrawing?.value) {
+        // completeActivation may already have set recipe.active before emitting.
+        if (recipeName) {
+          recipes.find((r) => r.name === recipeName)?.deactivate();
+        }
+        return;
+      }
       annotationModes.editing = editing;
+      if (selectedTrackId.value === null) {
+        handleAddTrackOrDetection();
+      }
       _selectKey(editing === 'Polygon' && !key ? existingPolygonKey() : key);
       handleSelectTrack(selectedTrackId.value, true);
       recipes.forEach((r) => {
@@ -1406,14 +1425,9 @@ export default function useModeManager({
     // Re-arm the recipe for the next detection first: activating it
     // re-selects the current track in edit mode (handleSetAnnotationState).
     activeSegRecipes.forEach((r) => r.activate());
-    // Then leave edit mode with the detection still selected, as the other
-    // annotation types do; one with nothing drawn is removed instead.
     const confirmedId = selectedTrackId.value;
-    if (confirmedId !== null && _removeIfEmpty(confirmedId)) {
-      selectTrack(null, false);
-    } else {
-      selectTrack(confirmedId, false);
-    }
+    if (confirmedId !== null) _removeIfEmpty(confirmedId);
+    selectTrack(null, false);
   }
 
   /**

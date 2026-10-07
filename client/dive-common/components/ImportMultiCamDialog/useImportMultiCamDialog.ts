@@ -184,6 +184,14 @@ export function useImportMultiCamDialog(
     }
   };
 
+  /** Modes whose cameras are entries of folderList. */
+  const usesFolderList = () => importType.value === 'multi'
+    || importType.value === 'subfolders'
+    || importType.value === 'stitched';
+  /** Stereo modes that start from fixed left/right entries. */
+  const seedsStereoPair = () => importType.value === 'stitched'
+    || (!!props.stereo && importType.value === 'multi');
+
   const clearCameraSet = () => {
     keywordFolder.value = '';
     parentFolderName.value = '';
@@ -194,7 +202,7 @@ export function useImportMultiCamDialog(
     subfolderOriginalNames.value = {};
     cameraOrder.value = [];
     defaultDisplay.value = props.stereo ? 'left' : 'center';
-    if (props.stereo && importType.value === 'multi') {
+    if (seedsStereoPair()) {
       folderList.value = {
         left: { sourcePath: '', trackFile: '', transformFile: '' },
         right: { sourcePath: '', trackFile: '', transformFile: '' },
@@ -211,8 +219,8 @@ export function useImportMultiCamDialog(
       globList.value = {};
     }
 
-    if (importType.value === 'multi' || importType.value === 'subfolders') {
-      if (props.stereo && importType.value === 'multi') {
+    if (usesFolderList()) {
+      if (seedsStereoPair()) {
         pendingImportPayloads.value = {
           left: null,
           right: null,
@@ -231,12 +239,12 @@ export function useImportMultiCamDialog(
   };
   clearCameraSet();
 
-  if (props.dataType === VideoType && !props.enableSubfolderImport) {
+  if (props.dataType === VideoType && !props.enableSubfolderImport && !props.stereo) {
     importType.value = 'multi';
   }
 
   const displayKeys = computed(() => {
-    if (importType.value === 'multi' || importType.value === 'subfolders') {
+    if (usesFolderList()) {
       return orderedCameraKeys.value;
     }
     if (importType.value === 'keyword') return Object.keys(globList.value);
@@ -271,7 +279,7 @@ export function useImportMultiCamDialog(
   const displayKeysKey = computed(() => displayKeys.value.join('|'));
 
   const camerasReady = computed(() => {
-    if (importType.value !== 'multi' && importType.value !== 'subfolders') {
+    if (!usesFolderList()) {
       return false;
     }
     const keys = Object.keys(folderList.value);
@@ -332,7 +340,7 @@ export function useImportMultiCamDialog(
     if (errorMessage.value !== null) {
       return false;
     }
-    if (importType.value === 'multi' || importType.value === 'subfolders') {
+    if (usesFolderList()) {
       return camerasReady.value && datasetName.value.trim().length > 0;
     }
     if (importType.value === 'keyword' && keywordFolder.value) {
@@ -345,7 +353,7 @@ export function useImportMultiCamDialog(
     if (importType.value === 'subfolders') {
       return false;
     }
-    if (importType.value === 'multi') {
+    if (importType.value === 'multi' || importType.value === 'stitched') {
       return camerasReady.value;
     }
     if (importType.value === 'keyword') {
@@ -736,6 +744,26 @@ export function useImportMultiCamDialog(
           await importRequest(() => props.importMedia(sourcePath)),
         );
         syncSuggestedDatasetNameFromCameraPaths();
+      } else if (importType.value === 'stitched') {
+        const sourcePath = ret.root || path;
+        const cameras = Object.keys(folderList.value);
+        cameras.forEach((camera) => {
+          folderList.value[camera].sourcePath = sourcePath;
+          folderList.value[camera].trackFile = '';
+        });
+        if (props.registerSubfolderCameras && ret.fileList?.length) {
+          props.registerSubfolderCameras([{
+            cameraName: cameras[0],
+            sourcePath,
+            files: ret.fileList,
+          }]);
+        }
+        const payload = await importRequest(() => props.importMedia(sourcePath));
+        cameras.forEach((camera) => Vue.set(pendingImportPayloads.value, camera, payload));
+        if (!datasetName.value.trim()) {
+          const label = sourcePath.split(/[\\/]/).filter((part) => part).pop() || '';
+          datasetName.value = props.dataType !== VideoType ? label : label.replace(/\.[^.]+$/, '');
+        }
       } else if (importType.value === 'subfolders') {
         const sourcePath = ret.root || path;
         await importRequest(() => updateSubfolderCameraSource(
@@ -800,7 +828,7 @@ export function useImportMultiCamDialog(
         folderList.value[key].trackFile = '';
       });
     }
-    if (importType.value === 'multi' || importType.value === 'subfolders') {
+    if (usesFolderList()) {
       const sourceList: MultiCamImportFolderArgs['sourceList'] = {};
       orderedCameraKeys.value.forEach((key) => {
         if (folderList.value[key]) {
@@ -832,6 +860,7 @@ export function useImportMultiCamDialog(
         calibrationFile: calibrationFile.value,
         metadataFile: metadata.value?.value,
         type: props.dataType,
+        ...(importType.value === 'stitched' ? { stitched: true } : {}),
       };
       emit('begin-multicam-import', args);
     } else if (importType.value === 'keyword') {

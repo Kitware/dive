@@ -6,6 +6,7 @@ import {
 import { useApi, TrainingConfigs } from 'dive-common/apispec';
 import JobLaunchDialog from 'dive-common/components/JobLaunchDialog.vue';
 import ImportButton from 'dive-common/components/ImportButton.vue';
+import { summarizeTrainingSplits } from 'dive-common/trainingSplit';
 import { useRequest } from 'dive-common/use';
 import { simplifyTrainingName } from 'dive-common/constants';
 import { useBrand } from 'platform/web-girder/store/useBrand';
@@ -19,6 +20,11 @@ export default defineComponent({
   props: {
     selectedDatasetIds: {
       type: Array as PropType<string[]>,
+      default: () => [],
+    },
+    /** Training split per selected dataset, aligned with selectedDatasetIds. */
+    datasetSplits: {
+      type: Array as PropType<(string | null)[]>,
       default: () => [],
     },
     buttonOptions: {
@@ -48,6 +54,7 @@ export default defineComponent({
     } = useRequest();
 
     const successMessage = computed(() => `Started training on ${props.selectedDatasetIds.length} dataset(s)`);
+    const splitSummary = computed(() => summarizeTrainingSplits(props.datasetSplits));
 
     const fineTuneModelList = computed(() => {
       const modelList: {text: string, type: 'user' | 'system', name: string}[] = [];
@@ -148,6 +155,7 @@ export default defineComponent({
       jobsDisabled,
       jobState,
       successMessage,
+      splitSummary,
       dismissJobDialog,
       runTrainingOnFolder,
       labelFile,
@@ -316,12 +324,29 @@ export default defineComponent({
               hint="Model to Fine Tune"
               persistent-hint
             />
+            <div
+              v-if="splitSummary.labeled"
+              class="text-caption grey--text mt-2"
+            >
+              Split: {{ splitSummary.text }}. Unlabeled datasets train; validation datasets
+              are held out to monitor training; test datasets are scored once training finishes.
+            </div>
+            <v-alert
+              v-if="selectedDatasetIds.length > 0 && !splitSummary.trainable"
+              dense
+              outlined
+              type="warning"
+              class="mt-2"
+            >
+              Every selected dataset is labeled validation or test; label at least one
+              as Train or clear its split.
+            </v-alert>
             <v-btn
               depressed
               block
               color="primary"
               class="mt-4"
-              :disabled="!trainingOutputName || !selectedTrainingConfig"
+              :disabled="!trainingOutputName || !selectedTrainingConfig || !splitSummary.trainable"
               @click="runTrainingOnFolder"
             >
               Train on {{ selectedDatasetIds.length }} dataset(s)

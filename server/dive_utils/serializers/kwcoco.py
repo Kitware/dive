@@ -16,9 +16,13 @@ from dive_utils.models import CocoMetadata, Feature, Track
 from . import viame
 
 RLE_SEGMENTATION_WARNING = (
-    'The COCO file included run-length encoded segmentation masks that are not supported. '
-    'Bounding boxes and other annotation data were imported, but masks were skipped.'
+    'The COCO file included run-length encoded segmentation masks that could not be decoded. '
+    'Bounding boxes and other annotation data were imported, but those masks were skipped.'
 )
+
+# A mask larger than this is refused rather than allocated; 8K x 8K is already
+# far beyond anything DIVE displays.
+_RLE_MAX_PIXELS = 64 * 1024 * 1024
 
 PROB_TOP_K = 10
 PROB_EPSILON = 0.001
@@ -225,12 +229,181 @@ def _is_rle_segmentation(annotation: dict, segmentation=None) -> bool:
 
     In COCO, ``iscrowd: 1`` marks a crowd region whose ``segmentation`` is RLE
     (a dict with ``counts`` and ``size``), not a polygon list. ``iscrowd: 0`` is a
-    single instance with polygon segmentation. DIVE does not decode RLE masks;
-    bbox and other fields may still import, but mask geometry is skipped.
+    single instance with polygon segmentation. Decodable RLE is traced to an
+    outline polygon; undecodable masks keep bbox (when present) and skip geometry.
     """
     if segmentation is None:
         segmentation = annotation.get('segmentation', [])
     return bool(annotation.get('iscrowd', False)) or isinstance(segmentation, dict)
+
+
+def coco_contains_rle(coco: Dict[str, Any]) -> bool:
+    """True when any annotation carries COCO RLE / crowd segmentation."""
+    annotations = coco.get('annotations') or []
+    return any(
+        isinstance(annotation, dict) and _is_rle_segmentation(annotation)
+        for annotation in annotations
+    )
+
+
+def _decode_rle_counts(counts) -> Optional[List[int]]:
+    """Run lengths from either COCO counts spelling.
+
+    Uncompressed COCO writes a list of integers; pycocotools writes the same
+    runs LEB128-encoded into a string.
+    """
+    if isinstance(counts, (list, tuple)):
+        if all(
+            isinstance(count, int) and not isinstance(count, bool) and count >= 0
+            for count in counts
+        ):
+            return list(counts)
+        return None
+    if not isinstance(counts, (str, bytes)):
+        return None
+
+    text = counts.decode('ascii') if isinstance(counts, bytes) else counts
+    runs: List[int] = []
+    position = 0
+    while position < len(text):
+        value = 0
+        shift = 0
+        more = True
+        while more:
+            if position >= len(text):
+                return None
+            char = ord(text[position]) - 48
+            value |= (char & 0x1F) << shift
+            more = bool(char & 0x20)
+            position += 1
+            shift += 5
+            # The final chunk carries the sign in bit 0x10 (rleFrString).
+            if not more and char & 0x10:
+                value |= -1 << shift
+        # Runs past the first two are deltas against the run two places back.
+        if len(runs) > 2:
+            value += runs[-2]
+        runs.append(value)
+    return runs if all(run >= 0 for run in runs) else None
+
+
+# Clockwise Moore neighbourhood, as (dx, dy) starting from due east.
+_MOORE_OFFSETS = (
+    (1, 0),
+    (1, 1),
+    (0, 1),
+    (-1, 1),
+    (-1, 0),
+    (-1, -1),
+    (0, -1),
+    (1, -1),
+)
+
+
+def _trace_contour(mask, start, visited) -> List[Tuple[float, float]]:
+    """Moore-neighbour trace of one component's outer boundary.
+
+    Pure numpy: the server has numpy but not opencv, and walking the boundary
+    costs the perimeter rather than the area.
+    """
+    height, width = mask.shape
+    contour = [start]
+    visited[start[1], start[0]] = True
+    # Entering the start pixel from the west, so begin the search north of it.
+    previous = (start[0] - 1, start[1])
+    current = start
+
+    while True:
+        back = (previous[0] - current[0], previous[1] - current[1])
+        try:
+            index = _MOORE_OFFSETS.index(back)
+        except ValueError:
+            index = 0
+        found = None
+        for step in range(1, 9):
+            offset = _MOORE_OFFSETS[(index + step) % 8]
+            candidate = (current[0] + offset[0], current[1] + offset[1])
+            if not (0 <= candidate[0] < width and 0 <= candidate[1] < height):
+                continue
+            if mask[candidate[1], candidate[0]]:
+                found = candidate
+                break
+            previous = candidate
+        if found is None:  # isolated pixel
+            break
+        if found == start and len(contour) > 1:
+            break
+        contour.append(found)
+        visited[found[1], found[0]] = True
+        previous = current
+        current = found
+        if len(contour) > 4 * height * width:  # cannot happen; refuses to spin
+            break
+
+    return [(float(x), float(y)) for x, y in contour]
+
+
+def _polygon_area(points: List[Tuple[float, float]]) -> float:
+    """Shoelace area of a closed contour."""
+    total = 0.0
+    for index, (x, y) in enumerate(points):
+        next_x, next_y = points[(index + 1) % len(points)]
+        total += x * next_y - next_x * y
+    return abs(total) / 2.0
+
+
+def _rle_polygon_coords(segmentation) -> List[List[Tuple[float, float]]]:
+    """Trace a COCO RLE mask into image-space polygon contours.
+
+    DIVE stores geometry, not rasters, so an imported mask becomes its outline.
+    Holes are not representable and are dropped.
+    """
+    if not isinstance(segmentation, dict):
+        return []
+    size = segmentation.get('size')
+    if not (isinstance(size, (list, tuple)) and len(size) == 2):
+        return []
+    height, width = size
+    if not (isinstance(height, int) and isinstance(width, int)):
+        return []
+    if height <= 0 or width <= 0 or height * width > _RLE_MAX_PIXELS:
+        return []
+
+    runs = _decode_rle_counts(segmentation.get('counts'))
+    if runs is None or sum(runs) != height * width:
+        return []
+
+    import numpy as np
+
+    flat = np.zeros(height * width, dtype=bool)
+    position = 0
+    for index, run in enumerate(runs):
+        if index % 2:  # odd runs are foreground
+            flat[position : position + run] = True
+        position += run
+    # COCO run-length order is column-major.
+    mask = flat.reshape((height, width), order='F')
+    if not mask.any():
+        return []
+
+    # A boundary pixel is foreground with at least one background 4-neighbour.
+    padded = np.zeros((height + 2, width + 2), dtype=bool)
+    padded[1:-1, 1:-1] = mask
+    interior = padded[:-2, 1:-1] & padded[2:, 1:-1] & padded[1:-1, :-2] & padded[1:-1, 2:]
+    boundary = mask & ~interior
+
+    visited = np.zeros_like(mask)
+    coord_lists = []
+    for y, x in zip(*np.nonzero(boundary)):
+        if visited[y, x]:
+            continue
+        contour = _trace_contour(mask, (int(x), int(y)), visited)
+        if len(contour) >= 3:
+            coord_lists.append(contour)
+    # Largest by enclosed area, not by point count: a long thin outline can
+    # carry more points than a bigger blob, and callers take the first.
+    coord_lists.sort(key=_polygon_area, reverse=True)
+    return coord_lists
 
 
 def _extract_polygon_coords_lists(segmentation) -> List[List[Tuple[float, float]]]:
@@ -266,12 +439,33 @@ def _bbox_from_points(points: List[Tuple[float, float]]) -> List[float]:
     return [x_min, y_min, max(xs) - x_min, max(ys) - y_min]
 
 
-def _annotation_has_importable_bounds(annotation: dict) -> bool:
+def _segmentation_coord_lists(
+    annotation: dict,
+) -> Tuple[List[List[Tuple[float, float]]], bool]:
+    """Return ``(coord_lists, rle_skipped)`` for an annotation's segmentation.
+
+    ``rle_skipped`` is True only when the annotation is RLE and decoding failed.
+    Callers that need bounds, bbox, and polygon geometry should invoke this once
+    and reuse the result so large masks are not decoded repeatedly.
+    """
+    segmentation = annotation.get('segmentation', [])
+    if not segmentation:
+        return [], False
+    if _is_rle_segmentation(annotation, segmentation):
+        coord_lists = _rle_polygon_coords(segmentation)
+        return coord_lists, not bool(coord_lists)
+    return _extract_polygon_coords_lists(segmentation), False
+
+
+def _annotation_has_importable_bounds(
+    annotation: dict,
+    coord_lists: Optional[List[List[Tuple[float, float]]]] = None,
+) -> bool:
     if _has_valid_bbox(annotation):
         return True
-    if _is_rle_segmentation(annotation):
-        return False
-    return bool(_extract_polygon_coords_lists(annotation.get('segmentation', [])))
+    if coord_lists is None:
+        coord_lists, _ = _segmentation_coord_lists(annotation)
+    return bool(coord_lists)
 
 
 def _missing_bounds_error(annotation_ids: List) -> str:
@@ -282,15 +476,19 @@ def _missing_bounds_error(annotation_ids: List) -> str:
         f'they have no bbox and '
         f'no usable polygon segmentation (ids: {shown}{extra}). '
         'Provide bbox [x, y, width, height] or polygon segmentation as [[x1, y1, ...]]. '
-        'Annotations with only RLE segmentation masks still require a bbox.'
+        'An RLE mask supplies bounds only when it can be decoded.'
     )
 
 
-def _resolve_coco_bbox(annotation: dict) -> List[float]:
+def _resolve_coco_bbox(
+    annotation: dict,
+    coord_lists: Optional[List[List[Tuple[float, float]]]] = None,
+) -> List[float]:
     if _has_valid_bbox(annotation):
         return list(annotation['bbox'])
 
-    coord_lists = _extract_polygon_coords_lists(annotation.get('segmentation', []))
+    if coord_lists is None:
+        coord_lists, _ = _segmentation_coord_lists(annotation)
     all_points = [point for coords in coord_lists for point in coords]
     if all_points:
         return _bbox_from_points(all_points)
@@ -298,12 +496,15 @@ def _resolve_coco_bbox(annotation: dict) -> List[float]:
     raise ValueError(_missing_bounds_error([annotation.get('id', '?')]))
 
 
-def _validate_annotation_bounds(annotations: List[dict]) -> None:
-    missing_ids = [
-        annotation.get('id', '?')
-        for annotation in annotations
-        if not _annotation_has_importable_bounds(annotation)
-    ]
+def _validate_annotation_bounds(
+    annotations: List[dict],
+    coord_lists_by_id: Optional[Dict[int, List[List[Tuple[float, float]]]]] = None,
+) -> None:
+    missing_ids = []
+    for annotation in annotations:
+        coords = None if coord_lists_by_id is None else coord_lists_by_id.get(id(annotation))
+        if not _annotation_has_importable_bounds(annotation, coords):
+            missing_ids.append(annotation.get('id', '?'))
     if missing_ids:
         raise ValueError(_missing_bounds_error(missing_ids))
 
@@ -333,7 +534,11 @@ def is_coco_json(coco: Dict[str, Any]):
     return all(key in coco for key in keys)
 
 
-def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int, List[int]]:
+def annotation_info(
+    annotation: dict,
+    meta: CocoMetadata,
+    coord_lists: Optional[List[List[Tuple[float, float]]]] = None,
+) -> Tuple[int, str, int, List[int]]:
     # these fields will always exist
     annotation_id = annotation['id']
     image_id = annotation['image_id']
@@ -345,7 +550,7 @@ def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int
     # handle int and string types, throw error on UUID
     trackId = int(annotation.get('track_id', annotation_id))
 
-    bounds = _resolve_coco_bbox(annotation)
+    bounds = _resolve_coco_bbox(annotation, coord_lists)
     # update from [TL_x, TL_y, width, height] to [TL_x, TL_y, BR_x, BR_y]
     bounds[2] += bounds[0]
     bounds[3] += bounds[1]
@@ -354,8 +559,11 @@ def annotation_info(annotation: dict, meta: CocoMetadata) -> Tuple[int, str, int
 
 
 def _parse_annotation(
-    annotation: dict, meta: CocoMetadata
-) -> Tuple[dict, dict, dict, list, List[str], bool]:
+    annotation: dict,
+    meta: CocoMetadata,
+    coord_lists: Optional[List[List[Tuple[float, float]]]] = None,
+    rle_skipped: Optional[bool] = None,
+) -> Tuple[dict, dict, dict, list, List[str], bool, List[List[Tuple[float, float]]]]:
     """
     Parse a single KWCOCO annotation into its composite track and detection parts
     """
@@ -402,14 +610,13 @@ def _parse_annotation(
         line = [points[k][:2] for k in ['head', *spine, 'tail']]
         viame.create_geoJSONFeature(features, 'LineString', line, 'HeadTails')
 
-    # parse polygons
-    segmentation = annotation.get('segmentation', [])
-    rle_skipped = _is_rle_segmentation(annotation, segmentation)
-
-    if segmentation and not rle_skipped:
-        coord_lists = _extract_polygon_coords_lists(segmentation)
-        if coord_lists:
-            viame.create_geoJSONFeature(features, 'Polygon', coord_lists[0])
+    # parse polygons (reuse precomputed coords when the load path decoded once)
+    if coord_lists is None:
+        coord_lists, rle_skipped = _segmentation_coord_lists(annotation)
+    elif rle_skipped is None:
+        rle_skipped = _is_rle_segmentation(annotation) and not coord_lists
+    if coord_lists:
+        viame.create_geoJSONFeature(features, 'Polygon', coord_lists[0])
 
     # DIVE extension fields for non-standard COCO attributes.
     detection_attributes = annotation.get(
@@ -430,12 +637,23 @@ def _parse_annotation(
     elif isinstance(note_values, str) and note_values.strip():
         notes.append(note_values.strip())
 
-    return features, attributes, track_attributes, [confidence_pair], notes, rle_skipped
+    return (
+        features,
+        attributes,
+        track_attributes,
+        [confidence_pair],
+        notes,
+        bool(rle_skipped),
+        coord_lists,
+    )
 
 
 def _parse_annotation_for_tracks(
-    annotation: dict, meta: CocoMetadata
-) -> Tuple[Feature, dict, dict, list, bool]:
+    annotation: dict,
+    meta: CocoMetadata,
+    coord_lists: Optional[List[List[Tuple[float, float]]]] = None,
+    rle_skipped: Optional[bool] = None,
+) -> Tuple[Feature, dict, dict, list, bool, int, int]:
     (
         features,
         attributes,
@@ -443,8 +661,9 @@ def _parse_annotation_for_tracks(
         confidence_pairs,
         notes,
         rle_skipped,
-    ) = _parse_annotation(annotation, meta)
-    trackId, filename, frame, bounds = annotation_info(annotation, meta)
+        coord_lists,
+    ) = _parse_annotation(annotation, meta, coord_lists, rle_skipped)
+    trackId, _filename, frame, bounds = annotation_info(annotation, meta, coord_lists)
 
     feature = Feature(
         frame=frame,
@@ -456,7 +675,7 @@ def _parse_annotation_for_tracks(
     )
 
     # Pass the rest of the unchanged info through as well
-    return feature, attributes, track_attributes, confidence_pairs, rle_skipped
+    return feature, attributes, track_attributes, confidence_pairs, rle_skipped, trackId, frame
 
 
 def load_coco_metadata(coco: Dict[str, Any]) -> CocoMetadata:
@@ -520,7 +739,14 @@ def load_coco_as_tracks_and_attributes(
     skipped_rle_masks = False
     meta = load_coco_metadata(coco)
     annotations = coco.get('annotations', [])
-    _validate_annotation_bounds(annotations)
+    # Decode each segmentation once; reuse for bounds check, bbox, and geometry.
+    seg_by_annotation_id: Dict[int, Tuple[List[List[Tuple[float, float]]], bool]] = {
+        id(annotation): _segmentation_coord_lists(annotation) for annotation in annotations
+    }
+    _validate_annotation_bounds(
+        annotations,
+        {key: coords for key, (coords, _rle_skipped) in seg_by_annotation_id.items()},
+    )
 
     ordered_names = meta.ordered_category_names
     duplicate_category_names = _has_duplicate_names(ordered_names)
@@ -540,13 +766,21 @@ def load_coco_as_tracks_and_attributes(
 
     malformed_extension = False
     for annotation in annotations:
+        coord_lists, rle_skipped_pre = seg_by_annotation_id[id(annotation)]
         (
             feature,
             attributes,
             track_attributes,
             confidence_pairs,
             rle_skipped,
-        ) = _parse_annotation_for_tracks(annotation, meta)
+            trackId,
+            frame,
+        ) = _parse_annotation_for_tracks(
+            annotation,
+            meta,
+            coord_lists=coord_lists,
+            rle_skipped=rle_skipped_pre,
+        )
         skipped_rle_masks = skipped_rle_masks or rle_skipped
 
         extension_present = 'dive_confidence_pairs' in annotation
@@ -565,8 +799,6 @@ def load_coco_as_tracks_and_attributes(
                         prob_length_mismatch = True
                     elif prob_pairs:
                         confidence_pairs = prob_pairs
-
-        trackId, _, frame, _ = annotation_info(annotation, meta)
 
         if trackId not in tracks:
             tracks[trackId] = Track(begin=frame, end=frame, id=trackId)

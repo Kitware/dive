@@ -5,8 +5,6 @@
 import npath from 'path';
 import os from 'os';
 import fs from 'fs-extra';
-import { createWriteStream } from 'fs';
-import archiver from 'archiver';
 import { omit } from 'lodash';
 
 import { MultiType } from 'dive-common/constants';
@@ -17,6 +15,7 @@ import {
 } from 'platform/desktop/constants';
 import * as viameSerializers from 'platform/desktop/backend/serializers/viame';
 import * as dive from 'platform/desktop/backend/serializers/dive';
+import { zipDirectoryToFile } from './zipExport';
 
 import {
   ArchiveMetadataFolderName, getValidatedProjectDir, loadAnnotationFile, loadJsonConfig,
@@ -117,16 +116,7 @@ async function writeDatasetExportContents(
 }
 
 async function zipDirectory(sourceDir: string, destZipPath: string): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const output = createWriteStream(destZipPath);
-    const archive = archiver('zip', { zlib: { level: 9 } });
-    output.on('close', () => resolve());
-    output.on('error', reject);
-    archive.on('error', reject);
-    archive.pipe(output);
-    archive.directory(sourceDir, false);
-    archive.finalize();
-  });
+  await zipDirectoryToFile(sourceDir, destZipPath, 9);
 }
 
 // eslint-disable-next-line import/prefer-default-export -- single RPC export helper

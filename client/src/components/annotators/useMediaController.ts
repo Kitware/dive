@@ -18,6 +18,23 @@ import type {
 } from './mediaControllerType';
 import type { CameraImage } from '../../layers/cameraImage';
 
+interface PaneView {
+  zoom: number;
+  center: { x: number; y: number };
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function viewOf(map: any): PaneView {
+  const center = map.center();
+  return { zoom: map.zoom(), center: { x: center.x, y: center.y } };
+}
+
+function sameView(a: PaneView, b: PaneView) {
+  return Math.abs(a.zoom - b.zoom) < 1e-6
+    && Math.abs(a.center.x - b.center.x) < 1e-3
+    && Math.abs(a.center.y - b.center.y) < 1e-3;
+}
+
 const AggregateControllerSymbol = Symbol('aggregate-controller');
 const CameraInitializerSymbol = Symbol('camera-initializer');
 const bus = new Vue();
@@ -276,11 +293,20 @@ export function useMediaController(options?: {
       if (size.width !== mapSize.width || size.height !== mapSize.height) {
         resized = true;
         pendingResizes.push(() => {
-          if (geoViewerRef.value === undefined) {
+          const map = geoViewerRef.value;
+          if (map === undefined) {
             return;
           }
-          geoViewerRef.value.size(size);
-          mc.resetZoom();
+          // Refit a pane still at its last fit; keep a zoomed or panned one.
+          const view = viewOf(map);
+          const fit = fitViews[camera];
+          map.size(size);
+          if (!fit || sameView(view, fit)) {
+            mc.resetZoom();
+          } else {
+            map.zoom(view.zoom);
+            map.center(view.center);
+          }
         });
       }
     });
@@ -328,12 +354,20 @@ export function useMediaController(options?: {
    * it.
    */
   let resetZoomOverride: (() => boolean) | null = null;
+  // Each pane's view after its last reset.
+  const fitViews: Record<string, PaneView> = {};
+  function recordFitViews() {
+    Object.entries(geoViewers).forEach(([camera, viewerRef]) => {
+      if (viewerRef.value) fitViews[camera] = viewOf(viewerRef.value);
+    });
+  }
   function setResetZoomOverride(override: (() => boolean) | null) {
     resetZoomOverride = override;
   }
 
   function aggregateResetZoom() {
     if (resetZoomOverride && resetZoomOverride()) {
+      recordFitViews();
       return;
     }
     subControllers.forEach((mc) => mc.resetZoom());
@@ -472,6 +506,7 @@ export function useMediaController(options?: {
       const zoomAndCenter = geoViewerRef.value.zoomAndCenterFromBounds(data.originalBounds, 0);
       geoViewerRef.value.zoom(zoomAndCenter.zoom);
       geoViewerRef.value.center(zoomAndCenter.center);
+      fitViews[camera] = viewOf(geoViewerRef.value);
     }
 
     // eslint-disable-next-line @typescript-eslint/no-unused-vars -- retained for MediaController API compatibility

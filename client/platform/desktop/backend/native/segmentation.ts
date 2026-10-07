@@ -7,10 +7,22 @@
  */
 
 import type { SegmentationPolygon } from 'dive-common/apispec';
+import {
+  SegmentationMaxPolygonAreaError,
+  SegmentationMaxPolygonPoints,
+  SegmentationMaxPolygonPointsLimit,
+} from 'dive-common/use/segmentation/constants';
 import { StereoMeasurement } from './stereo';
 
 /** Error message shown to users when segmentation model process fails to load */
 export const SEGMENTATION_LOAD_ERROR_MESSAGE = "Model failed to load. If you haven't downloaded the SAM2 model pack from the VIAME Add-On wiki, please do so.";
+
+/** Re-exported for desktop callers; same as VIAME `service:max_polygon_points`. */
+export {
+  SegmentationMaxPolygonAreaError,
+  SegmentationMaxPolygonPoints,
+  SegmentationMaxPolygonPointsLimit,
+};
 
 /** Request to the segmentation service */
 export interface SegmentationInternalPredictRequest {

@@ -5,6 +5,8 @@ import {
 import { cloneDeep, isEqual } from 'lodash';
 import { clientSettings } from 'dive-common/store/settings';
 import {
+  ancestorsOf,
+  descendantsOf,
   compileHierarchy,
   normalizeTypeHierarchy,
   removeHierarchyType,
@@ -13,6 +15,7 @@ import {
   rewriteHierarchyType,
   selectFlatPairIndex,
   selectPairIndex,
+  setPairConfidence,
   TypeHierarchy,
   TypeHierarchyError,
   TypeHierarchyIndex,
@@ -360,6 +363,77 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
       .some((track) => track.confidencePairs.some(([name]) => name === type)));
   }
 
+  /** Unfiltered usage, deduplicated by track ID across all cameras. */
+  typeTrackIds(): Map<string, Set<AnnotationId>> {
+    const result = new Map<string, Set<AnnotationId>>();
+    this.sorted.value.forEach(({ id }) => {
+      this.getTracks(id).forEach((track) => {
+        track.confidencePairs.forEach(([type]) => {
+          const ids = result.get(type) ?? new Set<AnnotationId>();
+          ids.add(id);
+          result.set(type, ids);
+        });
+      });
+    });
+    return result;
+  }
+
+  /** Children are promoted; optional cleanup stops at any remaining usage or child types. */
+  deleteTypeWithTracks(
+    type: string,
+    disposition: 'unknown' | 'delete',
+    deleteEmptyParents = false,
+    deleteEmptyChildren = false,
+  ): boolean {
+    const parents = deleteEmptyParents && this.hierarchyIndex.value
+      ? ancestorsOf(this.hierarchyIndex.value, type) : [];
+    const descendants = deleteEmptyChildren && this.hierarchyIndex.value
+      ? [...descendantsOf(this.hierarchyIndex.value, type)].reverse() : [];
+    const ids = this.typeTrackIds().get(type) ?? new Set<AnnotationId>();
+    if (type === 'unknown' && disposition === 'unknown' && ids.size) return false;
+    ids.forEach((id) => {
+      if (disposition === 'delete') {
+        this.remove(id);
+      } else {
+        // Work on each camera's own vector so camera-specific labels survive.
+        this.getTracks(id).forEach((track) => {
+          const removed = track.confidencePairs.find(([name]) => name === type);
+          if (!removed) return;
+          const unknown = track.confidencePairs.find(([name]) => name === 'unknown');
+          const pairs = track.confidencePairs.filter(([name]) => name !== type && name !== 'unknown');
+          track.setConfidencePairs(setPairConfidence(pairs, 'unknown', Math.max(removed[1], unknown?.[1] ?? 0)));
+        });
+      }
+    });
+    const deleted = this.deleteType(type);
+    if (deleted) {
+      this.checkedTypes.value = this.checkedTypes.value.filter((name) => name !== type);
+      if (ids.size && disposition === 'unknown' && !this.checkedTypes.value.includes('unknown')) {
+        this.checkedTypes.value.push('unknown');
+      }
+    }
+    if (deleted && deleteEmptyChildren) {
+      const remainingUsage = this.typeTrackIds();
+      descendants.forEach((descendant) => {
+        if (remainingUsage.get(descendant)?.size
+          || Object.values(this.typeHierarchy.value ?? {}).includes(descendant)) return;
+        if (!this.deleteType(descendant)) return;
+        this.checkedTypes.value = this.checkedTypes.value.filter((name) => name !== descendant);
+      });
+    }
+    if (deleted && deleteEmptyParents) {
+      const remainingUsage = this.typeTrackIds();
+      parents.every((parent) => {
+        if (remainingUsage.get(parent)?.size
+          || Object.values(this.typeHierarchy.value ?? {}).includes(parent)) return false;
+        if (!this.deleteType(parent)) return false;
+        this.checkedTypes.value = this.checkedTypes.value.filter((name) => name !== parent);
+        return true;
+      });
+    }
+    return deleted;
+  }
+
   private configureStandaloneTypes(
     types: ReadonlySet<string>,
     hierarchy: TypeHierarchy | undefined,
@@ -381,6 +455,9 @@ export default class TrackFilterControls extends BaseFilterControls<Track> {
           this.renameTrackPair(annotation.id, currentType, newType);
         }
       });
+      if (this.configuredTypes.value.includes(currentType)) {
+        this.importTypes([newType], false);
+      }
       this.carryConfidenceFilter(currentType, newType);
       this.deleteType(currentType);
       return;

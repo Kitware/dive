@@ -259,6 +259,25 @@ export function ancestorsOf(index: TypeHierarchyIndex, type: string): readonly s
     : [];
 }
 
+/** Direct and indirect children, shallow-to-deep. */
+export function descendantsOf(index: TypeHierarchyIndex, type: string): readonly string[] {
+  const childrenByParent = new Map<string, string[]>();
+  Object.entries(index.hierarchy).forEach(([child, parent]) => {
+    const list = childrenByParent.get(parent) ?? [];
+    list.push(child);
+    childrenByParent.set(parent, list);
+  });
+  const result: string[] = [];
+  const walk = (node: string) => {
+    (childrenByParent.get(node) ?? []).forEach((child) => {
+      result.push(child);
+      walk(child);
+    });
+  };
+  walk(type);
+  return result;
+}
+
 function sortPairsByConfidence(
   pairs: readonly (readonly [string, number])[],
 ): [string, number][] {

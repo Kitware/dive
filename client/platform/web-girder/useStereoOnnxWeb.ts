@@ -37,6 +37,7 @@ import {
 } from 'dive-common/use/stereo/calibration';
 import { imageElementToRgba } from 'dive-common/use/stereo/frameSource';
 import { findQuadMediaSource } from 'vue-media-annotator/components/layerManager/quadMediaSource';
+import { drawFrame } from 'vue-media-annotator/stitchedStereo';
 import type { RgbaImage } from 'dive-common/use/stereo/image';
 import type { StereoMeasurement } from 'dive-common/use/stereo/triangulate';
 import { getCalibrationFile, getLastCalibration } from './multicamFileRegistry';
@@ -351,7 +352,7 @@ export default function useStereoOnnxWeb(opts: StereoOnnxWebOptions) {
           canvas.width = media.width; canvas.height = media.height;
           const ctx = canvas.getContext('2d');
           if (ctx) {
-            ctx.drawImage(media.source, 0, 0, media.width, media.height);
+            drawFrame(ctx, media.source, media);
             return ctx.getImageData(0, 0, media.width, media.height);
           }
         }

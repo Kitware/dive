@@ -5,12 +5,25 @@
   <meta http-equiv="X-UA-Compatible" content="IE=edge">
   <meta name="viewport" content="width=device-width,initial-scale=1.0">
   <link rel="icon" href="/favicon.ico">
-  <title>DIVE</title>
+  <title></title>
+  <script>
+    // The instance's brand is only known once the server answers, so the last
+    // one seen is shown until then instead of a name that may not be ours.
+    try {
+      var brand = JSON.parse(localStorage.getItem('diveBrand') || '{}');
+      if (typeof brand.name === 'string') {
+        document.title = brand.name;
+      }
+      if (typeof brand.favicon === 'string' && brand.favicon) {
+        document.querySelector("link[rel~='icon']").setAttribute('href', brand.favicon);
+      }
+    } catch (err) { /* no cached brand */ }
+  </script>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:100,300,400,500,700,900">
 </head>
 <body>
   <noscript>
-    <strong>We're sorry but DIVE doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
+    <strong>We're sorry but this application doesn't work properly without JavaScript enabled. Please enable it to continue.</strong>
   </noscript>
   <div id="app"></div>
   <script type="module" src="/platform/web-girder/main.ts"></script>

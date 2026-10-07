@@ -50,6 +50,7 @@ import {
   componentsBounds, isSegmentationPolygonKey, segmentationComponents, segmentationPolygonFeatures,
 } from 'dive-common/recipes/segmentationPolygons';
 import { boundsEnclosing } from 'dive-common/use/autoPopulate';
+import { StitchedSide, tagStitchedPath } from 'vue-media-annotator/stitchedStereo';
 import populateAnnotation from '../autoPopulate';
 import shouldTransferStereoSegmentation from '../stereoSegmentation';
 import Export from './Export.vue';
@@ -280,6 +281,24 @@ export default defineComponent({
       return results;
     });
 
+    let loadFailed = false;
+    async function handleLoadError(message: string, largeImage?: boolean) {
+      if (loadFailed) {
+        return;
+      }
+      loadFailed = true;
+      if (largeImage) {
+        await largeImageWarning();
+      } else {
+        await prompt({
+          title: 'Error Loading Data',
+          text: [message],
+          positiveButton: 'Okay',
+        });
+      }
+      router.push({ name: 'recent' });
+    }
+
     async function largeImageWarning() {
       await prompt({
         title: 'Large Image Warning',
@@ -298,20 +317,23 @@ export default defineComponent({
       originalImageFiles: string[];
       type: string;
       originalVideoFile?: string;
-    }): (frameNum: number) => string {
+      stitchedSide?: StitchedSide;
+    }, forInteractiveService = false): (frameNum: number) => string {
       const {
         originalBasePath, originalImageFiles, type, originalVideoFile,
       } = meta;
+      // VIAME's interactive services read only the tagged half of the frame.
+      const side = forInteractiveService ? meta.stitchedSide : undefined;
       return (frameNum: number): string => {
         if (type === 'video') {
-          return joinPath(originalBasePath, originalVideoFile || '');
+          return tagStitchedPath(joinPath(originalBasePath, originalVideoFile || ''), side);
         }
         if (originalImageFiles && originalImageFiles[frameNum]) {
           const imagePath = originalImageFiles[frameNum];
           if (isAbsolutePath(imagePath)) {
-            return imagePath;
+            return tagStitchedPath(imagePath, side);
           }
-          return joinPath(originalBasePath, imagePath);
+          return tagStitchedPath(joinPath(originalBasePath, imagePath), side);
         }
         return '';
       };
@@ -342,7 +364,7 @@ export default defineComponent({
             const cam = cameraNames[i];
             // eslint-disable-next-line no-await-in-loop
             const camMeta = await loadConfig(`${props.id}/${cam}`);
-            stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta);
+            stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta, true);
             if (camMeta.fps) stereoCameraFps.value[cam] = camMeta.fps;
             if (camMeta.type === 'video') multiCamIsVideo = true;
           }
@@ -367,7 +389,7 @@ export default defineComponent({
             : undefined;
         } else {
           // Single cam: use base metadata directly
-          const singleGetter = buildImagePathGetter(meta);
+          const singleGetter = buildImagePathGetter(meta, true);
           getImagePath = singleGetter;
           // Also cache for text query and video frame usage
           cachedMeta = {
@@ -839,23 +861,7 @@ export default defineComponent({
         const cameraId = `${props.id}/${cam}`;
         // eslint-disable-next-line no-await-in-loop
         const camMeta = await loadConfig(cameraId);
-        const {
-          originalBasePath, originalImageFiles, type, originalVideoFile,
-        } = camMeta;
-
-        stereoImagePathGetters.value[cam] = (frameNum: number): string => {
-          if (type === 'video') {
-            return joinPath(originalBasePath, originalVideoFile || '');
-          }
-          if (originalImageFiles && originalImageFiles[frameNum]) {
-            const imagePath = originalImageFiles[frameNum];
-            if (isAbsolutePath(imagePath)) {
-              return imagePath;
-            }
-            return joinPath(originalBasePath, imagePath);
-          }
-          return '';
-        };
+        stereoImagePathGetters.value[cam] = buildImagePathGetter(camMeta, true);
       }
       return true;
     }
@@ -2616,6 +2622,7 @@ export default defineComponent({
       readOnlyMode,
       runningPipelines,
       largeImageWarning,
+      handleLoadError,
       timeFilter,
       handleTextQuerySubmit,
       handleTextQueryInit,
@@ -2672,6 +2679,7 @@ export default defineComponent({
       @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"
       @large-image-warning="largeImageWarning()"
+      @load-error="handleLoadError"
       @text-query-submit="handleTextQuerySubmit"
       @text-query-init="handleTextQueryInit"
       @text-query-all-frames="handleTextQueryAllFrames"

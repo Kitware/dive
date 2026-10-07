@@ -1,4 +1,5 @@
 /* eslint-disable max-classes-per-file -- lightweight layer doubles */
+/* eslint-disable vue/one-component-per-file -- harness components for shallow mounting */
 import Vue, {
   defineComponent, h, ref, nextTick,
 } from 'vue';

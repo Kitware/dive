@@ -3,10 +3,10 @@
 import path from 'path';
 import fs from 'fs-extra';
 import { pipeline as streamPipeline } from 'stream/promises';
-import archiver from 'archiver';
 import * as yauzl from 'yauzl';
 import type { Pipe } from 'dive-common/apispec';
 import { PipelinesFolderName, Settings } from 'platform/desktop/constants';
+import { zipFilesToFile } from './zipExport';
 
 const MAX_FILES = 100000;
 const MAX_BYTES = 100 * 1024 ** 3;
@@ -144,18 +144,14 @@ export async function exportModelPack(settings: Settings, model: Pipe, destinati
   const temp = await fs.mkdtemp(path.join(path.dirname(output), '.dive-export-'));
   try {
     const archivePath = path.join(temp, 'model.zip');
-    await new Promise<void>((resolve, reject) => {
-      const stream = fs.createWriteStream(archivePath);
-      const archive = archiver('zip', { zlib: { level: 1 } });
-      const fail = (error: Error) => { archive.abort(); stream.destroy(); reject(error); };
-      stream.on('error', fail);
-      archive.on('error', fail);
-      archive.on('warning', fail);
-      stream.on('close', resolve);
-      archive.pipe(stream);
-      files.forEach((file) => archive.file(file, { name: path.relative(folder, file).split(path.sep).join('/') }));
-      archive.finalize().catch(fail);
-    });
+    await zipFilesToFile(
+      archivePath,
+      files.map((file) => ({
+        absolutePath: file,
+        entryName: path.relative(folder, file).split(path.sep).join('/'),
+      })),
+      1,
+    );
     await fs.move(archivePath, output, { overwrite: true });
   } finally {
     await fs.remove(temp);

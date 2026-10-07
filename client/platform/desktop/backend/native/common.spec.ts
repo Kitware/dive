@@ -539,7 +539,7 @@ beforeEach(() => {
     '/home/user/viamedata': {
       DIVE_Jobs: {
         goodTrainingJob: {
-          category_models: {
+          trained_model: {
             'detector.pipe': '',
             'trained_detector.zip': '',
           },
@@ -548,12 +548,12 @@ beforeEach(() => {
           missingModelFolder: {},
         },
         missingPipeTrainingJob: {
-          category_models: {
+          trained_model: {
             'trained_detector.zip': '',
           },
         },
         detectorAndTrackerTrainingJob: {
-          category_models: {
+          trained_model: {
             'detector.pipe': '',
             'tracker.pipe': '',
             'trained_detector.zip': '',
@@ -624,6 +624,30 @@ beforeEach(() => {
               'local.csv': 'frame,depth\n0,local\n',
             },
           },
+        },
+        projectidMulticamMovedSource: {
+          'meta.json': JSON.stringify({
+            version: 1,
+            id: 'projectidMulticamMovedSource',
+            name: 'movedStereo',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/movedStereo/left',
+                },
+                right: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/data/movedStereo/right',
+                },
+              },
+            },
+          }),
+          'result_whatever.json': JSON.stringify({}),
         },
         projectidFrameMetadata: {
           'meta.json': JSON.stringify({
@@ -1185,8 +1209,8 @@ describe('native.common', () => {
 
     expect(result.processedFiles).toEqual([first, empty, third]);
     expect(result.warnings).toEqual([
-      'The COCO file included run-length encoded segmentation masks that are not supported. '
-        + 'Bounding boxes and other annotation data were imported, but masks were skipped.',
+      'The COCO file included run-length encoded segmentation masks that could not be decoded. '
+        + 'Bounding boxes and other annotation data were imported, but those masks were skipped.',
       'Ignored dataset_info entry: expected a JSON object but got number',
     ]);
   });
@@ -1309,6 +1333,19 @@ describe('native.common', () => {
     expect(await fs.pathExists(legacy)).toBe(false);
     const dir = await common.getValidatedProjectDir(settings, 'projectid1');
     expect(dir.datasetFileAbsPath).toBe(preferred);
+  });
+
+  it('sets and clears the training split through saveConfig', async () => {
+    await common.saveConfig(settings, 'projectid1', { trainingSplit: 'validation' });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBe('validation');
+    // An unrelated save leaves it alone.
+    await common.saveConfig(settings, 'projectid1', { confidenceFilters: { default: 0.5 } });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBe('validation');
+    await common.saveConfig(settings, 'projectid1', { trainingSplit: null });
+    expect((await common.loadConfig(settings, 'projectid1', urlMapper)).trainingSplit)
+      .toBeUndefined();
   });
 
   it('saveConfig works on legacy meta.json-only projects and migrates', async () => {
@@ -2816,6 +2853,9 @@ describe('native.common', () => {
     await expect(common.checkDataset(settings, 'projectid3Bad')).rejects.toThrow('missing dataset json');
     await expect(common.checkDataset(settings, 'projectid5Bad')).rejects.toThrow('missing track json file');
     await expect(common.checkDataset(settings, 'missingFolder')).rejects.toThrow('missing project directory');
+    await expect(common.checkDataset(settings, 'projectidMulticamMovedSource')).rejects.toThrow(
+      'Dataset movedStereo does not contain source files at /home/user/data/movedStereo/left, /home/user/data/movedStereo/right',
+    );
   });
 
   it('checkDataset does not create directories for missing datasets', async () => {
@@ -2877,7 +2917,7 @@ describe('native.common', () => {
     const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
     expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
     //Data should be moved out of the current folder
-    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/trained_model');
     expect(sourceFolder.length).toBe(0);
     //Folders hould be created for new pipeline
     const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';
@@ -2896,10 +2936,10 @@ describe('native.common', () => {
       annotatedFramesOnly: false,
     };
     await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/badTrainingJob/')).rejects.toThrow(
-      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/category_models does not exist',
+      'Path: /home/user/viamedata/DIVE_Jobs/badTrainingJob/trained_model does not exist',
     );
     await expect(common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/')).rejects.toThrow(
-      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/category_models',
+      'Could not located trained pipe file inside of /home/user/viamedata/DIVE_Jobs/missingPipeTrainingJob/trained_model',
     );
   });
 
@@ -2914,7 +2954,7 @@ describe('native.common', () => {
     const contents = await common.processTrainedPipeline(settings, trainingArgs, '/home/user/viamedata/DIVE_Jobs/goodTrainingJob/');
     expect(contents).toEqual(['detector.pipe', 'trained_detector.zip']);
     //Data should be moved out of the current folder
-    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/category_models');
+    const sourceFolder = fs.readdirSync('/home/user/viamedata/DIVE_Jobs/goodTrainingJob/trained_model');
     expect(sourceFolder.length).toBe(0);
     //Folders hould be created for new pipeline
     const pipelineFolder = '/home/user/viamedata/DIVE_Pipelines/trainedPipelineName';

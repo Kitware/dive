@@ -20,6 +20,7 @@ import {
 } from 'platform/desktop/constants';
 import { checkMedia } from 'platform/desktop/backend/native/mediaJobs';
 import { readTransformMatrix } from 'vue-media-annotator/alignedView/alignedView';
+import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
 import {
   mergeRegistrationSources, unknownCameraWarning,
 } from 'vue-media-annotator/alignedView/cameraRegistrationFiles';
@@ -86,6 +87,13 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
     if (args.type === 'large-image') {
       throw new Error('large-image is not supported for multi-camera import');
     }
+    if (args.stitched) {
+      const names = Object.keys(args.sourceList).sort();
+      if (names.join(',') !== 'left,right'
+        || args.sourceList.left.sourcePath !== args.sourceList.right.sourcePath) {
+        throw new Error('stitched stereo import needs left and right cameras sharing one source');
+      }
+    }
     const cameraType = args.type;
     const sourceDirectories = Object.fromEntries(
       Object.entries(args.sourceList).map(([key, item]) => [
@@ -109,6 +117,7 @@ async function beginMultiCamImport(args: MultiCamImportArgs): Promise<DesktopMed
         originalVideoFile: '',
         transcodedImageFiles: [],
         transcodedVideoFile: '',
+        ...(args.stitched ? { stitchedSide: key as StitchedSide } : {}),
       };
       // Discovery runs only when the user picked nothing for this camera, and only when the
       // camera owns its directory: a directory shared by several cameras is resolved once at

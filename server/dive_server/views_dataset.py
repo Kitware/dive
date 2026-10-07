@@ -44,6 +44,7 @@ class DatasetResource(Resource):
 
         self.route("POST", (), self.create_dataset)
         self.route("POST", ("multicam",), self.create_multicam)
+        self.route("POST", ("multicam_finalize",), self.finalize_multicam)
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", ("calibration",), self.get_dataset_calibration)
@@ -56,9 +57,11 @@ class DatasetResource(Resource):
         self.route("DELETE", (":id", "scoring", ":resultId"), self.delete_scoring_result)
         self.route("GET", (":id", "scoring_sources"), self.get_scoring_sources)
         self.route("GET", ("export",), self.export)
+        self.route("GET", ("resolve_selection",), self.resolve_selection)
         self.route("GET", (":id", "configuration"), self.get_configuration)
         self.route("GET", (":id", "media", ":mediaId", "download"), self.download_media)
         self.route("POST", ("validate_files",), self.validate_files)
+        self.route("POST", ("bulk_training_split",), self.bulk_training_split)
 
         self.route("PATCH", (":id",), self.patch_metadata)
 
@@ -135,6 +138,35 @@ class DatasetResource(Resource):
             data,
         )
         return folder
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "After camera uploads, wait for postprocess jobs then link a multicam parent "
+            "(non-blocking; returns the Girder job)."
+        )
+        .modelParam(
+            "parentFolderId",
+            description="Parent folder that will become the multicam dataset",
+            paramType="query",
+            destName="parentFolder",
+            model=Folder,
+            level=AccessType.WRITE,
+            required=True,
+        )
+        .jsonParam(
+            "data",
+            description="schema: FinalizeMulticamArgs",
+            requireObject=True,
+            paramType="body",
+        )
+    )
+    def finalize_multicam(self, parentFolder, data):
+        return crud_dataset.schedule_finalize_multicam(
+            self.getCurrentUser(),
+            parentFolder,
+            data,
+        )
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(
@@ -433,6 +465,48 @@ class DatasetResource(Resource):
     )
     def validate_files(self, files):
         return crud_dataset.validate_files(files)
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "Resolve container folders to descendant DIVE datasets. "
+            "Annotated folders are returned as-is; their children are not walked."
+        ).jsonParam(
+            "folderIds",
+            "Folder ids to resolve",
+            paramType="query",
+            required=True,
+            default=[],
+            requireArray=True,
+        )
+    )
+    def resolve_selection(self, folderIds: List[str]):
+        return crud_dataset.resolve_folder_datasets(self.getCurrentUser(), folderIds)
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "Apply a training split to every DIVE dataset under the given root folders "
+            "and store the same split on each root folder's metadata."
+        ).jsonParam(
+            "body",
+            description='{"folderIds": ["..."], "trainingSplit": "train"|"validation"|"test"|null}',
+            paramType="body",
+            requireObject=True,
+        )
+    )
+    def bulk_training_split(self, body):
+        folder_ids = body.get('folderIds')
+        if not isinstance(folder_ids, list):
+            raise RestException('folderIds must be an array', code=400)
+        training_split = body.get('trainingSplit', None)
+        if training_split is not None and not isinstance(training_split, str):
+            raise RestException('trainingSplit must be a string or null', code=400)
+        return crud_dataset.bulk_set_training_split_under_folders(
+            self.getCurrentUser(),
+            folder_ids,
+            training_split,
+        )
 
     @access.user
     @autoDescribeRoute(
