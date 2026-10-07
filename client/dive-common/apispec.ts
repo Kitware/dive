@@ -799,6 +799,72 @@ export interface TextQueryResponse {
   fallback?: boolean;
 }
 
+/**
+ * Vision-language model (VLM) query types
+ */
+
+/** Model offered even before it is downloaded */
+export const RECOMMENDED_VLM_MODEL = 'qwen3-vl:8b';
+
+/** A locally served vision-capable model */
+export interface VlmModel {
+  name: string;
+  /** Model has a reasoning phase that can be toggled */
+  thinking: boolean;
+  /** False for a recommended model that still needs downloading */
+  installed: boolean;
+}
+
+export interface VlmModelsResponse {
+  /** Whether the VLM server could be reached */
+  available: boolean;
+  models: VlmModel[];
+  error?: string;
+}
+
+/** Backends the text query dialog can offer */
+export interface TextQueryModelOptions {
+  sam3: boolean;
+  vlm: VlmModelsResponse;
+}
+
+/** Text-prompted grounding through a VLM; answered with a TextQueryResponse */
+export interface VlmDetectRequest {
+  model: string;
+  think?: boolean;
+  imagePath: string;
+  frameTime?: number;
+  text: string;
+  maxDetections?: number;
+}
+
+/** One image given to a VLM question, optionally cropped to a box */
+export interface VlmImageSpec {
+  imagePath: string;
+  frameTime?: number;
+  box?: [number, number, number, number];
+}
+
+export interface VlmChatTurn {
+  role: 'user' | 'assistant';
+  content: string;
+}
+
+export interface VlmAskRequest {
+  model: string;
+  think?: boolean;
+  question: string;
+  images: VlmImageSpec[];
+  /** Prior turns, sent as text only */
+  history?: VlmChatTurn[];
+}
+
+export interface VlmAskResponse {
+  success: boolean;
+  error?: string;
+  answer?: string;
+}
+
 export interface RefineDetectionsRequest {
   /** Path to the image file */
   imagePath: string;
@@ -826,6 +892,12 @@ export interface RefineDetectionsResponse {
  */
 
 export type VideoSearchIndexMethod = 'detections' | 'tracking' | 'existing' | 'frames';
+
+/** One exemplar image of a query, e.g. one frame of a track, with its region. */
+export interface VideoSearchExemplar {
+  imagePath: string;
+  box?: [number, number, number, number];
+}
 
 /**
  * One indexed media stream (video/sequence identifier) in the shared search
