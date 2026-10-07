@@ -397,5 +397,5 @@ def test_postprocess_delegates_without_private_preflight_protocol(monkeypatch):
 
     assert result == expected
     postprocess.assert_called_once_with(
-        {'_id': 'user'}, {'_id': 'dataset'}, True, False, True, '', '', ''
+        {'_id': 'user'}, {'_id': 'dataset'}, True, False, True, '', '', '', ''
     )

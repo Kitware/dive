@@ -162,7 +162,7 @@ export default Vue.extend({
         throw error;
       }
     },
-    async uploadFiles(name, folder, files, uploaded, skipTranscoding = false, stitchedSide = undefined) {
+    async uploadFiles(name, folder, files, uploaded, skipTranscoding = false, stitchedSide = undefined, jobDatasetId = undefined) {
       let jobIds = [];
       // function called after mixins upload finishes
       const postUpload = async (data) => {
@@ -179,6 +179,7 @@ export default Vue.extend({
             '',
             undefined,
             stitchedSide,
+            jobDatasetId,
           );
           jobIds = postprocessResult.job_ids ?? [];
         } catch (err) {
@@ -218,6 +219,9 @@ export default Vue.extend({
         [],
         skipTranscoding,
         stitchedSide,
+        // Tag convert/split jobs with the multicam parent so the browser spinner
+        // tracks the parent folder (same as single-dataset transcode).
+        parentFolderId || undefined,
       );
       return { folder: uploadedFolder, jobIds };
     },

@@ -274,6 +274,11 @@ function videoFrameSource(config: DatasetConfig, cacheSize: number, cacheBytes: 
 /**
  * Pick the loader for a dataset, or throw for media the review grid cannot
  * crop (tiled large images, multicamera parents).
+ *
+ * Desktop stitched stereo keeps the full side-by-side file on disk; the
+ * annotator crops via geojs, but review chips decode bitmaps directly, so
+ * we crop here when `config.stitchedSide` is set. Web datasets are already
+ * split on the server and do not set `stitchedSide`. See docs/Multicamera-data.md.
  */
 export function createFrameSource(config: DatasetConfig, options: FrameSourceOptions = {}): FrameSource {
   const source = createWholeFrameSource(config, options);

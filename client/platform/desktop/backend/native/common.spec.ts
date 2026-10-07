@@ -1209,8 +1209,8 @@ describe('native.common', () => {
 
     expect(result.processedFiles).toEqual([first, empty, third]);
     expect(result.warnings).toEqual([
-      'The COCO file included run-length encoded segmentation masks that are not supported. '
-        + 'Bounding boxes and other annotation data were imported, but masks were skipped.',
+      'The COCO file included run-length encoded segmentation masks that could not be decoded. '
+        + 'Bounding boxes and other annotation data were imported, but those masks were skipped.',
       'Ignored dataset_info entry: expected a JSON object but got number',
     ]);
   });

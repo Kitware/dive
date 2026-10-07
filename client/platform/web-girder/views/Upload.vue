@@ -2,7 +2,6 @@
 import {
   defineComponent, Ref, ref, computed, onBeforeUnmount,
 } from 'vue';
-import { useRouter } from 'vue-router/composables';
 
 import {
   ImageSequenceType, VideoType, DefaultVideoFPS, FPSOptions, LargeImageType,
@@ -25,14 +24,12 @@ import {
 } from 'dive-common/apispec';
 import {
   createGirderFolder,
-  createMulticamDataset,
   deleteResources,
-  saveConfig,
-  uploadCalibrationItem,
+  finalizeMulticamDataset,
   uploadAndSetMetadataFile,
+  uploadCalibrationItem,
   uploadMetadataFileItem,
   validateUploadGroup,
-  waitForFolderDatasetReady,
 } from 'platform/web-girder/api';
 import type {
   IgnoredUploadFile,
@@ -64,6 +61,8 @@ import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
 import { getResponseError } from 'vue-media-annotator/utils';
 import { clientSettings } from 'dive-common/store/settings';
 import type { StitchedSide } from 'vue-media-annotator/stitchedStereo';
+import girderRest from 'platform/web-girder/plugins/girder';
+import { isJobFinished, jobSucceeded, useJobs } from 'platform/web-girder/store/useJobs';
 import UploadGirder from './UploadGirder.vue';
 
 export interface InteralFiles {
@@ -267,7 +266,6 @@ export default defineComponent({
 
     onBeforeUnmount(clearMulticamUploadProgressTimer);
     const { prompt } = usePrompt();
-    const router = useRouter();
 
     const addPendingZipUpload = (name: string, allFiles: File[]) => {
       const fps = clientSettings.annotationFPS || DefaultVideoFPS;
@@ -436,7 +434,6 @@ export default defineComponent({
     };
 
     interface MultiCamFolderImportOptions {
-      openViewer?: boolean;
       closeUpload?: boolean;
       showProgressOverlay?: boolean;
       progressLabel?: string;
@@ -444,12 +441,13 @@ export default defineComponent({
       promptRegistrationWarnings?: boolean;
     }
 
+    const jobs = useJobs();
+
     const runMultiCamFolderImport = async (
       args: MultiCamImportFolderArgs,
       options: MultiCamFolderImportOptions = {},
-    ): Promise<{ id: string; registrationWarnings: string[] }> => {
+    ): Promise<{ id: string; registrationWarnings: string[]; jobId: string }> => {
       const {
-        openViewer = true,
         closeUpload = true,
         showProgressOverlay = true,
         progressLabel = '',
@@ -470,7 +468,7 @@ export default defineComponent({
       }
       preUploadErrorMessage.value = null;
       let datasetFolderId: string | null = null;
-      let multicamLinked = false;
+      let finalizeScheduled = false;
       try {
         const datasetName = args.datasetName?.trim();
         if (!datasetName) {
@@ -511,6 +509,7 @@ export default defineComponent({
           .filter((name) => args.sourceList[name])
           .map((name) => [name, args.sourceList[name]] as const);
         const totalCameras = cameraEntries.length;
+        const waitJobIds: string[] = [];
         // Collect files the server accepted-but-ignored per camera so they can be
         // surfaced before navigation — no selected file is silently dropped.
         const ignoredAcrossCameras: { camera: string; name: string; reason: string }[] = [];
@@ -581,43 +580,24 @@ export default defineComponent({
             stitchedSide: args.stitched ? cameraName as StitchedSide : undefined,
           });
           clearMulticamUploadProgressTimer();
-          setMulticamImportProgress(
-            multicamCameraSlotPercent(i, totalCameras, MULTICAM_CAMERA_UPLOAD_WEIGHT),
-            `${labelPrefix}Processing ${cameraName} (${i + 1} of ${totalCameras})`,
-          );
-          // eslint-disable-next-line no-await-in-loop -- finalize only after post-process marks folder as a dataset
-          await waitForFolderDatasetReady(folder._id, {
-            onProgress: (fraction) => {
-              const processShare = 1 - MULTICAM_CAMERA_UPLOAD_WEIGHT;
-              setMulticamImportProgress(
-                multicamCameraSlotPercent(
-                  i,
-                  totalCameras,
-                  MULTICAM_CAMERA_UPLOAD_WEIGHT + fraction * processShare,
-                ),
-                `${labelPrefix}Processing ${cameraName} (${i + 1} of ${totalCameras})`,
-              );
-            },
-            requireViewableImages: uploadType === ImageSequenceType,
-            requireLargeImageItems: uploadType === LargeImageType,
-          }, jobIds);
+          waitJobIds.push(...jobIds);
           if (cameraMetadataFile) {
+            // Attach before finalize; does not require annotate yet.
             // eslint-disable-next-line no-await-in-loop
             await uploadAndSetMetadataFile(folder._id, cameraMetadataFile);
           }
+          cameras[cameraName] = { folderId: folder._id, type: uploadType };
           setMulticamImportProgress(
             multicamCameraSlotPercent(i + 1, totalCameras, 0),
             totalCameras > 1 && i + 1 < totalCameras
-              ? `${labelPrefix}Finished ${cameraName}, starting next camera…`
-              : `${labelPrefix}Finished ${cameraName}`,
+              ? `${labelPrefix}Uploaded ${cameraName}, starting next camera…`
+              : `${labelPrefix}Uploaded ${cameraName}`,
           );
-          cameras[cameraName] = { folderId: folder._id, type: uploadType };
         }
 
-        setMulticamImportProgress(92, `${labelPrefix}Finalizing multicam dataset…`);
+        setMulticamImportProgress(92, `${labelPrefix}Uploading sidecars…`);
         let calibrationFileId: string | undefined;
         if (args.calibrationFile) {
-          setMulticamImportProgress(94, `${labelPrefix}Uploading calibration…`);
           const calFile = getCalibrationFile(args.calibrationFile);
           if (!calFile) {
             throw new Error(
@@ -634,7 +614,6 @@ export default defineComponent({
 
         let metadataFileId: string | undefined;
         if (args.metadataFile) {
-          setMulticamImportProgress(95, `${labelPrefix}Uploading metadata file…`);
           const metadataFile = getMetadataFile(args.metadataFile);
           if (!metadataFile) {
             throw new Error(
@@ -644,44 +623,6 @@ export default defineComponent({
           metadataFileId = await uploadMetadataFileItem(datasetFolder._id, metadataFile);
         }
 
-        const subType = stereo.value ? 'stereo' : 'multicam';
-        setMulticamImportProgress(97, `${labelPrefix}Linking cameras…`);
-        const { data: parentFolder } = await createMulticamDataset({
-          parentFolderId: datasetFolder._id,
-          name: datasetName,
-          fps,
-          type: args.type,
-          subType,
-          defaultDisplay: args.defaultDisplay,
-          cameras,
-          cameraOrder,
-          calibrationFileId,
-          metadataFileId,
-        });
-        multicamLinked = true;
-
-        if (parentFolder.importWarnings?.length) {
-          await prompt({
-            title: 'Import Warnings',
-            text: parentFolder.importWarnings,
-            positiveButton: 'OK',
-          });
-        }
-
-        if (registrationSeed?.values) {
-          // Seed the dataset's saved camera registration (the same
-          // registration the in-app panel edits and the Align button
-          // applies); the camera* fields are allowlisted in the meta PATCH.
-          setMulticamImportProgress(98, `${labelPrefix}Saving camera registration…`);
-          await saveConfig(parentFolder._id, {
-            cameraHomographies: registrationSeed.values.homographies,
-            cameraCorrespondences: registrationSeed.values.observations,
-            cameraTransformTypes: registrationSeed.values.transformTypes,
-            ...(registrationSeed.values.source
-              ? { cameraRegistrationSource: registrationSeed.values.source }
-              : {}),
-          });
-        }
         if (promptRegistrationWarnings && registrationSeed?.warnings.length) {
           await prompt({
             title: 'Registration Warnings',
@@ -689,7 +630,6 @@ export default defineComponent({
             positiveButton: 'OK',
           });
         }
-
         if (ignoredAcrossCameras.length) {
           await prompt({
             title: 'Some files were not uploaded',
@@ -703,20 +643,57 @@ export default defineComponent({
           });
         }
 
-        if (openViewer) {
-          setMulticamImportProgress(100, `${labelPrefix}Opening viewer…`);
-          clearMulticamFileRegistry();
-          await router.push({ name: 'viewer', params: { id: parentFolder._id } });
-          if (closeUpload) {
-            close();
-          }
+        setMulticamImportProgress(97, `${labelPrefix}Scheduling background finalize…`);
+        const subType = stereo.value ? 'stereo' : 'multicam';
+        const { data: finalizeJob } = await finalizeMulticamDataset({
+          parentFolderId: datasetFolder._id,
+          name: datasetName,
+          fps,
+          type: args.type,
+          subType,
+          defaultDisplay: args.defaultDisplay,
+          cameras,
+          cameraOrder,
+          calibrationFileId,
+          metadataFileId,
+          waitJobIds,
+          registration: registrationSeed?.values
+            ? {
+              cameraHomographies: registrationSeed.values.homographies,
+              cameraCorrespondences: registrationSeed.values.observations,
+              cameraTransformTypes: registrationSeed.values.transformTypes,
+              ...(registrationSeed.values.source
+                ? { cameraRegistrationSource: registrationSeed.values.source }
+                : {}),
+            }
+            : undefined,
+        });
+        finalizeScheduled = true;
+        // Prime the jobs store so the data browser shows Processing immediately.
+        jobs.setJobState({ jobId: finalizeJob._id, value: finalizeJob.status ?? 0 });
+        jobs.setDatasetStatus({
+          datasetId: datasetFolder._id,
+          status: finalizeJob.status ?? 0,
+          jobId: finalizeJob._id,
+        });
+
+        clearMulticamFileRegistry();
+        if (showProgressOverlay) {
+          multicamImporting.value = false;
+          multicamImportProgress.value = null;
         }
+        if (closeUpload) {
+          close();
+        }
+        eventBus.$emit('refresh-data-browser');
+
         return {
-          id: parentFolder._id,
+          id: datasetFolder._id,
           registrationWarnings: registrationSeed?.warnings ?? [],
+          jobId: finalizeJob._id,
         };
       } catch (err) {
-        if (datasetFolderId && !multicamLinked) {
+        if (datasetFolderId && !finalizeScheduled) {
           try {
             await deleteResources([{ _id: datasetFolderId, _modelType: 'folder' }]);
           } catch (cleanupErr) {
@@ -785,16 +762,36 @@ export default defineComponent({
           stashTransformFile(source.transformFile, file);
         }
       });
-      const { registrationWarnings } = await runMultiCamFolderImport(
+      const { registrationWarnings, jobId } = await runMultiCamFolderImport(
         { ...collect.importArgs, datasetName },
         {
-          openViewer: false,
           closeUpload: false,
           showProgressOverlay: false,
           progressLabel: collect.name,
           promptRegistrationWarnings: false,
         },
       );
+      // Batch UI tracks per-collect completion; wait for the server finalize job.
+      const deadline = Date.now() + 60 * 60 * 1000;
+      let finished = false;
+      /* eslint-disable no-await-in-loop -- poll finalize job until terminal */
+      while (Date.now() < deadline) {
+        const { data: job } = await girderRest.get<{ status: number; title?: string }>(`job/${jobId}`);
+        if (isJobFinished(job.status)) {
+          if (!jobSucceeded(job.status)) {
+            throw new Error(job.title || 'Multicam finalize failed');
+          }
+          finished = true;
+          break;
+        }
+        await new Promise((resolve) => {
+          setTimeout(resolve, 2000);
+        });
+      }
+      /* eslint-enable no-await-in-loop */
+      if (!finished) {
+        throw new Error('Timed out waiting for multicam finalize');
+      }
       clearMulticamFileRegistry();
       return registrationWarnings;
     };

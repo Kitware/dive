@@ -1,7 +1,7 @@
 """Compatibility barrel re-exporting Celery tasks and helpers.
 
 Prefer importing from the focused modules directly in new code:
-``convert_video``, ``convert_images``, ``run_pipeline``, ``run_scoring``,
+``convert_video``, ``convert_images``, ``import_coco``, ``run_pipeline``, ``run_scoring``,
 ``run_training``, ``upgrade_pipelines``, and ``viame_config``.
 """
 
@@ -9,9 +9,11 @@ from dive_tasks.convert_images import (
     convert_calibration,
     convert_images,
     convert_large_images,
+    create_large_image_tiles,
     extract_zip,
 )
 from dive_tasks.convert_video import convert_video, resolve_annotation_fps
+from dive_tasks.import_coco import import_coco_annotations
 from dive_tasks.run_pipeline import (
     _inject_dataset_metadata_file,
     filter_csv_by_frame_range,
@@ -41,12 +43,14 @@ __all__ = [
     'convert_images',
     'convert_large_images',
     'convert_video',
+    'create_large_image_tiles',
     'download_google_drive_zip',
     'export_trained_pipeline',
     'extract_zip',
     'filter_csv_by_frame_range',
     'filter_image_list_by_frame_range',
     'get_gpu_environment',
+    'import_coco_annotations',
     'is_google_drive_addon_url',
     'resolve_annotation_fps',
     'run_pipeline',

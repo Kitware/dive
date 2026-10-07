@@ -43,7 +43,7 @@ Multicam import is available from the standard upload dialog on [viame.kitware.c
     fields. A file named to end in `species.json` in the folder the cameras share (or beside
     one camera) is pre-filled there; a species list is stored on the dataset, so every camera
     shares the declared types.
-11. When upload finishes, DIVE opens the new multicam dataset in the annotator.
+11. When file upload finishes, the upload dialog closes and you return to the data browser. A server job waits for camera postprocess (transcode, stitched split, image conversion) then links the multicam parent. The folder shows a **Processing** state until that job finishes; then **Launch Annotator** appears.
 
 !!! note
 
@@ -114,8 +114,20 @@ For a single multicam dataset from one parent folder (one collect, camera subfol
 
 Stitched stereo media holds both cameras in every frame: the left camera in the left half and the right camera in the right half, side by side. Choose ==Stereo== from the import menu, then ==Stitched== as the way to choose each camera, and pick the single folder, image list, or video. The dataset opens as an ordinary stereo dataset with `left` and `right` cameras; annotations are in each camera's own half-frame pixel coordinates. A frame with an odd width drops its middle column so both cameras have the same size.
 
-* **DIVE Desktop** reads the stitched media in place. Nothing is copied or re-encoded, at import or later: each camera pane shows its half of the shared frames, and VIAME cuts out the camera's half as it reads. The same pipelines run on stitched and separate-camera datasets: DIVE turns on the `crop_left` / `crop_right` option of VIAME's image-list and video readers for each input, so a VIAME install that has those options is required. The interactive tools (segmentation, stereo measurement, text query) read the same half.
-* **DIVE Web** uploads the stitched media to each camera and a server job keeps that camera's half, so the stored dataset is a regular stereo dataset.
+* **DIVE Desktop** does **not** run an ingestion pipeline that writes separate left/right files. Import records one shared source path on both cameras and marks each with `stitchedSide` (`left` or `right`). The side-by-side file on disk is unchanged.
+* **DIVE Web** uploads the full stitched media into **each** camera folder, then a **background worker job** (`split_stitched_media`) crops that folder to the camera's half and replaces the uploaded items. Postprocess skips the usual transcode jobs for that folder because the split job transcodes as it crops. After the job finishes, the dataset is ordinary stereo (per-camera files only); nothing is cropped live in the browser.
+
+!!! note "Where each half is produced (desktop vs web)"
+
+    | Stage | DIVE Desktop | DIVE Web |
+    |-------|--------------|----------|
+    | **After import** | One native file (or folder) referenced by both `left` and `right` | One half-width file (or sequence) per camera folder |
+    | **Annotator** | Crops the shared media in the viewer (geojs quad `crop`) | Uses the stored half-frame media as-is |
+    | **Review chips** | Crops when decoding frames (same geometry as the annotator) | Uses stored half-frame media as-is |
+    | **VIAME pipelines / search** | Same paths as import; DIVE sets `crop_left` / `crop_right` on VIAME's image-list and video readers so VIAME reads one half per input | Same as any other stereo dataset (already split on the server) |
+    | **Interactive tools** (desktop only) | Same shared paths; VIAME loads the requested half | N/A |
+
+    On desktop, cropping is **on demand** at display or read time, not by copying or re-encoding at import. That requires a VIAME build whose readers support the crop options DIVE enables for stitched inputs.
 
 ### Flat multi-modality view folders
 

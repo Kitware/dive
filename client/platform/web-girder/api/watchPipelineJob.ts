@@ -15,11 +15,11 @@ import {
  * to polling the registration meta, which reports a failed job as still running
  * until its 30 minute timeout.
  *
- * The store keeps one job per dataset (the latest), so a job that had already
- * finished when the watch started is skipped by id: only a different job can be
- * the one just launched. That single slot is also why the pipeline is not matched
- * on -- two pipelines running on one dataset at once are indistinguishable here,
- * and the caller launches exactly one.
+ * The store's primary slot prefers a still-running job when several share a
+ * dataset id (e.g. split + finalize). A job that had already finished when the
+ * watch started is skipped by id: only a different job can be the one just
+ * launched. The pipeline is not matched on type -- two pipelines on one dataset
+ * at once are indistinguishable here, and the caller launches exactly one.
  */
 export default function watchPipelineJob(datasetId: string): Promise<PipelineJobResult> {
   const jobs = useJobs();

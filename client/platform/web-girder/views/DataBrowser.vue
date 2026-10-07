@@ -60,6 +60,10 @@ export default defineComponent({
       return item._modelType === 'folder' && item.meta.annotate;
     }
 
+    function isDatasetProcessing(item: GirderModel) {
+      return item._modelType === 'folder' && !!jobs.getDatasetRunningState(item._id);
+    }
+
     function multiCamSubType(item: GirderModel) {
       return getMultiCamSubType(item.meta);
     }
@@ -87,6 +91,7 @@ export default defineComponent({
     });
 
     return {
+      isDatasetProcessing,
       fileManager,
       location,
       selected,
@@ -173,13 +178,22 @@ export default defineComponent({
           <span>{{ multiCamTooltip(item) }}</span>
         </v-tooltip>
         <span>{{ item.name }}</span>
-        <v-icon
-          v-if="jobs.getDatasetRunningState(item._id)"
+        <v-chip
+          v-if="!isAnnotationFolder(item) && isDatasetProcessing(item)"
           color="warning"
-          class="ml-2"
+          x-small
+          outlined
+          class="ml-2 my-0"
         >
-          mdi-spin mdi-autorenew
-        </v-icon>
+          <v-icon
+            left
+            x-small
+            class="mdi-spin"
+          >
+            mdi-autorenew
+          </v-icon>
+          Processing
+        </v-chip>
         <v-btn
           v-if="isAnnotationFolder(item)"
           class="ml-2"

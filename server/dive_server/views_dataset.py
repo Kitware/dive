@@ -44,6 +44,7 @@ class DatasetResource(Resource):
 
         self.route("POST", (), self.create_dataset)
         self.route("POST", ("multicam",), self.create_multicam)
+        self.route("POST", ("multicam_finalize",), self.finalize_multicam)
         self.route("GET", (), self.list_datasets)
         self.route("GET", (":id",), self.get_meta)
         self.route("GET", ("calibration",), self.get_dataset_calibration)
@@ -137,6 +138,35 @@ class DatasetResource(Resource):
             data,
         )
         return folder
+
+    @access.user
+    @autoDescribeRoute(
+        Description(
+            "After camera uploads, wait for postprocess jobs then link a multicam parent "
+            "(non-blocking; returns the Girder job)."
+        )
+        .modelParam(
+            "parentFolderId",
+            description="Parent folder that will become the multicam dataset",
+            paramType="query",
+            destName="parentFolder",
+            model=Folder,
+            level=AccessType.WRITE,
+            required=True,
+        )
+        .jsonParam(
+            "data",
+            description="schema: FinalizeMulticamArgs",
+            requireObject=True,
+            paramType="body",
+        )
+    )
+    def finalize_multicam(self, parentFolder, data):
+        return crud_dataset.schedule_finalize_multicam(
+            self.getCurrentUser(),
+            parentFolder,
+            data,
+        )
 
     @access.public(scope=TokenScope.DATA_READ, cookie=True)
     @autoDescribeRoute(

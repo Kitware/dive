@@ -55,7 +55,7 @@ Click either ==Open Image Sequence :material-folder-open:== or ==Open Video :mat
 * ==:material-folder: Directory== is the default option for image sequences. It will prompt you to choose an **entire folder** of images to import as a dataset.
     * You can use globbing patterns to filter the contents of an image directory during import. Click ==:material-chevron-down: Show advanced options== to reveal the glob input.
 * ==:material-view-list-outline: Image List== will prompt you to choose a `.txt` file that contains an image name or full path on each line.
-* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file.
+* ==:material-binoculars: Stereo== will prompt you to choose 2 videos or 2 image sequences and a calibration file. In the stereo dialog you can also choose ==Stitched== to import one side-by-side source as `left` and `right` without splitting files on disk — see [Stitched stereo](Multicamera-data.md#stitched-stereo).
 * ==:material-camera-burst: Multi-Cam== will prompt you to describe the multi-cam configuration by naming several cameras and picking the source media for each.
 * ==:material-folder-multiple-image: MultiCam Batch== will prompt you to choose a root folder of **collect** subfolders and import one multicam image-sequence dataset per collect. See [Batch multicam import](Multicamera-data.md#batch-multicam-import) for the expected folder layout.
 
