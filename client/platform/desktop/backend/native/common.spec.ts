@@ -3209,12 +3209,12 @@ describe('resumable training jobs', () => {
     expect(found.map((j) => j.workingDir)).toEqual([npath.join(jobsDir, 'interrupted')]);
   });
 
-  it('excludes legacy successful runs with an emptied category_models', async () => {
+  it('excludes legacy successful runs with an emptied trained_model', async () => {
     mockJobsFolder({
       legacySuccess: jobDirConfig(
         'legacySuccess',
         {},
-        ['deep_training', 'category_models', 'input_folder_list.txt', 'input_truth_list.txt'],
+        ['deep_training', 'trained_model', 'input_folder_list.txt', 'input_truth_list.txt'],
       ),
       legacyInterrupted: jobDirConfig('legacyInterrupted', {}),
     });

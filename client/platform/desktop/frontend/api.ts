@@ -12,6 +12,7 @@ import type {
   PipelineJobResult,
   ScoringDatasetSummary, ScoringJobArgs, ScoringResult, ScoringResultSummary, ScoringSourceOptions,
   VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchQueryResponse, VideoSearchIndexInfo,
+  VideoSearchLayoutResponse,
 } from 'dive-common/apispec';
 import axios, { AxiosInstance } from 'axios';
 import { watch } from 'vue';
@@ -686,6 +687,11 @@ async function videoSearchRefine(positiveIds: string[], negativeIds: string[]): 
   return window.diveDesktop.invoke('video-search-refine', { positiveIds, negativeIds });
 }
 
+/** Place the given results of the open query in 3D descriptor space around it. */
+async function videoSearchLayout(refs: string[]): Promise<VideoSearchLayoutResponse> {
+  return window.diveDesktop.invoke('video-search-layout', { refs });
+}
+
 async function videoSearchExportModel(name: string): Promise<{ success: boolean; outputDir: string }> {
   return window.diveDesktop.invoke('video-search-export-model', { name });
 }
@@ -1148,6 +1154,7 @@ export {
   videoSearchFormulate,
   videoSearchQuery,
   videoSearchRefine,
+  videoSearchLayout,
   videoSearchExportModel,
   videoSearchClose,
   videoSearchExtractFrame,

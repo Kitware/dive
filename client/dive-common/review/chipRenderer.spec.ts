@@ -1,5 +1,5 @@
 import {
-  chipRegion, chipScale, chipSizeFor, frameRegion, toChipPoint, toImagePoint,
+  boxRegion, chipRegion, chipScale, chipSizeFor, frameRegion, toChipPoint, toImagePoint,
 } from './chipRenderer';
 
 describe('chipRegion', () => {
@@ -27,6 +27,18 @@ describe('chipRegion', () => {
     expect(chipRegion([30, 60, 10, 20], 0).width).toBe(40);
     expect(chipRegion([5, 5, 5, 5], 0).width).toBe(1);
     expect(chipRegion([0, 0, 10, 10], -1).width).toBe(10);
+  });
+});
+
+describe('boxRegion', () => {
+  it('is the box itself, with no context and no squaring', () => {
+    expect(boxRegion([10, 20, 30, 60])).toEqual({
+      x: 10, y: 20, width: 20, height: 40,
+    });
+    expect(boxRegion([30, 60, 10, 20])).toEqual({
+      x: 10, y: 20, width: 20, height: 40,
+    });
+    expect(boxRegion([5, 5, 5, 5])).toMatchObject({ width: 1, height: 1 });
   });
 });
 

@@ -121,6 +121,38 @@ export async function importModelPack(settings: Settings, filename: string): Pro
   }
 }
 
+/**
+ * Unpack an archive as it is, every entry under destination. Used for the
+ * pack `viame train` writes, whose layout is already the pipeline folder's.
+ */
+export async function extractModelPackTo(filename: string, destination: string): Promise<string[]> {
+  let zip: yauzl.ZipFile | undefined;
+  const written: string[] = [];
+  try {
+    zip = await openArchive(filename);
+    const entries = (await readEntries(zip)).filter((entry) => !entry.fileName.endsWith('/'));
+    for (const entry of entries) {
+      const relative = entry.fileName.replace(/\\/g, '/');
+      const parts = relative.split('/');
+      if (relative.startsWith('/') || parts.some((p) => p === '..' || p === '' || p.includes(':'))) {
+        throw new Error(`Unsafe model archive path: ${entry.fileName}`);
+      }
+      const target = path.join(destination, ...parts);
+      await fs.ensureDir(path.dirname(target));
+      const source = await new Promise<NodeJS.ReadableStream>((resolve, reject) => {
+        zip!.openReadStream(entry, (error, stream) => {
+          if (error || !stream) reject(error || new Error('Unable to read ZIP entry')); else resolve(stream);
+        });
+      });
+      await streamPipeline(source, fs.createWriteStream(target));
+      written.push(relative);
+    }
+  } finally {
+    zip?.close();
+  }
+  return written;
+}
+
 export async function exportModelPack(settings: Settings, model: Pipe, destination: string): Promise<void> {
   const root = await fs.realpath(path.join(settings.dataPath, PipelinesFolderName));
   const folder = await fs.realpath(path.dirname(model.pipe));
