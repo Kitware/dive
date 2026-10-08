@@ -57,6 +57,31 @@ export type DateRange = '60 days' | '3 months' | '6 months' | '1 year' | '3 year
 
 export type GroupBy = 'user' | 'month' | undefined;
 
+export interface AnnotationStatsLabelCount {
+  label: string;
+  count: number;
+}
+
+export interface AnnotationStatsReport {
+  generatedAt: string;
+  datasets: {
+    total: number;
+    mostlyManual: number;
+    mixedSubstantialCorrections: number;
+    mostlyComputed: number;
+    empty: number;
+  };
+  tracks: {
+    total: number;
+    confidenceGte1: number;
+  };
+  labels: AnnotationStatsLabelCount[];
+}
+
+export interface AnnotationStatsJobResponse {
+  jobId: string;
+}
+
 export type AddOns = [string, string, string, boolean][];
 
 export interface DiveConfiguration {
@@ -151,6 +176,15 @@ function getStats(dateRange?: DateRange, overrideDateTime?: string, groupBy?: Gr
   });
 }
 
+function startAnnotationStatsJob() {
+  return girderRest.post<AnnotationStatsJobResponse>('dive_configuration/annotation_stats');
+}
+
+/** Latest report saved under the admin user's Stats folder, or null. */
+function getLatestAnnotationStats() {
+  return girderRest.get<AnnotationStatsReport | null>('dive_configuration/annotation_stats');
+}
+
 export {
   getBrandData,
   getConfig,
@@ -164,4 +198,6 @@ export {
   postAddons,
   updateContainers,
   getStats,
+  startAnnotationStatsJob,
+  getLatestAnnotationStats,
 };
