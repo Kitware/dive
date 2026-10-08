@@ -6,12 +6,21 @@ import {
 } from 'vue';
 import {
   getStats, DateRange, GroupBy, StatsResponse,
+  startAnnotationStatsJob, getLatestAnnotationStats, AnnotationStatsReport,
 } from 'platform/web-girder/api/configuration.service';
+import girderRest from 'platform/web-girder/plugins/girder';
+import { isJobFinished, jobSucceeded } from 'platform/web-girder/store/useJobs';
 import * as d3 from 'd3';
 
 type DataRecord = Record<string, number>;
 
 type ColorMapping = Record<string, string>;
+
+type AnnotationStatsJobDoc = {
+  status: number;
+  title?: string;
+  meta?: { annotationStats?: AnnotationStatsReport };
+};
 
 export default defineComponent({
   name: 'StatsComponent',
@@ -27,6 +36,12 @@ export default defineComponent({
 
     const dateRangeOptions = ref(['60 days', '3 months', '6 months', '1 year', '3 years', '5 years']);
     const groupByOptions = ref(['', 'user', 'month']);
+
+    const annotationStatsRunning = ref(false);
+    const annotationStatsLoading = ref(false);
+    const annotationStatsJobId = ref<string | null>(null);
+    const annotationStatsError = ref<string | null>(null);
+    const annotationStatsReport = ref<AnnotationStatsReport | null>(null);
 
     const totalJobs = computed(() => {
       if (statsTableData.value) {
@@ -147,8 +162,78 @@ export default defineComponent({
         .attr('fill', '#3498db');
     };
 
+    const sleep = (ms: number) => new Promise<void>((resolve) => {
+      setTimeout(resolve, ms);
+    });
+
+    const loadSavedAnnotationStats = async () => {
+      annotationStatsLoading.value = true;
+      try {
+        const { data } = await getLatestAnnotationStats();
+        if (data && typeof data === 'object' && data.datasets && data.tracks) {
+          annotationStatsReport.value = data;
+        }
+      } catch {
+        // No saved report yet (or folder missing) is fine on first visit.
+      } finally {
+        annotationStatsLoading.value = false;
+      }
+    };
+
+    const runAnnotationStats = async () => {
+      annotationStatsRunning.value = true;
+      annotationStatsError.value = null;
+      annotationStatsJobId.value = null;
+      try {
+        const { data } = await startAnnotationStatsJob();
+        annotationStatsJobId.value = data.jobId;
+        const deadline = Date.now() + 60 * 60 * 1000;
+        /* eslint-disable no-await-in-loop -- poll until the inventory job finishes */
+        while (Date.now() < deadline) {
+          const { data: job } = await girderRest.get<AnnotationStatsJobDoc>(`job/${data.jobId}`);
+          if (isJobFinished(job.status)) {
+            if (!jobSucceeded(job.status)) {
+              throw new Error(job.title || 'Annotation stats job failed');
+            }
+            // Prefer the persisted Stats-folder copy so refresh matches this view.
+            const { data: saved } = await getLatestAnnotationStats();
+            const report = saved || job.meta?.annotationStats;
+            if (!report) {
+              throw new Error('Annotation stats job finished without a report payload');
+            }
+            annotationStatsReport.value = report;
+            return;
+          }
+          await sleep(2000);
+        }
+        /* eslint-enable no-await-in-loop */
+        throw new Error('Timed out waiting for annotation stats job');
+      } catch (err) {
+        annotationStatsError.value = err instanceof Error ? err.message : String(err);
+      } finally {
+        annotationStatsRunning.value = false;
+      }
+    };
+
+    const downloadAnnotationStats = () => {
+      if (!annotationStatsReport.value) return;
+      const blob = new Blob(
+        [JSON.stringify(annotationStatsReport.value, null, 2)],
+        { type: 'application/json' },
+      );
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `annotation-stats-${annotationStatsReport.value.generatedAt}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    };
+
     // Fetch initial data on mounted
-    onMounted(() => fetchData());
+    onMounted(() => {
+      fetchData();
+      loadSavedAnnotationStats();
+    });
 
     // Watch for changes in dropdowns
     watch([selectedDateRange, selectedGroupBy], () => fetchData());
@@ -165,6 +250,13 @@ export default defineComponent({
       userColorMapping,
       responseData,
       userLimit,
+      annotationStatsRunning,
+      annotationStatsLoading,
+      annotationStatsJobId,
+      annotationStatsError,
+      annotationStatsReport,
+      runAnnotationStats,
+      downloadAnnotationStats,
     };
   },
 });
@@ -329,6 +421,96 @@ export default defineComponent({
                 <div id="groupByMonthJobs" />
               </v-col>
             </v-row>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-row class="mt-6">
+      <v-col cols="12">
+        <v-card>
+          <v-card-title>Annotation inventory</v-card-title>
+          <v-card-text>
+            <p class="mb-3">
+              Run a background job that counts datasets, tracks, confidence &ge; 1,
+              curation classes (mostly manual / substantially corrected / mostly computed),
+              and label totals. Results are saved under your user
+              <code>Stats</code> folder so they remain after refresh.
+            </p>
+            <v-btn
+              color="primary"
+              :loading="annotationStatsRunning"
+              :disabled="annotationStatsRunning"
+              @click="runAnnotationStats"
+            >
+              Generate annotation report
+            </v-btn>
+            <a
+              v-if="annotationStatsJobId"
+              class="ml-4"
+              :href="`/girder/#job/${annotationStatsJobId}`"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View job
+            </a>
+            <v-alert
+              v-if="annotationStatsError"
+              type="error"
+              dense
+              text
+              class="mt-4"
+            >
+              {{ annotationStatsError }}
+            </v-alert>
+            <div
+              v-if="annotationStatsLoading"
+              class="mt-4 text-caption"
+            >
+              Loading saved report...
+            </div>
+            <div
+              v-else-if="!annotationStatsReport && !annotationStatsRunning"
+              class="mt-4 text-caption"
+            >
+              No saved report yet. Generate one to keep results available after refresh.
+            </div>
+            <template v-if="annotationStatsReport">
+              <div class="mt-4 mb-2 text-caption">
+                Saved report from {{ annotationStatsReport.generatedAt }}
+              </div>
+              <v-chip class="ma-1" color="primary">
+                Datasets: {{ annotationStatsReport.datasets.total }}
+              </v-chip>
+              <v-chip class="ma-1" color="info">
+                Tracks: {{ annotationStatsReport.tracks.total }}
+              </v-chip>
+              <v-chip class="ma-1" color="success">
+                Confidence &ge; 1: {{ annotationStatsReport.tracks.confidenceGte1 }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Mostly manual: {{ annotationStatsReport.datasets.mostlyManual }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Mixed / corrected: {{ annotationStatsReport.datasets.mixedSubstantialCorrections }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Mostly computed: {{ annotationStatsReport.datasets.mostlyComputed }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Empty: {{ annotationStatsReport.datasets.empty }}
+              </v-chip>
+              <div class="mt-4">
+                <v-btn
+                  small
+                  outlined
+                  color="primary"
+                  @click="downloadAnnotationStats"
+                >
+                  Download JSON
+                </v-btn>
+              </div>
+            </template>
           </v-card-text>
         </v-card>
       </v-col>
