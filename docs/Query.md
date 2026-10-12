@@ -13,7 +13,7 @@ Add datasets with the same picker as the Training and Pipelines pages: search th
 * *Around existing annotations*: describe the dataset's current annotations.
 * *Whole frames*: describe each frame as a whole, with no detector.
 
-Indexing runs as jobs on the Jobs page; the rows update as they finish. **Build all not indexed** queues every unindexed dataset. All indexed datasets share one index, so a dataset indexed here is also searchable from the viewer's Video Search panel, and the reverse.
+Indexing runs as jobs on the Jobs page; the rows update as they finish. **Build all not indexed** queues every unindexed dataset. All indexed datasets share one index, so a dataset indexed here is also searchable from the viewer's Image Query panel, and the reverse.
 
 ## Query panel
 
@@ -35,7 +35,7 @@ Index builds appear in **Jobs** while preparing and running, with their dataset,
 
 Selecting a stereo or multicamera sequence uses its first camera in the configured display order. Query shows that camera by name and indexes its media and, for the existing-detections method, its annotations. The other cameras are not indexed automatically. Results refer to the indexed camera, keeping thumbnails and frame numbers aligned with its media.
 
-Inside an annotation sequence, **Video Search** lists the available indexed
+Inside an annotation sequence, the **Image Query** panel lists the available indexed
 sequences, with an option to search all of them. Selecting an indexed sequence
 limits the ranked results and result grid to that sequence; the underlying
 similarity search still uses the shared database. Changing this selection clears
@@ -56,8 +56,14 @@ index** deletes one sequence's search data, while **Delete entire index** remove
 the whole shared index. Both ask for confirmation and keep source media and
 annotations. Index deletion is disabled while index builds are queued or running.
 
-The sequence editor’s **Video Search** panel is a launch point. Its large search
+The sequence editor’s **Image Query** panel is a launch point. Its large search
 buttons open Query and run the selected annotation, image, or saved-model search
 there. The chosen index and annotation crop are preserved; results and refinement
 appear on Query rather than in the sidebar. Leaving the editor still follows the
 normal unsaved-annotation checks.
+
+**Search from selected track** queries with the whole selected track instead
+of one frame: up to six frames sampled along the track each contribute a
+descriptor, and all of them join the query as separate positive examples.
+Query shows the current frame's crop; redrawing the box or choosing **Use this
+frame only** returns to a single-frame query.

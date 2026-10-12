@@ -5,7 +5,12 @@ import { videoSearchListIndexes } from '../api';
 import VideoSearchContext from './VideoSearchContext.vue';
 import { takeQueryLaunch } from '../queryLaunch';
 
-const mocks = vi.hoisted(() => ({ search: null as unknown, push: vi.fn(async (location: unknown) => location) }));
+const mocks = vi.hoisted(() => ({
+  search: null as unknown,
+  push: vi.fn(async (location: unknown) => location),
+  cameraStore: {} as unknown,
+  selectedTrackId: null as number | null,
+}));
 vi.mock('vue-router/composables', () => ({ useRouter: () => ({ push: mocks.push }) }));
 vi.mock('../api', () => ({ videoSearchListIndexes: vi.fn() }));
 vi.mock('../useVideoSearch', () => ({ useVideoSearch: () => mocks.search }));
@@ -13,10 +18,10 @@ vi.mock('../useSearchChips', () => ({ createSearchChips: () => ({ chips: ref({})
 vi.mock('../store/jobs', () => ({ runningJobs: ref([]) }));
 vi.mock('dive-common/vue-utilities/prompt-service', () => ({ usePrompt: () => ({ prompt: vi.fn() }) }));
 vi.mock('vue-media-annotator/provides', () => ({
-  useCameraStore: () => ({}),
+  useCameraStore: () => mocks.cameraStore,
   useHandler: () => ({}),
   useSelectedCamera: () => ref('left'),
-  useSelectedTrackId: () => ref(null),
+  useSelectedTrackId: () => ref(mocks.selectedTrackId),
   useTime: () => ({ frame: ref(0) }),
 }));
 vi.mock('./VideoSearchResultsGrid.vue', () => ({ default: {} }));
@@ -79,6 +84,40 @@ it('launches an image query on the Query page without querying or rendering resu
   expect(takeQueryLaunch(location.query.launch)).toBeUndefined();
   expect(queryFromImage).not.toHaveBeenCalled();
   expect(wrapper.find('.results-list').exists()).toBe(false);
-  expect(wrapper.findAll('.query-launch-button')).toHaveLength(3);
+  expect(wrapper.findAll('.query-launch-button')).toHaveLength(4);
   wrapper.destroy();
+});
+
+it('launches a whole-track query with frames sampled along the selected track', async () => {
+  mocks.selectedTrackId = 3;
+  mocks.cameraStore = {
+    getTrack: () => ({
+      featureIndex: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+      getFeature: (f: number) => [{ bounds: [f, f, f + 5, f + 5] }],
+    }),
+  };
+  mocks.search = {
+    datasetId: 'current',
+    state: reactive({
+      installed: true, status: { datasetCount: 1 }, selectedStream: null, results: [], busy: null,
+    }),
+    refreshStatus: vi.fn(),
+    selectIndex: vi.fn(),
+    exemplarImageForFrame: vi.fn(async (f: number) => `/f${f}.png`),
+  };
+  vi.mocked(videoSearchListIndexes).mockResolvedValue([{
+    name: 'Alpha', datasetId: 'a', streamName: 'a-stream', method: 'detections',
+  }]);
+  const wrapper = shallowMount(VideoSearchContext, { stubs: ['v-btn', 'v-select', 'v-divider', 'v-alert', 'v-progress-linear'] });
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  await (wrapper.vm as unknown as { queryFromWholeTrack(): Promise<void> }).queryFromWholeTrack();
+  const location = mocks.push.mock.calls.at(-1)?.[0] as unknown as { query: { launch: string } };
+  const launch = takeQueryLaunch(location.query.launch);
+  expect(launch?.exemplars?.map((e) => e.imagePath)).toEqual(
+    ['/f0.png', '/f2.png', '/f4.png', '/f5.png', '/f7.png', '/f9.png'],
+  );
+  expect(launch).toMatchObject({ imagePath: '/f0.png', box: [0, 0, 5, 5] });
+  wrapper.destroy();
+  mocks.selectedTrackId = null;
+  mocks.cameraStore = {};
 });
