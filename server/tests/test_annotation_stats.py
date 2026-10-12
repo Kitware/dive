@@ -1,8 +1,17 @@
 from dive_server.crud_annotation_stats import (
+    MAX_DATASETS_PER_BATCH,
+    TRACK_BATCH_BUDGET,
     DatasetTrackRow,
+    _chunked,
+    _count_pipeline,
+    _dataset_track_pipeline,
+    _label_pipeline,
+    _live_track_match,
     classify_dataset_row,
     compute_annotation_stats,
     fold_dataset_rows,
+    merge_label_counts,
+    pack_datasets_by_track_budget,
 )
 
 
@@ -102,3 +111,76 @@ def test_compute_annotation_stats_with_injected_rows():
     assert report['tracks']['confidenceGte1'] == 10
     assert report['labels'][0]['label'] == 'fish'
     assert report['generatedAt']
+
+
+def test_live_track_match_scopes_to_dataset_ids():
+    ids = ['a', 'b', 'c']
+    match = _live_track_match(ids)
+    assert match == {
+        'dataset': {'$in': ids},
+        'rev_deleted': {'$exists': False},
+    }
+
+
+def test_dataset_track_pipeline_match_includes_dataset_in():
+    ids = ['ds1', 'ds2']
+    pipeline = _dataset_track_pipeline(ids)
+    assert pipeline[0] == {'$match': _live_track_match(ids)}
+
+
+def test_label_pipeline_match_includes_dataset_in():
+    ids = ['ds1']
+    pipeline = _label_pipeline(ids)
+    assert pipeline[0] == {'$match': _live_track_match(ids)}
+
+
+def test_chunked_splits_evenly_and_remainder():
+    assert _chunked([1, 2, 3, 4, 5], 2) == [[1, 2], [3, 4], [5]]
+    assert _chunked([], 10) == []
+    assert _chunked([1, 2], 10) == [[1, 2]]
+
+
+def test_merge_label_counts_sums_and_sorts():
+    merged = merge_label_counts(
+        [
+            [{'label': 'fish', 'count': 7}, {'label': 'shark', 'count': 3}],
+            [{'label': 'fish', 'count': 2}, {'label': 'ray', 'count': 5}],
+        ]
+    )
+    assert merged == [
+        {'label': 'fish', 'count': 9},
+        {'label': 'ray', 'count': 5},
+        {'label': 'shark', 'count': 3},
+    ]
+
+
+def test_count_pipeline_match_includes_dataset_in():
+    ids = ['ds1', 'ds2']
+    pipeline = _count_pipeline(ids)
+    assert pipeline[0] == {'$match': _live_track_match(ids)}
+    assert pipeline[1] == {'$group': {'_id': '$dataset', 'n': {'$sum': 1}}}
+
+
+def test_pack_datasets_by_track_budget_balances_volume():
+    counts = [
+        ('tiny', 10),
+        ('big', 400_000),
+        ('medium', 200_000),
+        ('empty', 0),
+        ('huge', 900_000),
+    ]
+    batches = pack_datasets_by_track_budget(counts, track_budget=500_000, max_datasets=10)
+    # Largest first; over-budget datasets are solo; smaller ones fill remaining room.
+    assert batches == [['huge'], ['big'], ['medium', 'tiny']]
+
+
+def test_pack_datasets_respects_max_datasets():
+    counts = [(f'd{i}', 1) for i in range(10)]
+    batches = pack_datasets_by_track_budget(counts, track_budget=1_000_000, max_datasets=3)
+    assert all(len(batch) <= 3 for batch in batches)
+    assert sum(len(batch) for batch in batches) == 10
+
+
+def test_pack_defaults_are_positive():
+    assert TRACK_BATCH_BUDGET > 0
+    assert MAX_DATASETS_PER_BATCH > 0
