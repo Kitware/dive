@@ -79,6 +79,8 @@ class ConfigurationResource(Resource):
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("update_containers",), self.update_containers)
         self.route("GET", ("stats",), self.get_dataset_stats)
+        self.route("GET", ("annotation_stats",), self.get_annotation_stats)
+        self.route("POST", ("annotation_stats",), self.start_annotation_stats)
 
     @access.public
     @autoDescribeRoute(Description("Get Configuration Information"))
@@ -307,6 +309,44 @@ class ConfigurationResource(Resource):
             return f"Timeout Error: {err}"
         except requests.exceptions.RequestException as err:
             return f"Something went wrong: {err}"
+
+    @access.admin
+    @autoDescribeRoute(
+        Description(
+            "Return the latest saved annotation inventory report for the current admin, "
+            "loaded from their private Stats/annotation-stats-latest.json file. "
+            "Returns null when no report has been generated yet."
+        )
+    )
+    def get_annotation_stats(self):
+        from dive_server.crud_annotation_stats import load_latest_annotation_stats_report
+
+        return load_latest_annotation_stats_report(self.getCurrentUser())
+
+    @access.admin
+    @autoDescribeRoute(
+        Description(
+            "Start a background job that builds a global annotation inventory report "
+            "(dataset counts, track confidence, curation classes, and label totals). "
+            "The finished report is stored on job.meta.annotationStats and saved under "
+            "the admin user's private Stats folder."
+        )
+    )
+    def start_annotation_stats(self):
+        token = Token().createToken(user=self.getCurrentUser(), days=1)
+        from dive_tasks.annotation_stats import run_annotation_stats_job
+
+        # One titled Girder job via girder_job_title (not createLocalJob + .delay(),
+        # which left an untitled Celery job in the UI).
+        async_result = run_annotation_stats_job.apply_async(
+            queue='local',
+            kwargs=dict(
+                girder_job_title='Annotation Stats Report',
+                girder_job_type='Annotation Stats',
+                girder_client_token=str(token['_id']),
+            ),
+        )
+        return {'jobId': str(async_result.job['_id'])}
 
     @access.admin
     @autoDescribeRoute(
