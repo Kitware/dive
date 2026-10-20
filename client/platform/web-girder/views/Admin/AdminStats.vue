@@ -42,6 +42,7 @@ export default defineComponent({
     const annotationStatsJobId = ref<string | null>(null);
     const annotationStatsError = ref<string | null>(null);
     const annotationStatsReport = ref<AnnotationStatsReport | null>(null);
+    const showAnnotationStatsInfo = ref(false);
 
     const totalJobs = computed(() => {
       if (statsTableData.value) {
@@ -257,6 +258,7 @@ export default defineComponent({
       annotationStatsReport,
       runAnnotationStats,
       downloadAnnotationStats,
+      showAnnotationStatsInfo,
     };
   },
 });
@@ -429,7 +431,26 @@ export default defineComponent({
     <v-row class="mt-6">
       <v-col cols="12">
         <v-card>
-          <v-card-title>Annotation inventory</v-card-title>
+          <v-card-title>
+            Annotation inventory
+            <v-spacer />
+            <v-tooltip bottom>
+              <template #activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  color="primary"
+                  aria-label="How annotation stats are calculated"
+                  v-bind="attrs"
+                  @click="showAnnotationStatsInfo = true"
+                  v-on="on"
+                >
+                  <v-icon>mdi-information-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>How these stats are calculated</span>
+            </v-tooltip>
+          </v-card-title>
           <v-card-text>
             <p class="mb-3">
               Run a background job that counts datasets, tracks, confidence &ge; 1,
@@ -444,6 +465,17 @@ export default defineComponent({
               @click="runAnnotationStats"
             >
               Generate annotation report
+            </v-btn>
+            <v-btn
+              text
+              color="primary"
+              class="ml-2"
+              @click="showAnnotationStatsInfo = true"
+            >
+              <v-icon left>
+                mdi-information-outline
+              </v-icon>
+              How are these calculated?
             </v-btn>
             <a
               v-if="annotationStatsJobId"
@@ -515,11 +547,366 @@ export default defineComponent({
         </v-card>
       </v-col>
     </v-row>
+
+    <v-dialog
+      v-model="showAnnotationStatsInfo"
+      max-width="860"
+      scrollable
+    >
+      <v-card>
+        <v-card-title class="annotation-stats-info-title">
+          <v-icon
+            left
+            color="primary"
+          >
+            mdi-information-outline
+          </v-icon>
+          How annotation stats are calculated
+          <v-spacer />
+          <v-btn
+            icon
+            aria-label="Close"
+            @click="showAnnotationStatsInfo = false"
+          >
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4 annotation-stats-info">
+          <v-alert
+            type="info"
+            text
+            dense
+            class="mb-4"
+          >
+            This is a point-in-time inventory of every dataset folder, counting only
+            <strong>live tracks</strong> (deleted revisions are excluded). Generating a
+            report re-runs the counts and saves the result to your <code>Stats</code>
+            folder; the numbers shown are from the report&rsquo;s
+            <em>generatedAt</em> timestamp, not a live query.
+          </v-alert>
+
+          <h3>Manual vs. corrected &mdash; the key difference</h3>
+          <p>
+            These two signals describe different things and are counted from different
+            fields, so a track is never counted as both:
+          </p>
+          <v-row dense>
+            <v-col
+              cols="12"
+              sm="6"
+            >
+              <v-card
+                outlined
+                class="pa-3 fill-height"
+              >
+                <div class="font-weight-bold mb-1">
+                  <v-icon
+                    small
+                    left
+                    color="primary"
+                  >
+                    mdi-pencil-plus-outline
+                  </v-icon>
+                  Manual &mdash; created by a person
+                </div>
+                <p class="mb-2">
+                  The track was <strong>originally drawn / created by a user</strong> in
+                  the annotator. It is identified directly from provenance:
+                  <code>attributes.userCreated === true</code>.
+                </p>
+                <p class="mb-0 text-caption">
+                  A manual track stays &ldquo;manual&rdquo; no matter how much it is
+                  edited afterwards, and regardless of its confidence value.
+                </p>
+              </v-card>
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+            >
+              <v-card
+                outlined
+                class="pa-3 fill-height"
+              >
+                <div class="font-weight-bold mb-1">
+                  <v-icon
+                    small
+                    left
+                    color="success"
+                  >
+                    mdi-robot-outline
+                  </v-icon>
+                  Corrected &mdash; computed, then endorsed
+                </div>
+                <p class="mb-2">
+                  The track was <strong>created by a pipeline / import</strong>
+                  (<code>userCreated</code> is not <code>true</code>), but its first
+                  confidence pair is now <strong>&ge; 1</strong> &mdash; the state left
+                  behind when a reviewer accepts the track or sets its type, which
+                  stores a single pair at confidence <code>1</code>.
+                </p>
+                <p class="mb-0 text-caption">
+                  Unlike &ldquo;manual&rdquo;, this is an <em>inferred proxy</em> for
+                  human correction, not a recorded edit history (see limitations below).
+                </p>
+              </v-card>
+            </v-col>
+          </v-row>
+          <p class="mt-3">
+            In short: <strong>manual = a human made the track</strong>;
+            <strong>corrected = a machine made the track and a human (probably)
+              signed off on it</strong>. A dataset can contain a mixture of both.
+          </p>
+
+          <h3>Per-track signals</h3>
+          <p>
+            For each dataset the job tallies its live tracks into the counters below.
+            The classification that follows is built entirely from these four numbers.
+          </p>
+          <v-simple-table dense>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>Counter</th>
+                  <th>How it is counted</th>
+                  <th>What it means</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-weight-medium">
+                    Total (<code>T</code>)
+                  </td>
+                  <td>All live tracks in the dataset</td>
+                  <td>Denominator for every fraction below</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Manual (<code>M</code>)
+                  </td>
+                  <td><code>attributes.userCreated === true</code></td>
+                  <td>Tracks created by a user</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Computed (<code>C</code>)
+                  </td>
+                  <td><code>C = T &minus; M</code> (derived, not stored)</td>
+                  <td>Tracks produced by pipelines or imports</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Corrected (<code>R</code>)
+                  </td>
+                  <td>
+                    Computed tracks whose <em>first</em> confidence pair is &ge; 1
+                  </td>
+                  <td>Proxy for reviewed / accepted computed tracks</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Confidence &ge; 1
+                  </td>
+                  <td>
+                    <em>All</em> tracks (manual and computed) whose first confidence
+                    pair is &ge; 1
+                  </td>
+                  <td>
+                    The headline chip total. It overlaps both groups above, so it is
+                    <em>not</em> the same as the corrected count <code>R</code>
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+
+          <h3>Dataset classification</h3>
+          <p>
+            Each dataset with at least one live track is placed in exactly one
+            category. Rules are evaluated <strong>in this order</strong> &mdash;
+            &ldquo;mostly manual&rdquo; wins if a dataset somehow matches both rules:
+          </p>
+          <v-simple-table dense>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Rule</th>
+                  <th>Interpretation</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-weight-medium">
+                    Mostly manual
+                  </td>
+                  <td>
+                    <code>T &ge; 5</code> and <code>M / T &ge; 90%</code>
+                  </td>
+                  <td>Primarily hand-annotated</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Mixed / corrected
+                  </td>
+                  <td>
+                    <code>C &ge; 10</code> and <code>R &ge; 15</code> and
+                    <code>R / C &ge; 25%</code>
+                  </td>
+                  <td>
+                    Mostly computed, but a substantial share was reviewed / corrected
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Mostly computed
+                  </td>
+                  <td>Any other dataset with &ge; 1 live track</td>
+                  <td>
+                    Computed output with little or no detected correction &mdash;
+                    the fallback category
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Empty
+                  </td>
+                  <td><code>T = 0</code></td>
+                  <td>Dataset folder with no live tracks</td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+          <p class="mt-3 mb-1 font-weight-medium">
+            Worked examples
+          </p>
+          <v-simple-table dense>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>Tracks</th>
+                  <th>Result</th>
+                  <th>Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>20 total, 19 manual</td>
+                  <td>Mostly manual</td>
+                  <td>19 / 20 = 95% manual, and at least 5 tracks</td>
+                </tr>
+                <tr>
+                  <td>100 total, 5 manual, 30 corrected</td>
+                  <td>Mixed / corrected</td>
+                  <td>
+                    30 / 95 computed = ~32% corrected, above the 25% / 15-track bars
+                  </td>
+                </tr>
+                <tr>
+                  <td>100 total, 5 manual, 10 corrected</td>
+                  <td>Mostly computed</td>
+                  <td>10 / 95 = ~11% corrected &mdash; below both correction bars</td>
+                </tr>
+                <tr>
+                  <td>4 total, all 4 manual</td>
+                  <td>Mostly computed</td>
+                  <td>
+                    Fewer than the 5-track minimum for &ldquo;mostly manual&rdquo;,
+                    despite being 100% manual
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+
+          <h3>Totals and labels</h3>
+          <ul>
+            <li>
+              <strong>Datasets</strong> counts every dataset folder, including empty
+              ones; the four category chips always sum to this total.
+            </li>
+            <li>
+              <strong>Tracks</strong> counts live tracks across all datasets.
+            </li>
+            <li>
+              <strong>Labels</strong> (in the downloaded JSON) group live tracks by
+              the type name of their highest-scoring confidence pair.
+            </li>
+          </ul>
+
+          <h3>Limitations &mdash; read the corrected numbers with care</h3>
+          <ul>
+            <li>
+              <strong>Corrected is inferred, not audited.</strong> The job deliberately
+              does not scan per-detection edit history (<code>userModified</code>),
+              which keeps it fast on very large collections but means the proxy can be
+              wrong in both directions.
+            </li>
+            <li>
+              <strong>Possible false positives:</strong> a pipeline or import that
+              already emits confidence <code>1.0</code> counts as
+              &ldquo;corrected&rdquo; even if nobody ever reviewed it.
+            </li>
+            <li>
+              <strong>Possible false negatives:</strong> geometry-only edits,
+              deletions, attribute edits, type changes left below confidence
+              <code>1</code>, and corrections that are not the first confidence pair
+              are invisible to this count.
+            </li>
+            <li>
+              <strong>Thresholds are heuristics.</strong> A dataset just under a cutoff
+              (e.g. 14 corrected tracks, or 24% corrected) lands in
+              &ldquo;mostly computed&rdquo;, so small datasets in particular can sit in
+              a category that understates the human effort involved.
+            </li>
+          </ul>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="primary"
+            text
+            @click="showAnnotationStatsInfo = false"
+          >
+            Close
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <style scoped>
 /* Custom Styles */
+.annotation-stats-info h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+
+.annotation-stats-info h3:first-of-type {
+  margin-top: 4px;
+}
+
+.annotation-stats-info p,
+.annotation-stats-info li {
+  line-height: 1.5;
+}
+
+.annotation-stats-info ul {
+  margin-bottom: 4px;
+}
+
+.annotation-stats-info li {
+  margin-bottom: 4px;
+}
+
+.annotation-stats-info-title {
+  word-break: normal;
+}
+
 .type-color-box {
   min-width: 10px;
   max-width: 10px;
