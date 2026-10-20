@@ -461,7 +461,9 @@ export default defineComponent({
               Run a background job that counts datasets, tracks, detections,
               videos, image sequences and individual images, confidence &ge; 1,
               curation classes (mostly manual / substantially corrected / mostly computed),
-              and label totals. Results are saved under your user
+              label totals, and active users (uploaded a dataset or modified/saved
+              tracks) over the last month, 3 months, 6 months, year and 5 years.
+              Results are saved under your user
               <code>Stats</code> folder so they remain after refresh.
             </p>
             <v-btn
@@ -556,6 +558,27 @@ export default defineComponent({
               <v-chip class="ma-1">
                 Empty: {{ annotationStatsReport.datasets.empty }}
               </v-chip>
+              <div
+                v-if="annotationStatsReport.activeUsers"
+                class="mt-3"
+              >
+                <span class="font-weight-bold mr-1">Active users:</span>
+                <v-chip class="ma-1" color="primary">
+                  Last month: {{ annotationStatsReport.activeUsers.lastMonth }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last 3 months: {{ annotationStatsReport.activeUsers.last3Months }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last 6 months: {{ annotationStatsReport.activeUsers.last6Months }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last year: {{ annotationStatsReport.activeUsers.lastYear }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last 5 years: {{ annotationStatsReport.activeUsers.last5Years }}
+                </v-chip>
+              </div>
               <div class="mt-4">
                 <v-btn
                   small
@@ -901,6 +924,35 @@ export default defineComponent({
               the type name of their highest-scoring confidence pair.
             </li>
           </ul>
+
+          <h3>Active users</h3>
+          <p>
+            A user is <strong>active</strong> in a window if, during that window, they did
+            either of the following. Each user is counted once per window, even if they
+            did both (or did one many times):
+          </p>
+          <ul>
+            <li>
+              <strong>Uploaded a dataset</strong> &mdash; created an annotate dataset
+              folder (the folder&rsquo;s <code>creatorId</code> / <code>created</code>).
+            </li>
+            <li>
+              <strong>Modified / saved a track</strong> &mdash; authored a revision-log
+              entry. Saving annotations writes one entry with the saving user and the
+              save time, and it is the only record tying a user and a time to a track
+              modification, so imports and clone initialization (which use the same
+              save path) count as well, while rolled-back saves no longer do.
+            </li>
+          </ul>
+          <p>
+            The five windows &mdash; last month, 3 months, 6 months, year and 5 years
+            (30 / 90 / 180 / 365 / 1825 days, matching the approximations used by the
+            stats above) &mdash; all end at the report&rsquo;s <em>generatedAt</em>
+            time and are nested, so the counts can only grow as the window widens.
+            Because of that nesting, only each user&rsquo;s most recent qualifying
+            activity is needed to place them in every window. Reports saved before
+            this was added have no active-user counts until they are regenerated.
+          </p>
 
           <h3>Limitations &mdash; read the corrected numbers with care</h3>
           <ul>

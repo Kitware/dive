@@ -1,18 +1,25 @@
+from datetime import datetime, timedelta, timezone
+
 from dive_server.crud_annotation_stats import (
+    ACTIVE_USER_WINDOWS,
     MAX_DATASETS_PER_BATCH,
     TRACK_BATCH_BUDGET,
     DatasetTrackRow,
     _chunked,
     _count_pipeline,
     _dataset_track_pipeline,
+    _dataset_uploader_pipeline,
     _image_count_pipeline,
     _label_pipeline,
     _live_track_match,
+    _track_editor_pipeline,
     classify_dataset_row,
     compute_annotation_stats,
+    fold_active_users,
     fold_dataset_rows,
     fold_media_counts,
     merge_label_counts,
+    merge_latest_activity,
     pack_datasets_by_track_budget,
 )
 
@@ -131,6 +138,85 @@ def test_compute_annotation_stats_injected_rows_default_media_without_mongo():
     )
     assert report['media'] == {'videos': 0, 'imageSequences': 0, 'images': 0}
     assert report['tracks']['detections'] == 0
+    # Fully-injected path must not touch Mongo for active users either.
+    assert report['activeUsers'] == {key: 0 for key, _ in ACTIVE_USER_WINDOWS}
+
+
+def test_compute_annotation_stats_preserves_injected_active_users():
+    active = {
+        'lastMonth': 1,
+        'last3Months': 2,
+        'last6Months': 3,
+        'lastYear': 4,
+        'last5Years': 5,
+    }
+    report = compute_annotation_stats(
+        dataset_rows=[_row(dataset='a', total=1, manual=1)],
+        labels=[],
+        dataset_folder_total=1,
+        active_users=active,
+    )
+    assert report['activeUsers'] == active
+
+
+def test_fold_active_users_counts_each_user_in_nested_windows():
+    now = datetime(2026, 10, 20, tzinfo=timezone.utc)
+    latest = {
+        'recent': now - timedelta(days=10),
+        # Exactly on the boundary counts (windows are inclusive).
+        'boundary': now - timedelta(days=30),
+        'two-months': now - timedelta(days=45),
+        'four-months': now - timedelta(days=120),
+        'nine-months': now - timedelta(days=200),
+        'two-years': now - timedelta(days=400),
+        'four-years': now - timedelta(days=1000),
+        'ancient': now - timedelta(days=2000),
+        # Mongo returns naive UTC datetimes; those must not crash or be skipped.
+        'naive': (now - timedelta(days=5)).replace(tzinfo=None),
+    }
+    assert fold_active_users(latest, now) == {
+        'lastMonth': 3,
+        'last3Months': 4,
+        'last6Months': 5,
+        'lastYear': 6,
+        'last5Years': 8,
+    }
+
+
+def test_merge_latest_activity_keeps_newest_across_sources():
+    older = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    newer = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    merged = merge_latest_activity(
+        [{'user': 'alice', 'latest': older}, {'user': 'bob', 'latest': older}],
+        # Same user as a different id type/string form must merge, not duplicate.
+        [{'user': 'alice', 'latest': newer}, {'user': None, 'latest': newer}],
+    )
+    assert merged == {'alice': newer, 'bob': older}
+
+
+def test_dataset_uploader_pipeline_groups_latest_upload_per_creator():
+    since = datetime(2021, 10, 20, tzinfo=timezone.utc)
+    pipeline = _dataset_uploader_pipeline(since)
+    match = pipeline[0]['$match']
+    assert match['created'] == {'$gte': since}
+    assert match['creatorId'] == {'$exists': True, '$ne': None}
+    # Only annotate dataset folders count as uploads.
+    assert any(key.startswith('meta.') for key in match)
+    assert pipeline[1] == {'$group': {'_id': '$creatorId', 'latest': {'$max': '$created'}}}
+    assert pipeline[2] == {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}}
+
+
+def test_track_editor_pipeline_groups_latest_revision_per_author():
+    since = datetime(2021, 10, 20, tzinfo=timezone.utc)
+    pipeline = _track_editor_pipeline(since)
+    assert pipeline[0] == {
+        '$match': {
+            'created': {'$gte': since},
+            'author_id': {'$exists': True, '$ne': None},
+        }
+    }
+    assert pipeline[1] == {'$group': {'_id': '$author_id', 'latest': {'$max': '$created'}}}
+    assert pipeline[2] == {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}}
 
 
 def _folder(folder_id, media_type, **extra):

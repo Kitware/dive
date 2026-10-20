@@ -1,7 +1,7 @@
 """Admin annotation inventory stats (datasets / tracks / labels / curation classes)."""
 
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import json
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, TypedDict
@@ -63,12 +63,35 @@ class LabelCount(TypedDict):
     count: int
 
 
+class ActiveUsersCounts(TypedDict):
+    # Distinct users whose most recent qualifying activity falls in each
+    # window, ending at the report's generation time. Windows are nested, so
+    # counts are monotonically non-decreasing down this list.
+    lastMonth: int
+    last3Months: int
+    last6Months: int
+    lastYear: int
+    last5Years: int
+
+
+# (report key, window length), shortest first. Day counts mirror the
+# approximations the admin stats endpoint already uses (90d ≈ 3 months, …).
+ACTIVE_USER_WINDOWS: Tuple[Tuple[str, timedelta], ...] = (
+    ('lastMonth', timedelta(days=30)),
+    ('last3Months', timedelta(days=90)),
+    ('last6Months', timedelta(days=180)),
+    ('lastYear', timedelta(days=365)),
+    ('last5Years', timedelta(days=5 * 365)),
+)
+
+
 class AnnotationStatsReport(TypedDict):
     generatedAt: str
     datasets: DatasetKindCounts
     tracks: TrackCounts
     media: MediaCounts
     labels: List[LabelCount]
+    activeUsers: ActiveUsersCounts
 
 
 class DatasetTrackRow(TypedDict):
@@ -142,6 +165,134 @@ def fold_dataset_rows(
     empty = max(int(dataset_folder_total) - datasets_with_tracks, 0)
     datasets['empty'] = empty
     return {'datasets': datasets, 'tracks': tracks}
+
+
+def _empty_active_users() -> ActiveUsersCounts:
+    return {
+        'lastMonth': 0,
+        'last3Months': 0,
+        'last6Months': 0,
+        'lastYear': 0,
+        'last5Years': 0,
+    }
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalize a stored timestamp to aware UTC (Mongo datetimes are naive UTC)."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def merge_latest_activity(
+    *row_groups: Iterable[Dict[str, Any]],
+) -> Dict[str, datetime]:
+    """
+    Merge ``{'user', 'latest'}`` aggregation rows into per-user latest activity.
+
+    Keys are stringified so the same person merges even if one source stores
+    their id as an ObjectId and another as a string.
+    """
+    merged: Dict[str, datetime] = {}
+    for rows in row_groups:
+        for row in rows:
+            user = row.get('user')
+            latest = row.get('latest')
+            if user is None or not isinstance(latest, datetime):
+                continue
+            key = str(user)
+            if key not in merged or _as_utc(latest) > _as_utc(merged[key]):
+                merged[key] = latest
+    return merged
+
+
+def fold_active_users(
+    latest_activity_by_user: Dict[str, datetime],
+    now: datetime,
+) -> ActiveUsersCounts:
+    """
+    Count distinct active users per window from each user's latest activity.
+
+    A user is *active* if they uploaded a dataset (created an annotate folder)
+    or modified/saved tracks (authored a revision-log entry). The windows are
+    nested and every window ends at ``now``, so a user belongs to a window
+    exactly when their *most recent* qualifying activity is inside it — older
+    activity never needs to be examined.
+    """
+    counts = _empty_active_users()
+    reference = _as_utc(now)
+    for latest in latest_activity_by_user.values():
+        latest_utc = _as_utc(latest)
+        for key, window in ACTIVE_USER_WINDOWS:
+            if latest_utc >= reference - window:
+                counts[key] = counts[key] + 1  # type: ignore[literal-required]
+    return counts
+
+
+def _dataset_uploader_pipeline(since: datetime) -> List[Dict[str, Any]]:
+    """Latest dataset-upload time per user (annotate folders they created)."""
+    return [
+        {
+            '$match': {
+                **_annotate_folder_query(),
+                'created': {'$gte': since},
+                'creatorId': {'$exists': True, '$ne': None},
+            }
+        },
+        {'$group': {'_id': '$creatorId', 'latest': {'$max': '$created'}}},
+        {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}},
+    ]
+
+
+def _track_editor_pipeline(since: datetime) -> List[Dict[str, Any]]:
+    """
+    Latest track-save time per user, from revision-log authorship.
+
+    ``save_annotations`` writes one revision-log entry (with ``author_id`` and
+    ``created``) whenever tracks/groups are added or deleted, so the log is the
+    only record tying a user and a time to a track modification. Entries are
+    also written for annotation imports and clone initialization, which go
+    through the same save path.
+    """
+    return [
+        {
+            '$match': {
+                'created': {'$gte': since},
+                'author_id': {'$exists': True, '$ne': None},
+            }
+        },
+        {'$group': {'_id': '$author_id', 'latest': {'$max': '$created'}}},
+        {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}},
+    ]
+
+
+def _compute_active_users(
+    *,
+    now: datetime,
+    progress: Optional[ProgressCallback],
+) -> ActiveUsersCounts:
+    """Live active-user counts: two grouped aggregations merged per user."""
+    from girder.models.folder import Folder
+
+    from dive_server.crud_annotation import RevisionLogItem
+
+    since = _as_utc(now) - ACTIVE_USER_WINDOWS[-1][1]
+    if progress is not None:
+        progress('Counting active users (dataset uploads and track saves)...')
+    upload_rows = list(
+        Folder().collection.aggregate(_dataset_uploader_pipeline(since), allowDiskUse=True)
+    )
+    editor_rows = list(
+        RevisionLogItem().collection.aggregate(_track_editor_pipeline(since), allowDiskUse=True)
+    )
+    counts = fold_active_users(merge_latest_activity(upload_rows, editor_rows), now)
+    if progress is not None:
+        detail = ', '.join(
+            f'{key}={counts[key]}'  # type: ignore[literal-required]
+            for key, _ in ACTIVE_USER_WINDOWS
+        )
+        progress(f'Active users ready: {detail}')
+    return counts
 
 
 def _top_pair_label_expr() -> Dict[str, Any]:
@@ -563,6 +714,8 @@ def compute_annotation_stats(
     labels: Optional[Iterable[LabelCount]] = None,
     dataset_folder_total: Optional[int] = None,
     media_counts: Optional[MediaCounts] = None,
+    active_users: Optional[ActiveUsersCounts] = None,
+    now: Optional[datetime] = None,
     progress: Optional[ProgressCallback] = None,
 ) -> AnnotationStatsReport:
     """
@@ -660,13 +813,26 @@ def compute_annotation_stats(
     else:
         labels = list(labels)
 
+    if active_users is None:
+        if folder_docs is not None:
+            active_users = _compute_active_users(
+                now=now or datetime.now(timezone.utc),
+                progress=progress,
+            )
+        else:
+            # Fully-injected (unit test) path: no Mongo access.
+            active_users = _empty_active_users()
+
     _progress('Building report payload...')
     return {
-        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'generatedAt': (
+            _as_utc(now) if now is not None else datetime.now(timezone.utc)
+        ).isoformat(),
         'datasets': folded['datasets'],
         'tracks': folded['tracks'],
         'media': media_counts,
         'labels': labels,
+        'activeUsers': active_users,
     }
 
 

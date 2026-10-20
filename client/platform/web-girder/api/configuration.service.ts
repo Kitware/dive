@@ -87,6 +87,17 @@ export interface AnnotationStatsReport {
     images: number;
   };
   labels: AnnotationStatsLabelCount[];
+  /**
+   * Distinct users who uploaded a dataset or modified/saved tracks in each
+   * window ending at `generatedAt`; absent in reports saved before this existed.
+   */
+  activeUsers?: {
+    lastMonth: number;
+    last3Months: number;
+    last6Months: number;
+    lastYear: number;
+    last5Years: number;
+  };
 }
 
 export interface AnnotationStatsJobResponse {
