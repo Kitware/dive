@@ -44,6 +44,20 @@ export default defineComponent({
     const annotationStatsReport = ref<AnnotationStatsReport | null>(null);
     const showAnnotationStatsInfo = ref(false);
 
+    const curationBreakdownRows = computed(() => {
+      const breakdown = annotationStatsReport.value?.curationBreakdown;
+      if (!breakdown) return [];
+      const classes: Array<[string, string]> = [
+        ['mostlyManual', 'Mostly manual'],
+        ['mixedSubstantialCorrections', 'Mixed / corrected'],
+        ['mostlyComputed', 'Mostly computed'],
+        ['empty', 'Empty'],
+      ];
+      return classes
+        .filter(([key]) => breakdown[key as keyof typeof breakdown])
+        .map(([key, label]) => ({ key, label, ...breakdown[key as keyof typeof breakdown] }));
+    });
+
     const totalJobs = computed(() => {
       if (statsTableData.value) {
         return Object.values(statsTableData.value.jobs).reduce((prev, current) => (prev + current), 0);
@@ -256,6 +270,7 @@ export default defineComponent({
       annotationStatsJobId,
       annotationStatsError,
       annotationStatsReport,
+      curationBreakdownRows,
       runAnnotationStats,
       downloadAnnotationStats,
       showAnnotationStatsInfo,
@@ -460,9 +475,11 @@ export default defineComponent({
             <p class="mb-3">
               Run a background job that counts datasets, tracks, detections,
               videos, image sequences and individual images, confidence &ge; 1,
-              curation classes (mostly manual / substantially corrected / mostly computed),
-              label totals, and active users (uploaded a dataset or modified/saved
-              tracks) over the last month, 3 months, 6 months, year and 5 years.
+              curation classes (mostly manual / substantially corrected / mostly computed)
+              with a per-class breakdown by geometry type, full-frame, polygon / point,
+              tracks vs. detections and media, label totals, and active users (uploaded
+              a dataset or modified/saved tracks) over the last month, 3 months,
+              6 months, year and 5 years.
               Results are saved under your user
               <code>Stats</code> folder so they remain after refresh.
             </p>
@@ -558,6 +575,60 @@ export default defineComponent({
               <v-chip class="ma-1">
                 Empty: {{ annotationStatsReport.datasets.empty }}
               </v-chip>
+              <div
+                v-if="curationBreakdownRows.length"
+                class="mt-4"
+              >
+                <div class="font-weight-bold mb-2">
+                  Breakdown by curation class
+                </div>
+                <v-simple-table dense>
+                  <template #default>
+                    <thead>
+                      <tr>
+                        <th>Class</th>
+                        <th>Datasets</th>
+                        <th>Tracks</th>
+                        <th>Detections</th>
+                        <th>Polygon (det / tracks)</th>
+                        <th>Point (det / tracks)</th>
+                        <th>Line (det / tracks)</th>
+                        <th>Bounds only (det / tracks)</th>
+                        <th>Full-frame (det / tracks)</th>
+                        <th>Videos</th>
+                        <th>Image sequences</th>
+                        <th>Images</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="row in curationBreakdownRows"
+                        :key="row.key"
+                      >
+                        <td class="font-weight-medium">
+                          {{ row.label }}
+                        </td>
+                        <td>{{ row.datasets }}</td>
+                        <td>{{ row.tracks }}</td>
+                        <td>{{ row.detections }}</td>
+                        <td>{{ row.detectionsWithPolygon }} / {{ row.tracksWithPolygon }}</td>
+                        <td>{{ row.detectionsWithPoint }} / {{ row.tracksWithPoint }}</td>
+                        <td>{{ row.detectionsWithLineString }} / {{ row.tracksWithLineString }}</td>
+                        <td>{{ row.detectionsBoundsOnly }} / {{ row.tracksBoundsOnly }}</td>
+                        <td>{{ row.fullFrameDetections }} / {{ row.tracksFullFrame }}</td>
+                        <td>{{ row.media.videos }}</td>
+                        <td>{{ row.media.imageSequences }}</td>
+                        <td>{{ row.media.images }}</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+                <div class="text-caption mt-1">
+                  Geometry counts are per detection and can overlap (a detection may have
+                  both a polygon and points); bounds-only is exclusive. Full-frame is a
+                  proxy: bounds anchored at (0, 0) with positive extent.
+                </div>
+              </div>
               <div
                 v-if="annotationStatsReport.activeUsers"
                 class="mt-3"
@@ -802,9 +873,13 @@ export default defineComponent({
                     Mostly manual
                   </td>
                   <td>
-                    <code>T &ge; 5</code> and <code>M / T &ge; 90%</code>
+                    (<code>T &gt; 10</code> and <code>M / T &ge; 25%</code>) or
+                    (<code>T &le; 10</code> and <code>M = T</code>)
                   </td>
-                  <td>Primarily hand-annotated</td>
+                  <td>
+                    At least a quarter hand-annotated in a larger dataset, or a
+                    small dataset that is entirely hand-annotated
+                  </td>
                 </tr>
                 <tr>
                   <td class="font-weight-medium">
@@ -854,13 +929,19 @@ export default defineComponent({
                 <tr>
                   <td>20 total, 19 manual</td>
                   <td>Mostly manual</td>
-                  <td>19 / 20 = 95% manual, and at least 5 tracks</td>
+                  <td>19 / 20 = 95% manual, above the 25% bar and more than 10 tracks</td>
+                </tr>
+                <tr>
+                  <td>20 total, 5 manual</td>
+                  <td>Mostly manual</td>
+                  <td>5 / 20 = 25% manual, exactly at the bar, and more than 10 tracks</td>
                 </tr>
                 <tr>
                   <td>100 total, 5 manual, 30 corrected</td>
                   <td>Mixed / corrected</td>
                   <td>
-                    30 / 95 computed = ~32% corrected, above the 25% / 15-track bars
+                    Only 5% manual, but 30 / 95 computed = ~32% corrected, above
+                    the 25% / 15-track bars
                   </td>
                 </tr>
                 <tr>
@@ -870,15 +951,63 @@ export default defineComponent({
                 </tr>
                 <tr>
                   <td>4 total, all 4 manual</td>
+                  <td>Mostly manual</td>
+                  <td>Small dataset (&le; 10 tracks) that is entirely manual</td>
+                </tr>
+                <tr>
+                  <td>8 total, 7 manual</td>
                   <td>Mostly computed</td>
                   <td>
-                    Fewer than the 5-track minimum for &ldquo;mostly manual&rdquo;,
-                    despite being 100% manual
+                    88% manual, but a small dataset (&le; 10 tracks) only counts
+                    as mostly manual when <em>all</em> of its tracks are manual,
+                    and it has too few computed tracks to be mixed / corrected
                   </td>
                 </tr>
               </tbody>
             </template>
           </v-simple-table>
+
+          <h3>Breakdown by curation class</h3>
+          <p>
+            The breakdown table (and <code>curationBreakdown</code> in the downloaded
+            JSON) repeats the counts below for each curation class, including
+            <em>empty</em> so the per-class media totals sum to the report totals.
+            Media is attributed to the class of the dataset that owns it; a dataset
+            with no live tracks is in the empty class.
+          </p>
+          <ul>
+            <li>
+              <strong>Tracks vs. detections</strong> &mdash; tracks are the live
+              tracks in datasets of that class; detections are their stored
+              features (one per frame, as in the headline total).
+            </li>
+            <li>
+              <strong>Geometry type</strong> &mdash; per detection, counted from its
+              GeoJSON geometry: <code>Polygon</code>, <code>Point</code> (including
+              stored head/tail points) and <code>LineString</code>. A detection can
+              carry several types, so these counts overlap and can sum to more
+              than the detection total. <strong>Bounds only</strong> is exclusive:
+              detections with no geometry at all, only a bounding box.
+            </li>
+            <li>
+              <strong>With polygons / points</strong> &mdash; shown as
+              <em>detections / tracks</em>: detections carrying that geometry, and
+              tracks with at least one such detection (bounds-only tracks are
+              those whose detections are all bounds-only).
+            </li>
+            <li>
+              <strong>Full-frame</strong> &mdash; detections whose bounds start at
+              <code>(0, 0)</code> with positive width and height, and tracks with
+              at least one such detection. This is a proxy: the exact media size
+              is not stored on track records, so a box that merely touches the
+              origin can count as well (see limitations).
+            </li>
+            <li>
+              <strong>Videos / image sequences / images</strong> &mdash; the same
+              logical media counts as the headline chips, split by the owning
+              dataset&rsquo;s curation class.
+            </li>
+          </ul>
 
           <h3>Totals and labels</h3>
           <ul>
@@ -975,9 +1104,17 @@ export default defineComponent({
             </li>
             <li>
               <strong>Thresholds are heuristics.</strong> A dataset just under a cutoff
-              (e.g. 14 corrected tracks, or 24% corrected) lands in
-              &ldquo;mostly computed&rdquo;, so small datasets in particular can sit in
-              a category that understates the human effort involved.
+              (e.g. 14 corrected tracks, 24% corrected, or 24% manual in a larger
+              dataset) lands in &ldquo;mostly computed&rdquo;, so small datasets in
+              particular can sit in a category that understates the human effort
+              involved.
+            </li>
+            <li>
+              <strong>Full-frame is an origin proxy.</strong> Track records do not
+              store the media width / height, so a &ldquo;full-frame&rdquo; detection
+              is one whose bounds start at <code>(0, 0)</code> with positive extent
+              &mdash; the shape full-frame classifier output takes &mdash; rather
+              than a verified match against the frame size.
             </li>
           </ul>
         </v-card-text>
