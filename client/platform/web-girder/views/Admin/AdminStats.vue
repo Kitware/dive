@@ -307,6 +307,11 @@ export default defineComponent({
           </v-chip>
         </div>
         <div>
+          <v-chip class="my-2" color="info">
+            Total Users: <span class="ml-2"> {{ statsTableData?.totalUsers }}</span>
+          </v-chip>
+        </div>
+        <div>
           <v-chip class="my-2" color="warning">
             New Users: <span class="ml-2"> {{ statsTableData?.newUsers }}</span>
           </v-chip>
@@ -453,7 +458,8 @@ export default defineComponent({
           </v-card-title>
           <v-card-text>
             <p class="mb-3">
-              Run a background job that counts datasets, tracks, confidence &ge; 1,
+              Run a background job that counts datasets, tracks, detections,
+              videos, image sequences and individual images, confidence &ge; 1,
               curation classes (mostly manual / substantially corrected / mostly computed),
               and label totals. Results are saved under your user
               <code>Stats</code> folder so they remain after refresh.
@@ -514,8 +520,26 @@ export default defineComponent({
               <v-chip class="ma-1" color="primary">
                 Datasets: {{ annotationStatsReport.datasets.total }}
               </v-chip>
+              <template v-if="annotationStatsReport.media">
+                <v-chip class="ma-1" color="deep-purple">
+                  Videos: {{ annotationStatsReport.media.videos }}
+                </v-chip>
+                <v-chip class="ma-1" color="teal">
+                  Image sequences: {{ annotationStatsReport.media.imageSequences }}
+                </v-chip>
+                <v-chip class="ma-1" color="cyan">
+                  Images: {{ annotationStatsReport.media.images }}
+                </v-chip>
+              </template>
               <v-chip class="ma-1" color="info">
                 Tracks: {{ annotationStatsReport.tracks.total }}
+              </v-chip>
+              <v-chip
+                v-if="annotationStatsReport.tracks.detections !== undefined"
+                class="ma-1"
+                color="indigo"
+              >
+                Detections: {{ annotationStatsReport.tracks.detections }}
               </v-chip>
               <v-chip class="ma-1" color="success">
                 Confidence &ge; 1: {{ annotationStatsReport.tracks.confidenceGte1 }}
@@ -683,6 +707,19 @@ export default defineComponent({
                 </tr>
                 <tr>
                   <td class="font-weight-medium">
+                    Detections
+                  </td>
+                  <td>
+                    Sum of <code>$size(features)</code> over all live tracks, folded
+                    into the same aggregation pass as the other track counters
+                  </td>
+                  <td>
+                    Each stored <code>Feature</code> is a single detection (one
+                    frame&rsquo;s bounds / geometry on a track)
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
                     Manual (<code>M</code>)
                   </td>
                   <td><code>attributes.userCreated === true</code></td>
@@ -827,7 +864,37 @@ export default defineComponent({
               ones; the four category chips always sum to this total.
             </li>
             <li>
+              <strong>Videos</strong> counts one logical video per video dataset
+              (and per camera of a multicam dataset), from the folder&rsquo;s
+              <code>meta.type</code> &mdash; <em>not</em> per file. A folder holding
+              both an original video and its transcoded
+              <code>*.transcoded.mp4</code> derivative therefore counts once, as
+              does a web-safe original whose transcoding was skipped.
+            </li>
+            <li>
+              <strong>Image sequences</strong> counts one per image-sequence dataset
+              (and per camera of a multicam dataset), also from
+              <code>meta.type</code>. The multicam parent folder itself counts as
+              neither a video nor an image sequence.
+            </li>
+            <li>
+              <strong>Images</strong> counts the individual image files in
+              image-sequence and large-image datasets, in a single grouped pass
+              over those folders&rsquo; items (all valid image / large-image
+              extensions, so an original counts once and its converted
+              replacement &mdash; which deletes the original &mdash; also counts
+              once). A cloned dataset&rsquo;s images are resolved through its
+              source folder and count toward the clone, just as its copied
+              tracks do. Large-image files count as images but their datasets
+              are not image sequences.
+            </li>
+            <li>
               <strong>Tracks</strong> counts live tracks across all datasets.
+            </li>
+            <li>
+              <strong>Detections</strong> is the total number of stored features
+              across those live tracks &mdash; one feature is one detection on
+              one frame.
             </li>
             <li>
               <strong>Labels</strong> (in the downloaded JSON) group live tracks by

@@ -437,7 +437,9 @@ class ConfigurationResource(Resource):
 
         user_map = {str(user["_id"]): user["login"] for user in User().find({})}
 
-        table_stats = {'datasets': 0, 'jobs': {}, 'newUsers': 0}
+        # Total users is all-time (not date-range filtered); reusing the
+        # already-built user_map avoids a second scan of the user collection.
+        table_stats = {'datasets': 0, 'jobs': {}, 'newUsers': 0, 'totalUsers': len(user_map)}
         group_by_user = {'datasets': 0, 'jobs': 0}
         group_by_month = {'datasets': {}, 'jobs': {}, 'newUsers': {}}
         # Query logic based on groupBy parameter
