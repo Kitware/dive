@@ -10,7 +10,7 @@ from dive_server.crud_annotation_stats import compute_annotation_stats, save_ann
 from dive_tasks.manager import patch_manager
 
 # Approximate stage count for the Girder progress bar (logs still list every step).
-PROGRESS_TOTAL = 9
+PROGRESS_TOTAL = 13
 
 
 def _girder_job_id(manager: JobManager, task: Task):
@@ -78,7 +78,17 @@ def run_annotation_stats_job(self: Task) -> None:
             f"{report['datasets']['total']} datasets, "
             f"{report['tracks']['total']} tracks, "
             f"{report['tracks']['confidenceGte1']} confidence>=1, "
-            f"{len(report['labels'])} labels\n"
+            f"{report['tracks']['detections']} detections, "
+            f"{report['media']['videos']} videos, "
+            f"{report['media']['imageSequences']} image sequences, "
+            f"{report['media']['images']} images, "
+            f"{len(report['labels'])} labels, "
+            f"active users (1mo/3mo/6mo/1yr/5yr)="
+            f"{report['activeUsers']['lastMonth']}/"
+            f"{report['activeUsers']['last3Months']}/"
+            f"{report['activeUsers']['last6Months']}/"
+            f"{report['activeUsers']['lastYear']}/"
+            f"{report['activeUsers']['last5Years']}\n"
         )
         manager.updateProgress(
             total=PROGRESS_TOTAL,

@@ -1,16 +1,25 @@
+from datetime import datetime, timedelta, timezone
+
 from dive_server.crud_annotation_stats import (
+    ACTIVE_USER_WINDOWS,
     MAX_DATASETS_PER_BATCH,
     TRACK_BATCH_BUDGET,
     DatasetTrackRow,
     _chunked,
     _count_pipeline,
     _dataset_track_pipeline,
+    _dataset_uploader_pipeline,
+    _image_count_pipeline,
     _label_pipeline,
     _live_track_match,
+    _track_editor_pipeline,
     classify_dataset_row,
     compute_annotation_stats,
+    fold_active_users,
     fold_dataset_rows,
+    fold_media_counts,
     merge_label_counts,
+    merge_latest_activity,
     pack_datasets_by_track_budget,
 )
 
@@ -22,6 +31,7 @@ def _row(**overrides) -> DatasetTrackRow:
         'manual': 0,
         'conf1NonManual': 0,
         'confidenceGte1': 0,
+        'detections': 0,
     }
     base.update(overrides)  # type: ignore[typeddict-item]
     return base
@@ -71,6 +81,7 @@ def test_fold_dataset_rows_totals_and_empty():
             total=20,
             manual=20,
             confidenceGte1=20,
+            detections=40,
         ),
         _row(
             dataset='b',
@@ -78,12 +89,14 @@ def test_fold_dataset_rows_totals_and_empty():
             manual=0,
             conf1NonManual=30,
             confidenceGte1=30,
+            detections=250,
         ),
         _row(
             dataset='c',
             total=50,
             manual=0,
             confidenceGte1=0,
+            detections=50,
         ),
     ]
     folded = fold_dataset_rows(rows, dataset_folder_total=5)
@@ -94,23 +107,171 @@ def test_fold_dataset_rows_totals_and_empty():
     assert folded['datasets']['empty'] == 2
     assert folded['tracks']['total'] == 170
     assert folded['tracks']['confidenceGte1'] == 50
+    assert folded['tracks']['detections'] == 340
 
 
 def test_compute_annotation_stats_with_injected_rows():
     report = compute_annotation_stats(
         dataset_rows=[
-            _row(dataset='a', total=10, manual=10, confidenceGte1=10),
+            _row(dataset='a', total=10, manual=10, confidenceGte1=10, detections=33),
         ],
         labels=[{'label': 'fish', 'count': 7}, {'label': 'shark', 'count': 3}],
         dataset_folder_total=3,
+        media_counts={'videos': 2, 'imageSequences': 1, 'images': 42},
     )
     assert report['datasets']['total'] == 3
     assert report['datasets']['mostlyManual'] == 1
     assert report['datasets']['empty'] == 2
     assert report['tracks']['total'] == 10
     assert report['tracks']['confidenceGte1'] == 10
+    assert report['tracks']['detections'] == 33
+    assert report['media'] == {'videos': 2, 'imageSequences': 1, 'images': 42}
     assert report['labels'][0]['label'] == 'fish'
     assert report['generatedAt']
+
+
+def test_compute_annotation_stats_injected_rows_default_media_without_mongo():
+    report = compute_annotation_stats(
+        dataset_rows=[_row(dataset='a', total=1, manual=1)],
+        labels=[],
+        dataset_folder_total=1,
+    )
+    assert report['media'] == {'videos': 0, 'imageSequences': 0, 'images': 0}
+    assert report['tracks']['detections'] == 0
+    # Fully-injected path must not touch Mongo for active users either.
+    assert report['activeUsers'] == {key: 0 for key, _ in ACTIVE_USER_WINDOWS}
+
+
+def test_compute_annotation_stats_preserves_injected_active_users():
+    active = {
+        'lastMonth': 1,
+        'last3Months': 2,
+        'last6Months': 3,
+        'lastYear': 4,
+        'last5Years': 5,
+    }
+    report = compute_annotation_stats(
+        dataset_rows=[_row(dataset='a', total=1, manual=1)],
+        labels=[],
+        dataset_folder_total=1,
+        active_users=active,
+    )
+    assert report['activeUsers'] == active
+
+
+def test_fold_active_users_counts_each_user_in_nested_windows():
+    now = datetime(2026, 10, 20, tzinfo=timezone.utc)
+    latest = {
+        'recent': now - timedelta(days=10),
+        # Exactly on the boundary counts (windows are inclusive).
+        'boundary': now - timedelta(days=30),
+        'two-months': now - timedelta(days=45),
+        'four-months': now - timedelta(days=120),
+        'nine-months': now - timedelta(days=200),
+        'two-years': now - timedelta(days=400),
+        'four-years': now - timedelta(days=1000),
+        'ancient': now - timedelta(days=2000),
+        # Mongo returns naive UTC datetimes; those must not crash or be skipped.
+        'naive': (now - timedelta(days=5)).replace(tzinfo=None),
+    }
+    assert fold_active_users(latest, now) == {
+        'lastMonth': 3,
+        'last3Months': 4,
+        'last6Months': 5,
+        'lastYear': 6,
+        'last5Years': 8,
+    }
+
+
+def test_merge_latest_activity_keeps_newest_across_sources():
+    older = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    newer = datetime(2026, 9, 1, tzinfo=timezone.utc)
+    merged = merge_latest_activity(
+        [{'user': 'alice', 'latest': older}, {'user': 'bob', 'latest': older}],
+        # Same user as a different id type/string form must merge, not duplicate.
+        [{'user': 'alice', 'latest': newer}, {'user': None, 'latest': newer}],
+    )
+    assert merged == {'alice': newer, 'bob': older}
+
+
+def test_dataset_uploader_pipeline_groups_latest_upload_per_creator():
+    since = datetime(2021, 10, 20, tzinfo=timezone.utc)
+    pipeline = _dataset_uploader_pipeline(since)
+    match = pipeline[0]['$match']
+    assert match['created'] == {'$gte': since}
+    assert match['creatorId'] == {'$exists': True, '$ne': None}
+    # Only annotate dataset folders count as uploads.
+    assert any(key.startswith('meta.') for key in match)
+    assert pipeline[1] == {'$group': {'_id': '$creatorId', 'latest': {'$max': '$created'}}}
+    assert pipeline[2] == {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}}
+
+
+def test_track_editor_pipeline_groups_latest_revision_per_author():
+    since = datetime(2021, 10, 20, tzinfo=timezone.utc)
+    pipeline = _track_editor_pipeline(since)
+    assert pipeline[0] == {
+        '$match': {
+            'created': {'$gte': since},
+            'author_id': {'$exists': True, '$ne': None},
+        }
+    }
+    assert pipeline[1] == {'$group': {'_id': '$author_id', 'latest': {'$max': '$created'}}}
+    assert pipeline[2] == {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}}
+
+
+def _folder(folder_id, media_type, **extra):
+    doc = {'_id': folder_id, 'meta': {'type': media_type}}
+    doc.update(extra)
+    return doc
+
+
+def test_fold_media_counts_counts_logical_media_not_files():
+    # A video folder holds an original + transcoded file on disk, but folding
+    # is per folder (meta.type), so it is exactly one video either way. The
+    # multicam parent (type=multi) counts as neither; each camera does.
+    folders = [
+        _folder('video-1', 'video'),
+        _folder('seq-1', 'image-sequence'),
+        _folder('large-1', 'large-image'),
+        _folder('multi-parent', 'multi'),
+        _folder('cam-left', 'video'),
+        _folder('cam-right', 'image-sequence'),
+    ]
+    media = fold_media_counts(folders, {'seq-1': 10, 'large-1': 1, 'cam-right': 5})
+    assert media == {'videos': 2, 'imageSequences': 2, 'images': 16}
+
+
+def test_fold_media_counts_clone_images_resolve_to_source_root():
+    folders = [
+        _folder('source', 'image-sequence'),
+        _folder('clone', 'image-sequence', foreign_media_id='source'),
+        _folder('clone-of-clone', 'image-sequence', foreign_media_id='clone'),
+    ]
+    media = fold_media_counts(folders, {'source': 7})
+    assert media['imageSequences'] == 3
+    # Each clone contributes its source's images, like its copied tracks.
+    assert media['images'] == 21
+
+
+def test_fold_media_counts_no_image_counts():
+    media = fold_media_counts([_folder('v', 'video'), _folder('s', 'image-sequence')])
+    assert media == {'videos': 1, 'imageSequences': 1, 'images': 0}
+
+
+def test_image_count_pipeline_groups_by_folder():
+    ids = ['ds1', 'ds2']
+    pipeline = _image_count_pipeline(ids)
+    assert pipeline[0]['$match']['folderId'] == {'$in': ids}
+    assert pipeline[0]['$match']['lowerName']['$regex']
+    assert pipeline[1] == {'$group': {'_id': '$folderId', 'n': {'$sum': 1}}}
+
+
+def test_dataset_track_pipeline_counts_detections_from_features_size():
+    pipeline = _dataset_track_pipeline(['ds1'])
+    project = pipeline[1]['$project']
+    assert project['detections'] == {'$size': {'$ifNull': ['$features', []]}}
+    group = pipeline[2]['$group']
+    assert group['detections'] == {'$sum': '$detections'}
 
 
 def test_live_track_match_scopes_to_dataset_ids():

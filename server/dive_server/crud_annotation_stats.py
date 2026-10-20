@@ -1,7 +1,7 @@
 """Admin annotation inventory stats (datasets / tracks / labels / curation classes)."""
 
 from collections import Counter
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from io import BytesIO
 import json
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Tuple, TypedDict
@@ -43,6 +43,19 @@ class DatasetKindCounts(TypedDict):
 class TrackCounts(TypedDict):
     total: int
     confidenceGte1: int
+    # Sum of ``len(features)`` over live tracks; each stored Feature is one detection.
+    detections: int
+
+
+class MediaCounts(TypedDict):
+    # Logical videos: one per video dataset / multicam camera folder (see
+    # fold_media_counts) — never one per file, so an original + its transcoded
+    # derivative count once.
+    videos: int
+    # Datasets / multicam camera folders whose type is image-sequence.
+    imageSequences: int
+    # Individual image files across image-sequence and large-image datasets.
+    images: int
 
 
 class LabelCount(TypedDict):
@@ -50,11 +63,35 @@ class LabelCount(TypedDict):
     count: int
 
 
+class ActiveUsersCounts(TypedDict):
+    # Distinct users whose most recent qualifying activity falls in each
+    # window, ending at the report's generation time. Windows are nested, so
+    # counts are monotonically non-decreasing down this list.
+    lastMonth: int
+    last3Months: int
+    last6Months: int
+    lastYear: int
+    last5Years: int
+
+
+# (report key, window length), shortest first. Day counts mirror the
+# approximations the admin stats endpoint already uses (90d ≈ 3 months, …).
+ACTIVE_USER_WINDOWS: Tuple[Tuple[str, timedelta], ...] = (
+    ('lastMonth', timedelta(days=30)),
+    ('last3Months', timedelta(days=90)),
+    ('last6Months', timedelta(days=180)),
+    ('lastYear', timedelta(days=365)),
+    ('last5Years', timedelta(days=5 * 365)),
+)
+
+
 class AnnotationStatsReport(TypedDict):
     generatedAt: str
     datasets: DatasetKindCounts
     tracks: TrackCounts
+    media: MediaCounts
     labels: List[LabelCount]
+    activeUsers: ActiveUsersCounts
 
 
 class DatasetTrackRow(TypedDict):
@@ -66,6 +103,7 @@ class DatasetTrackRow(TypedDict):
     # Non-manual tracks whose first confidence pair is >= 1 (accept / type-set proxy)
     conf1NonManual: int
     confidenceGte1: int
+    detections: int
 
 
 def classify_dataset_row(row: DatasetTrackRow) -> str:
@@ -109,6 +147,7 @@ def fold_dataset_rows(
     tracks: TrackCounts = {
         'total': 0,
         'confidenceGte1': 0,
+        'detections': 0,
     }
     datasets_with_tracks = 0
 
@@ -119,12 +158,141 @@ def fold_dataset_rows(
         datasets_with_tracks += 1
         tracks['total'] += total
         tracks['confidenceGte1'] += int(row.get('confidenceGte1') or 0)
+        tracks['detections'] += int(row.get('detections') or 0)
         kind = classify_dataset_row(row)
         datasets[kind] = datasets[kind] + 1  # type: ignore[literal-required]
 
     empty = max(int(dataset_folder_total) - datasets_with_tracks, 0)
     datasets['empty'] = empty
     return {'datasets': datasets, 'tracks': tracks}
+
+
+def _empty_active_users() -> ActiveUsersCounts:
+    return {
+        'lastMonth': 0,
+        'last3Months': 0,
+        'last6Months': 0,
+        'lastYear': 0,
+        'last5Years': 0,
+    }
+
+
+def _as_utc(value: datetime) -> datetime:
+    """Normalize a stored timestamp to aware UTC (Mongo datetimes are naive UTC)."""
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc)
+    return value.astimezone(timezone.utc)
+
+
+def merge_latest_activity(
+    *row_groups: Iterable[Dict[str, Any]],
+) -> Dict[str, datetime]:
+    """
+    Merge ``{'user', 'latest'}`` aggregation rows into per-user latest activity.
+
+    Keys are stringified so the same person merges even if one source stores
+    their id as an ObjectId and another as a string.
+    """
+    merged: Dict[str, datetime] = {}
+    for rows in row_groups:
+        for row in rows:
+            user = row.get('user')
+            latest = row.get('latest')
+            if user is None or not isinstance(latest, datetime):
+                continue
+            key = str(user)
+            if key not in merged or _as_utc(latest) > _as_utc(merged[key]):
+                merged[key] = latest
+    return merged
+
+
+def fold_active_users(
+    latest_activity_by_user: Dict[str, datetime],
+    now: datetime,
+) -> ActiveUsersCounts:
+    """
+    Count distinct active users per window from each user's latest activity.
+
+    A user is *active* if they uploaded a dataset (created an annotate folder)
+    or modified/saved tracks (authored a revision-log entry). The windows are
+    nested and every window ends at ``now``, so a user belongs to a window
+    exactly when their *most recent* qualifying activity is inside it — older
+    activity never needs to be examined.
+    """
+    counts = _empty_active_users()
+    reference = _as_utc(now)
+    for latest in latest_activity_by_user.values():
+        latest_utc = _as_utc(latest)
+        for key, window in ACTIVE_USER_WINDOWS:
+            if latest_utc >= reference - window:
+                counts[key] = counts[key] + 1  # type: ignore[literal-required]
+    return counts
+
+
+def _dataset_uploader_pipeline(since: datetime) -> List[Dict[str, Any]]:
+    """Latest dataset-upload time per user (annotate folders they created)."""
+    return [
+        {
+            '$match': {
+                **_annotate_folder_query(),
+                'created': {'$gte': since},
+                'creatorId': {'$exists': True, '$ne': None},
+            }
+        },
+        {'$group': {'_id': '$creatorId', 'latest': {'$max': '$created'}}},
+        {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}},
+    ]
+
+
+def _track_editor_pipeline(since: datetime) -> List[Dict[str, Any]]:
+    """
+    Latest track-save time per user, from revision-log authorship.
+
+    ``save_annotations`` writes one revision-log entry (with ``author_id`` and
+    ``created``) whenever tracks/groups are added or deleted, so the log is the
+    only record tying a user and a time to a track modification. Entries are
+    also written for annotation imports and clone initialization, which go
+    through the same save path.
+    """
+    return [
+        {
+            '$match': {
+                'created': {'$gte': since},
+                'author_id': {'$exists': True, '$ne': None},
+            }
+        },
+        {'$group': {'_id': '$author_id', 'latest': {'$max': '$created'}}},
+        {'$project': {'_id': 0, 'user': '$_id', 'latest': 1}},
+    ]
+
+
+def _compute_active_users(
+    *,
+    now: datetime,
+    progress: Optional[ProgressCallback],
+) -> ActiveUsersCounts:
+    """Live active-user counts: two grouped aggregations merged per user."""
+    from girder.models.folder import Folder
+
+    from dive_server.crud_annotation import RevisionLogItem
+
+    since = _as_utc(now) - ACTIVE_USER_WINDOWS[-1][1]
+    if progress is not None:
+        progress('Counting active users (dataset uploads and track saves)...')
+    upload_rows = list(
+        Folder().collection.aggregate(_dataset_uploader_pipeline(since), allowDiskUse=True)
+    )
+    editor_rows = list(
+        RevisionLogItem().collection.aggregate(_track_editor_pipeline(since), allowDiskUse=True)
+    )
+    counts = fold_active_users(merge_latest_activity(upload_rows, editor_rows), now)
+    if progress is not None:
+        detail = ', '.join(
+            f'{key}={counts[key]}'  # type: ignore[literal-required]
+            for key, _ in ACTIVE_USER_WINDOWS
+        )
+        progress(f'Active users ready: {detail}')
+    return counts
 
 
 def _top_pair_label_expr() -> Dict[str, Any]:
@@ -172,9 +340,11 @@ def _live_track_match(dataset_ids: Sequence[Any]) -> Dict[str, Any]:
 def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
     """Aggregate live tracks per dataset with curation signals.
 
-    Only reads ``attributes`` / ``confidencePairs`` — not ``features`` — so the
-    scan stays viable on very large ``trackItem`` collections. Scoped to
-    ``dataset_ids`` so Mongo can use the existing (dataset, …) index.
+    Reads ``attributes`` / ``confidencePairs`` plus the size of ``features``
+    (each stored Feature is one detection, so ``$size`` is the per-track
+    detection count — no per-feature scan in Python). Scoped to
+    ``dataset_ids`` so Mongo can use the existing (dataset, …) index, and
+    folded into this existing pass rather than a second trackItem scan.
     """
     return [
         {'$match': _live_track_match(dataset_ids)},
@@ -184,6 +354,7 @@ def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
                 'dataset': 1,
                 'userCreated': {'$eq': ['$attributes.userCreated', True]},
                 'firstConf': {'$arrayElemAt': [{'$arrayElemAt': ['$confidencePairs', 0]}, 1]},
+                'detections': {'$size': {'$ifNull': ['$features', []]}},
             }
         },
         {
@@ -206,6 +377,7 @@ def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
                     }
                 },
                 'confidenceGte1': {'$sum': {'$cond': [{'$gte': ['$firstConf', 1]}, 1, 0]}},
+                'detections': {'$sum': '$detections'},
             }
         },
         {
@@ -216,6 +388,7 @@ def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
                 'manual': 1,
                 'conf1NonManual': 1,
                 'confidenceGte1': 1,
+                'detections': 1,
             }
         },
     ]
@@ -237,11 +410,166 @@ def _annotate_folder_query() -> Dict[str, Any]:
     return {f'meta.{constants.DatasetMarker}': {'$in': TRUTHY_META_VALUES}}
 
 
-def _annotate_folder_ids() -> List[Any]:
-    """Return ``_id``s of all annotate dataset folders."""
+def _annotate_folders() -> List[Dict[str, Any]]:
+    """Return annotate dataset folders with only the fields media counting needs.
+
+    Projecting ``meta.type`` (plus the clone pointer) keeps this to one cheap
+    Folder query that also supplies the folder IDs / total, instead of a
+    per-dataset ``get_media``-style lookup per folder.
+    """
     from girder.models.folder import Folder
 
-    return [doc['_id'] for doc in Folder().find(_annotate_folder_query(), fields={'_id': 1})]
+    return list(
+        Folder().find(
+            _annotate_folder_query(),
+            fields={'_id': 1, 'meta.type': 1, constants.ForeignMediaIdMarker: 1},
+        )
+    )
+
+
+def _annotate_folder_ids() -> List[Any]:
+    """Return ``_id``s of all annotate dataset folders."""
+    return [doc['_id'] for doc in _annotate_folders()]
+
+
+# Folder types whose items are individual frames (images themselves).
+# Large-image datasets are not image *sequences*, but their files are images.
+IMAGE_BEARING_TYPES = (constants.ImageSequenceType, constants.LargeImageType)
+
+
+def _effective_media_root_id(folder_id: str, folders_by_id: Dict[str, Dict[str, Any]]) -> str:
+    """Follow ``foreign_media_id`` clone pointers to the folder holding the items.
+
+    Clones share their source's media items; resolving the root once per
+    folder (in-memory, over the already-fetched folder docs) lets image
+    counts be aggregated once per root and then attributed to each dataset.
+    """
+    seen = set()
+    current = folder_id
+    while current not in seen:
+        seen.add(current)
+        doc = folders_by_id.get(current)
+        if doc is None:
+            break
+        root = doc.get(constants.ForeignMediaIdMarker)
+        if not root:
+            break
+        current = str(root)
+    return current
+
+
+def fold_media_counts(
+    folders: Iterable[Dict[str, Any]],
+    image_counts_by_folder: Optional[Dict[Any, int]] = None,
+) -> MediaCounts:
+    """
+    Fold annotate folder docs (+ per-folder image counts) into media totals.
+
+    Videos and image sequences are counted per *logical* dataset, from
+    ``meta.type`` — one per video / image-sequence folder, including each
+    multicam camera folder (the ``multi`` parent itself counts as neither).
+    Counting folders rather than files is what keeps transcoding honest with
+    no per-folder item queries: a video folder may hold both the original
+    (``meta.source_video=True``) and its ``*.transcoded.mp4`` derivative
+    (``source_video=False, codec=h264``), or a single web-safe original when
+    transcoding was skipped — either way it is exactly one video.
+
+    ``image_counts_by_folder`` maps a *media root* folder id (clones resolved
+    via :func:`_effective_media_root_id`) to its image-item count; each
+    image-sequence / large-image dataset contributes its root's count, so a
+    clone's images count toward that clone just as its copied tracks do.
+    """
+    folder_list = list(folders)
+    folders_by_id = {str(doc['_id']): doc for doc in folder_list}
+    counts_by_root = {
+        str(folder_id): int(count or 0)
+        for folder_id, count in (image_counts_by_folder or {}).items()
+    }
+    media: MediaCounts = {'videos': 0, 'imageSequences': 0, 'images': 0}
+    for doc in folder_list:
+        media_type = (doc.get('meta') or {}).get(constants.TypeMarker)
+        if media_type == constants.VideoType:
+            media['videos'] += 1
+        elif media_type == constants.ImageSequenceType:
+            media['imageSequences'] += 1
+        if media_type in IMAGE_BEARING_TYPES:
+            root_id = _effective_media_root_id(str(doc['_id']), folders_by_id)
+            media['images'] += counts_by_root.get(root_id, 0)
+    return media
+
+
+def _image_count_pipeline(folder_ids: Sequence[Any]) -> List[Dict[str, Any]]:
+    """Count image items per folder in one grouped pass over the Item collection.
+
+    Matches the extensions :func:`dive_server.crud.valid_large_images` accepts
+    (all valid image + large-image formats), so an as-yet-unconverted original
+    counts once and its converted replacement — which deletes the original —
+    also counts once.
+    """
+    return [
+        {
+            '$match': {
+                'folderId': {'$in': list(folder_ids)},
+                'lowerName': {'$regex': constants.allLargeImageRegEx.pattern},
+            }
+        },
+        {'$group': {'_id': '$folderId', 'n': {'$sum': 1}}},
+        {'$project': {'_id': 0, 'folderId': '$_id', 'n': 1}},
+    ]
+
+
+def _compute_media_counts(
+    folders: List[Dict[str, Any]],
+    *,
+    progress: Optional[ProgressCallback],
+) -> MediaCounts:
+    """Live media totals: folder-type counts + one chunked Item aggregation for images."""
+    folders_by_id = {str(doc['_id']): doc for doc in folders}
+    root_ids: List[Any] = []
+    seen_roots = set()
+    for doc in folders:
+        if (doc.get('meta') or {}).get(constants.TypeMarker) not in IMAGE_BEARING_TYPES:
+            continue
+        root_str = _effective_media_root_id(str(doc['_id']), folders_by_id)
+        if root_str in seen_roots:
+            continue
+        seen_roots.add(root_str)
+        root_doc = folders_by_id.get(root_str)
+        if root_doc is not None:
+            root_id = root_doc['_id']
+        else:
+            # Clone root outside the annotate set (e.g. source deleted from the
+            # marker set): Item.folderId is an ObjectId, so convert the string
+            # pointer back before matching, falling back to the raw value.
+            try:
+                from bson import ObjectId
+
+                root_id = ObjectId(root_str)
+            except Exception:
+                root_id = root_str  # type: ignore[assignment]
+        root_ids.append(root_id)
+
+    image_counts: Dict[Any, int] = {}
+    if root_ids:
+        from girder.models.item import Item
+
+        if progress is not None:
+            progress(f'Counting images in {len(root_ids)} image-bearing dataset folders...')
+        rows = _aggregate_id_batches(
+            Item().collection,
+            _chunked(root_ids, COUNT_ID_CHUNK_SIZE),
+            _image_count_pipeline,
+            progress=progress,
+            stage_label='Image count',
+        )
+        image_counts = {row['folderId']: int(row.get('n') or 0) for row in rows}
+    media = fold_media_counts(folders, image_counts)
+    if progress is not None:
+        progress(
+            f"Media counts ready: {media['videos']} videos, "
+            f"{media['imageSequences']} image sequences, {media['images']} images"
+        )
+    return media
 
 
 def _chunked(items: Sequence[Any], size: int) -> List[Sequence[Any]]:
@@ -385,6 +713,9 @@ def compute_annotation_stats(
     dataset_rows: Optional[Iterable[DatasetTrackRow]] = None,
     labels: Optional[Iterable[LabelCount]] = None,
     dataset_folder_total: Optional[int] = None,
+    media_counts: Optional[MediaCounts] = None,
+    active_users: Optional[ActiveUsersCounts] = None,
+    now: Optional[datetime] = None,
     progress: Optional[ProgressCallback] = None,
 ) -> AnnotationStatsReport:
     """
@@ -403,10 +734,12 @@ def compute_annotation_stats(
             progress(message)
 
     folder_ids: Optional[List[Any]] = None
+    folder_docs: Optional[List[Dict[str, Any]]] = None
     id_batches: Optional[List[List[Any]]] = None
     if dataset_folder_total is None or dataset_rows is None or labels is None:
         _progress('Counting annotate dataset folders...')
-        folder_ids = _annotate_folder_ids()
+        folder_docs = _annotate_folders()
+        folder_ids = [doc['_id'] for doc in folder_docs]
         if dataset_folder_total is None:
             dataset_folder_total = len(folder_ids)
         _progress(f'Found {dataset_folder_total} dataset folders')
@@ -427,7 +760,7 @@ def compute_annotation_stats(
         assert id_batches is not None
         _progress(
             'Aggregating live tracks by dataset '
-            '(confidence / userCreated only; track-aware batches)...'
+            '(confidence / userCreated / detection counts; track-aware batches)...'
         )
         dataset_rows = _aggregate_id_batches(
             TrackItem().collection,
@@ -450,8 +783,18 @@ def compute_annotation_stats(
         f"mostlyComputed={folded['datasets']['mostlyComputed']}, "
         f"empty={folded['datasets']['empty']}; "
         f"tracks={folded['tracks']['total']}, "
-        f"confidenceGte1={folded['tracks']['confidenceGte1']}"
+        f"confidenceGte1={folded['tracks']['confidenceGte1']}, "
+        f"detections={folded['tracks']['detections']}"
     )
+
+    if media_counts is None:
+        if folder_docs is not None:
+            # Reuse the folder docs already fetched above: type counts are
+            # free, and images need just one chunked Item aggregation.
+            media_counts = _compute_media_counts(folder_docs, progress=progress)
+        else:
+            # Fully-injected (unit test) path: no Mongo access.
+            media_counts = {'videos': 0, 'imageSequences': 0, 'images': 0}
 
     if labels is None:
         from dive_server.crud_annotation import TrackItem
@@ -470,12 +813,26 @@ def compute_annotation_stats(
     else:
         labels = list(labels)
 
+    if active_users is None:
+        if folder_docs is not None:
+            active_users = _compute_active_users(
+                now=now or datetime.now(timezone.utc),
+                progress=progress,
+            )
+        else:
+            # Fully-injected (unit test) path: no Mongo access.
+            active_users = _empty_active_users()
+
     _progress('Building report payload...')
     return {
-        'generatedAt': datetime.now(timezone.utc).isoformat(),
+        'generatedAt': (
+            _as_utc(now) if now is not None else datetime.now(timezone.utc)
+        ).isoformat(),
         'datasets': folded['datasets'],
         'tracks': folded['tracks'],
+        'media': media_counts,
         'labels': labels,
+        'activeUsers': active_users,
     }
 
 

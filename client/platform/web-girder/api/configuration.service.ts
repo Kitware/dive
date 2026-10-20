@@ -30,7 +30,8 @@ export interface StatsResponse {
     jobs: {
       [jobType: string]: number; // Count of jobs by type
     };
-    newUsers: number; // Total count of new users
+    newUsers: number; // Count of new users within the selected date range
+    totalUsers: number; // Total count of all users (not date-range filtered)
   };
   groupByUser?: {
     datasets: {
@@ -74,8 +75,29 @@ export interface AnnotationStatsReport {
   tracks: {
     total: number;
     confidenceGte1: number;
+    /** Sum of stored features over live tracks; absent in reports saved before this field existed. */
+    detections?: number;
+  };
+  /** Logical media totals; absent in reports saved before this field existed. */
+  media?: {
+    /** One per video dataset / multicam camera — original + transcoded pair counts once. */
+    videos: number;
+    imageSequences: number;
+    /** Individual image files across image-sequence and large-image datasets. */
+    images: number;
   };
   labels: AnnotationStatsLabelCount[];
+  /**
+   * Distinct users who uploaded a dataset or modified/saved tracks in each
+   * window ending at `generatedAt`; absent in reports saved before this existed.
+   */
+  activeUsers?: {
+    lastMonth: number;
+    last3Months: number;
+    last6Months: number;
+    lastYear: number;
+    last5Years: number;
+  };
 }
 
 export interface AnnotationStatsJobResponse {
