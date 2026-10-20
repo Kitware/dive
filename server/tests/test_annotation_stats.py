@@ -2,13 +2,16 @@ from datetime import datetime, timedelta, timezone
 
 from dive_server.crud_annotation_stats import (
     ACTIVE_USER_WINDOWS,
+    MANUAL_FRAC,
     MAX_DATASETS_PER_BATCH,
+    MOSTLY_MANUAL_TRACK_THRESHOLD,
     TRACK_BATCH_BUDGET,
     DatasetTrackRow,
     _chunked,
     _count_pipeline,
     _dataset_track_pipeline,
     _dataset_uploader_pipeline,
+    _detection_stats_expr,
     _image_count_pipeline,
     _label_pipeline,
     _live_track_match,
@@ -16,6 +19,7 @@ from dive_server.crud_annotation_stats import (
     classify_dataset_row,
     compute_annotation_stats,
     fold_active_users,
+    fold_curation_breakdown,
     fold_dataset_rows,
     fold_media_counts,
     merge_label_counts,
@@ -41,8 +45,24 @@ def test_classify_mostly_manual():
     assert classify_dataset_row(_row(total=20, manual=19, confidenceGte1=19)) == 'mostlyManual'
 
 
-def test_classify_mostly_manual_requires_min_tracks():
-    assert classify_dataset_row(_row(total=4, manual=4, confidenceGte1=4)) == 'mostlyComputed'
+def test_classify_mostly_manual_thresholds():
+    assert MANUAL_FRAC == 0.25
+    assert MOSTLY_MANUAL_TRACK_THRESHOLD == 10
+    # Exactly 25% manual in a dataset with more than 10 tracks qualifies.
+    assert classify_dataset_row(_row(total=20, manual=5)) == 'mostlyManual'
+    assert classify_dataset_row(_row(total=11, manual=3)) == 'mostlyManual'
+    # Below 25% manual in a larger dataset does not.
+    assert classify_dataset_row(_row(total=20, manual=4)) == 'mostlyComputed'
+
+
+def test_classify_mostly_manual_small_all_manual():
+    # Small datasets (<= 10 tracks) qualify only when every track is manual;
+    # the 10-track all-manual case is not stranded between the two arms.
+    assert classify_dataset_row(_row(total=4, manual=4, confidenceGte1=4)) == 'mostlyManual'
+    assert classify_dataset_row(_row(total=10, manual=10)) == 'mostlyManual'
+    assert classify_dataset_row(_row(total=10, manual=9)) == 'mostlyComputed'
+    assert classify_dataset_row(_row(total=8, manual=7)) == 'mostlyComputed'
+    assert classify_dataset_row(_row(total=5, manual=2)) == 'mostlyComputed'
 
 
 def test_classify_mixed_substantial_corrections():
@@ -108,6 +128,130 @@ def test_fold_dataset_rows_totals_and_empty():
     assert folded['tracks']['total'] == 170
     assert folded['tracks']['confidenceGte1'] == 50
     assert folded['tracks']['detections'] == 340
+
+
+def test_fold_curation_breakdown_attributes_geometry_and_media():
+    rows = [
+        _row(
+            dataset='manual-ds',
+            total=20,
+            manual=20,
+            confidenceGte1=20,
+            detections=40,
+            detectionsWithPolygon=10,
+            detectionsWithPoint=4,
+            detectionsWithLineString=2,
+            detectionsWithGeometry=12,
+            detectionsBoundsOnly=28,
+            fullFrameDetections=3,
+            tracksWithPolygon=6,
+            tracksWithPoint=3,
+            tracksWithLineString=1,
+            tracksWithGeometry=7,
+            tracksBoundsOnly=13,
+            tracksFullFrame=2,
+        ),
+        _row(
+            dataset='computed-ds',
+            total=50,
+            manual=0,
+            confidenceGte1=0,
+            detections=50,
+            detectionsBoundsOnly=50,
+            tracksBoundsOnly=50,
+        ),
+    ]
+    folders = [
+        _folder('manual-ds', 'video'),
+        _folder('computed-ds', 'image-sequence'),
+        _folder('empty-ds', 'video'),
+    ]
+    breakdown = fold_curation_breakdown(
+        rows, dataset_folder_total=3, folders=folders, image_counts_by_folder={'computed-ds': 12}
+    )
+    manual = breakdown['mostlyManual']
+    assert manual['datasets'] == 1
+    assert manual['tracks'] == 20
+    assert manual['detections'] == 40
+    assert manual['manualTracks'] == 20
+    assert manual['geometryTypes'] == {
+        'Polygon': 10,
+        'Point': 4,
+        'LineString': 2,
+        'boundingBoxOnly': 28,
+    }
+    assert manual['detectionsWithPolygon'] == 10
+    assert manual['tracksWithPolygon'] == 6
+    assert manual['fullFrameDetections'] == 3
+    assert manual['tracksFullFrame'] == 2
+    assert manual['media'] == {'videos': 1, 'imageSequences': 0, 'images': 0}
+    computed = breakdown['mostlyComputed']
+    assert computed['tracks'] == 50
+    assert computed['detectionsBoundsOnly'] == 50
+    assert computed['media'] == {'videos': 0, 'imageSequences': 1, 'images': 12}
+    assert breakdown['empty']['datasets'] == 1
+    assert breakdown['empty']['media'] == {'videos': 1, 'imageSequences': 0, 'images': 0}
+    # Per-class media sums to the report-wide folding of the same folders.
+    totals = fold_media_counts(folders, {'computed-ds': 12})
+    for key in ('videos', 'imageSequences', 'images'):
+        assert sum(entry['media'][key] for entry in breakdown.values()) == totals[key]
+
+
+def test_fold_curation_breakdown_without_folders_has_zero_media():
+    breakdown = fold_curation_breakdown(
+        [_row(dataset='a', total=10, manual=10, detections=33)], dataset_folder_total=3
+    )
+    assert breakdown['mostlyManual']['tracks'] == 10
+    assert breakdown['mostlyManual']['media'] == {
+        'videos': 0,
+        'imageSequences': 0,
+        'images': 0,
+    }
+    assert breakdown['empty']['datasets'] == 2
+
+
+def test_compute_annotation_stats_includes_curation_breakdown():
+    report = compute_annotation_stats(
+        dataset_rows=[
+            _row(
+                dataset='a',
+                total=10,
+                manual=10,
+                confidenceGte1=10,
+                detections=33,
+                detectionsWithPolygon=5,
+                tracksWithPolygon=2,
+            )
+        ],
+        labels=[],
+        dataset_folder_total=3,
+    )
+    assert report['curationBreakdown']['mostlyManual']['detectionsWithPolygon'] == 5
+    assert report['curationBreakdown']['mostlyManual']['tracksWithPolygon'] == 2
+    assert report['curationBreakdown']['empty']['datasets'] == 2
+
+
+def test_dataset_track_pipeline_counts_geometry_per_detection():
+    pipeline = _dataset_track_pipeline(['ds1'])
+    project = pipeline[1]['$project']
+    det_stats = project['detStats']['$reduce']
+    assert det_stats['initialValue'] == {
+        'withPolygon': 0,
+        'withPoint': 0,
+        'withLineString': 0,
+        'withGeometry': 0,
+        'boundsOnly': 0,
+        'fullFrame': 0,
+    }
+    group = pipeline[2]['$group']
+    assert group['detectionsWithPolygon'] == {'$sum': '$detStats.withPolygon'}
+    assert group['fullFrameDetections'] == {'$sum': '$detStats.fullFrame'}
+    assert group['tracksWithPoint']['$sum']
+    final = pipeline[3]['$project']
+    assert final['tracksFullFrame'] == 1
+    # The $reduce tallies GeoJSON types present on each feature.
+    expr = _detection_stats_expr()
+    assert expr['$reduce']['input'] == {'$ifNull': ['$features', []]}
 
 
 def test_compute_annotation_stats_with_injected_rows():

@@ -15,8 +15,14 @@ ProgressCallback = Callable[[str], None]
 ANNOTATION_STATS_LATEST = constants.AnnotationStatsLatestFileName
 
 # Classification thresholds (aligned with admin Mongo sketches)
-MIN_MANUAL_TRACKS = 5
-MANUAL_FRAC = 0.9
+# Mostly manual: at least 25% manual in a dataset with more than 10 tracks,
+# or a small dataset (<= 10 tracks) whose tracks are all manual. The small
+# all-manual arm uses <= 10 so a 10-track all-manual dataset is not left in
+# neither arm by the strict > 10 / < 10 split.
+MANUAL_FRAC = 0.25
+MOSTLY_MANUAL_TRACK_THRESHOLD = 10
+# Backwards-compatible alias: the old 5-track minimum no longer applies.
+MIN_MANUAL_TRACKS = MOSTLY_MANUAL_TRACK_THRESHOLD
 MIN_COMPUTED_FOR_MIXED = 10
 MIN_CORRECTED_FOR_MIXED = 15
 CORRECTED_FRAC_OF_COMPUTED = 0.25
@@ -58,6 +64,47 @@ class MediaCounts(TypedDict):
     images: int
 
 
+CURATION_CLASSES = (
+    'mostlyManual',
+    'mixedSubstantialCorrections',
+    'mostlyComputed',
+    'empty',
+)
+
+
+class CurationClassBreakdown(TypedDict):
+    """Annotation + media totals for one curation class (see classification)."""
+
+    datasets: int
+    tracks: int
+    detections: int
+    confidenceGte1: int
+    manualTracks: int
+    # Non-manual tracks whose first confidence pair is >= 1.
+    correctedTracks: int
+    # Detection-level geometry counts. A detection can carry several geometry
+    # types (e.g. a polygon plus head/tail points), so Polygon / Point /
+    # LineString counts overlap; boundingBoxOnly is exclusive (no geometry).
+    geometryTypes: Dict[str, int]
+    detectionsWithPolygon: int
+    detectionsWithPoint: int
+    detectionsWithLineString: int
+    detectionsWithGeometry: int
+    detectionsBoundsOnly: int
+    # Detections whose bounds start at (0, 0) with positive extent — a proxy
+    # for full-frame annotations; exact media size is not stored on tracks.
+    fullFrameDetections: int
+    # Track-level counterparts: tracks with at least one such detection
+    # (tracksBoundsOnly: tracks whose detections are all bounds-only).
+    tracksWithPolygon: int
+    tracksWithPoint: int
+    tracksWithLineString: int
+    tracksWithGeometry: int
+    tracksBoundsOnly: int
+    tracksFullFrame: int
+    media: MediaCounts
+
+
 class LabelCount(TypedDict):
     label: str
     count: int
@@ -92,6 +139,10 @@ class AnnotationStatsReport(TypedDict):
     media: MediaCounts
     labels: List[LabelCount]
     activeUsers: ActiveUsersCounts
+    # Per-curation-class annotation / geometry / media breakdown, keyed by
+    # the same names as DatasetKindCounts (plus ``empty``). Optional only for
+    # reports saved before this field existed, handled on the client.
+    curationBreakdown: Dict[str, CurationClassBreakdown]
 
 
 class DatasetTrackRow(TypedDict):
@@ -104,6 +155,20 @@ class DatasetTrackRow(TypedDict):
     conf1NonManual: int
     confidenceGte1: int
     detections: int
+    # Per-detection geometry tallies (see CurationClassBreakdown). Rows from
+    # older aggregations / injected test rows may omit these; folds default 0.
+    detectionsWithPolygon: int
+    detectionsWithPoint: int
+    detectionsWithLineString: int
+    detectionsWithGeometry: int
+    detectionsBoundsOnly: int
+    fullFrameDetections: int
+    tracksWithPolygon: int
+    tracksWithPoint: int
+    tracksWithLineString: int
+    tracksWithGeometry: int
+    tracksBoundsOnly: int
+    tracksFullFrame: int
 
 
 def classify_dataset_row(row: DatasetTrackRow) -> str:
@@ -121,7 +186,9 @@ def classify_dataset_row(row: DatasetTrackRow) -> str:
     manual_frac = (manual / total) if total else 0.0
     corrected_frac = (corrected / computed) if computed else 0.0
 
-    if total >= MIN_MANUAL_TRACKS and manual_frac >= MANUAL_FRAC:
+    if (total > MOSTLY_MANUAL_TRACK_THRESHOLD and manual_frac >= MANUAL_FRAC) or (
+        0 < total <= MOSTLY_MANUAL_TRACK_THRESHOLD and manual == total
+    ):
         return 'mostlyManual'
     if (
         computed >= MIN_COMPUTED_FOR_MIXED
@@ -165,6 +232,105 @@ def fold_dataset_rows(
     empty = max(int(dataset_folder_total) - datasets_with_tracks, 0)
     datasets['empty'] = empty
     return {'datasets': datasets, 'tracks': tracks}
+
+
+def _empty_curation_breakdown() -> CurationClassBreakdown:
+    return {
+        'datasets': 0,
+        'tracks': 0,
+        'detections': 0,
+        'confidenceGte1': 0,
+        'manualTracks': 0,
+        'correctedTracks': 0,
+        'geometryTypes': {'Polygon': 0, 'Point': 0, 'LineString': 0, 'boundingBoxOnly': 0},
+        'detectionsWithPolygon': 0,
+        'detectionsWithPoint': 0,
+        'detectionsWithLineString': 0,
+        'detectionsWithGeometry': 0,
+        'detectionsBoundsOnly': 0,
+        'fullFrameDetections': 0,
+        'tracksWithPolygon': 0,
+        'tracksWithPoint': 0,
+        'tracksWithLineString': 0,
+        'tracksWithGeometry': 0,
+        'tracksBoundsOnly': 0,
+        'tracksFullFrame': 0,
+        'media': {'videos': 0, 'imageSequences': 0, 'images': 0},
+    }
+
+
+def fold_curation_breakdown(
+    rows: Iterable[DatasetTrackRow],
+    dataset_folder_total: int,
+    folders: Optional[Iterable[Dict[str, Any]]] = None,
+    image_counts_by_folder: Optional[Dict[Any, int]] = None,
+) -> Dict[str, CurationClassBreakdown]:
+    """
+    Fold per-dataset rows into one breakdown per curation class.
+
+    Annotation / geometry counts come from the track rows (classified with
+    :func:`classify_dataset_row`). Media counts, when ``folders`` are given,
+    are attributed to the class of the dataset that owns the media — a folder
+    with no live-track row is ``empty`` — so the per-class media totals sum
+    to the report-wide media totals. Without folders (injected test rows)
+    every class's media stays zero.
+    """
+    breakdown: Dict[str, CurationClassBreakdown] = {
+        kind: _empty_curation_breakdown() for kind in CURATION_CLASSES
+    }
+    kind_by_dataset: Dict[str, str] = {}
+    datasets_with_tracks = 0
+    for row in rows:
+        total = int(row.get('total') or 0)
+        if total <= 0:
+            continue
+        datasets_with_tracks += 1
+        kind = classify_dataset_row(row)
+        kind_by_dataset[str(row.get('dataset'))] = kind
+        entry = breakdown[kind]
+        entry['datasets'] += 1
+        entry['tracks'] += total
+        entry['detections'] += int(row.get('detections') or 0)
+        entry['confidenceGte1'] += int(row.get('confidenceGte1') or 0)
+        entry['manualTracks'] += int(row.get('manual') or 0)
+        entry['correctedTracks'] += int(row.get('conf1NonManual') or 0)
+        for field in (
+            'detectionsWithPolygon',
+            'detectionsWithPoint',
+            'detectionsWithLineString',
+            'detectionsWithGeometry',
+            'detectionsBoundsOnly',
+            'fullFrameDetections',
+            'tracksWithPolygon',
+            'tracksWithPoint',
+            'tracksWithLineString',
+            'tracksWithGeometry',
+            'tracksBoundsOnly',
+            'tracksFullFrame',
+        ):
+            entry[field] += int(row.get(field) or 0)  # type: ignore[call-overload]
+        entry['geometryTypes'] = {
+            'Polygon': entry['detectionsWithPolygon'],
+            'Point': entry['detectionsWithPoint'],
+            'LineString': entry['detectionsWithLineString'],
+            'boundingBoxOnly': entry['detectionsBoundsOnly'],
+        }
+    breakdown['empty']['datasets'] = max(int(dataset_folder_total) - datasets_with_tracks, 0)
+    if folders is not None:
+        folder_list = list(folders)
+        folders_by_id = {str(doc['_id']): doc for doc in folder_list}
+        counts_by_root = {
+            str(folder_id): int(count or 0)
+            for folder_id, count in (image_counts_by_folder or {}).items()
+        }
+        for doc in folder_list:
+            kind = kind_by_dataset.get(str(doc['_id']), 'empty')
+            media = breakdown[kind]['media']
+            delta = _folder_media_delta(doc, folders_by_id, counts_by_root)
+            media['videos'] += delta['videos']
+            media['imageSequences'] += delta['imageSequences']
+            media['images'] += delta['images']
+    return breakdown
 
 
 def _empty_active_users() -> ActiveUsersCounts:
@@ -337,14 +503,99 @@ def _live_track_match(dataset_ids: Sequence[Any]) -> Dict[str, Any]:
     }
 
 
+def _geo_features_expr() -> Dict[str, Any]:
+    """Mongo expr: GeoJSON sub-features of the ``$$this`` feature in a $reduce."""
+    return {'$ifNull': ['$$this.geometry.features', []]}
+
+
+def _detection_stats_expr() -> Dict[str, Any]:
+    """
+    Mongo ``$reduce`` over a track's features tallying geometry per detection.
+
+    A Point counts from a GeoJSON Point geometry or a stored head/tail point.
+    Full-frame is the origin-anchored bounds proxy described on
+    :class:`CurationClassBreakdown`.
+    """
+    full_frame = {
+        '$and': [
+            {'$eq': [{'$arrayElemAt': ['$$this.bounds', 0]}, 0]},
+            {'$eq': [{'$arrayElemAt': ['$$this.bounds', 1]}, 0]},
+            {'$gt': [{'$arrayElemAt': ['$$this.bounds', 2]}, 0]},
+            {'$gt': [{'$arrayElemAt': ['$$this.bounds', 3]}, 0]},
+        ]
+    }
+
+    def _tally(field: str, condition: Any) -> Dict[str, Any]:
+        return {'$add': [f'$$value.{field}', {'$cond': [condition, 1, 0]}]}
+
+    # One $let per feature computes the geometry type list (and head/tail
+    # flags) once; every tally then reads those vars. Without this, Mongo
+    # re-walks ``geometry.features`` for each type check, the size check,
+    # and again inside the boundsOnly negation.
+    has_geometry = {
+        '$or': [
+            {'$gt': [{'$size': '$$geoTypes'}, 0]},
+            '$$hasHead',
+            '$$hasTail',
+        ]
+    }
+    tallies = {
+        '$let': {
+            'vars': {
+                'geoTypes': {
+                    '$map': {
+                        'input': _geo_features_expr(),
+                        'as': 'gf',
+                        'in': '$$gf.geometry.type',
+                    }
+                },
+                'hasHead': {'$isArray': '$$this.head'},
+                'hasTail': {'$isArray': '$$this.tail'},
+            },
+            'in': {
+                'withPolygon': _tally('withPolygon', {'$in': ['Polygon', '$$geoTypes']}),
+                'withPoint': _tally(
+                    'withPoint',
+                    {'$or': [{'$in': ['Point', '$$geoTypes']}, '$$hasHead', '$$hasTail']},
+                ),
+                'withLineString': _tally('withLineString', {'$in': ['LineString', '$$geoTypes']}),
+                'withGeometry': _tally('withGeometry', has_geometry),
+                'boundsOnly': _tally('boundsOnly', {'$not': [has_geometry]}),
+                'fullFrame': _tally('fullFrame', full_frame),
+            },
+        }
+    }
+
+    return {
+        '$reduce': {
+            'input': {'$ifNull': ['$features', []]},
+            'initialValue': {
+                'withPolygon': 0,
+                'withPoint': 0,
+                'withLineString': 0,
+                'withGeometry': 0,
+                'boundsOnly': 0,
+                'fullFrame': 0,
+            },
+            'in': tallies,
+        }
+    }
+
+
+def _track_flag(field: str) -> Dict[str, Any]:
+    """Group accumulator: tracks whose per-detection tally ``field`` is > 0."""
+    return {'$sum': {'$cond': [{'$gt': [f'$detStats.{field}', 0]}, 1, 0]}}
+
+
 def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
     """Aggregate live tracks per dataset with curation signals.
 
     Reads ``attributes`` / ``confidencePairs`` plus the size of ``features``
     (each stored Feature is one detection, so ``$size`` is the per-track
-    detection count — no per-feature scan in Python). Scoped to
-    ``dataset_ids`` so Mongo can use the existing (dataset, …) index, and
-    folded into this existing pass rather than a second trackItem scan.
+    detection count) and a ``$reduce`` over features for per-detection
+    geometry tallies. Scoped to ``dataset_ids`` so Mongo can use the
+    existing (dataset, …) index, and folded into this existing pass rather
+    than a second trackItem scan.
     """
     return [
         {'$match': _live_track_match(dataset_ids)},
@@ -355,6 +606,7 @@ def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
                 'userCreated': {'$eq': ['$attributes.userCreated', True]},
                 'firstConf': {'$arrayElemAt': [{'$arrayElemAt': ['$confidencePairs', 0]}, 1]},
                 'detections': {'$size': {'$ifNull': ['$features', []]}},
+                'detStats': _detection_stats_expr(),
             }
         },
         {
@@ -378,6 +630,31 @@ def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
                 },
                 'confidenceGte1': {'$sum': {'$cond': [{'$gte': ['$firstConf', 1]}, 1, 0]}},
                 'detections': {'$sum': '$detections'},
+                'detectionsWithPolygon': {'$sum': '$detStats.withPolygon'},
+                'detectionsWithPoint': {'$sum': '$detStats.withPoint'},
+                'detectionsWithLineString': {'$sum': '$detStats.withLineString'},
+                'detectionsWithGeometry': {'$sum': '$detStats.withGeometry'},
+                'detectionsBoundsOnly': {'$sum': '$detStats.boundsOnly'},
+                'fullFrameDetections': {'$sum': '$detStats.fullFrame'},
+                'tracksWithPolygon': _track_flag('withPolygon'),
+                'tracksWithPoint': _track_flag('withPoint'),
+                'tracksWithLineString': _track_flag('withLineString'),
+                'tracksWithGeometry': _track_flag('withGeometry'),
+                'tracksFullFrame': _track_flag('fullFrame'),
+                'tracksBoundsOnly': {
+                    '$sum': {
+                        '$cond': [
+                            {
+                                '$and': [
+                                    {'$gt': ['$detections', 0]},
+                                    {'$eq': ['$detStats.withGeometry', 0]},
+                                ]
+                            },
+                            1,
+                            0,
+                        ]
+                    }
+                },
             }
         },
         {
@@ -389,6 +666,18 @@ def _dataset_track_pipeline(dataset_ids: Sequence[Any]) -> List[Dict[str, Any]]:
                 'conf1NonManual': 1,
                 'confidenceGte1': 1,
                 'detections': 1,
+                'detectionsWithPolygon': 1,
+                'detectionsWithPoint': 1,
+                'detectionsWithLineString': 1,
+                'detectionsWithGeometry': 1,
+                'detectionsBoundsOnly': 1,
+                'fullFrameDetections': 1,
+                'tracksWithPolygon': 1,
+                'tracksWithPoint': 1,
+                'tracksWithLineString': 1,
+                'tracksWithGeometry': 1,
+                'tracksBoundsOnly': 1,
+                'tracksFullFrame': 1,
             }
         },
     ]
@@ -487,14 +776,28 @@ def fold_media_counts(
     }
     media: MediaCounts = {'videos': 0, 'imageSequences': 0, 'images': 0}
     for doc in folder_list:
-        media_type = (doc.get('meta') or {}).get(constants.TypeMarker)
-        if media_type == constants.VideoType:
-            media['videos'] += 1
-        elif media_type == constants.ImageSequenceType:
-            media['imageSequences'] += 1
-        if media_type in IMAGE_BEARING_TYPES:
-            root_id = _effective_media_root_id(str(doc['_id']), folders_by_id)
-            media['images'] += counts_by_root.get(root_id, 0)
+        delta = _folder_media_delta(doc, folders_by_id, counts_by_root)
+        media['videos'] += delta['videos']
+        media['imageSequences'] += delta['imageSequences']
+        media['images'] += delta['images']
+    return media
+
+
+def _folder_media_delta(
+    doc: Dict[str, Any],
+    folders_by_id: Dict[str, Dict[str, Any]],
+    counts_by_root: Dict[str, int],
+) -> MediaCounts:
+    """One folder's contribution to the logical media totals."""
+    media: MediaCounts = {'videos': 0, 'imageSequences': 0, 'images': 0}
+    media_type = (doc.get('meta') or {}).get(constants.TypeMarker)
+    if media_type == constants.VideoType:
+        media['videos'] = 1
+    elif media_type == constants.ImageSequenceType:
+        media['imageSequences'] = 1
+    if media_type in IMAGE_BEARING_TYPES:
+        root_id = _effective_media_root_id(str(doc['_id']), folders_by_id)
+        media['images'] = counts_by_root.get(root_id, 0)
     return media
 
 
@@ -524,6 +827,16 @@ def _compute_media_counts(
     progress: Optional[ProgressCallback],
 ) -> MediaCounts:
     """Live media totals: folder-type counts + one chunked Item aggregation for images."""
+    media, _ = _compute_media_counts_and_images(folders, progress=progress)
+    return media
+
+
+def _compute_media_counts_and_images(
+    folders: List[Dict[str, Any]],
+    *,
+    progress: Optional[ProgressCallback],
+) -> Tuple[MediaCounts, Dict[Any, int]]:
+    """Live media totals plus the per-root image counts they were folded from."""
     folders_by_id = {str(doc['_id']): doc for doc in folders}
     root_ids: List[Any] = []
     seen_roots = set()
@@ -569,7 +882,7 @@ def _compute_media_counts(
             f"Media counts ready: {media['videos']} videos, "
             f"{media['imageSequences']} image sequences, {media['images']} images"
         )
-    return media
+    return media, image_counts
 
 
 def _chunked(items: Sequence[Any], size: int) -> List[Sequence[Any]]:
@@ -715,6 +1028,7 @@ def compute_annotation_stats(
     dataset_folder_total: Optional[int] = None,
     media_counts: Optional[MediaCounts] = None,
     active_users: Optional[ActiveUsersCounts] = None,
+    curation_breakdown: Optional[Dict[str, CurationClassBreakdown]] = None,
     now: Optional[datetime] = None,
     progress: Optional[ProgressCallback] = None,
 ) -> AnnotationStatsReport:
@@ -787,14 +1101,30 @@ def compute_annotation_stats(
         f"detections={folded['tracks']['detections']}"
     )
 
-    if media_counts is None:
-        if folder_docs is not None:
-            # Reuse the folder docs already fetched above: type counts are
-            # free, and images need just one chunked Item aggregation.
-            media_counts = _compute_media_counts(folder_docs, progress=progress)
-        else:
-            # Fully-injected (unit test) path: no Mongo access.
-            media_counts = {'videos': 0, 'imageSequences': 0, 'images': 0}
+    image_counts: Optional[Dict[Any, int]] = None
+    if folder_docs is not None:
+        # Reuse the folder docs already fetched above: type counts are
+        # free, and images need just one chunked Item aggregation. Fetch it
+        # even when media totals were injected so the per-class breakdown
+        # can attribute videos / image sequences / images to each class.
+        computed_media, image_counts = _compute_media_counts_and_images(
+            folder_docs, progress=progress
+        )
+        if media_counts is None:
+            media_counts = computed_media
+    elif media_counts is None:
+        # Fully-injected (unit test) path: no Mongo access.
+        media_counts = {'videos': 0, 'imageSequences': 0, 'images': 0}
+
+    if curation_breakdown is None:
+        assert dataset_rows is not None
+        _progress('Folding per-class breakdown (geometry / full-frame / media)...')
+        curation_breakdown = fold_curation_breakdown(
+            dataset_rows,
+            dataset_folder_total,
+            folders=folder_docs,
+            image_counts_by_folder=image_counts,
+        )
 
     if labels is None:
         from dive_server.crud_annotation import TrackItem
@@ -833,6 +1163,7 @@ def compute_annotation_stats(
         'media': media_counts,
         'labels': labels,
         'activeUsers': active_users,
+        'curationBreakdown': curation_breakdown,
     }
 
 

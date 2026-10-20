@@ -63,6 +63,45 @@ export interface AnnotationStatsLabelCount {
   count: number;
 }
 
+export interface AnnotationStatsMedia {
+  /** One per video dataset / multicam camera — original + transcoded pair counts once. */
+  videos: number;
+  imageSequences: number;
+  /** Individual image files across image-sequence and large-image datasets. */
+  images: number;
+}
+
+export interface AnnotationStatsCurationBreakdown {
+  datasets: number;
+  tracks: number;
+  detections: number;
+  confidenceGte1: number;
+  manualTracks: number;
+  correctedTracks: number;
+  /** Detection counts by geometry type; Polygon/Point/LineString overlap, boundingBoxOnly is exclusive. */
+  geometryTypes: {
+    Polygon: number;
+    Point: number;
+    LineString: number;
+    boundingBoxOnly: number;
+    [type: string]: number;
+  };
+  detectionsWithPolygon: number;
+  detectionsWithPoint: number;
+  detectionsWithLineString: number;
+  detectionsWithGeometry: number;
+  detectionsBoundsOnly: number;
+  /** Bounds anchored at (0, 0) with positive extent — full-frame proxy. */
+  fullFrameDetections: number;
+  tracksWithPolygon: number;
+  tracksWithPoint: number;
+  tracksWithLineString: number;
+  tracksWithGeometry: number;
+  tracksBoundsOnly: number;
+  tracksFullFrame: number;
+  media: AnnotationStatsMedia;
+}
+
 export interface AnnotationStatsReport {
   generatedAt: string;
   datasets: {
@@ -79,13 +118,12 @@ export interface AnnotationStatsReport {
     detections?: number;
   };
   /** Logical media totals; absent in reports saved before this field existed. */
-  media?: {
-    /** One per video dataset / multicam camera — original + transcoded pair counts once. */
-    videos: number;
-    imageSequences: number;
-    /** Individual image files across image-sequence and large-image datasets. */
-    images: number;
-  };
+  media?: AnnotationStatsMedia;
+  /** Per-curation-class breakdown; absent in reports saved before this field existed. */
+  curationBreakdown?: Record<
+    'mostlyManual' | 'mixedSubstantialCorrections' | 'mostlyComputed' | 'empty',
+    AnnotationStatsCurationBreakdown
+  >;
   labels: AnnotationStatsLabelCount[];
   /**
    * Distinct users who uploaded a dataset or modified/saved tracks in each
