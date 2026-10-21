@@ -16,7 +16,7 @@ import CalibrationMenu from 'dive-common/components/CalibrationMenu.vue';
 import SidebarContext from 'dive-common/components/SidebarContext.vue';
 import context from 'dive-common/store/context';
 import { usePrompt } from 'dive-common/vue-utilities/prompt-service';
-import { SegmentationPredictRequest, SegmentationPolygon } from 'dive-common/apispec';
+import { SegmentationPredictRequest, SegmentationPolygon, TextQueryModelOptions } from 'dive-common/apispec';
 import { clientSettings } from 'dive-common/store/settings';
 import { resolveConfidenceThreshold } from 'dive-common/typeHierarchy';
 import { isStereoscopicDatasetConfig } from 'dive-common/multicamDisplay';
@@ -38,8 +38,8 @@ import {
   segmentationPolygonKeypoints,
   segmentationEnsureStarted,
   segmentationSam3Installed,
-  loadConfig, saveConfig, textQuery,
-  runTextQueryPipeline,
+  loadConfig, saveConfig, textQuery, vlmDetect,
+  runTextQueryPipeline, runVlmTextQueryPipeline,
   stereoEnable, stereoDisable, stereoSetFrame, stereoTransferLine, stereoTransferPoints,
   stereoMeasureLine, stereoAggregateLengths,
   onStereoDisparityReady, onStereoDisparityError,
@@ -57,10 +57,12 @@ import Export from './Export.vue';
 import JobTab from './JobTab.vue';
 import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
+import TextQueryContext from './TextQueryContext.vue';
 import VideoSearchContext from './VideoSearchContext.vue';
 import {
   createVideoSearch, provideVideoSearch, VideoSearchMediaInfo,
 } from '../useVideoSearch';
+import { createVlm, provideTextQuery, provideVlm } from '../useVlm';
 import { datasets, rememberAnnotation } from '../store/dataset';
 import { settings } from '../store/settings';
 import { runningJobs } from '../store/jobs';
@@ -80,8 +82,12 @@ function joinPath(base: string, file: string): string {
 // Desktop-only context panel: registered here (not in the shared context
 // store) so the web build does not pick it up.
 context.register({
-  description: 'Video Search',
+  description: 'Image Query',
   component: VideoSearchContext,
+});
+context.register({
+  description: 'Text Query',
+  component: TextQueryContext,
 });
 
 const buttonOptions = {
@@ -211,15 +217,33 @@ export default defineComponent({
     const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
+    const sam3Installed = ref(false);
+    const vlm = createVlm((frameNum: number) => {
+      const imagePath = segmentationGetImagePath?.(frameNum) || getImagePathForFrame(frameNum);
+      return imagePath ? { imagePath, frameTime: segmentationGetFrameTime?.(frameNum) } : null;
+    });
+    provideVlm(vlm);
 
     async function refreshTextQueryAvailability() {
-      try {
-        const result = await segmentationSam3Installed();
-        textQueryAvailable.value = result.installed;
-      } catch {
-        textQueryAvailable.value = false;
-      }
+      const [sam3, models] = await Promise.all([
+        segmentationSam3Installed().then((r) => r.installed).catch(() => false),
+        vlm.refreshModels(),
+      ]);
+      sam3Installed.value = sam3;
+      textQueryAvailable.value = sam3 || models.some((m) => m.installed);
       return textQueryAvailable.value;
+    }
+
+    async function loadTextQueryModels(): Promise<TextQueryModelOptions> {
+      await refreshTextQueryAvailability();
+      return {
+        sam3: sam3Installed.value,
+        vlm: {
+          available: vlm.state.available,
+          models: vlm.state.models,
+          error: vlm.state.error || undefined,
+        },
+      };
     }
 
     // Keep button chrome current if the add-on is installed while this
@@ -468,9 +492,10 @@ export default defineComponent({
       boxThreshold: number;
       frameNum: number;
       replaceExisting?: boolean;
+      vlmModel?: string;
     }) {
       const {
-        text, boxThreshold, frameNum, replaceExisting = false,
+        text, boxThreshold, frameNum, replaceExisting = false, vlmModel,
       } = params;
 
       // Ensure metadata is loaded
@@ -507,13 +532,22 @@ export default defineComponent({
 
       textQueryRunning.value = true;
       try {
-        const response = await textQuery({
-          imagePath,
-          frameTime,
-          text,
-          boxThreshold,
-          maxDetections: 10,
-        });
+        const vlmInfo = vlm.state.models.find((m) => m.name === vlmModel);
+        const response = vlmModel
+          ? await vlmDetect({
+            model: vlmModel,
+            think: vlmInfo?.thinking ? false : undefined,
+            imagePath,
+            frameTime,
+            text,
+          })
+          : await textQuery({
+            imagePath,
+            frameTime,
+            text,
+            boxThreshold,
+            maxDetections: 10,
+          });
         // Query finished; drop the loading bar before any result/error prompts.
         textQueryRunning.value = false;
 
@@ -699,16 +733,17 @@ export default defineComponent({
     async function handleTextQueryInit() {
       try {
         // Check if the service is already ready
+        const modelOptions = await loadTextQueryModels();
         const status = await segmentationIsReady();
         if (status.ready) {
-          viewerRef.value?.onTextQueryServiceReady(true);
+          viewerRef.value?.onTextQueryServiceReady(true, undefined, modelOptions);
           return;
         }
 
         // Start the service process only -- do NOT warm the point-segmentation
         // model. The text-query model loads lazily on the first query.
         await segmentationEnsureStarted();
-        viewerRef.value?.onTextQueryServiceReady(true);
+        viewerRef.value?.onTextQueryServiceReady(true, undefined, modelOptions);
       } catch (error) {
         // Provide text-query specific error message instead of generic segmentation error
         const rawMessage = error instanceof Error ? error.message : '';
@@ -726,11 +761,19 @@ export default defineComponent({
       text: string;
       boxThreshold: number;
       replaceExisting?: boolean;
+      vlmModel?: string;
+      tracked?: boolean;
     }) {
-      const { text, boxThreshold, replaceExisting = false } = params;
+      const {
+        text, boxThreshold, replaceExisting = false, vlmModel, tracked,
+      } = params;
 
       try {
-        await runTextQueryPipeline(props.id, text, boxThreshold, replaceExisting);
+        if (vlmModel) {
+          await runVlmTextQueryPipeline(props.id, text, vlmModel, replaceExisting, tracked);
+        } else {
+          await runTextQueryPipeline(props.id, text, boxThreshold, replaceExisting, tracked);
+        }
         await prompt({
           title: 'Text Query Pipeline Started',
           text: [
@@ -745,6 +788,14 @@ export default defineComponent({
         });
       }
     }
+
+    provideTextQuery({
+      sam3Installed,
+      running: textQueryRunning,
+      loadModels: loadTextQueryModels,
+      runFrame: handleTextQuerySubmit,
+      runAllFrames: handleTextQueryAllFrames,
+    });
 
     /**
      * Interactive Stereo Service
@@ -2578,6 +2629,7 @@ export default defineComponent({
       handleTextQueryAllFrames,
       textQueryAvailable,
       refreshTextQueryAvailability,
+      loadTextQueryModels,
       openLink,
       /* Stereo */
       stereoLoadingDialog,
@@ -2622,7 +2674,7 @@ export default defineComponent({
       :initial-track-id="viewerFocus.trackId"
       :text-query-enabled="true"
       :text-query-available="textQueryAvailable"
-      :check-text-query-available="refreshTextQueryAvailability"
+      :load-text-query-models="loadTextQueryModels"
       :stereo-view-link="stereoViewLink"
       @return-to-current-annotations="returnToCurrentAnnotations"
       @change-camera="changeCamera"

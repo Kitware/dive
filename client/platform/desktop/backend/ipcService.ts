@@ -1,4 +1,7 @@
-import type { SegmentationPolygon, Pipe, GlobalStyleSettings } from 'dive-common/apispec';
+import type {
+  SegmentationPolygon, Pipe, GlobalStyleSettings, VlmAskRequest, VlmDetectRequest,
+  VideoSearchExemplar,
+} from 'dive-common/apispec';
 import OS from 'os';
 import http from 'http';
 import fs from 'fs';
@@ -37,6 +40,7 @@ import {
   getInteractiveServiceManager,
 } from './native/interactive';
 import * as videoSearch from './native/videoSearch';
+import { listVisionModels } from './native/vlm';
 import {
   SegmentationPredictRequest,
   SegmentationStereoSegmentRequest,
@@ -527,6 +531,20 @@ export default function register() {
     return response;
   });
 
+  ipcMain.handle('vlm-models', () => listVisionModels());
+
+  ipcMain.handle('vlm-detect', async (_, args: VlmDetectRequest) => {
+    const service = getInteractiveServiceManager();
+    await service.ensureStarted(settings.get());
+    return service.vlmDetect(args);
+  });
+
+  ipcMain.handle('vlm-ask', async (_, args: VlmAskRequest) => {
+    const service = getInteractiveServiceManager();
+    await service.ensureStarted(settings.get());
+    return service.vlmAsk(args);
+  });
+
   ipcMain.handle('segmentation-refine', async (_, args: {
     imagePath: string;
     detections: {
@@ -694,9 +712,11 @@ export default function register() {
     return { success: true, streams };
   });
 
-  ipcMain.handle('video-search-formulate', async (_, args: { imagePath: string; boxes?: number[][] }) => {
+  ipcMain.handle('video-search-formulate', async (_, args: {
+    imagePath: string; boxes?: number[][]; exemplars?: VideoSearchExemplar[];
+  }) => {
     const manager = videoSearch.getQueryServiceManager();
-    return manager.formulateQuery(args.imagePath, args.boxes);
+    return manager.formulateQuery(args.imagePath, args.boxes, args.exemplars);
   });
 
   ipcMain.handle('video-search-query', async (

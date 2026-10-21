@@ -131,6 +131,7 @@ export default defineComponent({
       if (ret.canceled || !ret.filePaths?.length) return;
       [page.imagePath.value] = ret.filePaths;
       page.imageBox.value = null;
+      page.imageExemplars.value = null;
     }
 
     async function pickVideoFile() {
@@ -231,6 +232,7 @@ export default defineComponent({
         page.mode.value = 'image';
         page.imagePath.value = launch.imagePath;
         page.imageBox.value = launch.box || null;
+        page.imageExemplars.value = launch.exemplars?.length ? launch.exemplars : null;
         page.warmStartModel.value = launch.modelPath || '';
         page.onlySelected.value = false;
         page.search.selectIndex(launch.streamName);
@@ -510,8 +512,15 @@ export default defineComponent({
                   v-if="imageUrl"
                   :src="imageUrl"
                   :box="page.imageBox.value"
-                  @update:box="page.imageBox.value = $event"
+                  @update:box="page.imageBox.value = $event; page.imageExemplars.value = null"
                 />
+                <div
+                  v-if="page.imageExemplars.value"
+                  class="text-caption mt-1"
+                >
+                  Searching with {{ page.imageExemplars.value.length }} frames of the track.
+                  <a @click.prevent="page.imageExemplars.value = null">Use this frame only</a>
+                </div>
                 <div class="text-caption text-truncate grey--text mt-1">
                   {{ page.imagePath.value }}
                 </div>
