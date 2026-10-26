@@ -2,8 +2,8 @@ import io
 import os
 import zipfile
 
-from girder_client import GirderClient
 from PIL import Image
+from girder_client import GirderClient
 import pytest
 
 from .conftest import localDataRoot
