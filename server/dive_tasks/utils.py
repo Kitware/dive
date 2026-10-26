@@ -16,7 +16,7 @@ from typing import Iterator, List, Optional, Sequence, Tuple, Union
 from urllib import request
 from urllib.parse import urlencode, urljoin
 
-from girder_client import GirderClient
+from girder_client import GirderClient, HttpError
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
@@ -620,7 +620,8 @@ def upload_zipped_flat_media_files(
     listOfFileNames = os.listdir(working_directory)
     validation = gc.sendRestRequest('POST', '/dive_dataset/validate_files', json=listOfFileNames)
     root_folderId = folderId
-    default_fps = gc.getFolder(root_folderId).get(f"meta.{constants.FPSMarker}", -1)
+    folder_meta = gc.getFolder(root_folderId).get('meta') or {}
+    default_fps = folder_meta.get(constants.FPSMarker, -1)
     if validation.get('ok', False):
         manager.write(f"Annotations: {validation['roles']['annotations']}\n")
         manager.write(f"Media: {validation['roles']['media']}\n")
@@ -636,7 +637,6 @@ def upload_zipped_flat_media_files(
 
         # Upload all resulting items back into the root folder
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        # create a source folder to place the zipFile inside of
         gc.upload(f'{working_directory}/*', root_folderId)
         if dataset_type == constants.ImageSequenceType and default_fps == -1:
             default_fps = 1
@@ -645,11 +645,16 @@ def upload_zipped_flat_media_files(
             {constants.TypeMarker: dataset_type, constants.FPSMarker: default_fps},
         )
         # After uploading the default files we do a the postprocess for video conversion now
-        gc.sendRestRequest(
-            "POST",
-            f"/dive_rpc/postprocess/{str(root_folderId)}",
-            parameters={'additive': additive},
-        )
+        try:
+            gc.sendRestRequest(
+                "POST",
+                f"dive_rpc/postprocess/{str(root_folderId)}",
+                parameters={'additive': additive},
+            )
+        except HttpError as err:
+            body = (err.response.text if err.response is not None else '') or str(err)
+            manager.write(f"Postprocess failed: {body}\n")
+            raise
     else:
         manager.write(f"Message: {validation['message']}\n")
         manager.write("Please check the documentation for Zip files at:\
