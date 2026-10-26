@@ -18,6 +18,17 @@ from dive_utils import asbool, calibration_format, constants
 from dive_utils.types import GirderModel
 
 
+def raise_if_nested_zip(fileName: str) -> None:
+    """Reject nested archives inside a zip being extracted.
+
+    Must stay aligned with postprocess (``constants.zipRegex``, case-insensitive).
+    A nested ``.ZIP`` used to slip past ``endswith('.zip')``, get uploaded with
+    media, then fail postprocess with "multiple files besides a zip".
+    """
+    if constants.zipRegex.search(fileName):
+        raise Exception("Nested Zip Files are invalid")
+
+
 @app.task(bind=True, acks_late=True, ignore_result=True)
 def convert_calibration(self: Task, itemId: str):
     """
@@ -352,8 +363,7 @@ def extract_zip(
                         discovered_folders[folderName] = 'multicam'
                     else:
                         discovered_folders[folderName] = 'dataset'
-                if fileName.endswith('.zip'):
-                    raise Exception("Nested Zip Files are invalid")
+                raise_if_nested_zip(fileName)
                 manager.write(f"Extracting: {fileName}\n")
                 zipObj.extract(fileName, f'{_working_directory}')
 
