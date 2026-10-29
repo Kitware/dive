@@ -36,6 +36,7 @@ import { SCORING_RESULT_VERSION } from 'dive-common/scoring/types';
 import type { RawScoringMatches, ScoringResultFile } from 'dive-common/scoring/types';
 import * as common from './common';
 import { prepareSingleCameraRun, finishSingleCameraRun } from './singleCameraPipeline';
+import { offsetCsvFrames } from './pipelineFrameRange';
 import {
   jobFileEchoMiddleware, createWorkingDirectory, createCustomWorkingDirectory, splitExt,
   buildTrainingExitManifest,
@@ -606,6 +607,17 @@ async function runPipeline(
             }
             if (await fs.pathExists(detectorOutput)) {
               finalDetectorOutput = await filterCsvByFrameRange(detectorOutput, frameRange);
+            }
+          } else if (frameRange && metaType === 'image-sequence') {
+            // The image manifest above held only the range, so the output
+            // counts frames from 0 at the range start; the import goes by
+            // the frame column, so shift it back to the dataset's numbering.
+            const offset = Math.max(0, frameRange[0]);
+            if (await fs.pathExists(trackOutput)) {
+              finalTrackOutput = await offsetCsvFrames(trackOutput, offset);
+            }
+            if (await fs.pathExists(detectorOutput)) {
+              finalDetectorOutput = await offsetCsvFrames(detectorOutput, offset);
             }
           }
 
