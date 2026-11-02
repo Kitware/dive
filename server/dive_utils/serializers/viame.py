@@ -404,6 +404,22 @@ def load_json_as_track_and_attributes(
     return json_data, metadata_attributes
 
 
+def _missing_images_warning(missing: List[str], skipped: int) -> Optional[str]:
+    names = [name for name in dict.fromkeys(missing) if name]
+    if not names:
+        return None
+    shown = ', '.join(names[:10]) + (f', and {len(names) - 10} more' if len(names) > 10 else '')
+    if skipped:
+        return (
+            f'{len(names)} image(s) named in the CSV are not in this dataset, so {skipped} '
+            f'detection(s) on them were skipped. Check the image names match: {shown}'
+        )
+    return (
+        f'None of the {len(names)} image(s) named in the CSV are in this dataset, so CSV '
+        f'frame numbers were used as-is. Check the image names match: {shown}'
+    )
+
+
 def custom_sort(row):
     if len(row) == 0 or row[0].startswith("#"):
         return (0, 0)
@@ -563,28 +579,22 @@ def load_csv_as_tracks_and_attributes(
         # Now we need to remap and filter tracks that are outside the frame range
         trackValArr = list(tracks.values())
         newDataMap: Dict[int, Track] = {}
+        skipped = 0
         for track in trackValArr:
             if track.end >= minFrame or track.begin <= maxFrame:
-                begin = track.begin
-                end = track.end
-                if begin < minFrame or begin not in frameMapper.keys():
-                    begin = frameMapper[minFrame]
-                else:
-                    begin = frameMapper[begin]
-                if end > maxFrame or end not in frameMapper.keys():
-                    end = frameMapper[maxFrame]
-                else:
-                    end = frameMapper[end]
                 newTrack = Track(
-                    begin=begin,
-                    end=end,
+                    begin=track.begin,
+                    end=track.end,
                     id=track.id,
                     attributes=track.attributes,
                     confidencePairs=track.confidencePairs,
                 )
                 for subFeature in track.features:
-                    # feature frame is within the subFeature add and remap the frame to the new time
-                    if subFeature.frame >= minFrame and subFeature.frame <= maxFrame:
+                    # A frame with no mapping belongs to an image the dataset lacks, whether
+                    # it falls outside the found range or in a gap inside it.
+                    if subFeature.frame not in frameMapper:
+                        skipped += 1
+                    else:
                         newFeature = Feature(
                             frame=subFeature.frame,
                             bounds=subFeature.bounds,
@@ -600,9 +610,18 @@ def load_csv_as_tracks_and_attributes(
                         newTrack.features.append(newFeature)
                 if len(newTrack.features):
                     # Only add the track if it has features
+                    newTrack.begin = min(f.frame for f in newTrack.features)
+                    newTrack.end = max(f.frame for f in newTrack.features)
                     newDataMap[newTrack.id] = newTrack
         # Set the original tracks to the new list
         tracks = newDataMap
+        missing_warning = _missing_images_warning(missingImages, skipped)
+        if missing_warning:
+            warnings.insert(0, missing_warning)
+    elif imageMap and len(missingImages) and not len(foundImages):
+        missing_warning = _missing_images_warning(missingImages, 0)
+        if missing_warning:
+            warnings.append(missing_warning)
     elif len(foundImages) and len(missingImages) == 0 and multiFrameTracks:
         # check ordering
         for index, item in enumerate(foundImages):

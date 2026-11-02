@@ -1188,7 +1188,7 @@ def _parse_data_item(
         raise crud.hierarchy_rest_error(error) from error
     except Exception as error:
         Item().remove(item)
-        if isinstance(error, ValueError):
+        if isinstance(error, (ValueError, KeyError, IndexError)):
             hint = (
                 ' If this file is frame metadata rather than annotations, upload it '
                 'in the "Metadata File (Optional)" field on the upload page, or rename '

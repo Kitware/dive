@@ -1,4 +1,5 @@
 import json
+import re
 from typing import Dict, List
 
 import pytest
@@ -54,3 +55,38 @@ def test_centerline_order_and_subpixel_coordinates():
     )
     assert line['geometry']['coordinates'] == [[10, 10], [40, 30], [60.123456789, 40], [90, 10]]
     assert any(f['properties']['key'] == 'eye' for f in features['geometry']['features'])
+
+
+MISSING_IMAGE_ROWS = [
+    '0,1.png,0,10,10,20,20,1,-1,fish,0.9',
+    '0,2.png,1,11,11,21,21,1,-1,fish,0.9',
+    '0,3.png,2,12,12,22,22,1,-1,fish,0.9',
+    '1,2.png,1,30,30,40,40,1,-1,crab,0.8',
+]
+
+
+def test_image_missing_mid_sequence_skips_its_detections_with_warning():
+    image_map = {'1': 0, '3': 1}
+    converted, _, warnings, _, _ = viame.load_csv_as_tracks_and_attributes(
+        MISSING_IMAGE_ROWS, image_map
+    )
+    tracks = converted['tracks']
+    assert list(tracks) == ['0']
+    assert [f['frame'] for f in tracks['0']['features']] == [0, 1]
+    assert (tracks['0']['begin'], tracks['0']['end']) == (0, 1)
+    assert any('2.png' in w and '2 detection(s)' in w for w in warnings)
+
+
+def test_no_images_matched_keeps_csv_frames_with_warning():
+    image_map = {'a': 0, 'b': 1, 'c': 2}
+    converted, _, warnings, _, _ = viame.load_csv_as_tracks_and_attributes(
+        MISSING_IMAGE_ROWS, image_map
+    )
+    assert [f['frame'] for f in converted['tracks']['0']['features']] == [0, 1, 2]
+    assert any(w.startswith('None of the 3 image(s)') and '3.png' in w for w in warnings)
+
+
+def test_blank_image_column_does_not_warn():
+    rows = [re.sub(r'\d\.png', '', row) for row in MISSING_IMAGE_ROWS]
+    _, _, warnings, _, _ = viame.load_csv_as_tracks_and_attributes(rows, {'a': 0})
+    assert warnings == []
