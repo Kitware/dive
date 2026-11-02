@@ -1660,6 +1660,10 @@ def _read_json_calibration_file(
 
 
 def _calibration_file_is_final_json(file_model: dict) -> bool:
+    # Only a .json name can be final; skip the read so .npz/.cam/etc. never touch the
+    # assetstore (multicam finalize runs on a worker that may not mount it).
+    if not file_model['name'].lower().endswith('.json'):
+        return False
     file_bytes = calibration_format.read_file_model_bytes(file_model)
     return calibration_format.calibration_upload_is_final_json(file_model['name'], file_bytes)
 
