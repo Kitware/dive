@@ -519,7 +519,7 @@ async function _findCSVTrackFiles(searchPath: string) {
 async function _findJsonAndMetaTrackFile(basePath: string): Promise<
   {trackFileAbsPath: string; configFileAbsPath?: string; speciesFileAbsPath?: string}> {
   const contents = await fs.readdir(basePath);
-  const jsonFileCandidates: string[] = [];
+  const jsonFileCandidates: { fullPath: string; mtimeMs: number }[] = [];
   let configFileAbsPath: undefined | string;
   let speciesFileAbsPath: undefined | string;
   await Promise.all(contents.map(async (name) => {
@@ -527,7 +527,7 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
     if (JsonTrackFileName.test(name)) {
       const statResult = await fs.stat(fullPath);
       if (statResult.isFile()) {
-        jsonFileCandidates.push(fullPath);
+        jsonFileCandidates.push({ fullPath, mtimeMs: statResult.mtimeMs });
       }
     } else if (JsonConfigRegEx.test(name)) {
       // Prefer exact portable config.json, then legacy meta.json, then other
@@ -551,7 +551,17 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
     }
   }));
   if (jsonFileCandidates.length > 0) {
-    return { trackFileAbsPath: jsonFileCandidates[0], configFileAbsPath, speciesFileAbsPath };
+    // A project directory normally holds exactly one track file, but a save
+    // interrupted between writing the new file and retiring the old one, or a
+    // sync client's conflict copy, can leave several. Directory order is
+    // arbitrary, so pick the most recently written one; names from the save
+    // path sort chronologically, which settles equal timestamps.
+    jsonFileCandidates.sort((a, b) => (
+      b.mtimeMs - a.mtimeMs || b.fullPath.localeCompare(a.fullPath)
+    ));
+    return {
+      trackFileAbsPath: jsonFileCandidates[0].fullPath, configFileAbsPath, speciesFileAbsPath,
+    };
   }
   return { trackFileAbsPath: '', configFileAbsPath, speciesFileAbsPath };
 }
@@ -609,6 +619,18 @@ async function loadJsonConfig(configAbsPath: string): Promise<JsonConfig> {
  */
 async function loadAnnotationFile(tracksAbsPath: string): Promise<AnnotationSchema> {
   const annotationData = await _loadAsJson(tracksAbsPath);
+  if (annotationData === false) {
+    // A zero-byte track file is what a write that ran out of disk space leaves
+    // behind. Opening it as an empty dataset would hide every annotation and
+    // let the next save make that permanent; the retired copies in auxiliary/
+    // still hold them.
+    const auxiliary = npath.join(npath.dirname(tracksAbsPath), AuxFolderName);
+    throw new Error(
+      `Annotation file ${tracksAbsPath} is empty, so it was not loaded. `
+      + `Previous versions are kept in ${auxiliary}; move the newest result_*.json from there `
+      + 'back into the project folder to recover.',
+    );
+  }
   return dive.migrate(annotationData);
 }
 
@@ -1257,6 +1279,95 @@ async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
 }
 
 /**
+ * Write a file so that the path either still holds its previous contents or
+ * holds the complete new contents, never a partial write. The data goes to a
+ * temporary name in the same directory first; a full disk or a crash leaves
+ * at most a stray .tmp file, and the live file is untouched. The temporary
+ * name ends in .tmp so no *.json discovery picks it up.
+ */
+async function _writeFileAtomic(absPath: string, contents: string) {
+  const tempPath = npath.join(
+    npath.dirname(absPath),
+    `.${npath.basename(absPath)}.${process.pid}.tmp`,
+  );
+  try {
+    await fs.writeFile(tempPath, contents);
+    const fd = await fs.open(tempPath, 'r+');
+    try {
+      // Push the data to the device before the rename makes it the live file,
+      // so a power loss right after a save cannot leave an empty file behind.
+      // Some network filesystems reject fsync; the write itself still happened.
+      await fs.fsync(fd).catch(() => undefined);
+    } finally {
+      await fs.close(fd);
+    }
+    await fs.rename(tempPath, absPath);
+  } catch (err) {
+    await fs.remove(tempPath).catch(() => undefined);
+    throw err;
+  }
+}
+
+/**
+ * Run fn while holding the project's track-file lock, releasing it however
+ * fn ends. Saves hold the lock from the read of the current file through the
+ * write of the new one, so two writers cannot interleave their merges.
+ */
+async function _withTracksLock<T>(basePath: string, fn: () => Promise<T>): Promise<T> {
+  const release = await _acquireLock(basePath, basePath, 'tracks');
+  try {
+    return await fn();
+  } finally {
+    await release();
+  }
+}
+
+/**
+ * Move a retired track file into auxiliary/ without ever overwriting a copy
+ * that is already there.
+ */
+async function _retireTrackFile(auxDirAbsPath: string, trackFileAbsPath: string) {
+  const name = npath.basename(trackFileAbsPath);
+  let destination = npath.join(auxDirAbsPath, name);
+  if (await fs.pathExists(destination)) {
+    const [stem, ext] = splitExt(name);
+    destination = npath.join(auxDirAbsPath, `${stem}_retired_${Date.now()}${ext}`);
+  }
+  await fs.move(trackFileAbsPath, destination);
+}
+
+/**
+ * Write a new track file and retire every other one into auxiliary/. The
+ * caller holds the tracks lock. The new file is complete on disk before the
+ * old one moves, so a failed write (full disk, crash) leaves the previous
+ * annotations where they were, and a failure during the move leaves two
+ * files of which the newer is loaded.
+ */
+async function _writeAnnotationFile(
+  settings: Settings,
+  datasetId: string,
+  data: AnnotationSchema,
+  allowEmpty: boolean,
+) {
+  const projectInfo = getProjectDir(settings, datasetId);
+  if (!allowEmpty) {
+    await getValidatedProjectDir(settings, datasetId);
+  }
+  // Named so that chronological order and name order agree (24-hour clock,
+  // year first); the loader still goes by modification time.
+  const time = moment().format('YYYY-MM-DD_HH-mm-ss.SSS');
+  const newFileName = `result_${time}.json`;
+  await fs.ensureDir(projectInfo.auxDirAbsPath);
+  await _writeFileAtomic(npath.join(projectInfo.basePath, newFileName), JSON.stringify(data));
+  const retired = (await fs.readdir(projectInfo.basePath))
+    .filter((name) => name !== newFileName && JsonTrackFileName.test(name));
+  for (let i = 0; i < retired.length; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await _retireTrackFile(projectInfo.auxDirAbsPath, npath.join(projectInfo.basePath, retired[i]));
+  }
+}
+
+/**
  * _saveSerialized save pre-serialized tracks to disk
  */
 async function _saveSerialized(
@@ -1265,27 +1376,11 @@ async function _saveSerialized(
   data: AnnotationSchema,
   allowEmpty = false,
 ) {
-  const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
-  const newFileName = `result_${time}.json`;
   const projectInfo = getProjectDir(settings, datasetId);
-  const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
-
-  try {
-    const validatedInfo = await getValidatedProjectDir(settings, datasetId);
-    await fs.move(
-      validatedInfo.trackFileAbsPath,
-      npath.join(
-        validatedInfo.auxDirAbsPath,
-        npath.basename(validatedInfo.trackFileAbsPath),
-      ),
-    );
-  } catch (err) {
-    // Some part of the project dir didn't exist
-    if (!allowEmpty) throw err;
-  }
-  const serialized = JSON.stringify(data);
-  await fs.writeFile(npath.join(projectInfo.basePath, newFileName), serialized);
-  await release();
+  return _withTracksLock(
+    projectInfo.basePath,
+    () => _writeAnnotationFile(settings, datasetId, data, allowEmpty),
+  );
 }
 
 /**
@@ -1293,25 +1388,30 @@ async function _saveSerialized(
  */
 async function saveDetections(settings: Settings, datasetId: string, args: SaveDetectionsArgs) {
   /* Update existing track file */
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
-  function _save(type: 'tracks' | 'groups') {
-    args[type].delete.forEach((id) => delete existing[type][id.toString()]);
-    args[type].upsert.forEach((val: TrackData | GroupData) => {
-      existing[type][val.id.toString()] = val;
-    });
-  }
-  _save('tracks');
-  _save('groups');
-  return _saveSerialized(settings, datasetId, existing);
+  const projectInfo = getProjectDir(settings, datasetId);
+  return _withTracksLock(projectInfo.basePath, async () => {
+    const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+    const existing = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+    function _save(type: 'tracks' | 'groups') {
+      args[type].delete.forEach((id) => delete existing[type][id.toString()]);
+      args[type].upsert.forEach((val: TrackData | GroupData) => {
+        existing[type][val.id.toString()] = val;
+      });
+    }
+    _save('tracks');
+    _save('groups');
+    await _writeAnnotationFile(settings, datasetId, existing, false);
+  });
 }
 
 /**
- * _saveAsJson saves directly to disk
+ * _saveAsJson saves directly to disk. dataset.json has no retired copies in
+ * auxiliary/, so a torn write there would be the only copy of the project's
+ * configuration; write it atomically.
  */
 async function _saveAsJson(absPath: string, data: unknown) {
   const serialized = JSON.stringify(data, null, 2);
-  await fs.writeFile(absPath, serialized);
+  await _writeFileAtomic(absPath, serialized);
 }
 
 /**

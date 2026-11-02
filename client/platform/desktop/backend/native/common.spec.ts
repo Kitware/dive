@@ -149,6 +149,24 @@ const scoringTrackFixture = {
   },
 };
 
+/** A current-schema track file holding one single-frame track. */
+function trackFileFixture(id: number, frame: number) {
+  return JSON.stringify({
+    version: AnnotationsCurrentVersion,
+    groups: {},
+    tracks: {
+      [id]: {
+        id,
+        begin: frame,
+        end: frame,
+        attributes: {},
+        confidencePairs: [['fish', 1]],
+        features: [{ frame, bounds: [0, 0, 1, 1] }],
+      },
+    },
+  });
+}
+
 const scoringResultFixture = {
   version: 1,
   id: 'ignored-on-load',
@@ -873,10 +891,50 @@ beforeEach(() => {
         projectid3Bad: {},
         projectid4Bad: {
           'meta.json': '{}',
-          // Too many results
-          'result_1.json': '',
-          'result_2.json': '',
+          // Too many results: the newest wins
+          'result_1.json': mockfs.file({ content: '', mtime: new Date('2026-01-01T00:00:00Z') }),
+          'result_2.json': mockfs.file({ content: '', mtime: new Date('2026-01-02T00:00:00Z') }),
           auxiliary: {},
+        },
+        projectidTwoResults: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'projectidTwoResults',
+            name: 'Two Results',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/tworesults',
+            originalImageFiles: ['a.png', 'b.png', 'c.png', 'd.png'],
+          } as JsonConfig),
+          // Left behind by a save that wrote result_b but never retired result_a.
+          'result_a.json': mockfs.file({
+            content: trackFileFixture(1, 1),
+            mtime: new Date('2026-01-01T00:00:00Z'),
+          }),
+          'result_b.json': mockfs.file({
+            content: trackFileFixture(2, 2),
+            mtime: new Date('2026-01-02T00:00:00Z'),
+          }),
+          auxiliary: {
+            // An older retired copy that happens to share result_a's name.
+            'result_a.json': 'old retired copy',
+          },
+        },
+        projectidEmptyResult: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'projectidEmptyResult',
+            name: 'Empty Result',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/emptyresult',
+            originalImageFiles: ['a.png'],
+          } as JsonConfig),
+          // What a write that ran out of disk space leaves behind.
+          'result_truncated.json': '',
+          auxiliary: {
+            'result_previous.json': trackFileFixture(1, 0),
+          },
         },
         projectid5Bad: {
         // Missing Track JSON File
@@ -1291,8 +1349,9 @@ describe('native.common', () => {
       expect(await fs.pathExists(
         npath.join(project.auxDirAbsPath, `imported_${npath.basename(valid)}`),
       )).toBe(true);
+      // Track files are written under a temporary name and renamed into place.
       const annotationWrites = writeFile.mock.calls.filter(([path, data]) => (
-        npath.basename(String(path)).startsWith('result_')
+        /^\.?result_.*\.json(\.\d+\.tmp)?$/.test(npath.basename(String(path)))
         && Object.prototype.hasOwnProperty.call(JSON.parse(String(data)).tracks, '1')
       ));
       expect(annotationWrites).toHaveLength(1);
@@ -1368,10 +1427,10 @@ describe('native.common', () => {
     const saved = await fs.readJSON(preferred);
     expect(saved.imageEnhancements.brightness).toBe(1.2);
   });
-  it('getValidatedProjectDir loads initial track.json', async () => {
+  it('getValidatedProjectDir loads the newest track.json', async () => {
     const basedir = 'DIVE_Projects/projectid4Bad';
     const dir = await common.getValidatedProjectDir(settings, 'projectid4Bad');
-    expect(dir.trackFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'result_1.json'));
+    expect(dir.trackFileAbsPath).toBe(npath.join(settings.dataPath, basedir, 'result_2.json'));
   });
 
   it('getValidatedProjectDir fails to load project directory for invalid contents', async () => {
@@ -3445,6 +3504,69 @@ describe('frame metadata import gates', () => {
       'projectid1',
       ['/home/user/data/fmGateViameFail/nav.csv'],
     )).rejects.toThrow(/rename it to frame-metadata\.csv/);
+  });
+});
+
+describe('annotation file durability', () => {
+  const projectId = 'projectidTwoResults';
+  const base = npath.join(settings.dataPath, 'DIVE_Projects', projectId);
+  const auxiliary = npath.join(base, 'auxiliary');
+  const upsertTrack = (id: number, frame: number) => ({
+    tracks: { upsert: [JSON.parse(trackFileFixture(id, frame)).tracks[id]], delete: [] },
+    groups: { upsert: [], delete: [] },
+  });
+  const trackIds = async () => Object.keys((await common.loadDetections(settings, projectId)).tracks).sort();
+
+  it('loads the most recently written track file when several exist', async () => {
+    expect(await trackIds()).toEqual(['2']);
+  });
+
+  it('refuses to open an empty track file and points at the retired copies', async () => {
+    await expect(common.loadDetections(settings, 'projectidEmptyResult'))
+      .rejects.toThrow(/result_truncated\.json is empty[\s\S]*auxiliary/);
+  });
+
+  it('keeps the previous track file when the new one cannot be written', async () => {
+    const before = (await fs.readdir(base)).sort();
+    const noSpace = Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
+    const writeFile = vi.spyOn(fs, 'writeFile').mockRejectedValueOnce(noSpace);
+    try {
+      await expect(common.saveDetections(settings, projectId, upsertTrack(3, 3)))
+        .rejects.toThrow('ENOSPC');
+    } finally {
+      writeFile.mockRestore();
+    }
+    // Nothing retired, no temporary file left behind, previous annotations still load.
+    expect((await fs.readdir(base)).sort()).toEqual(before);
+    expect(await trackIds()).toEqual(['2']);
+    expect(await fs.readFile(npath.join(auxiliary, 'result_a.json'), 'utf-8')).toBe('old retired copy');
+  });
+
+  it('writes one chronologically named track file and retires every other one', async () => {
+    await common.saveDetections(settings, projectId, upsertTrack(3, 3));
+
+    const names = await fs.readdir(base);
+    const results = names.filter((name) => /^result.*\.json$/.test(name));
+    expect(results).toHaveLength(1);
+    expect(results[0]).toMatch(/^result_\d{4}-\d{2}-\d{2}_\d{2}-\d{2}-\d{2}\.\d{3}\.json$/);
+    expect(names.filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    expect(await trackIds()).toEqual(['2', '3']);
+
+    const retired = (await fs.readdir(auxiliary)).sort();
+    expect(retired).toHaveLength(3);
+    expect(retired).toContain('result_b.json');
+    // The retired copy already named result_a.json is not overwritten.
+    expect(await fs.readFile(npath.join(auxiliary, 'result_a.json'), 'utf-8')).toBe('old retired copy');
+    const renamed = retired.find((name) => /^result_a_retired_\d+\.json$/.test(name));
+    expect(renamed).toBeDefined();
+    expect(await fs.readFile(npath.join(auxiliary, renamed as string), 'utf-8')).toBe(trackFileFixture(1, 1));
+  });
+
+  it('writes dataset.json without leaving a temporary file', async () => {
+    await common.saveConfig(settings, projectId, { confidenceFilters: { default: 0.5 } });
+    const names = await fs.readdir(base);
+    expect(names.filter((name) => name.endsWith('.tmp'))).toEqual([]);
+    expect((await fs.readJSON(npath.join(base, 'dataset.json'))).confidenceFilters).toEqual({ default: 0.5 });
   });
 });
 

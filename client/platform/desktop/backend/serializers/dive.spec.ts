@@ -113,6 +113,13 @@ describe('DIVE JSON filterTracks', () => {
 });
 
 describe('DIVE JSON annotation fps', () => {
+  it('rejects a track file that did not read as an object', () => {
+    // _loadAsJson reads an empty file as false; that must not become an empty dataset.
+    expect(() => migrate(false)).toThrow('object expected in track json');
+    expect(() => migrate(null)).toThrow('object expected in track json');
+    expect(() => migrate([])).toThrow('object expected in track json');
+  });
+
   it('writes fps from dataset meta on export and restores it on migrate', async () => {
     await serializeFile('/output/out.json', annotationSchema, { ...imageMeta, fps: 5 });
     const out = await fs.readJSON('/output/out.json');
