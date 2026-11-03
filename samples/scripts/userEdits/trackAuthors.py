@@ -31,15 +31,17 @@ from typing import Any, Dict, List, Optional, Union
 
 import click
 from bson import ObjectId
+from bson.errors import InvalidId
 from pymongo import MongoClient
 from pymongo.errors import ServerSelectionTimeoutError
 
-# dive_utils/constants.py
+# dive_utils/constants.py (safeImageRegex is case-insensitive)
 WEB_VALID_IMAGE_FORMATS = ("png", "jpg", "jpeg")
 SAFE_IMAGE_REGEX = r"(\." + r"|\.".join(WEB_VALID_IMAGE_FORMATS) + r")$"
 IMAGE_SEQUENCE_TYPE = "image-sequence"
 FOREIGN_MEDIA_ID_MARKER = "foreign_media_id"
 NUMBERS_REGEX = re.compile(r"(\d+)")
+FEATURE_COUNT = {"$size": {"$ifNull": ["$features", []]}}
 
 
 def _maybe_int(value: str) -> Union[str, int]:
@@ -89,7 +91,10 @@ def get_clone_root(db, folder: Dict[str, Any]) -> Dict[str, Any]:
 def image_names(db, folder: Dict[str, Any]) -> List[str]:
     media_folder = get_clone_root(db, folder)
     items = db.item.find(
-        {"folderId": media_folder["_id"], "lowerName": {"$regex": SAFE_IMAGE_REGEX}},
+        {
+            "folderId": media_folder["_id"],
+            "lowerName": {"$regex": SAFE_IMAGE_REGEX, "$options": "i"},
+        },
         {"name": 1},
     )
     names = [item["name"] for item in items]
@@ -161,7 +166,10 @@ def main(folder_id, mongo_uri, container, all_versions, include_revisions, featu
             "port 27017; try --container dive-mongo-1 or pass --mongo-uri with the container IP."
         )
     db = client.get_default_database()
-    dataset_id = ObjectId(folder_id)
+    try:
+        dataset_id = ObjectId(folder_id)
+    except InvalidId:
+        raise click.ClickException(f"Invalid folder id: {folder_id}")
 
     folder = db.folder.find_one({"_id": dataset_id})
     if folder is None:
@@ -180,22 +188,36 @@ def main(folder_id, mongo_uri, container, all_versions, include_revisions, featu
     else:
         revisions = {k: r for k, r in revisions.items() if not r.get("set")}
 
+    # Count features in Mongo so the heavy features array is only loaded with --features
+    track_fields: Dict[str, Any] = {
+        "_id": 0,
+        "id": 1,
+        "begin": 1,
+        "end": 1,
+        "confidencePairs": 1,
+        "rev_created": 1,
+        "rev_deleted": 1,
+        "featureCount": FEATURE_COUNT,
+    }
+    if features:
+        track_fields["features"] = 1
+
     tracks = []
-    for track in db.trackItem.find(track_query).sort([("id", 1), ("rev_created", 1)]):
+    for track in db.trackItem.find(track_query, track_fields).sort([("id", 1), ("rev_created", 1)]):
         rev = revisions.get(track.get("rev_created"), {})
         entry = {
-            "trackId": track["id"],
+            "id": track["id"],
             "begin": track.get("begin"),
             "end": track.get("end"),
             "beginImage": frame_name(images, track.get("begin", -1)),
             "endImage": frame_name(images, track.get("end", -1)),
-            "featureCount": len(track.get("features", [])),
+            "featureCount": track.get("featureCount", 0),
             "types": [pair[0] for pair in track.get("confidencePairs", [])],
             "rev_created": track.get("rev_created"),
             "rev_deleted": track.get("rev_deleted"),
-            "author": rev.get("author_name"),
-            "authorId": str(rev["author_id"]) if rev.get("author_id") else None,
-            "saved": rev["created"].isoformat() if rev.get("created") else None,
+            "author_name": rev.get("author_name"),
+            "author_id": str(rev["author_id"]) if rev.get("author_id") else None,
+            "created": rev["created"].isoformat() if rev.get("created") else None,
             # "save" is a manual edit in the UI, "Import ..." is a file or pipeline import
             "description": rev.get("description"),
         }
@@ -222,8 +244,8 @@ def main(folder_id, mongo_uri, container, all_versions, include_revisions, featu
         result["revisions"] = [
             {
                 "revision": r["revision"],
-                "author": r.get("author_name"),
-                "saved": r["created"].isoformat() if r.get("created") else None,
+                "author_name": r.get("author_name"),
+                "created": r["created"].isoformat() if r.get("created") else None,
                 "description": r.get("description"),
                 "additions": r.get("additions"),
                 "deletions": r.get("deletions"),

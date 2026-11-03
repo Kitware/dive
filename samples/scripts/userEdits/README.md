@@ -12,6 +12,18 @@ The revision `description` shows where a version came from:
 | `Import <type> from <file>` | Uploaded annotation file or pipeline output |
 | `initialize clone` | Dataset clone (earlier history lives on the source dataset) |
 
+## Prefer the HTTP API when you can
+
+For normal scripting against a running DIVE server, use
+[`GET dive_annotation/track/authors`](../../../docs/scripting/Endpoints.md)
+with a Girder token. That endpoint respects dataset ACLs, returns the author of
+each visible track at a revision, and does not need Mongo access.
+
+Use this script only for ops/admin work that needs Mongo-only options the API
+does not expose (`--all-versions`, `--features`, image-name mapping, full
+revision log dump). It talks to Mongo directly and **bypasses Girder access
+control**, so anyone with the URI can read every dataset.
+
 ## Requirements
 
 - [uv](https://docs.astral.sh/uv/) (installs `click` and `pymongo` automatically)
@@ -35,6 +47,13 @@ uv run samples/scripts/userEdits/trackAuthors.py <folderId> \
   --mongo-uri mongodb://172.18.0.6:27017/girder --set mySet -o tracks.json
 ```
 
+HTTP equivalent (token-authenticated, ACL-aware):
+
+```bash
+curl -H "Girder-Token: $TOKEN" \
+  "$GIRDER/api/v1/dive_annotation/track/authors?folderId=<folderId>"
+```
+
 ## Output
 
 ```json
@@ -45,7 +64,7 @@ uv run samples/scripts/userEdits/trackAuthors.py <folderId> \
   "imageCount": 326,
   "tracks": [
     {
-      "trackId": 0,
+      "id": 0,
       "begin": 238,
       "end": 238,
       "beginImage": "20171027.214850.033.029373.png",
@@ -54,13 +73,15 @@ uv run samples/scripts/userEdits/trackAuthors.py <folderId> \
       "types": ["Motion"],
       "rev_created": 10,
       "rev_deleted": null,
-      "author": "jdoe",
-      "authorId": "...",
-      "saved": "...",
+      "author_name": "jdoe",
+      "author_id": "...",
+      "created": "...",
       "description": "save"
     }
   ]
 }
 ```
+
+Track fields use the same names as `GET dive_annotation/track/authors` (`id`, `begin`, `end`, `featureCount`, `rev_created`, `author_id`, `author_name`, `created`, `description`), so output built on this script keeps working if you switch to the API. `beginImage`, `endImage`, `types`, `rev_deleted` and `features` are script-only extras.
 
 `rev_deleted` is always `null` by default; with `--all-versions` it is the revision that replaced or deleted that version. Image names are `null` for video datasets. Pass `--revisions` to add a `revisions` array with the dataset's full revision log (author, time, description, additions, deletions).
