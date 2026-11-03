@@ -30,8 +30,20 @@ class BaseItem(crud.PydanticModel):
         offset=0,
         sort=DEFAULT_ANNOTATION_SORT,
         revision: Optional[int] = None,
-        set: Optional[int] = None,
+        set: Optional[str] = None,
     ) -> Cursor:
+        query = self.list_query(dsFolder, revision, set)
+        return self.find(
+            offset=offset, limit=limit, sort=sort, query=query, fields=self.PROJECT_FIELDS
+        )
+
+    def list_query(
+        self,
+        dsFolder: types.GirderModel,
+        revision: Optional[int] = None,
+        set: Optional[str] = None,
+    ) -> dict:
+        """Query for the annotations visible at revision (default latest)"""
         head: int = RevisionLogItem().latest(dsFolder, set) if revision is None else revision
         query = {
             DATASET: dsFolder['_id'],
@@ -42,9 +54,7 @@ class BaseItem(crud.PydanticModel):
             query[SET] = set
         else:
             query[SET] = None
-        return self.find(
-            offset=offset, limit=limit, sort=sort, query=query, fields=self.PROJECT_FIELDS
-        )
+        return query
 
     def initialize(self):
         self._indices = [
@@ -131,6 +141,61 @@ class RevisionLogItem(crud.PydanticModel):
             fields=RevisionLogItem.PROJECT_FIELDS,
         ).distinct(SET)
         return cursor
+
+
+def track_authors(
+    dsFolder: types.GirderModel,
+    limit=0,
+    offset=0,
+    sort=DEFAULT_ANNOTATION_SORT,
+    revision: Optional[int] = None,
+    set: Optional[str] = None,
+) -> Tuple[List[dict], int]:
+    """
+    List the visible version of each track with the revision log entry that saved it.
+
+    A save rewrites the whole track, so the author is the last user to change the
+    track, not necessarily the user who created each detection.
+    """
+    track_model = TrackItem()
+    query = track_model.list_query(dsFolder, revision, set)
+    # Leave out features: they are the bulk of each document and only the count is needed
+    fields = {
+        '_id': 0,
+        IDENTIFIER: 1,
+        'begin': 1,
+        'end': 1,
+        REVISION_CREATED: 1,
+        'featureCount': {'$size': {'$ifNull': ['$features', []]}},
+    }
+    cursor = track_model.find(query=query, offset=offset, limit=limit, sort=sort, fields=fields)
+    tracks = list(cursor)
+    total = track_model.collection.count_documents(query)
+
+    revisions = {
+        entry[REVISION]: entry
+        for entry in RevisionLogItem().find(
+            query={
+                DATASET: dsFolder['_id'],
+                REVISION: {'$in': list({track[REVISION_CREATED] for track in tracks})},
+            },
+            fields={
+                '_id': 0,
+                REVISION: 1,
+                'author_id': 1,
+                'author_name': 1,
+                'created': 1,
+                'description': 1,
+            },
+        )
+    }
+    for track in tracks:
+        entry = revisions.get(track[REVISION_CREATED], {})
+        track['author_id'] = entry.get('author_id')
+        track['author_name'] = entry.get('author_name')
+        track['created'] = entry.get('created')
+        track['description'] = entry.get('description')
+    return tracks, total
 
 
 def rollback(dsFolder: types.GirderModel, revision: int):

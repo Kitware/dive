@@ -35,6 +35,11 @@ Operating on the Annotations for a specific DIVE Dataset Id.  These incloude get
 - **Usage:** This endpoint is used to get detailed information about specific tracks within a dataset, including their attributes and associated detections.  There are options to retrieve the annotations at specific revisions
 - **Query parameters:** `revision` (optional), `set` (optional string). Omit `set` for the default annotation collection.
 
+#### `dive_annotation/track/authors`
+- **Method:** GET
+- **Usage:** Lists each track visible at a revision (latest by default) with the revision that saved it and that revision's author. Each row has `id`, `begin`, `end`, `featureCount`, `rev_created`, `author_id`, `author_name`, `created` and `description`. A `description` of `save` is a manual edit in the annotator; `Import ...` is an uploaded file or pipeline output. A save rewrites the whole track, so the author is the last user to change the track, not necessarily the creator of every detection. Paged with `limit`/`offset` and returns the total in the `Girder-Total-Count` header. For ops dumps that need full history, feature frames, or image-name mapping, see the Mongo sample script in `samples/scripts/userEdits/`.
+- **Query parameters:** `revision` (optional), `set` (optional string), `limit`, `offset`, `sort`.
+
 #### `dive_annotation/group`
 - **Method:** GET
 - **Usage:** Same as `dive_annotation/track`, but returns group annotations. Supports `revision` and `set` query parameters.
