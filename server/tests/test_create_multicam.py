@@ -500,3 +500,53 @@ def test_resolve_stereo_calibration_item_id_skips_non_calibration_pipeline(item_
 
     assert crud_dataset.resolve_stereo_calibration_item_id(parent_folder, pipeline) is None
     item_cls.return_value.find.assert_not_called()
+
+
+@patch('dive_server.crud_dataset.calibration_format.read_file_model_bytes')
+def test_calibration_final_json_check_skips_read_for_non_json(read_bytes):
+    # finalize runs on localworker, which may not mount the assetstore
+    assert crud_dataset._calibration_file_is_final_json({'name': 'calibration.npz'}) is False
+    read_bytes.assert_not_called()
+
+
+@patch('dive_server.crud_dataset.calibration_format.read_file_model_bytes', return_value=b'{}')
+def test_calibration_final_json_check_reads_json(read_bytes):
+    assert crud_dataset._calibration_file_is_final_json({'name': 'Cal.JSON'}) is True
+    read_bytes.assert_called_once()
+
+
+@patch('dive_server.crud_dataset.tasks.convert_calibration')
+@patch('dive_server.crud_dataset.Token')
+def test_enqueue_calibration_conversion_in_request_lets_girder_worker_create_job(
+    token_cls, convert_task
+):
+    token_cls.return_value.createToken.return_value = {'_id': 'tok'}
+    with patch('dive_server.crud_dataset.cherrypy.request') as request:
+        request.app = object()
+        crud_dataset.enqueue_calibration_conversion({'login': 'tester'}, 'cal-id', 'cal.npz')
+    kwargs = convert_task.apply_async.call_args.kwargs
+    assert kwargs['kwargs']['girder_job_title'] == 'Converting calibration cal.npz'
+    assert 'headers' not in kwargs
+
+
+@patch('girder_plugin_worker.utils.jobInfoSpec', return_value={'reference': 'job-id'})
+@patch('girder_jobs.models.job.Job')
+@patch('dive_server.crud_dataset.tasks.convert_calibration')
+@patch('dive_server.crud_dataset.Token')
+def test_enqueue_calibration_conversion_off_request_creates_girder_job(
+    token_cls, convert_task, job_cls, _job_info_spec
+):
+    # Off-request girder_worker would create the job with the parent's job-scoped token
+    token_cls.return_value.createToken.return_value = {'_id': 'tok'}
+    job_cls.return_value.createJob.return_value = {'_id': 'job-id'}
+    user = {'login': 'tester'}
+    with patch('dive_server.crud_dataset.cherrypy.request') as request:
+        request.app = None
+        crud_dataset.enqueue_calibration_conversion(user, 'cal-id', 'cal.npz')
+    create_kwargs = job_cls.return_value.createJob.call_args.kwargs
+    publish_kwargs = convert_task.apply_async.call_args.kwargs
+    assert create_kwargs['user'] is user
+    assert create_kwargs['otherFields']['celeryTaskId'] == publish_kwargs['task_id']
+    assert publish_kwargs['headers'] == {'jobInfoSpec': {'reference': 'job-id'}}
+    assert publish_kwargs['queue'] == 'pipelines'
+    assert publish_kwargs['kwargs'] == {'itemId': 'cal-id', 'girder_client_token': 'tok'}

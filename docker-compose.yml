@@ -69,6 +69,9 @@ services:
     depends_on:
       - mongo
     entrypoint: celery -A girder_worker.app worker -Q local
+    volumes:
+      # Local tasks (e.g. multicam finalize) read Girder files directly
+      - girder_assetstore:/home/assetstore
     environment:
       - "WORKER_WATCHING_QUEUES=local"
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
