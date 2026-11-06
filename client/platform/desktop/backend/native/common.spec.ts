@@ -578,6 +578,13 @@ beforeEach(() => {
           },
         },
       },
+      DIVE_Jobs_Output: {
+        shared: { 'frame.png': 'png' },
+        sharedCams: { 'frame.png': 'png' },
+        sharedParent: {
+          nested: { 'frame.png': 'png' },
+        },
+      },
       DIVE_Pipelines: {
       /* Empty */
       },
@@ -920,6 +927,57 @@ beforeEach(() => {
             'result_a.json': 'old retired copy',
           },
         },
+        projectidMultiRevisions: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'projectidMultiRevisions',
+            name: 'Multi Revisions',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/media/multirev',
+            originalImageFiles: ['a.png', 'b.png'],
+          } as JsonConfig),
+          'result_parent.json': mockfs.file({
+            content: JSON.stringify({ version: 2, tracks: {}, groups: {} }),
+            mtime: new Date('2025-12-31T00:00:00Z'),
+          }),
+          left: {
+            'dataset.json': JSON.stringify({
+              version: 1,
+              id: 'left',
+              name: 'left',
+              type: 'image-sequence',
+              fps: 5,
+              originalBasePath: '/home/user/media/multirev',
+              originalImageFiles: ['a.png'],
+            } as JsonConfig),
+            'result_new.json': mockfs.file({
+              content: trackFileFixture(2, 2),
+              mtime: new Date('2026-01-03T00:00:00Z'),
+            }),
+            auxiliary: {
+              'result_old.json': mockfs.file({
+                content: trackFileFixture(1, 1),
+                mtime: new Date('2026-01-01T00:00:00Z'),
+              }),
+            },
+          },
+          right: {
+            'dataset.json': JSON.stringify({
+              version: 1,
+              id: 'right',
+              name: 'right',
+              type: 'image-sequence',
+              fps: 5,
+              originalBasePath: '/home/user/media/multirev',
+              originalImageFiles: ['a.png'],
+            } as JsonConfig),
+            'result_only.json': mockfs.file({
+              content: trackFileFixture(5, 1),
+              mtime: new Date('2026-01-02T00:00:00Z'),
+            }),
+          },
+        },
         projectidEmptyResult: {
           'dataset.json': JSON.stringify({
             version: 1,
@@ -946,6 +1004,114 @@ beforeEach(() => {
           'result_1.json': '',
           'result_2.json': '',
           auxiliary: {},
+        },
+        sharedOutputSingle: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'sharedOutputSingle',
+            name: 'Shared Single',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/viamedata/DIVE_Jobs_Output/shared',
+            originalImageFiles: ['frame.png'],
+          } as JsonConfig),
+          'result_1.json': JSON.stringify({ version: 2, tracks: {}, groups: {} }),
+        },
+        sharedOutputMulti: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'sharedOutputMulti',
+            name: 'Shared Multi',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/viamedata/DIVE_Jobs_Output/shared',
+                  originalImageFiles: ['frame.png'],
+                },
+              },
+            },
+          } as unknown as JsonConfig),
+          'result_1.json': JSON.stringify({ version: 2, tracks: {}, groups: {} }),
+        },
+        sharedOutputMultiA: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'sharedOutputMultiA',
+            name: 'Shared Multi A',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/viamedata/DIVE_Jobs_Output/sharedCams',
+                  originalImageFiles: ['frame.png'],
+                },
+              },
+            },
+          } as unknown as JsonConfig),
+          'result_1.json': JSON.stringify({ version: 2, tracks: {}, groups: {} }),
+        },
+        sharedOutputMultiB: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'sharedOutputMultiB',
+            name: 'Shared Multi B',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/viamedata/DIVE_Jobs_Output/sharedCams',
+                  originalImageFiles: ['frame.png'],
+                },
+              },
+            },
+          } as unknown as JsonConfig),
+          'result_1.json': JSON.stringify({ version: 2, tracks: {}, groups: {} }),
+        },
+        sharedOutputNested: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'sharedOutputNested',
+            name: 'Shared Nested',
+            type: 'image-sequence',
+            fps: 5,
+            originalBasePath: '/home/user/viamedata/DIVE_Jobs_Output/sharedParent/nested',
+            originalImageFiles: ['frame.png'],
+          } as JsonConfig),
+          'result_1.json': JSON.stringify({ version: 2, tracks: {}, groups: {} }),
+        },
+        sharedOutputParent: {
+          'dataset.json': JSON.stringify({
+            version: 1,
+            id: 'sharedOutputParent',
+            name: 'Shared Parent',
+            type: 'multi',
+            fps: 5,
+            originalBasePath: '',
+            multiCam: {
+              defaultDisplay: 'left',
+              cameras: {
+                left: {
+                  type: 'image-sequence',
+                  originalBasePath: '/home/user/viamedata/DIVE_Jobs_Output/sharedParent',
+                  originalImageFiles: ['nested/frame.png'],
+                },
+              },
+            },
+          } as unknown as JsonConfig),
+          'result_1.json': JSON.stringify({ version: 2, tracks: {}, groups: {} }),
         },
         stereoDataset: {
           'meta.json': JSON.stringify({
@@ -2946,6 +3112,40 @@ describe('native.common', () => {
     expect(fs.existsSync('/home/user/viamedata/DIVE_Jobs')).toBe(true);
   });
 
+  it('delete keeps jobs output media that another dataset still uses', async () => {
+    const output = '/home/user/viamedata/DIVE_Jobs_Output/shared';
+    // The other dataset only names this folder on its camera, never on itself.
+    await common.deleteDataset(settings, 'sharedOutputSingle');
+    expect(fs.existsSync(output)).toBe(true);
+    await common.deleteDataset(settings, 'sharedOutputMulti');
+    expect(fs.existsSync(output)).toBe(false);
+  });
+
+  it('delete removes jobs output media nothing else uses', async () => {
+    const output = '/home/user/viamedata/DIVE_Jobs_Output/shared';
+    await common.deleteDataset(settings, 'sharedOutputMulti');
+    expect(fs.existsSync(output)).toBe(true);
+    await common.deleteDataset(settings, 'sharedOutputSingle');
+    expect(fs.existsSync(output)).toBe(false);
+  });
+
+  it('delete keeps jobs output that only another multi-camera dataset names', async () => {
+    const output = '/home/user/viamedata/DIVE_Jobs_Output/sharedCams';
+    await common.deleteDataset(settings, 'sharedOutputMultiA');
+    expect(fs.existsSync(output)).toBe(true);
+    await common.deleteDataset(settings, 'sharedOutputMultiB');
+    expect(fs.existsSync(output)).toBe(false);
+  });
+
+  it('delete keeps a jobs folder that sits inside media another dataset still uses', async () => {
+    const nested = '/home/user/viamedata/DIVE_Jobs_Output/sharedParent/nested';
+    const parent = '/home/user/viamedata/DIVE_Jobs_Output/sharedParent';
+    await common.deleteDataset(settings, 'sharedOutputNested');
+    expect(fs.existsSync(nested)).toBe(true);
+    await common.deleteDataset(settings, 'sharedOutputParent');
+    expect(fs.existsSync(parent)).toBe(false);
+  });
+
   it('delete stereo dataset', async () => {
     let exists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset');
     let leftExists = fs.existsSync('/home/user/viamedata/DIVE_Projects/stereoDataset/left');
@@ -3567,6 +3767,122 @@ describe('annotation file durability', () => {
     const names = await fs.readdir(base);
     expect(names.filter((name) => name.endsWith('.tmp'))).toEqual([]);
     expect((await fs.readJSON(npath.join(base, 'dataset.json'))).confidenceFilters).toEqual({ default: 0.5 });
+  });
+
+  it('lists every saved version as a revision and loads one by its save time', async () => {
+    await common.saveDetections(settings, projectId, upsertTrack(3, 3));
+    // One live result file plus the three retired copies.
+    const revisions = await common.listRevisions(settings, projectId);
+    expect(revisions).toHaveLength(4);
+    expect(revisions.filter((item) => item.current)).toHaveLength(1);
+    expect(revisions[0].current).toBe(true);
+    expect(revisions[0].fileName).toMatch(/^result_\d{4}-/);
+    const times = revisions.map((item) => item.revision);
+    expect(times).toEqual([...times].sort((x, y) => y - x));
+
+    const newest = await common.loadRevision(settings, projectId, revisions[0].revision);
+    expect(Object.keys(newest.tracks).sort()).toEqual(['2', '3']);
+    // A revision older than every saved version falls back to the oldest one.
+    await expect(common.loadRevision(settings, projectId, 0)).resolves.toBeDefined();
+  });
+
+  it('restores a past revision as a new version and keeps the history', async () => {
+    const before = await common.listRevisions(settings, projectId);
+    const oldest = before[before.length - 1];
+    await common.restoreRevision(settings, projectId, oldest.revision);
+
+    expect(await trackIds()).toEqual(['1']);
+    const after = await common.listRevisions(settings, projectId);
+    expect(after).toHaveLength(before.length + 1);
+    // Restoring what is already newest changes nothing.
+    await common.restoreRevision(settings, projectId, after[0].revision);
+    expect(await common.listRevisions(settings, projectId)).toHaveLength(after.length);
+  });
+
+  it('clones a past revision into a new dataset without the history', async () => {
+    const before = await common.listRevisions(settings, projectId);
+    const oldest = before[before.length - 1];
+    const meta = await common.cloneRevision(settings, projectId, oldest.revision, 'My Clone');
+
+    expect(meta.id).not.toBe(projectId);
+    expect(meta.name).toBe('My Clone');
+    const cloneBase = npath.join(settings.dataPath, 'DIVE_Projects', meta.id);
+    expect((await fs.readJSON(npath.join(cloneBase, 'dataset.json'))).name).toBe('My Clone');
+    expect(Object.keys((await common.loadDetections(settings, meta.id)).tracks)).toEqual(['1']);
+    expect(await common.listRevisions(settings, meta.id)).toHaveLength(1);
+    // The original is untouched.
+    expect(await trackIds()).toEqual(['2']);
+    expect(await common.listRevisions(settings, projectId)).toHaveLength(before.length);
+    await expect(common.cloneRevision(settings, projectId, 0, '  ')).rejects.toThrow(/name/);
+  });
+});
+
+describe('multi-camera revisions', () => {
+  const projectId = 'projectidMultiRevisions';
+  const ids = async (datasetId: string) => Object.keys(
+    (await common.loadDetections(settings, datasetId)).tracks,
+  ).sort();
+
+  it('merges every camera\'s saved versions into one history, newest first', async () => {
+    const revisions = await common.listRevisions(settings, projectId);
+    expect(revisions.map((item) => item.fileName)).toEqual([
+      'left/result_new.json', 'right/result_only.json', 'left/result_old.json',
+    ]);
+    expect(revisions.map((item) => item.current)).toEqual([true, false, false]);
+  });
+
+  it('shows each camera as it was at a revision', async () => {
+    const [, middle] = await common.listRevisions(settings, projectId);
+    const left = await common.loadRevision(settings, `${projectId}/left`, middle.revision);
+    const right = await common.loadRevision(settings, `${projectId}/right`, middle.revision);
+    expect(Object.keys(left.tracks)).toEqual(['1']);
+    expect(Object.keys(right.tracks)).toEqual(['5']);
+  });
+
+  it('restores every camera to a revision and keeps each camera\'s history', async () => {
+    const [, middle] = await common.listRevisions(settings, projectId);
+    await common.restoreRevision(settings, projectId, middle.revision);
+    expect(await ids(`${projectId}/left`)).toEqual(['1']);
+    expect(await ids(`${projectId}/right`)).toEqual(['5']);
+    expect(await common.listRevisions(settings, projectId)).toHaveLength(4);
+  });
+
+  it('leaves every camera unchanged when a later camera cannot be written', async () => {
+    const track = JSON.parse(trackFileFixture(7, 3)).tracks[7];
+    await common.saveDetections(settings, `${projectId}/right`, {
+      tracks: { upsert: [track], delete: [] },
+      groups: { upsert: [], delete: [] },
+    });
+    // Neither camera is on this moment's version, so the restore has to write both.
+    const middle = (await common.listRevisions(settings, projectId))
+      .find((item) => item.fileName === 'right/result_only.json');
+    expect(middle).toBeDefined();
+
+    const noSpace = Object.assign(new Error('ENOSPC: no space left on device'), { code: 'ENOSPC' });
+    const rightBase = npath.join(settings.dataPath, 'DIVE_Projects', projectId, 'right');
+    const realWrite = fs.writeFile.bind(fs) as (...args: unknown[]) => Promise<void>;
+    const writeFile = vi.spyOn(fs, 'writeFile').mockImplementation(((...args: unknown[]) => {
+      const target = String(args[0]);
+      return target.startsWith(rightBase) ? Promise.reject(noSpace) : realWrite(...args);
+    }) as never);
+    try {
+      await expect(common.restoreRevision(settings, projectId, (middle as { revision: number }).revision))
+        .rejects.toThrow('ENOSPC');
+    } finally {
+      writeFile.mockRestore();
+    }
+    expect(await ids(`${projectId}/left`)).toEqual(['2']);
+    expect(await ids(`${projectId}/right`)).toEqual(['5', '7']);
+    const leftNames = await fs.readdir(npath.join(settings.dataPath, 'DIVE_Projects', projectId, 'left'));
+    expect(leftNames.filter((name) => name.endsWith('.tmp'))).toEqual([]);
+  });
+
+  it('clones every camera at a revision', async () => {
+    const [, middle] = await common.listRevisions(settings, projectId);
+    const meta = await common.cloneRevision(settings, projectId, middle.revision, 'Multi Clone');
+    expect(await ids(`${meta.id}/left`)).toEqual(['1']);
+    expect(await ids(`${meta.id}/right`)).toEqual(['5']);
+    expect(await ids(`${projectId}/left`)).toEqual(['2']);
   });
 });
 
