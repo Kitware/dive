@@ -256,6 +256,25 @@ export default function register() {
     return ret;
   });
 
+  ipcMain.handle('list-revisions', async (event, { datasetId }: { datasetId: string }) => (
+    common.listRevisions(settings.get(), datasetId)
+  ));
+
+  ipcMain.handle('load-revision', async (
+    event,
+    { datasetId, revision }: { datasetId: string; revision: number },
+  ) => common.loadRevision(settings.get(), datasetId, revision));
+
+  ipcMain.handle('restore-revision', async (
+    event,
+    { datasetId, revision }: { datasetId: string; revision: number },
+  ) => common.restoreRevision(settings.get(), datasetId, revision));
+
+  ipcMain.handle('clone-revision', async (
+    event,
+    { datasetId, revision, name }: { datasetId: string; revision: number; name: string },
+  ) => common.cloneRevision(settings.get(), datasetId, revision, name));
+
   ipcMain.handle('load-detections-from-file', async (event, { file }: { file: string }) => {
     const ret = await common.loadAnnotationFile(file);
     return ret;

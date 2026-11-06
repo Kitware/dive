@@ -23,7 +23,7 @@ import {
   metadataFileTypes,
 } from 'dive-common/constants';
 import {
-  DesktopConfig, NvidiaSmiReply,
+  JsonConfig, DesktopConfig, NvidiaSmiReply,
   RunPipeline, RunTraining, ExportTrainedPipeline, ExportDatasetArgs, ExportConfigurationArgs,
   ExportMulticamEverythingArgs,
   DesktopMediaImportResponse, ConversionArgs, JobType,
@@ -31,6 +31,7 @@ import {
   MultiCamBatchScanResult,
   RunScoring,
   BuildSearchIndex,
+  DesktopRevision,
 } from 'platform/desktop/constants';
 
 import type { StereoMatchMethod } from 'dive-common/use/stereo/stereoMatcher';
@@ -953,12 +954,29 @@ export function setScoringAnnotationPreviewFile(path: string | null) {
   scoringAnnotationPreviewFile = path;
 }
 
-async function loadDetections(datasetId: string) {
+function listRevisions(datasetId: string) {
+  return invoke<DesktopRevision[]>('list-revisions', { datasetId });
+}
+
+function restoreRevision(datasetId: string, revision: number) {
+  return invoke<void>('restore-revision', { datasetId, revision });
+}
+
+function cloneRevision(datasetId: string, revision: number, name: string) {
+  return invoke<JsonConfig>('clone-revision', { datasetId, revision, name });
+}
+
+async function loadDetections(datasetId: string, revision?: number) {
   const previewFile = scoringAnnotationPreviewFile;
   scoringAnnotationPreviewFile = null;
-  const annotations = previewFile
-    ? await invoke<AnnotationSchema>('load-detections-from-file', { file: previewFile })
-    : await invoke<AnnotationSchema>('load-detections', { datasetId });
+  let annotations: AnnotationSchema;
+  if (previewFile) {
+    annotations = await invoke<AnnotationSchema>('load-detections-from-file', { file: previewFile });
+  } else if (revision !== undefined) {
+    annotations = await invoke<AnnotationSchema>('load-revision', { datasetId, revision });
+  } else {
+    annotations = await invoke<AnnotationSchema>('load-detections', { datasetId });
+  }
   return {
     version: annotations.version,
     tracks: Object.values(annotations.tracks),
@@ -1062,6 +1080,9 @@ export {
   peekConfig,
   videoInfo,
   loadDetections,
+  listRevisions,
+  restoreRevision,
+  cloneRevision,
   loadFrameMetadata,
   getPipelineList,
   deleteTrainedPipeline,

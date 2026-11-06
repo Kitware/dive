@@ -58,6 +58,7 @@ import JobTab from './JobTab.vue';
 import AnnotationOtherMenu from './AnnotationOtherMenu.vue';
 import DatasetSourceInfo from './DatasetSourceInfo.vue';
 import VideoSearchContext from './VideoSearchContext.vue';
+import RevisionHistory from './RevisionHistory.vue';
 import {
   createVideoSearch, provideVideoSearch, VideoSearchMediaInfo,
 } from '../useVideoSearch';
@@ -82,6 +83,11 @@ function joinPath(base: string, file: string): string {
 context.register({
   description: 'Video Search',
   component: VideoSearchContext,
+});
+
+context.register({
+  description: 'Revision History',
+  component: RevisionHistory,
 });
 
 const buttonOptions = {
@@ -162,6 +168,25 @@ export default defineComponent({
     /** Frame / track deep link from the review grid. */
     const viewerFocus = computed(() => parseViewerFocus(route.query));
 
+    /** Past annotation revision being inspected (read-only), from the `revision` query. */
+    const revisionNum = computed(() => {
+      const value = route.query.revision;
+      const parsed = typeof value === 'string' ? Number.parseInt(value, 10) : NaN;
+      return Number.isNaN(parsed) ? undefined : parsed;
+    });
+    async function routeRevision(revision: number | undefined) {
+      const query = { ...route.query };
+      if (revision === undefined) {
+        delete query.revision;
+      } else {
+        query.revision = revision.toString();
+      }
+      // The viewer reads its `revision` prop while loading, so let the route and
+      // the prop settle before reloading.
+      await router.replace({ name: 'viewer', params: { id: props.id }, query }).catch(() => undefined);
+      await nextTick();
+      viewerRef.value?.reloadAnnotations();
+    }
     function returnToCurrentAnnotations() {
       router.replace({ name: 'viewer', params: { id: props.id } });
     }
@@ -208,7 +233,8 @@ export default defineComponent({
     // an inline array is a new value on every re-render, which makes the
     // pipeline menu re-look-up the dataset's calibration on every click.
     const pipelineDatasetIds = computed(() => [modifiedId.value]);
-    const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value);
+    const readOnlyMode = computed(() => settings.value?.readonlyMode || !!scoringPreviewFile.value
+      || revisionNum.value !== undefined);
     const timeFilter: Ref<[number, number] | null> = ref(null);
     const textQueryAvailable = ref(false);
 
@@ -1082,7 +1108,7 @@ export default defineComponent({
       () => viewerRef.value?.progress?.loaded === true,
       (loaded) => {
         // Read-only scoring previews should not replace the last editing sequence.
-        if (loaded && !scoringPreviewFile.value) {
+        if (loaded && !scoringPreviewFile.value && revisionNum.value === undefined) {
           rememberAnnotation(props.id);
         }
       },
@@ -2605,6 +2631,8 @@ export default defineComponent({
       annotationSourceReturnable,
       viewerFocus,
       returnToCurrentAnnotations,
+      revisionNum,
+      routeRevision,
     };
   },
 });
@@ -2616,6 +2644,7 @@ export default defineComponent({
       :id.sync="id"
       ref="viewerRef"
       :read-only-mode="readOnlyMode || runningPipelines.length > 0"
+      :revision="revisionNum"
       :annotation-source-label="annotationSourceLabel"
       :annotation-source-returnable="annotationSourceReturnable"
       :initial-frame="viewerFocus.frame"
@@ -2700,6 +2729,7 @@ export default defineComponent({
             <component
               :is="name"
               :sub-category="subCategory"
+              @update:revision="routeRevision"
             />
           </template>
         </SidebarContext>
