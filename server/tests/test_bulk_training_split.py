@@ -1,6 +1,8 @@
 from unittest.mock import MagicMock, patch
 
+from girder.constants import AccessType
 from girder.exceptions import RestException, ValidationException
+from girder.models.model_base import AccessControlledModel
 import pymongo
 import pytest
 
@@ -21,7 +23,7 @@ def _folder(folder_id: str, annotate: bool = False):
 
 
 @patch('dive_server.crud_dataset.Folder')
-@patch('dive_server.crud_dataset.resolve_folder_datasets')
+@patch('dive_server.crud_dataset._collect_folder_datasets')
 def test_bulk_training_split_updates_datasets_and_root(resolve, folder_cls):
     root = _folder('root')
     datasets = [_folder('sequence-a', True), _folder('sequence-b', True)]
@@ -52,7 +54,7 @@ def test_bulk_training_split_updates_datasets_and_root(resolve, folder_cls):
 
 
 @patch('dive_server.crud_dataset.Folder')
-@patch('dive_server.crud_dataset.resolve_folder_datasets')
+@patch('dive_server.crud_dataset._collect_folder_datasets')
 def test_bulk_training_split_clears_split(resolve, folder_cls):
     root = _folder('root')
     root['meta']['trainingSplit'] = 'test'
@@ -90,7 +92,7 @@ def test_bulk_training_split_rejects_invalid_split(folder_cls):
 
 
 @patch('dive_server.crud_dataset.Folder')
-@patch('dive_server.crud_dataset.resolve_folder_datasets')
+@patch('dive_server.crud_dataset._collect_folder_datasets')
 def test_bulk_training_split_requires_write_on_dataset(resolve, folder_cls):
     root = _folder('root')
     dataset = _folder('sequence', True)
@@ -118,3 +120,43 @@ def test_bulk_training_split_requires_write_on_root(folder_cls):
             'train',
         )
     assert error.value.code == 403
+
+
+def test_bulk_training_split_checks_access_on_unfiltered_datasets():
+    """Regression: Folder.filter drops 'access', so checking it denied every non-admin."""
+    user = {'_id': 'owner', 'admin': False}
+    root = {'_id': 'root', 'name': 'root', 'meta': {}, 'access': {'users': []}}
+    dataset = {
+        '_id': 'sequence',
+        'name': 'sequence',
+        'meta': {'annotate': True},
+        'access': {'users': [{'id': 'owner', 'level': 2}]},
+    }
+
+    class FakeFolder(AccessControlledModel):
+        def initialize(self):
+            pass
+
+        def load(self, doc_id, **_kwargs):
+            return root if doc_id == 'root' else dataset
+
+        def childFolders(self, *_args, **_kwargs):
+            return [dataset]
+
+        def filter(self, doc, *_args, **_kwargs):
+            # what girder does: only exposed fields, never 'access'
+            return {k: v for k, v in doc.items() if k != 'access'}
+
+        def save(self, doc, *_args, **_kwargs):
+            return doc
+
+    fake = FakeFolder.__new__(FakeFolder)
+    fake.collection = MagicMock()
+    with patch('dive_server.crud_dataset.Folder', return_value=fake):
+        result = crud_dataset.bulk_set_training_split_under_folders(user, ['root'], 'train')
+
+    assert result['datasetIds'] == ['sequence']
+    fake.collection.bulk_write.assert_called_once()
+
+    # the filtered copy (what the old code checked) has no ACL and is denied
+    assert not fake.hasAccess(fake.filter(dataset), user, AccessType.WRITE)

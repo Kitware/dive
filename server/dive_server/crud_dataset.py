@@ -268,6 +268,20 @@ def resolve_folder_datasets(
 
     Folders marked with ``meta.annotate`` are datasets; their children are not walked.
     Matches the web client's former folder-walk behavior for pipelines and training.
+    Results are filtered to the public fields, so they carry no ACL.
+    """
+    folder_model = Folder()
+    return [folder_model.filter(dataset) for dataset in _collect_folder_datasets(user, folder_ids)]
+
+
+def _collect_folder_datasets(
+    user: types.GirderUserModel,
+    folder_ids: List[str],
+) -> List[types.GirderModel]:
+    """Same walk as resolve_folder_datasets, but returns the raw (unfiltered) documents.
+
+    Callers that need to check access (``hasAccess``) must use these: ``Folder.filter``
+    strips the ``access`` field, so every non-admin would fail a permission check.
     """
     datasets: List[types.GirderModel] = []
     visited: Set[str] = set()
@@ -289,7 +303,7 @@ def resolve_folder_datasets(
         visited.add(folder_id)
 
         if asbool(fromMeta(folder, constants.DatasetMarker, False)):
-            datasets.append(Folder().filter(folder))
+            datasets.append(folder)
             continue
 
         offset = 0
@@ -350,7 +364,7 @@ def bulk_set_training_split_under_folders(
         roots.append(root)
 
     dataset_ids: Set[str] = set()
-    for dataset in resolve_folder_datasets(user, root_folder_ids):
+    for dataset in _collect_folder_datasets(user, root_folder_ids):
         dataset_id = str(dataset['_id'])
         if not folder_model.hasAccess(dataset, user, AccessType.WRITE):
             raise RestException(
