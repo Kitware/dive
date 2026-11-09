@@ -1,9 +1,8 @@
 from unittest.mock import MagicMock, patch
 
 from girder.constants import AccessType
-from girder.models.model_base import AccessControlledModel
-
 from girder.exceptions import RestException, ValidationException
+from girder.models.model_base import AccessControlledModel
 import pymongo
 import pytest
 
