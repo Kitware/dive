@@ -1745,8 +1745,14 @@ export default defineComponent({
         // Flush any pending shared-style write before this load replaces the
         // in-memory global* refs / manager customStyles (see onStyleEdit).
         scheduleGlobalStylePersist.flush();
-        // Close and reset sideBar
+        // Close and reset sideBar. A revision deep link is read-only, and
+        // resetActive would otherwise close Revision History before paint
+        // (and again on every annotation reload while it stays selected).
         context.resetActive();
+        if (props.revision !== undefined) {
+          context.state.last = 'RevisionHistory';
+          context.state.active = 'RevisionHistory';
+        }
         const meta = await loadConfig(datasetId.value);
         trackFilters.setTypeHierarchy(meta.typeHierarchy);
         trackFilters.setTaxonomySources(meta.taxonomySources);

@@ -367,3 +367,19 @@ export interface ExportMulticamEverythingArgs {
   path: string;
   typeFilter: Set<string>;
 }
+
+/**
+ * A saved version of a dataset's annotations. Every save writes a complete new
+ * result_*.json and retires the previous one into auxiliary/, so those files are
+ * the dataset's revision history. A revision is identified by its file's
+ * modification time (ms since epoch), which is when that version was saved.
+ */
+export interface DesktopRevision {
+  revision: number;
+  /** ISO timestamp of the save */
+  created: string;
+  fileName: string;
+  size: number;
+  /** True for the version a normal load shows */
+  current: boolean;
+}
