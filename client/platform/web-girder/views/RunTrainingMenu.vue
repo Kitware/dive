@@ -80,8 +80,15 @@ export default defineComponent({
     });
     onBeforeMount(async () => {
       const resp = await getTrainingConfigurations();
-      trainingConfigurations.value = resp;
-      selectedTrainingConfig.value = resp.training.default;
+      // Normalize incomplete API payloads (e.g. empty/partial jobs settings).
+      trainingConfigurations.value = {
+        training: {
+          configs: resp?.training?.configs ?? [],
+          default: resp?.training?.default ?? '',
+        },
+        models: resp?.models ?? {},
+      };
+      selectedTrainingConfig.value = trainingConfigurations.value.training.default || null;
     });
 
     const trainingDisabled = computed(() => (
@@ -253,12 +260,12 @@ export default defineComponent({
               persistent-hint
             />
             <v-select
-              v-if="trainingConfigurations.training.configs.length > 0"
+              v-if="(trainingConfigurations.training.configs || []).length > 0"
               v-model="selectedTrainingConfig"
               outlined
               class="my-4"
               label="Configuration File"
-              :items="trainingConfigurations.training.configs"
+              :items="trainingConfigurations.training.configs || []"
               item-text="name"
               item-value="name"
               :hint="selectedTrainingConfig"
