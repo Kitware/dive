@@ -112,17 +112,23 @@ class ConfigurationResource(Resource):
     @autoDescribeRoute(Description("Get available training configs"))
     def get_training_configs(self, params):
         capabilities = worker_capabilities.get_worker_capabilities()
+        empty_training = {"configs": [], "default": ""}
         if not capabilities['trainingEnabled']:
-            return {"training": {"configs": [], "default": ""}, "models": {}}
+            return {"training": empty_training, "models": {}}
         static_job_configs: types.AvailableJobSchema = (
-            Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or {}
+            Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or tasks.EMPTY_JOB_SCHEMA
         )
         model_configs = crud_rpc.load_training_configs(self.getCurrentUser())
-        training_configs = {
-            "training": static_job_configs.get('training', {}),
+        training = static_job_configs.get('training') or {}
+        # Always return a complete training shape; partial/empty settings
+        # previously made the client crash on `.configs.length`.
+        return {
+            "training": {
+                "configs": training.get('configs') or [],
+                "default": training.get('default') or "",
+            },
             "models": model_configs,
         }
-        return training_configs
 
     @staticmethod
     def _stereo_foundation_model(params) -> stereo_models.FoundationModel:
