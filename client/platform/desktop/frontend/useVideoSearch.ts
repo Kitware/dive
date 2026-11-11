@@ -11,7 +11,7 @@
 import { reactive, provide, inject } from 'vue';
 import type {
   VideoSearchIndexStatus, VideoSearchIndexMethod, VideoSearchIndexInfo,
-  VideoSearchResult, VideoSearchQueryResponse,
+  VideoSearchResult, VideoSearchQueryResponse, VideoSearchExemplar,
 } from 'dive-common/apispec';
 import {
   videoSearchInstalled, videoSearchIndexStatus, videoSearchBuildIndex,
@@ -261,11 +261,16 @@ export function createVideoSearch(
    * boxes. Descriptors are computed once (on this dataset's primary
    * session) and the similarity query fans out to every open index.
    */
-  async function queryFromImage(imagePath: string, boxes?: number[][], warmStartModelPath?: string) {
+  async function queryFromImage(
+    imagePath: string,
+    boxes?: number[][],
+    warmStartModelPath?: string,
+    exemplars?: VideoSearchExemplar[],
+  ) {
     await guarded('Searching...', async () => {
       await ensureSession();
       resetQueryState();
-      let response = await videoSearchFormulate(imagePath, boxes);
+      let response = await videoSearchFormulate(imagePath, boxes, exemplars);
       if (!response.results?.length || warmStartModelPath) {
         response = await videoSearchQuery(
           warmStartModelPath ? { iqrModelPath: warmStartModelPath } : {},

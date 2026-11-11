@@ -15,7 +15,9 @@
  */
 
 import fs from 'fs-extra';
-import type { SegmentationPolygon } from 'dive-common/apispec';
+import type {
+  SegmentationPolygon, TextQueryResponse, VlmAskRequest, VlmAskResponse, VlmDetectRequest,
+} from 'dive-common/apispec';
 import OS from 'os';
 import { spawn, ChildProcess } from 'child_process';
 import npath from 'path';
@@ -503,6 +505,39 @@ export class InteractiveServiceManager extends EventEmitter {
       point_labels: request.pointLabels,
       frame_time: request.frameTime,
     }, 'Text query');
+  }
+
+  async vlmDetect(request: VlmDetectRequest): Promise<TextQueryResponse> {
+    const response = await this.sendRequest({
+      command: 'vlm_detect',
+      model: request.model,
+      think: request.think,
+      image_path: request.imagePath,
+      frame_time: request.frameTime,
+      text: request.text,
+      max_detections: request.maxDetections,
+    }, 'VLM detect');
+    return response as unknown as TextQueryResponse;
+  }
+
+  async vlmAsk(request: VlmAskRequest): Promise<VlmAskResponse> {
+    const response = await this.sendRequest({
+      command: 'vlm_ask',
+      model: request.model,
+      think: request.think,
+      question: request.question,
+      images: request.images.map((image) => ({
+        image_path: image.imagePath,
+        frame_time: image.frameTime,
+        box: image.box,
+      })),
+      history: request.history,
+    }, 'VLM ask');
+    return {
+      success: response.success ?? false,
+      error: response.error,
+      answer: response.answer,
+    };
   }
 
   async refineDetections(request: {

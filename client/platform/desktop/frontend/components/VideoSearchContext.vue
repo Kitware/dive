@@ -16,9 +16,14 @@ import { runningJobs } from 'platform/desktop/frontend/store/jobs';
 import { useVideoSearch } from 'platform/desktop/frontend/useVideoSearch';
 import { holdQueryLaunch, takeQueryLaunch, QueryLaunch } from '../queryLaunch';
 
+type Box = [number, number, number, number];
+
+/** Frames sampled along a track; each costs one descriptor pass. */
+const TRACK_QUERY_FRAMES = 6;
+
 export default defineComponent({
   name: 'VideoSearchContext',
-  description: 'Video Search',
+  description: 'Image Query',
   setup() {
     const search = useVideoSearch();
     const router = useRouter();
@@ -95,6 +100,42 @@ export default defineComponent({
       } catch (err) { search.state.error = (err as Error).message; } finally { launching.value = false; }
     }
 
+    /** Frames of the selected track that have a box, sampled evenly along it. */
+    const selectedTrackFrames = computed((): { frame: number; box: Box }[] => {
+      if (!search || selectedTrackId.value === null) return [];
+      let track;
+      try {
+        track = cameraStore.getTrack(selectedTrackId.value, selectedCamera.value);
+      } catch {
+        return [];
+      }
+      const boxed = track.featureIndex.flatMap((f) => {
+        const [real] = track.getFeature(f);
+        return real?.bounds ? [{ frame: f, box: [...real.bounds] as Box }] : [];
+      });
+      if (boxed.length <= TRACK_QUERY_FRAMES) return boxed;
+      const step = (boxed.length - 1) / (TRACK_QUERY_FRAMES - 1);
+      return Array.from({ length: TRACK_QUERY_FRAMES }, (_, i) => boxed[Math.round(i * step)]);
+    });
+
+    async function queryFromWholeTrack() {
+      if (!search || selectedTrackFrames.value.length < 2) return;
+      launching.value = true;
+      try {
+        const exemplars = await Promise.all(selectedTrackFrames.value.map(
+          async ({ frame: f, box }) => ({ imagePath: await search.exemplarImageForFrame(f), box }),
+        ));
+        const shown = exemplars.find((_, i) => selectedTrackFrames.value[i].frame === frame.value)
+          ?? exemplars[0];
+        await launchQuery({
+          imagePath: shown.imagePath,
+          box: shown.box,
+          exemplars,
+          streamName: search.state.selectedStream,
+        });
+      } catch (err) { search.state.error = (err as Error).message; } finally { launching.value = false; }
+    }
+
     async function queryFromImageFile(warmStart = false) {
       if (!search) return;
       let modelPath: string | undefined;
@@ -140,6 +181,8 @@ export default defineComponent({
       selectedTrackBox,
       launching,
       queryFromSelectedTrack,
+      selectedTrackFrames,
+      queryFromWholeTrack,
       queryFromImageFile,
 
     };
@@ -198,6 +241,16 @@ export default defineComponent({
           @click="queryFromSelectedTrack"
         >
           Search from<br>selected annotation
+        </v-btn>
+        <v-btn
+          large
+          block
+          class="query-launch-button mb-3"
+          color="primary"
+          :disabled="!indexes.length || selectedTrackFrames.length < 2 || !!state.busy || launching"
+          @click="queryFromWholeTrack"
+        >
+          Search from<br>selected track
         </v-btn>
         <v-btn
           large
