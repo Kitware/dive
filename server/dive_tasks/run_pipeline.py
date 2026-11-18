@@ -427,7 +427,9 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'cwd': output_path,
                 'env': conf.gpu_process_env,
             }
-            with gpu_memory_slot(pipeline) as lease_lost:
+            with gpu_memory_slot(
+                pipeline, check_canceled=utils.gpu_slot_cancel_check(self, context, manager)
+            ) as lease_lost:
                 manager.updateStatus(JobStatus.RUNNING)
                 utils.stream_subprocess(
                     self,
@@ -622,7 +624,9 @@ def run_pipeline(self: Task, params: PipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        with gpu_memory_slot(pipeline) as lease_lost:
+        with gpu_memory_slot(
+            pipeline, check_canceled=utils.gpu_slot_cancel_check(self, context, manager)
+        ) as lease_lost:
             manager.updateStatus(JobStatus.RUNNING)
             utils.stream_subprocess(
                 self,

@@ -72,7 +72,11 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        with gpu_memory_slot({}, reserve_all=True) as lease_lost:
+        with gpu_memory_slot(
+            {},
+            reserve_all=True,
+            check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+        ) as lease_lost:
             manager.updateStatus(JobStatus.RUNNING)
             utils.stream_subprocess(
                 self,
@@ -224,7 +228,11 @@ def train_pipeline(self: Task, params: TrainingJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        with gpu_memory_slot({}, reserve_all=True) as lease_lost:
+        with gpu_memory_slot(
+            {},
+            reserve_all=True,
+            check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+        ) as lease_lost:
             manager.updateStatus(JobStatus.RUNNING)
             utils.stream_subprocess(
                 self,

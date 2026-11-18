@@ -361,6 +361,19 @@ def check_canceled(task: Task, context: dict, force=True):
     return False
 
 
+def gpu_slot_cancel_check(task: Task, context: dict, manager: JobManager):
+    """Cancel callback for ``gpu_memory_slot`` while a job waits on VRAM."""
+
+    def _check() -> bool:
+        if not check_canceled(task, context, force=False):
+            return False
+        manager.write('\nCanceled while waiting for GPU memory.\n')
+        manager.updateStatus(JobStatus.CANCELED)
+        return True
+
+    return _check
+
+
 def describe_exit(code: int) -> str:
     """Describe a Popen return code, naming the signal for a kill."""
     if code < 0:

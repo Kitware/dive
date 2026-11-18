@@ -5,15 +5,21 @@ import os
 import socket
 import threading
 import time
-from typing import Iterator
+from typing import Callable, Iterator, Optional
 import uuid
 
 from GPUtil import getGPUs
 from redis import Redis
 
+from dive_tasks.utils import CanceledError
+
 _DEFAULT_PIPELINE_MEMORY_GB = 8.0
 _LEASE_SECONDS = 300
 _HEARTBEAT_SECONDS = 30
+# Safety net so a worker is not stuck forever when VRAM never frees up.
+# Cancel checks are the primary way jobs leave the wait; this is a backstop.
+_DEFAULT_ACQUIRE_TIMEOUT_SECONDS = 12 * 60 * 60
+_ACQUIRE_POLL_SECONDS = 1
 LEASE_LOST_MESSAGE = (
     'GPU memory lease was lost (missing or expired); '
     'stopping to avoid overlapping VRAM use with another worker'
@@ -92,13 +98,39 @@ def _gpu_capacity_gb() -> float:
     return capacity
 
 
+def _acquire_timeout_seconds(override: Optional[float]) -> Optional[float]:
+    """Return seconds to wait for a slot, or None for no timeout.
+
+    ``override`` wins when provided. Otherwise ``DIVE_GPU_ACQUIRE_TIMEOUT_SECONDS``
+    is used when set (``0`` or negative disables the timeout). Default is 12h.
+    """
+    if override is not None:
+        return None if override <= 0 else override
+    raw = os.environ.get('DIVE_GPU_ACQUIRE_TIMEOUT_SECONDS')
+    if raw is not None and raw != '':
+        value = float(raw)
+        return None if value <= 0 else value
+    return _DEFAULT_ACQUIRE_TIMEOUT_SECONDS
+
+
 @contextmanager
-def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[threading.Event]:
+def gpu_memory_slot(
+    pipeline: dict,
+    *,
+    reserve_all: bool = False,
+    check_canceled: Optional[Callable[[], bool]] = None,
+    acquire_timeout_seconds: Optional[float] = None,
+) -> Iterator[threading.Event]:
     """Reserve the pipe's declared VRAM amount, or the whole GPU for exclusive work.
 
     Yields an Event that is set if the Redis lease can no longer be renewed.
     Pass that Event to ``stream_subprocess(..., abort_event=...)`` so the VIAME
     process is killed instead of continuing without a reservation.
+
+    While waiting for free VRAM, ``check_canceled`` is polled each second so a
+    canceled job can leave FETCHING_INPUT instead of blocking the worker.
+    ``acquire_timeout_seconds`` (default 12h, or ``DIVE_GPU_ACQUIRE_TIMEOUT_SECONDS``)
+    is a backstop if the slot never becomes available.
     """
     metadata = pipeline.get('metadata') or {}
     if metadata.get('gpuMemoryInvalid'):
@@ -135,6 +167,8 @@ def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[th
     lease_key = _gpu_key()
     reservation_key = f'{lease_key}:amounts'
     member = f'{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}'
+    timeout = _acquire_timeout_seconds(acquire_timeout_seconds)
+    started = time.time()
     while not client.eval(
         _ACQUIRE_SCRIPT,
         2,
@@ -146,7 +180,13 @@ def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[th
         capacity,
         member,
     ):
-        time.sleep(1)
+        if check_canceled is not None and check_canceled():
+            raise CanceledError('Job was canceled while waiting for GPU memory')
+        if timeout is not None and (time.time() - started) >= timeout:
+            raise RuntimeError(
+                f'Timed out after {timeout:g}s waiting for {reservation:g} GB of GPU memory'
+            )
+        time.sleep(_ACQUIRE_POLL_SECONDS)
 
     stop_heartbeat = threading.Event()
 

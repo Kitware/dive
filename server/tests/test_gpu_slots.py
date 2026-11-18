@@ -5,6 +5,7 @@ import pytest
 
 from dive_tasks import gpu_slots
 from dive_tasks.gpu_slots import GpuLeaseLostError, gpu_memory_slot
+from dive_tasks.utils import CanceledError
 
 
 def test_renew_failure_sets_lease_lost_event(monkeypatch):
@@ -27,3 +28,54 @@ def test_standalone_worker_yields_unset_event(monkeypatch):
     with gpu_memory_slot({}) as lost:
         assert isinstance(lost, threading.Event)
         assert not lost.is_set()
+
+
+class _FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def time(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def test_acquire_canceled_while_waiting(monkeypatch):
+    client = MagicMock()
+    client.eval.return_value = 0
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    clock = _FakeClock()
+    monkeypatch.setattr(gpu_slots.time, 'time', clock.time)
+    monkeypatch.setattr(gpu_slots.time, 'sleep', clock.sleep)
+
+    checks = {'n': 0}
+
+    def check_canceled():
+        checks['n'] += 1
+        return checks['n'] >= 2
+
+    with pytest.raises(CanceledError, match='waiting for GPU memory'):
+        with gpu_memory_slot(
+            {'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}},
+            check_canceled=check_canceled,
+        ):
+            pass
+
+
+def test_acquire_times_out_while_waiting(monkeypatch):
+    client = MagicMock()
+    client.eval.return_value = 0
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    clock = _FakeClock()
+    monkeypatch.setattr(gpu_slots.time, 'time', clock.time)
+    monkeypatch.setattr(gpu_slots.time, 'sleep', clock.sleep)
+
+    with pytest.raises(RuntimeError, match='Timed out after 2s waiting for 4 GB'):
+        with gpu_memory_slot(
+            {'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}},
+            acquire_timeout_seconds=2,
+        ):
+            pass
