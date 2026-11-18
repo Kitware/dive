@@ -10,7 +10,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_tasks import utils
-from dive_tasks.gpu_slots import gpu_memory_slot
+from dive_tasks.gpu_slots import LEASE_LOST_MESSAGE, gpu_memory_slot
 from dive_tasks.manager import patch_manager
 from dive_tasks.viame_config import Config
 from dive_utils import constants
@@ -72,9 +72,16 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        with gpu_memory_slot({}, reserve_all=True):
+        with gpu_memory_slot({}, reserve_all=True) as lease_lost:
             manager.updateStatus(JobStatus.RUNNING)
-            utils.stream_subprocess(self, context, manager, popen_kwargs)
+            utils.stream_subprocess(
+                self,
+                context,
+                manager,
+                popen_kwargs,
+                abort_event=lease_lost,
+                abort_message=LEASE_LOST_MESSAGE,
+            )
 
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
         gc.uploadFileToFolder(output_folder_id, onnx_path)
@@ -217,9 +224,16 @@ def train_pipeline(self: Task, params: TrainingJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        with gpu_memory_slot({}, reserve_all=True):
+        with gpu_memory_slot({}, reserve_all=True) as lease_lost:
             manager.updateStatus(JobStatus.RUNNING)
-            utils.stream_subprocess(self, context, manager, popen_kwargs)
+            utils.stream_subprocess(
+                self,
+                context,
+                manager,
+                popen_kwargs,
+                abort_event=lease_lost,
+                abort_message=LEASE_LOST_MESSAGE,
+            )
 
         # Check that there are results in the output path
         if len(list(training_results_path.glob("*"))) == 0:

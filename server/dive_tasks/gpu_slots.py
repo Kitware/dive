@@ -14,6 +14,19 @@ from redis import Redis
 _DEFAULT_PIPELINE_MEMORY_GB = 8.0
 _LEASE_SECONDS = 300
 _HEARTBEAT_SECONDS = 30
+LEASE_LOST_MESSAGE = (
+    'GPU memory lease was lost (missing or expired); '
+    'stopping to avoid overlapping VRAM use with another worker'
+)
+
+
+class GpuLeaseLostError(RuntimeError):
+    """Raised when the Redis GPU reservation can no longer be renewed."""
+
+    def __init__(self, message: str = LEASE_LOST_MESSAGE):
+        super().__init__(message)
+
+
 _ACQUIRE_SCRIPT = """
 local now = tonumber(ARGV[1])
 local expires = tonumber(ARGV[2])
@@ -80,8 +93,13 @@ def _gpu_capacity_gb() -> float:
 
 
 @contextmanager
-def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[None]:
-    """Reserve the pipe's declared VRAM amount, or the whole GPU for exclusive work."""
+def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[threading.Event]:
+    """Reserve the pipe's declared VRAM amount, or the whole GPU for exclusive work.
+
+    Yields an Event that is set if the Redis lease can no longer be renewed.
+    Pass that Event to ``stream_subprocess(..., abort_event=...)`` so the VIAME
+    process is killed instead of continuing without a reservation.
+    """
     metadata = pipeline.get('metadata') or {}
     if metadata.get('gpuMemoryInvalid'):
         raise RuntimeError('Invalid # GPU Memory header; use `High` or a number of GB')
@@ -91,6 +109,7 @@ def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[No
     reservation = float(
         _DEFAULT_PIPELINE_MEMORY_GB if declared_reservation is None else declared_reservation
     )
+    lease_lost = threading.Event()
     client = _redis_client()
     if client is None:
         if explicitly_declared or exclusive:
@@ -99,7 +118,7 @@ def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[No
                 'GIRDER_NOTIFICATION_REDIS_URL to coordinate GPU access across workers'
             )
         # Unmarked pipes retain their historical behavior on standalone workers.
-        yield
+        yield lease_lost
         return
 
     capacity = _gpu_capacity_gb()
@@ -138,15 +157,21 @@ def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[No
                     _RENEW_SCRIPT, 1, lease_key, member, time.time() + _LEASE_SECONDS
                 )
                 if not renewed:
+                    # Fail closed: the reservation is gone, so another worker may
+                    # claim this VRAM. Signal callers to stop the GPU process.
+                    lease_lost.set()
                     return
             except Exception:
                 # Leave the original lease to expire if Redis is briefly unavailable.
+                # Once Redis returns, a missing member makes renew fail closed above.
                 continue
 
     heartbeat = threading.Thread(target=renew, daemon=True)
     heartbeat.start()
     try:
-        yield
+        yield lease_lost
+        if lease_lost.is_set():
+            raise GpuLeaseLostError()
     finally:
         stop_heartbeat.set()
         heartbeat.join(timeout=_HEARTBEAT_SECONDS + 1)

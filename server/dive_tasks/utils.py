@@ -409,6 +409,8 @@ def stream_subprocess(
     popen_kwargs: dict,
     keep_stdout: bool = False,
     keep_stderr: bool = False,
+    abort_event: Optional[threading.Event] = None,
+    abort_message: str = 'Aborted during subprocess run.',
 ) -> Union[str, Tuple[str, str]]:
     """
     Stream live results from process to job manager
@@ -418,6 +420,8 @@ def stream_subprocess(
     :param popen_kwargs: a dict to pass as kwargs to popen.  Must include 'args'
     :param keep_stdout: will return stdout as a string if needed
     :param keep_stderr: when True, return ``(stdout, stderr)`` instead of stdout
+    :param abort_event: when set, kill the process group and raise RuntimeError
+    :param abort_message: message written to the job log and raised on abort
     """
     start_time = datetime.now()
     stdout = ""
@@ -425,29 +429,44 @@ def stream_subprocess(
 
     stop_event = threading.Event()
     cancel_requested = threading.Event()
+    abort_requested = threading.Event()
     # Copy so callers are not mutated; default to a new session so cancel can
     # kill the full process tree (shell + VIAME children).
     launch_kwargs = dict(popen_kwargs)
     launch_kwargs.setdefault('start_new_session', True)
 
+    def _stop_subprocess() -> None:
+        _kill_process_group(process)
+        # Unblock the main thread's readline if any child still holds
+        # the write end open after the kill attempt.
+        if process.stdout is not None:
+            try:
+                process.stdout.close()
+            except (ValueError, OSError):
+                pass
+
     def monitor_cancellation():
-        """Thread that periodically checks for cancellation."""
+        """Thread that periodically checks for cancellation or external abort."""
         while True:
             if stop_event.is_set():
+                return
+            if abort_event is not None and abort_event.is_set():
+                abort_requested.set()
+                _stop_subprocess()
                 return
             manager.refreshStatus()
             if check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING:
                 cancel_requested.set()
-                _kill_process_group(process)
-                # Unblock the main thread's readline if any child still holds
-                # the write end open after the kill attempt.
-                if process.stdout is not None:
-                    try:
-                        process.stdout.close()
-                    except (ValueError, OSError):
-                        pass
+                _stop_subprocess()
                 return
-            if stop_event.wait(CANCEL_MONITOR_INTERVAL):
+            # Wake immediately when abort_event is set (e.g. lost GPU lease)
+            # instead of waiting out the full cancel poll interval.
+            if abort_event is not None:
+                if abort_event.wait(CANCEL_MONITOR_INTERVAL):
+                    continue
+                if stop_event.is_set():
+                    return
+            elif stop_event.wait(CANCEL_MONITOR_INTERVAL):
                 return
 
     with tempfile.TemporaryFile() as stderr_file:
@@ -481,7 +500,9 @@ def stream_subprocess(
         stop_event.set()
         cancel_thread.join(timeout=CANCEL_TERM_GRACE_SECONDS + 5)
 
-        if cancel_requested.is_set():
+        if abort_requested.is_set():
+            manager.write(f'\n{abort_message}\n', forceFlush=True)
+        elif cancel_requested.is_set():
             manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
 
         # flush logs
@@ -495,11 +516,16 @@ def stream_subprocess(
             try:
                 code = process.wait(5)
             except subprocess.TimeoutExpired:
+                if abort_requested.is_set():
+                    raise RuntimeError(abort_message)
                 if cancel_requested.is_set() or check_canceled(task, context):
                     manager.write('\nCanceled during subprocess run.\n')
                     manager.updateStatus(JobStatus.CANCELED)
                     raise CanceledError('Job was canceled')
                 raise RuntimeError('Subprocess did not exit after kill')
+
+        if abort_requested.is_set():
+            raise RuntimeError(abort_message)
 
         if cancel_requested.is_set() or check_canceled(task, context):
             manager.write('\nCanceled during subprocess run.\n')
