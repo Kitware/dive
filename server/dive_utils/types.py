@@ -103,6 +103,9 @@ class PipeMetadata(TypedDict):
     # warp_image`), e.g. [2, 3]; each such camera needs a fitted registration onto
     # camera 1, checked before the run.
     registrationWarps: NotRequired[Optional[list[int]]]
+    # `high` pipelines wait for all normal pipelines to finish and then reserve
+    # the GPU exclusively. Omitted metadata uses normal shared slots.
+    gpuMemory: NotRequired[Optional[str]]
 
 
 class PipelineDescription(TypedDict):

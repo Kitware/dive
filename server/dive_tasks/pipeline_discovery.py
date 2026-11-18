@@ -234,7 +234,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
-                            r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
+                            r'^#\s*(Input|Output|Requires\s+Calibration|GPU\s+Memory|Metadata\s+File'
                             r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
                             line_raw,
                             re.IGNORECASE,
@@ -306,6 +306,14 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     ]
                     if keys:
                         metadata["calibrationKeys"] = keys
+
+                # High-memory pipes reserve the GPU until their VIAME process exits.
+                # Missing or unrecognized values retain the normal scheduling class.
+                gpu_memory_match = re.match(
+                    r'^#\s*GPU\s+Memory:\s*(\S+)', line_raw, re.IGNORECASE
+                )
+                if gpu_memory_match and gpu_memory_match.group(1).lower() == 'high':
+                    metadata['gpuMemory'] = 'high'
 
                 # `# Camera Order: EO, UV, IR` names the camera role fed to each
                 # inputN of a 2-cam/3-cam pipe; DIVE matches dataset cameras onto

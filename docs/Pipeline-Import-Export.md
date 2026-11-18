@@ -67,6 +67,7 @@ Example:
 # Input: image
 # Output: image
 # Requires Calibration: False
+# GPU Memory: high
 ```
 
 | Header | Meaning |
@@ -78,6 +79,7 @@ Example:
 | `# Metadata File: <block>:<key>` | Opt-in: when the dataset has an attached **Metadata File**, DIVE appends a KWIVER override `-s <block>:<key>=<path>` at run time. The same CSV/TXT attachment is also considered for [Frame Metadata](Frame-Metadata.md). Without this header, no metadata file is injected. |
 | `# Image List Keys: <k> [k…]` | Opt-in: binds the run's per-camera input image list(s) to each listed KWIVER key. Keys may be space- or comma-separated. A key containing `{cam}` is expanded once per camera (1-based), e.g. `stabilizer:image_list{cam}` → `image_list1`, `image_list2`, …. A key without `{cam}` receives camera 1's list only. |
 | `# Camera Order: <cam> [cam…]` | 2-cam/3-cam pipes only: labels the role expected on each `inputN`, in order (e.g. `# Camera Order: EO, UV, IR` → `input1` optical, `input2` ultraviolet, `input3` thermal). Role tokens are `EO`, `IR`, `UV` (aliases: eo/rgb/optical/color/vis, ir/thermal/lwir/flir, uv/ultraviolet); any other token (e.g. `left`, `right`) labels the slot literally. See [Multicam camera assignment](#multicam-camera-assignment) for the pre-run dialog where you confirm which dataset camera fills each slot. Camera 1 is the frame the pipe's warp processes map onto: each other camera's registration (Camera Registration tab) onto camera 1 is written to the job as `<camera>_to_<camera1>_registration.json` and bound to `warpN`. |
+| `# GPU Memory: high` | Opts a pipeline into exclusive GPU scheduling. It waits for normal pipeline and training runs on that GPU to finish, then runs alone. If omitted, the pipeline uses a normal shared slot (up to `PIPELINE_NORMAL_GPU_SLOTS`, which defaults to the pipeline worker concurrency). All workers sharing a GPU must use the same Redis URL in `GIRDER_NOTIFICATION_REDIS_URL`; Docker Compose configures this automatically. Without Redis, normal jobs keep running, while high-memory jobs fail with a configuration error. |
 
 ### Multicam camera assignment
 

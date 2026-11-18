@@ -28,6 +28,7 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
+from dive_tasks.gpu_slots import gpu_pipeline_slot
 from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.single_camera_pipeline import csv_rows, finish_single_camera_run
 from dive_tasks.viame_config import Config
@@ -419,7 +420,6 @@ def run_pipeline(self: Task, params: PipelineJob):
                 for key, value in kwiver_params.items():
                     command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
-            manager.updateStatus(JobStatus.RUNNING)
             popen_kwargs = {
                 'args': " ".join(command),
                 'shell': True,
@@ -427,7 +427,9 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'cwd': output_path,
                 'env': conf.gpu_process_env,
             }
-            utils.stream_subprocess(self, context, manager, popen_kwargs)
+            with gpu_pipeline_slot(pipeline):
+                manager.updateStatus(JobStatus.RUNNING)
+                utils.stream_subprocess(self, context, manager, popen_kwargs)
 
             if (
                 is_stereo_measurement_pipeline(pipeline)
@@ -606,7 +608,6 @@ def run_pipeline(self: Task, params: PipelineJob):
             for key, value in kwiver_params.items():
                 command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
-        manager.updateStatus(JobStatus.RUNNING)
         popen_kwargs = {
             'args': " ".join(command),
             'shell': True,
@@ -614,7 +615,9 @@ def run_pipeline(self: Task, params: PipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        utils.stream_subprocess(self, context, manager, popen_kwargs)
+        with gpu_pipeline_slot(pipeline):
+            manager.updateStatus(JobStatus.RUNNING)
+            utils.stream_subprocess(self, context, manager, popen_kwargs)
 
         if creates_new_dataset:
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)
