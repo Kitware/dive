@@ -99,3 +99,48 @@ def test_acquire_times_out_while_waiting(monkeypatch):
             acquire_timeout_seconds=2,
         ):
             pass
+
+
+def test_standalone_worker_runs_whole_gpu_task_uncoordinated(monkeypatch):
+    """Training (reserve_all) must still run on workers without Redis."""
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: None)
+    with gpu_memory_slot({}, reserve_all=True) as lost:
+        assert not lost.is_set()
+
+
+def test_standalone_worker_rejects_declared_pipe(monkeypatch):
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: None)
+    with pytest.raises(RuntimeError, match='GIRDER_NOTIFICATION_REDIS_URL'):
+        with gpu_memory_slot({'metadata': {'gpuMemoryExclusive': True, 'gpuMemoryDeclared': True}}):
+            pass
+
+
+def test_default_reservation_capped_at_small_gpu(monkeypatch):
+    client = MagicMock()
+    client.eval.return_value = 1
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 6.0)
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 8.0, 'gpuMemoryDeclared': False}}):
+        pass
+    # eval(script, numkeys, key, key, now, expires, reservation, capacity, member)
+    assert client.eval.call_args_list[0].args[6] == 6.0
+
+
+def test_declared_reservation_over_capacity_still_fails(monkeypatch):
+    client = MagicMock()
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 6.0)
+    with pytest.raises(RuntimeError, match='requests 8 GB'):
+        with gpu_memory_slot({'metadata': {'gpuMemoryGB': 8.0, 'gpuMemoryDeclared': True}}):
+            pass
+
+
+def test_release_failure_does_not_mask_cancel(monkeypatch):
+    client = MagicMock()
+    client.eval.return_value = 1
+    client.zrem.side_effect = ConnectionError('redis down')
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    with pytest.raises(CanceledError):
+        with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}):
+            raise CanceledError('Job was canceled')

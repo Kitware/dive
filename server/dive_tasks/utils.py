@@ -34,6 +34,10 @@ TIMEOUT_CHECK_INTERVAL = 30
 CANCEL_MONITOR_INTERVAL = 30
 # Grace period after SIGTERM before escalating to SIGKILL of the process group.
 CANCEL_TERM_GRACE_SECONDS = 5
+# How quickly the cancel monitor reacts to process exit or an external abort.
+ABORT_POLL_SECONDS = 1
+# How often a job waiting for GPU memory checks whether it was canceled.
+GPU_WAIT_CANCEL_CHECK_SECONDS = 10
 
 
 def make_directory(path: Path):
@@ -363,9 +367,18 @@ def check_canceled(task: Task, context: dict, force=True):
 
 def gpu_slot_cancel_check(task: Task, context: dict, manager: JobManager):
     """Cancel callback for ``gpu_memory_slot`` while a job waits on VRAM."""
+    last_checked = [float('-inf')]
 
     def _check() -> bool:
-        if not check_canceled(task, context, force=False):
+        # Called every second by the wait loop; throttle the broker/Girder round trips.
+        now = time.monotonic()
+        if now - last_checked[0] < GPU_WAIT_CANCEL_CHECK_SECONDS:
+            return False
+        last_checked[0] = now
+        # Match stream_subprocess: a UI cancel sets the Girder job to CANCELING
+        # without necessarily flipping the Celery task's canceled flag.
+        manager.refreshStatus()
+        if not (check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING):
             return False
         manager.write('\nCanceled while waiting for GPU memory.\n')
         manager.updateStatus(JobStatus.CANCELED)
@@ -472,15 +485,19 @@ def stream_subprocess(
                 cancel_requested.set()
                 _stop_subprocess()
                 return
-            # Wake immediately when abort_event is set (e.g. lost GPU lease)
-            # instead of waiting out the full cancel poll interval.
-            if abort_event is not None:
-                if abort_event.wait(CANCEL_MONITOR_INTERVAL):
-                    continue
-                if stop_event.is_set():
+            if abort_event is None:
+                if stop_event.wait(CANCEL_MONITOR_INTERVAL):
                     return
-            elif stop_event.wait(CANCEL_MONITOR_INTERVAL):
-                return
+                continue
+            # Wait in short slices so both a normal exit (stop_event) and an
+            # external abort (e.g. lost GPU lease) wake the monitor promptly,
+            # instead of either one waiting out the full cancel poll interval.
+            slice_seconds = min(ABORT_POLL_SECONDS, CANCEL_MONITOR_INTERVAL)
+            waited = 0.0
+            while waited < CANCEL_MONITOR_INTERVAL and not abort_event.is_set():
+                if stop_event.wait(slice_seconds):
+                    return
+                waited += slice_seconds
 
     with tempfile.TemporaryFile() as stderr_file:
         logged_args = sanitize_subprocess_args_for_log(launch_kwargs['args'])

@@ -146,18 +146,23 @@ def gpu_memory_slot(
     lease_lost = threading.Event()
     client = _redis_client()
     if client is None:
-        if explicitly_declared or exclusive:
+        if explicitly_declared:
             raise RuntimeError(
-                'This GPU task requires '
+                'This pipeline declares `# GPU Memory` and requires '
                 'GIRDER_NOTIFICATION_REDIS_URL to coordinate GPU access across workers'
             )
-        # Unmarked pipes retain their historical behavior on standalone workers.
+        # Unmarked pipes and internal whole-GPU tasks (training, export) keep
+        # their historical uncoordinated behavior on standalone workers.
         yield lease_lost
         return
 
     capacity = _gpu_capacity_gb()
-    if exclusive or reserve_all:
+    if exclusive:
         reservation = capacity
+    elif not explicitly_declared:
+        # The default budget is a guess; never let it make an unmarked pipe
+        # unrunnable on a GPU smaller than the default.
+        reservation = min(reservation, capacity)
     if reservation <= 0:
         raise RuntimeError('GPU memory reservation must be greater than zero')
     if reservation > capacity:
@@ -229,5 +234,10 @@ def gpu_memory_slot(
     finally:
         stop_heartbeat.set()
         heartbeat.join(timeout=_HEARTBEAT_SECONDS + 1)
-        client.zrem(lease_key, member)
-        client.hdel(reservation_key, member)
+        # Never let a release failure mask the exception already in flight
+        # (e.g. CanceledError); the lease expires on its own after _LEASE_SECONDS.
+        try:
+            client.zrem(lease_key, member)
+            client.hdel(reservation_key, member)
+        except Exception as err:
+            print(f'Failed to release GPU memory reservation {member}: {err}')
