@@ -63,13 +63,18 @@ def _gpu_key() -> str:
 def _gpu_capacity_gb() -> float:
     worker_gpu_uuid = os.environ.get('WORKER_GPU_UUID')
     gpus = getGPUs()
-    gpu = next(
-        (gpu for gpu in gpus if gpu.uuid == worker_gpu_uuid),
-        gpus[0] if gpus and not worker_gpu_uuid else None,
-    )
-    if gpu is None:
+    if worker_gpu_uuid:
+        gpu = next((gpu for gpu in gpus if gpu.uuid == worker_gpu_uuid), None)
+        capacity_gb = float(gpu.memoryTotal) / 1024.0 if gpu else None
+    elif gpus:
+        # Without a pinned UUID, tasks may land on any visible GPU. Use the
+        # smallest device as a conservative shared budget for this worker group.
+        capacity_gb = min(float(gpu.memoryTotal) / 1024.0 for gpu in gpus)
+    else:
+        capacity_gb = None
+    if capacity_gb is None:
         raise RuntimeError('Could not detect the worker GPU memory using nvidia-smi')
-    capacity = float(gpu.memoryTotal) / 1024.0
+    capacity = capacity_gb
     if capacity <= 0:
         raise RuntimeError('Detected GPU memory capacity must be greater than zero')
     return capacity
