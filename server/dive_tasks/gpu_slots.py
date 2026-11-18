@@ -1,4 +1,4 @@
-"""Coordinate GPU use between normal and high-memory pipeline jobs."""
+"""Coordinate GPU memory reservations between VIAME worker tasks."""
 
 from contextlib import contextmanager
 import os
@@ -8,25 +8,31 @@ import time
 import uuid
 from typing import Iterator
 
+from GPUtil import getGPUs
 from redis import Redis
 
 
+_DEFAULT_PIPELINE_MEMORY_GB = 8.0
 _LEASE_SECONDS = 300
 _HEARTBEAT_SECONDS = 30
 _ACQUIRE_SCRIPT = """
 local now = tonumber(ARGV[1])
 local expires = tonumber(ARGV[2])
-local mode = ARGV[3]
+local reservation = tonumber(ARGV[3])
 local capacity = tonumber(ARGV[4])
 local member = ARGV[5]
-redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now)
-local active = redis.call('ZCARD', KEYS[1])
-if mode == 'high' then
-  if active == 0 then
-    redis.call('ZADD', KEYS[1], expires, member)
-    return 1
-  end
-elseif active < capacity then
+local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now)
+for _, old_member in ipairs(expired) do
+  redis.call('ZREM', KEYS[1], old_member)
+  redis.call('HDEL', KEYS[2], old_member)
+end
+local active = redis.call('HVALS', KEYS[2])
+local used = 0
+for _, value in ipairs(active) do
+  used = used + tonumber(value)
+end
+if used + reservation <= capacity then
+  redis.call('HSET', KEYS[2], member, reservation)
   redis.call('ZADD', KEYS[1], expires, member)
   return 1
 end
@@ -49,50 +55,73 @@ def _redis_client() -> Redis | None:
 
 
 def _gpu_key() -> str:
-    # Workers without an explicit device UUID must still coordinate with peers;
-    # using a deployment-wide fallback is conservative when multiple GPUs exist.
+    # Workers without an explicit device UUID still coordinate with their peers.
     gpu = os.environ.get('WORKER_GPU_UUID') or 'default'
-    return f'dive:gpu-pipeline-slots:{gpu}'
+    return f'dive:gpu-memory-reservations:{gpu}'
+
+
+def _gpu_capacity_gb() -> float:
+    worker_gpu_uuid = os.environ.get('WORKER_GPU_UUID')
+    gpus = getGPUs()
+    gpu = next(
+        (gpu for gpu in gpus if gpu.uuid == worker_gpu_uuid),
+        gpus[0] if gpus and not worker_gpu_uuid else None,
+    )
+    if gpu is None:
+        raise RuntimeError('Could not detect the worker GPU memory using nvidia-smi')
+    capacity = float(gpu.memoryTotal) / 1024.0
+    if capacity <= 0:
+        raise RuntimeError('Detected GPU memory capacity must be greater than zero')
+    return capacity
 
 
 @contextmanager
-def gpu_pipeline_slot(pipeline: dict) -> Iterator[None]:
-    """Hold a shared slot for ordinary pipes or an exclusive slot for high-memory pipes.
-
-    A Redis lease lets GPU workers coordinate even when they run in different containers.
-    The heartbeat keeps long-running pipes from expiring their lease; a worker crash frees
-    the slot automatically after five minutes.
-    """
-    high_memory = (pipeline.get('metadata') or {}).get('gpuMemory') == 'high'
+def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[None]:
+    """Reserve the pipe's declared VRAM amount, or the whole GPU for exclusive work."""
+    metadata = pipeline.get('metadata') or {}
+    if metadata.get('gpuMemoryInvalid'):
+        raise RuntimeError('Invalid # GPU Memory header; use `High` or a number of GB')
+    explicitly_declared = bool(metadata.get('gpuMemoryDeclared'))
+    exclusive = reserve_all or bool(metadata.get('gpuMemoryExclusive'))
+    declared_reservation = metadata.get('gpuMemoryGB')
+    reservation = float(
+        _DEFAULT_PIPELINE_MEMORY_GB
+        if declared_reservation is None
+        else declared_reservation
+    )
     client = _redis_client()
     if client is None:
-        if high_memory:
+        if explicitly_declared or exclusive:
             raise RuntimeError(
-                'This high-memory pipeline requires GIRDER_NOTIFICATION_REDIS_URL '
-                'to coordinate GPU access across workers'
+                'This GPU task requires '
+                'GIRDER_NOTIFICATION_REDIS_URL to coordinate GPU access across workers'
             )
-        # Older or standalone workers can continue to run normal jobs. Configure
-        # shared Redis on every worker using the GPU before enabling high-memory pipes.
+        # Unmarked pipes retain their historical behavior on standalone workers.
         yield
         return
-    capacity = max(
-        1,
-        int(
-            os.environ.get('PIPELINE_NORMAL_GPU_SLOTS')
-            or os.environ.get('WORKER_CONCURRENCY', '1')
-        ),
-    )
-    key = _gpu_key()
-    member = f'{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}'
-    mode = 'high' if high_memory else 'normal'
 
+    capacity = _gpu_capacity_gb()
+    if exclusive or reserve_all:
+        reservation = capacity
+    if reservation <= 0:
+        raise RuntimeError('GPU memory reservation must be greater than zero')
+    if reservation > capacity:
+        raise RuntimeError(
+            f'Pipeline requests {reservation:g} GB of GPU memory but the worker GPU '
+            f'capacity is {capacity:g} GB'
+        )
+
+    lease_key = _gpu_key()
+    reservation_key = f'{lease_key}:amounts'
+    member = f'{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}'
     while not client.eval(
         _ACQUIRE_SCRIPT,
-        1,
-        key,
+        2,
+        lease_key,
+        reservation_key,
         time.time(),
         time.time() + _LEASE_SECONDS,
-        mode,
+        reservation,
         capacity,
         member,
     ):
@@ -104,7 +133,7 @@ def gpu_pipeline_slot(pipeline: dict) -> Iterator[None]:
         while not stop_heartbeat.wait(_HEARTBEAT_SECONDS):
             try:
                 renewed = client.eval(
-                    _RENEW_SCRIPT, 1, key, member, time.time() + _LEASE_SECONDS
+                    _RENEW_SCRIPT, 1, lease_key, member, time.time() + _LEASE_SECONDS
                 )
                 if not renewed:
                     return
@@ -119,4 +148,5 @@ def gpu_pipeline_slot(pipeline: dict) -> Iterator[None]:
     finally:
         stop_heartbeat.set()
         heartbeat.join(timeout=_HEARTBEAT_SECONDS + 1)
-        client.zrem(key, member)
+        client.zrem(lease_key, member)
+        client.hdel(reservation_key, member)

@@ -174,7 +174,6 @@ services:
     environment:
       - "WORKER_WATCHING_QUEUES=pipelines"
       - "WORKER_CONCURRENCY=${PIPELINE_WORKER_CONCURRENCY:-1}"
-      - "PIPELINE_NORMAL_GPU_SLOTS=${PIPELINE_NORMAL_GPU_SLOTS:-${PIPELINE_WORKER_CONCURRENCY:-1}}"
       - "WORKER_GPU_UUID=${PIPELINE_GPU_UUID}"
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"

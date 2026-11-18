@@ -28,7 +28,7 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
-from dive_tasks.gpu_slots import gpu_pipeline_slot
+from dive_tasks.gpu_slots import gpu_memory_slot
 from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.single_camera_pipeline import csv_rows, finish_single_camera_run
 from dive_tasks.viame_config import Config
@@ -427,7 +427,7 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'cwd': output_path,
                 'env': conf.gpu_process_env,
             }
-            with gpu_pipeline_slot(pipeline):
+            with gpu_memory_slot(pipeline):
                 manager.updateStatus(JobStatus.RUNNING)
                 utils.stream_subprocess(self, context, manager, popen_kwargs)
 
@@ -615,7 +615,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        with gpu_pipeline_slot(pipeline):
+        with gpu_memory_slot(pipeline):
             manager.updateStatus(JobStatus.RUNNING)
             utils.stream_subprocess(self, context, manager, popen_kwargs)
 
