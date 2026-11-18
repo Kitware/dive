@@ -5,12 +5,11 @@ import os
 import socket
 import threading
 import time
-import uuid
 from typing import Iterator
+import uuid
 
 from GPUtil import getGPUs
 from redis import Redis
-
 
 _DEFAULT_PIPELINE_MEMORY_GB = 8.0
 _LEASE_SECONDS = 300
@@ -90,9 +89,7 @@ def gpu_memory_slot(pipeline: dict, *, reserve_all: bool = False) -> Iterator[No
     exclusive = reserve_all or bool(metadata.get('gpuMemoryExclusive'))
     declared_reservation = metadata.get('gpuMemoryGB')
     reservation = float(
-        _DEFAULT_PIPELINE_MEMORY_GB
-        if declared_reservation is None
-        else declared_reservation
+        _DEFAULT_PIPELINE_MEMORY_GB if declared_reservation is None else declared_reservation
     )
     client = _redis_client()
     if client is None:

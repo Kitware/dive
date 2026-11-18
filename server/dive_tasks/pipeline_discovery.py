@@ -240,7 +240,8 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
-                            r'^#\s*(Input|Output|Requires\s+Calibration|GPU\s+Memory|Metadata\s+File'
+                            r'^#\s*(Input|Output|Requires\s+Calibration|GPU\s+Memory'
+                            r'|Metadata\s+File'
                             r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
                             line_raw,
                             re.IGNORECASE,
@@ -314,9 +315,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         metadata["calibrationKeys"] = keys
 
                 # `High` reserves the full GPU; a number reserves that many GB.
-                gpu_memory_header = re.match(
-                    r'^#\s*GPU\s+Memory:\s*(.*)$', line_raw, re.IGNORECASE
-                )
+                gpu_memory_header = re.match(r'^#\s*GPU\s+Memory:\s*(.*)$', line_raw, re.IGNORECASE)
                 if gpu_memory_header:
                     gpu_memory_value = gpu_memory_header.group(1).strip()
                     metadata['gpuMemoryDeclared'] = True

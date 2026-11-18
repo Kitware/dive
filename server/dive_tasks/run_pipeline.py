@@ -12,6 +12,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_tasks import utils
+from dive_tasks.gpu_slots import gpu_memory_slot
 from dive_tasks.manager import patch_manager
 from dive_tasks.multicam_pipeline import (
     append_metadata_file_kwiver_settings,
@@ -28,7 +29,6 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
-from dive_tasks.gpu_slots import gpu_memory_slot
 from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.single_camera_pipeline import csv_rows, finish_single_camera_run
 from dive_tasks.viame_config import Config
