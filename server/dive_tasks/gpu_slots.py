@@ -119,6 +119,7 @@ def gpu_memory_slot(
     *,
     reserve_all: bool = False,
     check_canceled: Optional[Callable[[], bool]] = None,
+    log: Optional[Callable[[str], None]] = None,
     acquire_timeout_seconds: Optional[float] = None,
 ) -> Iterator[threading.Event]:
     """Reserve the pipe's declared VRAM amount, or the whole GPU for exclusive work.
@@ -129,6 +130,7 @@ def gpu_memory_slot(
 
     While waiting for free VRAM, ``check_canceled`` is polled each second so a
     canceled job can leave FETCHING_INPUT instead of blocking the worker.
+    ``log`` is called once when the job must wait for capacity (job log / UI).
     ``acquire_timeout_seconds`` (default 12h, or ``DIVE_GPU_ACQUIRE_TIMEOUT_SECONDS``)
     is a backstop if the slot never becomes available.
     """
@@ -169,6 +171,7 @@ def gpu_memory_slot(
     member = f'{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}'
     timeout = _acquire_timeout_seconds(acquire_timeout_seconds)
     started = time.time()
+    logged_waiting = False
     while not client.eval(
         _ACQUIRE_SCRIPT,
         2,
@@ -180,6 +183,15 @@ def gpu_memory_slot(
         capacity,
         member,
     ):
+        if not logged_waiting:
+            kind = ' (exclusive / full GPU)' if exclusive or reserve_all else ''
+            message = (
+                f'Waiting for {reservation:g} GB of free GPU memory{kind} '
+                f'before starting (capacity {capacity:g} GB)...\n'
+            )
+            if log is not None:
+                log(message)
+            logged_waiting = True
         if check_canceled is not None and check_canceled():
             raise CanceledError('Job was canceled while waiting for GPU memory')
         if timeout is not None and (time.time() - started) >= timeout:
@@ -187,6 +199,8 @@ def gpu_memory_slot(
                 f'Timed out after {timeout:g}s waiting for {reservation:g} GB of GPU memory'
             )
         time.sleep(_ACQUIRE_POLL_SECONDS)
+    if logged_waiting and log is not None:
+        log(f'GPU memory available; acquired {reservation:g} GB reservation.\n')
 
     stop_heartbeat = threading.Event()
 

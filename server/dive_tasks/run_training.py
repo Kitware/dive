@@ -76,6 +76,7 @@ def export_trained_pipeline(self: Task, params: ExportTrainedPipelineJob):
             {},
             reserve_all=True,
             check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+            log=manager.write,
         ) as lease_lost:
             manager.updateStatus(JobStatus.RUNNING)
             utils.stream_subprocess(
@@ -232,6 +233,7 @@ def train_pipeline(self: Task, params: TrainingJob):
             {},
             reserve_all=True,
             check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+            log=manager.write,
         ) as lease_lost:
             manager.updateStatus(JobStatus.RUNNING)
             utils.stream_subprocess(

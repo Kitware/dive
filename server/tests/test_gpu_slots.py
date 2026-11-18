@@ -64,6 +64,26 @@ def test_acquire_canceled_while_waiting(monkeypatch):
             pass
 
 
+def test_acquire_logs_while_waiting(monkeypatch):
+    client = MagicMock()
+    client.eval.side_effect = [0, 1]
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    clock = _FakeClock()
+    monkeypatch.setattr(gpu_slots.time, 'time', clock.time)
+    monkeypatch.setattr(gpu_slots.time, 'sleep', clock.sleep)
+    messages = []
+
+    with gpu_memory_slot(
+        {'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}},
+        log=messages.append,
+    ):
+        pass
+
+    assert any('Waiting for 4 GB of free GPU memory' in msg for msg in messages)
+    assert any('acquired 4 GB reservation' in msg for msg in messages)
+
+
 def test_acquire_times_out_while_waiting(monkeypatch):
     client = MagicMock()
     client.eval.return_value = 0
