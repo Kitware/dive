@@ -188,6 +188,20 @@ def _collect_dive_params(file_path: Path, collected: "Dict[str, DiveParam]", vis
             collected[key] = {**existing, "default": val}
 
 
+_MEMORY_AMOUNT = r'(\d+(?:\.\d+)?)\s*(?:GB)?'
+_FRAME_SIZE = r'(\d+)\s*x\s*(\d+)'
+
+
+def _add_memory_tier(tiers: dict[int, float], width: str, height: str, amount: str) -> bool:
+    """Index cutoffs by area so a resolution also covers its portrait equivalent."""
+    pixels = int(width) * int(height)
+    budget = float(amount)
+    if pixels <= 0 or budget <= 0 or pixels in tiers:
+        return False
+    tiers[pixels] = budget
+    return True
+
+
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
     metadata: PipeMetadata = {
         "diveParams": [],
@@ -316,40 +330,40 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     if keys:
                         metadata["calibrationKeys"] = keys
 
-                # Optional cheaper reservations for known input sizes. The plain
-                # header remains the fallback for older workers and unknown sizes.
+                # Also read the separate tier headers used by earlier .pipe files.
                 if re.match(r'^#\s*GPU\s+Memory\s+up\s+to\b', line_raw, re.IGNORECASE):
                     tier = re.fullmatch(
-                        r'#\s*GPU\s+Memory\s+up\s+to\s+(\d+)\s*x\s*(\d+)\s*:\s*'
-                        r'(\d+(?:\.\d+)?)\s*(?:GB)?\s*',
+                        rf'#\s*GPU\s+Memory\s+up\s+to\s+{_FRAME_SIZE}\s*:\s*{_MEMORY_AMOUNT}\s*',
                         line_raw,
                         re.IGNORECASE,
                     )
-                    if tier:
-                        pixels = int(tier[1]) * int(tier[2])
-                        amount = float(tier[3])
-                        if pixels and amount > 0 and pixels not in memory_tiers:
-                            memory_tiers[pixels] = amount
-                            continue
-                    metadata['gpuMemoryInvalid'] = True
+                    if not tier or not _add_memory_tier(memory_tiers, *tier.groups()):
+                        metadata['gpuMemoryInvalid'] = True
                     continue
 
-                # `High` reserves the full GPU; a number reserves that many GB.
                 gpu_memory_header = re.match(r'^#\s*GPU\s+Memory:\s*(.*)$', line_raw, re.IGNORECASE)
                 if gpu_memory_header:
-                    gpu_memory_value = gpu_memory_header.group(1).strip()
+                    value = gpu_memory_header.group(1).strip()
                     metadata['gpuMemoryDeclared'] = True
-                    if gpu_memory_value.lower() == 'high':
+                    if value.lower() == 'high':
                         metadata['gpuMemoryExclusive'] = True
-                    else:
-                        numeric_memory = re.fullmatch(
-                            r'(\d+(?:\.\d+)?)\s*(?:GB)?',
-                            gpu_memory_value,
+                        continue
+                    *conditions, fallback = value.split(',')
+                    fallback_pattern = rf'else\s+{_MEMORY_AMOUNT}' if conditions else _MEMORY_AMOUNT
+                    amount = re.fullmatch(fallback_pattern, fallback.strip(), re.IGNORECASE)
+                    if not amount:
+                        metadata['gpuMemoryInvalid'] = True
+                        continue
+                    metadata['gpuMemoryGB'] = float(amount[1])
+                    for condition in conditions:
+                        tier = re.fullmatch(
+                            rf'{_MEMORY_AMOUNT}\s+if\s+<=\s*{_FRAME_SIZE}',
+                            condition.strip(),
                             re.IGNORECASE,
                         )
-                        if numeric_memory:
-                            metadata['gpuMemoryGB'] = float(numeric_memory.group(1))
-                        else:
+                        if not tier or not _add_memory_tier(
+                            memory_tiers, tier[2], tier[3], tier[1]
+                        ):
                             metadata['gpuMemoryInvalid'] = True
 
                 # `# Camera Order: EO, UV, IR` names the camera role fed to each
