@@ -874,12 +874,12 @@ describe('useAnnotationFilters', () => {
     expect(groupFilters.checkedTypes.value).toEqual([]);
   });
 
-  it('preserves flat track and group configured-only rename behavior', () => {
+  it('retains renamed configured track types without changing group rename behavior', () => {
     const { filters } = makePairFixture([[['used', 0.8]]]);
     filters.importTypes(['unused'], false);
     filters.updateTypeName({ currentType: 'unused', newType: 'renamed' });
     expect(filters.configuredTypes.value).not.toContain('unused');
-    expect(filters.configuredTypes.value).not.toContain('renamed');
+    expect(filters.configuredTypes.value).toContain('renamed');
 
     const cameraStore = makeCameraStore();
     const groupFilters = makeGroupFilterControls(cameraStore);
@@ -1441,5 +1441,152 @@ describe('WoRMS import provenance', () => {
     expect(() => filters.importCategoryDefinitions(['salmon'], { salmon: 'fish' }, sources)).toThrow();
     expect(filters.taxonomySources.value).toEqual({});
     expect(filters.taxonomySavePatch()).toEqual({});
+  });
+});
+
+describe('type management deletion', () => {
+  it('transfers hidden tracks to unknown while keeping other labels and promoting children', () => {
+    const { filters, cameraStore, markPending } = makePairFixture([
+      [['parent', 0.8], ['unknown', 0.9], ['other', 0.4]],
+      [['child', 1]],
+    ]);
+    filters.setTypeHierarchy({ parent: 'root', child: 'parent' });
+    filters.importTypes(['parent']);
+    filters.checkedTypes.value = [];
+    filters.setTimeFilters([100, 200]);
+    expect(filters.typeTrackIds().get('parent')?.size).toBe(1);
+    expect(filters.deleteTypeWithTracks('parent', 'unknown')).toBe(true);
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['unknown', 0.9], ['other', 0.4]]);
+    expect(cameraStore.getTrack(1).confidencePairs).toEqual([['child', 1]]);
+    expect(filters.typeHierarchy.value).toEqual({ child: 'root' });
+    expect(filters.allTypes.value).not.toContain('parent');
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: { child: 'root' } });
+    expect(markPending).toHaveBeenCalled();
+  });
+
+  it('counts secondary-camera labels and preserves each camera vector on transfer', () => {
+    const { filters, cameraStore } = makePairFixture([[['other', 1]]]);
+    cameraStore.addCamera('right');
+    const store = cameraStore.camMap.value.get('right')!.trackStore;
+    store.insert(new Track(0, { confidencePairs: [['fish', 0.7]], features }));
+    store.setEnableSorting();
+    expect(filters.typeTrackIds().get('fish')?.size).toBe(1);
+    expect(filters.deleteTypeWithTracks('fish', 'unknown')).toBe(true);
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['other', 1]]);
+    expect(store.get(0).confidencePairs).toEqual([['unknown', 0.7]]);
+    expect(filters.typeTrackIds().has('fish')).toBe(false);
+  });
+
+  it('deletes whole matching tracks across cameras but keeps descendant-only tracks', () => {
+    const { filters, cameraStore } = makePairFixture([
+      [['parent', 0.2], ['other', 1]], [['child', 1]],
+    ]);
+    cameraStore.addCamera('right');
+    const store = cameraStore.camMap.value.get('right')!.trackStore;
+    store.insert(new Track(0, { confidencePairs: [['other', 1]], features }));
+    store.setEnableSorting();
+    filters.setTypeHierarchy({ child: 'parent' });
+    filters.checkedTypes.value = [];
+    expect(filters.deleteTypeWithTracks('parent', 'delete')).toBe(true);
+    expect(cameraStore.getTrackAll(0)).toEqual([]);
+    expect(cameraStore.getTrackAll(1)).toHaveLength(1);
+    expect(filters.allTypes.value).toContain('child');
+    expect(filters.allTypes.value).not.toContain('parent');
+  });
+
+  it('does not allow transferring unknown to itself', () => {
+    const { filters, cameraStore } = makePairFixture([[['unknown', 1]]]);
+    expect(filters.deleteTypeWithTracks('unknown', 'unknown')).toBe(false);
+    expect(cameraStore.getTrack(0).confidencePairs).toEqual([['unknown', 1]]);
+  });
+
+  it('keeps unused flat types when renamed', () => {
+    const { filters } = makePairFixture([]);
+    filters.importTypes(['old']);
+    filters.updateTypeDefinition({ currentType: 'old', newType: 'new', parent: undefined });
+    expect(filters.allTypes.value).toEqual(['new']);
+  });
+});
+
+describe('optional empty parent deletion', () => {
+  it('keeps empty ancestors by default', () => {
+    const { filters } = makePairFixture([]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('leaf', 'delete');
+    expect(filters.allTypes.value).toEqual(expect.arrayContaining(['parent', 'root']));
+  });
+
+  it.each(['unknown', 'delete'] as const)('removes the empty ancestor chain after %s', (mode) => {
+    const { filters, cameraStore } = makePairFixture([[['leaf', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.importTypes(['leaf', 'parent', 'root']);
+    filters.deleteTypeWithTracks('leaf', mode, true);
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
+    expect(filters.allTypes.value).toEqual(mode === 'unknown' ? ['unknown'] : []);
+    expect(cameraStore.getTrackAll(0)).toHaveLength(mode === 'unknown' ? 1 : 0);
+  });
+
+  it('stops at parents with other children, including unused siblings', () => {
+    const { filters } = makePairFixture([]);
+    filters.setTypeHierarchy({ leaf: 'parent', sibling: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('leaf', 'delete', true);
+    expect(filters.typeHierarchy.value).toEqual({ sibling: 'parent', parent: 'root' });
+  });
+
+  it('keeps parents with usage on a secondary camera', () => {
+    const { filters, cameraStore } = makePairFixture([[['other', 1]]]);
+    cameraStore.addCamera('right');
+    const store = cameraStore.camMap.value.get('right')!.trackStore;
+    store.insert(new Track(0, { confidencePairs: [['parent', 1]], features }));
+    store.setEnableSorting();
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('leaf', 'delete', true);
+    expect(filters.typeHierarchy.value).toEqual({ parent: 'root' });
+    expect(store.get(0).confidencePairs).toEqual([['parent', 1]]);
+  });
+
+  it('keeps ancestors receiving promoted children', () => {
+    const { filters } = makePairFixture([]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('parent', 'delete', true);
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+  });
+});
+
+describe('optional empty child deletion', () => {
+  it('keeps empty descendants by default', () => {
+    const { filters } = makePairFixture([]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('parent', 'delete');
+    expect(filters.allTypes.value).toEqual(expect.arrayContaining(['leaf', 'root']));
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+  });
+
+  it.each(['unknown', 'delete'] as const)('removes empty descendants after %s', (mode) => {
+    const { filters, cameraStore } = makePairFixture([[['parent', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.importTypes(['parent', 'leaf', 'root']);
+    filters.deleteTypeWithTracks('parent', mode, false, true);
+    expect(filters.typeHierarchySavePatch()).toEqual({ typeHierarchy: null });
+    expect(filters.allTypes.value).toEqual(mode === 'unknown' ? ['unknown', 'root'] : ['root']);
+    expect(cameraStore.getTrackAll(0)).toHaveLength(mode === 'unknown' ? 1 : 0);
+  });
+
+  it('stops at descendants with child types still in the hierarchy', () => {
+    const { filters } = makePairFixture([[['heavy', 1]]]);
+    filters.setTypeHierarchy({
+      empty: 'mid', heavy: 'mid', mid: 'parent', parent: 'root',
+    });
+    filters.deleteTypeWithTracks('parent', 'delete', false, true);
+    expect(filters.typeHierarchy.value).toEqual({ heavy: 'mid', mid: 'root' });
+    expect(filters.allTypes.value).not.toContain('empty');
+  });
+
+  it('keeps descendants with direct track usage', () => {
+    const { filters } = makePairFixture([[['leaf', 1]]]);
+    filters.setTypeHierarchy({ leaf: 'parent', parent: 'root' });
+    filters.deleteTypeWithTracks('parent', 'delete', false, true);
+    expect(filters.typeHierarchy.value).toEqual({ leaf: 'root' });
+    expect(filters.allTypes.value).toContain('leaf');
   });
 });

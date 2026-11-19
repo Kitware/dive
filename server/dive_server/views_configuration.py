@@ -79,6 +79,8 @@ class ConfigurationResource(Resource):
         self.route("POST", ("upgrade_pipelines",), self.upgrade_pipelines)
         self.route("POST", ("update_containers",), self.update_containers)
         self.route("GET", ("stats",), self.get_dataset_stats)
+        self.route("GET", ("annotation_stats",), self.get_annotation_stats)
+        self.route("POST", ("annotation_stats",), self.start_annotation_stats)
 
     @access.public
     @autoDescribeRoute(Description("Get Configuration Information"))
@@ -110,17 +112,23 @@ class ConfigurationResource(Resource):
     @autoDescribeRoute(Description("Get available training configs"))
     def get_training_configs(self, params):
         capabilities = worker_capabilities.get_worker_capabilities()
+        empty_training = {"configs": [], "default": ""}
         if not capabilities['trainingEnabled']:
-            return {"training": {"configs": [], "default": ""}, "models": {}}
+            return {"training": empty_training, "models": {}}
         static_job_configs: types.AvailableJobSchema = (
-            Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or {}
+            Setting().get(constants.SETTINGS_CONST_JOBS_CONFIGS) or tasks.EMPTY_JOB_SCHEMA
         )
         model_configs = crud_rpc.load_training_configs(self.getCurrentUser())
-        training_configs = {
-            "training": static_job_configs.get('training', {}),
+        training = static_job_configs.get('training') or {}
+        # Always return a complete training shape; partial/empty settings
+        # previously made the client crash on `.configs.length`.
+        return {
+            "training": {
+                "configs": training.get('configs') or [],
+                "default": training.get('default') or "",
+            },
             "models": model_configs,
         }
-        return training_configs
 
     @staticmethod
     def _stereo_foundation_model(params) -> stereo_models.FoundationModel:
@@ -310,6 +318,44 @@ class ConfigurationResource(Resource):
 
     @access.admin
     @autoDescribeRoute(
+        Description(
+            "Return the latest saved annotation inventory report for the current admin, "
+            "loaded from their private Stats/annotation-stats-latest.json file. "
+            "Returns null when no report has been generated yet."
+        )
+    )
+    def get_annotation_stats(self):
+        from dive_server.crud_annotation_stats import load_latest_annotation_stats_report
+
+        return load_latest_annotation_stats_report(self.getCurrentUser())
+
+    @access.admin
+    @autoDescribeRoute(
+        Description(
+            "Start a background job that builds a global annotation inventory report "
+            "(dataset counts, track confidence, curation classes, and label totals). "
+            "The finished report is stored on job.meta.annotationStats and saved under "
+            "the admin user's private Stats folder."
+        )
+    )
+    def start_annotation_stats(self):
+        token = Token().createToken(user=self.getCurrentUser(), days=1)
+        from dive_tasks.annotation_stats import run_annotation_stats_job
+
+        # One titled Girder job via girder_job_title (not createLocalJob + .delay(),
+        # which left an untitled Celery job in the UI).
+        async_result = run_annotation_stats_job.apply_async(
+            queue='local',
+            kwargs=dict(
+                girder_job_title='Annotation Stats Report',
+                girder_job_type='Annotation Stats',
+                girder_client_token=str(token['_id']),
+            ),
+        )
+        return {'jobId': str(async_result.job['_id'])}
+
+    @access.admin
+    @autoDescribeRoute(
         Description("Get dataset and job statistics within a specified time range")
         .param(
             "dateRange",
@@ -397,7 +443,9 @@ class ConfigurationResource(Resource):
 
         user_map = {str(user["_id"]): user["login"] for user in User().find({})}
 
-        table_stats = {'datasets': 0, 'jobs': {}, 'newUsers': 0}
+        # Total users is all-time (not date-range filtered); reusing the
+        # already-built user_map avoids a second scan of the user collection.
+        table_stats = {'datasets': 0, 'jobs': {}, 'newUsers': 0, 'totalUsers': len(user_map)}
         group_by_user = {'datasets': 0, 'jobs': 0}
         group_by_month = {'datasets': {}, 'jobs': {}, 'newUsers': {}}
         # Query logic based on groupBy parameter

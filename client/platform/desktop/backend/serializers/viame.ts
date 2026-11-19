@@ -62,6 +62,21 @@ function getCaptureGroups(regexp: RegExp, str: string) {
   return null;
 }
 
+function missingImagesWarning(missing: string[], skipped: number): string | undefined {
+  const names = [...new Set(missing)].filter((name) => name);
+  if (names.length === 0) {
+    return undefined;
+  }
+  const shown = names.slice(0, 10).join(', ')
+    + (names.length > 10 ? `, and ${names.length - 10} more` : '');
+  if (skipped) {
+    return `${names.length} image(s) named in the CSV are not in this dataset, so ${skipped} `
+      + `detection(s) on them were skipped. Check the image names match: ${shown}`;
+  }
+  return `None of the ${names.length} image(s) named in the CSV are in this dataset, so CSV `
+    + `frame numbers were used as-is. Check the image names match: ${shown}`;
+}
+
 function _rowInfo(row: string[]) {
   let fps;
   if (row[0].match(CommentRegex) !== null) {
@@ -454,33 +469,24 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
         // Now we need to remap and filter tracks that are outside the frame range
         const newDataMap: Record<TrackData['id'], TrackData> = {};
         const trackList = Object.values(Object.fromEntries(dataMap));
+        let skipped = 0;
         trackList.forEach((track) => {
           if ((track.end >= minFrame)
           || (track.begin <= maxFrame)) {
-            // begin and end frames need to be remapped to the subsampled region
-            let { begin } = track;
-            let { end } = track;
-            if (begin < minFrame || frameMapper[begin] === undefined) {
-              begin = frameMapper[minFrame];
-            } else {
-              begin = frameMapper[begin];
-            }
-            if (end > maxFrame || frameMapper[end] === undefined) {
-              end = frameMapper[maxFrame];
-            } else {
-              end = frameMapper[end];
-            }
             const newTrack: TrackData = {
-              begin,
-              end,
+              begin: track.begin,
+              end: track.end,
               id: track.id,
               attributes: track.attributes,
               confidencePairs: track.confidencePairs,
               features: [],
             };
             track.features.forEach((feature) => {
-              // if feature frame is within the range add and remap the frame to the new time
-              if (feature.frame >= minFrame && feature.frame <= maxFrame) {
+              // A frame with no mapping belongs to an image the dataset lacks, whether
+              // it falls outside the found range or in a gap inside it.
+              if (frameMapper[feature.frame] === undefined) {
+                skipped += 1;
+              } else {
                 const newFeature = cloneDeep(feature);
                 newFeature.frame = frameMapper[newFeature.frame];
                 newTrack.features.push(newFeature);
@@ -488,10 +494,16 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
             });
             if (newTrack.features.length) {
               // Only add the track if it has features
+              newTrack.begin = Math.min(...newTrack.features.map((f) => f.frame));
+              newTrack.end = Math.max(...newTrack.features.map((f) => f.frame));
               newDataMap[newTrack.id] = newTrack;
             }
           }
         });
+        const missingWarning = missingImagesWarning(missingImages, skipped);
+        if (missingWarning) {
+          warnings.unshift(missingWarning);
+        }
         // Clear the existing dataMap to add the updated data
         dataMap.clear();
 
@@ -499,6 +511,11 @@ async function parse(input: Readable, imageMap?: Map<string, number>): Promise<[
         Object.values(newDataMap).forEach((track) => {
           dataMap.set(track.id, track);
         });
+      } else if (missingImages.length > 0 && imageMap !== undefined && foundImages.length === 0) {
+        const missingWarning = missingImagesWarning(missingImages, 0);
+        if (missingWarning) {
+          warnings.push(missingWarning);
+        }
       } else if (missingImages.length === 0 && foundImages.length && multiFrameTracks) {
         foundImages.sort((a, b) => a.csvFrame - b.csvFrame); // Sort to frame
         for (let i = 0; i < foundImages.length; i += 1) {

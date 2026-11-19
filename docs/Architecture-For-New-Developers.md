@@ -176,7 +176,7 @@ Authoritative JSON shapes (including `TrackData`, `Feature`, `GroupData`, and im
 | **`rabbit`** | `rabbitmq:4.2-management` | Celery broker (management UI on **15672**) |
 | **`redis`** | `redis:latest` | Job notifications (`GIRDER_NOTIFICATION_REDIS_URL`) |
 | **`memcached`** | `memcached` | Tile cache for `girder-large-image` |
-| **`localworker`** | Same image as girder | Celery on queue **`local`** (required; batch postprocess, async assetstore import) |
+| **`localworker`** | Same image as girder | Celery on queue **`local`** (required; batch postprocess, async assetstore import, multicam finalize, annotation stats). Runs Girder models in-process, so it must mount the same filesystem assetstore as `girder` (`/home/assetstore`) |
 | **`girder_worker_default`** | `docker/girder_worker.Dockerfile` → `kitware/viame-worker:cpu` | Queue **`celery`** — transcoding, zip, image conversion |
 | **`girder_worker_pipelines`** | `docker/girder_worker_gpu.Dockerfile` | Queue **`pipelines`** — VIAME detection pipelines (GPU) |
 | **`girder_worker_training`** | GPU Dockerfile | Queue **`training`** — VIAME training (GPU) |

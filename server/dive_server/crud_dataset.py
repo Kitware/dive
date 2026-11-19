@@ -2,6 +2,7 @@ import copy
 import json
 from pathlib import Path
 from typing import Any, Dict, Generator, Iterable, List, Literal, Optional, Set, Tuple, Union
+import uuid
 
 from bson.objectid import InvalidId, ObjectId
 import cherrypy
@@ -267,6 +268,20 @@ def resolve_folder_datasets(
 
     Folders marked with ``meta.annotate`` are datasets; their children are not walked.
     Matches the web client's former folder-walk behavior for pipelines and training.
+    Results are filtered to the public fields, so they carry no ACL.
+    """
+    folder_model = Folder()
+    return [folder_model.filter(dataset) for dataset in _collect_folder_datasets(user, folder_ids)]
+
+
+def _collect_folder_datasets(
+    user: types.GirderUserModel,
+    folder_ids: List[str],
+) -> List[types.GirderModel]:
+    """Same walk as resolve_folder_datasets, but returns the raw (unfiltered) documents.
+
+    Callers that need to check access (``hasAccess``) must use these: ``Folder.filter``
+    strips the ``access`` field, so every non-admin would fail a permission check.
     """
     datasets: List[types.GirderModel] = []
     visited: Set[str] = set()
@@ -288,7 +303,7 @@ def resolve_folder_datasets(
         visited.add(folder_id)
 
         if asbool(fromMeta(folder, constants.DatasetMarker, False)):
-            datasets.append(Folder().filter(folder))
+            datasets.append(folder)
             continue
 
         offset = 0
@@ -349,7 +364,7 @@ def bulk_set_training_split_under_folders(
         roots.append(root)
 
     dataset_ids: Set[str] = set()
-    for dataset in resolve_folder_datasets(user, root_folder_ids):
+    for dataset in _collect_folder_datasets(user, root_folder_ids):
         dataset_id = str(dataset['_id'])
         if not folder_model.hasAccess(dataset, user, AccessType.WRITE):
             raise RestException(
@@ -1660,6 +1675,10 @@ def _read_json_calibration_file(
 
 
 def _calibration_file_is_final_json(file_model: dict) -> bool:
+    # Only a .json name can be final; skip the read so .npz/.cam/etc. never touch the
+    # assetstore (multicam finalize runs on a worker that may not mount it).
+    if not file_model['name'].lower().endswith('.json'):
+        return False
     file_bytes = calibration_format.read_file_model_bytes(file_model)
     return calibration_format.calibration_upload_is_final_json(file_model['name'], file_bytes)
 
@@ -2231,14 +2250,35 @@ def enqueue_calibration_conversion(
     # the VIAME convert tool lives on pipeline workers (VIAME image), not celery workers.
     queue = f'{user["login"]}@private' if job_is_private else 'pipelines'
     token = Token().createToken(user=user, days=1)
+    title = f"Converting calibration {item_name}"
+    job_type = "private" if job_is_private else "pipelines"
+    task_kwargs = dict(itemId=item_id, girder_client_token=str(token["_id"]))
+    if cherrypy.request.app is not None:
+        tasks.convert_calibration.apply_async(
+            queue=queue,
+            kwargs=dict(**task_kwargs, girder_job_title=title, girder_job_type=job_type),
+        )
+        return
+    # Off-request (multicam finalize on localworker), girder_worker would create the
+    # Girder job over REST with the parent task's job-scoped token, which cannot create
+    # jobs, and the task then crashes without one. Create the job here instead.
+    from girder_jobs.models.job import Job
+    from girder_plugin_worker.utils import jobInfoSpec
+
+    task_id = str(uuid.uuid4())
+    job = Job().createJob(
+        title=title,
+        type=job_type,
+        handler='celery_handler',
+        user=user,
+        kwargs={'itemId': item_id},
+        otherFields={'celeryTaskId': task_id},
+    )
     tasks.convert_calibration.apply_async(
         queue=queue,
-        kwargs=dict(
-            itemId=item_id,
-            girder_job_title=f"Converting calibration {item_name}",
-            girder_client_token=str(token["_id"]),
-            girder_job_type="private" if job_is_private else "pipelines",
-        ),
+        task_id=task_id,
+        kwargs=task_kwargs,
+        headers={'jobInfoSpec': jobInfoSpec(job)},
     )
 
 

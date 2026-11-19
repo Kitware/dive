@@ -20,13 +20,18 @@ DatasetModelParam = {
 }
 
 
-GetAnnotationParams = (
-    Description("Get annotations of a dataset")
-    .pagingParams("id", defaultLimit=0)
-    .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
-    .param('revision', 'revision', dataType='integer', required=False)
-    .param('set', 'set', dataType='string', required=False)
-)
+def annotation_params(summary: str) -> Description:
+    """Paging, dataset, revision and set params shared by the annotation list routes"""
+    return (
+        Description(summary)
+        .pagingParams("id", defaultLimit=0)
+        .modelParam("folderId", **DatasetModelParam, level=AccessType.READ)
+        .param('revision', 'revision', dataType='integer', required=False)
+        .param('set', 'set', dataType='string', required=False)
+    )
+
+
+GetAnnotationParams = annotation_params("Get annotations of a dataset")
 
 
 class AnnotationResource(Resource):
@@ -37,6 +42,7 @@ class AnnotationResource(Resource):
         self.resourceName = resourceName
 
         self.route("GET", ("track",), self.get_tracks)
+        self.route("GET", ("track", "authors"), self.get_track_authors)
         self.route("GET", ("group",), self.get_groups)
         self.route("GET", ("revision",), self.get_revisions)
         self.route("GET", ("export",), self.export)
@@ -51,6 +57,20 @@ class AnnotationResource(Resource):
         return crud_annotation.TrackItem().list(
             folder, limit=limit, offset=offset, sort=sort, revision=revision, set=set
         )
+
+    @access.user
+    @autoDescribeRoute(
+        annotation_params(
+            "List the user who last saved each track.  A save rewrites the whole track, "
+            "so this is the last user to change the track, not the creator of each detection."
+        )
+    )
+    def get_track_authors(self, limit: int, offset: int, sort, folder, revision, set):
+        tracks, total = crud_annotation.track_authors(
+            folder, limit=limit, offset=offset, sort=sort, revision=revision, set=set
+        )
+        cherrypy.response.headers['Girder-Total-Count'] = total
+        return tracks
 
     @access.user
     @autoDescribeRoute(GetAnnotationParams)

@@ -246,6 +246,15 @@ zipUser = {
             'job_status': JobStatus.ERROR,
         },
         {
+            # Nested archive with uppercase .ZIP; must fail extract the same way
+            # as lowercase nestedZip (case-insensitive zipRegex).
+            'name': 'nestedZipUppercase',
+            'path': 'zipTestFiles/nestedZipUppercase.zip',
+            'fps': 1,
+            'type': 'image-sequence',
+            'job_status': JobStatus.ERROR,
+        },
+        {
             'name': 'zipBomb',
             'path': 'zipTestFiles/zipBomb.zip',
             'fps': 1,

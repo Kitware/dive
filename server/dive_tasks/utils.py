@@ -16,7 +16,7 @@ from typing import Iterator, List, Optional, Sequence, Tuple, Union
 from urllib import request
 from urllib.parse import urlencode, urljoin
 
-from girder_client import GirderClient
+from girder_client import GirderClient, HttpError
 from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
@@ -34,6 +34,10 @@ TIMEOUT_CHECK_INTERVAL = 30
 CANCEL_MONITOR_INTERVAL = 30
 # Grace period after SIGTERM before escalating to SIGKILL of the process group.
 CANCEL_TERM_GRACE_SECONDS = 5
+# How quickly the cancel monitor reacts to process exit or an external abort.
+ABORT_POLL_SECONDS = 1
+# How often a job waiting for GPU memory checks whether it was canceled.
+GPU_WAIT_CANCEL_CHECK_SECONDS = 10
 
 
 def make_directory(path: Path):
@@ -361,6 +365,28 @@ def check_canceled(task: Task, context: dict, force=True):
     return False
 
 
+def gpu_slot_cancel_check(task: Task, context: dict, manager: JobManager):
+    """Cancel callback for ``gpu_memory_slot`` while a job waits on VRAM."""
+    last_checked = [float('-inf')]
+
+    def _check() -> bool:
+        # Called every second by the wait loop; throttle the broker/Girder round trips.
+        now = time.monotonic()
+        if now - last_checked[0] < GPU_WAIT_CANCEL_CHECK_SECONDS:
+            return False
+        last_checked[0] = now
+        # Match stream_subprocess: a UI cancel sets the Girder job to CANCELING
+        # without necessarily flipping the Celery task's canceled flag.
+        manager.refreshStatus()
+        if not (check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING):
+            return False
+        manager.write('\nCanceled while waiting for GPU memory.\n')
+        manager.updateStatus(JobStatus.CANCELED)
+        return True
+
+    return _check
+
+
 def describe_exit(code: int) -> str:
     """Describe a Popen return code, naming the signal for a kill."""
     if code < 0:
@@ -409,6 +435,8 @@ def stream_subprocess(
     popen_kwargs: dict,
     keep_stdout: bool = False,
     keep_stderr: bool = False,
+    abort_event: Optional[threading.Event] = None,
+    abort_message: str = 'Aborted during subprocess run.',
 ) -> Union[str, Tuple[str, str]]:
     """
     Stream live results from process to job manager
@@ -418,6 +446,8 @@ def stream_subprocess(
     :param popen_kwargs: a dict to pass as kwargs to popen.  Must include 'args'
     :param keep_stdout: will return stdout as a string if needed
     :param keep_stderr: when True, return ``(stdout, stderr)`` instead of stdout
+    :param abort_event: when set, kill the process group and raise RuntimeError
+    :param abort_message: message written to the job log and raised on abort
     """
     start_time = datetime.now()
     stdout = ""
@@ -425,30 +455,49 @@ def stream_subprocess(
 
     stop_event = threading.Event()
     cancel_requested = threading.Event()
+    abort_requested = threading.Event()
     # Copy so callers are not mutated; default to a new session so cancel can
     # kill the full process tree (shell + VIAME children).
     launch_kwargs = dict(popen_kwargs)
     launch_kwargs.setdefault('start_new_session', True)
 
+    def _stop_subprocess() -> None:
+        _kill_process_group(process)
+        # Unblock the main thread's readline if any child still holds
+        # the write end open after the kill attempt.
+        if process.stdout is not None:
+            try:
+                process.stdout.close()
+            except (ValueError, OSError):
+                pass
+
     def monitor_cancellation():
-        """Thread that periodically checks for cancellation."""
+        """Thread that periodically checks for cancellation or external abort."""
         while True:
             if stop_event.is_set():
+                return
+            if abort_event is not None and abort_event.is_set():
+                abort_requested.set()
+                _stop_subprocess()
                 return
             manager.refreshStatus()
             if check_canceled(task, context, force=True) or manager.status == JobStatus.CANCELING:
                 cancel_requested.set()
-                _kill_process_group(process)
-                # Unblock the main thread's readline if any child still holds
-                # the write end open after the kill attempt.
-                if process.stdout is not None:
-                    try:
-                        process.stdout.close()
-                    except (ValueError, OSError):
-                        pass
+                _stop_subprocess()
                 return
-            if stop_event.wait(CANCEL_MONITOR_INTERVAL):
-                return
+            if abort_event is None:
+                if stop_event.wait(CANCEL_MONITOR_INTERVAL):
+                    return
+                continue
+            # Wait in short slices so both a normal exit (stop_event) and an
+            # external abort (e.g. lost GPU lease) wake the monitor promptly,
+            # instead of either one waiting out the full cancel poll interval.
+            slice_seconds = min(ABORT_POLL_SECONDS, CANCEL_MONITOR_INTERVAL)
+            waited = 0.0
+            while waited < CANCEL_MONITOR_INTERVAL and not abort_event.is_set():
+                if stop_event.wait(slice_seconds):
+                    return
+                waited += slice_seconds
 
     with tempfile.TemporaryFile() as stderr_file:
         logged_args = sanitize_subprocess_args_for_log(launch_kwargs['args'])
@@ -481,7 +530,9 @@ def stream_subprocess(
         stop_event.set()
         cancel_thread.join(timeout=CANCEL_TERM_GRACE_SECONDS + 5)
 
-        if cancel_requested.is_set():
+        if abort_requested.is_set():
+            manager.write(f'\n{abort_message}\n', forceFlush=True)
+        elif cancel_requested.is_set():
             manager.write('\nCancellation detected. Stopping subprocess...\n', forceFlush=True)
 
         # flush logs
@@ -495,11 +546,16 @@ def stream_subprocess(
             try:
                 code = process.wait(5)
             except subprocess.TimeoutExpired:
+                if abort_requested.is_set():
+                    raise RuntimeError(abort_message)
                 if cancel_requested.is_set() or check_canceled(task, context):
                     manager.write('\nCanceled during subprocess run.\n')
                     manager.updateStatus(JobStatus.CANCELED)
                     raise CanceledError('Job was canceled')
                 raise RuntimeError('Subprocess did not exit after kill')
+
+        if abort_requested.is_set():
+            raise RuntimeError(abort_message)
 
         if cancel_requested.is_set() or check_canceled(task, context):
             manager.write('\nCanceled during subprocess run.\n')
@@ -620,7 +676,8 @@ def upload_zipped_flat_media_files(
     listOfFileNames = os.listdir(working_directory)
     validation = gc.sendRestRequest('POST', '/dive_dataset/validate_files', json=listOfFileNames)
     root_folderId = folderId
-    default_fps = gc.getFolder(root_folderId).get(f"meta.{constants.FPSMarker}", -1)
+    folder_meta = gc.getFolder(root_folderId).get('meta') or {}
+    default_fps = folder_meta.get(constants.FPSMarker, -1)
     if validation.get('ok', False):
         manager.write(f"Annotations: {validation['roles']['annotations']}\n")
         manager.write(f"Media: {validation['roles']['media']}\n")
@@ -636,7 +693,6 @@ def upload_zipped_flat_media_files(
 
         # Upload all resulting items back into the root folder
         manager.updateStatus(JobStatus.PUSHING_OUTPUT)
-        # create a source folder to place the zipFile inside of
         gc.upload(f'{working_directory}/*', root_folderId)
         if dataset_type == constants.ImageSequenceType and default_fps == -1:
             default_fps = 1
@@ -645,11 +701,16 @@ def upload_zipped_flat_media_files(
             {constants.TypeMarker: dataset_type, constants.FPSMarker: default_fps},
         )
         # After uploading the default files we do a the postprocess for video conversion now
-        gc.sendRestRequest(
-            "POST",
-            f"/dive_rpc/postprocess/{str(root_folderId)}",
-            parameters={'additive': additive},
-        )
+        try:
+            gc.sendRestRequest(
+                "POST",
+                f"dive_rpc/postprocess/{str(root_folderId)}",
+                parameters={'additive': additive},
+            )
+        except HttpError as err:
+            body = (err.response.text if err.response is not None else '') or str(err)
+            manager.write(f"Postprocess failed: {body}\n")
+            raise
     else:
         manager.write(f"Message: {validation['message']}\n")
         manager.write("Please check the documentation for Zip files at:\

@@ -165,6 +165,9 @@ MultiCamPipelineMarkers = ("2-cam", "3-cam")
 ViameDataFolderName = "VIAME"
 # The name of the subfolder for training results
 TrainingOutputFolderName = "VIAME Training Results"
+# Admin annotation inventory reports (created under the running admin's user)
+AnnotationStatsFolderName = "Stats"
+AnnotationStatsLatestFileName = "annotation-stats-latest.json"
 # The name of the source folder holding zip backups
 SourceFolderName = "source"
 # The name of the auxiliary folder

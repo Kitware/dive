@@ -28,6 +28,7 @@ services:
       --providers.docker=true
       --providers.docker.exposedByDefault=false
       --entrypoints.web.address=:80
+      --entrypoints.web.transport.respondingTimeouts.readTimeout=${TRAEFIK_READ_TIMEOUT:-600s}
     volumes:
       - "${SOCK_PATH:-/var/run/docker.sock}:/var/run/docker.sock"
     ports:
@@ -68,6 +69,9 @@ services:
     depends_on:
       - mongo
     entrypoint: celery -A girder_worker.app worker -Q local
+    volumes:
+      # Local tasks (e.g. multicam finalize) read Girder files directly
+      - girder_assetstore:/home/assetstore
     environment:
       - "WORKER_WATCHING_QUEUES=local"
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
@@ -207,6 +211,7 @@ services:
       - "WORKER_WATCHING_QUEUES=training"
       - "WORKER_CONCURRENCY=${TRAINING_WORKER_CONCURRENCY:-1}"
       - "WORKER_GPU_UUID=${TRAINING_GPU_UUID}"
+      - "GIRDER_NOTIFICATION_REDIS_URL=redis://redis:6379"
       - "GIRDER_WORKER_BROKER=${GIRDER_WORKER_BROKER:-amqp://guest:guest@rabbit/default}"
       - "CELERY_BROKER_URL=${CELERY_BROKER_URL:-amqp://guest:guest@rabbit/default}"
       - "GIRDER_WORKER_BACKEND=${GIRDER_WORKER_BACKEND:-rpc://guest:guest@localhost/}"

@@ -1,4 +1,5 @@
 import signal
+import threading
 import time
 from unittest.mock import MagicMock
 
@@ -144,4 +145,67 @@ def test_cancel_via_task_canceled_flag(monkeypatch):
             },
         )
 
+    manager.updateStatus.assert_called_with(JobStatus.CANCELED)
+
+
+def test_abort_event_kills_process_and_raises(monkeypatch):
+    """External abort (e.g. lost GPU lease) must stop the process group."""
+    monkeypatch.setattr(utils, 'CANCEL_MONITOR_INTERVAL', 0.05)
+    monkeypatch.setattr(utils, 'CANCEL_TERM_GRACE_SECONDS', 0.5)
+
+    task = MagicMock()
+    task.canceled = False
+    manager = MagicMock()
+    manager.status = None
+    abort_event = threading.Event()
+
+    def arm_abort(*_args, **_kwargs):
+        abort_event.set()
+
+    manager.refreshStatus.side_effect = arm_abort
+
+    start = time.monotonic()
+    with pytest.raises(RuntimeError, match='GPU memory lease'):
+        stream_subprocess(
+            task,
+            {},
+            manager,
+            {
+                'args': 'while true; do echo tick; sleep 0.05; done',
+                'shell': True,
+                'executable': '/bin/bash',
+            },
+            abort_event=abort_event,
+            abort_message='GPU memory lease was lost',
+        )
+    assert time.monotonic() - start < 10
+    manager.updateStatus.assert_not_called()
+
+
+def test_normal_exit_with_abort_event_returns_promptly(monkeypatch):
+    """An unset abort_event must not delay return after the process exits."""
+    monkeypatch.setattr(utils, 'CANCEL_MONITOR_INTERVAL', 30)
+    task = MagicMock()
+    task.canceled = False
+    manager = MagicMock()
+    manager.status = None
+
+    start = time.monotonic()
+    stream_subprocess(
+        task,
+        {},
+        manager,
+        {'args': 'echo done', 'shell': True, 'executable': '/bin/bash'},
+        abort_event=threading.Event(),
+    )
+    assert time.monotonic() - start < 3
+
+
+def test_gpu_slot_cancel_check_sees_canceling_status(monkeypatch):
+    task = MagicMock()
+    task.canceled = False
+    manager = MagicMock()
+    manager.status = JobStatus.CANCELING
+    check = utils.gpu_slot_cancel_check(task, {}, manager)
+    assert check() is True
     manager.updateStatus.assert_called_with(JobStatus.CANCELED)

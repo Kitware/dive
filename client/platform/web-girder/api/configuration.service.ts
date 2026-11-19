@@ -30,7 +30,8 @@ export interface StatsResponse {
     jobs: {
       [jobType: string]: number; // Count of jobs by type
     };
-    newUsers: number; // Total count of new users
+    newUsers: number; // Count of new users within the selected date range
+    totalUsers: number; // Total count of all users (not date-range filtered)
   };
   groupByUser?: {
     datasets: {
@@ -56,6 +57,90 @@ export interface StatsResponse {
 export type DateRange = '60 days' | '3 months' | '6 months' | '1 year' | '3 years' | '5 years' | undefined;
 
 export type GroupBy = 'user' | 'month' | undefined;
+
+export interface AnnotationStatsLabelCount {
+  label: string;
+  count: number;
+}
+
+export interface AnnotationStatsMedia {
+  /** One per video dataset / multicam camera — original + transcoded pair counts once. */
+  videos: number;
+  imageSequences: number;
+  /** Individual image files across image-sequence and large-image datasets. */
+  images: number;
+}
+
+export interface AnnotationStatsCurationBreakdown {
+  datasets: number;
+  tracks: number;
+  detections: number;
+  confidenceGte1: number;
+  manualTracks: number;
+  correctedTracks: number;
+  /** Detection counts by geometry type; Polygon/Point/LineString overlap, boundingBoxOnly is exclusive. */
+  geometryTypes: {
+    Polygon: number;
+    Point: number;
+    LineString: number;
+    boundingBoxOnly: number;
+    [type: string]: number;
+  };
+  detectionsWithPolygon: number;
+  detectionsWithPoint: number;
+  detectionsWithLineString: number;
+  detectionsWithGeometry: number;
+  detectionsBoundsOnly: number;
+  /** Bounds anchored at (0, 0) with positive extent — full-frame proxy. */
+  fullFrameDetections: number;
+  tracksWithPolygon: number;
+  tracksWithPoint: number;
+  tracksWithLineString: number;
+  tracksWithGeometry: number;
+  tracksBoundsOnly: number;
+  tracksFullFrame: number;
+  media: AnnotationStatsMedia;
+}
+
+export interface AnnotationStatsReport {
+  generatedAt: string;
+  datasets: {
+    total: number;
+    mostlyManual: number;
+    mixedSubstantialCorrections: number;
+    mostlyComputed: number;
+    empty: number;
+  };
+  tracks: {
+    total: number;
+    confidenceGte1: number;
+    /** Sum of stored features over live tracks; absent in reports saved before this field existed. */
+    detections?: number;
+  };
+  /** Logical media totals; absent in reports saved before this field existed. */
+  media?: AnnotationStatsMedia;
+  /** Per-curation-class breakdown; absent in reports saved before this field existed. */
+  curationBreakdown?: Record<
+    'mostlyManual' | 'mixedSubstantialCorrections' | 'mostlyComputed' | 'empty',
+    AnnotationStatsCurationBreakdown
+  >;
+  labels: AnnotationStatsLabelCount[];
+  /**
+   * Distinct users who uploaded a dataset or modified/saved tracks in each
+   * window ending at `generatedAt`; absent in reports saved before this existed.
+   */
+  activeUsers?: {
+    lastMonth: number;
+    last3Months: number;
+    last6Months: number;
+    lastYear: number;
+    last5Years: number;
+  };
+}
+
+export interface AnnotationStatsJobResponse {
+  jobId: string;
+}
 
 export type AddOns = [string, string, string, boolean][];
 
@@ -151,6 +236,15 @@ function getStats(dateRange?: DateRange, overrideDateTime?: string, groupBy?: Gr
   });
 }
 
+function startAnnotationStatsJob() {
+  return girderRest.post<AnnotationStatsJobResponse>('dive_configuration/annotation_stats');
+}
+
+/** Latest report saved under the admin user's Stats folder, or null. */
+function getLatestAnnotationStats() {
+  return girderRest.get<AnnotationStatsReport | null>('dive_configuration/annotation_stats');
+}
+
 export {
   getBrandData,
   getConfig,
@@ -164,4 +258,6 @@ export {
   postAddons,
   updateContainers,
   getStats,
+  startAnnotationStatsJob,
+  getLatestAnnotationStats,
 };

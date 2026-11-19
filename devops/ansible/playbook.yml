@@ -12,6 +12,7 @@
     WORKER_CONCURRENCY: '2'
     KWIVER_DEFAULT_LOG_LEVEL: 'warn'
     DIVE_API_URL: 'https://viame.kitware.com/api/v1'
+    GIRDER_NOTIFICATION_REDIS_URL: ''
 
   roles:
     - role: geerlingguy.docker
@@ -84,4 +85,5 @@
           WORKER_CONCURRENCY: '{{ WORKER_CONCURRENCY }}'
           KWIVER_DEFAULT_LOG_LEVEL: '{{ KWIVER_DEFAULT_LOG_LEVEL }}'
           DIVE_API_URL: '{{ DIVE_API_URL }}'
+          GIRDER_NOTIFICATION_REDIS_URL: '{{ GIRDER_NOTIFICATION_REDIS_URL }}'
 

@@ -6,7 +6,7 @@ For credentials, CORS, mount points, and Girder assetstore setup, see [Cloud Sto
 
 !!! tip
 
-    For a local end-to-end test (generate sample videos/sequences, upload to MinIO, import), see the sample scripts under [`samples/scripts/assetStoreImport/`](https://github.com/Kitware/dive/tree/main/samples/scripts/assetStoreImport).
+    For a local end-to-end test (generate sample videos/sequences, upload to a local SeaweedFS S3 bucket, import), see the sample scripts under [`samples/scripts/assetStoreImport/`](https://github.com/Kitware/dive/tree/main/samples/scripts/assetStoreImport).
 
 ## What assetstore import does
 

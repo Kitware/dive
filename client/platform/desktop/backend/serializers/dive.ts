@@ -32,7 +32,10 @@ function frameRateFromDocument(data: unknown): number | undefined {
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function migrate(jsonData: any): AnnotationSchema {
-  if (Array.isArray(jsonData)) {
+  if (Array.isArray(jsonData) || jsonData === null || typeof jsonData !== 'object') {
+    // A boolean, number or null here is an empty or non-JSON file read as
+    // "nothing"; treating it as the legacy track map would yield a dataset
+    // with no annotations and no error.
     throw new Error('object expected in track json');
   }
   if (has(jsonData, 'version')) {

@@ -467,6 +467,35 @@ describe('Test Image Filenames', () => {
   });
 });
 
+describe('Images missing from the dataset', () => {
+  const rows = [
+    '0,1.png,0,10,10,20,20,1,-1,fish,0.9',
+    '0,2.png,1,11,11,21,21,1,-1,fish,0.9',
+    '0,3.png,2,12,12,22,22,1,-1,fish,0.9',
+    '1,2.png,1,30,30,40,40,1,-1,crab,0.8',
+  ].join('\n');
+
+  it('skips detections on an image missing mid-sequence and warns', async () => {
+    const [data, warnings] = await parse(Readable.from(rows), new Map([['1', 0], ['3', 1]]));
+    expect(Object.keys(data.tracks)).toEqual(['0']);
+    expect(data.tracks[0].features.map((f) => f.frame)).toEqual([0, 1]);
+    expect([data.tracks[0].begin, data.tracks[0].end]).toEqual([0, 1]);
+    expect(warnings.some((w) => w.includes('2.png') && w.includes('2 detection(s)'))).toBe(true);
+  });
+
+  it('keeps CSV frames and warns when no image matches', async () => {
+    const [data, warnings] = await parse(Readable.from(rows), new Map([['a', 0], ['b', 1], ['c', 2]]));
+    expect(data.tracks[0].features.map((f) => f.frame)).toEqual([0, 1, 2]);
+    expect(warnings.some((w) => w.startsWith('None of the 3 image(s)') && w.includes('3.png'))).toBe(true);
+  });
+
+  it('does not warn when the image column is blank', async () => {
+    const blank = rows.replace(/\d\.png/g, '');
+    const [, warnings] = await parse(Readable.from(blank), new Map([['a', 0]]));
+    expect(warnings).toEqual([]);
+  });
+});
+
 afterEach(() => {
   mockfs.restore();
 });

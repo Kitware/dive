@@ -60,7 +60,7 @@ import {
   RunTraining, ExportDatasetArgs, DesktopMediaImportResponse,
   ExportConfigurationArgs, JobsFolderName, JobsOutputFolderName, ProjectsFolderName,
   PipelinesFolderName, ConversionArgs,
-  JobType, DesktopJob,
+  JobType, DesktopJob, DesktopRevision, AnnotationsCurrentVersion,
 } from 'platform/desktop/constants';
 import {
   cleanString, filterByGlob, makeid, strNumericCompare,
@@ -520,7 +520,7 @@ async function _findCSVTrackFiles(searchPath: string) {
 async function _findJsonAndMetaTrackFile(basePath: string): Promise<
   {trackFileAbsPath: string; configFileAbsPath?: string; speciesFileAbsPath?: string}> {
   const contents = await fs.readdir(basePath);
-  const jsonFileCandidates: string[] = [];
+  const jsonFileCandidates: { fullPath: string; mtimeMs: number }[] = [];
   let configFileAbsPath: undefined | string;
   let speciesFileAbsPath: undefined | string;
   await Promise.all(contents.map(async (name) => {
@@ -528,7 +528,7 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
     if (JsonTrackFileName.test(name)) {
       const statResult = await fs.stat(fullPath);
       if (statResult.isFile()) {
-        jsonFileCandidates.push(fullPath);
+        jsonFileCandidates.push({ fullPath, mtimeMs: statResult.mtimeMs });
       }
     } else if (JsonConfigRegEx.test(name)) {
       // Prefer exact portable config.json, then legacy meta.json, then other
@@ -552,7 +552,17 @@ async function _findJsonAndMetaTrackFile(basePath: string): Promise<
     }
   }));
   if (jsonFileCandidates.length > 0) {
-    return { trackFileAbsPath: jsonFileCandidates[0], configFileAbsPath, speciesFileAbsPath };
+    // A project directory normally holds exactly one track file, but a save
+    // interrupted between writing the new file and retiring the old one, or a
+    // sync client's conflict copy, can leave several. Directory order is
+    // arbitrary, so pick the most recently written one; names from the save
+    // path sort chronologically, which settles equal timestamps.
+    jsonFileCandidates.sort((a, b) => (
+      b.mtimeMs - a.mtimeMs || b.fullPath.localeCompare(a.fullPath)
+    ));
+    return {
+      trackFileAbsPath: jsonFileCandidates[0].fullPath, configFileAbsPath, speciesFileAbsPath,
+    };
   }
   return { trackFileAbsPath: '', configFileAbsPath, speciesFileAbsPath };
 }
@@ -610,6 +620,18 @@ async function loadJsonConfig(configAbsPath: string): Promise<JsonConfig> {
  */
 async function loadAnnotationFile(tracksAbsPath: string): Promise<AnnotationSchema> {
   const annotationData = await _loadAsJson(tracksAbsPath);
+  if (annotationData === false) {
+    // A zero-byte track file is what a write that ran out of disk space leaves
+    // behind. Opening it as an empty dataset would hide every annotation and
+    // let the next save make that permanent; the retired copies in auxiliary/
+    // still hold them.
+    const auxiliary = npath.join(npath.dirname(tracksAbsPath), AuxFolderName);
+    throw new Error(
+      `Annotation file ${tracksAbsPath} is empty, so it was not loaded. `
+      + `Previous versions are kept in ${auxiliary}; move the newest result_*.json from there `
+      + 'back into the project folder to recover.',
+    );
+  }
   return dive.migrate(annotationData);
 }
 
@@ -737,6 +759,319 @@ async function loadConfig(
 async function loadDetections(settings: Settings, datasetId: string) {
   const projectDirData = await getValidatedProjectDir(settings, datasetId);
   return loadAnnotationFile(projectDirData.trackFileAbsPath);
+}
+
+const TrackFileTimeFormat = 'YYYY-MM-DD_HH-mm-ss.SSS';
+
+/**
+ * When a track file was saved. The save time is part of the file name, which
+ * survives copying or restoring the folder; modification time does not. Files
+ * without a parseable name (imports, hand-placed files) fall back to mtime.
+ */
+function _trackFileTime(name: string, mtimeMs: number) {
+  const match = /^result_(.+)\.json$/i.exec(name);
+  if (match) {
+    const parsed = moment(match[1], TrackFileTimeFormat, true);
+    if (parsed.isValid()) return parsed.valueOf();
+  }
+  return Math.floor(mtimeMs);
+}
+
+function _emptyAnnotations(): AnnotationSchema {
+  return { version: AnnotationsCurrentVersion, tracks: {}, groups: {} } as AnnotationSchema;
+}
+
+/** Every saved annotation version of a dataset, newest first, with where each lives. */
+async function _scanRevisions(settings: Settings, datasetId: string) {
+  const projectInfo = getProjectDir(settings, datasetId);
+  const found: (Omit<DesktopRevision, 'current'> & {
+    absPath: string; live: boolean; mtimeMs: number;
+  })[] = [];
+  const dirs = [
+    { dir: projectInfo.basePath, live: true },
+    { dir: projectInfo.auxDirAbsPath, live: false },
+  ];
+  await Promise.all(dirs.map(async ({ dir, live }) => {
+    const names = (await fs.readdir(dir).catch(noEntriesIfAbsent))
+      .filter((name) => JsonTrackFileName.test(name));
+    const stats = await Promise.all(names.map(async (name) => {
+      try {
+        const stat = await fs.stat(npath.join(dir, name));
+        return stat.isFile() ? { name, stat } : null;
+      } catch {
+        return null;
+      }
+    }));
+    stats.forEach((entry) => {
+      if (entry) {
+        found.push({
+          revision: _trackFileTime(entry.name, entry.stat.mtimeMs),
+          created: new Date(_trackFileTime(entry.name, entry.stat.mtimeMs)).toISOString(),
+          mtimeMs: entry.stat.mtimeMs,
+          fileName: entry.name,
+          size: entry.stat.size,
+          absPath: npath.join(dir, entry.name),
+          live,
+        });
+      }
+    });
+  }));
+  found.sort((a, b) => b.revision - a.revision);
+  // The version a normal load shows is the most recently modified file outside
+  // auxiliary/ (the loader goes by modification time).
+  const currentPath = found.filter((item) => item.live)
+    .sort((a, b) => b.mtimeMs - a.mtimeMs)[0]?.absPath;
+  return found.map((item) => ({ ...item, current: item.absPath === currentPath }));
+}
+
+/**
+ * Every saved annotation version of a dataset, newest first. A multi-camera
+ * dataset saves each camera on its own, so its list merges all of the cameras'
+ * versions, each named by camera. Picking one shows every camera as it was then.
+ */
+async function listRevisions(settings: Settings, datasetId: string): Promise<DesktopRevision[]> {
+  const ids = await _annotatedDatasetIds(settings, datasetId);
+  const scans = await Promise.all((ids.length ? ids : [datasetId]).map(async (id) => ({
+    prefix: id === datasetId ? '' : `${id.slice(datasetId.length + 1)}/`,
+    items: await _scanRevisions(settings, id),
+  })));
+  const merged = scans.flatMap(({ prefix, items }) => items.map((item) => ({
+    ...item,
+    fileName: `${prefix}${item.fileName}`,
+  })));
+  merged.sort((a, b) => b.revision - a.revision);
+  // The newest version a normal load shows, across every camera.
+  const newestLive = merged.find((item) => item.live);
+  return merged.map((item) => ({
+    revision: item.revision,
+    created: item.created,
+    fileName: item.fileName,
+    size: item.size,
+    current: item === newestLive,
+  }));
+}
+
+/**
+ * The saved version of a dataset in effect at a revision: the newest one not
+ * newer than it. A multi-camera dataset's cameras are saved independently, so
+ * this also picks the matching version of each camera. A revision older than
+ * every file the dataset has means the dataset had no annotations yet (chosen is
+ * undefined), e.g. a camera first saved after that revision.
+ */
+async function _pickRevision(settings: Settings, datasetId: string, revision: number) {
+  const projectInfo = getProjectDir(settings, datasetId);
+  const revisions = await _scanRevisions(settings, datasetId);
+  if (revisions.length === 0) {
+    throw new Error(`no annotation revisions found in ${projectInfo.basePath}`);
+  }
+  const chosen = revisions.find((item) => item.revision <= revision);
+  return { chosen, absPath: chosen?.absPath };
+}
+
+/** Load the annotations as they were at a revision. */
+async function loadRevision(settings: Settings, datasetId: string, revision: number) {
+  const { absPath } = await _pickRevision(settings, datasetId, revision);
+  return absPath ? loadAnnotationFile(absPath) : _emptyAnnotations();
+}
+
+/**
+ * The dataset ids that hold annotations of their own: the dataset itself when it
+ * has track files, plus each camera folder of a multi-camera dataset.
+ */
+async function _annotatedDatasetIds(settings: Settings, datasetId: string): Promise<string[]> {
+  const { basePath } = getProjectDir(settings, datasetId);
+  const hasTracks = async (dir: string) => {
+    const names = [
+      ...await listNames(dir),
+      ...await listNames(npath.join(dir, AuxFolderName)),
+    ];
+    return names.some((name) => JsonTrackFileName.test(name));
+  };
+  const ids: string[] = [];
+  const entries: fs.Dirent[] = await fs.readdir(basePath, { withFileTypes: true })
+    .catch(noEntriesIfAbsent);
+  const cameras = entries.filter((entry) => entry.isDirectory() && entry.name !== AuxFolderName);
+  const withTracks = await Promise.all(cameras.map((entry) => hasTracks(
+    npath.join(basePath, entry.name),
+  )));
+  cameras.forEach((entry, i) => {
+    if (withTracks[i]) ids.push(`${datasetId}/${entry.name}`);
+  });
+  // A multi-camera dataset keeps its annotations per camera; the folder above them holds
+  // at most an empty placeholder, which is not a version anyone chose.
+  if (ids.length === 0 && await hasTracks(basePath)) {
+    ids.push(datasetId);
+  }
+  return ids;
+}
+
+/**
+ * Make a past revision the newest one. It is saved as a new version like any other
+ * edit, so the versions it replaces stay in the history.
+ *
+ * Every camera is written to a name the loader ignores, and those files are renamed
+ * into place only after the last one is on disk. A failure before that leaves every
+ * camera on the version it had before the restore. Once the files are in place the
+ * restore is committed; moving the replaced files into auxiliary/ is best-effort.
+ */
+async function restoreRevision(settings: Settings, datasetId: string, revision: number) {
+  const ids = await _annotatedDatasetIds(settings, datasetId);
+  if (ids.length === 0) {
+    throw new Error(`no annotation revisions found for ${datasetId}`);
+  }
+  const basePaths = ids.map((id) => getProjectDir(settings, id).basePath);
+  await _withTracksLocks(basePaths, async () => {
+    const planned = await Promise.all(ids.map(async (id) => {
+      const { chosen, absPath } = await _pickRevision(settings, id, revision);
+      if (chosen?.current) return null;
+      return { id, data: absPath ? await loadAnnotationFile(absPath) : _emptyAnnotations() };
+    }));
+    const todo = planned.filter((item): item is { id: string; data: AnnotationSchema } => !!item);
+    const staged: {
+      tempPath: string;
+      finalPath: string;
+      basePath: string;
+      auxDirAbsPath: string;
+      finalName: string;
+    }[] = [];
+    try {
+      for (let i = 0; i < todo.length; i += 1) {
+        const projectInfo = getProjectDir(settings, todo[i].id);
+        const time = moment().format('YYYY-MM-DD_HH-mm-ss.SSS');
+        const finalName = `result_${time}.json`;
+        const tempPath = npath.join(projectInfo.basePath, `.restore_${time}_${i}.tmp`);
+        // eslint-disable-next-line no-await-in-loop
+        await fs.ensureDir(projectInfo.auxDirAbsPath);
+        // eslint-disable-next-line no-await-in-loop
+        await _writeFileAtomic(tempPath, JSON.stringify(todo[i].data));
+        staged.push({
+          tempPath,
+          finalPath: npath.join(projectInfo.basePath, finalName),
+          basePath: projectInfo.basePath,
+          auxDirAbsPath: projectInfo.auxDirAbsPath,
+          finalName,
+        });
+      }
+    } catch (err) {
+      await Promise.all(staged.map((item) => fs.remove(item.tempPath).catch(() => undefined)));
+      throw err;
+    }
+
+    const published: typeof staged = [];
+    try {
+      for (let i = 0; i < staged.length; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await fs.rename(staged[i].tempPath, staged[i].finalPath);
+        published.push(staged[i]);
+      }
+    } catch (err) {
+      await Promise.all(published.map((item) => fs.remove(item.finalPath).catch(() => undefined)));
+      await Promise.all(staged.map((item) => fs.remove(item.tempPath).catch(() => undefined)));
+      throw err;
+    }
+
+    // Every restored file is now in place, so the restore has happened. Retiring the
+    // files it replaced is cleanup: a failure leaves two files of which the newer
+    // (the restored one) is loaded, so keep going rather than report a failed restore.
+    for (let i = 0; i < staged.length; i += 1) {
+      const item = staged[i];
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        const retired = (await fs.readdir(item.basePath))
+          .filter((name) => name !== item.finalName && JsonTrackFileName.test(name));
+        for (let j = 0; j < retired.length; j += 1) {
+          try {
+            // eslint-disable-next-line no-await-in-loop
+            await _retireTrackFile(item.auxDirAbsPath, npath.join(item.basePath, retired[j]));
+          } catch (err) {
+            console.warn(`[restore] could not retire ${retired[j]} in ${item.basePath}:`, err);
+          }
+        }
+      } catch (err) {
+        console.warn(`[restore] could not list ${item.basePath} to retire old versions:`, err);
+      }
+    }
+  });
+}
+
+/** Deep copy of a value with every string that is, or is inside, `from` moved under `to`. */
+function _rebasePaths<T>(value: T, from: string, to: string): T {
+  const root = npath.resolve(from);
+  const rebase = (item: unknown): unknown => {
+    if (typeof item === 'string') {
+      if (!npath.isAbsolute(item)) return item;
+      const resolved = npath.resolve(item);
+      if (resolved === root || resolved.startsWith(root + npath.sep)) {
+        return npath.join(to, npath.relative(root, resolved));
+      }
+      return item;
+    }
+    if (Array.isArray(item)) return item.map(rebase);
+    if (item && typeof item === 'object') {
+      return Object.fromEntries(Object.entries(item).map(([k, v]) => [k, rebase(v)]));
+    }
+    return item;
+  };
+  return rebase(value) as T;
+}
+
+/**
+ * Copy a dataset into a new one whose annotations are those of a past revision.
+ * The copy shares the original's media. Past versions are not carried over.
+ */
+async function cloneRevision(
+  settings: Settings,
+  datasetId: string,
+  revision: number,
+  name: string,
+): Promise<JsonConfig> {
+  if (datasetId.includes('/')) {
+    throw new Error('clone the whole dataset, not a single camera');
+  }
+  const newName = name.trim();
+  if (!newName) {
+    throw new Error('a name is required for the cloned dataset');
+  }
+  const source = await getValidatedProjectDir(settings, datasetId);
+  const config = await loadJsonConfig(source.datasetFileAbsPath);
+  const ids = await _annotatedDatasetIds(settings, datasetId);
+  const loaded = await Promise.all(ids.map(async (id) => ({
+    id,
+    data: await loadRevision(settings, id, revision),
+  })));
+
+  const newId = `${cleanString(newName).substr(0, 20)}_${makeid(10)}`;
+  const dest = getProjectDir(settings, newId);
+  try {
+    await fs.copy(source.basePath, dest.basePath, {
+      filter: (src) => {
+        const base = npath.basename(src);
+        return !JsonTrackFileName.test(base) && !base.endsWith('.lock') && !base.endsWith('.tmp');
+      },
+    });
+    const time = moment().format('YYYY-MM-DD_HH-mm-ss.SSS');
+    const written = loaded.length ? loaded : [{ id: datasetId, data: _emptyAnnotations() }];
+    if (!written.some(({ id }) => id === datasetId)) {
+      // The folder above a multi-camera dataset's cameras still needs a track file to load.
+      written.push({ id: datasetId, data: _emptyAnnotations() });
+    }
+    await Promise.all(written.map(async ({ id, data }) => {
+      const dir = npath.join(dest.basePath, id.slice(datasetId.length));
+      await fs.ensureDir(dir);
+      await _writeFileAtomic(npath.join(dir, `result_${time}.json`), JSON.stringify(data));
+    }));
+    // Any path into the source project folder (calibration, transcoded media, ...) must
+    // point at the copy, or the clone would still read from, and depend on, the original.
+    const newConfig = _rebasePaths(config, source.basePath, dest.basePath);
+    newConfig.id = newId;
+    newConfig.name = newName;
+    newConfig.createdAt = (new Date()).toString();
+    await saveProjectConfig(dest.basePath, newConfig);
+    return newConfig;
+  } catch (err) {
+    await fs.remove(dest.basePath).catch(() => undefined);
+    throw err;
+  }
 }
 
 /**
@@ -1272,6 +1607,113 @@ async function deleteTrainedPipeline(pipeline: Pipe): Promise<void> {
 }
 
 /**
+ * Write a file so that the path either still holds its previous contents or
+ * holds the complete new contents, never a partial write. The data goes to a
+ * temporary name in the same directory first; a full disk or a crash leaves
+ * at most a stray .tmp file, and the live file is untouched. The temporary
+ * name ends in .tmp so no *.json discovery picks it up.
+ */
+async function _writeFileAtomic(absPath: string, contents: string) {
+  const tempPath = npath.join(
+    npath.dirname(absPath),
+    `.${npath.basename(absPath)}.${process.pid}.tmp`,
+  );
+  try {
+    await fs.writeFile(tempPath, contents);
+    const fd = await fs.open(tempPath, 'r+');
+    try {
+      // Push the data to the device before the rename makes it the live file,
+      // so a power loss right after a save cannot leave an empty file behind.
+      // Some network filesystems reject fsync; the write itself still happened.
+      await fs.fsync(fd).catch(() => undefined);
+    } finally {
+      await fs.close(fd);
+    }
+    await fs.rename(tempPath, absPath);
+  } catch (err) {
+    await fs.remove(tempPath).catch(() => undefined);
+    throw err;
+  }
+}
+
+/**
+ * Run fn while holding the project's track-file lock, releasing it however
+ * fn ends. Saves hold the lock from the read of the current file through the
+ * write of the new one, so two writers cannot interleave their merges.
+ */
+async function _withTracksLock<T>(basePath: string, fn: () => Promise<T>): Promise<T> {
+  const release = await _acquireLock(basePath, basePath, 'tracks');
+  try {
+    return await fn();
+  } finally {
+    await release();
+  }
+}
+
+/** Lock every directory before changing any of them, in a stable order so two restores cannot deadlock. */
+async function _withTracksLocks<T>(basePaths: string[], fn: () => Promise<T>): Promise<T> {
+  const ordered = [...new Set(basePaths)].sort();
+  const releases: Array<() => Promise<void>> = [];
+  try {
+    for (let i = 0; i < ordered.length; i += 1) {
+      // eslint-disable-next-line no-await-in-loop
+      releases.push(await _acquireLock(ordered[i], ordered[i], 'tracks'));
+    }
+    return await fn();
+  } finally {
+    for (let i = releases.length - 1; i >= 0; i -= 1) {
+      // eslint-disable-next-line no-await-in-loop
+      await releases[i]().catch(() => undefined);
+    }
+  }
+}
+
+/**
+ * Move a retired track file into auxiliary/ without ever overwriting a copy
+ * that is already there.
+ */
+async function _retireTrackFile(auxDirAbsPath: string, trackFileAbsPath: string) {
+  const name = npath.basename(trackFileAbsPath);
+  let destination = npath.join(auxDirAbsPath, name);
+  if (await fs.pathExists(destination)) {
+    const [stem, ext] = splitExt(name);
+    destination = npath.join(auxDirAbsPath, `${stem}_retired_${Date.now()}${ext}`);
+  }
+  await fs.move(trackFileAbsPath, destination);
+}
+
+/**
+ * Write a new track file and retire every other one into auxiliary/. The
+ * caller holds the tracks lock. The new file is complete on disk before the
+ * old one moves, so a failed write (full disk, crash) leaves the previous
+ * annotations where they were, and a failure during the move leaves two
+ * files of which the newer is loaded.
+ */
+async function _writeAnnotationFile(
+  settings: Settings,
+  datasetId: string,
+  data: AnnotationSchema,
+  allowEmpty: boolean,
+) {
+  const projectInfo = getProjectDir(settings, datasetId);
+  if (!allowEmpty) {
+    await getValidatedProjectDir(settings, datasetId);
+  }
+  // Named so that chronological order and name order agree (24-hour clock,
+  // year first); the loader still goes by modification time.
+  const time = moment().format('YYYY-MM-DD_HH-mm-ss.SSS');
+  const newFileName = `result_${time}.json`;
+  await fs.ensureDir(projectInfo.auxDirAbsPath);
+  await _writeFileAtomic(npath.join(projectInfo.basePath, newFileName), JSON.stringify(data));
+  const retired = (await fs.readdir(projectInfo.basePath))
+    .filter((name) => name !== newFileName && JsonTrackFileName.test(name));
+  for (let i = 0; i < retired.length; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    await _retireTrackFile(projectInfo.auxDirAbsPath, npath.join(projectInfo.basePath, retired[i]));
+  }
+}
+
+/**
  * _saveSerialized save pre-serialized tracks to disk
  */
 async function _saveSerialized(
@@ -1280,27 +1722,11 @@ async function _saveSerialized(
   data: AnnotationSchema,
   allowEmpty = false,
 ) {
-  const time = moment().format('MM-DD-YYYY_hh-mm-ss.SSS');
-  const newFileName = `result_${time}.json`;
   const projectInfo = getProjectDir(settings, datasetId);
-  const release = await _acquireLock(projectInfo.basePath, projectInfo.basePath, 'tracks');
-
-  try {
-    const validatedInfo = await getValidatedProjectDir(settings, datasetId);
-    await fs.move(
-      validatedInfo.trackFileAbsPath,
-      npath.join(
-        validatedInfo.auxDirAbsPath,
-        npath.basename(validatedInfo.trackFileAbsPath),
-      ),
-    );
-  } catch (err) {
-    // Some part of the project dir didn't exist
-    if (!allowEmpty) throw err;
-  }
-  const serialized = JSON.stringify(data);
-  await fs.writeFile(npath.join(projectInfo.basePath, newFileName), serialized);
-  await release();
+  return _withTracksLock(
+    projectInfo.basePath,
+    () => _writeAnnotationFile(settings, datasetId, data, allowEmpty),
+  );
 }
 
 /**
@@ -1308,25 +1734,30 @@ async function _saveSerialized(
  */
 async function saveDetections(settings: Settings, datasetId: string, args: SaveDetectionsArgs) {
   /* Update existing track file */
-  const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
-  const existing = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
-  function _save(type: 'tracks' | 'groups') {
-    args[type].delete.forEach((id) => delete existing[type][id.toString()]);
-    args[type].upsert.forEach((val: TrackData | GroupData) => {
-      existing[type][val.id.toString()] = val;
-    });
-  }
-  _save('tracks');
-  _save('groups');
-  return _saveSerialized(settings, datasetId, existing);
+  const projectInfo = getProjectDir(settings, datasetId);
+  return _withTracksLock(projectInfo.basePath, async () => {
+    const projectDirInfo = await getValidatedProjectDir(settings, datasetId);
+    const existing = await loadAnnotationFile(projectDirInfo.trackFileAbsPath);
+    function _save(type: 'tracks' | 'groups') {
+      args[type].delete.forEach((id) => delete existing[type][id.toString()]);
+      args[type].upsert.forEach((val: TrackData | GroupData) => {
+        existing[type][val.id.toString()] = val;
+      });
+    }
+    _save('tracks');
+    _save('groups');
+    await _writeAnnotationFile(settings, datasetId, existing, false);
+  });
 }
 
 /**
- * _saveAsJson saves directly to disk
+ * _saveAsJson saves directly to disk. dataset.json has no retired copies in
+ * auxiliary/, so a torn write there would be the only copy of the project's
+ * configuration; write it atomically.
  */
 async function _saveAsJson(absPath: string, data: unknown) {
   const serialized = JSON.stringify(data, null, 2);
-  await fs.writeFile(absPath, serialized);
+  await _writeFileAtomic(absPath, serialized);
 }
 
 /**
@@ -2069,6 +2500,50 @@ async function _initializeProjectDir(settings: Settings, jsonConfig: JsonConfig)
   return projectDir;
 }
 
+/** Parent import path plus each camera's path. Multi-camera datasets often leave the parent empty. */
+function _datasetMediaPaths(meta: JsonConfig | false | undefined): string[] {
+  if (!meta) return [];
+  const raw = [
+    meta.originalBasePath,
+    ...Object.values(meta.multiCam?.cameras || {}).map((camera) => camera.originalBasePath),
+  ];
+  return [...new Set(raw.filter((path): path is string => !!path).map((path) => npath.resolve(path)))];
+}
+
+/** True when the two folders are the same or one holds the other's media. */
+function _mediaPathsOverlap(left: string, right: string): boolean {
+  return left === right
+    || left.startsWith(right + npath.sep)
+    || right.startsWith(left + npath.sep);
+}
+
+/** Media paths of every remaining dataset, including each multi-camera camera. */
+async function _remainingDatasetMediaPaths(settings: Settings): Promise<string[]> {
+  const projectsDir = npath.join(settings.dataPath, ProjectsFolderName);
+  const ids = await listNames(projectsDir);
+  const groups = await Promise.all(ids.map(async (id) => {
+    try {
+      const meta = await _loadAsJson(
+        resolveDatasetFileAbsPath(npath.join(projectsDir, id)),
+      ) as JsonConfig | false;
+      return _datasetMediaPaths(meta);
+    } catch {
+      return [];
+    }
+  }));
+  return groups.flat();
+}
+
+/**
+ * Jobs-output folders this dataset imported from. Camera paths count even when
+ * the dataset's own originalBasePath is empty.
+ */
+function _jobsOutputMediaPaths(settings: Settings, meta: JsonConfig): string[] {
+  const jobsOutputPath = npath.resolve(settings.dataPath, JobsOutputFolderName);
+  return _datasetMediaPaths(meta).filter((path) => path !== jobsOutputPath
+    && path.startsWith(jobsOutputPath + npath.sep));
+}
+
 async function deleteDataset(
   settings: Settings,
   datasetId: string,
@@ -2090,15 +2565,21 @@ async function deleteDataset(
   } catch {
     // unreadable dataset json, delete the project directory anyway
   }
+  const mediaPaths = projectMetaData ? _jobsOutputMediaPaths(settings, projectMetaData) : [];
   await fs.remove(basePath);
-  // If the dataset source is inside DIVE_Jobs_Output, delete that output folder
-  if (projectMetaData?.originalBasePath) {
-    const jobsOutputPath = npath.resolve(settings.dataPath, JobsOutputFolderName);
-    const originalBasePath = npath.resolve(projectMetaData.originalBasePath);
-    const isInsideJobsOutput = originalBasePath !== jobsOutputPath
-      && originalBasePath.startsWith(jobsOutputPath + npath.sep);
-    if (isInsideJobsOutput && await fs.pathExists(originalBasePath)) {
-      await fs.remove(originalBasePath);
+  // A clone shares its source's media, including a multi-camera dataset that
+  // only records those folders on its cameras. Remove a jobs-output folder
+  // when no remaining dataset still reads from it or from a folder inside it.
+  if (mediaPaths.length) {
+    const remaining = await _remainingDatasetMediaPaths(settings);
+    for (let i = 0; i < mediaPaths.length; i += 1) {
+      const mediaPath = mediaPaths[i];
+      const inUse = remaining.some((other) => _mediaPathsOverlap(other, mediaPath));
+      // eslint-disable-next-line no-await-in-loop
+      if (!inUse && await fs.pathExists(mediaPath)) {
+        // eslint-disable-next-line no-await-in-loop
+        await fs.remove(mediaPath);
+      }
     }
   }
 
@@ -3175,6 +3656,10 @@ export {
   loadJsonConfig,
   loadAnnotationFile,
   loadDetections,
+  listRevisions,
+  loadRevision,
+  restoreRevision,
+  cloneRevision,
   loadFrameMetadata,
   frameMetadataSourceDirectories,
   discoverMetadataAttachment,

@@ -1,6 +1,8 @@
+import io
 import os
 import zipfile
 
+from PIL import Image
 from girder_client import GirderClient
 import pytest
 
@@ -27,6 +29,24 @@ def test_extract_download(data):
         gc.downloadFile(fileId, str(filepath))
         with zipfile.ZipFile(filepath, 'r') as zipref:
             zipref.extractall(localDataRoot)
+
+
+@pytest.mark.integration
+@pytest.mark.run(order=1)
+def test_ensure_nested_zip_uppercase_fixture():
+    """Build a nested ``.ZIP`` fixture locally (integration data/ is not in git)."""
+    dest_dir = localDataRoot / 'zipTestFiles'
+    dest_dir.mkdir(parents=True, exist_ok=True)
+    dest = dest_dir / 'nestedZipUppercase.zip'
+    png_buf = io.BytesIO()
+    Image.new('RGB', (8, 8), 'red').save(png_buf, format='PNG')
+    inner_buf = io.BytesIO()
+    with zipfile.ZipFile(inner_buf, 'w') as inner:
+        inner.writestr('readme.txt', 'nested archive for case-sensitivity test\n')
+    with zipfile.ZipFile(dest, 'w', compression=zipfile.ZIP_DEFLATED) as outer:
+        outer.writestr('frame001.png', png_buf.getvalue())
+        outer.writestr('sidecar.ZIP', inner_buf.getvalue())
+    assert dest.is_file()
 
 
 @pytest.mark.integration

@@ -21,8 +21,8 @@ export default function wrap(): Api {
     return meta;
   }
 
-  async function loadDetections(datasetId: string) {
-    return api.loadDetections(datasetId);
+  async function loadDetections(datasetId: string, revision?: number) {
+    return api.loadDetections(datasetId, revision);
   }
 
   return {

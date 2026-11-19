@@ -88,3 +88,14 @@ it('closes the settings popup before opening the import dialog', async () => {
   expect(panel.importDialog).toBe(true);
   wrapper.destroy();
 });
+
+it('opens type management from settings and closes the popup', async () => {
+  const { wrapper, panel } = mountPanel({ allTypes: [], hierarchyActive: false });
+  panel.active = true;
+  const manage = wrapper.findAll('button').wrappers.find((button) => button.text().includes('Manage Types'));
+  if (!manage) throw new Error('Manage Types button is missing');
+  await manage.trigger('click');
+  expect(panel.active).toBe(false);
+  expect(panel.manageDialog).toBe(true);
+  wrapper.destroy();
+});

@@ -6,12 +6,21 @@ import {
 } from 'vue';
 import {
   getStats, DateRange, GroupBy, StatsResponse,
+  startAnnotationStatsJob, getLatestAnnotationStats, AnnotationStatsReport,
 } from 'platform/web-girder/api/configuration.service';
+import girderRest from 'platform/web-girder/plugins/girder';
+import { isJobFinished, jobSucceeded } from 'platform/web-girder/store/useJobs';
 import * as d3 from 'd3';
 
 type DataRecord = Record<string, number>;
 
 type ColorMapping = Record<string, string>;
+
+type AnnotationStatsJobDoc = {
+  status: number;
+  title?: string;
+  meta?: { annotationStats?: AnnotationStatsReport };
+};
 
 export default defineComponent({
   name: 'StatsComponent',
@@ -27,6 +36,27 @@ export default defineComponent({
 
     const dateRangeOptions = ref(['60 days', '3 months', '6 months', '1 year', '3 years', '5 years']);
     const groupByOptions = ref(['', 'user', 'month']);
+
+    const annotationStatsRunning = ref(false);
+    const annotationStatsLoading = ref(false);
+    const annotationStatsJobId = ref<string | null>(null);
+    const annotationStatsError = ref<string | null>(null);
+    const annotationStatsReport = ref<AnnotationStatsReport | null>(null);
+    const showAnnotationStatsInfo = ref(false);
+
+    const curationBreakdownRows = computed(() => {
+      const breakdown = annotationStatsReport.value?.curationBreakdown;
+      if (!breakdown) return [];
+      const classes: Array<[string, string]> = [
+        ['mostlyManual', 'Mostly manual'],
+        ['mixedSubstantialCorrections', 'Mixed / corrected'],
+        ['mostlyComputed', 'Mostly computed'],
+        ['empty', 'Empty'],
+      ];
+      return classes
+        .filter(([key]) => breakdown[key as keyof typeof breakdown])
+        .map(([key, label]) => ({ key, label, ...breakdown[key as keyof typeof breakdown] }));
+    });
 
     const totalJobs = computed(() => {
       if (statsTableData.value) {
@@ -147,8 +177,78 @@ export default defineComponent({
         .attr('fill', '#3498db');
     };
 
+    const sleep = (ms: number) => new Promise<void>((resolve) => {
+      setTimeout(resolve, ms);
+    });
+
+    const loadSavedAnnotationStats = async () => {
+      annotationStatsLoading.value = true;
+      try {
+        const { data } = await getLatestAnnotationStats();
+        if (data && typeof data === 'object' && data.datasets && data.tracks) {
+          annotationStatsReport.value = data;
+        }
+      } catch {
+        // No saved report yet (or folder missing) is fine on first visit.
+      } finally {
+        annotationStatsLoading.value = false;
+      }
+    };
+
+    const runAnnotationStats = async () => {
+      annotationStatsRunning.value = true;
+      annotationStatsError.value = null;
+      annotationStatsJobId.value = null;
+      try {
+        const { data } = await startAnnotationStatsJob();
+        annotationStatsJobId.value = data.jobId;
+        const deadline = Date.now() + 60 * 60 * 1000;
+        /* eslint-disable no-await-in-loop -- poll until the inventory job finishes */
+        while (Date.now() < deadline) {
+          const { data: job } = await girderRest.get<AnnotationStatsJobDoc>(`job/${data.jobId}`);
+          if (isJobFinished(job.status)) {
+            if (!jobSucceeded(job.status)) {
+              throw new Error(job.title || 'Annotation stats job failed');
+            }
+            // Prefer the persisted Stats-folder copy so refresh matches this view.
+            const { data: saved } = await getLatestAnnotationStats();
+            const report = saved || job.meta?.annotationStats;
+            if (!report) {
+              throw new Error('Annotation stats job finished without a report payload');
+            }
+            annotationStatsReport.value = report;
+            return;
+          }
+          await sleep(2000);
+        }
+        /* eslint-enable no-await-in-loop */
+        throw new Error('Timed out waiting for annotation stats job');
+      } catch (err) {
+        annotationStatsError.value = err instanceof Error ? err.message : String(err);
+      } finally {
+        annotationStatsRunning.value = false;
+      }
+    };
+
+    const downloadAnnotationStats = () => {
+      if (!annotationStatsReport.value) return;
+      const blob = new Blob(
+        [JSON.stringify(annotationStatsReport.value, null, 2)],
+        { type: 'application/json' },
+      );
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `annotation-stats-${annotationStatsReport.value.generatedAt}.json`;
+      anchor.click();
+      URL.revokeObjectURL(url);
+    };
+
     // Fetch initial data on mounted
-    onMounted(() => fetchData());
+    onMounted(() => {
+      fetchData();
+      loadSavedAnnotationStats();
+    });
 
     // Watch for changes in dropdowns
     watch([selectedDateRange, selectedGroupBy], () => fetchData());
@@ -165,6 +265,15 @@ export default defineComponent({
       userColorMapping,
       responseData,
       userLimit,
+      annotationStatsRunning,
+      annotationStatsLoading,
+      annotationStatsJobId,
+      annotationStatsError,
+      annotationStatsReport,
+      curationBreakdownRows,
+      runAnnotationStats,
+      downloadAnnotationStats,
+      showAnnotationStatsInfo,
     };
   },
 });
@@ -210,6 +319,11 @@ export default defineComponent({
         <div>
           <v-chip class="my-2" color="primary">
             Datasets: <span class="ml-2 "> {{ statsTableData?.datasets }}</span>
+          </v-chip>
+        </div>
+        <div>
+          <v-chip class="my-2" color="info">
+            Total Users: <span class="ml-2"> {{ statsTableData?.totalUsers }}</span>
           </v-chip>
         </div>
         <div>
@@ -333,11 +447,722 @@ export default defineComponent({
         </v-card>
       </v-col>
     </v-row>
+
+    <v-row class="mt-6">
+      <v-col cols="12">
+        <v-card>
+          <v-card-title>
+            Annotation inventory
+            <v-spacer />
+            <v-tooltip bottom>
+              <template #activator="{ on, attrs }">
+                <v-btn
+                  icon
+                  small
+                  color="primary"
+                  aria-label="How annotation stats are calculated"
+                  v-bind="attrs"
+                  @click="showAnnotationStatsInfo = true"
+                  v-on="on"
+                >
+                  <v-icon>mdi-information-outline</v-icon>
+                </v-btn>
+              </template>
+              <span>How these stats are calculated</span>
+            </v-tooltip>
+          </v-card-title>
+          <v-card-text>
+            <p class="mb-3">
+              Run a background job that counts datasets, tracks, detections,
+              videos, image sequences and individual images, confidence &ge; 1,
+              curation classes (mostly manual / substantially corrected / mostly computed)
+              with a per-class breakdown by geometry type, full-frame, polygon / point,
+              tracks vs. detections and media, label totals, and active users (uploaded
+              a dataset or modified/saved tracks) over the last month, 3 months,
+              6 months, year and 5 years.
+              Results are saved under your user
+              <code>Stats</code> folder so they remain after refresh.
+            </p>
+            <v-btn
+              color="primary"
+              :loading="annotationStatsRunning"
+              :disabled="annotationStatsRunning"
+              @click="runAnnotationStats"
+            >
+              Generate annotation report
+            </v-btn>
+            <v-btn
+              text
+              color="primary"
+              class="ml-2"
+              @click="showAnnotationStatsInfo = true"
+            >
+              <v-icon left>
+                mdi-information-outline
+              </v-icon>
+              How are these calculated?
+            </v-btn>
+            <a
+              v-if="annotationStatsJobId"
+              class="ml-4"
+              :href="`/girder/#job/${annotationStatsJobId}`"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              View job
+            </a>
+            <v-alert
+              v-if="annotationStatsError"
+              type="error"
+              dense
+              text
+              class="mt-4"
+            >
+              {{ annotationStatsError }}
+            </v-alert>
+            <div
+              v-if="annotationStatsLoading"
+              class="mt-4 text-caption"
+            >
+              Loading saved report...
+            </div>
+            <div
+              v-else-if="!annotationStatsReport && !annotationStatsRunning"
+              class="mt-4 text-caption"
+            >
+              No saved report yet. Generate one to keep results available after refresh.
+            </div>
+            <template v-if="annotationStatsReport">
+              <div class="mt-4 mb-2 text-caption">
+                Saved report from {{ annotationStatsReport.generatedAt }}
+              </div>
+              <v-chip class="ma-1" color="primary">
+                Datasets: {{ annotationStatsReport.datasets.total }}
+              </v-chip>
+              <template v-if="annotationStatsReport.media">
+                <v-chip class="ma-1" color="deep-purple">
+                  Videos: {{ annotationStatsReport.media.videos }}
+                </v-chip>
+                <v-chip class="ma-1" color="teal">
+                  Image sequences: {{ annotationStatsReport.media.imageSequences }}
+                </v-chip>
+                <v-chip class="ma-1" color="cyan">
+                  Images: {{ annotationStatsReport.media.images }}
+                </v-chip>
+              </template>
+              <v-chip class="ma-1" color="info">
+                Tracks: {{ annotationStatsReport.tracks.total }}
+              </v-chip>
+              <v-chip
+                v-if="annotationStatsReport.tracks.detections !== undefined"
+                class="ma-1"
+                color="indigo"
+              >
+                Detections: {{ annotationStatsReport.tracks.detections }}
+              </v-chip>
+              <v-chip class="ma-1" color="success">
+                Confidence &ge; 1: {{ annotationStatsReport.tracks.confidenceGte1 }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Mostly manual: {{ annotationStatsReport.datasets.mostlyManual }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Mixed / corrected: {{ annotationStatsReport.datasets.mixedSubstantialCorrections }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Mostly computed: {{ annotationStatsReport.datasets.mostlyComputed }}
+              </v-chip>
+              <v-chip class="ma-1">
+                Empty: {{ annotationStatsReport.datasets.empty }}
+              </v-chip>
+              <div
+                v-if="curationBreakdownRows.length"
+                class="mt-4"
+              >
+                <div class="font-weight-bold mb-2">
+                  Breakdown by curation class
+                </div>
+                <v-simple-table dense>
+                  <template #default>
+                    <thead>
+                      <tr>
+                        <th>Class</th>
+                        <th>Datasets</th>
+                        <th>Tracks</th>
+                        <th>Detections</th>
+                        <th>Polygon (det / tracks)</th>
+                        <th>Point (det / tracks)</th>
+                        <th>Line (det / tracks)</th>
+                        <th>Bounds only (det / tracks)</th>
+                        <th>Full-frame (det / tracks)</th>
+                        <th>Videos</th>
+                        <th>Image sequences</th>
+                        <th>Images</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      <tr
+                        v-for="row in curationBreakdownRows"
+                        :key="row.key"
+                      >
+                        <td class="font-weight-medium">
+                          {{ row.label }}
+                        </td>
+                        <td>{{ row.datasets }}</td>
+                        <td>{{ row.tracks }}</td>
+                        <td>{{ row.detections }}</td>
+                        <td>{{ row.detectionsWithPolygon }} / {{ row.tracksWithPolygon }}</td>
+                        <td>{{ row.detectionsWithPoint }} / {{ row.tracksWithPoint }}</td>
+                        <td>{{ row.detectionsWithLineString }} / {{ row.tracksWithLineString }}</td>
+                        <td>{{ row.detectionsBoundsOnly }} / {{ row.tracksBoundsOnly }}</td>
+                        <td>{{ row.fullFrameDetections }} / {{ row.tracksFullFrame }}</td>
+                        <td>{{ row.media.videos }}</td>
+                        <td>{{ row.media.imageSequences }}</td>
+                        <td>{{ row.media.images }}</td>
+                      </tr>
+                    </tbody>
+                  </template>
+                </v-simple-table>
+                <div class="text-caption mt-1">
+                  Geometry counts are per detection and can overlap (a detection may have
+                  both a polygon and points); bounds-only is exclusive. Full-frame is a
+                  proxy: bounds anchored at (0, 0) with positive extent.
+                </div>
+              </div>
+              <div
+                v-if="annotationStatsReport.activeUsers"
+                class="mt-3"
+              >
+                <span class="font-weight-bold mr-1">Active users:</span>
+                <v-chip class="ma-1" color="primary">
+                  Last month: {{ annotationStatsReport.activeUsers.lastMonth }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last 3 months: {{ annotationStatsReport.activeUsers.last3Months }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last 6 months: {{ annotationStatsReport.activeUsers.last6Months }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last year: {{ annotationStatsReport.activeUsers.lastYear }}
+                </v-chip>
+                <v-chip class="ma-1" color="primary">
+                  Last 5 years: {{ annotationStatsReport.activeUsers.last5Years }}
+                </v-chip>
+              </div>
+              <div class="mt-4">
+                <v-btn
+                  small
+                  outlined
+                  color="primary"
+                  @click="downloadAnnotationStats"
+                >
+                  Download JSON
+                </v-btn>
+              </div>
+            </template>
+          </v-card-text>
+        </v-card>
+      </v-col>
+    </v-row>
+
+    <v-dialog
+      v-model="showAnnotationStatsInfo"
+      max-width="860"
+      scrollable
+    >
+      <v-card>
+        <v-card-title class="annotation-stats-info-title">
+          <v-icon
+            left
+            color="primary"
+          >
+            mdi-information-outline
+          </v-icon>
+          How annotation stats are calculated
+          <v-spacer />
+          <v-btn
+            icon
+            aria-label="Close"
+            @click="showAnnotationStatsInfo = false"
+          >
+            <v-icon>mdi-close</v-icon>
+          </v-btn>
+        </v-card-title>
+        <v-divider />
+        <v-card-text class="pt-4 annotation-stats-info">
+          <v-alert
+            type="info"
+            text
+            dense
+            class="mb-4"
+          >
+            This is a point-in-time inventory of every dataset folder, counting only
+            <strong>live tracks</strong> (deleted revisions are excluded). Generating a
+            report re-runs the counts and saves the result to your <code>Stats</code>
+            folder; the numbers shown are from the report&rsquo;s
+            <em>generatedAt</em> timestamp, not a live query.
+          </v-alert>
+
+          <h3>Manual vs. corrected &mdash; the key difference</h3>
+          <p>
+            These two signals describe different things and are counted from different
+            fields, so a track is never counted as both:
+          </p>
+          <v-row dense>
+            <v-col
+              cols="12"
+              sm="6"
+            >
+              <v-card
+                outlined
+                class="pa-3 fill-height"
+              >
+                <div class="font-weight-bold mb-1">
+                  <v-icon
+                    small
+                    left
+                    color="primary"
+                  >
+                    mdi-pencil-plus-outline
+                  </v-icon>
+                  Manual &mdash; created by a person
+                </div>
+                <p class="mb-2">
+                  The track was <strong>originally drawn / created by a user</strong> in
+                  the annotator. It is identified directly from provenance:
+                  <code>attributes.userCreated === true</code>.
+                </p>
+                <p class="mb-0 text-caption">
+                  A manual track stays &ldquo;manual&rdquo; no matter how much it is
+                  edited afterwards, and regardless of its confidence value.
+                </p>
+              </v-card>
+            </v-col>
+            <v-col
+              cols="12"
+              sm="6"
+            >
+              <v-card
+                outlined
+                class="pa-3 fill-height"
+              >
+                <div class="font-weight-bold mb-1">
+                  <v-icon
+                    small
+                    left
+                    color="success"
+                  >
+                    mdi-robot-outline
+                  </v-icon>
+                  Corrected &mdash; computed, then endorsed
+                </div>
+                <p class="mb-2">
+                  The track was <strong>created by a pipeline / import</strong>
+                  (<code>userCreated</code> is not <code>true</code>), but its first
+                  confidence pair is now <strong>&ge; 1</strong> &mdash; the state left
+                  behind when a reviewer accepts the track or sets its type, which
+                  stores a single pair at confidence <code>1</code>.
+                </p>
+                <p class="mb-0 text-caption">
+                  Unlike &ldquo;manual&rdquo;, this is an <em>inferred proxy</em> for
+                  human correction, not a recorded edit history (see limitations below).
+                </p>
+              </v-card>
+            </v-col>
+          </v-row>
+          <p class="mt-3">
+            In short: <strong>manual = a human made the track</strong>;
+            <strong>corrected = a machine made the track and a human (probably)
+              signed off on it</strong>. A dataset can contain a mixture of both.
+          </p>
+
+          <h3>Per-track signals</h3>
+          <p>
+            For each dataset the job tallies its live tracks into the counters below.
+            The classification that follows is built entirely from these four numbers.
+          </p>
+          <v-simple-table dense>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>Counter</th>
+                  <th>How it is counted</th>
+                  <th>What it means</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-weight-medium">
+                    Total (<code>T</code>)
+                  </td>
+                  <td>All live tracks in the dataset</td>
+                  <td>Denominator for every fraction below</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Detections
+                  </td>
+                  <td>
+                    Sum of <code>$size(features)</code> over all live tracks, folded
+                    into the same aggregation pass as the other track counters
+                  </td>
+                  <td>
+                    Each stored <code>Feature</code> is a single detection (one
+                    frame&rsquo;s bounds / geometry on a track)
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Manual (<code>M</code>)
+                  </td>
+                  <td><code>attributes.userCreated === true</code></td>
+                  <td>Tracks created by a user</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Computed (<code>C</code>)
+                  </td>
+                  <td><code>C = T &minus; M</code> (derived, not stored)</td>
+                  <td>Tracks produced by pipelines or imports</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Corrected (<code>R</code>)
+                  </td>
+                  <td>
+                    Computed tracks whose <em>first</em> confidence pair is &ge; 1
+                  </td>
+                  <td>Proxy for reviewed / accepted computed tracks</td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Confidence &ge; 1
+                  </td>
+                  <td>
+                    <em>All</em> tracks (manual and computed) whose first confidence
+                    pair is &ge; 1
+                  </td>
+                  <td>
+                    The headline chip total. It overlaps both groups above, so it is
+                    <em>not</em> the same as the corrected count <code>R</code>
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+
+          <h3>Dataset classification</h3>
+          <p>
+            Each dataset with at least one live track is placed in exactly one
+            category. Rules are evaluated <strong>in this order</strong> &mdash;
+            &ldquo;mostly manual&rdquo; wins if a dataset somehow matches both rules:
+          </p>
+          <v-simple-table dense>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Rule</th>
+                  <th>Interpretation</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td class="font-weight-medium">
+                    Mostly manual
+                  </td>
+                  <td>
+                    (<code>T &gt; 10</code> and <code>M / T &ge; 25%</code>) or
+                    (<code>T &le; 10</code> and <code>M = T</code>)
+                  </td>
+                  <td>
+                    At least a quarter hand-annotated in a larger dataset, or a
+                    small dataset that is entirely hand-annotated
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Mixed / corrected
+                  </td>
+                  <td>
+                    <code>C &ge; 10</code> and <code>R &ge; 15</code> and
+                    <code>R / C &ge; 25%</code>
+                  </td>
+                  <td>
+                    Mostly computed, but a substantial share was reviewed / corrected
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Mostly computed
+                  </td>
+                  <td>Any other dataset with &ge; 1 live track</td>
+                  <td>
+                    Computed output with little or no detected correction &mdash;
+                    the fallback category
+                  </td>
+                </tr>
+                <tr>
+                  <td class="font-weight-medium">
+                    Empty
+                  </td>
+                  <td><code>T = 0</code></td>
+                  <td>Dataset folder with no live tracks</td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+          <p class="mt-3 mb-1 font-weight-medium">
+            Worked examples
+          </p>
+          <v-simple-table dense>
+            <template #default>
+              <thead>
+                <tr>
+                  <th>Tracks</th>
+                  <th>Result</th>
+                  <th>Why</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>20 total, 19 manual</td>
+                  <td>Mostly manual</td>
+                  <td>19 / 20 = 95% manual, above the 25% bar and more than 10 tracks</td>
+                </tr>
+                <tr>
+                  <td>20 total, 5 manual</td>
+                  <td>Mostly manual</td>
+                  <td>5 / 20 = 25% manual, exactly at the bar, and more than 10 tracks</td>
+                </tr>
+                <tr>
+                  <td>100 total, 5 manual, 30 corrected</td>
+                  <td>Mixed / corrected</td>
+                  <td>
+                    Only 5% manual, but 30 / 95 computed = ~32% corrected, above
+                    the 25% / 15-track bars
+                  </td>
+                </tr>
+                <tr>
+                  <td>100 total, 5 manual, 10 corrected</td>
+                  <td>Mostly computed</td>
+                  <td>10 / 95 = ~11% corrected &mdash; below both correction bars</td>
+                </tr>
+                <tr>
+                  <td>4 total, all 4 manual</td>
+                  <td>Mostly manual</td>
+                  <td>Small dataset (&le; 10 tracks) that is entirely manual</td>
+                </tr>
+                <tr>
+                  <td>8 total, 7 manual</td>
+                  <td>Mostly computed</td>
+                  <td>
+                    88% manual, but a small dataset (&le; 10 tracks) only counts
+                    as mostly manual when <em>all</em> of its tracks are manual,
+                    and it has too few computed tracks to be mixed / corrected
+                  </td>
+                </tr>
+              </tbody>
+            </template>
+          </v-simple-table>
+
+          <h3>Breakdown by curation class</h3>
+          <p>
+            The breakdown table (and <code>curationBreakdown</code> in the downloaded
+            JSON) repeats the counts below for each curation class, including
+            <em>empty</em> so the per-class media totals sum to the report totals.
+            Media is attributed to the class of the dataset that owns it; a dataset
+            with no live tracks is in the empty class.
+          </p>
+          <ul>
+            <li>
+              <strong>Tracks vs. detections</strong> &mdash; tracks are the live
+              tracks in datasets of that class; detections are their stored
+              features (one per frame, as in the headline total).
+            </li>
+            <li>
+              <strong>Geometry type</strong> &mdash; per detection, counted from its
+              GeoJSON geometry: <code>Polygon</code>, <code>Point</code> (including
+              stored head/tail points) and <code>LineString</code>. A detection can
+              carry several types, so these counts overlap and can sum to more
+              than the detection total. <strong>Bounds only</strong> is exclusive:
+              detections with no geometry at all, only a bounding box.
+            </li>
+            <li>
+              <strong>With polygons / points</strong> &mdash; shown as
+              <em>detections / tracks</em>: detections carrying that geometry, and
+              tracks with at least one such detection (bounds-only tracks are
+              those whose detections are all bounds-only).
+            </li>
+            <li>
+              <strong>Full-frame</strong> &mdash; detections whose bounds start at
+              <code>(0, 0)</code> with positive width and height, and tracks with
+              at least one such detection. This is a proxy: the exact media size
+              is not stored on track records, so a box that merely touches the
+              origin can count as well (see limitations).
+            </li>
+            <li>
+              <strong>Videos / image sequences / images</strong> &mdash; the same
+              logical media counts as the headline chips, split by the owning
+              dataset&rsquo;s curation class.
+            </li>
+          </ul>
+
+          <h3>Totals and labels</h3>
+          <ul>
+            <li>
+              <strong>Datasets</strong> counts every dataset folder, including empty
+              ones; the four category chips always sum to this total.
+            </li>
+            <li>
+              <strong>Videos</strong> counts one logical video per video dataset
+              (and per camera of a multicam dataset), from the folder&rsquo;s
+              <code>meta.type</code> &mdash; <em>not</em> per file. A folder holding
+              both an original video and its transcoded
+              <code>*.transcoded.mp4</code> derivative therefore counts once, as
+              does a web-safe original whose transcoding was skipped.
+            </li>
+            <li>
+              <strong>Image sequences</strong> counts one per image-sequence dataset
+              (and per camera of a multicam dataset), also from
+              <code>meta.type</code>. The multicam parent folder itself counts as
+              neither a video nor an image sequence.
+            </li>
+            <li>
+              <strong>Images</strong> counts the individual image files in
+              image-sequence and large-image datasets, in a single grouped pass
+              over those folders&rsquo; items (all valid image / large-image
+              extensions, so an original counts once and its converted
+              replacement &mdash; which deletes the original &mdash; also counts
+              once). A cloned dataset&rsquo;s images are resolved through its
+              source folder and count toward the clone, just as its copied
+              tracks do. Large-image files count as images but their datasets
+              are not image sequences.
+            </li>
+            <li>
+              <strong>Tracks</strong> counts live tracks across all datasets.
+            </li>
+            <li>
+              <strong>Detections</strong> is the total number of stored features
+              across those live tracks &mdash; one feature is one detection on
+              one frame.
+            </li>
+            <li>
+              <strong>Labels</strong> (in the downloaded JSON) group live tracks by
+              the type name of their highest-scoring confidence pair.
+            </li>
+          </ul>
+
+          <h3>Active users</h3>
+          <p>
+            A user is <strong>active</strong> in a window if, during that window, they did
+            either of the following. Each user is counted once per window, even if they
+            did both (or did one many times):
+          </p>
+          <ul>
+            <li>
+              <strong>Uploaded a dataset</strong> &mdash; created an annotate dataset
+              folder (the folder&rsquo;s <code>creatorId</code> / <code>created</code>).
+            </li>
+            <li>
+              <strong>Modified / saved a track</strong> &mdash; authored a revision-log
+              entry. Saving annotations writes one entry with the saving user and the
+              save time, and it is the only record tying a user and a time to a track
+              modification, so imports and clone initialization (which use the same
+              save path) count as well, while rolled-back saves no longer do.
+            </li>
+          </ul>
+          <p>
+            The five windows &mdash; last month, 3 months, 6 months, year and 5 years
+            (30 / 90 / 180 / 365 / 1825 days, matching the approximations used by the
+            stats above) &mdash; all end at the report&rsquo;s <em>generatedAt</em>
+            time and are nested, so the counts can only grow as the window widens.
+            Because of that nesting, only each user&rsquo;s most recent qualifying
+            activity is needed to place them in every window. Reports saved before
+            this was added have no active-user counts until they are regenerated.
+          </p>
+
+          <h3>Limitations &mdash; read the corrected numbers with care</h3>
+          <ul>
+            <li>
+              <strong>Corrected is inferred, not audited.</strong> The job deliberately
+              does not scan per-detection edit history (<code>userModified</code>),
+              which keeps it fast on very large collections but means the proxy can be
+              wrong in both directions.
+            </li>
+            <li>
+              <strong>Possible false positives:</strong> a pipeline or import that
+              already emits confidence <code>1.0</code> counts as
+              &ldquo;corrected&rdquo; even if nobody ever reviewed it.
+            </li>
+            <li>
+              <strong>Possible false negatives:</strong> geometry-only edits,
+              deletions, attribute edits, type changes left below confidence
+              <code>1</code>, and corrections that are not the first confidence pair
+              are invisible to this count.
+            </li>
+            <li>
+              <strong>Thresholds are heuristics.</strong> A dataset just under a cutoff
+              (e.g. 14 corrected tracks, 24% corrected, or 24% manual in a larger
+              dataset) lands in &ldquo;mostly computed&rdquo;, so small datasets in
+              particular can sit in a category that understates the human effort
+              involved.
+            </li>
+            <li>
+              <strong>Full-frame is an origin proxy.</strong> Track records do not
+              store the media width / height, so a &ldquo;full-frame&rdquo; detection
+              is one whose bounds start at <code>(0, 0)</code> with positive extent
+              &mdash; the shape full-frame classifier output takes &mdash; rather
+              than a verified match against the frame size.
+            </li>
+          </ul>
+        </v-card-text>
+        <v-divider />
+        <v-card-actions>
+          <v-spacer />
+          <v-btn
+            color="primary"
+            text
+            @click="showAnnotationStatsInfo = false"
+          >
+            Close
+          </v-btn>
+        </v-card-actions>
+      </v-card>
+    </v-dialog>
   </v-container>
 </template>
 
 <style scoped>
 /* Custom Styles */
+.annotation-stats-info h3 {
+  font-size: 1rem;
+  font-weight: 600;
+  margin: 20px 0 8px;
+}
+
+.annotation-stats-info h3:first-of-type {
+  margin-top: 4px;
+}
+
+.annotation-stats-info p,
+.annotation-stats-info li {
+  line-height: 1.5;
+}
+
+.annotation-stats-info ul {
+  margin-bottom: 4px;
+}
+
+.annotation-stats-info li {
+  margin-bottom: 4px;
+}
+
+.annotation-stats-info-title {
+  word-break: normal;
+}
+
 .type-color-box {
   min-width: 10px;
   max-width: 10px;

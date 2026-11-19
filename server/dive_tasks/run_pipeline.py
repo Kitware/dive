@@ -12,6 +12,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_tasks import utils
+from dive_tasks.gpu_slots import LEASE_LOST_MESSAGE, gpu_memory_slot
 from dive_tasks.manager import patch_manager
 from dive_tasks.multicam_pipeline import (
     append_metadata_file_kwiver_settings,
@@ -419,7 +420,6 @@ def run_pipeline(self: Task, params: PipelineJob):
                 for key, value in kwiver_params.items():
                     command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
-            manager.updateStatus(JobStatus.RUNNING)
             popen_kwargs = {
                 'args': " ".join(command),
                 'shell': True,
@@ -427,7 +427,20 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'cwd': output_path,
                 'env': conf.gpu_process_env,
             }
-            utils.stream_subprocess(self, context, manager, popen_kwargs)
+            with gpu_memory_slot(
+                pipeline,
+                check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+                log=manager.write,
+            ) as lease_lost:
+                manager.updateStatus(JobStatus.RUNNING)
+                utils.stream_subprocess(
+                    self,
+                    context,
+                    manager,
+                    popen_kwargs,
+                    abort_event=lease_lost,
+                    abort_message=LEASE_LOST_MESSAGE,
+                )
 
             if (
                 is_stereo_measurement_pipeline(pipeline)
@@ -606,7 +619,6 @@ def run_pipeline(self: Task, params: PipelineJob):
             for key, value in kwiver_params.items():
                 command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
-        manager.updateStatus(JobStatus.RUNNING)
         popen_kwargs = {
             'args': " ".join(command),
             'shell': True,
@@ -614,7 +626,20 @@ def run_pipeline(self: Task, params: PipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        utils.stream_subprocess(self, context, manager, popen_kwargs)
+        with gpu_memory_slot(
+            pipeline,
+            check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+            log=manager.write,
+        ) as lease_lost:
+            manager.updateStatus(JobStatus.RUNNING)
+            utils.stream_subprocess(
+                self,
+                context,
+                manager,
+                popen_kwargs,
+                abort_event=lease_lost,
+                abort_message=LEASE_LOST_MESSAGE,
+            )
 
         if creates_new_dataset:
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)

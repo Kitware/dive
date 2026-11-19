@@ -189,7 +189,13 @@ def _collect_dive_params(file_path: Path, collected: "Dict[str, DiveParam]", vis
 
 
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
-    metadata: PipeMetadata = {"diveParams": []}
+    metadata: PipeMetadata = {
+        "diveParams": [],
+        "gpuMemoryGB": 8.0,
+        "gpuMemoryDeclared": False,
+        "gpuMemoryExclusive": False,
+        "gpuMemoryInvalid": False,
+    }
 
     collected: Dict[str, DiveParam] = {}
     _collect_dive_params(file_path, collected, set())
@@ -234,7 +240,8 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
-                            r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
+                            r'^#\s*(Input|Output|Requires\s+Calibration|GPU\s+Memory'
+                            r'|Metadata\s+File'
                             r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
                             line_raw,
                             re.IGNORECASE,
@@ -306,6 +313,24 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     ]
                     if keys:
                         metadata["calibrationKeys"] = keys
+
+                # `High` reserves the full GPU; a number reserves that many GB.
+                gpu_memory_header = re.match(r'^#\s*GPU\s+Memory:\s*(.*)$', line_raw, re.IGNORECASE)
+                if gpu_memory_header:
+                    gpu_memory_value = gpu_memory_header.group(1).strip()
+                    metadata['gpuMemoryDeclared'] = True
+                    if gpu_memory_value.lower() == 'high':
+                        metadata['gpuMemoryExclusive'] = True
+                    else:
+                        numeric_memory = re.fullmatch(
+                            r'(\d+(?:\.\d+)?)\s*(?:GB)?',
+                            gpu_memory_value,
+                            re.IGNORECASE,
+                        )
+                        if numeric_memory:
+                            metadata['gpuMemoryGB'] = float(numeric_memory.group(1))
+                        else:
+                            metadata['gpuMemoryInvalid'] = True
 
                 # `# Camera Order: EO, UV, IR` names the camera role fed to each
                 # inputN of a 2-cam/3-cam pipe; DIVE matches dataset cameras onto
