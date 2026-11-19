@@ -146,19 +146,30 @@ def test_release_failure_does_not_mask_cancel(monkeypatch):
             raise CanceledError('Job was canceled')
 
 
+_SAM3_BUDGET = '15.9 GB if <=1920x1080 else 23.9 GB'
+_CUSTOM_BUDGET = '5.5 GB if <=673x947 else 11 GB'
+
+
 @pytest.mark.parametrize(
-    ('image_sizes', 'video_size', 'budget'),
+    ('header', 'image_sizes', 'video_size', 'budget'),
     [
-        ([(1080, 1920)], None, 15.9),
-        ([(640, 480), (1921, 1080)], None, 23.9),
-        ([], (1920, 1080), 15.9),
-        ([(640, 480)], (3840, 2160), 23.9),
-        ([(640, 480), None], None, 23.9),
-        ([], None, 23.9),
+        (_SAM3_BUDGET, [(1080, 1920)], None, 15.9),
+        (_SAM3_BUDGET, [(640, 480), (1921, 1080)], None, 23.9),
+        (_SAM3_BUDGET, [], (1920, 1080), 15.9),
+        (_SAM3_BUDGET, [(640, 480)], (3840, 2160), 23.9),
+        (_SAM3_BUDGET, [(640, 480), None], None, 23.9),
+        (_SAM3_BUDGET, [], None, 23.9),
+        (_CUSTOM_BUDGET, [(947, 673)], None, 5.5),
+        (_CUSTOM_BUDGET, [], (674, 947), 11),
+        ('8 GB', [], (3840, 2160), 8),
+        ('7.5', [], None, 7.5),
+        ('High', [], (640, 480), 24),
     ],
 )
-def test_resolution_reservation(tmp_path, monkeypatch, image_sizes, video_size, budget):
-    """Carry parsed pipe tiers through to the amount charged to Redis."""
+def test_gpu_memory_header_reservation(
+    tmp_path, monkeypatch, header, image_sizes, video_size, budget
+):
+    """Carry fixed and conditional pipe declarations through to the amount charged to Redis."""
     import json
 
     from PIL import Image
@@ -166,11 +177,11 @@ def test_resolution_reservation(tmp_path, monkeypatch, image_sizes, video_size, 
     from dive_tasks.pipeline_discovery import extract_pipe_metadata
 
     pipe = tmp_path / 'sample.pipe'
-    pipe.write_text(
-        '# Description: Track fish\n# GPU Memory: 15.9 GB if <=1920x1080 else 23.9 GB\n'
-    )
+    pipe.write_text(f'# Description: Track fish\n# GPU Memory: {header}\n')
     metadata = extract_pipe_metadata(pipe)
     assert metadata['description'] == 'Track fish'
+    assert metadata['gpuMemoryDeclared']
+    assert not metadata['gpuMemoryInvalid']
     inputs = []
     if image_sizes:
         paths = []
@@ -196,3 +207,5 @@ def test_resolution_reservation(tmp_path, monkeypatch, image_sizes, video_size, 
     with gpu_memory_slot({'metadata': metadata}, inputs=inputs):
         pass
     assert client.eval.call_args_list[0].args[6] == budget
+    if ' if ' not in header:
+        probe.assert_not_called()
