@@ -451,9 +451,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             }
             with gpu_memory_slot(
                 reservation_pipeline,
-                inputs=[
-                    (path, reader_key in arg_file_pair) for path, reader_key in camera_inputs
-                ],
+                inputs=[(path, reader_key in arg_file_pair) for path, reader_key in camera_inputs],
                 check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
                 log=manager.write,
             ) as lease_lost:
