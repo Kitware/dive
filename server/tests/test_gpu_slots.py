@@ -167,7 +167,7 @@ def test_resolution_reservation(tmp_path, monkeypatch, image_sizes, video_size, 
 
     pipe = tmp_path / 'sample.pipe'
     pipe.write_text(
-        '# Description: Track fish\n# GPU Memory: 15.9 GB if <=1920x1080, else 23.9 GB\n'
+        '# Description: Track fish\n# GPU Memory: 15.9 GB if <=1920x1080 else 23.9 GB\n'
     )
     metadata = extract_pipe_metadata(pipe)
     assert metadata['description'] == 'Track fish'

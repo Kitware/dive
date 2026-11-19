@@ -294,13 +294,13 @@ def test_conditional_gpu_memory_accepts_arbitrary_resolutions(tmp_path):
 def test_invalid_conditional_gpu_memory(tmp_path):
     pipe = tmp_path / 'sample.pipe'
     for value in (
-        '15.9 GB if <=1080p, else 23.9 GB',
-        '15.9 GB if <=0x800, else 23.9 GB',
-        '32 GB if <=1234x567, else 23.9 GB',
-        '8 GB if <=1234x567, 10 GB if <=567x1234, else 23.9 GB',
+        '15.9 GB if <=1080p else 23.9 GB',
+        '15.9 GB if <=0x800 else 23.9 GB',
+        '32 GB if <=1234x567 else 23.9 GB',
+        '8 GB if <=1234x567, 10 GB if <=567x1234 else 23.9 GB',
         '15.9 GB if <=1234x567',
         '15.9 GB if <=1234x567, 23.9 GB',
-        '15.9 GB if <=1234x567, else High',
+        '15.9 GB if <=1234x567 else High',
     ):
         pipe.write_text(f'# GPU Memory: {value}\n')
         assert extract_pipe_metadata(pipe)['gpuMemoryInvalid']
