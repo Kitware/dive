@@ -223,3 +223,35 @@ def test_gpu_memory_header_reservation(
     assert client.eval.call_args_list[0].args[6] == budget
     if ' if ' not in header:
         probe.assert_not_called()
+
+
+def test_reservation_pipeline_clears_stale_discovery_when_gpu_header_removed(tmp_path):
+    """A removed # GPU Memory header must not keep discovery's Redis reservation."""
+    from dive_tasks.run_pipeline import reservation_pipeline_from_pipe
+
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text('# Description: Track fish\n')
+    stale = {
+        'pipe': 'sample.pipe',
+        'metadata': {
+            'gpuMemoryGB': 24.0,
+            'gpuMemoryDeclared': True,
+            'gpuMemoryExclusive': True,
+        },
+    }
+    refreshed = reservation_pipeline_from_pipe(stale, pipe)
+    assert not refreshed['metadata']['gpuMemoryDeclared']
+    assert not refreshed['metadata']['gpuMemoryExclusive']
+    assert refreshed['metadata']['gpuMemoryGB'] == 8.0
+
+
+def test_reservation_pipeline_uses_local_declaration_when_discovery_missing(tmp_path):
+    """Jobs queued before discovery refresh still reserve from the installed pipe."""
+    from dive_tasks.run_pipeline import reservation_pipeline_from_pipe
+
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text('# Description: Track fish\n# GPU Memory: 12 GB\n')
+    queued = {'pipe': 'sample.pipe'}
+    refreshed = reservation_pipeline_from_pipe(queued, pipe)
+    assert refreshed['metadata']['gpuMemoryDeclared']
+    assert refreshed['metadata']['gpuMemoryGB'] == 12.0

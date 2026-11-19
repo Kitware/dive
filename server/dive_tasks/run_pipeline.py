@@ -86,6 +86,17 @@ def filter_image_list_by_frame_range(
     return image_list[start_frame : end_frame + 1]
 
 
+def reservation_pipeline_from_pipe(pipeline: dict, pipeline_path: Path) -> dict:
+    """Build the pipeline dict used for GPU memory reservation.
+
+    Always refresh metadata from the worker's pipe file. Discovery on the
+    queued job can lag that file: missing when queued before refresh, or stale
+    after a ``# GPU Memory`` header was removed (which would otherwise keep a
+    wrong Redis reservation).
+    """
+    return {**pipeline, 'metadata': extract_pipe_metadata(pipeline_path)}
+
+
 def _resolve_pipeline_path(
     conf: 'Config',
     gc: GirderClient,
@@ -286,12 +297,11 @@ def run_pipeline(self: Task, params: PipelineJob):
             f" Job asked for {pipeline_path} but it does not exist"
         )
 
-        # Use the worker's installed/downloaded pipe even for jobs queued before
-        # discovery was refreshed and trained models listed without metadata.
-        local_metadata = extract_pipe_metadata(pipeline_path)
-        reservation_pipeline = pipeline
-        if local_metadata['gpuMemoryDeclared'] or local_metadata['gpuMemoryInvalid']:
-            reservation_pipeline = {**pipeline, 'metadata': local_metadata}
+        # Prefer the worker's installed/downloaded pipe for GPU reservation.
+        # Discovery on the queued job can lag the file that will run: missing
+        # metadata when queued before refresh, or stale after a # GPU Memory
+        # header was removed (which would otherwise keep a wrong Redis amount).
+        reservation_pipeline = reservation_pipeline_from_pipe(pipeline, pipeline_path)
 
         if multicam_cameras:
             input_folder = gc.getFolder(input_folder_id)
