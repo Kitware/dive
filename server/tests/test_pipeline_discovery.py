@@ -255,3 +255,52 @@ def test_extract_pipe_metadata_same_file_override_default(tmp_path: Path):
     params = extract_pipe_metadata(pipe)['diveParams']
     assert len(params) == 1
     assert params[0]['default'] == '0.2'
+
+
+def test_invalid_gpu_resolution_tiers(tmp_path):
+    pipe = tmp_path / 'sample.pipe'
+    tier = '# GPU Memory up to 1920x1080: 15.9 GB\n'
+    for headers in (
+        tier,
+        '# GPU Memory: High\n' + tier,
+        '# GPU Memory: 8 GB\n' + tier,
+        '# GPU Memory: 24 GB\n' + tier + tier,
+        '# GPU Memory: 24 GB\n# GPU Memory up to 4K: 8 GB\n',
+    ):
+        pipe.write_text(headers)
+        assert extract_pipe_metadata(pipe)['gpuMemoryInvalid']
+
+
+def test_gpu_resolution_tiers_are_sorted_by_area(tmp_path):
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text(
+        '# GPU Memory: 24 GB\n# GPU Memory up to 2560x1440: 20 GB\n'
+        '# GPU Memory up to 1920x1080: 15.9 GB\n'
+    )
+    metadata = extract_pipe_metadata(pipe)
+    assert not metadata['gpuMemoryInvalid']
+    assert metadata['gpuMemoryTiers'] == [(1920 * 1080, 15.9), (2560 * 1440, 20)]
+
+
+def test_conditional_gpu_memory_accepts_arbitrary_resolutions(tmp_path):
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text('# GPU Memory: 22 GB if <=3017x1423, ' '9.5 GB if <=673x947, else 32 GB\n')
+    metadata = extract_pipe_metadata(pipe)
+    assert not metadata['gpuMemoryInvalid']
+    assert metadata['gpuMemoryGB'] == 32
+    assert metadata['gpuMemoryTiers'] == [(673 * 947, 9.5), (3017 * 1423, 22)]
+
+
+def test_invalid_conditional_gpu_memory(tmp_path):
+    pipe = tmp_path / 'sample.pipe'
+    for value in (
+        '15.9 GB if <=1080p else 23.9 GB',
+        '15.9 GB if <=0x800 else 23.9 GB',
+        '32 GB if <=1234x567 else 23.9 GB',
+        '8 GB if <=1234x567, 10 GB if <=567x1234 else 23.9 GB',
+        '15.9 GB if <=1234x567',
+        '15.9 GB if <=1234x567, 23.9 GB',
+        '15.9 GB if <=1234x567 else High',
+    ):
+        pipe.write_text(f'# GPU Memory: {value}\n')
+        assert extract_pipe_metadata(pipe)['gpuMemoryInvalid']

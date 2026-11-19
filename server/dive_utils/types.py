@@ -103,6 +103,14 @@ class PipeMetadata(TypedDict):
     # warp_image`), e.g. [2, 3]; each such camera needs a fitted registration onto
     # camera 1, checked before the run.
     registrationWarps: NotRequired[Optional[list[int]]]
+    # `# GPU Memory: High` requests the whole GPU. A numeric value in GB sets a
+    # reservation; omitted headers default to 8 GB.
+    gpuMemoryGB: NotRequired[Optional[float]]
+    # (inclusive maximum pixels per frame, reservation in GB), smallest cutoff first.
+    gpuMemoryTiers: NotRequired[List[Tuple[int, float]]]
+    gpuMemoryDeclared: NotRequired[Optional[bool]]
+    gpuMemoryExclusive: NotRequired[Optional[bool]]
+    gpuMemoryInvalid: NotRequired[Optional[bool]]
 
 
 class PipelineDescription(TypedDict):

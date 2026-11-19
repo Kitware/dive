@@ -1,0 +1,286 @@
+import threading
+from unittest.mock import MagicMock
+
+import pytest
+
+from dive_tasks import gpu_slots
+from dive_tasks.gpu_slots import gpu_memory_slot
+from dive_tasks.utils import CanceledError
+
+
+def test_renew_failure_sets_lease_lost_event(monkeypatch):
+    """A missing/expired lease must set the event so callers can abort in-flight work."""
+    client = MagicMock()
+    # First eval acquires; subsequent renews return 0 (lease gone).
+    client.eval.side_effect = [1, 0]
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
+    monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 1)
+
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        assert lost.wait(timeout=2)
+    assert lost.is_set()
+
+
+def test_renew_redis_errors_near_lease_expiry_set_lease_lost(monkeypatch):
+    """Persistent Redis errors must fail closed before another worker can claim the slot."""
+    client = MagicMock()
+    client.eval.side_effect = [1] + [ConnectionError('redis down')] * 50
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
+    monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 0.2)
+
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        assert lost.wait(timeout=2)
+    assert lost.is_set()
+
+
+def test_renew_brief_redis_error_does_not_set_lease_lost(monkeypatch):
+    """A short Redis blip should recover on the next heartbeat without aborting VIAME."""
+    client = MagicMock()
+    # acquire, one failed renew, then successful renews for the rest of the body.
+    client.eval.side_effect = [1, ConnectionError('blip')] + [1] * 50
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
+    monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 2)
+
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        assert not lost.wait(timeout=0.3)
+    assert not lost.is_set()
+
+
+def test_late_renew_failure_after_success_does_not_raise(monkeypatch):
+    """A renew that fails after the body returns must not block upload/postprocess."""
+    client = MagicMock()
+    client.eval.return_value = 1
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
+    monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 1)
+
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        # Simulate a heartbeat that loses the lease only after VIAME finished.
+        lost.set()
+
+
+def test_standalone_worker_yields_unset_event(monkeypatch):
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: None)
+    with gpu_memory_slot({}) as lost:
+        assert isinstance(lost, threading.Event)
+        assert not lost.is_set()
+
+
+class _FakeClock:
+    def __init__(self):
+        self.now = 0.0
+
+    def time(self):
+        return self.now
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+def test_acquire_canceled_while_waiting(monkeypatch):
+    client = MagicMock()
+    client.eval.return_value = 0
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    clock = _FakeClock()
+    monkeypatch.setattr(gpu_slots.time, 'time', clock.time)
+    monkeypatch.setattr(gpu_slots.time, 'sleep', clock.sleep)
+
+    checks = {'n': 0}
+
+    def check_canceled():
+        checks['n'] += 1
+        return checks['n'] >= 2
+
+    with pytest.raises(CanceledError, match='waiting for GPU memory'):
+        with gpu_memory_slot(
+            {'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}},
+            check_canceled=check_canceled,
+        ):
+            pass
+
+
+def test_acquire_logs_while_waiting(monkeypatch):
+    client = MagicMock()
+    client.eval.side_effect = [0, 1]
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    clock = _FakeClock()
+    monkeypatch.setattr(gpu_slots.time, 'time', clock.time)
+    monkeypatch.setattr(gpu_slots.time, 'sleep', clock.sleep)
+    messages = []
+
+    with gpu_memory_slot(
+        {'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}},
+        log=messages.append,
+    ):
+        pass
+
+    assert any('Waiting for 4 GB of free GPU memory' in msg for msg in messages)
+    assert any('acquired 4 GB reservation' in msg for msg in messages)
+
+
+def test_acquire_times_out_while_waiting(monkeypatch):
+    client = MagicMock()
+    client.eval.return_value = 0
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    clock = _FakeClock()
+    monkeypatch.setattr(gpu_slots.time, 'time', clock.time)
+    monkeypatch.setattr(gpu_slots.time, 'sleep', clock.sleep)
+
+    with pytest.raises(RuntimeError, match='Timed out after 2s waiting for 4 GB'):
+        with gpu_memory_slot(
+            {'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}},
+            acquire_timeout_seconds=2,
+        ):
+            pass
+
+
+def test_standalone_worker_runs_whole_gpu_task_uncoordinated(monkeypatch):
+    """Training (reserve_all) must still run on workers without Redis."""
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: None)
+    with gpu_memory_slot({}, reserve_all=True) as lost:
+        assert not lost.is_set()
+
+
+def test_standalone_worker_rejects_declared_pipe(monkeypatch):
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: None)
+    with pytest.raises(RuntimeError, match='GIRDER_NOTIFICATION_REDIS_URL'):
+        with gpu_memory_slot({'metadata': {'gpuMemoryExclusive': True, 'gpuMemoryDeclared': True}}):
+            pass
+
+
+def test_default_reservation_capped_at_small_gpu(monkeypatch):
+    client = MagicMock()
+    client.eval.return_value = 1
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 6.0)
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 8.0, 'gpuMemoryDeclared': False}}):
+        pass
+    # eval(script, numkeys, key, key, now, expires, reservation, capacity, member)
+    assert client.eval.call_args_list[0].args[6] == 6.0
+
+
+def test_declared_reservation_over_capacity_still_fails(monkeypatch):
+    client = MagicMock()
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 6.0)
+    with pytest.raises(RuntimeError, match='requests 8 GB'):
+        with gpu_memory_slot({'metadata': {'gpuMemoryGB': 8.0, 'gpuMemoryDeclared': True}}):
+            pass
+
+
+def test_release_failure_does_not_mask_cancel(monkeypatch):
+    client = MagicMock()
+    # acquire succeeds, release fails
+    client.eval.side_effect = [1, ConnectionError('redis down')]
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    with pytest.raises(CanceledError):
+        with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}):
+            raise CanceledError('Job was canceled')
+
+
+_SAM3_BUDGET = '15.9 GB if <=1920x1080 else 23.9 GB'
+_CUSTOM_BUDGET = '5.5 GB if <=673x947 else 11 GB'
+
+
+@pytest.mark.parametrize(
+    ('header', 'image_sizes', 'video_size', 'budget'),
+    [
+        (_SAM3_BUDGET, [(1080, 1920)], None, 15.9),
+        (_SAM3_BUDGET, [(640, 480), (1921, 1080)], None, 23.9),
+        (_SAM3_BUDGET, [], (1920, 1080), 15.9),
+        (_SAM3_BUDGET, [(640, 480)], (3840, 2160), 23.9),
+        (_SAM3_BUDGET, [(640, 480), None], None, 23.9),
+        (_SAM3_BUDGET, [], None, 23.9),
+        (_CUSTOM_BUDGET, [(947, 673)], None, 5.5),
+        (_CUSTOM_BUDGET, [], (674, 947), 11),
+        ('8 GB', [], (3840, 2160), 8),
+        ('7.5', [], None, 7.5),
+        ('High', [], (640, 480), 24),
+    ],
+)
+def test_gpu_memory_header_reservation(
+    tmp_path, monkeypatch, header, image_sizes, video_size, budget
+):
+    """Carry fixed and conditional pipe declarations through to the amount charged to Redis."""
+    import json
+
+    from PIL import Image
+
+    from dive_tasks.pipeline_discovery import extract_pipe_metadata
+
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text(f'# Description: Track fish\n# GPU Memory: {header}\n')
+    metadata = extract_pipe_metadata(pipe)
+    assert metadata['description'] == 'Track fish'
+    assert metadata['gpuMemoryDeclared']
+    assert not metadata['gpuMemoryInvalid']
+    inputs = []
+    if image_sizes:
+        paths = []
+        for i, size in enumerate(image_sizes):
+            path = tmp_path / f'{i}.png'
+            if size:
+                Image.new('L', size).save(path)
+            paths.append(str(path))
+        manifest = tmp_path / 'images.txt'
+        manifest.write_text('\n'.join(paths))
+        inputs.append((str(manifest), False))
+    probe = MagicMock()
+    monkeypatch.setattr(gpu_slots.subprocess, 'run', probe)
+    if video_size:
+        probe.return_value.stdout = json.dumps(
+            {'streams': [{'width': video_size[0], 'height': video_size[1]}]}
+        )
+        inputs.append(('camera2.mp4', True))
+
+    client = MagicMock()
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 24)
+    with gpu_memory_slot({'metadata': metadata}, inputs=inputs):
+        pass
+    assert client.eval.call_args_list[0].args[6] == budget
+    if ' if ' not in header:
+        probe.assert_not_called()
+
+
+def test_reservation_pipeline_clears_stale_discovery_when_gpu_header_removed(tmp_path):
+    """A removed # GPU Memory header must not keep discovery's Redis reservation."""
+    from dive_tasks.run_pipeline import reservation_pipeline_from_pipe
+
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text('# Description: Track fish\n')
+    stale = {
+        'pipe': 'sample.pipe',
+        'metadata': {
+            'gpuMemoryGB': 24.0,
+            'gpuMemoryDeclared': True,
+            'gpuMemoryExclusive': True,
+        },
+    }
+    refreshed = reservation_pipeline_from_pipe(stale, pipe)
+    assert not refreshed['metadata']['gpuMemoryDeclared']
+    assert not refreshed['metadata']['gpuMemoryExclusive']
+    assert refreshed['metadata']['gpuMemoryGB'] == 8.0
+
+
+def test_reservation_pipeline_uses_local_declaration_when_discovery_missing(tmp_path):
+    """Jobs queued before discovery refresh still reserve from the installed pipe."""
+    from dive_tasks.run_pipeline import reservation_pipeline_from_pipe
+
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text('# Description: Track fish\n# GPU Memory: 12 GB\n')
+    queued = {'pipe': 'sample.pipe'}
+    refreshed = reservation_pipeline_from_pipe(queued, pipe)
+    assert refreshed['metadata']['gpuMemoryDeclared']
+    assert refreshed['metadata']['gpuMemoryGB'] == 12.0

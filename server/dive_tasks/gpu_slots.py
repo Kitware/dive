@@ -1,0 +1,339 @@
+"""Coordinate GPU memory reservations between VIAME worker tasks."""
+
+from contextlib import contextmanager
+import json
+import os
+from pathlib import Path
+import socket
+import subprocess
+import threading
+import time
+from typing import Callable, Iterable, Iterator, Optional
+import uuid
+
+from GPUtil import getGPUs
+from PIL import Image
+from redis import Redis
+
+from dive_tasks.utils import CanceledError
+
+_DEFAULT_PIPELINE_MEMORY_GB = 8.0
+_LEASE_SECONDS = 300
+_HEARTBEAT_SECONDS = 30
+# Safety net so a worker is not stuck forever when VRAM never frees up.
+# Cancel checks are the primary way jobs leave the wait; this is a backstop.
+_DEFAULT_ACQUIRE_TIMEOUT_SECONDS = 12 * 60 * 60
+_ACQUIRE_POLL_SECONDS = 1
+LEASE_LOST_MESSAGE = (
+    'GPU memory lease was lost (missing or expired); '
+    'stopping to avoid overlapping VRAM use with another worker'
+)
+
+
+class GpuLeaseLostError(RuntimeError):
+    """Raised when the Redis GPU reservation can no longer be renewed."""
+
+    def __init__(self, message: str = LEASE_LOST_MESSAGE):
+        super().__init__(message)
+
+
+_ACQUIRE_SCRIPT = """
+local now = tonumber(ARGV[1])
+local expires = tonumber(ARGV[2])
+local reservation = tonumber(ARGV[3])
+local capacity = tonumber(ARGV[4])
+local member = ARGV[5]
+local expired = redis.call('ZRANGEBYSCORE', KEYS[1], '-inf', now)
+for _, old_member in ipairs(expired) do
+  redis.call('ZREM', KEYS[1], old_member)
+  redis.call('HDEL', KEYS[2], old_member)
+end
+local active = redis.call('HVALS', KEYS[2])
+local used = 0
+for _, value in ipairs(active) do
+  used = used + tonumber(value)
+end
+if used + reservation <= capacity then
+  redis.call('HSET', KEYS[2], member, reservation)
+  redis.call('ZADD', KEYS[1], expires, member)
+  return 1
+end
+return 0
+"""
+# Remove ZSET and amounts entry together so a partial release cannot leave an
+# amount counted forever (the expiry sweep only discovers members via the ZSET).
+_RELEASE_SCRIPT = """
+redis.call('ZREM', KEYS[1], ARGV[1])
+redis.call('HDEL', KEYS[2], ARGV[1])
+return 1
+"""
+_RENEW_SCRIPT = """
+if redis.call('ZSCORE', KEYS[1], ARGV[1]) then
+  redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
+  return 1
+end
+return 0
+"""
+
+
+def _redis_client() -> Redis | None:
+    redis_url = os.environ.get('GIRDER_NOTIFICATION_REDIS_URL')
+    if not redis_url:
+        return None
+    return Redis.from_url(redis_url, socket_connect_timeout=5, socket_timeout=5)
+
+
+def _gpu_key() -> str:
+    # Workers without an explicit device UUID still coordinate with their peers.
+    gpu = os.environ.get('WORKER_GPU_UUID') or 'default'
+    return f'dive:gpu-memory-reservations:{gpu}'
+
+
+def _gpu_capacity_gb() -> float:
+    worker_gpu_uuid = os.environ.get('WORKER_GPU_UUID')
+    gpus = getGPUs()
+    if worker_gpu_uuid:
+        gpu = next((gpu for gpu in gpus if gpu.uuid == worker_gpu_uuid), None)
+        capacity_gb = float(gpu.memoryTotal) / 1024.0 if gpu else None
+    elif gpus:
+        # Without a pinned UUID, tasks may land on any visible GPU. Use the
+        # smallest device as a conservative shared budget for this worker group.
+        capacity_gb = min(float(gpu.memoryTotal) / 1024.0 for gpu in gpus)
+    else:
+        capacity_gb = None
+    if capacity_gb is None:
+        raise RuntimeError('Could not detect the worker GPU memory using nvidia-smi')
+    capacity = capacity_gb
+    if capacity <= 0:
+        raise RuntimeError('Detected GPU memory capacity must be greater than zero')
+    return capacity
+
+
+def _largest_input_size(
+    inputs: Iterable[tuple[str, bool]], check_canceled: Optional[Callable[[], bool]]
+) -> Optional[tuple[int, int]]:
+    """Inspect local video streams and image-list headers, including mixed-size sequences."""
+    largest = (0, 0)
+    try:
+        for filename, is_video in inputs:
+            if is_video:
+                probe = subprocess.run(
+                    [
+                        'ffprobe',
+                        '-v',
+                        'error',
+                        '-select_streams',
+                        'V:0',
+                        '-show_entries',
+                        'stream=width,height',
+                        '-of',
+                        'json',
+                        filename,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=True,
+                )
+                stream = json.loads(probe.stdout)['streams'][0]
+                width, height = int(stream['width']), int(stream['height'])
+                if min(width, height) <= 0:
+                    return None
+                if width * height > largest[0] * largest[1]:
+                    largest = (width, height)
+            else:
+                with Path(filename).open(encoding='utf-8') as manifest:
+                    found_image = False
+                    for line in manifest:
+                        path = line.rstrip('\r\n')
+                        if path:
+                            if check_canceled and check_canceled():
+                                raise CanceledError('Job canceled while checking input dimensions')
+                            with Image.open(path) as image:
+                                if image.width * image.height > largest[0] * largest[1]:
+                                    largest = image.size
+                            found_image = True
+                    if not found_image:
+                        return None
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        IndexError,
+        TypeError,
+        SyntaxError,
+        subprocess.SubprocessError,
+        Image.DecompressionBombError,
+    ):
+        return None
+    return largest if largest[0] else None
+
+
+def _acquire_timeout_seconds(override: Optional[float]) -> Optional[float]:
+    """Return seconds to wait for a slot, or None for no timeout.
+
+    ``override`` wins when provided. Otherwise ``DIVE_GPU_ACQUIRE_TIMEOUT_SECONDS``
+    is used when set (``0`` or negative disables the timeout). Default is 12h.
+    """
+    if override is not None:
+        return None if override <= 0 else override
+    raw = os.environ.get('DIVE_GPU_ACQUIRE_TIMEOUT_SECONDS')
+    if raw is not None and raw != '':
+        value = float(raw)
+        return None if value <= 0 else value
+    return _DEFAULT_ACQUIRE_TIMEOUT_SECONDS
+
+
+@contextmanager
+def gpu_memory_slot(
+    pipeline: dict,
+    *,
+    reserve_all: bool = False,
+    inputs: Iterable[tuple[str, bool]] = (),
+    check_canceled: Optional[Callable[[], bool]] = None,
+    log: Optional[Callable[[str], None]] = None,
+    acquire_timeout_seconds: Optional[float] = None,
+) -> Iterator[threading.Event]:
+    """Reserve the pipe's declared VRAM amount, or the whole GPU for exclusive work.
+
+    Yields an Event that is set if the Redis lease can no longer be renewed.
+    Pass that Event to ``stream_subprocess(..., abort_event=...)`` so the VIAME
+    process is killed instead of continuing without a reservation. A renew that
+    fails after the body returns does not raise; postprocess outside the with
+    must still run.
+
+    While waiting for free VRAM, ``check_canceled`` is polled each second so a
+    canceled job can leave FETCHING_INPUT instead of blocking the worker.
+    ``log`` is called once when the job must wait for capacity (job log / UI).
+    ``acquire_timeout_seconds`` (default 12h, or ``DIVE_GPU_ACQUIRE_TIMEOUT_SECONDS``)
+    is a backstop if the slot never becomes available.
+    """
+    metadata = pipeline.get('metadata') or {}
+    if metadata.get('gpuMemoryInvalid'):
+        raise RuntimeError('Invalid # GPU Memory declaration or resolution tier')
+    explicitly_declared = bool(metadata.get('gpuMemoryDeclared'))
+    exclusive = reserve_all or bool(metadata.get('gpuMemoryExclusive'))
+    declared_reservation = metadata.get('gpuMemoryGB')
+    reservation = float(
+        _DEFAULT_PIPELINE_MEMORY_GB if declared_reservation is None else declared_reservation
+    )
+    lease_lost = threading.Event()
+    client = _redis_client()
+    if client is None:
+        if explicitly_declared:
+            raise RuntimeError(
+                'This pipeline declares `# GPU Memory` and requires '
+                'GIRDER_NOTIFICATION_REDIS_URL to coordinate GPU access across workers'
+            )
+        # Unmarked pipes and internal whole-GPU tasks (training, export) keep
+        # their historical uncoordinated behavior on standalone workers.
+        yield lease_lost
+        return
+
+    capacity = _gpu_capacity_gb()
+    if exclusive:
+        reservation = capacity
+    elif metadata.get('gpuMemoryTiers'):
+        size = _largest_input_size(inputs, check_canceled)
+        input_label = 'unknown input dimensions'
+        if size:
+            width, height = size
+            input_label = f'{width}x{height} input'
+            for max_pixels, amount in metadata['gpuMemoryTiers']:
+                if width * height <= max_pixels:
+                    reservation = amount
+                    break
+        if log:
+            log(f'GPU memory reservation for {input_label}: {reservation:g} GB\n')
+    elif not explicitly_declared:
+        # The default budget is a guess; never let it make an unmarked pipe
+        # unrunnable on a GPU smaller than the default.
+        reservation = min(reservation, capacity)
+    if reservation <= 0:
+        raise RuntimeError('GPU memory reservation must be greater than zero')
+    if reservation > capacity:
+        raise RuntimeError(
+            f'Pipeline requests {reservation:g} GB of GPU memory but the worker GPU '
+            f'capacity is {capacity:g} GB'
+        )
+
+    lease_key = _gpu_key()
+    reservation_key = f'{lease_key}:amounts'
+    member = f'{socket.gethostname()}:{os.getpid()}:{uuid.uuid4()}'
+    timeout = _acquire_timeout_seconds(acquire_timeout_seconds)
+    started = time.time()
+    logged_waiting = False
+    while not client.eval(
+        _ACQUIRE_SCRIPT,
+        2,
+        lease_key,
+        reservation_key,
+        time.time(),
+        time.time() + _LEASE_SECONDS,
+        reservation,
+        capacity,
+        member,
+    ):
+        if not logged_waiting:
+            kind = ' (exclusive / full GPU)' if exclusive or reserve_all else ''
+            message = (
+                f'Waiting for {reservation:g} GB of free GPU memory{kind} '
+                f'before starting (capacity {capacity:g} GB)...\n'
+            )
+            if log is not None:
+                log(message)
+            logged_waiting = True
+        if check_canceled is not None and check_canceled():
+            raise CanceledError('Job was canceled while waiting for GPU memory')
+        if timeout is not None and (time.time() - started) >= timeout:
+            raise RuntimeError(
+                f'Timed out after {timeout:g}s waiting for {reservation:g} GB of GPU memory'
+            )
+        time.sleep(_ACQUIRE_POLL_SECONDS)
+    if logged_waiting and log is not None:
+        log(f'GPU memory available; acquired {reservation:g} GB reservation.\n')
+
+    stop_heartbeat = threading.Event()
+    # Matches the ZSET score written by acquire; bumped on each successful renew.
+    lease_deadline = time.time() + _LEASE_SECONDS
+
+    def renew() -> None:
+        nonlocal lease_deadline
+        while not stop_heartbeat.wait(_HEARTBEAT_SECONDS):
+            try:
+                renewed = client.eval(
+                    _RENEW_SCRIPT, 1, lease_key, member, time.time() + _LEASE_SECONDS
+                )
+                if not renewed:
+                    # Fail closed: the reservation is gone, so another worker may
+                    # claim this VRAM. Signal callers to stop the GPU process.
+                    lease_lost.set()
+                    return
+                lease_deadline = time.time() + _LEASE_SECONDS
+            except Exception as err:
+                # Tolerate brief Redis outages only while the lease could still be
+                # valid. Once it would expire (or the next heartbeat would miss
+                # the deadline), another worker may claim this budget—fail closed
+                # so VIAME is aborted instead of overlapping VRAM use.
+                if time.time() >= lease_deadline - _HEARTBEAT_SECONDS:
+                    print(f'Failed to renew GPU memory reservation {member}: {err}')
+                    lease_lost.set()
+                    return
+                continue
+
+    heartbeat = threading.Thread(target=renew, daemon=True)
+    heartbeat.start()
+    try:
+        # Do not raise on lease_lost after the body returns: a renew can fail
+        # after VIAME already exited, and upload/postprocess outside this with
+        # must still run. In-flight GPU work is stopped via abort_event.
+        yield lease_lost
+    finally:
+        stop_heartbeat.set()
+        heartbeat.join(timeout=_HEARTBEAT_SECONDS + 1)
+        # Never let a release failure mask the exception already in flight
+        # (e.g. CanceledError); the lease expires on its own after _LEASE_SECONDS.
+        try:
+            client.eval(_RELEASE_SCRIPT, 2, lease_key, reservation_key, member)
+        except Exception as err:
+            print(f'Failed to release GPU memory reservation {member}: {err}')

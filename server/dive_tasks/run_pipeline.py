@@ -12,6 +12,7 @@ from girder_worker.task import Task
 from girder_worker.utils import JobManager, JobStatus
 
 from dive_tasks import utils
+from dive_tasks.gpu_slots import LEASE_LOST_MESSAGE, gpu_memory_slot
 from dive_tasks.manager import patch_manager
 from dive_tasks.multicam_pipeline import (
     append_metadata_file_kwiver_settings,
@@ -28,6 +29,7 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
+from dive_tasks.pipeline_discovery import extract_pipe_metadata
 from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.single_camera_pipeline import csv_rows, finish_single_camera_run
 from dive_tasks.viame_config import Config
@@ -82,6 +84,17 @@ def filter_image_list_by_frame_range(
     start_frame = max(0, start_frame)
     end_frame = min(end_frame, len(image_list) - 1)
     return image_list[start_frame : end_frame + 1]
+
+
+def reservation_pipeline_from_pipe(pipeline: dict, pipeline_path: Path) -> dict:
+    """Build the pipeline dict used for GPU memory reservation.
+
+    Always refresh metadata from the worker's pipe file. Discovery on the
+    queued job can lag that file: missing when queued before refresh, or stale
+    after a ``# GPU Memory`` header was removed (which would otherwise keep a
+    wrong Redis reservation).
+    """
+    return {**pipeline, 'metadata': extract_pipe_metadata(pipeline_path)}
 
 
 def _resolve_pipeline_path(
@@ -284,6 +297,12 @@ def run_pipeline(self: Task, params: PipelineJob):
             f" Job asked for {pipeline_path} but it does not exist"
         )
 
+        # Prefer the worker's installed/downloaded pipe for GPU reservation.
+        # Discovery on the queued job can lag the file that will run: missing
+        # metadata when queued before refresh, or stale after a # GPU Memory
+        # header was removed (which would otherwise keep a wrong Redis amount).
+        reservation_pipeline = reservation_pipeline_from_pipe(pipeline, pipeline_path)
+
         if multicam_cameras:
             input_folder = gc.getFolder(input_folder_id)
             input_fps = fromMeta(input_folder, constants.FPSMarker)
@@ -398,11 +417,15 @@ def run_pipeline(self: Task, params: PipelineJob):
                     )
 
             # One image list per camera (each a single line-separated file).
-            input_manifests = [
-                arg_file_pair[f'input{i + 1}:video_filename']
-                for i in range(len(multicam_cameras))
-                if f'input{i + 1}:video_filename' in arg_file_pair
+            # Keep each manifest paired with its real camera number: cameras
+            # without a video_filename are skipped, so enumerating the filtered
+            # list would look up the wrong camera's reader type.
+            camera_inputs = [
+                (arg_file_pair[f'input{i}:video_filename'], f'input{i}:video_reader:type')
+                for i in range(1, len(multicam_cameras) + 1)
+                if f'input{i}:video_filename' in arg_file_pair
             ]
+            input_manifests = [path for path, _ in camera_inputs]
             _append_input_list_kwiver_settings(command, pipeline, input_manifests)
 
             _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
@@ -419,7 +442,6 @@ def run_pipeline(self: Task, params: PipelineJob):
                 for key, value in kwiver_params.items():
                     command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
-            manager.updateStatus(JobStatus.RUNNING)
             popen_kwargs = {
                 'args': " ".join(command),
                 'shell': True,
@@ -427,7 +449,21 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'cwd': output_path,
                 'env': conf.gpu_process_env,
             }
-            utils.stream_subprocess(self, context, manager, popen_kwargs)
+            with gpu_memory_slot(
+                reservation_pipeline,
+                inputs=[(path, reader_key in arg_file_pair) for path, reader_key in camera_inputs],
+                check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+                log=manager.write,
+            ) as lease_lost:
+                manager.updateStatus(JobStatus.RUNNING)
+                utils.stream_subprocess(
+                    self,
+                    context,
+                    manager,
+                    popen_kwargs,
+                    abort_event=lease_lost,
+                    abort_message=LEASE_LOST_MESSAGE,
+                )
 
             if (
                 is_stereo_measurement_pipeline(pipeline)
@@ -606,7 +642,6 @@ def run_pipeline(self: Task, params: PipelineJob):
             for key, value in kwiver_params.items():
                 command.append(f'-s {shlex.quote(key)}={shlex.quote(str(value))}')
 
-        manager.updateStatus(JobStatus.RUNNING)
         popen_kwargs = {
             'args': " ".join(command),
             'shell': True,
@@ -614,7 +649,21 @@ def run_pipeline(self: Task, params: PipelineJob):
             'cwd': output_path,
             'env': conf.gpu_process_env,
         }
-        utils.stream_subprocess(self, context, manager, popen_kwargs)
+        with gpu_memory_slot(
+            reservation_pipeline,
+            inputs=[(single_input_manifest, input_type == constants.VideoType)],
+            check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
+            log=manager.write,
+        ) as lease_lost:
+            manager.updateStatus(JobStatus.RUNNING)
+            utils.stream_subprocess(
+                self,
+                context,
+                manager,
+                popen_kwargs,
+                abort_event=lease_lost,
+                abort_message=LEASE_LOST_MESSAGE,
+            )
 
         if creates_new_dataset:
             manager.updateStatus(JobStatus.PUSHING_OUTPUT)

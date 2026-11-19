@@ -188,13 +188,34 @@ def _collect_dive_params(file_path: Path, collected: "Dict[str, DiveParam]", vis
             collected[key] = {**existing, "default": val}
 
 
+_MEMORY_AMOUNT = r'(\d+(?:\.\d+)?)\s*(?:GB)?'
+_FRAME_SIZE = r'(\d+)\s*x\s*(\d+)'
+
+
+def _add_memory_tier(tiers: dict[int, float], width: str, height: str, amount: str) -> bool:
+    """Index cutoffs by area so a resolution also covers its portrait equivalent."""
+    pixels = int(width) * int(height)
+    budget = float(amount)
+    if pixels <= 0 or budget <= 0 or pixels in tiers:
+        return False
+    tiers[pixels] = budget
+    return True
+
+
 def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
-    metadata: PipeMetadata = {"diveParams": []}
+    metadata: PipeMetadata = {
+        "diveParams": [],
+        "gpuMemoryGB": 8.0,
+        "gpuMemoryDeclared": False,
+        "gpuMemoryExclusive": False,
+        "gpuMemoryInvalid": False,
+    }
 
     collected: Dict[str, DiveParam] = {}
     _collect_dive_params(file_path, collected, set())
     metadata["diveParams"] = list(collected.values())
 
+    memory_tiers: dict[int, float] = {}
     in_description = False
     full_description_parts: List[str] = []
     # `process warpN` followed by `:: warp_detections|warp_image` marks an
@@ -234,7 +255,9 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
-                            r'^#\s*(Input|Output|Requires\s+Calibration|Metadata\s+File'
+                            r'^#\s*(Input|Output|Requires\s+Calibration'
+                            r'|GPU\s+Memory(?:\s+up\s+to[^:]*)?'
+                            r'|Metadata\s+File'
                             r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
                             line_raw,
                             re.IGNORECASE,
@@ -307,6 +330,44 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     if keys:
                         metadata["calibrationKeys"] = keys
 
+                # Also read the separate tier headers used by earlier .pipe files.
+                if re.match(r'^#\s*GPU\s+Memory\s+up\s+to\b', line_raw, re.IGNORECASE):
+                    tier = re.fullmatch(
+                        rf'#\s*GPU\s+Memory\s+up\s+to\s+{_FRAME_SIZE}\s*:\s*{_MEMORY_AMOUNT}\s*',
+                        line_raw,
+                        re.IGNORECASE,
+                    )
+                    if not tier or not _add_memory_tier(memory_tiers, *tier.groups()):
+                        metadata['gpuMemoryInvalid'] = True
+                    continue
+
+                gpu_memory_header = re.match(r'^#\s*GPU\s+Memory:\s*(.*)$', line_raw, re.IGNORECASE)
+                if gpu_memory_header:
+                    value = gpu_memory_header.group(1).strip()
+                    metadata['gpuMemoryDeclared'] = True
+                    if value.lower() == 'high':
+                        metadata['gpuMemoryExclusive'] = True
+                        continue
+                    *conditions, fallback = re.split(
+                        r',\s*|\s+(?=else\b)', value, flags=re.IGNORECASE
+                    )
+                    fallback_pattern = rf'else\s+{_MEMORY_AMOUNT}' if conditions else _MEMORY_AMOUNT
+                    amount = re.fullmatch(fallback_pattern, fallback.strip(), re.IGNORECASE)
+                    if not amount:
+                        metadata['gpuMemoryInvalid'] = True
+                        continue
+                    metadata['gpuMemoryGB'] = float(amount[1])
+                    for condition in conditions:
+                        tier = re.fullmatch(
+                            rf'{_MEMORY_AMOUNT}\s+if\s+<=\s*{_FRAME_SIZE}',
+                            condition.strip(),
+                            re.IGNORECASE,
+                        )
+                        if not tier or not _add_memory_tier(
+                            memory_tiers, tier[2], tier[3], tier[1]
+                        ):
+                            metadata['gpuMemoryInvalid'] = True
+
                 # `# Camera Order: EO, UV, IR` names the camera role fed to each
                 # inputN of a 2-cam/3-cam pipe; DIVE matches dataset cameras onto
                 # it by name at run time (multicam_pipeline.resolve_pipeline_camera_order).
@@ -319,6 +380,20 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     ]
                     if slots:
                         metadata["cameraOrder"] = slots
+
+        if memory_tiers:
+            tiers = sorted(memory_tiers.items())
+            budgets = [budget for _, budget in tiers]
+            fallback = metadata.get('gpuMemoryGB')
+            if (
+                not metadata['gpuMemoryDeclared']
+                or metadata['gpuMemoryExclusive']
+                or fallback is None
+                or budgets != sorted(budgets)
+                or budgets[-1] > fallback
+            ):
+                metadata['gpuMemoryInvalid'] = True
+            metadata['gpuMemoryTiers'] = tiers
 
         if registration_warps:
             metadata["registrationWarps"] = sorted(set(registration_warps))
