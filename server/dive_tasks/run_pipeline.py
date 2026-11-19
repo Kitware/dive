@@ -417,11 +417,15 @@ def run_pipeline(self: Task, params: PipelineJob):
                     )
 
             # One image list per camera (each a single line-separated file).
-            input_manifests = [
-                arg_file_pair[f'input{i + 1}:video_filename']
-                for i in range(len(multicam_cameras))
-                if f'input{i + 1}:video_filename' in arg_file_pair
+            # Keep each manifest paired with its real camera number: cameras
+            # without a video_filename are skipped, so enumerating the filtered
+            # list would look up the wrong camera's reader type.
+            camera_inputs = [
+                (arg_file_pair[f'input{i}:video_filename'], f'input{i}:video_reader:type')
+                for i in range(1, len(multicam_cameras) + 1)
+                if f'input{i}:video_filename' in arg_file_pair
             ]
+            input_manifests = [path for path, _ in camera_inputs]
             _append_input_list_kwiver_settings(command, pipeline, input_manifests)
 
             _inject_dataset_metadata_file(command, gc, _working_directory_path, params, manager)
@@ -448,8 +452,7 @@ def run_pipeline(self: Task, params: PipelineJob):
             with gpu_memory_slot(
                 reservation_pipeline,
                 inputs=[
-                    (path, f'input{i}:video_reader:type' in arg_file_pair)
-                    for i, path in enumerate(input_manifests, start=1)
+                    (path, reader_key in arg_file_pair) for path, reader_key in camera_inputs
                 ],
                 check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
                 log=manager.write,

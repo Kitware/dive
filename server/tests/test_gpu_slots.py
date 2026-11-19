@@ -180,8 +180,8 @@ def test_declared_reservation_over_capacity_still_fails(monkeypatch):
 
 def test_release_failure_does_not_mask_cancel(monkeypatch):
     client = MagicMock()
-    client.eval.return_value = 1
-    client.zrem.side_effect = ConnectionError('redis down')
+    # acquire succeeds, release fails
+    client.eval.side_effect = [1, ConnectionError('redis down')]
     monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
     monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
     with pytest.raises(CanceledError):

@@ -60,6 +60,13 @@ if used + reservation <= capacity then
 end
 return 0
 """
+# Remove ZSET and amounts entry together so a partial release cannot leave an
+# amount counted forever (the expiry sweep only discovers members via the ZSET).
+_RELEASE_SCRIPT = """
+redis.call('ZREM', KEYS[1], ARGV[1])
+redis.call('HDEL', KEYS[2], ARGV[1])
+return 1
+"""
 _RENEW_SCRIPT = """
 if redis.call('ZSCORE', KEYS[1], ARGV[1]) then
   redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
@@ -327,7 +334,6 @@ def gpu_memory_slot(
         # Never let a release failure mask the exception already in flight
         # (e.g. CanceledError); the lease expires on its own after _LEASE_SECONDS.
         try:
-            client.zrem(lease_key, member)
-            client.hdel(reservation_key, member)
+            client.eval(_RELEASE_SCRIPT, 2, lease_key, reservation_key, member)
         except Exception as err:
             print(f'Failed to release GPU memory reservation {member}: {err}')
