@@ -287,8 +287,11 @@ def gpu_memory_slot(
         log(f'GPU memory available; acquired {reservation:g} GB reservation.\n')
 
     stop_heartbeat = threading.Event()
+    # Matches the ZSET score written by acquire; bumped on each successful renew.
+    lease_deadline = time.time() + _LEASE_SECONDS
 
     def renew() -> None:
+        nonlocal lease_deadline
         while not stop_heartbeat.wait(_HEARTBEAT_SECONDS):
             try:
                 renewed = client.eval(
@@ -299,9 +302,16 @@ def gpu_memory_slot(
                     # claim this VRAM. Signal callers to stop the GPU process.
                     lease_lost.set()
                     return
-            except Exception:
-                # Leave the original lease to expire if Redis is briefly unavailable.
-                # Once Redis returns, a missing member makes renew fail closed above.
+                lease_deadline = time.time() + _LEASE_SECONDS
+            except Exception as err:
+                # Tolerate brief Redis outages only while the lease could still be
+                # valid. Once it would expire (or the next heartbeat would miss
+                # the deadline), another worker may claim this budget—fail closed
+                # so VIAME is aborted instead of overlapping VRAM use.
+                if time.time() >= lease_deadline - _HEARTBEAT_SECONDS:
+                    print(f'Failed to renew GPU memory reservation {member}: {err}')
+                    lease_lost.set()
+                    return
                 continue
 
     heartbeat = threading.Thread(target=renew, daemon=True)

@@ -23,6 +23,35 @@ def test_renew_failure_sets_lease_lost_event(monkeypatch):
     assert lost.is_set()
 
 
+def test_renew_redis_errors_near_lease_expiry_set_lease_lost(monkeypatch):
+    """Persistent Redis errors must fail closed before another worker can claim the slot."""
+    client = MagicMock()
+    client.eval.side_effect = [1] + [ConnectionError('redis down')] * 50
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
+    monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 0.2)
+
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        assert lost.wait(timeout=2)
+    assert lost.is_set()
+
+
+def test_renew_brief_redis_error_does_not_set_lease_lost(monkeypatch):
+    """A short Redis blip should recover on the next heartbeat without aborting VIAME."""
+    client = MagicMock()
+    # acquire, one failed renew, then successful renews for the rest of the body.
+    client.eval.side_effect = [1, ConnectionError('blip')] + [1] * 50
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
+    monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 2)
+
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        assert not lost.wait(timeout=0.3)
+    assert not lost.is_set()
+
+
 def test_late_renew_failure_after_success_does_not_raise(monkeypatch):
     """A renew that fails after the body returns must not block upload/postprocess."""
     client = MagicMock()
