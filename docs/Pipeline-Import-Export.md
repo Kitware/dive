@@ -67,7 +67,8 @@ Example:
 # Input: image
 # Output: image
 # Requires Calibration: False
-# GPU Memory: 24 GB
+# GPU Memory: 23.9 GB
+# GPU Memory up to 1920x1080: 15.9 GB
 ```
 
 | Header | Meaning |
@@ -80,6 +81,7 @@ Example:
 | `# Image List Keys: <k> [k…]` | Opt-in: binds the run's per-camera input image list(s) to each listed KWIVER key. Keys may be space- or comma-separated. A key containing `{cam}` is expanded once per camera (1-based), e.g. `stabilizer:image_list{cam}` → `image_list1`, `image_list2`, …. A key without `{cam}` receives camera 1's list only. |
 | `# Camera Order: <cam> [cam…]` | 2-cam/3-cam pipes only: labels the role expected on each `inputN`, in order (e.g. `# Camera Order: EO, UV, IR` → `input1` optical, `input2` ultraviolet, `input3` thermal). Role tokens are `EO`, `IR`, `UV` (aliases: eo/rgb/optical/color/vis, ir/thermal/lwir/flir, uv/ultraviolet); any other token (e.g. `left`, `right`) labels the slot literally. See [Multicam camera assignment](#multicam-camera-assignment) for the pre-run dialog where you confirm which dataset camera fills each slot. Camera 1 is the frame the pipe's warp processes map onto: each other camera's registration (Camera Registration tab) onto camera 1 is written to the job as `<camera>_to_<camera1>_registration.json` and bound to `warpN`. |
 | `# GPU Memory: High` or `# GPU Memory: <number> GB` | Declares the pipeline's GPU memory scheduling budget. `High` reserves the whole GPU exclusively; a number reserves that many GB, so jobs can overlap while their reservations fit the GPU. Pipes without this header default to 8 GB. DIVE detects VRAM with `nvidia-smi` through GPUtil. When `WORKER_GPU_UUID` is set it uses that device; otherwise it uses the smallest visible GPU as a conservative shared budget. This is a scheduling reservation, not a hard CUDA memory limit; use a conservative value based on the pipeline's peak use. |
+| `# GPU Memory up to <width>x<height>: <number> GB` | Sets a smaller reservation for inputs within the given frame size. The worker uses the smallest matching pixel-count cutoff, inclusive and independent of orientation. Budgets must increase or stay equal as cutoffs increase. It checks image headers in the selected manifests and the reported dimensions of each input video stream, using the largest frame area across cameras. Larger inputs and inputs with unknown dimensions use the plain numeric reservation. |
 
 All workers that share a GPU must use the same `GIRDER_NOTIFICATION_REDIS_URL` so reservations coordinate across containers. Docker Compose configures Redis for its GPU workers; standalone workers can use the Ansible variable. Pipelines that declare a `# GPU Memory` header fail with a configuration error when Redis is not configured. Pipes without the header, and training jobs, run uncoordinated on workers without Redis. When Redis is configured, training jobs reserve the whole GPU while they run, and the 8 GB default for pipes without the header is capped at the GPU's capacity.
 
