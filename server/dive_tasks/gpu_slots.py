@@ -191,7 +191,9 @@ def gpu_memory_slot(
 
     Yields an Event that is set if the Redis lease can no longer be renewed.
     Pass that Event to ``stream_subprocess(..., abort_event=...)`` so the VIAME
-    process is killed instead of continuing without a reservation.
+    process is killed instead of continuing without a reservation. A renew that
+    fails after the body returns does not raise; postprocess outside the with
+    must still run.
 
     While waiting for free VRAM, ``check_canceled`` is polled each second so a
     canceled job can leave FETCHING_INPUT instead of blocking the worker.
@@ -305,9 +307,10 @@ def gpu_memory_slot(
     heartbeat = threading.Thread(target=renew, daemon=True)
     heartbeat.start()
     try:
+        # Do not raise on lease_lost after the body returns: a renew can fail
+        # after VIAME already exited, and upload/postprocess outside this with
+        # must still run. In-flight GPU work is stopped via abort_event.
         yield lease_lost
-        if lease_lost.is_set():
-            raise GpuLeaseLostError()
     finally:
         stop_heartbeat.set()
         heartbeat.join(timeout=_HEARTBEAT_SECONDS + 1)

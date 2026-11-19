@@ -4,12 +4,12 @@ from unittest.mock import MagicMock
 import pytest
 
 from dive_tasks import gpu_slots
-from dive_tasks.gpu_slots import GpuLeaseLostError, gpu_memory_slot
+from dive_tasks.gpu_slots import gpu_memory_slot
 from dive_tasks.utils import CanceledError
 
 
 def test_renew_failure_sets_lease_lost_event(monkeypatch):
-    """A missing/expired lease must fail closed instead of exiting silently."""
+    """A missing/expired lease must set the event so callers can abort in-flight work."""
     client = MagicMock()
     # First eval acquires; subsequent renews return 0 (lease gone).
     client.eval.side_effect = [1, 0]
@@ -18,9 +18,23 @@ def test_renew_failure_sets_lease_lost_event(monkeypatch):
     monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
     monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 1)
 
-    with pytest.raises(GpuLeaseLostError, match='lease was lost'):
-        with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
-            assert lost.wait(timeout=2)
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        assert lost.wait(timeout=2)
+    assert lost.is_set()
+
+
+def test_late_renew_failure_after_success_does_not_raise(monkeypatch):
+    """A renew that fails after the body returns must not block upload/postprocess."""
+    client = MagicMock()
+    client.eval.return_value = 1
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 16.0)
+    monkeypatch.setattr(gpu_slots, '_HEARTBEAT_SECONDS', 0.05)
+    monkeypatch.setattr(gpu_slots, '_LEASE_SECONDS', 1)
+
+    with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}) as lost:
+        # Simulate a heartbeat that loses the lease only after VIAME finished.
+        lost.set()
 
 
 def test_standalone_worker_yields_unset_event(monkeypatch):
