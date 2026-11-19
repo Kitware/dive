@@ -201,6 +201,7 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
     _collect_dive_params(file_path, collected, set())
     metadata["diveParams"] = list(collected.values())
 
+    memory_tiers: dict[int, float] = {}
     in_description = False
     full_description_parts: List[str] = []
     # `process warpN` followed by `:: warp_detections|warp_image` marks an
@@ -240,7 +241,8 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                         re.match(r'^#\s*$', line_raw)
                         or re.match(r'^#\s*=', line_raw)
                         or re.match(
-                            r'^#\s*(Input|Output|Requires\s+Calibration|GPU\s+Memory'
+                            r'^#\s*(Input|Output|Requires\s+Calibration'
+                            r'|GPU\s+Memory(?:\s+up\s+to[^:]*)?'
                             r'|Metadata\s+File'
                             r'|Image\s+List\s+Keys?|Calibration\s+Keys?|Camera\s+Order):',
                             line_raw,
@@ -314,6 +316,24 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     if keys:
                         metadata["calibrationKeys"] = keys
 
+                # Optional cheaper reservations for known input sizes. The plain
+                # header remains the fallback for older workers and unknown sizes.
+                if re.match(r'^#\s*GPU\s+Memory\s+up\s+to\b', line_raw, re.IGNORECASE):
+                    tier = re.fullmatch(
+                        r'#\s*GPU\s+Memory\s+up\s+to\s+(\d+)\s*x\s*(\d+)\s*:\s*'
+                        r'(\d+(?:\.\d+)?)\s*(?:GB)?\s*',
+                        line_raw,
+                        re.IGNORECASE,
+                    )
+                    if tier:
+                        pixels = int(tier[1]) * int(tier[2])
+                        amount = float(tier[3])
+                        if pixels and amount > 0 and pixels not in memory_tiers:
+                            memory_tiers[pixels] = amount
+                            continue
+                    metadata['gpuMemoryInvalid'] = True
+                    continue
+
                 # `High` reserves the full GPU; a number reserves that many GB.
                 gpu_memory_header = re.match(r'^#\s*GPU\s+Memory:\s*(.*)$', line_raw, re.IGNORECASE)
                 if gpu_memory_header:
@@ -344,6 +364,20 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     ]
                     if slots:
                         metadata["cameraOrder"] = slots
+
+        if memory_tiers:
+            tiers = sorted(memory_tiers.items())
+            budgets = [budget for _, budget in tiers]
+            fallback = metadata.get('gpuMemoryGB')
+            if (
+                not metadata['gpuMemoryDeclared']
+                or metadata['gpuMemoryExclusive']
+                or fallback is None
+                or budgets != sorted(budgets)
+                or budgets[-1] > fallback
+            ):
+                metadata['gpuMemoryInvalid'] = True
+            metadata['gpuMemoryTiers'] = tiers
 
         if registration_warps:
             metadata["registrationWarps"] = sorted(set(registration_warps))

@@ -255,3 +255,28 @@ def test_extract_pipe_metadata_same_file_override_default(tmp_path: Path):
     params = extract_pipe_metadata(pipe)['diveParams']
     assert len(params) == 1
     assert params[0]['default'] == '0.2'
+
+
+def test_invalid_gpu_resolution_tiers(tmp_path):
+    pipe = tmp_path / 'sample.pipe'
+    tier = '# GPU Memory up to 1920x1080: 15.9 GB\n'
+    for headers in (
+        tier,
+        '# GPU Memory: High\n' + tier,
+        '# GPU Memory: 8 GB\n' + tier,
+        '# GPU Memory: 24 GB\n' + tier + tier,
+        '# GPU Memory: 24 GB\n# GPU Memory up to 4K: 8 GB\n',
+    ):
+        pipe.write_text(headers)
+        assert extract_pipe_metadata(pipe)['gpuMemoryInvalid']
+
+
+def test_gpu_resolution_tiers_are_sorted_by_area(tmp_path):
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text(
+        '# GPU Memory: 24 GB\n# GPU Memory up to 2560x1440: 20 GB\n'
+        '# GPU Memory up to 1920x1080: 15.9 GB\n'
+    )
+    metadata = extract_pipe_metadata(pipe)
+    assert not metadata['gpuMemoryInvalid']
+    assert metadata['gpuMemoryTiers'] == [(1920 * 1080, 15.9), (2560 * 1440, 20)]

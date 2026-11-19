@@ -29,6 +29,7 @@ from dive_tasks.pipeline_creates_dataset import (
     pipeline_creates_new_dataset,
     pipeline_renumbers_frames,
 )
+from dive_tasks.pipeline_discovery import extract_pipe_metadata
 from dive_tasks.registration_output import ingest_registration_output
 from dive_tasks.single_camera_pipeline import csv_rows, finish_single_camera_run
 from dive_tasks.viame_config import Config
@@ -285,6 +286,13 @@ def run_pipeline(self: Task, params: PipelineJob):
             f" Job asked for {pipeline_path} but it does not exist"
         )
 
+        # Use the worker's installed/downloaded pipe even for jobs queued before
+        # discovery was refreshed and trained models listed without metadata.
+        local_metadata = extract_pipe_metadata(pipeline_path)
+        reservation_pipeline = pipeline
+        if local_metadata['gpuMemoryDeclared'] or local_metadata['gpuMemoryInvalid']:
+            reservation_pipeline = {**pipeline, 'metadata': local_metadata}
+
         if multicam_cameras:
             input_folder = gc.getFolder(input_folder_id)
             input_fps = fromMeta(input_folder, constants.FPSMarker)
@@ -428,7 +436,11 @@ def run_pipeline(self: Task, params: PipelineJob):
                 'env': conf.gpu_process_env,
             }
             with gpu_memory_slot(
-                pipeline,
+                reservation_pipeline,
+                inputs=[
+                    (path, f'input{i}:video_reader:type' in arg_file_pair)
+                    for i, path in enumerate(input_manifests, start=1)
+                ],
                 check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
                 log=manager.write,
             ) as lease_lost:
@@ -627,7 +639,8 @@ def run_pipeline(self: Task, params: PipelineJob):
             'env': conf.gpu_process_env,
         }
         with gpu_memory_slot(
-            pipeline,
+            reservation_pipeline,
+            inputs=[(single_input_manifest, input_type == constants.VideoType)],
             check_canceled=utils.gpu_slot_cancel_check(self, context, manager),
             log=manager.write,
         ) as lease_lost:

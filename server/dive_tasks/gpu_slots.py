@@ -1,14 +1,18 @@
 """Coordinate GPU memory reservations between VIAME worker tasks."""
 
 from contextlib import contextmanager
+import json
 import os
+from pathlib import Path
 import socket
+import subprocess
 import threading
 import time
-from typing import Callable, Iterator, Optional
+from typing import Callable, Iterable, Iterator, Optional
 import uuid
 
 from GPUtil import getGPUs
+from PIL import Image
 from redis import Redis
 
 from dive_tasks.utils import CanceledError
@@ -98,6 +102,66 @@ def _gpu_capacity_gb() -> float:
     return capacity
 
 
+def _largest_input_size(
+    inputs: Iterable[tuple[str, bool]], check_canceled: Optional[Callable[[], bool]]
+) -> Optional[tuple[int, int]]:
+    """Inspect local video streams and image-list headers, including mixed-size sequences."""
+    largest = (0, 0)
+    try:
+        for filename, is_video in inputs:
+            if is_video:
+                probe = subprocess.run(
+                    [
+                        'ffprobe',
+                        '-v',
+                        'error',
+                        '-select_streams',
+                        'V:0',
+                        '-show_entries',
+                        'stream=width,height',
+                        '-of',
+                        'json',
+                        filename,
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=15,
+                    check=True,
+                )
+                stream = json.loads(probe.stdout)['streams'][0]
+                width, height = int(stream['width']), int(stream['height'])
+                if min(width, height) <= 0:
+                    return None
+                if width * height > largest[0] * largest[1]:
+                    largest = (width, height)
+            else:
+                with Path(filename).open(encoding='utf-8') as manifest:
+                    found_image = False
+                    for line in manifest:
+                        path = line.rstrip('\r\n')
+                        if path:
+                            if check_canceled and check_canceled():
+                                raise CanceledError('Job canceled while checking input dimensions')
+                            with Image.open(path) as image:
+                                if image.width * image.height > largest[0] * largest[1]:
+                                    largest = image.size
+                            found_image = True
+                    if not found_image:
+                        return None
+    except (
+        OSError,
+        ValueError,
+        KeyError,
+        IndexError,
+        TypeError,
+        SyntaxError,
+        subprocess.SubprocessError,
+        Image.DecompressionBombError,
+    ):
+        return None
+    return largest if largest[0] else None
+
+
 def _acquire_timeout_seconds(override: Optional[float]) -> Optional[float]:
     """Return seconds to wait for a slot, or None for no timeout.
 
@@ -118,6 +182,7 @@ def gpu_memory_slot(
     pipeline: dict,
     *,
     reserve_all: bool = False,
+    inputs: Iterable[tuple[str, bool]] = (),
     check_canceled: Optional[Callable[[], bool]] = None,
     log: Optional[Callable[[str], None]] = None,
     acquire_timeout_seconds: Optional[float] = None,
@@ -136,7 +201,7 @@ def gpu_memory_slot(
     """
     metadata = pipeline.get('metadata') or {}
     if metadata.get('gpuMemoryInvalid'):
-        raise RuntimeError('Invalid # GPU Memory header; use `High` or a number of GB')
+        raise RuntimeError('Invalid # GPU Memory declaration or resolution tier')
     explicitly_declared = bool(metadata.get('gpuMemoryDeclared'))
     exclusive = reserve_all or bool(metadata.get('gpuMemoryExclusive'))
     declared_reservation = metadata.get('gpuMemoryGB')
@@ -159,6 +224,18 @@ def gpu_memory_slot(
     capacity = _gpu_capacity_gb()
     if exclusive:
         reservation = capacity
+    elif metadata.get('gpuMemoryTiers'):
+        size = _largest_input_size(inputs, check_canceled)
+        input_label = 'unknown input dimensions'
+        if size:
+            width, height = size
+            input_label = f'{width}x{height} input'
+            for max_pixels, amount in metadata['gpuMemoryTiers']:
+                if width * height <= max_pixels:
+                    reservation = amount
+                    break
+        if log:
+            log(f'GPU memory reservation for {input_label}: {reservation:g} GB\n')
     elif not explicitly_declared:
         # The default budget is a guess; never let it make an unmarked pipe
         # unrunnable on a GPU smaller than the default.

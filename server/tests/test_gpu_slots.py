@@ -144,3 +144,56 @@ def test_release_failure_does_not_mask_cancel(monkeypatch):
     with pytest.raises(CanceledError):
         with gpu_memory_slot({'metadata': {'gpuMemoryGB': 4, 'gpuMemoryDeclared': True}}):
             raise CanceledError('Job was canceled')
+
+
+@pytest.mark.parametrize(
+    ('image_sizes', 'video_size', 'budget'),
+    [
+        ([(1080, 1920)], None, 15.9),
+        ([(640, 480), (1921, 1080)], None, 23.9),
+        ([], (1920, 1080), 15.9),
+        ([(640, 480)], (3840, 2160), 23.9),
+        ([(640, 480), None], None, 23.9),
+        ([], None, 23.9),
+    ],
+)
+def test_resolution_reservation(tmp_path, monkeypatch, image_sizes, video_size, budget):
+    """Carry parsed pipe tiers through to the amount charged to Redis."""
+    import json
+
+    from PIL import Image
+
+    from dive_tasks.pipeline_discovery import extract_pipe_metadata
+
+    pipe = tmp_path / 'sample.pipe'
+    pipe.write_text(
+        '# Description: Track fish\n# GPU Memory up to 1920x1080: 15.9 GB\n'
+        '# GPU Memory: 23.9 GB\n'
+    )
+    metadata = extract_pipe_metadata(pipe)
+    assert metadata['description'] == 'Track fish'
+    inputs = []
+    if image_sizes:
+        paths = []
+        for i, size in enumerate(image_sizes):
+            path = tmp_path / f'{i}.png'
+            if size:
+                Image.new('L', size).save(path)
+            paths.append(str(path))
+        manifest = tmp_path / 'images.txt'
+        manifest.write_text('\n'.join(paths))
+        inputs.append((str(manifest), False))
+    probe = MagicMock()
+    monkeypatch.setattr(gpu_slots.subprocess, 'run', probe)
+    if video_size:
+        probe.return_value.stdout = json.dumps(
+            {'streams': [{'width': video_size[0], 'height': video_size[1]}]}
+        )
+        inputs.append(('camera2.mp4', True))
+
+    client = MagicMock()
+    monkeypatch.setattr(gpu_slots, '_redis_client', lambda: client)
+    monkeypatch.setattr(gpu_slots, '_gpu_capacity_gb', lambda: 24)
+    with gpu_memory_slot({'metadata': metadata}, inputs=inputs):
+        pass
+    assert client.eval.call_args_list[0].args[6] == budget
