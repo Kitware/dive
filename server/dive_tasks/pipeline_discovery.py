@@ -348,7 +348,9 @@ def extract_pipe_metadata(file_path: Path) -> PipeMetadata:
                     if value.lower() == 'high':
                         metadata['gpuMemoryExclusive'] = True
                         continue
-                    *conditions, fallback = value.split(',')
+                    *conditions, fallback = re.split(
+                        r',\s*|\s+(?=else\b)', value, flags=re.IGNORECASE
+                    )
                     fallback_pattern = rf'else\s+{_MEMORY_AMOUNT}' if conditions else _MEMORY_AMOUNT
                     amount = re.fullmatch(fallback_pattern, fallback.strip(), re.IGNORECASE)
                     if not amount:
