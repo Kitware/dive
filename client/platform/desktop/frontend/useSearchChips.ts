@@ -60,6 +60,11 @@ function createScopedSearchChips(search: VideoSearchContextType, options: Search
     padding: DEFAULT_REVIEW_GRID.padding, size: PanelChipSize, aspect: 1, outline: '#00e5ff',
   });
 
+  // The 3D results view shows each result as its box alone, with no context
+  const tightStore = createChipStore({ frameSourceFor: registry.frameSourceFor }, {
+    padding: 0, size: PanelChipSize, aspect: 1, outline: '', tight: true,
+  });
+
   /** Every current result as a grid item, in rank order. */
   const items = computed<ReviewItem[]>(() => (options.results?.value ?? search.state.results)
     .filter((result) => !options.hidden?.(result))
@@ -84,6 +89,7 @@ function createScopedSearchChips(search: VideoSearchContextType, options: Search
       // New query: refs may repeat with different content, so start over.
       generation = search.state.queryGeneration;
       store.reset();
+      tightStore.reset();
     }
     // Refinement re-ranks within the same query; cached chips stay valid.
     store.ensurePrimary(current.slice(0, EagerLoadCount));
@@ -91,14 +97,17 @@ function createScopedSearchChips(search: VideoSearchContextType, options: Search
 
   function dispose() {
     store.reset();
+    tightStore.reset();
     registry.dispose();
   }
 
   return {
     store,
+    tightStore,
     items,
     itemsByRef,
     chips: store.chips,
+    tightChips: tightStore.chips,
     dispose,
   };
 }
