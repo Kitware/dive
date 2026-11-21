@@ -86,8 +86,8 @@ export default defineComponent({
     const invalidSelection = computed(() => {
       if (!selected.value) return null;
       if (excluded.value) return 'This dataset is already in the list.';
-      if (scoringDatasetPickerState.purpose === 'scoring' && selected.value.meta?.type === 'multi') {
-        return 'Multicamera parent folders cannot be scored; choose a camera dataset instead.';
+      if (scoringDatasetPickerState.purpose !== 'review' && selected.value.meta?.type === 'multi') {
+        return 'Choose an individual camera dataset instead of its multicamera parent.';
       }
       if (!selected.value.meta?.annotate) {
         return 'Choose a DIVE dataset folder.';
@@ -143,6 +143,9 @@ export default defineComponent({
       <v-card-text>
         <template v-if="scoringDatasetPickerState.purpose === 'review'">
           Select a dataset to review. Stereo and multicamera sequences include every camera.
+        </template>
+        <template v-else-if="scoringDatasetPickerState.purpose === 'query'">
+          Choose a video or image sequence to index. For multicamera sequences, choose one camera.
         </template>
         <template v-else>
           Browse to a DIVE dataset and select it to score. Multicamera parent folders

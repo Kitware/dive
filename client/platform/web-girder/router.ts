@@ -6,6 +6,7 @@ import Home from './views/Home.vue';
 import Jobs from './views/Jobs.vue';
 import TrainedModels from './views/TrainedModels.vue';
 import Scoring from './views/Scoring.vue';
+import Query from './views/Query.vue';
 import Review from './views/Review.vue';
 import Login from './views/Login.vue';
 import RouterPage from './views/RouterPage.vue';
@@ -99,6 +100,9 @@ const router = new Router({
           name: 'trained-models',
           component: TrainedModels,
           beforeEnter,
+        },
+        {
+          path: 'query', name: 'query', component: Query, beforeEnter,
         },
         {
           path: 'scoring',
